@@ -10,6 +10,9 @@ import type {
   JsSurfaceSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
+  asNodeSubject,
+} from "../../../../ast-utils.js";
+import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverTargetTypes,
 } from "../helpers.js";
@@ -100,6 +103,9 @@ function argumentConditionsStatus(
     if ("index" in condition) {
       const argumentType = argumentTypes[condition.index];
       if (argumentType === undefined) {
+        if (argumentConditionAllowsMissingArgument(condition, request.arguments[condition.index], context)) {
+          continue;
+        }
         missingArgumentIndex ??= condition.index;
         continue;
       }
@@ -108,17 +114,18 @@ function argumentConditionsStatus(
       }
       continue;
     }
-    let currentIndex = condition.fromIndex;
-    for (const argumentType of argumentTypes.slice(condition.fromIndex)) {
+    for (let currentIndex = condition.fromIndex; currentIndex < argumentTypes.length; currentIndex += 1) {
+      const argumentType = argumentTypes[currentIndex];
       if (argumentType === undefined) {
+        if (argumentConditionAllowsMissingArgument(condition, request.arguments[currentIndex], context)) {
+          continue;
+        }
         missingArgumentIndex ??= currentIndex;
-        currentIndex += 1;
         continue;
       }
       if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
         return { kind: "conflict" };
       }
-      currentIndex += 1;
     }
   }
   return missingArgumentIndex === undefined
@@ -152,4 +159,30 @@ function argumentMatchesTargetCondition(
     argumentType,
     host,
   });
+}
+
+function argumentConditionAllowsMissingArgument(
+  condition: JsSurfaceArgumentCondition,
+  argument: CheckedCallMappingRequest["arguments"][number] | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  return condition.allowNullish === true && argumentHasNullishSourceType(argument, context);
+}
+
+function argumentHasNullishSourceType(
+  argument: CheckedCallMappingRequest["arguments"][number] | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const node = asNodeSubject(argument);
+  const compiler = context.compiler;
+  if (node === undefined || compiler === undefined) {
+    return false;
+  }
+  try {
+    const sourceFile = compiler.ast.getSourceFile(node);
+    const type = compiler.checker.getTypeAtLocation(node, { sourceFile });
+    return type === undefined ? false : compiler.typeShape.isNullish(type);
+  } catch {
+    return false;
+  }
 }

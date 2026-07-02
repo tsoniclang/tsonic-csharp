@@ -114,6 +114,11 @@ function resolveDeclarationInitializerTargetType(
     if (operationResult !== undefined && operationResult !== initializer) {
       return resolveSubject(operationResult, context, options);
     }
+    const initializerCarrier = resolveRuntimeCarrier(initializer, context) ??
+      context.facts.get(initializer, runtimeCarrierFactKey)?.carrier;
+    if (initializerCarrier !== undefined) {
+      return initializerCarrier;
+    }
   }
   return undefined;
 }

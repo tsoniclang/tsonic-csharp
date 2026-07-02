@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
+  createCsharpNodejsProviderPackageExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
 } from "../dist/index.js";
@@ -13,10 +13,13 @@ import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/a
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import {
   createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider,
-  createCsharpNodejsSurfaceOperationsProvider,
 } from "../dist/source/csharp-source-semantics/surface-extensions.js";
+import {
+  createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsMappers,
+  createCsharpNodejsProviderPackageOperationsProvider,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 import { mapCsharpJsSurfaceCheckedIteration } from "../dist/source/csharp-source-semantics/surfaces/js/iteration.js";
-import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 import { csharpJsMapCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-metadata.js";
 import { csharpJsSetCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/set-metadata.js";
 
@@ -1563,11 +1566,62 @@ test("selected JS surface finalizes array element and length operations from car
 
   assert.ok(elementAccess);
   assert.ok(lengthAccess);
-  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
-  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
+  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.memberName, "Item");
   assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
   assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Count");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);
+});
+
+test("selected JS surface preserves provider-returned native array length from selected target facts", () => {
+  const session = createCsharpSession(`
+    import { readdirSync } from "node:fs";
+
+    export function count(path: string): number {
+      const entries = readdirSync(path);
+      return entries.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const call = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
+  const lengthAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(session.ast.name(node)) === "length");
+
+  assert.ok(call);
+  assert.ok(lengthAccess);
+  assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.returnType.kind, "array");
+  assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Length");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
+test("selected JS surface records awaited provider-native array result carriers", () => {
+  const session = createCsharpSession(`
+    import { readdir } from "node:fs/promises";
+
+    export async function count(path: string): Promise<number> {
+      const entries = await readdir(path);
+      return entries.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const awaitExpression = collectNodesByKind(sourceFile, session.ast, "KindAwaitExpression")[0];
+  const lengthAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(session.ast.name(node)) === "length");
+
+  assert.ok(awaitExpression);
+  assert.ok(lengthAccess);
+  assert.equal(extensionHost.facts.get(awaitExpression, runtimeCarrierFactKey)?.carrier.kind, "array");
+  assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Length");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
 test("selected JS surface finalizes Array length construction to JSArray carrier", () => {
@@ -1614,6 +1668,29 @@ test("selected JS surface finalizes Array length assignment as value-producing s
   assert.equal(operation?.operationKind, "method");
   assert.equal(operation?.memberName, "setLength");
   assert.equal(operation?.resultType?.name, "int32");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
+test("selected JS surface records inferred source-owned array return carriers on declarations", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function make(value: int32) {
+      return [value, value];
+    }
+
+    const values = make(1);
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const functionDeclaration = collectNodesByKind(sourceFile, session.ast, "KindFunctionDeclaration")[0];
+  const returnCarrier = extensionHost.facts.get(functionDeclaration, csharpSourceReturnCarrierFactKey)?.carrier;
+
+  assert.ok(functionDeclaration);
+  assert.equal(returnCarrier?.id, "System.Collections.Generic.List`1");
+  assert.equal(returnCarrier?.typeArguments?.[0]?.name, "float64");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
@@ -2091,6 +2168,49 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSObject");
 });
 
+test("JS surface maps Object.assign nullish sources from explicit source type facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const nullSource = { SemanticType: nullishType() };
+  const objectSource = {};
+  const undefinedSource = { SemanticType: nullishType() };
+  const targetTypes = new Map([
+    [target, jsObjectType()],
+    [objectSource, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, nullSource, objectSource, undefinedSource],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign");
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.paramsArray, true);
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.type.element.id, "System.Object");
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.csharpAcceptsCheckedSourceArgument, true);
+});
+
+test("JS surface rejects Object.assign source without object-helper or nullish facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const source = {};
+  const targetTypes = new Map([
+    [target, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, source],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /argument 2/);
+});
+
 test("JS surface maps Object.assign for closed Record dictionary target facts", () => {
   const facts = new TestFactStore();
   const call = {};
@@ -2172,6 +2292,7 @@ test("JS surface hard-rejects declared unsupported selected operations with evid
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
   assert.match(result.diagnostic.message, /Promise\.then/);
   assert.match(result.diagnostic.message, /Promise\/Task carrier/);
   assert.equal(result.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
@@ -2682,11 +2803,11 @@ test("JS surface rejects Record for-in without string-key enumeration facts", ()
   assert.equal(facts.get(statement, csharpTargetIterationFactKey), undefined);
 });
 
-test("NodeJS surface maps calls from the selected provider signature identity", () => {
+test("NodeJS provider package maps calls from the selected provider signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "join", "node:path.join(System.String[])"));
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
@@ -2695,9 +2816,9 @@ test("NodeJS surface maps calls from the selected provider signature identity", 
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.join(System.String[])");
 });
 
-test("NodeJS surface maps expanded path and fs calls from selected provider signature identity", () => {
+test("NodeJS provider package maps expanded path and fs calls from selected provider signature identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const pathCall = {};
   const pathSignature = {};
   const fsCall = {};
@@ -2714,9 +2835,9 @@ test("NodeJS surface maps expanded path and fs calls from selected provider sign
   assert.equal(fsResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)");
 });
 
-test("NodeJS surface maps path.parse and path.format through ParsedPath provider facts", () => {
+test("NodeJS provider package maps path.parse and path.format through ParsedPath provider facts", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const parseCall = {};
   const parseSignature = {};
   const formatCall = {};
@@ -2745,9 +2866,9 @@ test("NodeJS surface maps path.parse and path.format through ParsedPath provider
   assert.equal(extResult.value.operation.operationId, "Tsonic.CSharp.Node.ParsedPath.ext");
 });
 
-test("NodeJS surface maps fs.statSync and Stats members through selected provider facts", () => {
+test("NodeJS provider package maps fs.statSync and Stats members through selected provider facts", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const statCall = {};
   const statSignature = {};
   const sizeExpression = {};
@@ -2782,9 +2903,9 @@ test("NodeJS surface maps fs.statSync and Stats members through selected provide
   assert.equal(isFileResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Stats.IsFile()");
 });
 
-test("NodeJS surface maps expanded crypto and os calls from selected provider signature identity", () => {
+test("NodeJS provider package maps expanded crypto and os calls from selected provider signature identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const cryptoCall = {};
   const cryptoSignature = {};
   const osCall = {};
@@ -2801,8 +2922,8 @@ test("NodeJS surface maps expanded crypto and os calls from selected provider si
   assert.equal(osResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.os.tmpdir()");
 });
 
-test("NodeJS surface exposes assert and assert/strict as provider-owned virtual modules", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+test("NodeJS provider package exposes assert and assert/strict as provider-owned virtual modules", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
   const bareOwnership = bindingProvider.ownsModule("assert", {});
   const nodeOwnership = bindingProvider.ownsModule("node:assert", {});
@@ -2841,9 +2962,9 @@ test("NodeJS surface exposes assert and assert/strict as provider-owned virtual 
   assert.equal(unsupportedIdentity?.id, "unsupported:Tsonic.CSharp.Node.assert.deepStrictEqual(System.Object,System.Object,System.String)");
 });
 
-test("NodeJS surface maps supported assert calls from selected provider signature identity", () => {
+test("NodeJS provider package maps supported assert calls from selected provider signature identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const okCall = {};
   const okSignature = {};
   const failCall = {};
@@ -2867,9 +2988,9 @@ test("NodeJS surface maps supported assert calls from selected provider signatur
   assert.equal(strictEqualResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)");
 });
 
-test("NodeJS surface fails closed for unsupported assert provider identities", () => {
+test("NodeJS provider package fails closed for unsupported assert provider identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const deepStrictEqualCall = {};
   const deepStrictEqualSignature = {};
   const matchCall = {};
@@ -2881,23 +3002,25 @@ test("NodeJS surface fails closed for unsupported assert provider identities", (
   const matchResult = provider.mapCheckedCall(nodejsCallRequest(matchCall, matchSignature), fakeContext(facts));
 
   assert.equal(deepStrictEqualResult.kind, "reject");
-  assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(deepStrictEqualResult.diagnostic.nodeOrSpan, deepStrictEqualCall);
   assert.match(deepStrictEqualResult.diagnostic.message, /node:assert\/strict/);
   assert.match(deepStrictEqualResult.diagnostic.message, /deepStrictEqual/);
   assert.equal(deepStrictEqualResult.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
   assert.equal(matchResult.kind, "reject");
-  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(matchResult.diagnostic.nodeOrSpan, matchCall);
   assert.match(matchResult.diagnostic.message, /match/);
 });
 
-test("NodeJS assert provider declarations compile only when the nodejs surface is selected", () => {
+test("NodeJS assert provider declarations compile only when the nodejs provider package is selected", () => {
   const selectedSession = createCsharpSession(`
     import { fail, ok } from "node:assert/strict";
     ok(true);
     if (false) {
       fail("unreachable");
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const selectedSourceFile = selectedSession.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(selectedSession.ensureChecked(selectedSourceFile)), "");
 
@@ -2909,7 +3032,7 @@ test("NodeJS assert provider declarations compile only when the nodejs surface i
   assert.match(formatDiagnostics(nativeSession.ensureChecked(nativeSourceFile)), /Cannot find name 'node:assert\/strict'/);
 });
 
-test("selected NodeJS surface finalizes unchanged ESM Node import operations", () => {
+test("selected NodeJS provider package finalizes unchanged ESM Node import operations", () => {
   const session = createCsharpSession(`
     import { ok } from "assert/strict";
     import { Buffer } from "buffer";
@@ -2931,7 +3054,7 @@ test("selected NodeJS surface finalizes unchanged ESM Node import operations", (
         ? path.join(cwd(), file) + path.sep + process.argv.length + buffer.length + fileURLToPath(url) + clean
         : process.platform;
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -2959,7 +3082,7 @@ test("selected NodeJS surface finalizes unchanged ESM Node import operations", (
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.Buffer.length"));
 });
 
-test("NodeJS provider imports remain unavailable without the selected NodeJS surface", () => {
+test("NodeJS provider imports remain unavailable without the selected NodeJS provider package", () => {
   const nativeSession = createCsharpSession(`
     import { existsSync } from "fs";
     export const value = existsSync("package.json");
@@ -2969,8 +3092,8 @@ test("NodeJS provider imports remain unavailable without the selected NodeJS sur
   assert.match(formatDiagnostics(nativeSession.ensureChecked(nativeSourceFile)), /Cannot find name 'fs'/);
 });
 
-test("NodeJS surface exposes util as a provider-owned virtual module", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+test("NodeJS provider package exposes util as a provider-owned virtual module", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
   const ownership = bindingProvider.ownsModule("util", {});
   const resolution = bindingProvider.resolveModule("util", {});
@@ -3018,9 +3141,9 @@ test("NodeJS surface exposes util as a provider-owned virtual module", () => {
   assert.equal(debuglogIdentity?.id, "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)");
 });
 
-test("NodeJS surface maps closed util string calls from selected provider signature identity", () => {
+test("NodeJS provider package maps closed util string calls from selected provider signature identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const stripCall = {};
   const stripSignature = {};
   const usvCall = {};
@@ -3037,38 +3160,65 @@ test("NodeJS surface maps closed util string calls from selected provider signat
   assert.equal(usvResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
 });
 
-test("NodeJS surface fails closed for unsupported util provider identities", () => {
+test("NodeJS provider package fails closed for unsupported util provider identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const formatCall = {};
   const formatSignature = {};
+  const formatWithOptionsCall = {};
+  const formatWithOptionsSignature = {};
   const inspectCall = {};
   const inspectSignature = {};
+  const debuglogCall = {};
+  const debuglogSignature = {};
+  const deprecateCall = {};
+  const deprecateSignature = {};
   const isDeepStrictEqualCall = {};
   const isDeepStrictEqualSignature = {};
   facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
+  facts.set(formatWithOptionsSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "formatWithOptions", "node:util.formatWithOptions(System.Object,System.Object,System.Object[])"));
   facts.set(inspectSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "inspect", "node:util.inspect(System.Object)"));
+  facts.set(debuglogSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "debuglog", "node:util.debuglog(System.String)"));
+  facts.set(deprecateSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "deprecate", "node:util.deprecate(Function,System.String,System.String)"));
   facts.set(isDeepStrictEqualSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "isDeepStrictEqual", "node:util.isDeepStrictEqual(System.Object,System.Object)"));
 
   const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const formatWithOptionsResult = provider.mapCheckedCall(nodejsCallRequest(formatWithOptionsCall, formatWithOptionsSignature), fakeContext(facts));
   const inspectResult = provider.mapCheckedCall(nodejsCallRequest(inspectCall, inspectSignature), fakeContext(facts));
+  const debuglogResult = provider.mapCheckedCall(nodejsCallRequest(debuglogCall, debuglogSignature), fakeContext(facts));
+  const deprecateResult = provider.mapCheckedCall(nodejsCallRequest(deprecateCall, deprecateSignature), fakeContext(facts));
   const isDeepStrictEqualResult = provider.mapCheckedCall(nodejsCallRequest(isDeepStrictEqualCall, isDeepStrictEqualSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
-  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(formatResult.diagnostic.nodeOrSpan, formatCall);
   assert.match(formatResult.diagnostic.message, /node:util/);
   assert.match(formatResult.diagnostic.message, /format/);
   assert.equal(formatResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
+  assert.equal(formatWithOptionsResult.kind, "reject");
+  assert.equal(formatWithOptionsResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(formatWithOptionsResult.diagnostic.message, /formatWithOptions/);
+  assert.equal(formatWithOptionsResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.formatWithOptions(System.Object,System.Object,System.Object[])");
   assert.equal(inspectResult.kind, "reject");
-  assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.match(inspectResult.diagnostic.message, /inspect/);
+  assert.equal(inspectResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.inspect(System.Object)");
+  assert.equal(debuglogResult.kind, "reject");
+  assert.equal(debuglogResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(debuglogResult.diagnostic.message, /debuglog/);
+  assert.equal(debuglogResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)");
+  assert.equal(deprecateResult.kind, "reject");
+  assert.equal(deprecateResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(deprecateResult.diagnostic.message, /deprecate/);
+  assert.equal(deprecateResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.deprecate(Function,System.String,System.String)");
   assert.equal(isDeepStrictEqualResult.kind, "reject");
-  assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.match(isDeepStrictEqualResult.diagnostic.message, /isDeepStrictEqual/);
+  assert.equal(isDeepStrictEqualResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.isDeepStrictEqual(System.Object,System.Object)");
 });
 
-test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+test("NodeJS provider package exposes URL as a provider-owned virtual module", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
   const bareOwnership = bindingProvider.ownsModule("url", {});
   const nodeOwnership = bindingProvider.ownsModule("node:url", {});
@@ -3133,13 +3283,13 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   assert.equal(hrefIdentity?.id, "Tsonic.CSharp.Node.URL.href");
   assert.equal(pathIdentity?.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
   assert.equal(formatIdentity?.id, "Tsonic.CSharp.Node.url.format(System.Object)");
-  assert.equal(searchParamsIdentity?.id, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
-  assert.equal(appendIdentity?.id, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
+  assert.equal(searchParamsIdentity?.id, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(appendIdentity?.id, "Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
 });
 
-test("NodeJS surface maps closed URL members from selected provider identities", () => {
+test("NodeJS provider package maps closed URL members from selected provider identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const constructorCall = {};
   const constructorSignature = {};
   const hrefExpression = {};
@@ -3150,6 +3300,10 @@ test("NodeJS surface maps closed URL members from selected provider identities",
   const pathToFileURLSignature = {};
   const fileURLToPathCall = {};
   const fileURLToPathSignature = {};
+  const searchParamsExpression = {};
+  const searchParamsDeclaration = {};
+  const appendCall = {};
+  const appendSignature = {};
   facts.set(constructorSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:url",
     "URL",
@@ -3172,37 +3326,6 @@ test("NodeJS surface maps closed URL members from selected provider identities",
   ));
   facts.set(pathToFileURLSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("url", "pathToFileURL", "node:url.pathToFileURL(System.String)"));
   facts.set(fileURLToPathSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "fileURLToPath", "node:url.fileURLToPath(Tsonic.CSharp.Node.URL)"));
-
-  const constructorResult = provider.mapCheckedCall(nodejsCallRequest(constructorCall, constructorSignature), fakeContext(facts));
-  const hrefResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(hrefExpression, hrefDeclaration), fakeContext(facts));
-  const toStringResult = provider.mapCheckedCall(nodejsCallRequest(toStringCall, toStringSignature), fakeContext(facts));
-  const pathToFileURLResult = provider.mapCheckedCall(nodejsCallRequest(pathToFileURLCall, pathToFileURLSignature), fakeContext(facts));
-  const fileURLToPathResult = provider.mapCheckedCall(nodejsCallRequest(fileURLToPathCall, fileURLToPathSignature), fakeContext(facts));
-
-  assert.equal(constructorResult.kind, "accept");
-  assert.equal(constructorResult.value.selectedSignature.member.kind, "constructor");
-  assert.equal(constructorResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)");
-  assert.equal(hrefResult.kind, "accept");
-  assert.equal(hrefResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.href");
-  assert.equal(toStringResult.kind, "accept");
-  assert.equal(toStringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL.ToString()");
-  assert.equal(pathToFileURLResult.kind, "accept");
-  assert.equal(pathToFileURLResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
-  assert.equal(pathToFileURLResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.URL");
-  assert.equal(fileURLToPathResult.kind, "accept");
-  assert.equal(fileURLToPathResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.fileURLToPath(Tsonic.CSharp.Node.URL)");
-});
-
-test("NodeJS surface fails closed for unsupported URL provider identities", () => {
-  const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
-  const formatCall = {};
-  const formatSignature = {};
-  const searchParamsExpression = {};
-  const searchParamsDeclaration = {};
-  const appendCall = {};
-  const appendSignature = {};
-  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "format", "node:url.format(System.Object)"));
   facts.set(searchParamsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:url",
     "URL",
@@ -3217,29 +3340,83 @@ test("NodeJS surface fails closed for unsupported URL provider identities", () =
     "node:url.URLSearchParams.append(System.String,System.String)",
   ));
 
-  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const constructorResult = provider.mapCheckedCall(nodejsCallRequest(constructorCall, constructorSignature), fakeContext(facts));
+  const hrefResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(hrefExpression, hrefDeclaration), fakeContext(facts));
+  const toStringResult = provider.mapCheckedCall(nodejsCallRequest(toStringCall, toStringSignature), fakeContext(facts));
+  const pathToFileURLResult = provider.mapCheckedCall(nodejsCallRequest(pathToFileURLCall, pathToFileURLSignature), fakeContext(facts));
+  const fileURLToPathResult = provider.mapCheckedCall(nodejsCallRequest(fileURLToPathCall, fileURLToPathSignature), fakeContext(facts));
   const searchParamsResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(searchParamsExpression, searchParamsDeclaration), fakeContext(facts));
   const appendResult = provider.mapCheckedCall(nodejsCallRequest(appendCall, appendSignature), fakeContext(facts));
 
-  assert.equal(formatResult.kind, "reject");
-  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
-  assert.match(formatResult.diagnostic.message, /node:url/);
-  assert.match(formatResult.diagnostic.message, /format/);
-  assert.equal(searchParamsResult.kind, "reject");
-  assert.equal(searchParamsResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
-  assert.match(searchParamsResult.diagnostic.message, /searchParams/);
-  assert.equal(searchParamsResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
-  assert.equal(appendResult.kind, "reject");
-  assert.equal(appendResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
-  assert.match(appendResult.diagnostic.message, /URLSearchParams/);
-  assert.match(appendResult.diagnostic.message, /append/);
+  assert.equal(constructorResult.kind, "accept");
+  assert.equal(constructorResult.value.selectedSignature.member.kind, "constructor");
+  assert.equal(constructorResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)");
+  assert.equal(hrefResult.kind, "accept");
+  assert.equal(hrefResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.href");
+  assert.equal(toStringResult.kind, "accept");
+  assert.equal(toStringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL.ToString()");
+  assert.equal(pathToFileURLResult.kind, "accept");
+  assert.equal(pathToFileURLResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
+  assert.equal(pathToFileURLResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.URL");
+  assert.equal(fileURLToPathResult.kind, "accept");
+  assert.equal(fileURLToPathResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.fileURLToPath(Tsonic.CSharp.Node.URL)");
+  assert.equal(searchParamsResult.kind, "accept");
+  assert.equal(searchParamsResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(facts.get(searchParamsExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(appendResult.kind, "accept");
+  assert.equal(appendResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
 });
 
-test("NodeJS surface maps Buffer static calls from selected provider member signature identity", () => {
+test("NodeJS provider package fails closed for unsupported URL provider identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
+  const formatCall = {};
+  const formatSignature = {};
+  const urlPatternTestCall = {};
+  const urlPatternTestSignature = {};
+  const urlPatternExecCall = {};
+  const urlPatternExecSignature = {};
+  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "format", "node:url.format(System.Object)"));
+  facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:url",
+    "URLPattern",
+    "test",
+    "node:url.URLPattern.test",
+    "node:url.URLPattern.test(System.String)",
+  ));
+  facts.set(urlPatternExecSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:url",
+    "URLPattern",
+    "exec",
+    "node:url.URLPattern.exec",
+    "node:url.URLPattern.exec(System.String)",
+  ));
+
+  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const urlPatternTestResult = provider.mapCheckedCall(nodejsCallRequest(urlPatternTestCall, urlPatternTestSignature), fakeContext(facts));
+  const urlPatternExecResult = provider.mapCheckedCall(nodejsCallRequest(urlPatternExecCall, urlPatternExecSignature), fakeContext(facts));
+
+  assert.equal(formatResult.kind, "reject");
+  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(formatResult.diagnostic.message, /node:url/);
+  assert.match(formatResult.diagnostic.message, /format/);
+  assert.equal(urlPatternTestResult.kind, "reject");
+  assert.equal(urlPatternTestResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(urlPatternTestResult.diagnostic.message, /URLPattern/);
+  assert.match(urlPatternTestResult.diagnostic.message, /test/);
+  assert.equal(urlPatternTestResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URLPattern.test(System.String)");
+  assert.equal(urlPatternExecResult.kind, "reject");
+  assert.equal(urlPatternExecResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(urlPatternExecResult.diagnostic.message, /URLPattern/);
+  assert.match(urlPatternExecResult.diagnostic.message, /exec/);
+  assert.equal(urlPatternExecResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URLPattern.exec(System.String)");
+});
+
+test("NodeJS provider package maps Buffer static calls from selected provider member signature identity", () => {
   const call = {};
   const selectedSignature = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:buffer",
     "Buffer",
@@ -3254,9 +3431,9 @@ test("NodeJS surface maps Buffer static calls from selected provider member sign
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.from(System.String,System.String)");
 });
 
-test("NodeJS surface maps expanded Buffer static and instance calls from selected provider member identities", () => {
+test("NodeJS provider package maps expanded Buffer static and instance calls from selected provider member identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const staticCall = {};
   const staticSignature = {};
   const instanceCall = {};
@@ -3287,11 +3464,44 @@ test("NodeJS surface maps expanded Buffer static and instance calls from selecte
   assert.equal(instanceResult.value.selectedSignature.member.static, undefined);
 });
 
-test("NodeJS surface maps Buffer instance properties from selected provider member identity", () => {
+test("NodeJS provider package maps Buffer numeric read and write calls from selected provider member identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
+  const readCall = {};
+  const readSignature = {};
+  const writeCall = {};
+  const writeSignature = {};
+  facts.set(readSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "readUInt16LE",
+    "node:buffer.Buffer.readUInt16LE",
+    "node:buffer.Buffer.readUInt16LE(System.Int32)",
+  ));
+  facts.set(writeSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "writeDoubleBE",
+    "node:buffer.Buffer.writeDoubleBE",
+    "node:buffer.Buffer.writeDoubleBE(System.Double,System.Int32)",
+  ));
+
+  const readResult = provider.mapCheckedCall(nodejsCallRequest(readCall, readSignature), fakeContext(facts));
+  const writeResult = provider.mapCheckedCall(nodejsCallRequest(writeCall, writeSignature), fakeContext(facts));
+
+  assert.equal(readResult.kind, "accept");
+  assert.equal(readResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.readUInt16LE(System.Int32)");
+  assert.equal(readResult.value.selectedSignature.member.returnType.name, "uint16");
+  assert.equal(writeResult.kind, "accept");
+  assert.equal(writeResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.writeDoubleBE(System.Double,System.Int32)");
+  assert.equal(writeResult.value.selectedSignature.member.returnType.name, "int32");
+});
+
+test("NodeJS provider package maps Buffer instance properties from selected provider member identity", () => {
   const expression = {};
   const selectedPropertySymbol = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedPropertySymbol, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:buffer",
     "Buffer",
@@ -3312,9 +3522,9 @@ test("NodeJS surface maps Buffer instance properties from selected provider memb
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.Buffer.length");
 });
 
-test("NodeJS surface maps expanded static properties from selected provider declaration identity", () => {
+test("NodeJS provider package maps expanded static properties from selected provider declaration identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const pathExpression = {};
   const pathDeclaration = {};
   const processExpression = {};
@@ -3333,8 +3543,8 @@ test("NodeJS surface maps expanded static properties from selected provider decl
   assert.equal(facts.get(processExpression, csharpTargetOperationFactKey)?.resultType.element.id, "System.String");
 });
 
-test("NodeJS surface exposes process.env as provider-owned closed environment carrier", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+test("NodeJS provider package exposes process.env as provider-owned closed environment carrier", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
   const resolution = bindingProvider.resolveModule("process", {});
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
@@ -3350,7 +3560,7 @@ test("NodeJS surface exposes process.env as provider-owned closed environment ca
   assert.equal(envIdentity?.id, "Tsonic.CSharp.Node.process.env");
 
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const expression = {};
   const envDeclaration = {};
   facts.set(envDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "env"));
@@ -3362,13 +3572,14 @@ test("NodeJS surface exposes process.env as provider-owned closed environment ca
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.env");
 });
 
-test.skip("selected NodeJS process surface finalizes process metadata and environment operations deferred to NodeJS provider-package closure", () => {
+test("selected NodeJS provider package finalizes process metadata and environment operations", () => {
   const session = createCsharpSession(`
     import * as process from "node:process";
 
     export function processInfo(): string {
       const envPath = process.env["PATH"] ?? "";
-      return process.arch + process.argv0 + process.execPath + process.platform + process.version + process.versions.node + process.versions.dotnet + envPath + process.pid + process.ppid;
+      const usage = process.memoryUsage();
+      return process.arch + process.argv0 + process.execPath + process.platform + process.version + process.versions.node + process.versions.dotnet + envPath + process.pid + process.ppid + process.uptime() + usage.rss + usage.heapUsed;
     }
 
     export function currentExitCode(): number | null {
@@ -3386,7 +3597,7 @@ test.skip("selected NodeJS process surface finalizes process metadata and enviro
     export function signalSelf(): boolean {
       return process.kill(process.pid, 0);
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -3400,6 +3611,8 @@ test.skip("selected NodeJS process surface finalizes process metadata and enviro
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.chdir(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.exit(System.Nullable`1)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.kill(System.Int32,System.Object)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.memoryUsage()"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.uptime()"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.arch"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.argv0"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.env"));
@@ -3413,13 +3626,15 @@ test.skip("selected NodeJS process surface finalizes process metadata and enviro
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.versions"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.node"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.dotnet"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.MemoryUsage.rss"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.MemoryUsage.heapUsed"));
 });
 
-test("NodeJS surface rejects provider declarations whose selected identity is not mapped", () => {
+test("NodeJS provider package rejects provider declarations whose selected identity is not mapped", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, {
     ...nodejsVirtualDeclaration("node:path", "join", "node:path.join(System.Int32)"),
   });
@@ -3430,11 +3645,11 @@ test("NodeJS surface rejects provider declarations whose selected identity is no
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
 });
 
-test("NodeJS surface rejects optional-arity calls without selected signature identity", () => {
+test("NodeJS provider package rejects optional-arity calls without selected signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "randomInt"));
 
   const result = provider.mapCheckedCall(nodejsCallRequestWithoutSignature(call, selectedDeclaration), fakeContext(facts));
@@ -3442,14 +3657,14 @@ test("NodeJS surface rejects optional-arity calls without selected signature ide
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_REQUIRES_SELECTED_SIGNATURE");
   assert.match(result.diagnostic.message, /randomInt/);
-  assert.equal(result.diagnostic.evidence?.[0]?.details?.reason, "NodeJS surface calls require TSTS-selected provider signature identity before target member selection");
+  assert.equal(result.diagnostic.evidence?.[0]?.details?.reason, "NodeJS provider-package calls require TSTS-selected provider signature identity before target member selection");
 });
 
-test("NodeJS surface rejects selected provider members absent from the explicit surface map", () => {
+test("NodeJS provider package maps Buffer.isBuffer from selected provider member identity", () => {
   const call = {};
   const selectedSignature = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:buffer",
     "Buffer",
@@ -3460,17 +3675,15 @@ test("NodeJS surface rejects selected provider members absent from the explicit 
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedSignature), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
-  assert.match(result.diagnostic.message, /member 'isBuffer'/);
-  assert.match(result.diagnostic.message, /node:buffer\.Buffer\.isBuffer/);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.isBuffer(System.Object)");
 });
 
-test("NodeJS surface rejects single-signature calls without selected signature identity", () => {
+test("NodeJS provider package rejects single-signature calls without selected signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "join"));
 
   const result = provider.mapCheckedCall(nodejsCallRequestWithoutSignature(call, selectedDeclaration), fakeContext(facts));
@@ -3480,11 +3693,11 @@ test("NodeJS surface rejects single-signature calls without selected signature i
   assert.match(result.diagnostic.message, /join/);
 });
 
-test("NodeJS surface does not map foreign provider declarations by module and export name", () => {
+test("NodeJS provider package does not map foreign provider declarations by module and export name", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, {
     ...nodejsVirtualDeclaration("node:path", "join"),
     providerId: "foreign.nodejs-provider",
@@ -3495,11 +3708,11 @@ test("NodeJS surface does not map foreign provider declarations by module and ex
   assert.equal(result.kind, "defer");
 });
 
-test("NodeJS surface maps static properties from the selected provider declaration identity", () => {
+test("NodeJS provider package maps static properties from the selected provider declaration identity", () => {
   const expression = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "platform"));
 
   const result = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(expression, selectedDeclaration), fakeContext(facts));
@@ -3509,11 +3722,11 @@ test("NodeJS surface maps static properties from the selected provider declarati
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
-test("NodeJS surface maps namespace property access from selected provider property symbol identity", () => {
+test("NodeJS provider package maps namespace property access from selected provider property symbol identity", () => {
   const expression = {};
   const selectedPropertySymbol = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedPropertySymbol, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "platform"));
 
   const result = provider.mapCheckedPropertyAccess({
@@ -3529,12 +3742,12 @@ test("NodeJS surface maps namespace property access from selected provider prope
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
-test("NodeJS surface defers namespace properties from import and property spelling alone", () => {
+test("NodeJS provider package defers namespace properties from import and property spelling alone", () => {
   const expression = {};
   const receiver = { Kind: "Identifier", Text: "process" };
   const sourceFile = namespaceImportSourceFile(receiver, "process", "node:process");
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
 
   const result = provider.mapCheckedPropertyAccess({
     target: "csharp",
@@ -3548,11 +3761,11 @@ test("NodeJS surface defers namespace properties from import and property spelli
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("NodeJS surface defers namespace properties from container facts and property spelling", () => {
+test("NodeJS provider package defers namespace properties from container facts and property spelling", () => {
   const expression = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(receiver, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "namespace"));
 
   const result = provider.mapCheckedPropertyAccess({
@@ -3755,6 +3968,9 @@ function fakeContext(facts) {
         getResolvedSymbol: () => undefined,
         getAliasedSymbol: () => undefined,
       },
+      typeShape: {
+        isNullish: (type) => type?.kind === "test-nullish",
+      },
     },
   };
 }
@@ -3775,6 +3991,7 @@ function createCsharpSession(sourceText, options = {}) {
     id: "csharp",
     ...(options.typescriptCompatibility === undefined ? {} : { options: { typescriptCompatibility: options.typescriptCompatibility } }),
   };
+  const selectedPackages = selectedProviderPackages(options.selectedPackages ?? []);
   const context = {
     project: {
       entryPoint: "index.ts",
@@ -3782,6 +3999,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
+    selectedPackages,
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -3803,14 +4021,33 @@ function createCsharpSession(sourceText, options = {}) {
         ...context.selectedSurfaces.flatMap((surface) =>
           surface.id === "js"
             ? [createCsharpJsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
-            : surface.id === "nodejs"
-            ? [createCsharpNodejsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
             : []
+        ),
+        ...context.selectedPackages.flatMap((providerPackage) =>
+          providerPackage.createExtensions?.({ ...context, package: providerPackage, targetPack: fakeTargetPack }) ?? []
         ),
       ],
     },
   });
 }
+
+function selectedProviderPackages(requestedPackages) {
+  return requestedPackages.map((providerPackage) =>
+    providerPackage.id === nodejsTestProviderPackage.id
+      ? nodejsTestProviderPackage
+      : providerPackage
+  );
+}
+
+const nodejsTestProviderPackage = {
+  id: "nodejs",
+  displayName: "Node.js provider package",
+  requiredSurfaces: ["js"],
+  createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+  createExtensions(context) {
+    return [createCsharpNodejsProviderPackageExtension(context)];
+  },
+};
 
 const fakeTargetPack = {
   id: "csharp",
@@ -3921,7 +4158,7 @@ function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
 
 function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {
   return {
-    providerId: "tsonic.csharp.nodejs-surface-provider",
+    providerId: "tsonic.csharp.provider-package.nodejs",
     providerVersion: "0.0.1",
     providerModuleId: moduleSpecifier,
     moduleSpecifier,
@@ -3950,6 +4187,10 @@ function float64Type() {
 
 function boolType() {
   return { kind: "source-primitive", name: "bool" };
+}
+
+function nullishType() {
+  return { kind: "test-nullish" };
 }
 
 function stringType() {

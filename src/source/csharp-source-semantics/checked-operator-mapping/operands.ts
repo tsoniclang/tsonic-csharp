@@ -1,5 +1,6 @@
 import {
   runtimeCarrierFactKey,
+  sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperatorMappingRequest,
@@ -47,6 +48,12 @@ import {
 import {
   sourceDeclarationTargetType,
 } from "../source-declaration-facts.js";
+import {
+  getReferencedRuntimeCarrierTargetTypeRef,
+} from "../runtime-carrier-lifecycle/referenced-facts.js";
+import {
+  getSymbolDeclarations,
+} from "../symbol-utils.js";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
@@ -88,7 +95,24 @@ export function getCheckedOperatorOperandTargetTypeRefs(
     left = getLiteralTargetTypeRefForKnownOperatorOperand(right, request.left, context) ??
       getNullishTargetTypeRefForKnownOperatorOperand(right, request.left, sourceFile, context);
   }
+  if (operatorAllowsLiteralOperandNarrowing(request.operator)) {
+    right = getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context) ?? right;
+    left = getLiteralTargetTypeRefForKnownOperatorOperand(right, request.left, context) ?? left;
+  }
   return { left, right };
+}
+
+function operatorAllowsLiteralOperandNarrowing(operator: string): boolean {
+  switch (operator) {
+    case "+":
+    case "-":
+    case "*":
+    case "/":
+    case "%":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function getCheckedOperandType(
@@ -151,11 +175,19 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (nestedOperationResult !== undefined) {
     return nestedOperationResult;
   }
+  const referencedDeclarationTarget = getReferencedOperandTargetTypeRef(expressionSubject, sourceFile, context);
+  if (referencedDeclarationTarget !== undefined) {
+    return referencedDeclarationTarget;
+  }
+  const annotatedDeclarationTarget = getAnnotatedDeclarationOperandTargetTypeRef(expressionSubject, sourceFile, context, options, host);
+  if (annotatedDeclarationTarget !== undefined) {
+    return annotatedDeclarationTarget;
+  }
   const expressionTarget = host.getTargetTypeRefForSubject(expressionSubject, context, {
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
   });
-  if (expressionTarget !== undefined) {
+  if (expressionTarget !== undefined && expressionTarget.kind !== "type-parameter") {
     return expressionTarget;
   }
   const checkedExpressionType = getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
@@ -173,7 +205,68 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (typed !== undefined) {
     return typed;
   }
-  return checkedExpressionType;
+  return expressionTarget ?? checkedExpressionType;
+}
+
+function getAnnotatedDeclarationOperandTargetTypeRef(
+  expressionSubject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(expressionSubject);
+  const compiler = context.compiler;
+  if (node === undefined || sourceFile === undefined || compiler === undefined || !compiler.ast.is.IsIdentifier(node)) {
+    return undefined;
+  }
+  const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
+    compiler.checker.getResolvedSymbol(node, { sourceFile });
+  for (const declaration of getSymbolDeclarations(symbol, compiler.checker)) {
+    const typeNode = asNodeSubject(getNodeField(declaration, "Type")) ??
+      asNodeSubject(getNodeField(declaration, "type"));
+    if (typeNode === undefined) {
+      continue;
+    }
+    const typeSourceFile = compiler.ast.getSourceFile(typeNode) ?? sourceFile;
+    const typeName = asNodeSubject(getNodeField(typeNode, "TypeName")) ??
+      asNodeSubject(getNodeField(typeNode, "typeName")) ??
+      compiler.ast.name(typeNode);
+    const primitiveSubjects: readonly (ExtensionFactSubject | undefined)[] = [
+      typeNode,
+      typeName,
+    ];
+    const primitive = primitiveSubjects
+      .map((subject) => subject === undefined ? undefined : context.factResolver.resolve(subject, sourcePrimitiveFactKey) ?? context.facts.get(subject, sourcePrimitiveFactKey))
+      .find((fact): fact is NonNullable<typeof fact> => fact !== undefined);
+    if (primitive !== undefined) {
+      return csharpSourcePrimitiveTargetType(primitive.kind);
+    }
+    const targetType = host.getTargetTypeRefForSubject(typeNode, context, {
+      ...options,
+      sourceFile: typeSourceFile,
+      allowRuntimeCarrier: false,
+    }) ?? host.getTargetTypeRefForSubject(typeNode, context, {
+      ...options,
+      sourceFile: typeSourceFile,
+      allowRuntimeCarrier: true,
+    });
+    if (targetType !== undefined) {
+      return targetType;
+    }
+  }
+  return undefined;
+}
+
+function getReferencedOperandTargetTypeRef(
+  expressionSubject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(expressionSubject);
+  return node === undefined || sourceFile === undefined
+    ? undefined
+    : getReferencedRuntimeCarrierTargetTypeRef(context, sourceFile, node);
 }
 
 function getCheckedExpressionTargetTypeRef(

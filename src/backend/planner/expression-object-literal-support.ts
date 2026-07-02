@@ -8,6 +8,7 @@ import {
 import type {
   Node,
   SourceFile,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -27,6 +28,7 @@ import {
 } from "./diagnostics.js";
 import {
   getCsharpObjectShapeFactForNode,
+  getCsharpObjectShapeFactForTargetType,
 } from "./csharp-fact-queries.js";
 import {
   targetTypeRefsMatch,
@@ -36,8 +38,10 @@ export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpObjectShapeFact | undefined {
-  return getCsharpObjectShapeFactForNode(expectedTypeSubject, sourceFile, input);
+  return getCsharpObjectShapeFactForTargetType(expectedTargetType, input) ??
+    getCsharpObjectShapeFactForNode(expectedTypeSubject, sourceFile, input);
 }
 
 export function findObjectShapeMember(

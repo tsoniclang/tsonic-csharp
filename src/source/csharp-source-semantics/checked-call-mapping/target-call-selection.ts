@@ -1,7 +1,9 @@
 import {
+  argumentPassingFactKey,
   rejectObservation,
 } from "@tsonic/tsts";
 import type {
+  ArgumentPassingFact,
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionEvidence,
@@ -74,7 +76,7 @@ export function findCsharpTargetMemberForCall(
     declaration,
     request,
     context,
-    host.getTargetTypeRefForSubject,
+    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
     options,
   );
   if (selectedMember !== undefined) {
@@ -115,15 +117,46 @@ export function targetMemberMissEvidence(
         hasReceiver: requestContext.calleeReceiver !== undefined,
         selectedMemberId: declaration?.memberId,
         selectedSignatureId: declaration?.signatureId,
+        sourceSelectedSignatureAvailable: request.sourceSelectedSignature !== undefined,
         selectedExportName: declaration?.exportName,
         selectedMemberName: declaration?.memberName,
         selectedTargetIdentity: declaration?.targetIdentity,
         declaringTargetType: options.declaringTargetType,
         firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
+        argumentPassingFacts: request.arguments.map((argument, index) => argumentPassingMissDetails(context, argument, index)),
         candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),
       },
     },
   ];
+}
+
+function argumentPassingMissDetails(
+  context: ExtensionObservationContext,
+  argument: CheckedCallMappingRequest["arguments"][number],
+  index: number,
+): unknown {
+  const factContext = context as {
+    readonly factResolver?: ExtensionObservationContext["factResolver"];
+    readonly facts?: ExtensionObservationContext["facts"];
+  };
+  const passing = factContext.factResolver?.resolve(argument, argumentPassingFactKey) ??
+    factContext.facts?.get(argument, argumentPassingFactKey);
+  return summarizeArgumentPassingFact(passing as ArgumentPassingFact | undefined, index);
+}
+
+function summarizeArgumentPassingFact(passing: ArgumentPassingFact | undefined, index: number): unknown {
+  if (passing === undefined) {
+    return { index, present: false };
+  }
+  return {
+    index,
+    present: true,
+    mode: passing.mode,
+    parameterIndex: passing.parameterIndex,
+    targetParameter: passing.targetParameter,
+    selectedSignature: passing.selectedSignature,
+    hasTargetExpression: passing.targetExpression !== undefined,
+  };
 }
 
 export function getConstructorDeclaringTargetType(
@@ -138,7 +171,7 @@ export function getConstructorDeclaringTargetType(
     return undefined;
   }
   const targetTypeArguments = ast.typeArguments(callNode)
-    .map((argument) => host.getTargetTypeRefForSubject(argument, context));
+    .map((argument) => safeGetTargetTypeRefForSubject(host, argument, context));
   if (targetTypeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
@@ -183,7 +216,20 @@ function findConstructorTargetMemberForProviderType(
       receiver: requestContext.calleeReceiver,
     },
     context,
-    host.getTargetTypeRefForSubject,
+    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
     options,
   );
+}
+
+function safeGetTargetTypeRefForSubject(
+  host: CsharpOperationsProviderHost,
+  subject: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[0],
+  context: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[1],
+  options?: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[2],
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  try {
+    return host.getTargetTypeRefForSubject(subject, context, options);
+  } catch {
+    return undefined;
+  }
 }

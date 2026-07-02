@@ -5,7 +5,6 @@ import {
   HasSourceKind,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
-  Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -14,8 +13,11 @@ import type {
   CsharpStatement,
 } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
+import {
+  allocateCatchValue,
+  declareCsharpLocalBindingName,
+} from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { requireCsharpIdentifier } from "./identifiers.js";
 import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
@@ -23,6 +25,16 @@ import {
 } from "./runtime-carriers.js";
 import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
+import {
+  csharpCatchExceptionType,
+  csharpThrownValueToValueExpression,
+} from "./exception-flow.js";
+import {
+  isCsharpTsValueTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export type BlockStatementPlanner = (
   blockNode: Node | undefined,
@@ -85,11 +97,24 @@ function planCatchClause(
       : undefined;
     const carrier = primaryCarrier ?? probeCarrierFromResolution(declarationCarrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-    if (!isCsharpThrowableCarrier(carrier) || variableType === undefined) {
+    if (
+      !isCsharpThrowableCarrier(carrier) &&
+      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpTsValueTargetType(carrier))
+    ) {
       const detail = carrier === undefined
         ? missingCarrierDiagnosticDetail(declarationCarrierResolution ?? primaryCarrierResolution, "Runtime carrier fact is missing for the catch variable.")
-        : { reason: "Resolved catch variable carrier is not a renderable target throwable carrier.", evidence: [] };
+        : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue compatibility catch carrier.", evidence: [] };
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, `Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
+    if (variableType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variable carrier must render to a closed C# type before C# emission."));
       return {
         kind: "CatchClause",
         body: {
@@ -108,10 +133,44 @@ function planCatchClause(
         },
       };
     }
+    if (isCsharpTsValueTargetType(carrier)) {
+      const catchExceptionType = csharpCatchExceptionType();
+      const catchExceptionName = allocateCatchValue(state);
+      const sourceVariableName = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Catch variable", "catchValue");
+      const catchValueInitializer = csharpThrownValueToValueExpression({ kind: "IdentifierName", name: catchExceptionName });
+      if (catchExceptionType === undefined || catchValueInitializer === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(variable.name, "C# compatibility catch variables require renderable System.Exception and TsThrownValueException target carriers."));
+        return {
+          kind: "CatchClause",
+          body: {
+            kind: "Block",
+            statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+          },
+        };
+      }
+      return {
+        kind: "CatchClause",
+        variableType: catchExceptionType,
+        variableName: catchExceptionName,
+        body: {
+          kind: "Block",
+          statements: [
+            {
+              kind: "LocalDeclarationStatement",
+              type: variableType,
+              name: sourceVariableName,
+              initializer: catchValueInitializer,
+            },
+            ...planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+          ],
+        },
+      };
+    }
+    const sourceVariableName = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Catch variable", "catchValue");
     return {
       kind: "CatchClause",
       variableType,
-      variableName: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "Catch variable"),
+      variableName: sourceVariableName,
       body: {
         kind: "Block",
         statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),

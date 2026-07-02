@@ -18,6 +18,9 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../runtime-carrier-context.js";
 import {
+  csharpAnyRuntimeCarrier,
+} from "../target-types.js";
+import {
   resolveCsharpRuntimeCarrierFromLifecycle,
 } from "../runtime-carrier-lifecycle-resolution.js";
 import {
@@ -95,11 +98,21 @@ function getRuntimeCarrierFromTypeSyntax(
   if (compiler === undefined || !isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
     return undefined;
   }
+  if (compiler.ast.kindName(node) === "KindAnyKeyword") {
+    return csharpAnyRuntimeCarrier();
+  }
   return host.getTargetTypeRefForSubject(
     node,
     createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
     {
       allowRuntimeCarrier: false,
+      allowSemanticTypeQuery: false,
+    },
+  ) ?? host.getTargetTypeRefForSubject(
+    node,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    {
+      allowRuntimeCarrier: true,
       allowSemanticTypeQuery: false,
     },
   );

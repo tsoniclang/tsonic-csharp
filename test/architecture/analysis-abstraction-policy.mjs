@@ -407,42 +407,48 @@ export const analysisAbstractionRules = Object.freeze([
   },
   {
     id: "node-local-export-signature-selection",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\.find\s*\(\s*\(?\s*(?:entry|member|row|candidate)\s*\)?\s*=>\s*(?:entry|member|row|candidate)\.(?:exportName|signatureId|memberName)\s*===/g,
     replacement:
       "Node provider member selection must use canonical declaration/signature identity indexes rather than local export/signature search.",
   },
   {
+    id: "central-nodejs-provider-package-branch",
+    pattern: /\bproviderPackage\.id\s*(?:={2,3}|!={1,2})\s*["']nodejs["']/g,
+    replacement:
+      "NodeJS must be a provider-package contributor selected through the generic provider-package model, not a central C# semantic-host branch on providerPackage.id.",
+  },
+  {
     id: "nodejs-target-id-source-name-synthesis",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\b(?:id|targetMemberId|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:sourceName|sourceMemberName|exportName|memberName|targetName)\s*\}/g,
     replacement:
       "Node target member and unsupported target identities must be declared by provider metadata rows, not synthesized from source export/member names.",
   },
   {
     id: "nodejs-target-member-name-source-copy",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /(?<!\.)\b(?:sourceName|targetName)\s*(?::\s*(?:sourceName|sourceMemberName|exportName|memberName)\b|(?=\s*[,}]))/g,
     replacement:
       "Node target member source/target names must be explicit metadata fields; do not copy source export/member names into target member shape.",
   },
   {
     id: "nodejs-target-name-source-constant-copy",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\btargetName\s*:\s*node[A-Za-z0-9]*(?:ExportName|MemberName)\b/g,
     replacement:
       "Node target member target names must be explicit target metadata, not copied from source export/member name constants.",
   },
   {
     id: "nodejs-target-id-signature-slice",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\bsignatureId\.slice\s*\(/g,
     replacement:
       "Node target identity parameters must be declared as provider metadata, not extracted from source signature ids.",
   },
   {
     id: "nodejs-local-export-member-filter",
-    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\.filter\s*\(\s*\(?\s*(?:entry|member|row|candidate)\s*\)?\s*=>\s*(?:entry|member|row|candidate)\.(?:exportName|signatureId|memberName)\s*===/g,
     replacement:
       "Node provider declarations should be built from canonical provider metadata records instead of local export-name member filters.",
@@ -452,6 +458,12 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /\bfallback\b/gi,
     replacement:
       "Classify as harmless syntax fallback or replace semantic fallback with fail-closed diagnostics.",
+  },
+  {
+    id: "fabricated-tsts-compiler-node",
+    pattern: /\bas\s+unknown\s+as\s+(?:Node|Symbol|Signature|Type)\b/g,
+    replacement:
+      "Backend and provider code must consume real TSTS public objects or backend-local models; do not fabricate TSTS compiler nodes, symbols, signatures, or types.",
   },
 ]);
 

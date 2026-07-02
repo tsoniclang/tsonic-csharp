@@ -4,6 +4,7 @@ import type {
   TargetBackend,
   TargetBackendContext,
   TargetPack,
+  TargetProviderPackageImplementation,
   TargetProviderContext,
   TargetRuntimeContributionContext,
   TargetRuntimeContributions,
@@ -14,15 +15,21 @@ import type {
 import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
+  readCsharpTypescriptCompatibilityMode,
   validateCsharpTargetOptions,
 } from "../options/csharp-target-options.js";
 import {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
+  createCsharpNodejsProviderPackageExtension,
+  createCsharpNodejsProviderPackageOperationsMappers,
+  nodejsProviderPackageModuleOwnership,
 } from "../source/csharp-source-semantics.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
+import type {
+  CsharpProviderPackageOperationMapperContributor,
+} from "../source/csharp-source-semantics/provider-packages/index.js";
 
 export const csharpTargetId = "csharp";
 const targetPackageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -41,10 +48,11 @@ export function createCsharpTargetPack(): TargetPack {
           createCsharpTargetSemanticsExtension(context),
         ];
       },
-      runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+      runtimeContributions(context: TargetRuntimeContributionContext): TargetRuntimeContributions {
         return {
           references: [
             csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+            ...csharpTypescriptCompatibilityRuntimeReferences(context),
           ],
         };
       },
@@ -64,21 +72,9 @@ export function createCsharpTargetPack(): TargetPack {
           };
         },
       },
-      {
-        id: "nodejs",
-        displayName: "Node.js surface",
-        requiredSurfaces: ["js"],
-        createExtensions(context) {
-          return [createCsharpNodejsSurfaceExtension(context)];
-        },
-        runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
-          return {
-            references: [
-              csharpRuntimeProjectReference("csharp-nodejs", "Tsonic.CSharp.Node"),
-            ],
-          };
-        },
-      },
+    ],
+    packages: [
+      createNodejsProviderPackage(),
     ],
     createBackend(context: TargetBackendContext): TargetBackend {
       validateCsharpTargetOptions(context.target);
@@ -91,9 +87,37 @@ export function createCsharpTargetPack(): TargetPack {
   };
 }
 
+function createNodejsProviderPackage(): TargetProviderPackageImplementation {
+  const providerPackage: CsharpProviderPackageOperationMapperContributor = {
+    id: "nodejs",
+    displayName: "Node.js provider package",
+    requiredSurfaces: ["js"],
+    moduleOwnership: nodejsProviderPackageModuleOwnership,
+    createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+    createExtensions(context) {
+      return [createCsharpNodejsProviderPackageExtension(context)];
+    },
+    runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+      return {
+        references: [
+          csharpRuntimeProjectReference("csharp-nodejs", "Tsonic.CSharp.Node"),
+        ],
+      };
+    },
+  };
+  return providerPackage;
+}
+
 function csharpRuntimeProjectReference(repositoryName: string, assemblyName: string): TargetRuntimeReference {
   return {
     kind: "project",
     include: resolve(targetPackageRoot, `../${repositoryName}/src/${assemblyName}/${assemblyName}.csproj`),
   };
+}
+
+function csharpTypescriptCompatibilityRuntimeReferences(context: TargetRuntimeContributionContext): readonly TargetRuntimeReference[] {
+  if (readCsharpTypescriptCompatibilityMode(context.target) !== "compat" || context.selectedSurfaces.some((surface) => surface.id === "js")) {
+    return [];
+  }
+  return [csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js")];
 }

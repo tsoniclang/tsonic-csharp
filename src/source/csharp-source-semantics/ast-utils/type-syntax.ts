@@ -39,6 +39,7 @@ export function isTypeSyntaxNode(
     kind === "KindOptionalType" ||
     kind === "KindRestType" ||
     kind === "KindParenthesizedType" ||
+    kind === "KindTypeOperator" ||
     kind === "KindTemplateLiteralType" ||
     kind === "KindImportType" ||
     kind === "KindThisType"
@@ -60,10 +61,18 @@ export function isTypeSyntaxNode(
     ast.is.IsOptionalTypeNode(node) ||
     ast.is.IsRestTypeNode(node) ||
     ast.is.IsParenthesizedTypeNode(node) ||
+    isTypeOperatorNode(ast, node) ||
     ast.is.IsFunctionTypeNode(node) ||
     ast.is.IsConstructorTypeNode(node) ||
     ast.is.IsTemplateLiteralTypeNode(node) ||
     ast.is.IsImportTypeNode(node);
+}
+
+export function isTypeOperatorNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.kindName(node) === "KindTypeOperator";
 }
 
 export function isTypeLiteralLikeNode(node: Node): boolean {

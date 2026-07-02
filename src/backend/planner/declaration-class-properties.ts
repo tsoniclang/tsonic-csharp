@@ -42,6 +42,7 @@ import {
 } from "./statements.js";
 import {
   planClassMemberModifiers,
+  planPropertyModifiers,
 } from "./declaration-class-modifiers.js";
 import {
   planAttributesForSubject,
@@ -72,7 +73,7 @@ export function planPropertyDeclaration(
   }
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
-  if (!autoPropertyNames.has(propertyName)) {
+  if (!shouldEmitAutoProperty(node, propertyName, autoPropertyNames, sourceFile, input)) {
     return {
       kind: "FieldDeclaration",
       name: propertyName,
@@ -87,7 +88,7 @@ export function planPropertyDeclaration(
   return {
     kind: "PropertyDeclaration",
     name: propertyName,
-    modifiers: planClassMemberModifiers(node, declaration.name, input),
+    modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     autoGetter: true,
@@ -96,6 +97,19 @@ export function planPropertyDeclaration(
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),
   };
+}
+
+function shouldEmitAutoProperty(
+  node: Node,
+  propertyName: string,
+  autoPropertyNames: ReadonlySet<string>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const dispatch = input.analysis.getProjectSourceMemberDispatch(node, { sourceFile });
+  return autoPropertyNames.has(propertyName) ||
+    dispatch?.overridesBase === true ||
+    dispatch?.hasDerivedOverride === true;
 }
 
 export function mergeAccessorProperty(
@@ -152,7 +166,7 @@ function mergeGetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
+    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
@@ -204,7 +218,7 @@ function mergeSetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
+    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),

@@ -34,6 +34,7 @@ import {
 } from "./target-rules.js";
 import {
   getCsharpCollectionElementTargetType,
+  getCsharpDelegateSignature,
 } from "./target-types.js";
 import {
   requiresCsharpProviderConversionEvidence,
@@ -49,6 +50,9 @@ import {
 import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
+import {
+  targetTypeMatchesExpected,
+} from "./target-member-arguments/type-matching.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 import {
@@ -176,6 +180,11 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
+  if (source !== undefined && sourceFunctionExpressionMatchesTargetDelegate(request.source, source, target, context)) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# function expression is contextually convertible to the selected delegate target type." }]);
+  }
   if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
@@ -215,6 +224,33 @@ export function mapCsharpCheckedConversion(
     convertedType: target,
     ...(operation !== undefined ? { operation: operation.operation } : {}),
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
+}
+
+function sourceFunctionExpressionMatchesTargetDelegate(
+  subject: CheckedConversionMappingRequest["source"],
+  source: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+  target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+): boolean {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node === undefined || ast === undefined || (!ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node))) {
+    return false;
+  }
+  const sourceDelegate = getCsharpDelegateSignature(source);
+  const targetDelegate = getCsharpDelegateSignature(target);
+  if (sourceDelegate === undefined || targetDelegate === undefined || sourceDelegate.parameters.length !== targetDelegate.parameters.length) {
+    return false;
+  }
+  const typeParameterBindings = new Map();
+  for (let index = 0; index < targetDelegate.parameters.length; index += 1) {
+    const expected = targetDelegate.parameters[index];
+    const actual = sourceDelegate.parameters[index];
+    if (expected === undefined || actual === undefined || !targetTypeMatchesExpected(expected, actual, typeParameterBindings, {})) {
+      return false;
+    }
+  }
+  return targetTypeMatchesExpected(targetDelegate.returnType, sourceDelegate.returnType, typeParameterBindings, {});
 }
 
 function subjectIdentity(subject: unknown): string {

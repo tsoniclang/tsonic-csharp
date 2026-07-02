@@ -24,7 +24,6 @@ import type { CsharpObjectShapeFact } from "../csharp-facts.js";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
 import {
   csharpJsSurfaceExtensionId,
-  csharpNodejsSurfaceExtensionId,
   csharpProviderVersion,
   csharpTargetId,
 } from "./identity.js";
@@ -38,6 +37,9 @@ import {
   selectTargetMember,
 } from "./target-member-selection.js";
 import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
+import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
 import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
@@ -51,11 +53,16 @@ import {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/regexp/index.js";
 import {
-  createCsharpNodejsSurfaceMappers,
-} from "./surfaces/nodejs/index.js";
-import {
   mapCsharpCheckedCall,
 } from "./checked-call-mapping/index.js";
+import type {
+  CsharpProviderPackageOperationsMapper,
+} from "./provider-packages/index.js";
+import {
+  mapCsharpCompatRuntimeCheckedCall,
+  mapCsharpCompatRuntimeCheckedElementAccess,
+  mapCsharpCompatRuntimeCheckedPropertyAccess,
+} from "./compat-runtime-checked-operations.js";
 import {
   mapCsharpCheckedElementAccess,
   mapCsharpCheckedPropertyAccess,
@@ -77,6 +84,9 @@ import {
 import {
   resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
+import {
+  getReferencedDeclarationTargetTypeRef,
+} from "./referenced-declaration-target.js";
 import {
   getCsharpCheckedElementAccessRequestContext,
   getCsharpCheckedPropertyAccessRequestContext,
@@ -118,7 +128,8 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
 
 export interface CsharpTargetOperationsProviderOptions {
   readonly jsSurface?: boolean;
-  readonly nodejsSurface?: boolean;
+  readonly providerPackageMappers?: readonly CsharpProviderPackageOperationsMapper[];
+  readonly typescriptCompatibilityMode?: TargetTypescriptCompatibilityMode;
 }
 
 export function createCsharpTargetOperationsProvider(
@@ -136,9 +147,8 @@ export function createCsharpTargetOperationsProvider(
   const jsSurface = options.jsSurface === true
     ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, host))
     : undefined;
-  const nodejsSurface = options.nodejsSurface === true
-    ? createCsharpNodejsSurfaceMappers(csharpNodejsSurfaceExtensionId)
-    : undefined;
+  const providerPackageMappers = options.providerPackageMappers ?? [];
+  const typescriptCompatibilityMode = options.typescriptCompatibilityMode ?? "strict-native";
   const surfaceAwareHost: CsharpOperationsProviderHost = {
     ...host,
     mapRuntimeCarrier(request, context) {
@@ -151,9 +161,17 @@ export function createCsharpTargetOperationsProvider(
   return {
     identity,
     mapCheckedCall(request, context) {
-      const nodejsObservation = nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation;
-      if (nodejsObservation.kind !== "defer") {
-        return nodejsObservation;
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedCall(request, context)
+        : deferObservation;
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
+      for (const providerPackageMapper of providerPackageMappers) {
+        const providerPackageObservation = providerPackageMapper.mapCheckedCall?.(request, context) ?? deferObservation;
+        if (providerPackageObservation.kind !== "defer") {
+          return providerPackageObservation;
+        }
       }
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
@@ -166,12 +184,20 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedPropertyAccess(request, context)
+        : deferObservation;
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
       }
-      const nodejsObservation = nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
-      if (nodejsObservation.kind !== "defer") {
-        return nodejsObservation;
+      for (const providerPackageMapper of providerPackageMappers) {
+        const providerPackageObservation = providerPackageMapper.mapCheckedPropertyAccess?.(request, context) ?? deferObservation;
+        if (providerPackageObservation.kind !== "defer") {
+          return providerPackageObservation;
+        }
       }
       const jsObservation = jsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
       if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedPropertyAccess(request, context))) {
@@ -180,6 +206,18 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedElementAccess(request, context)
+        : deferObservation;
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
+      for (const providerPackageMapper of providerPackageMappers) {
+        const providerPackageObservation = providerPackageMapper.mapCheckedElementAccess?.(request, context) ?? deferObservation;
+        if (providerPackageObservation.kind !== "defer") {
+          return providerPackageObservation;
+        }
+      }
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
       }
@@ -190,7 +228,7 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedElementAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedOperator(request, context) {
-      return mapCsharpCheckedOperator(request, context, surfaceAwareHost);
+      return mapCsharpCheckedOperator(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
     observePostCheckAssignability(request, context) {
       return observeCsharpPostCheckAssignability(request, context, surfaceAwareHost);
@@ -254,7 +292,9 @@ export function createCsharpJsSurfaceHost(
       candidates: readonly TargetMember[],
       request: {
         readonly arguments: readonly ExtensionFactSubject[];
+        readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
         readonly receiver?: ExtensionFactSubject;
+        readonly receiverTargetType?: TargetTypeRef;
         readonly sourceSelectedSignature?: unknown;
       },
       context: ExtensionObservationContext,
@@ -263,10 +303,14 @@ export function createCsharpJsSurfaceHost(
       selectTargetMember(candidates, request, context, (subject, resolutionContext, resolutionOptions) =>
         subject === undefined
           ? undefined
-          : resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+          : subject === request.receiver && request.receiverTargetType !== undefined
+            ? request.receiverTargetType
+          : request.argumentTargetTypes?.[request.arguments.indexOf(subject)] ??
+            resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
             resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+            getReferencedDeclarationTargetTypeRef(subject, resolutionContext, host.getTargetTypeRefForSubject, resolutionOptions) ??
             host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
         ...options,

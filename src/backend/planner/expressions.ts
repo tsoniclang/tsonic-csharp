@@ -17,6 +17,7 @@ import {
   KindTemplateExpression,
   KindTypeOfExpression,
   KindTypeAssertionExpression,
+  KindVoidExpression,
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
@@ -58,6 +59,9 @@ import {
   planTemplateExpression,
 } from "./expression-template-strings.js";
 import {
+  planVoidExpression,
+} from "./expression-void.js";
+import {
   planPostfixUnaryExpression,
   planPrefixUnaryExpression,
 } from "./expression-unary.js";
@@ -67,6 +71,9 @@ import {
 import {
   tryPlanSourceSyntaxExpression,
 } from "./expression-source-syntax.js";
+import {
+  tryPlanDestructuringAssignmentExpression,
+} from "./destructuring-assignment.js";
 
 export function planExpression(
   node: Node,
@@ -119,7 +126,9 @@ function planExpressionCore(
     case KindRegularExpressionLiteral:
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTypeOfExpression:
-      return planTypeofExpression(node, sourceFile, input, diagnostics);
+      return planTypeofExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+    case KindVoidExpression:
+      return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
       return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrayLiteralExpression: {
@@ -140,8 +149,19 @@ function planExpressionCore(
     case KindElementAccessExpression:
       return planElementAccessExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrowFunction:
-      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), undefined, state);
+      return planArrowFunctionExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
+          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        undefined,
+        state,
+        undefined,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType),
+      );
     case KindFunctionExpression:
       return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
     case KindCallExpression:
@@ -165,6 +185,23 @@ function planExpressionCore(
       return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
+      const destructuringAssignment = tryPlanDestructuringAssignmentExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
+          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state),
+      );
+      if (destructuringAssignment !== undefined) {
+        return destructuringAssignment;
+      }
+      if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
+        return undefined;
+      }
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
         planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state));
       return binary;

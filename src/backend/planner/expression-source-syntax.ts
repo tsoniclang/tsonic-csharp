@@ -60,8 +60,10 @@ import {
 } from "./runtime-carriers.js";
 import {
   getCsharpTaskResultTargetType,
-  csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
+import {
+  planThisExpression,
+} from "./expression-this.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -128,7 +130,7 @@ export function tryPlanSourceSyntaxExpression(
     case KindNullKeyword:
       return { kind: "LiteralExpression", value: null };
     case KindThisKeyword:
-      return { kind: "IdentifierName", name: "this" };
+      return planThisExpression(node, sourceFile, input, diagnostics);
     case KindSuperKeyword:
       return { kind: "IdentifierName", name: "base" };
     case KindAsExpression:
@@ -167,9 +169,8 @@ export function tryPlanSourceSyntaxExpression(
       const awaitCarrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
       const awaitCarrier = probeCarrierFromResolution(awaitCarrierResolution);
       if (
-        awaitCarrier === undefined
-          ? !targetTypeRefsMatch(awaitedResultCarrier, csharpVoidTargetType())
-          : !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
+        awaitCarrier === undefined ||
+        !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
       ) {
         const detail = missingCarrierDiagnosticDetail(awaitCarrierResolution, "Runtime carrier fact is missing for the await expression result.");
         diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier. ${detail.reason}`, detail.evidence));

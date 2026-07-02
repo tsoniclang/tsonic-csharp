@@ -42,6 +42,29 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("printer parenthesizes casted lambda expressions", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "CastExpression",
+      type: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Func",
+        typeArguments: [{ kind: "PredefinedType", name: "int" }],
+      },
+      expression: {
+        kind: "LambdaExpression",
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: [{ kind: "ReturnStatement", expression: { kind: "LiteralExpression", value: 1 } }],
+        },
+      },
+    }),
+    "(System.Func<int>)(() =>\n{\n    return 1;\n})",
+  );
+});
+
 test("printer renders generic member invocation from Roslyn AST nodes", () => {
   assert.equal(
     printCsharpExpression({
@@ -58,6 +81,27 @@ test("printer renders generic member invocation from Roslyn AST nodes", () => {
       arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "value" } }],
     }),
     "Helpers.apply<int, string>(value)",
+  );
+});
+
+test("printer parenthesizes conditional expressions inside interpolation holes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InterpolatedStringExpression",
+      parts: [
+        { kind: "InterpolatedStringText", text: "value:" },
+        {
+          kind: "Interpolation",
+          expression: {
+            kind: "ConditionalExpression",
+            condition: { kind: "IdentifierName", name: "ok" },
+            whenTrue: { kind: "LiteralExpression", value: "yes" },
+            whenFalse: { kind: "LiteralExpression", value: "no" },
+          },
+        },
+      ],
+    }),
+    '$"value:{(ok ? "yes" : "no")}"',
   );
 });
 

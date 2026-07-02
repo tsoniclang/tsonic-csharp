@@ -58,10 +58,10 @@ export function getCsharpCheckedCallRequestContext(
   const calleeReceiverAliasedSymbol = getAliasedSymbolIfAvailable(compiler.checker, calleeReceiverResolvedSymbol ?? calleeReceiverSymbol, receiverSourceFile);
   const calleeReceiverType = calleeReceiver === undefined
     ? undefined
-    : compiler.checker.getTypeAtLocation(calleeReceiver as Node, { sourceFile: receiverSourceFile });
+    : getTypeAtLocation(compiler, calleeReceiver as Node, receiverSourceFile);
   const calleeReceiverTypeSymbol = calleeReceiverType === undefined
     ? undefined
-    : compiler.checker.getTypeSymbol(calleeReceiverType as Type);
+    : getTypeSymbol(compiler, calleeReceiverType as Type);
   const sourceSelectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const sourceSelectedContainerSymbol = sourceSelectedDeclarationContainer === undefined
@@ -90,6 +90,29 @@ function getResolvedSymbol(
 ): ExtensionFactSubject | undefined {
   try {
     return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getTypeAtLocation(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  node: Node,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Type | undefined {
+  try {
+    return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getTypeSymbol(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  type: Type,
+): ExtensionFactSubject | undefined {
+  try {
+    return compiler.checker.getTypeSymbol(type);
   } catch {
     return undefined;
   }

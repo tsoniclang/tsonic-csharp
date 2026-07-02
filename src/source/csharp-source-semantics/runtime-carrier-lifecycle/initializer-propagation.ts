@@ -70,6 +70,16 @@ function getInitializerCarrierFromCheckedType(
     return undefined;
   }
   const compiler = lifecycleContext.compiler;
+  if (
+    compiler !== undefined &&
+    (
+      compiler.ast.is.IsCallExpression(initializer) ||
+      compiler.ast.is.IsNewExpression(initializer) ||
+      compiler.ast.is.IsAwaitExpression(initializer)
+    )
+  ) {
+    return undefined;
+  }
   const type = compiler?.checker.getTypeAtLocation(initializer, { sourceFile });
   const carrier = host.getTargetTypeRefForType(
     type,

@@ -59,6 +59,15 @@ export function getPostfixUnaryOperatorText(
 }
 
 function getPrefixOperatorTextFromSource(text: string): string | undefined {
+  if (startsWithKeyword(text, "typeof")) {
+    return "typeof";
+  }
+  if (startsWithKeyword(text, "delete")) {
+    return "delete";
+  }
+  if (startsWithKeyword(text, "void")) {
+    return "void";
+  }
   if (text.startsWith("++")) {
     return "++";
   }
@@ -78,6 +87,14 @@ function getPrefixOperatorTextFromSource(text: string): string | undefined {
     return "~";
   }
   return undefined;
+}
+
+function startsWithKeyword(text: string, keyword: string): boolean {
+  if (!text.startsWith(keyword)) {
+    return false;
+  }
+  const next = text[keyword.length];
+  return next === undefined || !/[A-Za-z0-9_$]/u.test(next);
 }
 
 function getPostfixOperatorTextFromSource(text: string): string | undefined {
@@ -126,14 +143,24 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return ">>";
     case "KindGreaterThanGreaterThanGreaterThanToken":
       return ">>>";
+    case "KindCommaToken":
+      return ",";
     case "KindInKeyword":
       return "in";
+    case "KindTypeOfKeyword":
+      return "typeof";
+    case "KindDeleteKeyword":
+      return "delete";
+    case "KindVoidKeyword":
+      return "void";
     case "KindPlusToken":
       return "+";
     case "KindMinusToken":
       return "-";
     case "KindAsteriskToken":
       return "*";
+    case "KindAsteriskAsteriskToken":
+      return "**";
     case "KindSlashToken":
       return "/";
     case "KindPercentToken":
@@ -146,6 +173,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return "-=";
     case "KindAsteriskEqualsToken":
       return "*=";
+    case "KindAsteriskAsteriskEqualsToken":
+      return "**=";
     case "KindSlashEqualsToken":
       return "/=";
     case "KindPercentEqualsToken":
@@ -170,6 +199,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return ">>>=";
     case "KindExclamationToken":
       return "!";
+    case "KindInstanceOfKeyword":
+      return "instanceof";
     case "KindTildeToken":
       return "~";
     case "KindPlusPlusToken":

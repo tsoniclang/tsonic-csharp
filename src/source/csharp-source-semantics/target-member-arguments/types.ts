@@ -1,5 +1,6 @@
 import type {
   ExtensionFactSubject,
+  ProviderDeclarationIdentity,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -13,6 +14,7 @@ export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
   readonly sourceSelectedSignature?: unknown;
+  readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
 }
 
 export interface TargetMemberSelectionOptions {

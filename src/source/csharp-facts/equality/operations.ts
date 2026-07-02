@@ -91,6 +91,7 @@ function csharpTargetMemberOperationFactEquals(left: CsharpTargetMemberOperation
     && left.static === right.static
     && targetTypeRefEquals(left.declaringType, right.declaringType)
     && targetTypeRefEquals(left.resultType, right.resultType)
+    && optionalTargetTypeRefArrayWithUndefinedEquals(left.typeArguments, right.typeArguments)
     && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection)
     && optionalTargetTypeRefArrayWithUndefinedEquals(left.argumentArrayLiteralElementTypes, right.argumentArrayLiteralElementTypes)
     && targetMemberEquals(left.selectedMember, right.selectedMember);

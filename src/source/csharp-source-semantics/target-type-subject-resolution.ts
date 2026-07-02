@@ -110,6 +110,9 @@ export function resolveTargetTypeRefForSubjectCore(
         resolveTargetTypeRefForType,
       ),
   );
+  if (directFact !== undefined && node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
+    return directFact;
+  }
   const referenceFact = resolveTargetTypeRefFromReferenceFacts(
     subject,
     context,
@@ -167,7 +170,7 @@ export function resolveTargetTypeRefForSubjectCore(
   if (expressionResult !== undefined) {
     return expressionResult;
   }
-  const catchVariableType = getCatchVariableTargetTypeRef(subject, context, host.getCatchExceptionTargetTypeRef?.());
+  const catchVariableType = getCatchVariableTargetTypeRef(subject, context, host.getCatchVariableTargetTypeRef?.());
   if (catchVariableType !== undefined) {
     return catchVariableType;
   }
@@ -233,7 +236,30 @@ export function resolveTargetTypeRefForSubjectCore(
   ) {
     return undefined;
   }
-  return semanticResult;
+  const substitutedSemanticResult = semanticResult?.kind === "type-parameter" &&
+    node !== undefined &&
+    ast !== undefined &&
+    checker !== undefined &&
+    options.allowSemanticTypeQuery !== false &&
+    isSemanticTypeQueryableValueExpressionNode(ast, node)
+    ? resolveSourceMemberTypeParameterFromReceiver(
+        semanticResult,
+        node,
+        context,
+        options,
+        host,
+        (substitutionSubject, substitutionContext, substitutionOptions, substitutionHost) =>
+          resolveTargetTypeRefForSubjectCore(
+            substitutionSubject,
+            substitutionContext,
+            substitutionOptions,
+            substitutionHost,
+            recursiveTargetTypeResolver,
+            resolveTargetTypeRefForType,
+          ),
+      )
+    : undefined;
+  return substitutedSemanticResult ?? semanticResult;
 }
 
 function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(

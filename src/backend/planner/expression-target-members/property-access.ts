@@ -39,6 +39,9 @@ import {
   targetStaticMemberExpression,
 } from "../expression-selected-target-members.js";
 import {
+  tryPlanRuntimeUnionProjectionToTargetType,
+} from "../runtime-union-projections.js";
+import {
   isCsharpSourceOwnedPropertyOperation,
   csharpTargetOperationFactKey,
   csharpObjectShapeMemberLookupFailureMessage,
@@ -53,6 +56,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "../target-type-object-shapes.js";
 import {
   tryPlanCompatRuntimePropertyGet,
 } from "../compat-runtime-operations.js";
@@ -146,32 +152,42 @@ function planSourceOwnedPropertyAccess(
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: applySelectedSourceDeclaringReceiverCast(propertyAccess, expression.Expression!, receiver, sourceFile, input, diagnostics),
+    receiver: applySelectedDeclaringReceiverProjection(propertyAccess, expression.Expression!, receiver, getSelectedSourceOperationDeclaringType(propertyAccess, sourceFile, input), sourceFile, input, diagnostics),
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, `Source-owned property '${sourceName}'`),
   };
 }
 
-function applySelectedSourceDeclaringReceiverCast(
+function applySelectedDeclaringReceiverProjection(
   propertyAccess: Node,
   receiverNode: Node,
   receiver: CsharpExpression,
+  operationDeclaringType: ReturnType<typeof getTargetTypeRefForNode>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  const operation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
-  const operationDeclaringType = operation?.kind === "member"
-    ? operation.declaringType ?? getSourceDeclaringTargetType(operation.sourceDeclaringType, sourceFile, input)
-    : undefined;
-  if (operation?.kind !== "member" || operationDeclaringType === undefined) {
+  if (operationDeclaringType === undefined) {
     return receiver;
   }
   const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
   const unwrappedDeclaredReceiverType = unwrapNullableTargetType(declaredReceiverType);
-  if (unwrappedDeclaredReceiverType !== undefined && targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType)) {
+  if (
+    unwrappedDeclaredReceiverType !== undefined &&
+    (targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType) ||
+      receiverExtendsSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType, input) ||
+      receiverSatisfiesOpenSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType))
+  ) {
     return receiver;
   }
-  const castType = csharpTypeFromTargetTypeRef(operationDeclaringType);
+  const diagnosticStart = diagnostics.length;
+  const runtimeUnionProjection = tryPlanRuntimeUnionProjectionToTargetType(receiverNode, operationDeclaringType, sourceFile, input, diagnostics, receiver);
+  if (runtimeUnionProjection !== undefined) {
+    return runtimeUnionProjection;
+  }
+  if (diagnostics.length > diagnosticStart) {
+    return receiver;
+  }
+  const castType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, operationDeclaringType, diagnostics, propertyAccess);
   if (castType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "Source-owned narrowed property access requires a renderable selected declaring target type before C# emission."));
     return receiver;
@@ -184,6 +200,133 @@ function applySelectedSourceDeclaringReceiverCast(
       expression: receiver,
     },
   };
+}
+
+function receiverSatisfiesOpenSelectedDeclaringType(
+  receiverType: ReturnType<typeof unwrapNullableTargetType>,
+  declaringType: ReturnType<typeof getTargetTypeRefForNode>,
+): boolean {
+  if (receiverType === undefined || declaringType === undefined) {
+    return false;
+  }
+  if (receiverType.kind === "array" && declaringType.kind === "array") {
+    return declaringType.element.kind === "type-parameter";
+  }
+  if (receiverType.kind === "target-named" && declaringType.kind === "target-named" && receiverType.id === declaringType.id) {
+    const declaringArguments = declaringType.typeArguments ?? [];
+    const receiverArguments = receiverType.typeArguments ?? [];
+    return declaringArguments.length === receiverArguments.length &&
+      declaringArguments.length > 0 &&
+      declaringArguments.every((argument) => argument.kind === "type-parameter");
+  }
+  return false;
+}
+
+function receiverExtendsSelectedDeclaringType(
+  receiverType: ReturnType<typeof unwrapNullableTargetType>,
+  declaringType: ReturnType<typeof getTargetTypeRefForNode>,
+  input: TargetCompileInput,
+): boolean {
+  if (receiverType === undefined || declaringType === undefined) {
+    return false;
+  }
+  for (let baseType = getCsharpBaseTargetType(receiverType, input); baseType !== undefined; baseType = getCsharpBaseTargetType(baseType, input)) {
+    if (targetTypeRefEquals(baseType, declaringType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getCsharpBaseTargetType(
+  type: ReturnType<typeof unwrapNullableTargetType>,
+  input: TargetCompileInput,
+): ReturnType<typeof unwrapNullableTargetType> {
+  if (type?.kind !== "target-named") {
+    return undefined;
+  }
+  const metadataBaseType = unwrapNullableTargetType((type as { readonly csharpBaseType?: ReturnType<typeof unwrapNullableTargetType> }).csharpBaseType);
+  if (metadataBaseType !== undefined) {
+    return metadataBaseType;
+  }
+  return getSourceClassBaseTargetType(type, input);
+}
+
+function getSourceClassBaseTargetType(
+  type: Extract<ReturnType<typeof unwrapNullableTargetType>, { readonly kind: "target-named" }>,
+  input: TargetCompileInput,
+): ReturnType<typeof unwrapNullableTargetType> {
+  if ((type as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== "class") {
+    return undefined;
+  }
+  const declaration = findSourceClassDeclarationByTargetId(type.id, input);
+  const heritage = declaration === undefined ? undefined : input.ast.extendsHeritageElements(declaration)[0];
+  if (heritage === undefined) {
+    return undefined;
+  }
+  const expression = getNodeField(heritage, "Expression") ??
+    getNodeField(heritage, "expression") ??
+    heritage;
+  const expressionSourceFile = input.ast.getSourceFile(expression) ?? input.ast.getSourceFile(declaration);
+  return expressionSourceFile === undefined
+    ? undefined
+    : unwrapNullableTargetType(getTargetTypeRefForNode(input, expression, expressionSourceFile));
+}
+
+function findSourceClassDeclarationByTargetId(
+  targetId: string,
+  input: TargetCompileInput,
+): Node | undefined {
+  for (const sourceFile of input.sourceFiles) {
+    const declaration = findSourceClassDeclarationByTargetIdInSubtree(sourceFile, targetId, input);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
+}
+
+function findSourceClassDeclarationByTargetIdInSubtree(
+  node: Node,
+  targetId: string,
+  input: TargetCompileInput,
+): Node | undefined {
+  if (input.ast.kindName(node) === "KindClassDeclaration" && getSourceClassDeclarationTargetId(node, input) === targetId) {
+    return node;
+  }
+  for (const child of input.ast.children(node)) {
+    if (child === undefined) {
+      continue;
+    }
+    const declaration = findSourceClassDeclarationByTargetIdInSubtree(child, targetId, input);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
+}
+
+function getSourceClassDeclarationTargetId(
+  declaration: Node,
+  input: TargetCompileInput,
+): string | undefined {
+  const name = getNodeField(declaration, "name");
+  if (name === undefined) {
+    return undefined;
+  }
+  const text = input.ast.text(name);
+  return text.length === 0 ? undefined : text;
+}
+
+function getSelectedSourceOperationDeclaringType(
+  propertyAccess: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<typeof getTargetTypeRefForNode> {
+  const operation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
+  return operation?.kind === "member"
+    ? operation.declaringType ?? getSourceDeclaringTargetType(operation.sourceDeclaringType, sourceFile, input)
+    : undefined;
 }
 
 function getSourceDeclaringTargetType(
@@ -211,6 +354,13 @@ function getDeclaredReceiverTargetType(
   const typeNode = declaration === undefined ? undefined : getNodeField(declaration, "Type");
   if (typeNode !== undefined) {
     return getTargetTypeRefForNode(input, typeNode, reference?.sourceFile ?? sourceFile);
+  }
+  const declarationName = declaration === undefined
+    ? undefined
+    : getNodeField(declaration, "name") ?? getNodeField(declaration, "Name");
+  const declarationNameType = getTargetTypeRefForNode(input, declarationName, reference?.sourceFile ?? sourceFile);
+  if (declarationNameType !== undefined) {
+    return declarationNameType;
   }
   return declaration === undefined
     ? getTargetTypeRefForNode(input, receiverNode, sourceFile)
@@ -248,7 +398,7 @@ function planFinalizedCsharpPropertyOperation(
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: receiverExpression,
+    receiver: applySelectedDeclaringReceiverProjection(propertyAccess, expression.Expression!, receiverExpression, csharpOperation.declaringType, sourceFile, input, diagnostics),
     name: csharpOperation.memberName,
   };
 }

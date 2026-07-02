@@ -7,8 +7,12 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
+  csharpProviderDiagnostic,
+} from "../../../diagnostics.js";
+import {
   csharpArrayBoundaryFactKey,
   csharpArrayCarrierFactKey,
+  csharpSourceReturnCarrierFactKey,
 } from "../../../../csharp-facts.js";
 import type {
   CsharpArrayCarrierFact,
@@ -16,8 +20,10 @@ import type {
 } from "../../../../csharp-facts.js";
 import {
   csharpListTargetType,
+  csharpReadOnlyListTargetType,
 } from "../../../target-types.js";
 import {
+  setRuntimeCarrierFactIfAbsentOrStronger,
   setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
@@ -27,6 +33,7 @@ import type {
   ArrayLocalAnalysis,
   ArrayParameterAnalysis,
   ArrayReturnAnalysis,
+  CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
 
@@ -35,6 +42,9 @@ export function recordArrayParameterFacts(
   lifecycleContext: LifecycleContext,
   context: ExtensionObservationContext,
 ): void {
+  if (appendUnresolvedArrayCarrierDiagnostic(parameter.name, parameter.carrierRequirements, lifecycleContext)) {
+    return;
+  }
   const boundary = boundaryFactForArrayParameter(parameter);
   const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
@@ -61,6 +71,9 @@ export function recordArrayLocalFacts(
   local: ArrayLocalAnalysis,
   lifecycleContext: LifecycleContext,
 ): void {
+  if (appendUnresolvedArrayCarrierDiagnostic(local.name, local.carrierRequirements, lifecycleContext)) {
+    return;
+  }
   const boundary = boundaryFactForLocalArray(local);
   const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
@@ -73,11 +86,11 @@ export function recordArrayLocalFacts(
   const evidence = [{
     message: `C# JS surface local array carrier selected from generic structural source analysis requirements: ${Array.from(local.carrierRequirements).sort().join(",") || "none"}.`,
   }];
-  for (const subject of arrayLocalFactSubjects(local)) {
+  for (const subject of arrayLocalFactSubjects(local, lifecycleContext)) {
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
-  for (const subject of arrayLocalRuntimeCarrierSubjects(local)) {
+  for (const subject of arrayLocalRuntimeCarrierSubjects(local, lifecycleContext)) {
     lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, { carrier: boundary.coreCarrierType }, evidence);
   }
 }
@@ -86,26 +99,41 @@ export function recordArrayReturnFacts(
   returnType: ArrayReturnAnalysis,
   lifecycleContext: LifecycleContext,
 ): void {
-  const list = csharpListTargetType(returnType.elementType);
-  const evidence = [{ message: "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value." }];
-  lifecycleContext.host.facts.set(returnType.typeNode, csharpArrayBoundaryFactKey, {
-    publicShape: "List<T>",
-    publicType: list,
-    coreCarrierLane: "native-dense-mutable",
-    coreCarrierType: list,
-    preservesMutationVisibility: true,
+  const carrierType = returnType.readonlySourceContract
+    ? csharpReadOnlyListTargetType(returnType.elementType)
+    : csharpListTargetType(returnType.elementType);
+  const evidenceMessage = returnType.readonlySourceContract
+    ? "C# JS surface array return boundary selected IReadOnlyList<T> for readonly TypeScript array return value."
+    : "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value.";
+  const evidence = [{ message: evidenceMessage }];
+  const boundary: CsharpArrayBoundaryFact = {
+    publicShape: returnType.readonlySourceContract ? "IReadOnlyList<T>" : "List<T>",
+    publicType: carrierType,
+    coreCarrierLane: returnType.readonlySourceContract ? "native-read-indexable" : "native-dense-mutable",
+    coreCarrierType: carrierType,
+    preservesMutationVisibility: !returnType.readonlySourceContract,
     requiresCopyIn: false,
     requiresCopyOut: false,
-  }, evidence);
-  lifecycleContext.host.facts.set(returnType.typeNode, csharpArrayCarrierFactKey, {
+  };
+  const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
-    lane: "native-dense-mutable",
+    lane: returnType.readonlySourceContract ? "native-read-indexable" : "native-dense-mutable",
     elementType: returnType.elementType,
-    carrierType: list,
-    mutationVisibility: "caller-visible",
+    carrierType,
+    mutationVisibility: returnType.readonlySourceContract ? "none" : "caller-visible",
     boundary: "exported-api",
-  }, evidence);
-  setRuntimeCarrierFactIfUnresolved(lifecycleContext, returnType.typeNode, { carrier: list }, evidence);
+  };
+  for (const subject of arrayReturnFactSubjects(returnType)) {
+    lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
+    lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+  }
+  for (const subject of returnType.sourceReturnSubjects) {
+    lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: carrierType }, evidence);
+  }
+  for (const subject of returnType.returnExpressions) {
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+  }
 }
 
 function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly ExtensionFactSubject[] {
@@ -126,24 +154,43 @@ function arrayRuntimeCarrierSubjects(parameter: ArrayParameterAnalysis): readonl
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayLocalFactSubjects(local: ArrayLocalAnalysis): readonly ExtensionFactSubject[] {
+function arrayLocalFactSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
+    arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis): readonly ExtensionFactSubject[] {
+function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
+    arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+}
+
+function arrayReturnFactSubjects(returnType: ArrayReturnAnalysis): readonly ExtensionFactSubject[] {
+  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+    returnType.typeNode,
+  ];
+  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+}
+
+function arrayLiteralInitializerSubject(
+  local: ArrayLocalAnalysis,
+  lifecycleContext: LifecycleContext,
+): ExtensionFactSubject | undefined {
+  const initializer = local.initializer;
+  return initializer !== undefined && lifecycleContext.compiler?.ast.is.IsArrayLiteralExpression(initializer) === true
+    ? initializer
+    : undefined;
 }
 
 function boundaryFactForLocalArray(local: ArrayLocalAnalysis): CsharpArrayBoundaryFact {
@@ -158,6 +205,28 @@ function boundaryFactForLocalArray(local: ArrayLocalAnalysis): CsharpArrayBounda
     carrierRequirements: local.carrierRequirements,
   };
   return boundaryFactForArrayParameter(parameterEquivalent);
+}
+
+function appendUnresolvedArrayCarrierDiagnostic(
+  node: Node,
+  requirements: ReadonlySet<CsharpArrayCarrierRequirement>,
+  lifecycleContext: LifecycleContext,
+): boolean {
+  if (!requirements.has("unresolved-structural-use")) {
+    return false;
+  }
+  lifecycleContext.host.diagnostics.append({
+    ...csharpProviderDiagnostic(
+      "tsonic.csharp.operations",
+      "CSHARP_JS_ARRAY_CARRIER_REQUIREMENT_NOT_PROVEN",
+      9100175,
+      "C# JS surface array carrier selection requires selected TSTS declaration identity and provider target member metadata for every structural property, call, and argument use; unresolved structural use prevents selecting a carrier lane.",
+      [{ message: `Observed structural requirements: ${Array.from(requirements).sort().join(",")}.` }],
+    ),
+    nodeOrSpan: node,
+    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node)}`,
+  });
+  return true;
 }
 
 function getParameterName(name: Node): string {

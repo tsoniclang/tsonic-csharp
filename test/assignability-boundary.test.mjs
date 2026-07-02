@@ -6,6 +6,7 @@ import {
   TstsProviderContractVersion,
   createCompilerSessionFromFiles,
   formatDiagnostics,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import {
@@ -14,6 +15,7 @@ import {
 } from "../dist/index.js";
 import {
   csharpObservedTargetAssignabilityFactKey,
+  csharpTargetConversionOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
@@ -118,6 +120,29 @@ test("C# post-check target assignability fails closed when target type facts are
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
+test("C# post-check target assignability resolves object-rest assignment targets", () => {
+  const sourceText = `
+    type Shape = { value: number; label: string };
+
+    export function assign(input: Shape): string {
+      let value: number = 0;
+      let rest: { label: string } = { label: "" };
+      ({ value, ...rest } = input);
+      return rest.label + value;
+    }
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all() ?? [];
+  assert.equal(diagnostics.filter((diagnostic) => diagnostic.extensionCode === "FACT_CONFLICT").length, 0);
+  assert.equal(diagnostics.filter((diagnostic) => diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID").length, 0);
+});
+
 test("C# target generic constraints diagnose unproven provider type arguments after TSTS accepts source syntax", () => {
   const sourceText = `
     import type { SearchValues } from "@example/csharp/search-values.js";
@@ -180,6 +205,69 @@ test("C# post-check target assignability fails closed on TypeScript any boundari
   assert.match(targetDiagnostics[0].message, /cannot cross a TypeScript any boundary/u);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
+});
+
+test("C# compat mode records typed-boundary conversions for any assignments, initializers, and returns", () => {
+  const sourceText = `
+    declare let dynamicValue: any;
+
+    export function assigned(): number {
+      let target: number = 0;
+      target = dynamicValue;
+      return target;
+    }
+
+    export function initialized(value: any): number {
+      const target: number = value;
+      return target;
+    }
+
+    export function returned(value: any): number {
+      return value;
+    }
+
+    export function boxed(value: number): any {
+      return value;
+    }
+  `;
+  const session = createNativeSession(sourceText, csharpProviderContext({
+    id: "csharp",
+    options: {
+      typescriptCompatibility: "compat",
+    },
+  }));
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const targetDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  );
+  assert.equal(targetDiagnostics.length, 0);
+
+  const assignmentRight = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0]?.Right;
+  assert.ok(assignmentRight);
+  assertCompatCastFact(extensionHost, assignmentRight);
+
+  const declarations = collectNodesByKind(sourceFile, session.ast, "KindVariableDeclaration");
+  const initializer = declarations[2]?.Initializer;
+  assert.ok(initializer);
+  assertCompatCastFact(extensionHost, initializer);
+
+  const returns = collectNodesByKind(sourceFile, session.ast, "KindReturnStatement");
+  const typedReturnExpression = returns[2]?.Expression;
+  assert.ok(typedReturnExpression);
+  assertCompatCastFact(extensionHost, typedReturnExpression);
+
+  const boxedReturnExpression = returns[3]?.Expression;
+  assert.ok(boxedReturnExpression);
+  const boxedConversion = extensionHost.facts.get(boxedReturnExpression, targetConversionFactKey);
+  const boxedOperation = extensionHost.facts.get(boxedReturnExpression, csharpTargetConversionOperationFactKey);
+  assert.equal(boxedConversion?.convertedType?.id, "Tsonic.CSharp.Js.TsValue");
+  assert.equal(boxedOperation?.kind, "member");
+  assert.equal(boxedOperation.memberName, "from");
+  assert.equal(boxedOperation.static, true);
 });
 
 test("C# post-check target assignment requires writable selected provider property facts", () => {
@@ -426,7 +514,7 @@ function createDotnetConstraintSession(sourceText) {
   });
 }
 
-function createNativeSession(sourceText) {
+function createNativeSession(sourceText, context = csharpProviderContext()) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
@@ -442,11 +530,22 @@ function createNativeSession(sourceText) {
       activeTarget: "csharp",
       extensions: [
         createTsonicCoreSourceExtension(),
-        createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+        createCsharpSourceSemanticsExtension(context),
+        createCsharpTargetSemanticsExtension(context),
       ],
     },
   });
+}
+
+function assertCompatCastFact(extensionHost, subject) {
+  const conversion = extensionHost.facts.get(subject, targetConversionFactKey);
+  const csharpConversion = extensionHost.facts.get(subject, csharpTargetConversionOperationFactKey);
+  assert.equal(conversion?.convertedType?.kind, "source-primitive");
+  assert.equal(conversion.convertedType.name, "float64");
+  assert.match(conversion.operation?.operationId, /^tsonic\.csharp\.compat\.any\.typed-boundary-cast:/u);
+  assert.equal(csharpConversion?.kind, "member");
+  assert.equal(csharpConversion.memberName, "CastCompat");
+  assert.equal(csharpConversion.static, true);
 }
 
 function collectFacts(sourceFile, ast, extensionHost, factKey) {
@@ -576,6 +675,7 @@ function csharpProviderContext(target = { id: "csharp" }) {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }

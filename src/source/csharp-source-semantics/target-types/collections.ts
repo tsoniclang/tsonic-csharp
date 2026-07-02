@@ -12,25 +12,27 @@ import {
 } from "./target-refs.js";
 
 export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  const constructionType = csharpListTargetType(elementType);
   return csharpTargetNamedType(
     "System.Collections.Generic.IEnumerable`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
-    { arrayLiteralElementType: elementType, enumerableElementType: elementType },
+    { arrayLiteralElementType: elementType, arrayLiteralConstructionType: constructionType, enumerableElementType: elementType },
   );
 }
 
 export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  const constructionType = csharpListTargetType(elementType);
   return csharpTargetNamedType(
     "System.Collections.Generic.IReadOnlyList`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
-    { arrayLiteralElementType: elementType, enumerableElementType: elementType, readOnlyIndexableElementType: elementType },
+    { arrayLiteralElementType: elementType, arrayLiteralConstructionType: constructionType, enumerableElementType: elementType, readOnlyIndexableElementType: elementType },
   );
 }
 
 export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
+  const type = csharpTargetNamedType(
     "System.Collections.Generic.List`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
@@ -41,6 +43,10 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
       denseMutableElementType: elementType,
     },
   );
+  return {
+    ...type,
+    csharpArrayLiteralConstructionType: type,
+  };
 }
 
 export function getCsharpCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
@@ -78,5 +84,11 @@ export function isCsharpDenseMutableCollectionTargetType(type: TargetTypeRef | u
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType
+    : undefined;
+}
+
+export function getCsharpArrayLiteralConstructionTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  return type?.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType
     : undefined;
 }

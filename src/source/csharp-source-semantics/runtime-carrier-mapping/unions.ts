@@ -10,23 +10,32 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../csharp-facts.js";
+import {
+  csharpObjectShapeFactKey,
+} from "../../csharp-facts.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
 import {
+  csharpRuntimeNullTargetType,
+  csharpRuntimeUndefinedTargetType,
   csharpRuntimeUnionTargetType,
 } from "../target-types.js";
 import {
   asType,
   targetTypeRefEquals,
 } from "../target-ref-utils.js";
+import {
+  isTstsNullType,
+  isTstsUndefinedType,
+} from "../nullish-types.js";
 
 export interface CommonUnionRuntimeCarrier {
   readonly carrier: RuntimeCarrierFactResult["carrier"];
   readonly objectShape?: CsharpObjectShapeFact;
 }
 
-export function getNonNullishRuntimeUnionCarrier(
+export function getRuntimeUnionCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpRuntimeCarrierSemanticsHost,
@@ -39,17 +48,18 @@ export function getNonNullishRuntimeUnionCarrier(
   const members = compiler.typeShape.getUnionOrIntersectionTypes(type)
     .filter((member): member is Type => member !== undefined);
   const nonNullishMembers = members.filter((member) => !compiler.typeShape.isNullish(member));
-  if (nonNullishMembers.length < 2 || nonNullishMembers.length !== members.length) {
+  if (nonNullishMembers.length < 2) {
     return undefined;
   }
-  const memberCarriers = nonNullishMembers.map((member) => getUnionConstituentRuntimeCarrier(member, context, host)?.carrier);
-  if (!memberCarriers.every((member): member is RuntimeCarrierFactResult["carrier"] => member !== undefined)) {
+  const memberResults = members.map((member) => getUnionConstituentRuntimeCarrier(member, context, host));
+  if (!memberResults.every((member): member is CommonUnionRuntimeCarrier => member !== undefined)) {
     return undefined;
   }
+  const memberCarriers = memberResults.map((member) => member.carrier);
   if (containsDuplicateTargetCarrier(memberCarriers)) {
     return undefined;
   }
-  return csharpRuntimeUnionTargetType(memberCarriers);
+  return csharpRuntimeUnionTargetType(memberCarriers, memberResults.map((member) => member.objectShape));
 }
 
 export function getCommonNonNullishUnionRuntimeCarrier(
@@ -88,11 +98,20 @@ function getUnionConstituentRuntimeCarrier(
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): CommonUnionRuntimeCarrier | undefined {
+  if (isTstsUndefinedType(type, context.compiler.typeShape)) {
+    return { carrier: csharpRuntimeUndefinedTargetType() };
+  }
+  if (isTstsNullType(type, context.compiler.typeShape)) {
+    return { carrier: csharpRuntimeNullTargetType() };
+  }
   const runtimeCarrier = context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier;
   const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(type, context);
   const carrier = runtimeCarrier ??
     objectShape?.targetType ??
     host.getTargetTypeRefForType(type, context, { allowRuntimeCarrier: true });
+  if (objectShape !== undefined && carrier !== undefined && targetTypeRefEquals(objectShape.targetType, carrier)) {
+    context.facts.set(objectShape.targetType, csharpObjectShapeFactKey, objectShape, [{ message: "C# union constituent object-shape fact attached to finalized target carrier type." }]);
+  }
   return carrier === undefined
     ? undefined
     : {

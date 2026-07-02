@@ -12,19 +12,18 @@ import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
+  createCsharpNodejsProviderPackageExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
 } from "../dist/index.js";
 import {
-  createCsharpNodejsSurfaceOperationsProvider,
-} from "../dist/source/csharp-source-semantics/surface-extensions.js";
-import {
-  createCsharpNodejsSurfaceBindingProvider,
-} from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
+  createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsMappers,
+  createCsharpNodejsProviderPackageOperationsProvider,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 
 test("NodeJS fs Stats Date declarations expose JS Date source type", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
   const resolution = bindingProvider.resolveModule("node:fs", {});
   assert.equal(resolution.kind, "virtual");
 
@@ -41,9 +40,9 @@ test("NodeJS fs Stats Date declarations expose JS Date source type", () => {
   assert.equal(mtimeMs.type.kind, "number");
 });
 
-test("NodeJS surface maps Stats Date properties from selected provider member identity", () => {
+test("NodeJS provider package maps Stats Date properties from selected provider member identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const mtimeExpression = {};
   const mtimeMsExpression = {};
   const mtimeDeclaration = {};
@@ -73,9 +72,9 @@ test("NodeJS surface maps Stats Date properties from selected provider member id
   assert.equal(mtimeMsResult.value.operation.resultType.name, "float64");
 });
 
-test("NodeJS surface rejects Stats Date property mapping without selected provider member identity", () => {
+test("NodeJS provider package rejects Stats Date property mapping without selected provider member identity", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const expression = {};
   const declaration = {};
   facts.set(declaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
@@ -100,7 +99,7 @@ test("selected NodeJS Stats Date facts compose with JS Date calls after TSTS che
       const stats = statSync(path);
       return stats.mtime.toISOString() + ":" + stats.mtimeMs;
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -125,7 +124,7 @@ test("selected NodeJS Stats Date facts preserve JS Date carrier through nullish 
       const resolved = maybeDate ?? statSync(path).mtime;
       return resolved.toISOString();
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -153,6 +152,7 @@ function fakeContext(facts) {
 
 function createCsharpSession(sourceText, options = {}) {
   const target = { id: "csharp" };
+  const selectedPackages = selectedProviderPackages(options.selectedPackages ?? []);
   const context = {
     project: {
       entryPoint: "index.ts",
@@ -160,6 +160,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
+    selectedPackages,
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -181,14 +182,33 @@ function createCsharpSession(sourceText, options = {}) {
         ...context.selectedSurfaces.flatMap((surface) =>
           surface.id === "js"
             ? [createCsharpJsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
-            : surface.id === "nodejs"
-              ? [createCsharpNodejsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
-              : []
+            : []
+        ),
+        ...context.selectedPackages.flatMap((providerPackage) =>
+          providerPackage.createExtensions?.({ ...context, package: providerPackage, targetPack: fakeTargetPack }) ?? []
         ),
       ],
     },
   });
 }
+
+function selectedProviderPackages(requestedPackages) {
+  return requestedPackages.map((providerPackage) =>
+    providerPackage.id === nodejsTestProviderPackage.id
+      ? nodejsTestProviderPackage
+      : providerPackage
+  );
+}
+
+const nodejsTestProviderPackage = {
+  id: "nodejs",
+  displayName: "Node.js provider package",
+  requiredSurfaces: ["js"],
+  createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+  createExtensions(context) {
+    return [createCsharpNodejsProviderPackageExtension(context)];
+  },
+};
 
 const fakeTargetPack = {
   id: "csharp",
@@ -229,7 +249,7 @@ function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
 
 function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {
   return {
-    providerId: "tsonic.csharp.nodejs-surface-provider",
+    providerId: "tsonic.csharp.provider-package.nodejs",
     providerVersion: "0.0.1",
     providerModuleId: moduleSpecifier,
     moduleSpecifier,

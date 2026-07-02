@@ -26,6 +26,9 @@ import { planIdentifierName } from "./names.js";
 import {
   getCsharpLocalBindingName,
 } from "./bindings.js";
+import {
+  planRuntimeUnionUseSiteProjection,
+} from "./runtime-union-projections.js";
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
@@ -68,11 +71,12 @@ export function planIdentifierExpression(
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
   }
-  return {
+  const expression: CsharpExpression = {
     kind: "IdentifierName",
     name: getCsharpLocalBindingName(identifier, sourceFile, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
+  return planRuntimeUnionUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);
 }
 
 function isGlobalUndefinedExpression(

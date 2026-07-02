@@ -15,12 +15,8 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
-  getNodeList,
   visitAstReaderNodes,
 } from "../ast-utils.js";
-import {
-  createObjectShapeTargetType,
-} from "../object-shape-identity.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
   getRuntimeCarrierSubjectType,
@@ -28,9 +24,6 @@ import {
 import {
   getSymbolForDeclarationLookup,
 } from "../symbol-utils.js";
-import {
-  getObjectBindingElementSourceName,
-} from "./source-name.js";
 import type {
   CsharpObjectShapeLifecycleHost,
 } from "./types.js";
@@ -53,23 +46,13 @@ export function recordCsharpObjectRestBindingFactsBeforeFinalization(
         return;
       }
       const restName = asNodeSubject(getNodeField(node, "name"));
-      const sourceExpression = getObjectBindingPatternSourceExpression(node);
-      if (restName === undefined || sourceExpression === undefined) {
+      if (restName === undefined) {
         return;
       }
-      const sourceShape = host.getCsharpObjectShapeFactForSubject(sourceExpression, context);
-      if (sourceShape === undefined) {
+      const restShape = getObjectRestBindingShapeFromCheckedType(node, sourceFile, compiler, host, context);
+      if (restShape === undefined || restShape.members.length === 0) {
         return;
       }
-      const omitted = getObjectBindingPatternOmittedNames(node, compiler.ast);
-      const members = sourceShape.members.filter((member) => !omitted.has(member.sourceName));
-      if (members.length === sourceShape.members.length || members.length === 0) {
-        return;
-      }
-      const restShape = {
-        targetType: createObjectShapeTargetType("__TsonicShape", members),
-        members,
-      } satisfies CsharpObjectShapeFact;
       recordCsharpObjectRestBindingFact(lifecycleContext, sourceFile, [node, restName], restShape);
     });
   }
@@ -85,32 +68,19 @@ function isObjectRestBindingElement(
     ast.kindName(parent) === "KindObjectBindingPattern";
 }
 
-function getObjectBindingPatternSourceExpression(restBindingElement: Node): Node | undefined {
-  const bindingPattern = asNodeSubject(getNodeField(restBindingElement, "Parent"));
-  const bindingOwner = asNodeSubject(getNodeField(bindingPattern, "Parent"));
-  if (bindingOwner === undefined) {
+function getObjectRestBindingShapeFromCheckedType(
+  restBindingElement: Node,
+  sourceFile: SourceFile,
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  host: CsharpObjectShapeLifecycleHost,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeFact | undefined {
+  try {
+    const restType = compiler.checker.getTypeAtLocation(restBindingElement, { sourceFile });
+    return host.getCsharpObjectShapeFactForSubject(restType, context);
+  } catch {
     return undefined;
   }
-  return asNodeSubject(getNodeField(bindingOwner, "Initializer")) ??
-    asNodeSubject(getNodeField(bindingOwner, "Type"));
-}
-
-function getObjectBindingPatternOmittedNames(
-  restBindingElement: Node,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-): ReadonlySet<string> {
-  const bindingPattern = asNodeSubject(getNodeField(restBindingElement, "Parent"));
-  const omitted = new Set<string>();
-  for (const element of getNodeList(getNodeField(bindingPattern, "Elements"))) {
-    if (element === restBindingElement || getNodeField(element, "DotDotDotToken") !== undefined) {
-      continue;
-    }
-    const sourceName = getObjectBindingElementSourceName(element, ast);
-    if (sourceName.length > 0) {
-      omitted.add(sourceName);
-    }
-  }
-  return omitted;
 }
 
 function recordCsharpObjectRestBindingFact(
@@ -124,7 +94,7 @@ function recordCsharpObjectRestBindingFact(
     return;
   }
   const runtimeCarrier = { carrier: restShape.targetType };
-  const evidence = [{ message: "C# object rest binding shape recorded from finalized source object-shape facts." }];
+  const evidence = [{ message: "C# object rest binding shape recorded from the TSTS-checked rest binding type." }];
   for (const subject of subjects) {
     lifecycleContext.host.facts.set(subject, csharpObjectShapeFactKey, restShape, evidence);
     lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, runtimeCarrier, evidence);

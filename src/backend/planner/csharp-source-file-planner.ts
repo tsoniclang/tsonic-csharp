@@ -43,7 +43,7 @@ import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, pla
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
+import { beginObjectShapeSourceFilePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
 import { readNamespace } from "./project-artifacts.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
@@ -69,8 +69,8 @@ export function planSourceFile(
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
-  beginObjectShapePlanning(input);
   const moduleClassName = sourceFileClassName(input, fileName);
+  beginObjectShapeSourceFilePlanning(input, fileName);
   const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input) ||
     moduleInitialization.requiresInitializer(sourceFile);
   const members: CsharpTypeMember[] = [];
@@ -164,7 +164,7 @@ export function planSourceFile(
       members,
     });
   }
-  const shapeDeclarations = takeObjectShapeDeclarations(input);
+  const shapeDeclarations = takeObjectShapeDeclarations(input, fileName);
   if (namespaceMembers.length === 0 && shapeDeclarations.length === 0) {
     return undefined;
   }

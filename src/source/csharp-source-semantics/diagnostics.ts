@@ -9,6 +9,7 @@ export function csharpProviderDiagnostic(
   numericCode: number,
   message: string,
   evidence: readonly ExtensionEvidence[] = [],
+  nodeOrSpan?: unknown,
 ): ExtensionDiagnostic {
   return {
     extensionId,
@@ -16,6 +17,7 @@ export function csharpProviderDiagnostic(
     numericCode,
     category: "error",
     message,
+    ...(nodeOrSpan === undefined ? {} : { nodeOrSpan }),
     ...(evidence.length > 0 ? { evidence } : {}),
   };
 }

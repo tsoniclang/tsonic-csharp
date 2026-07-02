@@ -131,6 +131,9 @@ function getFinalizedNullishResultType(
     return undefined;
   }
   if (!sameCsharpType(resultType, expectedType)) {
+    if (expectedType.kind === "IdentifierName" && expectedType.name === "var") {
+      return resultType;
+    }
     const leftCompatibleResultType = getNullishOperandExpectedCompatibleType(left, sourceFile, input);
     if (leftCompatibleResultType !== undefined && sameCsharpType(leftCompatibleResultType, expectedType)) {
       return expectedType;

@@ -1,4 +1,5 @@
 import {
+  selectedTargetSignatureFactKey,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -11,6 +12,7 @@ import {
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import {
+  isLiteralValueSyntaxNode,
   isSemanticTypeQueryableValueExpressionNode,
 } from "../ast-utils.js";
 import {
@@ -34,6 +36,9 @@ import {
   targetTypeRefIsClosed,
 } from "../target-ref-utils.js";
 import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "../source-owned-selected-signature.js";
+import {
   getCallableExpressionRuntimeCarrierTargetTypeRef,
 } from "./callable-expressions.js";
 import type {
@@ -54,7 +59,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context, host.getCatchExceptionTargetTypeRef?.());
+  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context, host.getCatchVariableTargetTypeRef?.());
   if (catchVariableCarrier !== undefined) {
     const fact = { carrier: catchVariableCarrier };
     const evidence = [{ message: "C# catch variable runtime carrier recorded from finalized provider exception policy." }];
@@ -80,6 +85,9 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   if (!isRuntimeCarrierSyntaxFactCandidate(compiler.ast, node)) {
     return;
   }
+  if (isSourceOwnedArrayOperationExpression(lifecycleContext, node)) {
+    return;
+  }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getClosedSyntaxRuntimeCarrier(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
@@ -91,6 +99,20 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function isSourceOwnedArrayOperationExpression(
+  lifecycleContext: RuntimeCarrierLifecycleFactsContext,
+  node: Node,
+): boolean {
+  const ast = lifecycleContext.compiler?.ast;
+  if (ast === undefined || (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node) && !ast.is.IsAwaitExpression(node))) {
+    return false;
+  }
+  const selected = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
+  return selected !== undefined &&
+    isCsharpSourceOwnedSelectedSignature(selected) &&
+    selected.member.returnType?.kind === "array";
 }
 
 function getClosedSyntaxRuntimeCarrier(
@@ -126,7 +148,11 @@ function isRuntimeCarrierSyntaxFactCandidate(
   if (isRuntimeCarrierTypeSyntaxNode(ast, node)) {
     return false;
   }
+  if (ast.kindName(node) === "KindAwaitExpression") {
+    return false;
+  }
   return ast.is.IsRegularExpressionLiteral(node) ||
     ast.is.IsNewExpression(node) ||
+    isLiteralValueSyntaxNode(ast, node) ||
     isSemanticTypeQueryableValueExpressionNode(ast, node);
 }

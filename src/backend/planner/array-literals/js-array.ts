@@ -2,6 +2,7 @@ import {
   AsArrayLiteralExpression,
   AsSpreadElement,
   HasSourceKind,
+  KindOmittedExpression,
   KindSpreadElement,
 } from "../source-ast.js";
 import type {
@@ -44,7 +45,10 @@ export function planJsArrayLiteralExpression(
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(node)!;
-  if (!(literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
+  const elements = literal.Elements?.Nodes ?? [];
+  const hasSpread = elements.some((element) => HasSourceKind(input.ast, element, KindSpreadElement));
+  const hasElision = elements.some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));
+  if (!hasSpread && !hasElision) {
     const arrayExpression = planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
     return arrayExpression === undefined ? undefined : jsArrayFromNativeArray(arrayExpression, collectionType);
   }
@@ -83,20 +87,20 @@ function createJsArrayLiteralChunks(
 ): readonly CsharpExpression[] | undefined {
   const literal = AsArrayLiteralExpression(node)!;
   const chunks: CsharpExpression[] = [];
-  let pendingElements: CsharpExpression[] = [];
+  let pendingElements: SparseJsArrayLiteralElement[] = [];
   const flushPending = () => {
     if (pendingElements.length === 0) {
       return;
     }
-    chunks.push(jsArrayFromNativeArray({
-      kind: "ArrayCreationExpression",
-      elementType,
-      elements: pendingElements,
-    }, collectionType));
+    chunks.push(jsArrayChunkExpression(pendingElements, collectionType, elementType));
     pendingElements = [];
   };
   for (const element of literal.Elements?.Nodes ?? []) {
     if (element === undefined) {
+      continue;
+    }
+    if (HasSourceKind(input.ast, element, KindOmittedExpression)) {
+      pendingElements.push({ kind: "hole" });
       continue;
     }
     if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
@@ -104,21 +108,26 @@ function createJsArrayLiteralChunks(
       if (planned === undefined) {
         return undefined;
       }
-      pendingElements.push(planned);
+      pendingElements.push({ kind: "present", expression: planned });
       continue;
     }
     flushPending();
     const expression = AsSpreadElement(element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
-      continue;
+      return undefined;
     }
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     if (!isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
-      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.");
+      const detail = spreadCarrier === undefined
+        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.")
+        : {
+            reason: "Finalized spread carrier is not a JSArray carrier.",
+            evidence: [],
+          };
       diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized JSArray carrier fact for the spread expression. ${detail.reason}`, detail.evidence));
-      continue;
+      return undefined;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
     if (planned === undefined) {
@@ -135,6 +144,54 @@ function createJsArrayLiteralChunks(
   }
   flushPending();
   return chunks;
+}
+
+type SparseJsArrayLiteralElement =
+  | { readonly kind: "hole" }
+  | { readonly kind: "present"; readonly expression: CsharpExpression };
+
+function jsArrayChunkExpression(
+  elements: readonly SparseJsArrayLiteralElement[],
+  collectionType: CsharpTypeNode,
+  elementType: CsharpTypeNode,
+): CsharpExpression {
+  const presentElements: { readonly element: Extract<SparseJsArrayLiteralElement, { readonly kind: "present" }>; readonly index: number }[] = [];
+  for (let index = 0; index < elements.length; index++) {
+    const element = elements[index]!;
+    if (element.kind === "present") {
+      presentElements.push({ element, index });
+    }
+  }
+  return presentElements.length === elements.length
+    ? jsArrayFromNativeArray({
+        kind: "ArrayCreationExpression",
+        elementType,
+        elements: presentElements.map((entry) => entry.element.expression),
+      }, collectionType)
+    : {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: collectionType,
+          name: "fromSparse",
+        },
+        arguments: [
+          {
+            kind: "Argument",
+            expression: { kind: "LiteralExpression", value: elements.length },
+          },
+          ...presentElements.map((entry) => ({
+            kind: "Argument" as const,
+            expression: {
+              kind: "TupleExpression" as const,
+              elements: [
+                { kind: "LiteralExpression" as const, value: entry.index },
+                entry.element.expression,
+              ],
+            },
+          })),
+        ],
+      };
 }
 
 function jsArrayFromNativeArray(arrayExpression: CsharpExpression, collectionType: CsharpTypeNode): CsharpExpression {

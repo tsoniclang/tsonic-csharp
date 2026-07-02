@@ -121,6 +121,30 @@ test("architecture validator rejects per-module Node target identity maps", () =
   );
 });
 
+test("architecture validator rejects central NodeJS provider-package branches", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/provider-packages/index.ts",
+    `
+      if (providerPackage.id === "nodejs") {
+        return createNodejsMappers(providerPackage);
+      }
+    `,
+    ["central-nodejs-provider-package-branch"],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/provider-packages/index.ts",
+      `
+        return context.selectedPackages.flatMap((providerPackage) => {
+          return providerPackage.createCsharpOperationsMappers?.(context) ?? [];
+        });
+      `,
+    ),
+    [],
+  );
+});
+
 test("architecture validator rejects source-member id dispatch and tables", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
@@ -261,6 +285,31 @@ test("architecture validator rejects executable hooks in policy-like records", (
   ];
   assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), [true, true, true, true, true]);
   assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), [false, false, false]);
+});
+
+test("architecture validator rejects fabricated TSTS compiler objects", () => {
+  assertFindings(
+    "src/backend/planner/destructuring-assignment.ts",
+    `
+      const fakeNode = pattern as unknown as Node;
+      const fakeSignature = row as unknown as Signature;
+    `,
+    [
+      "fabricated-tsts-compiler-node",
+      "fabricated-tsts-compiler-node",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/backend/planner/destructuring-assignment.ts",
+      `
+        type BackendDestructuringPattern = { readonly kind: "array"; readonly elements: readonly unknown[] };
+        const pattern: BackendDestructuringPattern = { kind: "array", elements: [] };
+      `,
+    ),
+    [],
+  );
 });
 
 test("architecture validator rejects target-member synthesis from source names", () => {
@@ -680,7 +729,7 @@ test("architecture validator rejects provider-row target members built from sour
 
 test("architecture validator rejects Node target member synthesis from source names", () => {
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/path/calls.ts",
     `
       return {
         member: {
@@ -707,7 +756,7 @@ test("architecture validator rejects Node target member synthesis from source na
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/url/declarations.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/url/declarations.ts",
     `
       members: nodeUrlUnsupportedClassMemberDeclarations()
         .filter((member) => member.exportName === exportName)
@@ -717,7 +766,7 @@ test("architecture validator rejects Node target member synthesis from source na
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/filesystem/calls.ts",
     `
       const member = entries.find((row) => row.signatureId === signatureId);
     `,
@@ -743,7 +792,7 @@ test("architecture validator rejects executable selectors in metadata-policy fil
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/provider-metadata/fs.ts",
     `
       export const fsRows = [{
         sourceIdentity: "fs.readFile",
@@ -758,7 +807,7 @@ test("architecture validator rejects executable selectors in metadata-policy fil
 
   assert.deepEqual(
     findingIds(
-      "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+      "src/source/csharp-source-semantics/provider-packages/nodejs/provider-metadata/fs.ts",
       `
         export const fsRows = [{
           sourceIdentity: "fs.readFile",

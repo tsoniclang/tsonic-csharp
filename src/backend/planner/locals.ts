@@ -4,8 +4,14 @@ import {
   AsVariableDeclaration,
   HasSourceKind,
   KindArrowFunction,
+  KindCallExpression,
+  KindBinaryExpression,
   KindFunctionExpression,
+  KindNewExpression,
 } from "./source-ast.js";
+import {
+  targetOperationFactKey,
+} from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
@@ -26,6 +32,12 @@ import type { DestructuringPlannerState } from "./bindings.js";
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import {
+  asTargetTypeRef,
+} from "../../source/fact-subjects.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -35,7 +47,7 @@ export function planLocalDeclaration(
   state: DestructuringPlannerState,
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, input) ?? variable.name ?? variable.Initializer;
+  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
   const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
     getTargetTypeRefForNode(input, variable.name, sourceFile);
   const explicitType = variable.Type === undefined
@@ -50,6 +62,7 @@ export function planLocalDeclaration(
   const type = inferredLambdaType ??
     explicitType ??
     constAssertionType ??
+    getClosedInitializerInferredType(variable.Initializer, input) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
@@ -60,6 +73,28 @@ export function planLocalDeclaration(
       ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state, expectedTargetType) }
       : {}),
   };
+}
+
+function getClosedInitializerInferredType(
+  initializer: Node | undefined,
+  input: TargetCompileInput,
+): CsharpLocalDeclaration["type"] | undefined {
+  const csharpOperation = initializer === undefined
+    ? undefined
+    : input.facts.getFact(initializer, csharpTargetOperationFactKey);
+  const targetOperation = initializer === undefined
+    ? undefined
+    : input.facts.getFact(initializer, targetOperationFactKey);
+  if (
+    initializer === undefined ||
+    !HasSourceKind(input.ast, initializer, KindBinaryExpression) ||
+    (csharpOperation === undefined && targetOperation === undefined)
+  ) {
+    return undefined;
+  }
+  const resultType = asTargetTypeRef(csharpOperation?.resultType ?? targetOperation?.resultType);
+  return (resultType === undefined ? undefined : csharpTypeFromTargetTypeRef(resultType)) ??
+    { kind: "IdentifierName", name: "var" };
 }
 
 export function planLocalDeclarationStatements(
@@ -85,6 +120,7 @@ export function planLocalDeclarationStatements(
 
 function getInitializerTypeSubject(
   initializer: Node | undefined,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): Node | undefined {
   if (initializer === undefined) {
@@ -98,7 +134,11 @@ function getInitializerTypeSubject(
   if (HasSourceKind(input.ast, initializer, KindArrowFunction) || HasSourceKind(input.ast, initializer, KindFunctionExpression)) {
     return initializer;
   }
+  if (HasSourceKind(input.ast, initializer, KindCallExpression) || HasSourceKind(input.ast, initializer, KindNewExpression)) {
+    return initializer;
+  }
   return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
+    input.targetFacts.resolveRuntimeCarrierForNode(initializer, { sourceFile }).kind === "resolved" ||
     input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
     input.facts.getFact(initializer, csharpTargetOperationFactKey) !== undefined
     ? initializer

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { getExplicitReturnType } from "../dist/backend/planner/declaration-return-types.js";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
-import { KindIdentifier, KindTypeReference } from "../dist/backend/planner/source-ast.js";
+import { KindIdentifier, KindTypeReference, KindUnionType } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
@@ -24,14 +24,20 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   csharpEnumerableTargetType,
+  csharpRuntimeUnionTargetType,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpArrayLiteralConstructionTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
+  isCsharpRuntimeUnionTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
   csharpListTargetType,
   csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  isRuntimeUnionCarrier,
+} from "../dist/source/csharp-source-semantics/runtime-carrier-lifecycle/carrier-classification.js";
 import {
   csharpJsArrayCarrierTargetType,
 } from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
@@ -43,6 +49,9 @@ import {
   csharpJsDateTargetType,
   isCsharpJsDateRuntimeCarrier,
 } from "../dist/source/csharp-source-semantics/surfaces/js/date/index.js";
+import {
+  getNullableUnionTargetTypeRefFromSyntax,
+} from "../dist/source/csharp-source-semantics/target-type-union-syntax.js";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
@@ -95,7 +104,32 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
   });
 
   assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(rawEnumerable), undefined);
   assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
+});
+
+test("collection literal construction requires explicit C# target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const list = csharpListTargetType(intType);
+  const enumerable = csharpEnumerableTargetType(intType);
+  const readOnlyList = csharpReadOnlyListTargetType(intType);
+
+  assert.deepEqual(getCsharpArrayLiteralConstructionTargetType(list), {
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    typeArguments: [intType],
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Collections", "Generic"],
+      name: "List",
+    },
+    csharpArrayLiteralElementType: intType,
+    csharpEnumerableElementType: intType,
+    csharpReadOnlyIndexableElementType: intType,
+    csharpDenseMutableElementType: intType,
+  });
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(enumerable)?.id, "System.Collections.Generic.List`1");
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(readOnlyList)?.id, "System.Collections.Generic.List`1");
 });
 
 test("collection shape matching requires explicit C# target metadata", () => {
@@ -145,6 +179,32 @@ test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
 test("JS Date runtime carrier requires explicit JS surface metadata", () => {
   assert.equal(isCsharpJsDateRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.Date" }), false);
   assert.equal(isCsharpJsDateRuntimeCarrier(csharpJsDateTargetType()), true);
+});
+
+test("runtime union carriers require explicit union-arm metadata", () => {
+  const arms = [
+    csharpSourcePrimitiveTargetType("float64"),
+    csharpStringTargetType(),
+  ];
+  const rawUnion = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Runtime.Union`2",
+    typeArguments: arms,
+  };
+  const malformedUnion = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Runtime.Union`2",
+    csharpRuntimeUnionArms: [arms[0]],
+  };
+  const runtimeUnion = csharpRuntimeUnionTargetType(arms);
+
+  assert.ok(runtimeUnion);
+  assert.equal(isCsharpRuntimeUnionTargetType(rawUnion), false);
+  assert.equal(isRuntimeUnionCarrier(rawUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(malformedUnion), false);
+  assert.equal(isRuntimeUnionCarrier(malformedUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(runtimeUnion), true);
+  assert.equal(isRuntimeUnionCarrier(runtimeUnion), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {
@@ -333,6 +393,68 @@ test("advanced erased type syntax emits only from finalized runtime carrier fact
   assert.match(diagnostics[1].message, /requires a closed target type from TSTS\/provider facts/);
 });
 
+test("nullable union syntax uses TSTS nullish type facts instead of undefined spelling", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const numberType = { Kind: "KindNumberKeyword" };
+  const undefinedReference = typeReferenceNode("undefined");
+  const aliasReference = typeReferenceNode("undefined");
+  const nullishSemanticType = { kind: "semantic-undefined" };
+  const aliasSemanticType = { kind: "semantic-user-alias" };
+
+  const nullableDiagnostics = [];
+  const nullableType = getCsharpTypeForNode(unionTypeNode(numberType, undefinedReference), sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[undefinedReference, nullishSemanticType]]),
+    nullishSemanticTypes: new Set([nullishSemanticType]),
+  }), undefined, nullableDiagnostics);
+
+  const aliasDiagnostics = [];
+  const aliasType = getCsharpTypeForNode(unionTypeNode(numberType, aliasReference), sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[aliasReference, aliasSemanticType]]),
+  }), undefined, aliasDiagnostics);
+
+  assert.equal(printCsharpType(nullableType), "double?");
+  assert.equal(nullableDiagnostics.length, 0);
+  assert.equal(aliasType.kind, "InvalidType");
+  assert.equal(aliasDiagnostics.length, 1);
+  assert.match(aliasDiagnostics[0].message, /Union type annotations require finalized TSTS\/provider storage facts/);
+});
+
+test("source semantic nullable union syntax uses TSTS nullish type facts instead of undefined spelling", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const numberType = { Kind: "KindNumberKeyword" };
+  const undefinedReference = typeReferenceNode("undefined");
+  const aliasReference = typeReferenceNode("undefined");
+  const nullishSemanticType = { kind: "semantic-undefined" };
+  const aliasSemanticType = { kind: "semantic-user-alias" };
+  const resolver = {
+    resolveSubject: (subject) => subject === numberType ? csharpSourcePrimitiveTargetType("float64") : undefined,
+    resolveType: () => undefined,
+  };
+
+  const nullable = getNullableUnionTargetTypeRefFromSyntax(
+    unionTypeNode(numberType, undefinedReference),
+    fakeObservationContext(sourceFile, {
+      semanticTypes: new Map([[undefinedReference, nullishSemanticType]]),
+      nullishSemanticTypes: new Set([nullishSemanticType]),
+    }),
+    {},
+    {},
+    resolver,
+  );
+  const alias = getNullableUnionTargetTypeRefFromSyntax(
+    unionTypeNode(numberType, aliasReference),
+    fakeObservationContext(sourceFile, {
+      semanticTypes: new Map([[aliasReference, aliasSemanticType]]),
+    }),
+    {},
+    {},
+    resolver,
+  );
+
+  assert.deepEqual(nullable, csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("float64")));
+  assert.equal(alias, undefined);
+});
+
 test("backend type rendering rejects primitive semantic shapes without finalized carriers", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const value = { Kind: KindIdentifier, Text: "value" };
@@ -382,8 +504,37 @@ function typeReferenceNode(name, typeArguments = []) {
   };
 }
 
+function unionTypeNode(...types) {
+  return {
+    Kind: KindUnionType,
+    Types: { Nodes: types },
+  };
+}
+
 function sourceFileNode(fileName) {
   return { Kind: "KindSourceFile", FileName: fileName, IsDeclarationFile: false, Statements: { Nodes: [] } };
+}
+
+function fakeObservationContext(sourceFile, options = {}) {
+  return {
+    compiler: {
+      ast: {
+        kindName: (node) => String(node?.Kind),
+        text: (node) => String(node?.Text ?? ""),
+        getSourceFile: () => sourceFile,
+        is: {
+          IsLiteralTypeNode: () => false,
+          IsTypeReferenceNode: (node) => node?.Kind === KindTypeReference,
+        },
+      },
+      checker: {
+        getTypeFromTypeNode: (subject) => options.semanticTypes?.get(subject),
+      },
+      typeShape: {
+        isNullish: (type) => options.nullishSemanticTypes?.has(type) === true,
+      },
+    },
+  };
 }
 
 function sourcePrimitive(kind) {
@@ -505,7 +656,7 @@ function fakeTypeInput(sourceFile, options = {}) {
       isTuple: () => false,
       isArrayLike: () => false,
       isTypeReference: () => false,
-      isNullish: () => false,
+      isNullish: (type) => options.nullishSemanticTypes?.has(type) === true,
       getCallSignatures: () => [],
       getReturnTypeOfSignature: () => undefined,
       getUnionOrIntersectionTypes: () => [],

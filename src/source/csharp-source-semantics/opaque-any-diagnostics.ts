@@ -24,6 +24,14 @@ import {
   getOpaqueAnyOperation,
 } from "./opaque-any-diagnostics/opaque-operation.js";
 import {
+  compatAnyBinaryOperatorOperation,
+  compatAnyUnaryOperatorOperation,
+} from "./compat-runtime-operation-model.js";
+import {
+  getBinaryOperatorText,
+  getPrefixUnaryOperatorText,
+} from "./operator-syntax.js";
+import {
   subjectIdentity,
 } from "./opaque-any-diagnostics/subject-identity.js";
 import {
@@ -98,6 +106,12 @@ function diagnoseOpaqueAnyOperationsForNode(
   if (operation === undefined) {
     return;
   }
+  if (compatibilityMode === "compat" && isUnsupportedCompatAnyOperator(node, lifecycleContext)) {
+    return;
+  }
+  if (compatibilityMode === "compat" && hasExistingCompatOperationDiagnostic(node, lifecycleContext)) {
+    return;
+  }
   if (compatibilityMode === "compat" && hasClosedCompatRuntimeOperation(node, lifecycleContext)) {
     return;
   }
@@ -132,6 +146,45 @@ function diagnoseOpaqueAnyOperationsForNode(
     ],
     identity: `csharp-any-operation:${compatibilityMode}:${operation.kind}:${subjectIdentity(node)}`,
   });
+}
+
+function isUnsupportedCompatAnyOperator(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
+): boolean {
+  const ast = lifecycleContext.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  if (ast.is.IsBinaryExpression(node)) {
+    const operator = getBinaryOperatorText(ast, node);
+    return operator !== undefined && operator !== "=" && compatAnyBinaryOperatorOperation(operator) === undefined;
+  }
+  if (ast.is.IsPrefixUnaryExpression(node)) {
+    const operator = getPrefixUnaryOperatorText(ast, node);
+    return operator !== undefined && compatAnyUnaryOperatorOperation(operator) === undefined;
+  }
+  if (ast.kindName(node) === "KindVoidExpression") {
+    return compatAnyUnaryOperatorOperation("void") === undefined;
+  }
+  if (ast.is.IsDeleteExpression(node)) {
+    return true;
+  }
+  return false;
+}
+
+function hasExistingCompatOperationDiagnostic(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+): boolean {
+  return lifecycleContext.host.diagnostics.all().some((diagnostic) =>
+    diagnostic.nodeOrSpan === node &&
+    (
+      diagnostic.extensionCode === "CSHARP_COMPAT_ANY_OPERATOR_UNSUPPORTED" ||
+      diagnostic.extensionCode === unsupportedCompatRuntimeOperationCode ||
+      diagnostic.extensionCode === "CSHARP_OPERATOR_NOT_MAPPED"
+    )
+  );
 }
 
 function appendUnsupportedCompatRuntimeDiagnostic(

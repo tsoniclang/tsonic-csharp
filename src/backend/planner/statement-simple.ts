@@ -2,6 +2,7 @@ import {
   AsBreakStatement,
   AsContinueStatement,
   AsExpressionStatement,
+  AsParenthesizedExpression,
   AsReturnStatement,
   AsThrowStatement,
   AsVoidExpression,
@@ -31,7 +32,7 @@ import {
 } from "./diagnostics.js";
 import {
   isDestructuringAssignmentExpression,
-  pushMissingDestructuringAssignmentFactsDiagnostic,
+  planDestructuringAssignmentStatement,
 } from "./destructuring-assignment.js";
 import {
   planExpression,
@@ -43,8 +44,18 @@ import {
   resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
+import {
+  csharpThrownValueFromExpression,
+  isCsharpCompatThrowableValueCarrier,
+} from "./exception-flow.js";
+import {
   findControlLabel,
 } from "./statement-labels.js";
+import {
+  createDestructuringPlannerState,
+} from "./binding-state.js";
 import {
   expressionStatement,
   isCsharpThrowableCarrier,
@@ -77,11 +88,12 @@ export function planReturnStatement(
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
+  const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
   const expression = statement.Expression === undefined
     ? undefined
     : expectedReturnExpressionType === undefined
       ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state);
+      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state, expectedReturnExpressionTargetType);
   if (statement.Expression !== undefined && expression === undefined) {
     return [];
   }
@@ -140,6 +152,18 @@ export function planThrowStatement(
   const carrierResolution = resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier)) {
+    if (readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
+      const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+      const wrapped = expression === undefined ? undefined : csharpThrownValueFromExpression(expression);
+      if (wrapped === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require a renderable closed TsThrownValueException carrier before C# compatibility emission."));
+        return [];
+      }
+      return [{
+        kind: "ThrowStatement",
+        expression: wrapped,
+      }];
+    }
     const detail = carrier === undefined
       ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
       : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
@@ -187,9 +211,9 @@ export function planExpressionStatement(
     return [];
   }
   const expression = AsExpressionStatement(node)!.Expression;
-  if (isDestructuringAssignmentExpression(expression, input)) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(expression!, diagnostics);
-    return [];
+  const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression);
+  if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
+    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.ast), planExpression, planExpressionWithExpectedType) ?? [];
   }
   if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(expression!)!;
@@ -198,4 +222,10 @@ export function planExpressionStatement(
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
   return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
+}
+
+function destructuringAssignmentExpressionStatementExpression(
+  expression: Node | undefined,
+): Node | undefined {
+  return AsParenthesizedExpression(expression)?.Expression ?? expression;
 }

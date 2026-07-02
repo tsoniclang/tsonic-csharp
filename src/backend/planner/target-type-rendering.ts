@@ -1,5 +1,6 @@
 import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
+import { csharpTupleType } from "./csharp-tuples.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "./identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
@@ -37,7 +38,7 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
       const elements = type.elements.map(csharpTypeFromEnrichedTargetTypeRef);
       return elements.some((element) => element === undefined)
         ? undefined
-        : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
+        : csharpTupleType(elements as readonly CsharpTypeNode[]);
     }
     case "pointer": {
       const pointee = csharpTypeFromEnrichedTargetTypeRef(type.pointee);

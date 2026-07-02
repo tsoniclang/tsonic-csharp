@@ -5,9 +5,11 @@ import {
 import type {
   ExtensionObservationContext,
   Node,
+  SelectedTargetSignatureFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpSourceReturnCarrierFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import {
@@ -70,11 +72,13 @@ function walkSelectedCallOperationFacts(
   if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
     return;
   }
-  const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
+  const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey) ??
+    lifecycleContext.host.factResolver.resolve(node, selectedTargetSignatureFactKey);
   if (selectedSignature === undefined) {
     return;
   }
   if (isCsharpSourceOwnedSelectedSignature(selectedSignature)) {
+    recordSourceOwnedCallReturnCarrierFact(lifecycleContext, node, selectedSignature);
     return;
   }
   const selectedMember = csharpTargetMemberFact(selectedSignature.member);
@@ -95,6 +99,40 @@ function walkSelectedCallOperationFacts(
     csharpTargetOperationFromMember(member),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
+}
+
+function recordSourceOwnedCallReturnCarrierFact(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  selectedSignature: SelectedTargetSignatureFact,
+): void {
+  if (lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+    return;
+  }
+  const carrier = getSourceReturnCarrierForSelectedSignature(lifecycleContext, selectedSignature);
+  if (carrier === undefined) {
+    return;
+  }
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, { carrier }, [{
+    message: "C# source-owned call return carrier finalized from TSTS-selected source declaration return facts.",
+  }]);
+}
+
+function getSourceReturnCarrierForSelectedSignature(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  selectedSignature: SelectedTargetSignatureFact,
+): TargetTypeRef | undefined {
+  for (const subject of [selectedSignature.sourceDeclaration, selectedSignature.sourceSignature]) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = lifecycleContext.host.facts.get(subject, csharpSourceReturnCarrierFactKey)?.carrier ??
+      lifecycleContext.host.factResolver.resolve(subject, csharpSourceReturnCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
 }
 
 function getSelectedCallDeclaringTargetType(

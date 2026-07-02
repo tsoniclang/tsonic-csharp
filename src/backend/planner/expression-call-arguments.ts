@@ -111,7 +111,7 @@ function planCallArgumentExpression(
 ): CsharpExpression | undefined {
   if (expectedType !== undefined && conversionExpectedTargetType !== undefined) {
     if (HasSourceKind(input.ast, node, KindArrowFunction)) {
-      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType);
+      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType, planExpressionWithExpectedType);
     }
     if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
       return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, conversionExpectedTargetType);
@@ -131,10 +131,10 @@ function planCallArgumentExpression(
       diagnostics.push(unsupportedNodeDiagnostic(node, `Selected target argument conversion fact does not match the selected call parameter type. Node: ${SourceKind(input.ast, node)} '${Node_Text(node)}'. Conversion target: ${targetTypeRefKey(conversion.convertedType)}. Selected parameter target: ${targetTypeRefKey(conversionExpectedTargetType)}.`));
       return undefined;
     }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject);
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject, conversion.convertedType);
   }
   if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType);
   }
   return planExpression(node, sourceFile, input, diagnostics);
 }

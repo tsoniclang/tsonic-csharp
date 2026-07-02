@@ -24,6 +24,7 @@ import {
   generatedObjectShapeMemberName,
 } from "../target-ref-utils.js";
 import {
+  csharpNullableTargetType,
   csharpDelegateTargetType,
 } from "../target-types.js";
 
@@ -76,12 +77,39 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   if (type === undefined) {
     return undefined;
   }
+  const optional = propertyHasOptionalDeclaration(property, context) ||
+    propertyTypeIncludesNullish(propertyType, context);
   return {
     sourceName,
     targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
-    type,
+    type: optional ? csharpNullableTargetType(type) : type,
+    ...(optional ? { optional: true } : {}),
   };
+}
+
+function propertyHasOptionalDeclaration(
+  property: Symbol,
+  context: ExtensionObservationContext,
+): boolean {
+  return getSymbolDeclarations(property, context.compiler?.checker)
+    .some((declaration) => getNodeField(declaration, "QuestionToken") !== undefined);
+}
+
+function propertyTypeIncludesNullish(
+  propertyType: Type | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const typeShape = context.compiler?.typeShape;
+  if (propertyType === undefined || typeShape === undefined) {
+    return false;
+  }
+  if (typeShape.isNullish(propertyType)) {
+    return true;
+  }
+  return typeShape.isUnion(propertyType) &&
+    typeShape.getUnionOrIntersectionTypes(propertyType).some((member) =>
+      member !== undefined && typeShape.isNullish(member));
 }
 
 function getExplicitMethodTargetTypeRef(

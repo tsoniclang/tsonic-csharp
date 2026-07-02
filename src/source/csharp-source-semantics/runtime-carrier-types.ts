@@ -29,7 +29,7 @@ export interface CsharpRuntimeCarrierSemanticsHost {
     facts: ExtensionFactStore,
     ast?: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   ) => TargetTypeRef | undefined;
-  readonly getCatchExceptionTargetTypeRef?: () => TargetTypeRef | undefined;
+  readonly getCatchVariableTargetTypeRef?: () => TargetTypeRef | undefined;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,

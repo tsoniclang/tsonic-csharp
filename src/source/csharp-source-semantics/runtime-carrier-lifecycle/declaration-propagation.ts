@@ -69,10 +69,15 @@ export function resolveDeclarationTypeRuntimeCarrierFact(
   if (typeNode === undefined) {
     return undefined;
   }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const carrier = host.getTargetTypeRefForSubject(
     typeNode,
-    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    context,
     { allowRuntimeCarrier: false },
+  ) ?? host.getTargetTypeRefForSubject(
+    typeNode,
+    context,
+    { allowRuntimeCarrier: true },
   );
   if (carrier === undefined) {
     return undefined;

@@ -12,6 +12,7 @@ export {
   getNodeList,
   getNodeNameText,
   getNodeParent,
+  nodeHasModifierKind,
   getPropertyAccessName,
   getStructuralChildNodes,
 } from "./ast-utils/node-access.js";

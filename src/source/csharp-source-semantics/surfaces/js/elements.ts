@@ -23,6 +23,9 @@ import {
 import {
   getCsharpCheckedElementAccessRequestContext,
 } from "../../checked-member-access-request-context.js";
+import {
+  getCsharpArrayBoundaryCoreCarrierForReference,
+} from "./array-boundary-facts.js";
 
 export function mapCsharpSourceLibraryCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -46,7 +49,8 @@ function getFinalizedReceiverCarrier(
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
-    context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+    getCsharpArrayBoundaryCoreCarrierForReference(request.receiver, context) ??
+      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
       host.getTargetTypeRefForSubject(request.receiver, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,

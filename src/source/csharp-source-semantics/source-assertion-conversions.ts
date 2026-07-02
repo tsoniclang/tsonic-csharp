@@ -3,6 +3,9 @@ import {
   targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import type {
   ExtensionFactSubject,
   ExtensionLifecycleContext,
   ExtensionObservationContext,
@@ -32,6 +35,10 @@ import {
 import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
+import {
+  getCompatAnyTypedBoundaryConversion,
+  getCompatAnyTypedBoundaryEvidence,
+} from "./compat-any-typed-boundary-conversions.js";
 import {
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
@@ -64,6 +71,7 @@ export interface CsharpAssertionConversionLifecycleHost {
 export function recordCsharpAssertionConversionFactsBeforeFinalization(
   lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
   host: CsharpAssertionConversionLifecycleHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -84,12 +92,34 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         return;
       }
       const source = host.getTargetTypeRefForSubject(assertion.expression, context);
+      if (lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
+        return;
+      }
+      const sourceHasOpaqueAnyCarrier = hasOpaqueAnyCarrier(assertion.expression, lifecycleContext);
       if (
         isCsharpAnyRuntimeCarrier(source) ||
         isCsharpAnyRuntimeCarrier(target) ||
-        hasOpaqueAnyCarrier(assertion.expression, lifecycleContext) ||
+        sourceHasOpaqueAnyCarrier ||
         hasOpaqueAnyCarrier(assertion.target, lifecycleContext)
       ) {
+        const compatConversion = compatibilityMode === "compat"
+          ? getCompatAnyTypedBoundaryConversion(source, target, sourceHasOpaqueAnyCarrier)
+          : undefined;
+        if (compatConversion?.kind === "identity") {
+          return;
+        }
+        if (compatConversion !== undefined) {
+          recordAssertionConversionFacts(
+            node,
+            source,
+            compatConversion.convertedType,
+            compatConversion.operation,
+            compatConversion.csharpOperation,
+            lifecycleContext,
+            getCompatAnyTypedBoundaryEvidence(compatConversion.kind),
+          );
+          return;
+        }
         lifecycleContext.host.diagnostics.append({
           ...csharpProviderDiagnostic(
             lifecycleContext.extensionId,
@@ -112,9 +142,6 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         });
         return;
       }
-      if (lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
-        return;
-      }
       const conversion = getAssertionConversionOperation(assertion.expression, source, target, context, host);
       if (conversion?.kind === "diagnostic") {
         lifecycleContext.host.diagnostics.append({
@@ -130,25 +157,45 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         });
         return;
       }
-      lifecycleContext.host.facts.set(
+      recordAssertionConversionFacts(
         node,
-        targetConversionFactKey,
-        {
-          ...(source !== undefined ? { sourceType: source } : {}),
-          convertedType: target,
-          ...(conversion?.kind === "conversion" ? { operation: conversion.operation } : {}),
-        },
+        source,
+        target,
+        conversion?.kind === "conversion" ? conversion.operation : undefined,
+        conversion?.kind === "conversion" ? conversion.csharpOperation : undefined,
+        lifecycleContext,
         [{ message: "C# assertion conversion finalized from source assertion target type facts." }],
       );
-      if (conversion?.kind === "conversion") {
-        lifecycleContext.host.facts.set(
-          node,
-          csharpTargetConversionOperationFactKey,
-          conversion.csharpOperation,
-          [{ message: "C# assertion conversion operation finalized from source assertion target type facts." }],
-        );
-      }
     });
+  }
+}
+
+function recordAssertionConversionFacts(
+  node: Node,
+  source: TargetTypeRef | undefined,
+  convertedType: TargetTypeRef,
+  operation: TargetOperationFact | undefined,
+  csharpOperation: CsharpTargetOperationFact | undefined,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+  evidence: readonly { readonly message: string; readonly details?: unknown }[],
+): void {
+  lifecycleContext.host.facts.set(
+    node,
+    targetConversionFactKey,
+    {
+      ...(source !== undefined ? { sourceType: source } : {}),
+      convertedType,
+      ...(operation !== undefined ? { operation } : {}),
+    },
+    evidence,
+  );
+  if (csharpOperation !== undefined) {
+    lifecycleContext.host.facts.set(
+      node,
+      csharpTargetConversionOperationFactKey,
+      csharpOperation,
+      evidence,
+    );
   }
 }
 

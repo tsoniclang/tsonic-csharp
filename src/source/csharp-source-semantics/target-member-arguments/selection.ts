@@ -74,7 +74,10 @@ export function selectExactTargetMember(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+      parameterIndex: index,
+      selectedProviderDeclaration: request.selectedProviderDeclaration,
+    });
     if (effectiveArgument === undefined) {
       return undefined;
     }
@@ -134,7 +137,10 @@ function targetMemberMatch(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+      parameterIndex: index,
+      selectedProviderDeclaration: request.selectedProviderDeclaration,
+    });
     if (effectiveArgument === undefined) {
       return undefined;
     }
@@ -208,12 +214,25 @@ function getCheckedExpressionTargetTypeRef(
 }
 
 function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter): boolean {
-  return parameter.csharpAcceptsCheckedSourceArgument === true;
+  return parameter.csharpAcceptsCheckedSourceArgument === true ||
+    (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {
-  return parameter.csharpAcceptsClosedSourceArgument === true ||
-    targetParameterAcceptsCheckedSourceArgument(parameter);
+  return parameter.csharpAcceptsClosedSourceArgument === true;
+}
+
+function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter["type"]): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+      return true;
+    case "array":
+      return targetParameterTypeIsSourcePrimitiveCarrier(type.element);
+    case "tuple":
+      return type.elements.every(targetParameterTypeIsSourcePrimitiveCarrier);
+    default:
+      return false;
+  }
 }
 
 function getTargetArgumentSubjectsForMember(

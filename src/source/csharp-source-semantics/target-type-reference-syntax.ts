@@ -1,4 +1,5 @@
 import {
+  runtimeCarrierFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
@@ -176,7 +177,11 @@ function getRecordDictionaryTypeRefFromTypeReference(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
-  if (ast === undefined || !subjects.some((subject) => isRecordDeclarationSubject(subject, context))) {
+  if (
+    ast === undefined ||
+    (!subjects.some((subject) => isRecordDeclarationSubject(subject, context)) &&
+      !isRecordTypeReferenceName(currentNode, ast))
+  ) {
     return undefined;
   }
   const typeArguments = ast.typeArguments(currentNode).map((argument) => resolver.resolveSubject(argument, context, options, host));
@@ -184,6 +189,14 @@ function getRecordDictionaryTypeRefFromTypeReference(
     return undefined;
   }
   return getCsharpRecordDictionaryTargetType(typeArguments[0]!, typeArguments[1]!, host);
+}
+
+function isRecordTypeReferenceName(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+  return typeName !== undefined && (getNodeNameText(typeName) === "Record" || ast.text(typeName) === "Record");
 }
 
 function isRecordDeclarationSubject(
@@ -246,14 +259,27 @@ function getTargetTypeRefFromSourceDeclarationReference(
       if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
         continue;
       }
-      return sourceDeclarationTargetType(
-        getNodeNameText(declaration),
-        kind,
-        typeArguments as readonly TargetTypeRef[],
-      );
+      const recordedTarget = context.factResolver.resolve(declaration, runtimeCarrierFactKey)?.carrier;
+      const targetType = recordedTarget ?? sourceDeclarationTargetType(getNodeNameText(declaration), kind);
+      if (targetType === undefined) {
+        continue;
+      }
+      return applyResolvedSourceDeclarationTypeArguments(targetType, typeArguments as readonly TargetTypeRef[]);
     }
   }
   return undefined;
+}
+
+function applyResolvedSourceDeclarationTypeArguments(
+  targetType: TargetTypeRef,
+  typeArguments: readonly TargetTypeRef[],
+): TargetTypeRef {
+  return typeArguments.length === 0 || targetType.kind !== "target-named"
+    ? targetType
+    : {
+        ...targetType,
+        typeArguments,
+      };
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(

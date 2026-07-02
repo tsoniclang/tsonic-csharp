@@ -115,6 +115,7 @@ export function csharpTargetMemberOperation(
     readonly declaringType?: TargetTypeRef;
     readonly sourceDeclaringType?: ExtensionFactSubject;
     readonly resultType?: TargetTypeRef;
+    readonly typeArguments?: readonly TargetTypeRef[];
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
     readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
     readonly selectedMember?: CsharpTargetMember;
@@ -129,6 +130,7 @@ export function csharpTargetMemberOperation(
     ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
     ...(options.sourceDeclaringType !== undefined ? { sourceDeclaringType: options.sourceDeclaringType } : {}),
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
+    ...(options.typeArguments !== undefined ? { typeArguments: options.typeArguments } : {}),
     ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
     ...(options.argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes: options.argumentArrayLiteralElementTypes } : {}),
     ...(options.selectedMember !== undefined ? { selectedMember: options.selectedMember } : {}),
@@ -249,6 +251,11 @@ export function recordCsharpTargetOperation(
   operation: CsharpTargetOperationFact,
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
+  const existing = context.facts.get(subject, csharpTargetOperationFactKey) ??
+    context.factResolver.resolve(subject, csharpTargetOperationFactKey);
+  if (existing !== undefined && csharpTargetOperationFactKey.equals(existing, operation)) {
+    return;
+  }
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
 }
 

@@ -66,6 +66,7 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   }
   const operationId = `tsonic.csharp.objectShape.${request.propertyName}`;
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
+    declaringType: objectShape.targetType,
     resultType: member.type,
   }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
   return acceptObservation<CheckedOperationMappingResult>({
@@ -124,9 +125,26 @@ function recordCsharpSourceOwnedPropertyOperation(
   operationId: string,
 ): void {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const sourceDeclaringType = asNodeSubject(requestContext.sourceSelectedDeclarationContainer);
+  const sourceDeclaringTypeSubject = !sourceDeclarationIsGenericNominalType(sourceDeclaringType, context)
+    ? sourceDeclaringType
+    : undefined;
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", request.propertyName, {
-    ...(requestContext.sourceSelectedDeclarationContainer === undefined ? {} : { sourceDeclaringType: requestContext.sourceSelectedDeclarationContainer }),
+    ...(sourceDeclaringTypeSubject === undefined ? {} : { sourceDeclaringType: sourceDeclaringTypeSubject }),
   }), [{ message: "C# source-owned property operation recorded from TSTS-selected source declaration identity; backend resolves target type facts after semantic finalization." }]);
+}
+
+function sourceDeclarationIsGenericNominalType(
+  declaration: ReturnType<typeof asNodeSubject>,
+  context: ExtensionObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (declaration === undefined || ast === undefined) {
+    return false;
+  }
+  const kind = ast.kindName(declaration);
+  return (kind === "KindClassDeclaration" || kind === "KindInterfaceDeclaration") &&
+    ast.typeParameters(declaration).length > 0;
 }
 
 function isNamespaceImportReceiver(

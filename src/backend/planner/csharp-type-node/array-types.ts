@@ -19,6 +19,7 @@ import {
 import {
   invalidCsharpType,
 } from "../csharp-type-primitives.js";
+import { csharpTupleType } from "../csharp-tuples.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
@@ -53,7 +54,7 @@ export function getCsharpTypeFromArrayOrTupleTypeNode(
       .map((element) => resolveCsharpType(getTupleElementTypeNode(element), sourceFile, input, invalidCsharpType("tuple element type"), diagnostics));
     return elements.some((element) => element.kind === "InvalidType")
       ? invalidCsharpType("tuple type")
-      : { kind: "TupleType", elements };
+      : csharpTupleType(elements);
   }
   return undefined;
 }

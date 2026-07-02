@@ -79,11 +79,26 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
+  const nodeType = IsTypeSyntaxNode(input.ast, node)
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
+  const nodeTypeParameterName = nodeType === undefined
+    ? undefined
+    : getCsharpTypeParameterName(nodeType, input);
+  if (nodeTypeParameterName !== undefined) {
+    return { kind: "IdentifierName", name: nodeTypeParameterName };
+  }
+  if (IsTypeSyntaxNode(input.ast, node) && input.ast.kindName(node) !== KindTypeLiteral && !isUnionTypeNode(input, node)) {
+    const explicitTypeSyntax = getCsharpTypeFromExplicitTypeSyntax(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
+    if (explicitTypeSyntax !== undefined) {
+      return explicitTypeSyntax;
+    }
+  }
   const sourceNewExpressionType = getCsharpTypeFromSourceNewExpression(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
   if (sourceNewExpressionType !== undefined) {
     return sourceNewExpressionType;
   }
-  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
+  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, diagnostics);
   if (sourceCallReturnType !== undefined) {
     return sourceCallReturnType;
   }
@@ -117,15 +132,6 @@ export function getCsharpTypeForNode(
   if (isUnionTypeNode(input, node)) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
-  const nodeType = IsTypeSyntaxNode(input.ast, node)
-    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
-    : input.analysis.getTypeAtLocation(node, { sourceFile });
-  const nodeTypeParameterName = nodeType === undefined
-    ? undefined
-    : getCsharpTypeParameterName(nodeType, input);
-  if (nodeTypeParameterName !== undefined) {
-    return { kind: "IdentifierName", name: nodeTypeParameterName };
-  }
   if (input.ast.kindName(node) === KindArrowFunction || input.ast.kindName(node) === KindFunctionExpression) {
     const contextualCallableType = getCsharpCallableContextualType(node, input);
     if (contextualCallableType !== undefined) {
@@ -137,12 +143,12 @@ export function getCsharpTypeForNode(
     return explicitTypeSyntax;
   }
   const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
-  if (arrayBoundaryType !== undefined) {
-    return arrayBoundaryType;
-  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
+  }
+  if (arrayBoundaryType !== undefined) {
+    return arrayBoundaryType;
   }
   const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
   if (collectionType !== undefined) {
@@ -175,7 +181,15 @@ export function getCsharpTypeForNode(
     }
   }
   void nodeType;
-  const sourceText = input.ast.text(node);
+  const sourceText = safeNodeText(input, node);
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence. Kind: ${input.ast.kindName(node)}.${sourceText.length === 0 ? "" : ` Source: ${sourceText}.`}`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function safeNodeText(input: TargetCompileInput, node: Node): string {
+  try {
+    return input.ast.text(node);
+  } catch {
+    return "";
+  }
 }

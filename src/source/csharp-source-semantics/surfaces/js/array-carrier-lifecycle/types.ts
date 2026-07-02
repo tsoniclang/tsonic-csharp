@@ -1,5 +1,6 @@
 import type {
   ExtensionObservationContext,
+  ExtensionFactSubject,
   Node,
   Symbol,
   TargetTypeRef,
@@ -15,7 +16,8 @@ export type CsharpArrayCarrierRequirement =
   | "index-read"
   | "length-read"
   | "dense-mutation"
-  | "full-js";
+  | "full-js"
+  | "unresolved-structural-use";
 
 export type LifecycleContext = {
   readonly host: ExtensionObservationContext["host"];
@@ -37,7 +39,12 @@ export interface ArrayParameterAnalysis {
 }
 
 export interface ArrayReturnAnalysis {
-  readonly typeNode: Node;
+  readonly declaration: Node;
+  readonly typeNode?: Node;
+  readonly semanticType?: Type;
+  readonly readonlySourceContract: boolean;
+  readonly sourceReturnSubjects: readonly ExtensionFactSubject[];
+  readonly returnExpressions: readonly Node[];
   readonly elementType: TargetTypeRef;
 }
 

@@ -19,6 +19,9 @@ import {
 import {
   generatedObjectShapeMemberName,
 } from "./target-ref-utils.js";
+import {
+  csharpNullableTargetType,
+} from "./target-types.js";
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "./object-shape-types.js";
@@ -63,11 +66,12 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   if (type === undefined) {
     return undefined;
   }
+  const optional = getNodeField(member, "QuestionToken") !== undefined;
   return {
     sourceName,
     targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
-    type,
-    ...(getNodeField(member, "QuestionToken") !== undefined ? { optional: true } : {}),
+    type: optional ? csharpNullableTargetType(type) : type,
+    ...(optional ? { optional: true } : {}),
   };
 }

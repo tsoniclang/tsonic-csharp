@@ -35,6 +35,9 @@ import {
 import {
   isCsharpRecordDictionaryTargetType,
 } from "../../../dictionaries.js";
+import {
+  getReferencedDeclarationTargetTypeRef,
+} from "../../../referenced-declaration-target.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../../dictionaries.js";
@@ -128,6 +131,7 @@ export function getSourceLibraryCallArgumentTargetTypes(
     const node = asNodeSubject(argument);
     const isNestedCall = node !== undefined &&
       (context.compiler?.ast.is.IsCallExpression(node) === true || context.compiler?.ast.is.IsNewExpression(node) === true);
+    const sourceFile = node === undefined ? undefined : context.compiler?.ast.getSourceFile(node);
     return isNestedCall
       ? host.unwrapNullableTargetType(
           context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
@@ -139,6 +143,17 @@ export function getSourceLibraryCallArgumentTargetTypes(
           ...csharpJsCheckedTypeQuery,
           allowRuntimeCarrier: true,
           allowSemanticTypeQuery: false,
+          sourceFile,
+        }) ?? getReferencedDeclarationTargetTypeRef(argument, context, host.getTargetTypeRefForSubject, {
+          ...csharpJsCheckedTypeQuery,
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: true,
+          sourceFile,
+        }) ?? host.getTargetTypeRefForSubject(argument, context, {
+          ...csharpJsCheckedTypeQuery,
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: true,
+          sourceFile,
         }));
   });
 }

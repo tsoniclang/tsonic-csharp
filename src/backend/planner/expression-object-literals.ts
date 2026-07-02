@@ -1,9 +1,9 @@
 import {
   AsObjectLiteralExpression,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
@@ -28,8 +28,9 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTypeSubject: Node | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
-  const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
+  const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
   const objectShape = expectedObjectShape !== undefined && !isInterfaceObjectShape(expectedObjectShape)
     ? expectedObjectShape
     : getExpectedObjectShapeFact(node, sourceFile, input) ?? expectedObjectShape;
@@ -59,12 +60,20 @@ function planObjectLiteralExpressionWithObjectShape(
     return undefined;
   }
   const literal = AsObjectLiteralExpression(node)!;
-  const assignments = mergeObjectInitializerAssignments((literal.Properties?.Nodes ?? [])
-    .filter((property): property is Node => property !== undefined)
-    .flatMap((property) => planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType)));
+  const assignments: CsharpObjectInitializerAssignment[] = [];
+  for (const property of literal.Properties?.Nodes ?? []) {
+    if (property === undefined) {
+      continue;
+    }
+    const planned = planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType);
+    if (planned === undefined) {
+      return undefined;
+    }
+    assignments.push(...planned);
+  }
   return {
     kind: "ObjectCreationExpression",
     type,
-    assignments,
+    assignments: mergeObjectInitializerAssignments(assignments),
   };
 }

@@ -32,8 +32,8 @@ import {
   getTargetTypeRefForNode,
 } from "../runtime-carriers.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "../target-types.js";
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "../target-type-object-shapes.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -72,18 +72,6 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (arrayBoundaryType !== undefined) {
     return arrayBoundaryType;
   }
-  const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, resolveCsharpType, diagnostics);
-  if (collectionType !== undefined) {
-    return collectionType;
-  }
-  const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
-  if (keywordType !== undefined) {
-    return keywordType;
-  }
-  const sourcePrimitiveType = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
-  if (sourcePrimitiveType !== undefined) {
-    return sourcePrimitiveType;
-  }
   const projectSourceType = getCsharpTypeFromProjectSourceTypeReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (projectSourceType !== undefined) {
     return projectSourceType;
@@ -104,10 +92,22 @@ export function getCsharpTypeFromExplicitTypeSyntax(
       });
       return invalidCsharpType("source primitive type transform");
     }
-    const directType = csharpTypeFromTargetTypeRef(directTargetType);
+    const directType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, directTargetType, diagnostics, node);
     if (directType !== undefined) {
       return directType;
     }
+  }
+  const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, resolveCsharpType, diagnostics);
+  if (collectionType !== undefined) {
+    return collectionType;
+  }
+  const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
+  if (keywordType !== undefined) {
+    return keywordType;
+  }
+  const sourcePrimitiveType = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
+  if (sourcePrimitiveType !== undefined) {
+    return sourcePrimitiveType;
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }

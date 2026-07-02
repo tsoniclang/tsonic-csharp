@@ -15,6 +15,7 @@ import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
   KindIdentifier,
+  KindPropertyAccessExpression,
   KindNumericLiteral,
   KindUnionType,
 } from "../dist/backend/planner/source-ast.js";
@@ -22,7 +23,10 @@ import {
   printCsharpExpression,
   printCsharpType,
 } from "../dist/print/csharp-printer.js";
-import { csharpTargetConversionOperationFactKey } from "../dist/source/csharp-facts.js";
+import {
+  csharpTargetConversionOperationFactKey,
+  csharpTargetOperationFactKey,
+} from "../dist/source/csharp-facts.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpRuntimeUnionTargetType,
@@ -63,6 +67,36 @@ test("source semantics records runtime union carrier from TSTS union constituent
   ]);
 });
 
+test("source semantics records runtime union carriers for TSTS-proven nullish constituents", () => {
+  const sourceText = `
+    type MaybeUndefined = number | string | undefined;
+    type MaybeNull = number | string | null;
+    let maybeUndefined!: MaybeUndefined;
+    let maybeNull!: MaybeNull;
+  `;
+  const session = createCompilerSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const carriers = collectNodesByKind(sourceFile, session.ast, KindUnionType)
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+  const armSets = carriers.map((carrier) => (carrier.csharpRuntimeUnionArms ?? []).map(carrierKey).sort());
+
+  assert.ok(armSets.some((arms) => armSetEquals(arms, [
+    "source:float64",
+    "target:System.String",
+    "target:Tsonic.CSharp.Runtime.Undefined",
+  ])));
+  assert.ok(armSets.some((arms) => armSetEquals(arms, [
+    "source:float64",
+    "target:System.String",
+    "target:Tsonic.CSharp.Runtime.Null",
+  ])));
+});
+
 test("source semantics keeps narrowed branch carrier direct instead of union-carrier guessing", () => {
   const sourceText = `
     export function read(value: number | string): string {
@@ -86,6 +120,40 @@ test("source semantics keeps narrowed branch carrier direct instead of union-car
   assert.ok(valueCarriers.some((carrier) => carrierKey(carrier) === "target:System.String"));
   assert.ok(valueCarriers.some((carrier) => carrierKey(carrier) === "target:Tsonic.CSharp.Runtime.Union`2"));
   assert.equal(valueCarriers.some((carrier) => /As[0-9]|__tsonic_value/.test(JSON.stringify(carrier))), false);
+});
+
+test("object-shape union property facts preserve selected declaring carriers", () => {
+  const sourceText = `
+    type Circle = { kind: "circle"; radius: number };
+    type Square = { kind: "square"; size: number };
+    type Shape = Circle | Square;
+
+    export function describe(shape: Shape): string {
+      if (shape.kind === "circle") {
+        return \`circle:\${shape.radius}\`;
+      }
+      return \`square:\${shape.size}\`;
+    }
+  `;
+  const session = createCompilerSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const operations = collectNodesByKind(sourceFile, session.ast, KindPropertyAccessExpression)
+    .map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey))
+    .filter((operation) => operation?.kind === "member");
+  const radius = operations.find((operation) => operation.memberName === "radius");
+  const size = operations.find((operation) => operation.memberName === "size");
+  const kind = operations.find((operation) => operation.memberName === "kind");
+
+  assert.equal(radius?.declaringType?.kind, "target-named");
+  assert.match(radius.declaringType.id, /^__TsonicShape_/);
+  assert.equal(size?.declaringType?.kind, "target-named");
+  assert.match(size.declaringType.id, /^__TsonicShape_/);
+  assert.notEqual(radius.declaringType.id, size.declaringType.id);
+  assert.equal(kind?.sourceDeclaringType !== undefined || kind?.declaringType !== undefined, true);
 });
 
 test("union type annotation emission consumes finalized runtime union carrier facts", () => {
@@ -159,6 +227,28 @@ test("narrowed branch expression emits the concrete finalized carrier value dire
   assert.doesNotMatch(printCsharpExpression(output), /As[0-9]|__tsonic_value/);
 });
 
+test("narrowed runtime union storage emits finalized arm projection", () => {
+  const value = identifier("value");
+  const declarationName = identifier("value");
+  const declaration = { Kind: "KindParameter", name: declarationName };
+  const sourceFile = {};
+  const carrier = runtimeUnionCarrier();
+  const diagnostics = [];
+
+  const output = planExpression(value, sourceFile, fakeInput({
+    projectSourceReferenceSubject: value,
+    projectSourceReference: { declaration, sourceFile },
+    runtimeCarrierFacts: new Map([
+      [value, { carrier: csharpStringTargetType() }],
+      [declaration, { carrier }],
+      [declarationName, { carrier }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "value.As2()");
+});
+
 function createCompilerSession(sourceText) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -166,7 +256,6 @@ function createCompilerSession(sourceText) {
       ["/src/index.ts", sourceText],
     ]),
     compilerOptions: {
-      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,
@@ -189,6 +278,10 @@ function runtimeUnionCarrier() {
   ]);
   assert.ok(carrier);
   return carrier;
+}
+
+function armSetEquals(actual, expected) {
+  return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
 function carrierKey(carrier) {
@@ -222,7 +315,8 @@ function fakeInput(options = {}) {
       getSelectedTargetCall: () => undefined,
       getSelectedTargetOperator: () => undefined,
       getContextualTargetTypeFact: () => undefined,
-      getRuntimeCarrierFact: (subject) => subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined,
+      getRuntimeCarrierFact: (subject) => options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined),
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
@@ -246,7 +340,9 @@ function fakeInput(options = {}) {
       getSymbolDeclarations: () => [],
       getTypeSymbol: () => undefined,
       getTypeAliasSymbol: () => undefined,
-      getProjectSourceReferenceForNode: () => undefined,
+      getProjectSourceReferenceForNode: (subject) => subject === options.projectSourceReferenceSubject
+        ? options.projectSourceReference
+        : undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
@@ -257,8 +353,10 @@ function fakeInput(options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution((options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined))?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution((options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined))?.carrier),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
@@ -348,6 +446,7 @@ function csharpProviderContext() {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }

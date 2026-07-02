@@ -12,12 +12,19 @@ import {
   planStatements,
 } from "../dist/backend/planner/statements.js";
 import {
+  planLocalDeclaration,
+} from "../dist/backend/planner/locals.js";
+import {
+  printCsharpType,
+} from "../dist/print/csharp-printer.js";
+import {
   KindBlock,
   KindBreakStatement,
   KindContinueStatement,
   KindDefaultClause,
   KindDoStatement,
   KindArrayLiteralExpression,
+  KindAwaitExpression,
   KindBinaryExpression,
   KindEqualsToken,
   KindExpressionStatement,
@@ -27,7 +34,10 @@ import {
   KindIdentifier,
   KindLabeledStatement,
   KindNumericLiteral,
+  KindObjectBindingPattern,
   KindObjectLiteralExpression,
+  KindSpreadElement,
+  KindStringLiteral,
   KindSwitchStatement,
   KindTryStatement,
   KindTrueKeyword,
@@ -37,13 +47,24 @@ import {
 } from "../dist/backend/planner/source-ast.js";
 import {
   csharpObjectShapeFactKey,
+  csharpTargetOperationFactKey,
   csharpTargetIterationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
   csharpExceptionTargetType,
+  csharpListTargetType,
+  csharpNullableValueTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTargetNamedType,
+  csharpTaskTargetType,
+  csharpVoidTargetType,
+  csharpTsValueTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 
 test("switch statements emit grouped Roslyn sections and deterministic fallthrough", () => {
   const diagnostics = [];
@@ -77,6 +98,27 @@ test("switch statements emit grouped Roslyn sections and deterministic fallthrou
       },
     ],
   }]);
+});
+
+test("inferred local declarations use finalized initializer carrier resolution", () => {
+  const diagnostics = [];
+  const initializer = identifier("composeResult");
+  const declaration = {
+    Kind: KindVariableDeclaration,
+    name: identifier("values"),
+    Initializer: initializer,
+  };
+  const listCarrier = csharpListTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planLocalDeclaration(declaration, sourceFile, fakeInput({
+    resolvedRuntimeCarrierFacts: new Map([
+      [initializer, { carrier: listCarrier }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.name, "values");
+  assert.equal(printCsharpType(output.type), "System.Collections.Generic.List<int>");
 });
 
 test("switch statements diagnose non-constant labels instead of inventing C# lowering", () => {
@@ -584,6 +626,74 @@ test("throw statements require finalized throwable target carriers", () => {
   }]);
 });
 
+test("throw statements accept provider-backed exception carriers only through throwable metadata", () => {
+  const sourceExample = `
+    import { CustomException } from "@example/errors";
+    throw error;
+  `;
+  assert.match(sourceExample, /CustomException/);
+  const diagnostics = [];
+  const thrown = identifier("error");
+  const statement = throwStatement(thrown);
+  const customException = csharpTargetNamedType(
+    "Example.Errors.CustomException",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example.Errors", "CustomException"),
+    { throwable: true },
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: customException }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ThrowStatement",
+    expression: { kind: "IdentifierName", name: "error" },
+  }]);
+});
+
+test("compat throw statements wrap closed non-exception carriers through finalized runtime facts", () => {
+  const diagnostics = [];
+  const thrown = identifier("message");
+  const statement = throwStatement(thrown);
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ThrowStatement",
+    expression: {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: { kind: "IdentifierName", name: "Tsonic" },
+              name: "CSharp",
+            },
+            name: "Js",
+          },
+          name: "TsThrownValueException",
+        },
+        name: "from",
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "message" } }],
+    },
+  }]);
+});
+
 test("destructuring assignment statements fail closed without ordinary assignment fallback", () => {
   const diagnostics = [];
   const arrayAssignment = expressionStatement(binaryExpression(
@@ -616,10 +726,791 @@ test("destructuring assignment statements fail closed without ordinary assignmen
   assert.match(diagnostics[1].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
 
+test("array destructuring assignment statements emit storage writes from finalized facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), identifier("second")] },
+    },
+    source,
+  );
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "array", element: intType } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 0 },
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "second" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 1 },
+        },
+      },
+    },
+  ]);
+});
+
+test("array destructuring assignment consumes finalized target carrier resolution", () => {
+  const sourceExample = "[first] = values;";
+  assert.match(sourceExample, /\[first\] = values/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first")] },
+    },
+    source,
+  );
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      resolvedRuntimeCarrierFacts: new Map([[source, { carrier: { kind: "array", element: intType } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 0 },
+        },
+      },
+    },
+  ]);
+});
+
+test("array destructuring assignment consumes read-only indexable carrier facts", () => {
+  const sourceExample = "[first, ...rest] = values;";
+  assert.match(sourceExample, /\.\.\.rest/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const carrier = providerReadOnlyIndexableTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+    argument: { kind: "LiteralExpression", value: 0 },
+  });
+  assert.deepEqual(output[2].expression.right, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: {
+        kind: "QualifiedName",
+        left: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: { kind: "IdentifierName", name: "Tsonic" },
+            name: "CSharp",
+          },
+          name: "Js",
+        },
+        name: "Array",
+      },
+      name: "slice",
+    },
+    arguments: [
+      { kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_destructure0" } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
+    ],
+  });
+});
+
+test("array destructuring assignment over JSArray carriers uses finalized hole checks for defaults", () => {
+  const sourceExample = "[first = 7] = values;";
+  assert.match(sourceExample, /first = 7/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [binaryExpression(identifier("first"), numeric("7"))] },
+    },
+    source,
+  );
+  const carrier = csharpJsArrayCarrierTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right.condition, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+      name: "hasIndex",
+    },
+    arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 0 } }],
+  });
+});
+
+test("tuple destructuring assignment emits rest tuple from finalized carrier facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const stringType = csharpStringTargetType();
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const boolType = csharpSourcePrimitiveTargetType("bool");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "tuple", elements: [stringType, intType, boolType] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: {
+        kind: "TupleType",
+        elements: [
+          { kind: "PredefinedType", name: "string" },
+          { kind: "PredefinedType", name: "int" },
+          { kind: "PredefinedType", name: "bool" },
+        ],
+      },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Item1",
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "rest" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "TupleExpression",
+          elements: [
+            {
+              kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+              name: "Item2",
+            },
+            {
+              kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+              name: "Item3",
+            },
+          ],
+        },
+      },
+    },
+  ]);
+});
+
+test("tuple destructuring assignment emits one-element rest as System.ValueTuple from finalized carrier facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const stringType = csharpStringTargetType();
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "tuple", elements: [stringType, intType] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[2], {
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "AssignmentExpression",
+      left: { kind: "IdentifierName", name: "rest" },
+      operatorToken: { kind: "EqualsToken" },
+      right: {
+        kind: "ObjectCreationExpression",
+        type: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "ValueTuple",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+            name: "Item2",
+          },
+        }],
+      },
+    },
+  });
+});
+
+test("array destructuring assignment diagnostics preserve missing carrier evidence", () => {
+  const sourceExample = "[first] = values;";
+  assert.match(sourceExample, /\[first\] = values/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first")] },
+    },
+    source,
+  );
+
+  planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      missingRuntimeCarrierReason: "assignment source carrier was not finalized",
+      missingRuntimeCarrierEvidence: [{ message: "array destructuring assignment source lacked a finalized carrier fact" }],
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /assignment source carrier was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["array destructuring assignment source lacked a finalized carrier fact"]);
+  assert.match(diagnostics[1].message, /Array destructuring assignment requires a finalized provider array or tuple runtime-carrier fact/);
+  assert.match(diagnostics[1].message, /assignment source carrier was not finalized/);
+  assert.deepEqual(diagnostics[1].evidence, ["array destructuring assignment source lacked a finalized carrier fact"]);
+});
+
+test("await expression statements emit await directly instead of assigning void results", () => {
+  const diagnostics = [];
+  const task = identifier("task");
+  const statement = expressionStatement(awaitExpression(task));
+  const output = planStatements(
+    statement,
+    sourceFile,
+    fakeInput({
+      runtimeCarrierFacts: new Map([
+        [task, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }],
+        [statement.Expression, { carrier: csharpVoidTargetType() }],
+      ]),
+    }),
+    diagnostics,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "AwaitExpression",
+      expression: {
+        kind: "IdentifierName",
+        name: "task",
+      },
+    },
+  }]);
+});
+
+test("object-shape destructuring assignment statements emit storage writes from finalized facts", () => {
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value") },
+          { Kind: "KindPropertyAssignment", name: identifier("label"), Initializer: identifier("name") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        type: csharpSourcePrimitiveTargetType("int32"),
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InputShape" },
+      initializer: { kind: "IdentifierName", name: "input" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "value" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Value",
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "name" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Label",
+        },
+      },
+    },
+  ]);
+});
+
+test("object rest destructuring assignment fails closed without rest target facts", () => {
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value") },
+          { Kind: "KindSpreadAssignment", Expression: identifier("rest") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        type: csharpSourcePrimitiveTargetType("int32"),
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(output.slice(0, 2), [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InputShape" },
+      initializer: { kind: "IdentifierName", name: "input" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "value" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Value",
+        },
+      },
+    },
+  ]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object rest destructuring assignment requires finalized provider object-shape facts for the rest target/);
+});
+
+test("object-shape destructuring assignment defaults use finalized nullable member carriers", () => {
+  const sourceExample = "({ value = 7 } = input);";
+  assert.match(sourceExample, /value = 7/);
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value"), ObjectAssignmentInitializer: numeric("7") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        optional: true,
+        type: csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("int32")),
+      },
+    ],
+  };
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "BinaryExpression",
+    left: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+      name: "Value",
+    },
+    operatorToken: { kind: "QuestionQuestionToken" },
+    right: { kind: "LiteralExpression", value: 7 },
+  });
+});
+
+test("object-shape destructuring assignment supports finalized string-literal property keys", () => {
+  const sourceExample = '({ "wire-name": value } = input);';
+  assert.match(sourceExample, /wire-name/);
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindPropertyAssignment", name: stringLiteral("wire-name"), Initializer: identifier("value") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "wire-name",
+        targetName: "WireName",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+    name: "WireName",
+  });
+});
+
 test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
+  const sourceExample = `
+    try {
+      throw error;
+    } catch (caught) {
+    } finally {
+    }
+  `;
+  assert.match(sourceExample, /finally/);
   const diagnostics = [];
   const thrown = identifier("error");
   const catchName = identifier("caught");
+  const customException = csharpTargetNamedType(
+    "Example.Errors.CustomException",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example.Errors", "CustomException"),
+    { throwable: true },
+  );
   const catchVariable = {
     Kind: KindVariableDeclaration,
     name: catchName,
@@ -632,8 +1523,8 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
 
   const output = planStatements(statement, sourceFile, fakeInput({
     runtimeCarrierFacts: new Map([
-      [thrown, { carrier: csharpExceptionTargetType() }],
-      [catchName, { carrier: csharpExceptionTargetType() }],
+      [thrown, { carrier: customException }],
+      [catchName, { carrier: customException }],
     ]),
   }), diagnostics, createDestructuringPlannerState());
 
@@ -651,14 +1542,105 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
       kind: "CatchClause",
       variableType: {
         kind: "QualifiedName",
-        left: { kind: "IdentifierName", name: "System" },
-        name: "Exception",
+        left: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "Example" },
+          name: "Errors",
+        },
+        name: "CustomException",
       },
       variableName: "caught",
       body: { kind: "Block", statements: [] },
     },
     finallyBody: { kind: "Block", statements: [] },
   }]);
+});
+
+test("compat catch variables materialize closed TsValue carriers from caught exceptions", () => {
+  const diagnostics = [];
+  const thrown = identifier("message");
+  const catchName = identifier("caught");
+  const catchVariable = {
+    Kind: KindVariableDeclaration,
+    name: catchName,
+  };
+  const statement = tryStatement(
+    block([throwStatement(thrown)]),
+    catchClause(catchVariable, block([expressionStatement(catchName)])),
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: csharpStringTargetType() }],
+      [catchName, { carrier: csharpTsValueTargetType() }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    variableType: {
+      kind: "QualifiedName",
+      left: { kind: "IdentifierName", name: "System" },
+      name: "Exception",
+    },
+    variableName: "__tsonic_catch0",
+    body: {
+      kind: "Block",
+      statements: [
+        {
+          kind: "LocalDeclarationStatement",
+          type: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: {
+                kind: "QualifiedName",
+                left: { kind: "IdentifierName", name: "Tsonic" },
+                name: "CSharp",
+              },
+              name: "Js",
+            },
+            name: "TsValue",
+          },
+          name: "caught",
+          initializer: {
+            kind: "InvocationExpression",
+            callee: {
+              kind: "SimpleMemberAccessExpression",
+              receiver: {
+                kind: "QualifiedName",
+                left: {
+                  kind: "QualifiedName",
+                  left: {
+                    kind: "QualifiedName",
+                    left: { kind: "IdentifierName", name: "Tsonic" },
+                    name: "CSharp",
+                  },
+                  name: "Js",
+                },
+                name: "TsThrownValueException",
+              },
+              name: "toValue",
+            },
+            arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_catch0" } }],
+          },
+        },
+        {
+          kind: "ExpressionStatement",
+          expression: {
+            kind: "AssignmentExpression",
+            left: { kind: "IdentifierName", name: "_" },
+            operatorToken: { kind: "EqualsToken" },
+            right: { kind: "IdentifierName", name: "caught" },
+          },
+        },
+      ],
+    },
+  });
 });
 
 test("catch variables fail closed without finalized exception carrier facts", () => {
@@ -682,6 +1664,62 @@ test("catch variables fail closed without finalized exception carrier facts", ()
   });
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Catch variables require finalized TSTS\/provider exception-carrier facts/);
+});
+
+test("catch variables reject finalized non-throwable carrier facts", () => {
+  const sourceExample = `
+    try {
+    } catch (message) {
+    }
+  `;
+  assert.match(sourceExample, /catch \(message\)/);
+  const diagnostics = [];
+  const catchName = identifier("message");
+  const statement = tryStatement(
+    block([]),
+    catchClause({
+      Kind: KindVariableDeclaration,
+      name: catchName,
+    }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [catchName, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue compatibility catch carrier/);
+});
+
+test("catch destructuring rejects until thrown-value extraction facts are available", () => {
+  const diagnostics = [];
+  const catchPattern = { Kind: KindObjectBindingPattern };
+  const statement = tryStatement(
+    block([]),
+    catchClause({
+      Kind: KindVariableDeclaration,
+      name: catchPattern,
+    }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Catch destructuring requires a closed thrown-value carrier/);
 });
 
 function switchStatement(expression, clauses) {
@@ -778,6 +1816,13 @@ function expressionStatement(expression) {
   };
 }
 
+function awaitExpression(expression) {
+  return {
+    Kind: KindAwaitExpression,
+    Expression: expression,
+  };
+}
+
 function binaryExpression(left, right) {
   return {
     Kind: KindBinaryExpression,
@@ -845,6 +1890,13 @@ function numeric(text) {
   };
 }
 
+function stringLiteral(text) {
+  return {
+    Kind: KindStringLiteral,
+    Text: text,
+  };
+}
+
 function trueKeyword() {
   return {
     Kind: KindTrueKeyword,
@@ -869,6 +1921,7 @@ function fakeInput(options = {}) {
   return {
     ast: fakeAst,
     sourceFiles: [],
+    target: options.target ?? { id: "csharp", options: { typescriptCompatibility: "strict-native" } },
     facts: {
       getDefaultValueFact: () => undefined,
       getArgumentPassingFact: () => undefined,
@@ -876,7 +1929,7 @@ function fakeInput(options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
       getSelectedTargetCall: () => undefined,
-      getSelectedTargetOperator: () => undefined,
+      getSelectedTargetOperator: (subject) => options.selectedOperatorFacts?.get(subject),
       getContextualTargetTypeFact: () => undefined,
       getRuntimeCarrierFact: (subject) => options.runtimeCarrierFacts?.get(subject),
       getObjectShapeFact: () => undefined,
@@ -896,6 +1949,9 @@ function fakeInput(options = {}) {
         }
         if (key === csharpObjectShapeFactKey) {
           return options.objectShapeFacts?.get(subject);
+        }
+        if (key === csharpTargetOperationFactKey) {
+          return options.csharpOperationFacts?.get(subject);
         }
         return undefined;
       },
@@ -947,7 +2003,8 @@ function fakeInput(options = {}) {
 }
 
 function runtimeCarrierResolution(options, subject) {
-  const fact = options.runtimeCarrierFacts?.get(subject);
+  const fact = options.resolvedRuntimeCarrierFacts?.get(subject) ??
+    options.runtimeCarrierFacts?.get(subject);
   return fact === undefined
     ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
     : resolvedCarrierResolution(fact.carrier);
@@ -957,6 +2014,15 @@ const sourceFile = {
   FileName: "/src/index.ts",
   IsDeclarationFile: false,
 };
+
+function providerReadOnlyIndexableTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderReadOnlyIndexable`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderReadOnlyIndexable"),
+    { readOnlyIndexableElementType: elementType },
+  );
+}
 
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),

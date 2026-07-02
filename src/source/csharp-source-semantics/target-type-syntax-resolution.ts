@@ -1,12 +1,16 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
+import {
+  isSourceStandardLibraryArrayLikeType,
+} from "./source-type-classification.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -28,11 +32,15 @@ import {
 import {
   getTargetTypeRefFromTypeReferenceSyntax,
 } from "./target-type-reference-syntax.js";
+import {
+  isTypeOperatorNode,
+} from "./ast-utils/type-syntax.js";
 import type {
   CsharpRecursiveTargetTypeResolver,
 } from "./target-type-syntax-types.js";
 import {
   getNullableUnionTargetTypeRefFromSyntax,
+  getRuntimeUnionTargetTypeRefFromSyntax,
 } from "./target-type-union-syntax.js";
 
 export type {
@@ -75,8 +83,11 @@ export function getTargetTypeRefFromSyntax(
     return getTargetTypeRefFromTypeReferenceSyntax(node, context, options, host, resolver);
   }
   if (ast.is.IsArrayTypeNode(node)) {
-    const element = resolver.resolveSubject(asNodeSubject(getNodeField(node, "ElementType")), context, options, host);
-    return element === undefined ? undefined : { kind: "array", element };
+    return getTargetTypeRefFromArrayTypeSyntax(node, context, options, host, resolver);
+  }
+  const sourceArrayTypeOperator = getSourceArrayLikeTypeOperatorArrayNode(node, context);
+  if (sourceArrayTypeOperator !== undefined) {
+    return getTargetTypeRefFromArrayTypeSyntax(sourceArrayTypeOperator, context, options, host, resolver);
   }
   if (ast.is.IsTupleTypeNode(node)) {
     const elements = ast.elements(node)
@@ -93,6 +104,10 @@ export function getTargetTypeRefFromSyntax(
     if (nullable !== undefined) {
       return nullable;
     }
+    const runtimeUnion = getRuntimeUnionTargetTypeRefFromSyntax(node, context, options, host, resolver);
+    if (runtimeUnion !== undefined) {
+      return runtimeUnion;
+    }
   }
   if (ast.is.IsTypeLiteralNode(node)) {
     return host.getCsharpObjectShapeFactForSubject(node, context)?.targetType;
@@ -101,6 +116,37 @@ export function getTargetTypeRefFromSyntax(
     return resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, host, resolver);
   }
   return undefined;
+}
+
+function getTargetTypeRefFromArrayTypeSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const element = resolver.resolveSubject(asNodeSubject(getNodeField(node, "ElementType")), context, options, host);
+  return element === undefined ? undefined : { kind: "array", element };
+}
+
+function getSourceArrayLikeTypeOperatorArrayNode(
+  node: Node,
+  context: ExtensionObservationContext,
+): Node | undefined {
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  if (ast === undefined || checker === undefined || !isTypeOperatorNode(ast, node)) {
+    return undefined;
+  }
+  const innerType = asNodeSubject(getNodeField(node, "Type"));
+  if (innerType === undefined || !ast.is.IsArrayTypeNode(innerType)) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const semanticType = checker.getTypeFromTypeNode(node, { sourceFile });
+  return semanticType !== undefined && isSourceStandardLibraryArrayLikeType(semanticType, context)
+    ? innerType
+    : undefined;
 }
 
 function getTupleElementTypeNode(element: ReturnType<typeof asNodeSubject>): ReturnType<typeof asNodeSubject> {

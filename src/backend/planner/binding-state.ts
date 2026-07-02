@@ -1,6 +1,6 @@
 import { requireCsharpIdentifier, tryCsharpIdentifier } from "./identifiers.js";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import {
   asNodeSubject,
@@ -26,6 +26,7 @@ export interface DestructuringPlannerState {
   currentReturnTypeSubject?: Node;
   currentReturnExpressionType?: CsharpTypeNode;
   currentReturnExpressionTypeSubject?: Node;
+  currentReturnExpressionTargetType?: TargetTypeRef;
 }
 
 export interface ControlLabelTarget {

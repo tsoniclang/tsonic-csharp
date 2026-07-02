@@ -59,8 +59,12 @@ export function printCsharpExpression(
       return expression.assignments === undefined
         ? printCsharpObjectCreation(expression.type, expression.arguments ?? [], context)
         : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
-    case "CastExpression":
-      return `(${context.printType(expression.type)})${context.printExpression(expression.expression)}`;
+    case "CastExpression": {
+      const printedExpression = context.printExpression(expression.expression);
+      return expression.expression.kind === "LambdaExpression"
+        ? `(${context.printType(expression.type)})(${printedExpression})`
+        : `(${context.printType(expression.type)})${printedExpression}`;
+    }
     case "BinaryExpression":
       return `${context.printExpression(expression.left)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
     case "AssignmentExpression":
@@ -315,9 +319,17 @@ function printInterpolatedString(
       case "InterpolatedStringText":
         return escapeCsharpInterpolatedStringText(part.text);
       case "Interpolation":
-        return `{${context.printExpression(part.expression)}}`;
+        return `{${printInterpolationExpression(part.expression, context)}}`;
     }
     return failUnsupportedCsharpSyntax(part, "interpolated string part");
   }).join("");
   return `$"${body}"`;
+}
+
+function printInterpolationExpression(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  const printed = context.printExpression(expression);
+  return expression.kind === "ConditionalExpression" ? `(${printed})` : printed;
 }

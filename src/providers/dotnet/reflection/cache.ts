@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
   DotnetModuleModel,
@@ -66,11 +66,13 @@ export function createDotnetProviderCache(
     writeModule(request, module): void {
       const cacheFile = requestCacheFile(root, request);
       mkdirSync(dirname(cacheFile), { recursive: true });
-      writeFileSync(cacheFile, JSON.stringify({
+      const temporaryFile = `${cacheFile}.${process.pid}.${Date.now()}.tmp`;
+      writeFileSync(temporaryFile, JSON.stringify({
         schemaVersion: 1,
         request,
         model: module,
       } satisfies DotnetProviderCacheRecord));
+      renameSync(temporaryFile, cacheFile);
     },
   };
 }

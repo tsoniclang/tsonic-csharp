@@ -32,8 +32,8 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  csharpListTargetType,
-  getCsharpArrayLiteralElementTargetType,
+  getCsharpArrayLiteralConstructionTargetType,
+  getCsharpCollectionElementTargetType,
 } from "../../../source/csharp-source-semantics/target-types.js";
 import type {
   ArrayLiteralPlanner,
@@ -41,6 +41,9 @@ import type {
 import {
   planArrayLiteralExpression,
 } from "./dense-array.js";
+import {
+  planTupleSpreadArrayExpression,
+} from "./tuple-spread.js";
 
 export function planNativeCollectionArrayLiteralExpression(
   node: Node,
@@ -53,9 +56,10 @@ export function planNativeCollectionArrayLiteralExpression(
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(node)!;
   const elementType = csharpTypeFromTargetTypeRef(elementCarrier);
-  const collectionType = csharpTypeFromTargetTypeRef(concreteDenseArrayLiteralCollectionType(carrier, elementCarrier));
+  const constructionCarrier = getCsharpArrayLiteralConstructionTargetType(carrier);
+  const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier);
   if (elementType === undefined || collectionType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."));
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection element and array-literal construction type metadata before C# emission."));
     return undefined;
   }
   if (!(literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
@@ -87,15 +91,6 @@ export function planNativeCollectionArrayLiteralExpression(
     };
   }
   return jsArrayHelperCall("concat", chunks.map((chunk) => ({ kind: "Argument", expression: chunk })));
-}
-
-function concreteDenseArrayLiteralCollectionType(
-  carrier: TargetTypeRef,
-  elementCarrier: TargetTypeRef,
-): TargetTypeRef {
-  return carrier.kind === "target-named" && carrier.id === "System.Collections.Generic.List`1"
-    ? carrier
-    : csharpListTargetType(elementCarrier);
 }
 
 function createNativeCollectionSpreadChunks(
@@ -137,15 +132,28 @@ function createNativeCollectionSpreadChunks(
     const expression = AsSpreadElement(element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
-      continue;
+      return undefined;
     }
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
-    if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
-      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
-      diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission. ${detail.reason}`, detail.evidence));
+    if (spreadCarrier?.kind === "tuple") {
+      const planned = planTupleSpreadArrayExpression(element, expression, sourceFile, input, diagnostics, spreadCarrier, elementType, elementCarrier, planner.planExpression);
+      if (planned === undefined) {
+        return undefined;
+      }
+      chunks.push(planned);
       continue;
+    }
+    if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
+      const detail = spreadCarrier === undefined
+        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.")
+        : {
+            reason: "Finalized spread carrier element type does not match the target collection element type.",
+            evidence: [],
+          };
+      diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission. ${detail.reason}`, detail.evidence));
+      return undefined;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
     if (planned === undefined) {
@@ -166,7 +174,7 @@ function arraySpreadElementCarrierMatches(
   }
   const actualElement = spreadCarrier.kind === "array"
     ? spreadCarrier.element
-    : getCsharpArrayLiteralElementTargetType(spreadCarrier);
+    : getCsharpCollectionElementTargetType(spreadCarrier);
   const expectedType = csharpTypeFromTargetTypeRef(expectedElement);
   const actualType = actualElement === undefined ? undefined : csharpTypeFromTargetTypeRef(actualElement);
   return expectedType !== undefined && actualType !== undefined && sameCsharpType(expectedType, actualType);

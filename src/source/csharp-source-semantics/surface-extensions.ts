@@ -1,6 +1,5 @@
 import {
   TstsProviderContractVersion,
-  deferObservation,
 } from "@tsonic/tsts";
 import type {
   CompilerExtension,
@@ -22,12 +21,7 @@ import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
 import {
-  createCsharpNodejsSurfaceBindingProvider,
-  createCsharpNodejsSurfaceMappers,
-} from "./surfaces/nodejs/index.js";
-import {
   csharpJsSurfaceExtensionId,
-  csharpNodejsSurfaceExtensionId,
   csharpProviderVersion,
   csharpTargetId,
 } from "./identity.js";
@@ -92,28 +86,6 @@ export function createCsharpJsSurfaceExtension(context: TargetSurfaceExtensionCo
   };
 }
 
-export function createCsharpNodejsSurfaceExtension(context: TargetSurfaceExtensionContext): CompilerExtension {
-  return {
-    identity: {
-      id: csharpNodejsSurfaceExtensionId,
-      version: csharpProviderVersion,
-      capabilityNamespace: "tsonic.csharp.surface.nodejs",
-    },
-    composition: {
-      kind: "surface",
-      target: csharpTargetId,
-      surface: "nodejs",
-    },
-    dependencies: {
-      dependsOn: [csharpJsSurfaceExtensionId],
-    },
-    initialize(extensionContext): void {
-      void context;
-      extensionContext.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
-    },
-  };
-}
-
 export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtensionSemanticHosts, "operationsProviderHost">): TargetSemanticProvider {
   const identity = surfaceSemanticProviderIdentity(csharpJsSurfaceExtensionId, "Tsonic C# JavaScript surface semantic mapper");
   const mapper = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost));
@@ -130,23 +102,6 @@ export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtens
     },
     mapCheckedIteration(request, context) {
       return mapper.mapCheckedIteration(request, context);
-    },
-  };
-}
-
-export function createCsharpNodejsSurfaceOperationsProvider(): TargetSemanticProvider {
-  const identity = surfaceSemanticProviderIdentity(csharpNodejsSurfaceExtensionId, "Tsonic C# Node.js surface semantic mapper");
-  const mapper = createCsharpNodejsSurfaceMappers(csharpNodejsSurfaceExtensionId);
-  return {
-    identity,
-    mapCheckedCall(request, context) {
-      return mapper.mapCheckedCall(request, context);
-    },
-    mapCheckedPropertyAccess(request, context) {
-      return mapper.mapCheckedPropertyAccess(request, context);
-    },
-    mapCheckedElementAccess() {
-      return deferObservation;
     },
   };
 }

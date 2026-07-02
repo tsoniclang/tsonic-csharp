@@ -161,6 +161,10 @@ export interface CsharpArrayBoundaryFact {
   readonly requiresCopyOut: boolean;
 }
 
+export interface CsharpSourceReturnCarrierFact {
+  readonly carrier: TargetTypeRef;
+}
+
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
   | CsharpTargetArrayCreationOperationFact
@@ -180,6 +184,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly declaringType?: TargetTypeRef;
   readonly sourceDeclaringType?: ExtensionFactSubject;
   readonly resultType?: TargetTypeRef;
+  readonly typeArguments?: readonly TargetTypeRef[];
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
   readonly selectedMember?: CsharpTargetMember;

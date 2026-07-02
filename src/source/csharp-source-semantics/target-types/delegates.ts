@@ -2,6 +2,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  CsharpDelegateSignatureShape,
   CsharpDelegateTargetTypeRef,
   CsharpTaskTargetTypeRef,
 } from "./definitions.js";
@@ -58,5 +59,11 @@ export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTarge
 export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named"
     ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
+    : undefined;
+}
+
+export function getCsharpDelegateSignature(type: TargetTypeRef | undefined): CsharpDelegateSignatureShape | undefined {
+  return type?.kind === "target-named"
+    ? (type as Partial<CsharpDelegateTargetTypeRef>).csharpDelegateSignature
     : undefined;
 }

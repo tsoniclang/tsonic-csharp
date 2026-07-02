@@ -13,10 +13,14 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import type {
   CsharpObservedTargetAssignabilityFact,
 } from "../../csharp-facts.js";
 import {
   csharpObservedTargetAssignabilityFactKey,
+  csharpTargetOperationFactKey,
 } from "../../csharp-facts.js";
 import {
   getAstReaderChildNodes,
@@ -25,8 +29,17 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
+  getNodeField,
+} from "../ast-utils.js";
+import {
   csharpTargetId,
 } from "../identity.js";
+import {
+  isClosedCompatRuntimeOperationFact,
+} from "../opaque-any-diagnostics/closed-compat.js";
+import {
+  getBinaryOperatorText,
+} from "../operator-syntax.js";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
@@ -61,19 +74,35 @@ export function observeCsharpPostCheckAssignability(
     return deferObservation;
   }
   const subject = request.expression ?? request.errorNode ?? request.target;
-  context.facts.set(subject, csharpObservedTargetAssignabilityFactKey, {
+  const fact = {
     source: request.source,
     target: request.target,
     ...(request.relation !== undefined ? { relation: request.relation } : {}),
     ...(request.errorNode !== undefined ? { errorNode: request.errorNode } : {}),
     ...(request.expression !== undefined ? { expression: request.expression } : {}),
-  }, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
+  } satisfies CsharpObservedTargetAssignabilityFact;
+  const existing = context.facts.get(subject, csharpObservedTargetAssignabilityFactKey);
+  if (existing !== undefined && observedAssignabilityFactsShareSite(existing, fact)) {
+    return acceptObservation(undefined, [{ message: "C# post-check target assignability observation reused an existing fact for the same checked source site." }]);
+  }
+  context.facts.set(subject, csharpObservedTargetAssignabilityFactKey, fact, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
   return acceptObservation(undefined, [{ message: "C# post-check target assignability observed without querying or changing the TSTS assignability relation." }]);
+}
+
+function observedAssignabilityFactsShareSite(
+  left: CsharpObservedTargetAssignabilityFact,
+  right: CsharpObservedTargetAssignabilityFact,
+): boolean {
+  return left.target === right.target &&
+    left.relation === right.relation &&
+    left.errorNode === right.errorNode &&
+    left.expression === right.expression;
 }
 
 export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
   lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
   host: CsharpOperationsProviderHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -92,7 +121,7 @@ export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    validateObservedAssignabilityFactsForNode(sourceFile, context, host);
+    validateObservedAssignabilityFactsForNode(sourceFile, context, host, compatibilityMode);
   }
 }
 
@@ -100,19 +129,23 @@ function validateObservedAssignabilityFactsForNode(
   node: Node | undefined,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
 ): void {
   if (node === undefined) {
     return;
   }
   for (const child of getAstReaderChildNodes(context.compiler!.ast, node)) {
-    validateObservedAssignabilityFactsForNode(child, context, host);
+    validateObservedAssignabilityFactsForNode(child, context, host, compatibilityMode);
+  }
+  if (compatibilityMode === "compat") {
+    diagnoseAnyTypedBoundaryForNode(node, context, compatibilityMode);
   }
   const fact = context.facts.get(node, csharpObservedTargetAssignabilityFactKey);
   if (fact === undefined) {
     return;
   }
   validateObservedAssignmentTargetFact(fact, context);
-  if (diagnoseAnyTypedBoundaryForNode(node, context)) {
+  if (isCompatRuntimeAssignmentObservation(fact, context)) {
     return;
   }
   if (isInferredLocalAssignmentObservation(fact, context)) {
@@ -120,6 +153,13 @@ function validateObservedAssignabilityFactsForNode(
   }
   const source = resolveObservedAssignabilitySource(fact, context, host);
   const target = resolveObservedAssignabilityTarget(fact, context, host);
+  if (diagnoseAnyTypedBoundaryForNode(node, context, compatibilityMode, {
+    conversionSubject: resolveObservedAssignabilitySourceNode(fact, context),
+    source,
+    target,
+  })) {
+    return;
+  }
   const validation = validateCsharpTargetAssignability(source, target, host, new Set());
   if (validation.kind !== "invalid") {
     return;
@@ -138,6 +178,25 @@ function validateObservedAssignabilityFactsForNode(
     ],
     identity: `csharp-target-assignability:${subjectIdentity(fact.expression ?? fact.errorNode ?? fact.target)}`,
   });
+}
+
+function isCompatRuntimeAssignmentObservation(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): boolean {
+  const compiler = context.compiler;
+  const target = asNode(fact.errorNode) ?? asNode(fact.target);
+  if (compiler === undefined || target === undefined) {
+    return false;
+  }
+  const parent = compiler.ast.parent(target);
+  if (parent === undefined || !compiler.ast.is.IsBinaryExpression(parent) || getBinaryOperatorText(compiler.ast, parent) !== "=") {
+    return false;
+  }
+  if (asNode(getNodeField(parent, "Left")) !== target) {
+    return false;
+  }
+  return isClosedCompatRuntimeOperationFact(context.factResolver.resolve(parent, csharpTargetOperationFactKey) ?? context.facts.get(parent, csharpTargetOperationFactKey));
 }
 
 function resolveObservedAssignabilitySource(

@@ -23,6 +23,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  tryPlanRuntimeUnionTypeTest,
+} from "./runtime-union-projections.js";
+import {
   CsharpTargetOperatorOperation,
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
@@ -36,12 +39,16 @@ import {
   getBinaryLeft,
   getBinaryRight,
 } from "./expression-binary-operands.js";
+import {
+  tryPlanCompatRuntimeUnaryOperator,
+} from "./compat-runtime-operations.js";
 
 export function planTypeofExpression(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
   if (selectedOperator === undefined) {
@@ -52,6 +59,14 @@ export function planTypeofExpression(
   }
   if (selectedOperator.operationKind !== "operator") {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+    return undefined;
+  }
+  const compatDiagnosticsStart = diagnostics.length;
+  const compatRuntimeTypeof = tryPlanCompatRuntimeUnaryOperator(node, Node_Expression(node), sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimeTypeof !== undefined) {
+    return compatRuntimeTypeof;
+  }
+  if (diagnostics.length > compatDiagnosticsStart) {
     return undefined;
   }
   const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
@@ -118,6 +133,18 @@ export function tryPlanTypeofComparisonExpression(
   const planned = planExpression(operand, sourceFile, input, diagnostics);
   if (planned === undefined) {
     return undefined;
+  }
+  const runtimeUnionTest = tryPlanRuntimeUnionTypeTest(
+    operand,
+    comparison.targetType,
+    sourceFile,
+    input,
+    diagnostics,
+    planned,
+    comparison.negated === true,
+  );
+  if (runtimeUnionTest !== undefined) {
+    return runtimeUnionTest;
   }
   return {
     kind: "IsPatternExpression",

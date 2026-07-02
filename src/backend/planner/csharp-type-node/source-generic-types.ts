@@ -6,6 +6,7 @@ import {
   KindNewExpression,
 } from "../source-ast.js";
 import type {
+  TargetTypeRef,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
@@ -35,6 +36,12 @@ import {
 import {
   getCsharpTypeFromProjectSourceReference,
 } from "../project-source-types.js";
+import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "../../../source/csharp-source-semantics/source-owned-selected-signature.js";
+import {
+  csharpSourceReturnCarrierFactKey,
+} from "../../../source/csharp-facts.js";
 import type {
   CsharpTypeResolver,
 } from "./types.js";
@@ -43,16 +50,25 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-  resolveCsharpType: CsharpTypeResolver,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   if (input.ast.kindName(node) !== KindCallExpression) {
     return undefined;
   }
   const call = AsCallExpression(node)!;
+  const selectedCall = input.facts.getSelectedTargetCall(node);
   const ownership = getCallableSemanticOwnership(call.Expression, sourceFile, input);
-  if (!ownership.sourceOwned) {
+  if (!ownership.sourceOwned && !isCsharpSourceOwnedSelectedSignature(selectedCall)) {
     return undefined;
+  }
+  const sourceReturnCarrier = getSourceReturnCarrierFromSelectedDeclaration(call, sourceFile, input);
+  if (sourceReturnCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(sourceReturnCarrier);
+    if (csharpType === undefined) {
+      diagnostics?.push(unsupportedNodeDiagnostic(node, "Resolved source-owned declaration return carrier requires a renderable C# type before emission."));
+      return invalidCsharpType("source call return carrier");
+    }
+    return csharpType;
   }
   const carrierResolution = input.targetFacts.resolveCallReturnRuntimeCarrier(node, { sourceFile });
   const carrier = probeCarrierFromResolution(carrierResolution);
@@ -64,10 +80,6 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     }
     return csharpType;
   }
-  const annotatedReturnType = getCsharpTypeFromSourceCallReturnAnnotation(node, call, sourceFile, input, resolveCsharpType, diagnostics);
-  if (annotatedReturnType !== undefined && input.ast.typeArguments(node).length > 0) {
-    return annotatedReturnType;
-  }
   const detail = missingCarrierDiagnosticDetail(carrierResolution, "Source-owned call return carrier fact is missing.");
   diagnostics?.push(unsupportedNodeDiagnostic(
     node,
@@ -77,6 +89,26 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     detail.evidence,
   ));
   return invalidCsharpType("source call return carrier");
+}
+
+function getSourceReturnCarrierFromSelectedDeclaration(
+  call: NonNullable<ReturnType<typeof AsCallExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetTypeRef | undefined {
+  const reference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
+  const declaration = reference?.declaration;
+  const name = declaration === undefined ? undefined : input.ast.name(declaration);
+  for (const subject of [declaration, name, reference?.symbol]) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = input.facts.getFact(subject, csharpSourceReturnCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
 }
 
 export function getCsharpTypeFromSourceNewExpression(
@@ -104,34 +136,6 @@ export function getCsharpTypeFromSourceNewExpression(
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("source construction type argument"), diagnostics));
   return withCsharpTypeArguments(baseType, typeArguments);
-}
-
-function getCsharpTypeFromSourceCallReturnAnnotation(
-  node: Node,
-  call: ReturnType<typeof AsCallExpression>,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  resolveCsharpType: CsharpTypeResolver,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  if (call === undefined) {
-    return undefined;
-  }
-  const reference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
-  const returnTypeNode = (reference?.declaration as { readonly Type?: Node } | undefined)?.Type;
-  if (reference === undefined || returnTypeNode === undefined) {
-    return undefined;
-  }
-  const substitutions = getSourceCallTypeParameterSubstitutions(node, call, reference.declaration, sourceFile, input, resolveCsharpType, diagnostics);
-  const callableReturnTypeNode = getCallableTypeReturnNode(returnTypeNode, input) ?? returnTypeNode;
-  const returnType = resolveCsharpType(callableReturnTypeNode, reference.sourceFile, input, invalidCsharpType("source call return type"), diagnostics);
-  return substituteCsharpTypeNode(returnType, substitutions);
-}
-
-function getCallableTypeReturnNode(typeNode: Node, input: TargetCompileInput): Node | undefined {
-  return input.ast.is.IsFunctionTypeNode(typeNode) || input.ast.is.IsConstructorTypeNode(typeNode)
-    ? getNodeField(typeNode, "Type")
-    : undefined;
 }
 
 export function getSourceCallTypeParameterSubstitutions(
@@ -194,14 +198,6 @@ function withCsharpTypeArguments(
   return type.kind === "IdentifierName" || type.kind === "QualifiedName"
     ? { ...type, typeArguments }
     : type;
-}
-
-function getNodeField(node: Node | undefined, field: string): Node | undefined {
-  if (node === undefined) {
-    return undefined;
-  }
-  const value = Object.getOwnPropertyDescriptor(node, field)?.value;
-  return typeof value === "object" && value !== null ? value as Node : undefined;
 }
 
 export function substituteCsharpTypeNode(

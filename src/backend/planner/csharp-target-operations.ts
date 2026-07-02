@@ -25,6 +25,7 @@ import type {
 } from "../../source/csharp-facts.js";
 import type {
   CsharpExpression,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
   unsupportedNodeDiagnostic,
@@ -98,11 +99,34 @@ export function csharpStaticMemberExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a provider-owned declaring target type fact before C# emission.`));
     return undefined;
   }
+  const typeArguments = csharpTypeArgumentsFromTargetOperation(operation, diagnostics, node, purpose);
+  if (typeArguments === undefined) {
+    return undefined;
+  }
   return {
     kind: "SimpleMemberAccessExpression",
     receiver: declaringType,
     name: operation.memberName,
+    ...(typeArguments.length === 0 ? {} : { typeArguments }),
   };
+}
+
+function csharpTypeArgumentsFromTargetOperation(
+  operation: Extract<CsharpTargetOperationFact, { readonly kind: "member" }>,
+  diagnostics: TargetDiagnostic[],
+  node: Node,
+  purpose: string,
+): readonly CsharpTypeNode[] | undefined {
+  const typeArguments: CsharpTypeNode[] = [];
+  for (const typeArgument of operation.typeArguments ?? []) {
+    const rendered = csharpTypeFromTargetTypeRef(typeArgument);
+    if (rendered === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires renderable generic target argument facts before C# emission.`));
+      return undefined;
+    }
+    typeArguments.push(rendered);
+  }
+  return typeArguments;
 }
 
 export function getRequiredCsharpTargetMemberOperationForSelectedSignature(

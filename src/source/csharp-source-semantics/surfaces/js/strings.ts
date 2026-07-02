@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   rejectObservation,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedElementAccessMappingRequest,
@@ -40,6 +41,9 @@ import {
 import type {
   JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../../csharp-facts.js";
 
 export function mapCsharpJsStringElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -49,6 +53,25 @@ export function mapCsharpJsStringElementAccess(
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (!host.isCsharpStringType(receiverType)) {
     return undefined;
+  }
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    if (
+      existingOperation.operationKind === "indexer" &&
+      context.factResolver.resolve(request.expression, csharpTargetOperationFactKey) === undefined &&
+      context.facts.get(request.expression, csharpTargetOperationFactKey) === undefined
+    ) {
+      recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(existingOperation.operationId, "method", "Substring", {
+        resultType: csharpStringTargetType(),
+        argumentProjection: [
+          { kind: "source-argument", index: 0 },
+          { kind: "literal", value: 1 },
+        ],
+      }), [{ message: "C# JS surface string code-unit C# operation recorded from an existing checked target operation." }]);
+    }
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# JS surface string code-unit access reused existing finalized target operation for repeated checked-element observation." }]);
   }
   const indexType = host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
   if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {

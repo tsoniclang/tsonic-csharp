@@ -20,6 +20,14 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
   return Object.getOwnPropertyDescriptor(node, field)?.value;
 }
 
+export function nodeHasModifierKind(ast: AstReader, node: Node | undefined, modifierKind: string): boolean {
+  const modifiers = getNodeField(node, "modifiers") ?? getNodeField(node, "Modifiers");
+  if (typeof modifiers === "function") {
+    return getNodeList(modifiers.call(node)).some((modifier) => ast.kindName(modifier) === modifierKind);
+  }
+  return getNodeList(modifiers).some((modifier) => ast.kindName(modifier) === modifierKind);
+}
+
 export function getNodeParent(node: Node | undefined): Node | undefined {
   return asNodeSubject(getNodeField(node, "Parent"));
 }

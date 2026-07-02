@@ -73,10 +73,10 @@ function getCsharpCheckedMemberAccessRequestContext(
   const receiverSymbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, receiver, receiverSourceFile);
   const receiverResolvedSymbol = getResolvedSymbol(compiler, receiver, receiverSourceFile);
   const receiverAliasedSymbol = getAliasedSymbolIfAvailable(compiler.checker, receiverResolvedSymbol ?? receiverSymbol, receiverSourceFile);
-  const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile: receiverSourceFile });
+  const receiverType = getTypeAtLocation(compiler, receiver, receiverSourceFile);
   const receiverTypeSymbol = receiverType === undefined
     ? undefined
-    : compiler.checker.getTypeSymbol(receiverType as Type);
+    : getTypeSymbol(compiler, receiverType as Type);
   const effectiveSelectedSymbol = selectedSymbol ?? getCheckedReceiverPropertySymbol(
     receiverType,
     selectedPropertyOptions.propertyName,
@@ -108,7 +108,11 @@ function getCheckedReceiverPropertySymbol(
   ) {
     return undefined;
   }
-  return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
+  try {
+    return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function selectedMemberContext(
@@ -140,6 +144,29 @@ function getResolvedSymbol(
 ): ExtensionFactSubject | undefined {
   try {
     return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getTypeAtLocation(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  node: Node,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Type | undefined {
+  try {
+    return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getTypeSymbol(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  type: Type,
+): ExtensionFactSubject | undefined {
+  try {
+    return compiler.checker.getTypeSymbol(type);
   } catch {
     return undefined;
   }

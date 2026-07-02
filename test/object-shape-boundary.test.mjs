@@ -11,6 +11,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   beginObjectShapePlanning,
+  beginObjectShapeSourceFilePlanning,
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
   takeObjectShapeDeclarations,
@@ -168,6 +169,9 @@ test("provider-owned property access emits from finalized selected member fact, 
     access,
     {},
     fakeInput({
+      runtimeCarriers: new Map([[receiver, {
+        carrier: csharpTargetNamedType("Example.Values", undefined, csharpQualifiedTypeRenderShape("Example", "Values")),
+      }]]),
       selectedPropertySubject: access,
       selectedProperty: targetOperation(operationId, "property"),
       csharpOperationSubject: access,
@@ -446,6 +450,151 @@ test("generated structural carriers close over finalized type-parameter target a
   assert.match(printed, /public T value;/);
 });
 
+test("generated structural carriers reuse declarations only when implemented-interface facts match", () => {
+  const sourceExample = `
+    interface HasValue {
+      value: number;
+    }
+
+    export function create(value: number): HasValue {
+      return { value };
+    }
+  `;
+  assert.match(sourceExample, /interface HasValue/);
+  assert.match(sourceExample, /return \{ value \}/);
+
+  const contract = csharpTargetNamedType("Contracts.IHasValue", undefined, csharpQualifiedTypeRenderShape("Contracts", "IHasValue"));
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_InterfaceBox",
+      csharpRender: { kind: "named", name: "__TsonicShape_InterfaceBox" },
+    },
+    implements: [contract],
+    members: [{
+      sourceName: "value",
+      targetName: "Value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  const firstType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("first"));
+  const secondType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("second"));
+  const declarations = takeObjectShapeDeclarations(input);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: declarations,
+  });
+
+  assert.deepEqual(firstType, { kind: "IdentifierName", name: "__TsonicShape_InterfaceBox" });
+  assert.deepEqual(secondType, firstType);
+  assert.deepEqual(diagnostics, []);
+  assert.equal(declarations.length, 1);
+  assert.match(printed, /public class __TsonicShape_InterfaceBox : Contracts\.IHasValue/);
+  assert.match(printed, /public int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
+});
+
+test("generated structural carriers emit once across source files", () => {
+  const sourceExample = `
+    // a.ts
+    export function first(): Shape { return { value: 1 }; }
+
+    // b.ts
+    export function second(): Shape { return { value: 2 }; }
+  `;
+  assert.match(sourceExample, /a\.ts/);
+  assert.match(sourceExample, /b\.ts/);
+
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_Shared",
+      csharpRender: { kind: "named", name: "__TsonicShape_Shared" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  beginObjectShapeSourceFilePlanning(input, "/src/a.ts");
+  const firstType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("first"));
+  const firstDeclarations = takeObjectShapeDeclarations(input, "/src/a.ts");
+
+  beginObjectShapeSourceFilePlanning(input, "/src/b.ts");
+  const secondType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("second"));
+  const secondDeclarations = takeObjectShapeDeclarations(input, "/src/b.ts");
+  const allDeclarations = takeObjectShapeDeclarations(input);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(firstType, { kind: "IdentifierName", name: "__TsonicShape_Shared" });
+  assert.deepEqual(secondType, firstType);
+  assert.equal(firstDeclarations.length, 1);
+  assert.equal(secondDeclarations.length, 0);
+  assert.equal(allDeclarations.length, 1);
+});
+
+test("generated structural carriers fail closed when duplicate target identities carry different interfaces", () => {
+  const sourceExample = `
+    interface ReadableBox {
+      value: number;
+    }
+
+    interface WritableBox {
+      value: number;
+    }
+
+    declare const readable: ReadableBox;
+    declare const writable: WritableBox;
+  `;
+  assert.match(sourceExample, /ReadableBox/);
+  assert.match(sourceExample, /WritableBox/);
+
+  const readableContract = csharpTargetNamedType("Contracts.IReadableBox", undefined, csharpQualifiedTypeRenderShape("Contracts", "IReadableBox"));
+  const writableContract = csharpTargetNamedType("Contracts.IWritableBox", undefined, csharpQualifiedTypeRenderShape("Contracts", "IWritableBox"));
+  const baseShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_CollidingBox",
+      csharpRender: { kind: "named", name: "__TsonicShape_CollidingBox" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "Value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  csharpTypeFromObjectShapeFact(input, { ...baseShape, implements: [readableContract] }, diagnostics, identifier("readable"));
+  csharpTypeFromObjectShapeFact(input, { ...baseShape, implements: [writableContract] }, diagnostics, identifier("writable"));
+  const declarations = takeObjectShapeDeclarations(input);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: declarations,
+  });
+
+  assert.equal(declarations.length, 1);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object-shape carrier '__TsonicShape_CollidingBox' was requested with incompatible finalized members/);
+  assert.match(printed, /Contracts\.IReadableBox/);
+  assert.doesNotMatch(printed, /Contracts\.IWritableBox/);
+});
+
 test("generated structural carriers fail closed when type-parameter facts are not declared on the carrier", () => {
   const sourceExample = `
     type Box<T> = { value: T };
@@ -516,7 +665,7 @@ test("object-shape object literals fail closed for computed property names", () 
     planExpectedExpression,
   );
 
-  assert.deepEqual(planned.assignments, []);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 2);
   assert.match(diagnostics[0].message, /require identifier or string-literal property names/);
   assert.match(diagnostics[1].message, /must match a finalized provider object-shape member/);
@@ -552,7 +701,7 @@ test("object-shape object literals fail closed for accessors", () => {
     planExpectedExpression,
   );
 
-  assert.deepEqual(planned.assignments, []);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal member is outside the current C# planning surface/);
 });
@@ -590,7 +739,7 @@ test("object-shape object literals fail closed for generic methods", () => {
     planExpectedExpression,
   );
 
-  assert.equal(planned.assignments.length, 0);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
 });
@@ -627,7 +776,7 @@ test("object-shape method object literals require delegate signature facts", () 
     planExpectedExpression,
   );
 
-  assert.equal(planned.assignments.length, 0);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /must carry a finalized delegate target type/);
 });
@@ -760,6 +909,10 @@ test("object spread assignments emit only from finalized source and target objec
 
 test("object spread fails closed without finalized source object-shape facts", () => {
   const spread = spreadAssignment(identifier("source"));
+  const sourceText = "const value = { ...source };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
+  spread.Loc = span(sourceText, "...source");
+  attachSourceFile(sourceFile, objectLiteral([spread]));
   const diagnostics = [];
 
   const assignments = planObjectShapeSpreadAssignments(
@@ -777,19 +930,31 @@ test("object spread fails closed without finalized source object-shape facts", (
         type: { kind: "source-primitive", name: "int32" },
       }],
     },
-    {},
+    sourceFile,
     fakeInput(),
     diagnostics,
     planExpression,
   );
 
-  assert.deepEqual(assignments, []);
+  assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:26"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 17,
+    endLine: 1,
+    endColumn: 26,
+  });
 });
 
 test("object spread rejects non-identifier expressions until single-evaluation facts exist", () => {
   const spread = spreadAssignment(objectLiteral([]));
+  const sourceText = "const value = { ...{} };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
+  spread.Loc = span(sourceText, "...{}");
+  attachSourceFile(sourceFile, objectLiteral([spread]));
   const diagnostics = [];
 
   const assignments = planObjectShapeSpreadAssignments(
@@ -802,15 +967,87 @@ test("object spread rejects non-identifier expressions until single-evaluation f
       },
       members: [],
     },
-    {},
+    sourceFile,
     fakeInput(),
     diagnostics,
     planExpression,
   );
 
-  assert.deepEqual(assignments, []);
+  assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a single-evaluation provider lowering/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:22"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 17,
+    endLine: 1,
+    endColumn: 22,
+  });
+});
+
+test("object literal spread missing facts fail closed before partial C# object creation", () => {
+  const sourceExample = `
+    type Shape = { count: number; label: string };
+    declare const source: Shape;
+    const value: Shape = { count: 1, ...source };
+  `;
+  assert.match(sourceExample, /\.\.\.source/);
+
+  const source = identifier("source");
+  const sourceText = "const value: Shape = { count: 1, ...source };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
+  const literal = objectLiteral([
+    propertyAssignment(identifier("count"), numericLiteral("1")),
+    spreadAssignment(source),
+  ]);
+  literal.Properties.Nodes[1].Loc = span(sourceText, "...source");
+  attachSourceFile(sourceFile, literal);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [
+      {
+        sourceName: "count",
+        targetName: "Count",
+        memberKind: "property",
+        type: { kind: "source-primitive", name: "int32" },
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    sourceFile,
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:34-1:43"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 34,
+    endLine: 1,
+    endColumn: 43,
+  });
 });
 
 function identifier(text) {
@@ -912,6 +1149,50 @@ function stringLiteral(text) {
   return { Kind: KindStringLiteral, Text: text };
 }
 
+function sourceFileNode(fileName, text) {
+  return {
+    Kind: "KindSourceFile",
+    Statements: { Nodes: [] },
+    FileName: () => fileName,
+    Text: () => text,
+    Loc: { pos: 0, end: text.length },
+  };
+}
+
+function attachSourceFile(sourceFile, root) {
+  sourceFile.Statements = { Nodes: [root] };
+  setParentRecursive(root, sourceFile);
+}
+
+function setParentRecursive(subject, parent) {
+  if (subject === undefined || subject === null || typeof subject !== "object") {
+    return;
+  }
+  subject.Parent = parent;
+  for (const child of childNodes(subject)) {
+    setParentRecursive(child, subject);
+  }
+}
+
+function childNodes(subject) {
+  return [
+    ...(subject.Properties?.Nodes ?? []),
+    ...(subject.Elements?.Nodes ?? []),
+    subject.Expression,
+    subject.Initializer,
+    subject.name,
+    subject.Left,
+    subject.Right,
+    subject.ArgumentExpression,
+  ].filter((child) => child !== undefined);
+}
+
+function span(text, token) {
+  const pos = text.indexOf(token);
+  assert.notEqual(pos, -1, `missing token '${token}'`);
+  return { pos, end: pos + token.length };
+}
+
 function trueKeyword() {
   return { Kind: KindTrueKeyword };
 }
@@ -933,6 +1214,8 @@ function planExpectedExpression(node) {
       return { kind: "LiteralExpression", value: true };
     case KindFalseKeyword:
       return { kind: "LiteralExpression", value: false };
+    case KindNumericLiteral:
+      return { kind: "LiteralExpression", value: Number(node.Text) };
     case KindIdentifier:
       return { kind: "IdentifierName", name: node.Text };
     default:
@@ -1026,7 +1309,7 @@ function csharpMemberOperation(operationId, operationKind, memberName) {
     operationId,
     operationKind,
     memberName,
-    declaringType: csharpTargetNamedType("Example.Values"),
+    declaringType: csharpTargetNamedType("Example.Values", undefined, csharpQualifiedTypeRenderShape("Example", "Values")),
     resultType: csharpSourcePrimitiveTargetType("int32"),
   };
 }

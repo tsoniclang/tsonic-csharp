@@ -6,6 +6,9 @@ import {
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import type {
   CheckedOperationMappingResult,
   CheckedOperatorMappingRequest,
   ExtensionObservation,
@@ -46,10 +49,19 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
+  mapCsharpCompatRuntimeCheckedOperator,
+} from "../compat-runtime-checked-operations.js";
+import {
+  isClosedCompatRuntimeOperationFact,
+} from "../opaque-any-diagnostics/closed-compat.js";
+import {
   getBitwiseLiteralOperandTargetTypeRefs,
   getCheckedOperatorOperandTargetTypeRefs,
   getOperatorSourceFile,
 } from "./operands.js";
+import {
+  asNodeSubject,
+} from "../ast-utils.js";
 import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
@@ -71,17 +83,18 @@ export function mapCsharpCheckedOperator(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpOperationsProviderHost,
+  typescriptCompatibilityMode: TargetTypescriptCompatibilityMode = "strict-native",
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
   const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
   if (existingOperation !== undefined) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: existingOperation,
     }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
   }
-  const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
   if (existingCsharpOperation?.kind === "operator-token") {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(existingCsharpOperation.operationId, "operator", existingCsharpOperation.operator, {
@@ -89,8 +102,21 @@ export function mapCsharpCheckedOperator(
       }),
     }, [{ message: "C# source operator reused existing finalized C# operator-token fact for repeated checked-operator observation." }]);
   }
+  if (existingCsharpOperation?.kind === "member" && isClosedCompatRuntimeOperationFact(existingCsharpOperation)) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(existingCsharpOperation.operationId, "method", existingCsharpOperation.memberName, {
+        resultType: existingCsharpOperation.resultType,
+      }),
+    }, [{ message: "C# source operator reused existing finalized closed compat-runtime C# operation fact for repeated checked-operator observation." }]);
+  }
   if (existingCsharpOperation !== undefined) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' already has a finalized non-operator C# target operation.`);
+  }
+  const compatRuntimeOperator = typescriptCompatibilityMode === "compat"
+    ? mapCsharpCompatRuntimeCheckedOperator(request, context)
+    : deferObservation;
+  if (compatRuntimeOperator.kind !== "defer") {
+    return compatRuntimeOperator;
   }
   const typeofComparison = getTypeofComparisonOperation(request, context);
   if (typeofComparison !== undefined) {
@@ -119,8 +145,22 @@ export function mapCsharpCheckedOperator(
   const bitwiseLiteralOperands = getBitwiseLiteralOperandTargetTypeRefs(request.operator, operands.left, operands.right, request.left, request.right, context);
   const left = bitwiseLiteralOperands.left;
   const right = bitwiseLiteralOperands.right;
+  if (request.operator === "=" && isDestructuringAssignmentTarget(request.left, context) && right !== undefined) {
+    const operationId = `tsonic.csharp.operator.${targetOperator}`;
+    recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, right), [{ message: "C# destructuring assignment token operation recorded after TSTS accepted the source assignment and the right-hand carrier was finalized." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "operator", targetOperator, { resultType: right }),
+    }, [{ message: "C# destructuring assignment selected from checked TSTS assignment and finalized right-hand carrier facts." }]);
+  }
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
+  }
+  if (request.operator === "=" && (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right))) {
+    const operationId = `tsonic.csharp.operator.${targetOperator}`;
+    recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, left), [{ message: "C# assignment token operation recorded after TSTS accepted the source assignment; typed any-boundary validation is handled by post-check assignability facts." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "operator", targetOperator, { resultType: left }),
+    }, [{ message: "C# assignment operator accepted without dynamic any dispatch; target conversion or diagnostic is supplied by assignability validation." }]);
   }
   if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' requires explicit compat-runtime carrier operation facts for any operands.`);
@@ -148,6 +188,18 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function isDestructuringAssignmentTarget(
+  subject: unknown,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(subject);
+  if (node === undefined || context.compiler === undefined) {
+    return false;
+  }
+  const kind = context.compiler.ast.kindName(node);
+  return kind === "KindArrayLiteralExpression" || kind === "KindObjectLiteralExpression";
 }
 
 function rejectMissingCsharpOperatorFact(

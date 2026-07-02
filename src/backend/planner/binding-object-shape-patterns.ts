@@ -15,8 +15,10 @@ import type {
 } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { planObjectShapeDefaultProjection } from "./object-shape-defaults.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
@@ -34,6 +36,7 @@ export function planObjectShapeBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
   const explicitlyExtractedSourceNames = collectObjectShapeExtractedSourceNames(elements, input);
@@ -41,7 +44,7 @@ export function planObjectShapeBindingPattern(
     if (elementNode === undefined) {
       return [];
     }
-    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   });
 }
 
@@ -55,6 +58,7 @@ function planObjectShapeBindingElement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(elementNode);
   if (element === undefined) {
@@ -63,10 +67,6 @@ function planObjectShapeBindingElement(
   }
   if (element.DotDotDotToken !== undefined) {
     return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
-  }
-  if (element.Initializer !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission."));
-    return [];
   }
   const name = element.name;
   if (name === undefined) {
@@ -94,7 +94,14 @@ function planObjectShapeBindingElement(
     receiver: sourceExpression,
     name: member.targetName,
   };
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
+  if (element.Initializer === undefined) {
+    return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
+  }
+  const defaultedProjection = planObjectShapeDefaultProjection(projected, member, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+  if (defaultedProjection === undefined) {
+    return [];
+  }
+  return planBindingNameFromProjection(name, defaultedProjection.expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier);
 }
 
 function planObjectShapeRestBindingElement(

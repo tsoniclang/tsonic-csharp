@@ -38,6 +38,9 @@ import {
   createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 import {
+  getReferencedDeclarationTargetTypeRef,
+} from "../../referenced-declaration-target.js";
+import {
   mapCsharpIterationOperationRows,
 } from "../../operation-selection/iteration.js";
 import type {
@@ -110,7 +113,15 @@ export function mapCsharpJsSurfaceCheckedIteration(
     ? undefined
     : context.compiler.checker.getTypeAtLocation(expressionNode, { sourceFile });
   const expressionType = seededExpressionCarrier ??
-    host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??
+    host.getTargetTypeRefForSubject(request.expression, context, {
+      ...csharpJsCheckedTypeQuery,
+      allowSemanticTypeQuery: false,
+      sourceFile,
+    }) ??
+    getReferencedDeclarationTargetTypeRef(request.expression, context, host.getTargetTypeRefForSubject, {
+      ...csharpJsCheckedTypeQuery,
+      sourceFile,
+    }) ??
     host.getTargetTypeRefForSubject(sourceExpressionType, context, csharpJsCheckedTypeQuery);
   const rows: CsharpIterationOperationRow[] = [];
   if (host.isCsharpStringType(expressionType)) {

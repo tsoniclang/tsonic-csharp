@@ -10,5 +10,9 @@ export {
 } from "./csharp-source-semantics/source-extension.js";
 export {
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
 } from "./csharp-source-semantics/surface-extensions.js";
+export {
+  createCsharpNodejsProviderPackageExtension,
+  createCsharpNodejsProviderPackageOperationsMappers,
+  nodejsProviderPackageModuleOwnership,
+} from "./csharp-source-semantics/provider-packages/nodejs/index.js";
