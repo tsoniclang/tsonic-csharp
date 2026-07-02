@@ -76,6 +76,22 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertDefaultModuleCall(bindingProvider, "node:url", "NodeUrlModule", "pathToFileURL", "node:url.pathToFileURL(System.String)", "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
 });
 
+test("NodeJS process provider metadata exposes provider-owned nullish union shapes", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
+  const resolution = bindingProvider.resolveModule("node:process", {});
+  assert.equal(resolution.kind, "virtual");
+  const model = bindingProvider.getDeclarationModel(resolution);
+  const exitCode = model.exports.find((entry) => entry.name === "exitCode");
+  const processEnv = model.exports.find((entry) => entry.name === "ProcessEnv");
+  const envIndexer = processEnv?.members?.find((entry) => entry.name === "Item");
+  const envIndexerSignature = envIndexer?.signatures?.find((signature) => signature.id === "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)");
+
+  assertProviderUnionType(exitCode?.type, ["number", "literal:null"]);
+  assert.equal(envIndexer?.kind, "indexer");
+  assertProviderUnionType(envIndexerSignature?.returnType, ["string", "void"]);
+  assertClassProperty(bindingProvider, "node:process", "ProcessEnv", "Item", "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)");
+});
+
 test("NodeJS fs provider metadata exposes every supported operation row by provider signature identity", () => {
   const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
@@ -488,6 +504,37 @@ test("selected NodeJS default module imports type-check through provider-package
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.url.pathToFileURL(System.String)"));
 });
 
+test("selected NodeJS process nullish unions finalize provider-owned target operation facts", () => {
+  const session = createCsharpSession(`
+    import process from "node:process";
+
+    export function pathOrEmpty(): string {
+      return process.env["PATH"] ?? "";
+    }
+
+    export function exitOrZero(): number {
+      return process.exitCode ?? 0;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const operationFacts = collectFactValues(sourceFile, session, extensionHost, csharpTargetOperationFactKey);
+  const processEnvOperation = operationFacts.find((fact) => fact.operationId === "Tsonic.CSharp.Node.process.env");
+  const envIndexerOperation = operationFacts.find((fact) => fact.operationId === "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)");
+  const exitCodeOperation = operationFacts.find((fact) => fact.operationId === "Tsonic.CSharp.Node.process.exitCode");
+
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.equal(processEnvOperation?.resultType?.id, "Tsonic.CSharp.Node.ProcessEnv");
+  assert.equal(envIndexerOperation?.resultType?.kind, "target-named");
+  assert.equal(envIndexerOperation?.resultType?.id, "System.String");
+  assert.equal(envIndexerOperation?.resultType?.csharpNullableReference, true);
+  assert.equal(exitCodeOperation?.resultType?.kind, "target-named");
+  assert.equal(exitCodeOperation?.resultType?.id, "System.Nullable`1");
+  assert.deepEqual(exitCodeOperation?.resultType?.typeArguments?.[0], { kind: "source-primitive", name: "int32" });
+});
+
 function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signatureId, targetIdentityId) {
   const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
   assert.equal(resolution.kind, "virtual");
@@ -552,6 +599,17 @@ function assertModuleValue(bindingProvider, moduleSpecifier, exportName, targetI
     exportName,
   });
   assert.equal(identity?.id, targetIdentityId);
+}
+
+function assertProviderUnionType(type, expectedKinds) {
+  assert.equal(type?.kind, "union");
+  assert.deepEqual(type.types.map(providerTypeKey), expectedKinds);
+}
+
+function providerTypeKey(type) {
+  return type.kind === "literal"
+    ? `literal:${String(type.value)}`
+    : type.kind;
 }
 
 function assertDefaultModuleCall(bindingProvider, moduleSpecifier, interfaceName, memberName, signatureId, targetIdentityId) {

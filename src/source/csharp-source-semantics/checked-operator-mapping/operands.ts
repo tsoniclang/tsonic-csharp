@@ -155,7 +155,7 @@ function getCheckedOperatorOperandTargetTypeRef(
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
   });
-  if (expressionTarget !== undefined) {
+  if (expressionTarget !== undefined && expressionTarget.kind !== "type-parameter") {
     return expressionTarget;
   }
   const checkedExpressionType = getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
@@ -173,7 +173,7 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (typed !== undefined) {
     return typed;
   }
-  return checkedExpressionType;
+  return expressionTarget ?? checkedExpressionType;
 }
 
 function getCheckedExpressionTargetTypeRef(

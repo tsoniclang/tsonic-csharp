@@ -49,12 +49,19 @@ import {
 import {
   isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
+import {
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "./checked-member-access-request-context.js";
 
 export function mapCsharpCompatRuntimeCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier(request.receiver, context)) {
+  if (
+    !requestTargetsCsharp(request.target) ||
+    hasCheckedStaticPropertySelection(request, context) ||
+    !hasOpaqueAnyCarrier(request.receiver, context)
+  ) {
     return deferObservation;
   }
   const operation = compatAnyPropertyReadOperation(request.propertyName);
@@ -84,7 +91,7 @@ export function mapCsharpCompatRuntimeCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier(request.callee, context)) {
+  if (!requestTargetsCsharp(request.target) || hasCheckedStaticCallSelection(request) || !hasOpaqueAnyCarrier(request.callee, context)) {
     return deferObservation;
   }
   const operation = callExpressionIsConstruct(request.call, context)
@@ -195,12 +202,27 @@ function hasOpaqueAnyCarrier(
   if (node === undefined || compiler === undefined) {
     return false;
   }
-  const type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
+  let type: ExtensionFactSubject | undefined;
+  try {
+    type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) }) as ExtensionFactSubject | undefined;
+  } catch {
+    return false;
+  }
   return type !== undefined &&
-    (
-      compiler.typeShape?.isAny(type) === true ||
-      isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier)
-    );
+    isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier);
+}
+
+function hasCheckedStaticCallSelection(request: CheckedCallMappingRequest): boolean {
+  return request.sourceSelectedSignature !== undefined || request.sourceSelectedDeclaration !== undefined;
+}
+
+function hasCheckedStaticPropertySelection(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): boolean {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  return requestContext.sourceSelectedDeclaration !== undefined ||
+    requestContext.sourceSelectedSymbol !== undefined;
 }
 
 function requestTargetsCsharp(target: string | undefined): boolean {

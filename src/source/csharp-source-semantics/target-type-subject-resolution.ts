@@ -236,7 +236,30 @@ export function resolveTargetTypeRefForSubjectCore(
   ) {
     return undefined;
   }
-  return semanticResult;
+  const substitutedSemanticResult = semanticResult?.kind === "type-parameter" &&
+    node !== undefined &&
+    ast !== undefined &&
+    checker !== undefined &&
+    options.allowSemanticTypeQuery !== false &&
+    isSemanticTypeQueryableValueExpressionNode(ast, node)
+    ? resolveSourceMemberTypeParameterFromReceiver(
+        semanticResult,
+        node,
+        context,
+        options,
+        host,
+        (substitutionSubject, substitutionContext, substitutionOptions, substitutionHost) =>
+          resolveTargetTypeRefForSubjectCore(
+            substitutionSubject,
+            substitutionContext,
+            substitutionOptions,
+            substitutionHost,
+            recursiveTargetTypeResolver,
+            resolveTargetTypeRefForType,
+          ),
+      )
+    : undefined;
+  return substitutedSemanticResult ?? semanticResult;
 }
 
 function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(

@@ -74,7 +74,7 @@ export function findCsharpTargetMemberForCall(
     declaration,
     request,
     context,
-    host.getTargetTypeRefForSubject,
+    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
     options,
   );
   if (selectedMember !== undefined) {
@@ -139,7 +139,7 @@ export function getConstructorDeclaringTargetType(
     return undefined;
   }
   const targetTypeArguments = ast.typeArguments(callNode)
-    .map((argument) => host.getTargetTypeRefForSubject(argument, context));
+    .map((argument) => safeGetTargetTypeRefForSubject(host, argument, context));
   if (targetTypeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
@@ -184,7 +184,20 @@ function findConstructorTargetMemberForProviderType(
       receiver: requestContext.calleeReceiver,
     },
     context,
-    host.getTargetTypeRefForSubject,
+    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
     options,
   );
+}
+
+function safeGetTargetTypeRefForSubject(
+  host: CsharpOperationsProviderHost,
+  subject: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[0],
+  context: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[1],
+  options?: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[2],
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  try {
+    return host.getTargetTypeRefForSubject(subject, context, options);
+  } catch {
+    return undefined;
+  }
 }

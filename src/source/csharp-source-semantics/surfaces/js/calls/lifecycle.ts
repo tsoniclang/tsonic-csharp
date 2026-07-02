@@ -140,11 +140,7 @@ function recordCsharpSourceLibraryCallFact(
   }
   const sourceSelectedSignature = getResolvedCallSignature(node, sourceFile, context);
   const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature, context);
-  const sourceReturnType = compiler.ast.is.IsNewExpression(node)
-    ? compiler.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined
-    : sourceSelectedSignature === undefined
-      ? undefined
-      : compiler.checker.getReturnTypeOfSignature(sourceSelectedSignature as Signature, { sourceFile }) as ExtensionFactSubject | undefined;
+  const sourceReturnType = getSourceReturnTypeForSelectedCall(node, sourceFile, sourceSelectedSignature, context);
   const sourceMember = resolveSourceLibraryMemberIdentity(sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return "pending";
@@ -190,6 +186,27 @@ function getResolvedCallSignature(
 ): ExtensionFactSubject | undefined {
   try {
     return context.compiler?.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getSourceReturnTypeForSelectedCall(
+  node: Node,
+  sourceFile: SourceFile,
+  sourceSelectedSignature: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ExtensionFactSubject | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  try {
+    return compiler.ast.is.IsNewExpression(node)
+      ? compiler.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined
+      : sourceSelectedSignature === undefined
+        ? undefined
+        : compiler.checker.getReturnTypeOfSignature(sourceSelectedSignature as Signature, { sourceFile }) as ExtensionFactSubject | undefined;
   } catch {
     return undefined;
   }
