@@ -57,14 +57,18 @@ export function collectArrayParameters(
       return;
     }
     const typeNode = asNodeSubject(getNodeField(node, "Type"));
-    if (typeNode === undefined || !compiler.ast.is.IsArrayTypeNode(typeNode)) {
+    if (typeNode === undefined) {
+      return;
+    }
+    const arrayTypeNode = getSourceArrayTypeNodeFromDeclaredType(typeNode, sourceFile, context);
+    if (arrayTypeNode === undefined) {
       return;
     }
     const name = asNodeSubject(getNodeField(node, "name"));
     if (name === undefined || (!compiler.ast.is.IsIdentifier(name) && compiler.ast.kindName(name) !== "KindArrayBindingPattern")) {
       return;
     }
-    const elementTypeNode = asNodeSubject(getNodeField(typeNode, "ElementType"));
+    const elementTypeNode = asNodeSubject(getNodeField(arrayTypeNode, "ElementType"));
     const elementType = host.getTargetTypeRefForSubject(elementTypeNode, context, { allowSemanticTypeQuery: true, sourceFile });
     if (elementType === undefined) {
       return;
@@ -128,10 +132,14 @@ export function collectArrayReturnTypeNodes(
       return;
     }
     const typeNode = asNodeSubject(getNodeField(node, "Type"));
-    if (typeNode === undefined || !compiler.ast.is.IsArrayTypeNode(typeNode)) {
+    if (typeNode === undefined) {
       return;
     }
-    const elementTypeNode = asNodeSubject(getNodeField(typeNode, "ElementType"));
+    const arrayTypeNode = getSourceArrayTypeNodeFromDeclaredType(typeNode, sourceFile, context);
+    if (arrayTypeNode === undefined) {
+      return;
+    }
+    const elementTypeNode = asNodeSubject(getNodeField(arrayTypeNode, "ElementType"));
     const elementType = host.getTargetTypeRefForSubject(elementTypeNode, context, { allowSemanticTypeQuery: true, sourceFile });
     if (elementType === undefined) {
       return;
@@ -256,8 +264,9 @@ function getArrayElementTypeFromLocalDeclaration(
   host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ) {
   const compiler = context.compiler;
-  if (typeNode !== undefined && compiler?.ast.is.IsArrayTypeNode(typeNode) === true) {
-    const elementTypeNode = asNodeSubject(getNodeField(typeNode, "ElementType"));
+  const arrayTypeNode = getSourceArrayTypeNodeFromDeclaredType(typeNode, sourceFile, context);
+  if (arrayTypeNode !== undefined && compiler !== undefined) {
+    const elementTypeNode = asNodeSubject(getNodeField(arrayTypeNode, "ElementType"));
     const elementType = host.getTargetTypeRefForSubject(elementTypeNode, context, { allowSemanticTypeQuery: true, sourceFile });
     return elementType;
   }
@@ -266,6 +275,31 @@ function getArrayElementTypeFromLocalDeclaration(
     ? targetType.element
     : getCsharpArrayLiteralElementTargetType(targetType) ??
       getCsharpCollectionElementTargetType(targetType);
+}
+
+function getSourceArrayTypeNodeFromDeclaredType(
+  typeNode: ReturnType<typeof asNodeSubject>,
+  sourceFile: SourceFile,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+): Node | undefined {
+  const compiler = context.compiler;
+  if (typeNode === undefined || compiler === undefined) {
+    return undefined;
+  }
+  if (compiler.ast.is.IsArrayTypeNode(typeNode)) {
+    return typeNode;
+  }
+  if (!compiler.ast.is.IsTypeOperatorNode(typeNode)) {
+    return undefined;
+  }
+  const innerTypeNode = asNodeSubject(getNodeField(typeNode, "Type"));
+  if (innerTypeNode === undefined || !compiler.ast.is.IsArrayTypeNode(innerTypeNode)) {
+    return undefined;
+  }
+  const semanticType = compiler.checker.getTypeFromTypeNode(typeNode, { sourceFile });
+  return semanticType !== undefined && isSourceStandardLibraryArrayLikeType(semanticType, context)
+    ? innerTypeNode
+    : undefined;
 }
 
 function initializerHasExplicitNativeArrayTarget(
