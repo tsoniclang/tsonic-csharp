@@ -29,6 +29,14 @@ export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
   });
 }
 
+export function csharpRuntimeNullTargetType(): TargetTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Null", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Null"));
+}
+
+export function csharpRuntimeUndefinedTargetType(): TargetTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Undefined", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Undefined"));
+}
+
 export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
   if (arms.length < 2 || arms.length > 8) {
     return undefined;
@@ -64,6 +72,14 @@ export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefin
       type.id === "Tsonic.CSharp.Js.TsUnion" ||
       type.id === "Tsonic.CSharp.Js.TsFunction"
     );
+}
+
+export function isCsharpRuntimeNullTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Null";
+}
+
+export function isCsharpRuntimeUndefinedTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Undefined";
 }
 
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {

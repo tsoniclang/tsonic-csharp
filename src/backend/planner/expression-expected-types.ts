@@ -15,6 +15,7 @@ import {
   KindBinaryExpression,
   KindConditionalExpression,
   KindFunctionExpression,
+  KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
   KindNonNullExpression,
   KindNumericLiteral,
@@ -40,7 +41,10 @@ import {
 import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import {
+  csharpTypeFromTargetTypeRef,
+  targetTypeRefsMatch,
+} from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   planArrowFunctionExpression,
@@ -59,6 +63,14 @@ import {
 import {
   requireCsharpBoolRuntimeCarrier,
 } from "./expression-bool-carriers.js";
+import {
+  csharpRuntimeNullTargetType,
+  csharpRuntimeUndefinedTargetType,
+  getCsharpRuntimeUnionArms,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  isTstsUndefinedType,
+} from "../../source/csharp-source-semantics/nullish-types.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -75,6 +87,10 @@ export function planExpressionWithExpectedTypeCore(
   planners: ExpectedTypeExpressionPlanners,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
+  const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, expectedTargetType, expectedTypeSubject);
+  if (expectedRuntimeNullishLiteral !== undefined) {
+    return expectedRuntimeNullishLiteral;
+  }
   const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
   if (expectedTypeLiteral !== undefined) {
     return expectedTypeLiteral;
@@ -195,6 +211,65 @@ export function planExpressionWithExpectedTypeCore(
     };
   }
   return planners.planExpression(node, sourceFile, input, diagnostics);
+}
+
+function planExpectedRuntimeNullishLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  expectedTargetType: TargetTypeRef | undefined,
+  expectedTypeSubject: Node | undefined,
+): CsharpExpression | undefined {
+  const effectiveExpectedTargetType = expectedTargetType ??
+    (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
+  if (effectiveExpectedTargetType === undefined) {
+    return undefined;
+  }
+  const nullCarrier = csharpRuntimeNullTargetType();
+  if (targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, nullCarrier) && HasSourceKind(input.ast, node, KindNullKeyword)) {
+    return runtimeCarrierSingletonValue(nullCarrier);
+  }
+  const undefinedCarrier = csharpRuntimeUndefinedTargetType();
+  if (
+    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, undefinedCarrier) &&
+    isGlobalUndefinedLiteral(node, sourceFile, input)
+  ) {
+    return runtimeCarrierSingletonValue(undefinedCarrier);
+  }
+  return undefined;
+}
+
+function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef): boolean {
+  return targetTypeRefsMatch(expectedTargetType, carrier) ||
+    (getCsharpRuntimeUnionArms(expectedTargetType)?.some((arm) => targetTypeRefsMatch(arm, carrier)) === true);
+}
+
+function runtimeCarrierSingletonValue(carrier: TargetTypeRef): CsharpExpression | undefined {
+  const type = csharpTypeFromTargetTypeRef(carrier);
+  return type === undefined
+    ? undefined
+    : {
+        kind: "SimpleMemberAccessExpression",
+        receiver: type,
+        name: "value",
+      };
+}
+
+function isGlobalUndefinedLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (SourceKind(input.ast, node) !== KindIdentifier || Node_Text(node) !== "undefined") {
+    return false;
+  }
+  if (
+    input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) !== undefined ||
+    input.targetFacts.getTargetBindingForReference(node, { sourceFile }) !== undefined
+  ) {
+    return false;
+  }
+  return isTstsUndefinedType(input.analysis.getTypeAtLocation(node, { sourceFile }), input.types);
 }
 
 function planExpectedTypeLiteral(

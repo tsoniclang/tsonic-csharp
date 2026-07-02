@@ -38,7 +38,7 @@ import {
 } from "./runtime-carrier-mapping/syntax.js";
 import {
   getCommonNonNullishUnionRuntimeCarrier,
-  getNonNullishRuntimeUnionCarrier,
+  getRuntimeUnionCarrier,
 } from "./runtime-carrier-mapping/unions.js";
 import {
   getTupleRuntimeCarrier,
@@ -100,11 +100,11 @@ export function mapRuntimeCarrier(
       carrier: commonUnionCarrier.carrier,
     }, [{ message: "C# non-nullish union runtime carrier mapped from identical finalized constituent carriers." }]);
   }
-  const runtimeUnionCarrier = getNonNullishRuntimeUnionCarrier(request, context, host);
+  const runtimeUnionCarrier = getRuntimeUnionCarrier(request, context, host);
   if (runtimeUnionCarrier !== undefined) {
     return acceptObservation<RuntimeCarrierFactResult>({
       carrier: runtimeUnionCarrier,
-    }, [{ message: "C# runtime union carrier mapped from TSTS union constituents and finalized constituent carrier facts." }]);
+    }, [{ message: "C# runtime union carrier mapped from TSTS union constituents and finalized constituent/nullish carrier facts." }]);
   }
   if (isCallableTypeWithoutCarrierEvidence(request, context)) {
     return deferObservation;

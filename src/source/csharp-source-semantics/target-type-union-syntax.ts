@@ -13,11 +13,17 @@ import type {
 } from "./target-member-selection.js";
 import {
   csharpNullableTargetType,
+  csharpRuntimeNullTargetType,
+  csharpRuntimeUndefinedTargetType,
   csharpRuntimeUnionTargetType,
 } from "./target-types.js";
 import {
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
+import {
+  isTstsNullType,
+  isTstsUndefinedType,
+} from "./nullish-types.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -53,10 +59,10 @@ export function getRuntimeUnionTargetTypeRefFromSyntax(
   }
   const members = getNodeList(getNodeField(node, "Types"));
   const nonNullish = members.filter((member) => !isNullishTypeSyntax(member, context));
-  if (nonNullish.length < 2 || nonNullish.length !== members.length) {
+  if (nonNullish.length < 2) {
     return undefined;
   }
-  const memberCarriers = nonNullish.map((member) => resolveUnionMemberTargetType(member, context, options, host, resolver));
+  const memberCarriers = members.map((member) => resolveUnionMemberTargetType(member, context, options, host, resolver));
   if (!memberCarriers.every((member): member is TargetTypeRef => member !== undefined)) {
     return undefined;
   }
@@ -73,6 +79,10 @@ function resolveUnionMemberTargetType(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
+  const nullishCarrier = resolveNullishUnionMemberTargetType(node, context);
+  if (nullishCarrier !== undefined) {
+    return nullishCarrier;
+  }
   const syntaxType = resolver.resolveSubject(node, context, options, host);
   if (syntaxType !== undefined) {
     return syntaxType;
@@ -83,6 +93,28 @@ function resolveUnionMemberTargetType(
     : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
   return resolver.resolveType(semanticType, context, options, host) ??
     resolver.resolveType(semanticType, context, { ...options, allowRuntimeCarrier: true }, host);
+}
+
+function resolveNullishUnionMemberTargetType(
+  node: Node,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const semanticType = sourceFile === undefined
+    ? undefined
+    : compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+  if (isTstsUndefinedType(semanticType, compiler.typeShape)) {
+    return csharpRuntimeUndefinedTargetType();
+  }
+  if (isTstsNullType(semanticType, compiler.typeShape)) {
+    return csharpRuntimeNullTargetType();
+  }
+  return undefined;
 }
 
 function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): boolean {

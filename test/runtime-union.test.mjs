@@ -63,6 +63,36 @@ test("source semantics records runtime union carrier from TSTS union constituent
   ]);
 });
 
+test("source semantics records runtime union carriers for TSTS-proven nullish constituents", () => {
+  const sourceText = `
+    type MaybeUndefined = number | string | undefined;
+    type MaybeNull = number | string | null;
+    let maybeUndefined!: MaybeUndefined;
+    let maybeNull!: MaybeNull;
+  `;
+  const session = createCompilerSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const carriers = collectNodesByKind(sourceFile, session.ast, KindUnionType)
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+  const armSets = carriers.map((carrier) => (carrier.csharpRuntimeUnionArms ?? []).map(carrierKey).sort());
+
+  assert.ok(armSets.some((arms) => armSetEquals(arms, [
+    "source:float64",
+    "target:System.String",
+    "target:Tsonic.CSharp.Runtime.Undefined",
+  ])));
+  assert.ok(armSets.some((arms) => armSetEquals(arms, [
+    "source:float64",
+    "target:System.String",
+    "target:Tsonic.CSharp.Runtime.Null",
+  ])));
+});
+
 test("source semantics keeps narrowed branch carrier direct instead of union-carrier guessing", () => {
   const sourceText = `
     export function read(value: number | string): string {
@@ -210,6 +240,10 @@ function runtimeUnionCarrier() {
   ]);
   assert.ok(carrier);
   return carrier;
+}
+
+function armSetEquals(actual, expected) {
+  return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
 function carrierKey(carrier) {
