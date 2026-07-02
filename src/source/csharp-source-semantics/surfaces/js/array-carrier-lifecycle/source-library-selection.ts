@@ -21,7 +21,10 @@ export function getSelectedSourceIdentityForStructuralUse(
   use: TargetSourceUseRecord,
   lifecycleContext: LifecycleContext,
 ): JsSurfaceSelectedSourceIdentity | undefined {
-  return selectedSourceIdentityFromDeclaration(use.selectedDeclaration, lifecycleContext);
+  return selectedSourceIdentityFromDeclaration(
+    use.selectedDeclaration ?? use.selectedSignatureDeclaration,
+    lifecycleContext,
+  );
 }
 
 function selectedSourceIdentityFromDeclaration(
