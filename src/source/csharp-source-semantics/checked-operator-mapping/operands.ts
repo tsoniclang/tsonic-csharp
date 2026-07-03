@@ -14,17 +14,8 @@ import {
 } from "../../csharp-facts.js";
 import {
   csharpSourcePrimitiveTargetType,
-  isCsharpAnyRuntimeCarrier,
 } from "../target-types.js";
 import {
-  csharpTargetTokenOperatorOperation,
-  recordTargetOperationFact,
-  targetOperation,
-} from "../operations.js";
-import {
-  getCsharpOperatorTargetOperation,
-  isCsharpIncrementDecrementTargetTypeRef,
-  isCsharpIncrementOrDecrementOperator,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
   isSourceEnumTargetTypeRef,
@@ -35,11 +26,6 @@ import type {
 import {
   isLiteralRepresentableAsTargetType,
 } from "../target-member-selection.js";
-import {
-  getBinaryOperatorText,
-  getPostfixUnaryOperatorText,
-  getPrefixUnaryOperatorText,
-} from "../operator-syntax.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -58,11 +44,8 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
-  getCheckedOperatorOperandQuery,
-  getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
   getNullishTargetTypeRefForKnownOperatorOperand,
-  operatorRequiresSelectedProviderIdentity,
 } from "./operator-rules.js";
 
 export function getOperatorSourceFile(
@@ -121,7 +104,11 @@ function getCheckedOperandType(
   context: ExtensionObservationContext,
 ): ExtensionFactSubject | undefined {
   const node = asNodeSubject(subject);
-  return node === undefined || context.compiler === undefined
+  const ast = context.compiler?.ast;
+  return node === undefined || context.compiler === undefined ||
+    ast?.is.IsBinaryExpression(node) === true ||
+    ast?.is.IsPrefixUnaryExpression(node) === true ||
+    ast?.is.IsPostfixUnaryExpression(node) === true
     ? undefined
     : context.compiler.checker.getTypeAtLocation(node, { sourceFile });
 }
@@ -167,13 +154,10 @@ function getCheckedOperatorOperandTargetTypeRef(
 ): TargetTypeRef | undefined {
   const selectedOperationResult = expressionSubject === undefined
     ? undefined
-    : context.factResolver.resolve(expressionSubject, csharpTargetOperationFactKey)?.resultType;
+    : context.facts.get(expressionSubject, csharpTargetOperationFactKey)?.resultType ??
+      context.factResolver.resolve(expressionSubject, csharpTargetOperationFactKey)?.resultType;
   if (selectedOperationResult !== undefined) {
     return selectedOperationResult;
-  }
-  const nestedOperationResult = getNestedCheckedOperatorTargetTypeRef(expressionSubject, sourceFile, context, options, host);
-  if (nestedOperationResult !== undefined) {
-    return nestedOperationResult;
   }
   const referencedDeclarationTarget = getReferencedOperandTargetTypeRef(expressionSubject, sourceFile, context);
   if (referencedDeclarationTarget !== undefined) {
@@ -309,98 +293,6 @@ function getMappedRuntimeCarrierTargetTypeRef(
   }
   const mapped = host.mapRuntimeCarrier({ type: subject }, context as ExtensionObservationContext<"type.resolveRuntimeCarrier">);
   return mapped.kind === "accept" ? mapped.value.carrier : undefined;
-}
-
-function getNestedCheckedOperatorTargetTypeRef(
-  expressionSubject: ExtensionFactSubject | undefined,
-  sourceFile: SourceFile | undefined,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpOperationsProviderHost,
-): TargetTypeRef | undefined {
-  const node = asNodeSubject(expressionSubject);
-  const ast = context.compiler?.ast;
-  if (node === undefined || ast === undefined) {
-    return undefined;
-  }
-  if (ast.is.IsParenthesizedExpression(node)) {
-    return getNestedCheckedOperatorTargetTypeRef(getNodeField(node, "Expression") as ExtensionFactSubject | undefined, sourceFile, context, options, host);
-  }
-  const binaryExpression = ast.is.IsBinaryExpression(node)
-    ? ast.as.AsBinaryExpression(node)
-    : undefined;
-  const prefixUnaryExpression = ast.is.IsPrefixUnaryExpression(node)
-    ? ast.as.AsPrefixUnaryExpression(node)
-    : undefined;
-  const postfixUnaryExpression = ast.is.IsPostfixUnaryExpression(node)
-    ? ast.as.AsPostfixUnaryExpression(node)
-    : undefined;
-  const operator = binaryExpression !== undefined
-    ? getBinaryOperatorText(ast, node)
-    : prefixUnaryExpression !== undefined
-      ? getPrefixUnaryOperatorText(ast, node)
-      : postfixUnaryExpression !== undefined
-        ? getPostfixUnaryOperatorText(ast, node)
-      : undefined;
-  const targetOperator = operator === undefined
-    ? undefined
-    : getCsharpOperatorTargetOperation(operator);
-  if (operator === undefined || targetOperator === undefined) {
-    return undefined;
-  }
-  const leftSubject = binaryExpression !== undefined
-    ? asNodeSubject(binaryExpression.Left)
-    : asNodeSubject(prefixUnaryExpression?.Operand ?? postfixUnaryExpression?.Operand);
-  const rightSubject = binaryExpression !== undefined
-    ? asNodeSubject(binaryExpression.Right)
-    : undefined;
-  const nestedOptions = getCheckedOperatorOperandQuery(operator);
-  let left = getCheckedOperatorOperandTargetTypeRef(undefined, leftSubject, sourceFile, context, nestedOptions, host);
-  let right = getCheckedOperatorOperandTargetTypeRef(undefined, rightSubject, sourceFile, context, nestedOptions, host);
-  const expectedResult = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
-  if (right === undefined) {
-    right = getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context) ??
-      getLiteralTargetTypeRefForKnownOperatorOperand(expectedResult, rightSubject, context) ??
-      getNullishTargetTypeRefForKnownOperatorOperand(left, rightSubject, sourceFile, context);
-  }
-  if (left === undefined) {
-    left = getLiteralTargetTypeRefForKnownOperatorOperand(right, leftSubject, context) ??
-      getLiteralTargetTypeRefForKnownOperatorOperand(expectedResult, leftSubject, context) ??
-      getNullishTargetTypeRefForKnownOperatorOperand(right, leftSubject, sourceFile, context);
-  }
-  const bitwiseLiteralOperands = getBitwiseLiteralOperandTargetTypeRefs(operator, left, right, leftSubject, rightSubject, context);
-  left = bitwiseLiteralOperands.left;
-  right = bitwiseLiteralOperands.right;
-  if (left === undefined || (rightSubject !== undefined && right === undefined)) {
-    return undefined;
-  }
-  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
-    return undefined;
-  }
-  if (operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {
-    return undefined;
-  }
-  if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
-    return undefined;
-  }
-  if (isCsharpIncrementOrDecrementOperator(operator) && !isCsharpIncrementDecrementTargetTypeRef(left)) {
-    return undefined;
-  }
-  if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
-    return undefined;
-  }
-  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right, operator === "??" ? expectedResult : undefined);
-  const operationId = `tsonic.csharp.operator.${targetOperator}`;
-  const operation = targetOperation(
-    operationId,
-    "operator",
-    targetOperator,
-    { resultType },
-  );
-  recordTargetOperationFact(context, node, operation, [{ message: "C# nested checked operator fact finalized during checked-operator mapping from deterministic operand facts." }]);
-  context.facts.set(node, csharpTargetOperationFactKey, csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType), [{ message: "C# nested checked operator token fact finalized during checked-operator mapping from deterministic operand facts." }]);
-  void options;
-  return resultType;
 }
 
 function getContainingEnumDeclarationTargetType(

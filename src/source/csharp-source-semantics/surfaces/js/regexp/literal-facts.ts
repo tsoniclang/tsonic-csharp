@@ -6,6 +6,9 @@ import {
   csharpRegularExpressionLiteralFactKey,
 } from "../../../../csharp-facts.js";
 import {
+  csharpProviderDiagnostic,
+} from "../../../diagnostics.js";
+import {
   asNodeSubject,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
@@ -13,6 +16,9 @@ import {
 import {
   csharpJsRegExpTargetType,
 } from "./target-type.js";
+import {
+  validateCsharpJsRegExpPatternAndFlags,
+} from "./validation.js";
 
 export function recordCsharpJsRegExpLiteralFact(
   subject: ExtensionFactSubject | undefined,
@@ -25,6 +31,24 @@ export function recordCsharpJsRegExpLiteralFact(
   }
   const literal = parseRegularExpressionLiteral(ast.text(node));
   if (literal === undefined) {
+    return;
+  }
+  const validation = validateCsharpJsRegExpPatternAndFlags(literal.pattern, literal.flags);
+  if (validation.kind !== "valid") {
+    context.diagnostics.append({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        validation.kind === "unsupported" ? "CSHARP_JS_REGEXP_UNSUPPORTED" : "CSHARP_JS_REGEXP_SYNTAX_INVALID",
+        validation.kind === "unsupported" ? 9100180 : 9100181,
+        `C# JS RegExp supports only the proven ECMAScript-compatible subset. ${validation.message}`,
+        [
+          { message: "RegExp literal pattern and flags are statically known." },
+          { message: `pattern=${JSON.stringify(literal.pattern)} flags=${JSON.stringify(literal.flags)}` },
+        ],
+      ),
+      nodeOrSpan: node,
+      identity: `csharp-js-regexp-literal:${ast.pos(node)}:${ast.end(node)}`,
+    });
     return;
   }
   context.facts.set(node, csharpRegularExpressionLiteralFactKey, literal, [{ message: "C# JS surface RegExp literal pattern and flags recorded from source syntax." }]);

@@ -235,7 +235,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   const create = providerArray.members.find((member) => member.name === "create");
   const length = providerArray.members.find((member) => member.name === "length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
-  assert.equal(create.id, dotnetNativeArrayCreateMemberId);
+  assert.equal(create.id, `${dotnetNativeArrayCreateMemberId}#static`);
   assert.equal(create.static, true);
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
   assert.deepEqual(create.signatures[0].returnType, {
@@ -1674,6 +1674,31 @@ test(".NET reflection provider exposes readable fields with readonly facts", () 
     member.sourceName === "desktop" &&
     member.targetName === "Desktop"
   ));
+});
+
+test(".NET provider declaration model rejects static methods that collide with instance source names", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["DateTime", "DateTimeOffset"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
+
+  for (const typeName of ["DateTime", "DateTimeOffset"]) {
+    const declaration = model.exports.find((candidate) => candidate.name === typeName);
+    assert.ok(declaration, typeName);
+    const equalsMembers = declaration.members?.filter((member) => member.name === "equals") ?? [];
+    assert.equal(equalsMembers.length, 1, typeName);
+    assert.equal(new Set(equalsMembers.map((member) => member.id)).size, equalsMembers.length, typeName);
+    assert.ok(equalsMembers.some((member) => member.static !== true), typeName);
+    const rawDeclaration = module.exports.find((candidate) => candidate.sourceName === typeName);
+    assert.ok(rawDeclaration?.unsupportedMembers?.some((member) =>
+      member.memberKind === "method" &&
+      member.sourceName === "equals" &&
+      member.static === true &&
+      /same source-visible name/.test(member.reason)
+    ), typeName);
+  }
 });
 
 test(".NET reflection provider exposes unique nested CLR types as source declarations", () => {

@@ -1726,7 +1726,7 @@ test("selected JS surface finalizes unchanged chained standard-library TypeScrip
       const keys = Object.keys(values).join("|");
       const encoded = JSON.stringify(JSON.parse(text));
       const stamp = new Date(0).toISOString();
-      const matched = /ok/u.test(encoded);
+      const matched = /ok/.test(encoded);
       console.log(normalized, joined, keys, stamp, matched, Math.max(values.length, 1));
       return normalized + joined + keys + encoded + stamp;
     }
@@ -1754,6 +1754,37 @@ test("selected JS surface finalizes unchanged chained standard-library TypeScrip
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.console.log"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Math.max"));
   assert.ok(operationIds.includes("tsonic.csharp.js.Array.length"));
+});
+
+test("C# source semantics finalizes prefix bitwise operator facts from proven operand target facts", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function mask(value: int32): int32 {
+      const result: int32 = value + 1;
+      return ~result;
+    }
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const prefix = collectNodesByKind(sourceFile, session.ast, "KindPrefixUnaryExpression")[0];
+
+  assert.ok(prefix);
+  assert.deepEqual(extensionHost.facts.get(prefix, targetOperationFactKey), {
+    operationId: "tsonic.csharp.operator.~",
+    operationKind: "operator",
+    targetOperation: "~",
+    resultType: { kind: "source-primitive", name: "int32" },
+  });
+  assert.deepEqual(extensionHost.facts.get(prefix, csharpTargetOperationFactKey), {
+    kind: "operator-token",
+    operationId: "tsonic.csharp.operator.~",
+    operator: "~",
+    resultType: { kind: "source-primitive", name: "int32" },
+  });
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
 test("C# planner rejects sparse array literal elisions before dense lowering", () => {

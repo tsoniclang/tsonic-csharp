@@ -524,6 +524,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedMethodReason(Type type, MethodInfo method)
     {
+        if (method.IsStatic && HasInstanceMethodWithSameSourceName(type, method))
+        {
+            return "Static method has the same source-visible name as an instance method; provider virtual member attribution requires a unique source member identity before both can be exposed safely.";
+        }
         if (type.IsInterface && method.IsStatic)
         {
             return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
@@ -537,6 +541,13 @@ sealed partial class ReflectionProvider
             return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
         return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
+    }
+
+    static bool HasInstanceMethodWithSameSourceName(Type type, MethodInfo method)
+    {
+        var sourceName = LowerCamel(method.Name);
+        return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Any(candidate => !candidate.IsSpecialName && LowerCamel(candidate.Name) == sourceName);
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)

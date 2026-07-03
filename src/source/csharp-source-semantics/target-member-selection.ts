@@ -299,7 +299,7 @@ export function findTargetMember(
     if (selectedMember !== undefined) {
       return selectedMember;
     }
-    return createProviderSelectedMemberGroup(declaration.memberId, members.filter((member) => member.overloadGroup === declaration.memberId));
+    return createProviderSelectedMemberGroup(declaration.memberId, getTargetMemberCandidatesForMemberId(binding, declaration.memberId));
   }
   return undefined;
 }
@@ -365,6 +365,13 @@ function getTargetMemberCandidatesForMemberId(
   if (selectedMember !== undefined) {
     return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
   }
+  const disambiguated = providerDisambiguatedMemberId(memberId);
+  if (disambiguated !== undefined) {
+    return members.filter((member) =>
+      member.overloadGroup === disambiguated.baseId &&
+      targetMemberStaticFlag(member) === disambiguated.static
+    );
+  }
   return members.filter((member) => member.overloadGroup === memberId);
 }
 
@@ -372,7 +379,18 @@ function getTargetMemberById(
   binding: CsharpTargetBindingFact | undefined,
   memberId: string,
 ): CsharpTargetMember | undefined {
-  return binding?.members?.find((member) => member.id === memberId);
+  const members = binding?.members ?? [];
+  const exact = members.find((member) => member.id === memberId);
+  if (exact !== undefined) {
+    return exact;
+  }
+  const disambiguated = providerDisambiguatedMemberId(memberId);
+  return disambiguated === undefined
+    ? undefined
+    : members.find((member) =>
+        member.id === disambiguated.baseId &&
+        targetMemberStaticFlag(member) === disambiguated.static
+      );
 }
 
 function getTargetMembersByProviderSourceSignatureId(
@@ -391,4 +409,18 @@ function getTargetMemberCandidatesForSelectedMember(
   }
   const overloadGroup = members.filter((member) => member.overloadGroup === selectedMember.overloadGroup);
   return overloadGroup.length === 0 ? [selectedMember] : overloadGroup;
+}
+
+function providerDisambiguatedMemberId(memberId: string): { readonly baseId: string; readonly static: boolean } | undefined {
+  if (memberId.endsWith("#static")) {
+    return { baseId: memberId.slice(0, -"#static".length), static: true };
+  }
+  if (memberId.endsWith("#instance")) {
+    return { baseId: memberId.slice(0, -"#instance".length), static: false };
+  }
+  return undefined;
+}
+
+function targetMemberStaticFlag(member: CsharpTargetMember): boolean {
+  return member.static === true;
 }

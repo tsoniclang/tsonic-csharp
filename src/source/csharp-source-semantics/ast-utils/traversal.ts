@@ -60,8 +60,11 @@ export function getAstReaderChildNodes(
   ast: AstReader,
   node: Node,
 ): readonly (Node | undefined)[] {
+  const astChildren = readAstNodeList(() => ast.children(node));
+  if (astChildren.length > 0) {
+    return astChildren;
+  }
   return [
-    ...readAstNodeList(() => ast.children(node)),
     ...readAstNodeList(() => ast.typeArguments(node)),
     ...readAstNodeList(() => ast.typeParameters(node)),
     ...readAstNodeList(() => ast.parameters(node)),

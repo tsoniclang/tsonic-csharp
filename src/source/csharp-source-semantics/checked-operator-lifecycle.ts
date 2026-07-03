@@ -88,29 +88,22 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       nodes.push(node);
     });
-    const pending = nodes.reverse();
-    let progressed = true;
-    while (progressed) {
-      progressed = false;
-      for (const node of pending) {
-        const existingTargetOperation = lifecycleContext.host.facts.get(node, targetOperationFactKey);
-        const existingCsharpOperation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
-        if (existingTargetOperation !== undefined && existingCsharpOperation !== undefined) {
+    for (const node of nodes.reverse()) {
+      const existingTargetOperation = lifecycleContext.host.facts.get(node, targetOperationFactKey);
+      const existingCsharpOperation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
+      if (existingTargetOperation !== undefined && existingCsharpOperation !== undefined) {
+        continue;
+      }
+      const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
+      if (operation !== undefined) {
+        const targetOperationWrite = recordTargetOperationFact(lifecycleContext.host, node, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+        if (targetOperationWrite === "conflict" || targetOperationWrite === "sealed" || targetOperationWrite === "invalid-subject") {
           continue;
         }
-        const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
-        if (operation !== undefined) {
-          const targetOperationWrite = recordTargetOperationFact(lifecycleContext.host, node, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
-          if (targetOperationWrite === "conflict" || targetOperationWrite === "sealed" || targetOperationWrite === "invalid-subject") {
-            continue;
-          }
-          if (existingTargetOperation === undefined) {
-            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
-            progressed = true;
-          } else if (existingCsharpOperation === undefined && targetOperationFactsAreStructurallyIdentical(existingTargetOperation, operation.operation)) {
-            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from existing checked TSTS/provider operator fact." }]);
-            progressed = true;
-          }
+        if (existingTargetOperation === undefined) {
+          lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
+        } else if (existingCsharpOperation === undefined && targetOperationFactsAreStructurallyIdentical(existingTargetOperation, operation.operation)) {
+          lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from existing checked TSTS/provider operator fact." }]);
         }
       }
     }
@@ -285,17 +278,24 @@ function getCheckedExpressionTargetTypeRef(
   if (sourceFile === undefined) {
     return undefined;
   }
+  const expressionTarget = host.getTargetTypeRefForSubject(subject, context, {
+    ...options,
+    sourceFile,
+  });
+  if (expressionTarget !== undefined && expressionTarget.kind !== "type-parameter") {
+    return expressionTarget;
+  }
   const checker = context.compiler?.checker;
   const node = asNodeSubject(subject);
   if (node === undefined || checker === undefined) {
-    return undefined;
+    return expressionTarget;
   }
   try {
     return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
       ...options,
       sourceFile,
-    });
+    }) ?? expressionTarget;
   } catch {
-    return undefined;
+    return expressionTarget;
   }
 }
