@@ -147,7 +147,8 @@ export function mapCsharpCheckedCall(
       selectedSignature: { member: erasedAttributeFactMember(attributeFact) },
     }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);
   }
-  const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey);
+  const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey) ??
+    context.factResolver.resolve(request.call, selectedTargetSignatureFactKey);
   if (existingSelectedSignature !== undefined) {
     const existingSignatureDiagnostic = getSelectedSignatureArgumentConversionDiagnostic(
       existingSelectedSignature,
@@ -157,6 +158,9 @@ export function mapCsharpCheckedCall(
     );
     if (existingSignatureDiagnostic !== undefined) {
       return rejectObservation(existingSignatureDiagnostic);
+    }
+    if (isCsharpSourceOwnedSelectedSignature(existingSelectedSignature)) {
+      recordSourceOwnedCallRuntimeCarrierIfResolved(request, context, host);
     }
     const existingSelectedMember = csharpTargetMemberFact(existingSelectedSignature.member);
     if (
@@ -423,25 +427,44 @@ function acceptSourceOwnedCheckedCall(
     return undefined;
   }
   const returnType = getSourceOwnedCallReturnType(request, context, host);
-  if (returnType !== undefined && returnType.kind !== "array" && !isVoidTargetType(returnType) && context.facts.get(request.call, runtimeCarrierFactKey) === undefined) {
-    context.facts.set(request.call, runtimeCarrierFactKey, { carrier: returnType }, [{
-      message: "C# source-owned call runtime carrier recorded from TSTS-selected project source declaration return facts.",
-    }]);
-  }
-  const selectedSignatureReturnType = returnType === undefined || !targetTypeRefIsClosed(returnType) || isSourceDeclaredReturnCarrier(returnType)
-    ? undefined
-    : returnType;
+  recordSourceOwnedCallRuntimeCarrier(request.call, returnType, context);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: csharpSourceOwnedSelectedSignatureFact({
       sourceDeclaration: declaration,
-      ...(selectedSignatureReturnType === undefined ? {} : { returnType: selectedSignatureReturnType }),
     }),
   }, [{ message: "C# target observed a TSTS-selected project source call; backend emission remains source-owned and target facts are not inferred from source spelling." }]);
 }
 
-function isSourceDeclaredReturnCarrier(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" &&
-    typeof (type as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind === "string";
+function recordSourceOwnedCallRuntimeCarrierIfResolved(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): void {
+  recordSourceOwnedCallRuntimeCarrier(
+    request.call,
+    getSourceOwnedCallReturnType(request, context, host),
+    context,
+  );
+}
+
+function recordSourceOwnedCallRuntimeCarrier(
+  call: ExtensionFactSubject,
+  returnType: TargetTypeRef | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): void {
+  if (
+    returnType === undefined ||
+    returnType.kind === "array" ||
+    !targetTypeRefIsClosed(returnType) ||
+    isVoidTargetType(returnType) ||
+    context.facts.get(call, runtimeCarrierFactKey) !== undefined ||
+    context.factResolver.resolve(call, runtimeCarrierFactKey) !== undefined
+  ) {
+    return;
+  }
+  context.facts.set(call, runtimeCarrierFactKey, { carrier: returnType }, [{
+    message: "C# source-owned call runtime carrier recorded from TSTS-selected project source declaration return facts.",
+  }]);
 }
 
 function getSourceOwnedCallReturnType(
@@ -452,10 +475,6 @@ function getSourceOwnedCallReturnType(
   const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
   const uniqueCalleeDeclaration = getUniqueCalleeDeclaration(request, context);
   const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration ?? uniqueCalleeDeclaration;
-  const directCallType = safeGetTargetTypeRefForSubject(host, request.call, context, { allowSemanticTypeQuery: false });
-  if (isFinalizedSourceOwnedReturnCarrier(directCallType)) {
-    return directCallType;
-  }
   const constructedType = getSourceOwnedConstructionReturnType(request.call, selectedDeclaration, context, host);
   if (constructedType !== undefined) {
     return constructedType;
@@ -471,13 +490,6 @@ function getSourceOwnedCallReturnType(
   );
   if (isFinalizedSourceOwnedReturnCarrier(substitutedAnnotatedReturnTargetType, annotatedReturnType, context)) {
     return substitutedAnnotatedReturnTargetType;
-  }
-  if (annotatedReturnTargetType !== undefined) {
-    return annotatedReturnTargetType;
-  }
-  const checkedCallType = safeGetTargetTypeRefForSubject(host, request.call, context);
-  if (isFinalizedSourceOwnedReturnCarrier(checkedCallType)) {
-    return checkedCallType;
   }
   const selectedDeclarationReturnCarrier = getSourceReturnCarrierForSubjects([
     selectedDeclaration,
@@ -671,8 +683,12 @@ function addReceiverDeclaringTypeArgumentSubstitutions(
   }
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const receiverType = safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiver, context, { allowSemanticTypeQuery: false }) ??
-    safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiverType, context, { allowSemanticTypeQuery: false });
-  const receiverTypeArguments = receiverType?.kind === "target-named" ? receiverType.typeArguments ?? [] : [];
+    safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiverType, context, { allowSemanticTypeQuery: false }) ??
+    safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiverType, context, { allowSemanticTypeQuery: true }) ??
+    safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiver, context, { allowSemanticTypeQuery: true });
+  const receiverTypeArguments = receiverType?.kind === "target-named" && (receiverType.typeArguments ?? []).length > 0
+    ? receiverType.typeArguments ?? []
+    : getReceiverExpressionTypeArguments(requestContext.calleeReceiver, context, host);
   if (receiverTypeArguments.length === 0) {
     return;
   }
@@ -690,12 +706,37 @@ function addReceiverDeclaringTypeArgumentSubstitutions(
   }
 }
 
+function getReceiverExpressionTypeArguments(
+  receiver: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): readonly TargetTypeRef[] {
+  const ast = context.compiler?.ast;
+  const receiverNode = asNodeSubject(receiver);
+  if (ast === undefined || receiverNode === undefined) {
+    return [];
+  }
+  const typeArguments = getAstTypeArguments(ast, receiverNode);
+  if (typeArguments.length === 0) {
+    return [];
+  }
+  const targetTypeArguments = typeArguments
+    .map((argument) => getSourceOwnedConstructionTypeArgumentTargetRef(argument, context, host));
+  return targetTypeArguments.some((argument) => argument === undefined)
+    ? []
+    : targetTypeArguments as readonly TargetTypeRef[];
+}
+
 function getAstTypeParameters(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
 ): readonly Node[] {
   const reader = ast as { readonly typeParameters?: (node: Node) => readonly Node[] };
-  return typeof reader.typeParameters === "function" ? reader.typeParameters(node) : [];
+  try {
+    return typeof reader.typeParameters === "function" ? reader.typeParameters(node) : [];
+  } catch {
+    return [];
+  }
 }
 
 function getAstTypeArguments(
@@ -703,7 +744,11 @@ function getAstTypeArguments(
   node: Node,
 ): readonly Node[] {
   const reader = ast as { readonly typeArguments?: (node: Node) => readonly Node[] };
-  return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
+  try {
+    return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
+  } catch {
+    return [];
+  }
 }
 
 function getContainingSourceTypeDeclaration(
@@ -796,7 +841,7 @@ function getSourceOwnedCallableReturnTargetType(
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
   const direct = safeGetTargetTypeRefForSubject(host, returnTypeNode, context);
-  if (isFinalizedSourceOwnedReturnCarrier(direct, returnTypeNode, context) || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
+  if (direct !== undefined || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
     return direct;
   }
   const compiler = context.compiler;
@@ -826,6 +871,9 @@ function isFinalizedSourceOwnedReturnCarrier(
     return false;
   }
   if (isVoidTargetType(carrier)) {
+    return false;
+  }
+  if (!targetTypeRefIsClosed(carrier)) {
     return false;
   }
   const returnTypeKind = returnTypeNode === undefined ? undefined : context?.compiler?.ast.kindName(returnTypeNode);

@@ -9,8 +9,8 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
-  TargetProviderPackageContext,
-  TargetProviderPackageImplementation,
+  TargetCapabilityContext,
+  TargetCapabilityImplementation,
 } from "@tsonic/target-api";
 
 export interface CsharpProviderPackageOperationsMapper {
@@ -28,24 +28,24 @@ export interface CsharpProviderPackageOperationsMapper {
   ) => ExtensionObservation<CheckedOperationMappingResult>;
 }
 
-export interface CsharpProviderPackageOperationMapperContributor extends TargetProviderPackageImplementation {
+export interface CsharpProviderPackageOperationMapperContributor extends TargetCapabilityImplementation {
   readonly createCsharpOperationsMappers?: (
-    context: TargetProviderPackageContext,
+    context: TargetCapabilityContext,
   ) => readonly CsharpProviderPackageOperationsMapper[];
 }
 
 export function createCsharpProviderPackageOperationsMappers(
   context: TargetProviderContext,
 ): readonly CsharpProviderPackageOperationsMapper[] {
-  return context.selectedPackages.flatMap((providerPackage) => {
+  return (context.selectedCapabilities ?? []).flatMap((providerPackage) => {
     const contributor = providerPackage as CsharpProviderPackageOperationMapperContributor;
     return contributor.createCsharpOperationsMappers?.({
       project: context.project,
       target: context.target,
       targetPack: context.targetPack,
-      selectedPackages: context.selectedPackages,
+      selectedCapabilities: context.selectedCapabilities,
       selectedSurfaces: context.selectedSurfaces,
-      package: providerPackage,
+      capability: providerPackage,
     }) ?? [];
   });
 }

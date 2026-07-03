@@ -11,8 +11,3 @@ export {
 export {
   createCsharpJsSurfaceExtension,
 } from "./csharp-source-semantics/surface-extensions.js";
-export {
-  createCsharpNodejsProviderPackageExtension,
-  createCsharpNodejsProviderPackageOperationsMappers,
-  nodejsProviderPackageModuleOwnership,
-} from "./csharp-source-semantics/provider-packages/nodejs/index.js";

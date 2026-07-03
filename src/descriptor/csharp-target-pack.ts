@@ -4,7 +4,6 @@ import type {
   TargetBackend,
   TargetBackendContext,
   TargetPack,
-  TargetProviderPackageImplementation,
   TargetProviderContext,
   TargetRuntimeContributionContext,
   TargetRuntimeContributions,
@@ -22,14 +21,8 @@ import {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsProviderPackageExtension,
-  createCsharpNodejsProviderPackageOperationsMappers,
-  nodejsProviderPackageModuleOwnership,
 } from "../source/csharp-source-semantics.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
-import type {
-  CsharpProviderPackageOperationMapperContributor,
-} from "../source/csharp-source-semantics/provider-packages/index.js";
 
 export const csharpTargetId = "csharp";
 const targetPackageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -51,7 +44,7 @@ export function createCsharpTargetPack(): TargetPack {
       runtimeContributions(context: TargetRuntimeContributionContext): TargetRuntimeContributions {
         return {
           references: [
-            csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+            csharpRuntimeAssemblyReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
             ...csharpTypescriptCompatibilityRuntimeReferences(context),
           ],
         };
@@ -67,14 +60,11 @@ export function createCsharpTargetPack(): TargetPack {
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {
             references: [
-              csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js"),
+              csharpRuntimeAssemblyReference("csharp-js", "Tsonic.CSharp.Js"),
             ],
           };
         },
       },
-    ],
-    packages: [
-      createNodejsProviderPackage(),
     ],
     createBackend(context: TargetBackendContext): TargetBackend {
       validateCsharpTargetOptions(context.target);
@@ -87,31 +77,13 @@ export function createCsharpTargetPack(): TargetPack {
   };
 }
 
-function createNodejsProviderPackage(): TargetProviderPackageImplementation {
-  const providerPackage: CsharpProviderPackageOperationMapperContributor = {
-    id: "nodejs",
-    displayName: "Node.js provider package",
-    requiredSurfaces: ["js"],
-    moduleOwnership: nodejsProviderPackageModuleOwnership,
-    createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
-    createExtensions(context) {
-      return [createCsharpNodejsProviderPackageExtension(context)];
-    },
-    runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
-      return {
-        references: [
-          csharpRuntimeProjectReference("csharp-nodejs", "Tsonic.CSharp.Node"),
-        ],
-      };
-    },
-  };
-  return providerPackage;
-}
-
-function csharpRuntimeProjectReference(repositoryName: string, assemblyName: string): TargetRuntimeReference {
+function csharpRuntimeAssemblyReference(repositoryName: string, assemblyName: string): TargetRuntimeReference {
   return {
-    kind: "project",
-    include: resolve(targetPackageRoot, `../${repositoryName}/src/${assemblyName}/${assemblyName}.csproj`),
+    kind: "assembly",
+    include: assemblyName,
+    attributes: {
+      HintPath: resolve(targetPackageRoot, `../${repositoryName}/runtimes/net10.0/${assemblyName}.dll`),
+    },
   };
 }
 
@@ -119,5 +91,5 @@ function csharpTypescriptCompatibilityRuntimeReferences(context: TargetRuntimeCo
   if (readCsharpTypescriptCompatibilityMode(context.target) !== "compat" || context.selectedSurfaces.some((surface) => surface.id === "js")) {
     return [];
   }
-  return [csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js")];
+  return [csharpRuntimeAssemblyReference("csharp-js", "Tsonic.CSharp.Js")];
 }

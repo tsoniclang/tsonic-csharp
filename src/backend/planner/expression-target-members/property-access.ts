@@ -60,6 +60,9 @@ import {
   csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
 } from "../target-type-object-shapes.js";
 import {
+  sameCsharpType,
+} from "../csharp-type-equality.js";
+import {
   tryPlanCompatRuntimePropertyGet,
 } from "../compat-runtime-operations.js";
 import {
@@ -169,22 +172,31 @@ function applySelectedDeclaringReceiverProjection(
   if (operationDeclaringType === undefined) {
     return receiver;
   }
-  const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
-  const unwrappedDeclaredReceiverType = unwrapNullableTargetType(declaredReceiverType);
-  if (
-    unwrappedDeclaredReceiverType !== undefined &&
-    (targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType) ||
-      receiverExtendsSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType, input) ||
-      receiverSatisfiesOpenSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType))
-  ) {
-    return receiver;
-  }
   const diagnosticStart = diagnostics.length;
   const runtimeUnionProjection = tryPlanRuntimeUnionProjectionToTargetType(receiverNode, operationDeclaringType, sourceFile, input, diagnostics, receiver);
   if (runtimeUnionProjection !== undefined) {
     return runtimeUnionProjection;
   }
   if (diagnostics.length > diagnosticStart) {
+    return receiver;
+  }
+  const receiverObjectShape = getCsharpObjectShapeFactForNode(receiverNode, sourceFile, input);
+  if (
+    receiverObjectShape !== undefined &&
+    (targetTypeRefEquals(receiverObjectShape.targetType, operationDeclaringType) ||
+      receiverRendersAsSelectedDeclaringType(receiverObjectShape.targetType, operationDeclaringType, propertyAccess, input, diagnostics))
+  ) {
+    return receiver;
+  }
+  const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
+  const unwrappedDeclaredReceiverType = unwrapNullableTargetType(declaredReceiverType);
+  if (
+    unwrappedDeclaredReceiverType !== undefined &&
+    (targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType) ||
+      receiverRendersAsSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType, propertyAccess, input, diagnostics) ||
+      receiverExtendsSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType, input) ||
+      receiverSatisfiesOpenSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType))
+  ) {
     return receiver;
   }
   const castType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, operationDeclaringType, diagnostics, propertyAccess);
@@ -200,6 +212,23 @@ function applySelectedDeclaringReceiverProjection(
       expression: receiver,
     },
   };
+}
+
+function receiverRendersAsSelectedDeclaringType(
+  receiverType: ReturnType<typeof unwrapNullableTargetType>,
+  declaringType: ReturnType<typeof getTargetTypeRefForNode>,
+  propertyAccess: Node,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): boolean {
+  if (receiverType === undefined || declaringType === undefined) {
+    return false;
+  }
+  const receiverCsharpType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, receiverType, diagnostics, propertyAccess);
+  const declaringCsharpType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, declaringType, diagnostics, propertyAccess);
+  return receiverCsharpType !== undefined &&
+    declaringCsharpType !== undefined &&
+    sameCsharpType(receiverCsharpType, declaringCsharpType);
 }
 
 function receiverSatisfiesOpenSelectedDeclaringType(
@@ -362,8 +391,12 @@ function getDeclaredReceiverTargetType(
   if (declarationNameType !== undefined) {
     return declarationNameType;
   }
+  const receiverType = getTargetTypeRefForNode(input, receiverNode, sourceFile);
+  if (receiverType !== undefined) {
+    return receiverType;
+  }
   return declaration === undefined
-    ? getTargetTypeRefForNode(input, receiverNode, sourceFile)
+    ? undefined
     : getTargetTypeRefForNode(input, declaration, reference?.sourceFile ?? sourceFile);
 }
 

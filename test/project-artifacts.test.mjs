@@ -168,9 +168,9 @@ test("target provider contributes closed compat carrier runtime without requirin
     selectedSurfaces: [jsSurface],
   })).references;
 
-  assert.equal(strictReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
-  assert.equal(compatReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 1);
-  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
+  assert.equal(strictReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
+  assert.equal(compatReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
+  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
 });
 
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {

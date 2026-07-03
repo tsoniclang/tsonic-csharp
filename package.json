@@ -10,11 +10,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
+  },
+  "tsonic": {
+    "kind": "plugin",
+    "contractVersion": 1,
+    "entry": "."
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && npm run test:prepared",
+    "test:prepared": "TSONIC_TEST_PREPARED=1 node --test test/*.test.mjs"
   },
   "peerDependencies": {
     "@tsonic/source-core": "0.0.1",

@@ -1,9 +1,0 @@
-export const nodePathModuleSpecifier = "node:path";
-export const nodePathParsedPathExportName = "ParsedPath";
-export const nodePathJoinExportName = "join";
-export const nodePathJoinSignatureId = "node:path.join(System.String[])";
-export const nodePathParsedPathRootMemberId = "node:path.ParsedPath.root";
-export const nodePathParsedPathDirMemberId = "node:path.ParsedPath.dir";
-export const nodePathParsedPathBaseMemberId = "node:path.ParsedPath.base";
-export const nodePathParsedPathExtMemberId = "node:path.ParsedPath.ext";
-export const nodePathParsedPathNameMemberId = "node:path.ParsedPath.name";

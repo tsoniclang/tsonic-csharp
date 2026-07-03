@@ -29,6 +29,7 @@ import {
   targetOperation,
 } from "../operations.js";
 import {
+  csharpSourcePrimitiveTargetType,
   isCsharpAnyRuntimeCarrier,
 } from "../target-types.js";
 import {
@@ -130,9 +131,14 @@ export function mapCsharpCheckedOperator(
     return typeofOperator;
   }
   if (request.operator === "instanceof") {
-    recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.instanceof", CsharpTargetOperatorOperation.typeTest), [{ message: "C# type-test operation recorded from checked TSTS instanceof expression." }]);
+    const boolType = csharpSourcePrimitiveTargetType("bool");
+    const evidence = [{ message: "C# type-test operation recorded from checked TSTS instanceof expression." }];
+    if (context.facts.get(request.expression, runtimeCarrierFactKey) === undefined) {
+      context.facts.set(request.expression, runtimeCarrierFactKey, { carrier: boolType }, [{ message: "C# instanceof expression runtime carrier finalized as bool after TSTS accepted the source type-test operation." }]);
+    }
+    recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.instanceof", CsharpTargetOperatorOperation.typeTest), evidence);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest),
+      operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest, { resultType: boolType }),
     }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);
   }
   const targetOperator = getCsharpOperatorTargetOperation(request.operator);
