@@ -9,11 +9,13 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
-  TargetCapabilityContext,
-  TargetCapabilityImplementation,
+  TargetCapabilityOperationMapper,
 } from "@tsonic/target-api";
 
-export interface CsharpProviderPackageOperationsMapper {
+export const csharpProviderPackageOperationsMapperKind = "csharp-provider-package-operations";
+
+export interface CsharpProviderPackageOperationsMapper extends TargetCapabilityOperationMapper {
+  readonly kind: typeof csharpProviderPackageOperationsMapperKind;
   readonly mapCheckedCall?: (
     request: CheckedCallMappingRequest,
     context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -28,18 +30,11 @@ export interface CsharpProviderPackageOperationsMapper {
   ) => ExtensionObservation<CheckedOperationMappingResult>;
 }
 
-export interface CsharpProviderPackageOperationMapperContributor extends TargetCapabilityImplementation {
-  readonly createCsharpOperationsMappers?: (
-    context: TargetCapabilityContext,
-  ) => readonly CsharpProviderPackageOperationsMapper[];
-}
-
 export function createCsharpProviderPackageOperationsMappers(
   context: TargetProviderContext,
 ): readonly CsharpProviderPackageOperationsMapper[] {
   return (context.selectedCapabilities ?? []).flatMap((providerPackage) => {
-    const contributor = providerPackage as CsharpProviderPackageOperationMapperContributor;
-    return contributor.createCsharpOperationsMappers?.({
+    const mappers = providerPackage.createOperationMappers?.({
       project: context.project,
       target: context.target,
       targetPack: context.targetPack,
@@ -47,5 +42,12 @@ export function createCsharpProviderPackageOperationsMappers(
       selectedSurfaces: context.selectedSurfaces,
       capability: providerPackage,
     }) ?? [];
+    return mappers.filter(isCsharpProviderPackageOperationsMapper);
   });
+}
+
+function isCsharpProviderPackageOperationsMapper(
+  mapper: TargetCapabilityOperationMapper,
+): mapper is CsharpProviderPackageOperationsMapper {
+  return mapper.kind === csharpProviderPackageOperationsMapperKind;
 }

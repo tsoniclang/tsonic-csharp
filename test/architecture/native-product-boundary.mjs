@@ -3,6 +3,8 @@ import { builtinModules } from "node:module";
 import { join, relative, sep } from "node:path";
 
 export const approvedProductPackages = Object.freeze([
+  "@tsonic/csharp-js",
+  "@tsonic/csharp-runtime",
   "@tsonic/source-core",
   "@tsonic/target-api",
   "@tsonic/tsts",

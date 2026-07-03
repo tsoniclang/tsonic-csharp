@@ -1,5 +1,5 @@
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import type {
   TargetBackend,
   TargetBackendContext,
@@ -25,7 +25,7 @@ import {
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
 
 export const csharpTargetId = "csharp";
-const targetPackageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const require = createRequire(import.meta.url);
 
 export function createCsharpTargetPack(): TargetPack {
   return {
@@ -44,7 +44,7 @@ export function createCsharpTargetPack(): TargetPack {
       runtimeContributions(context: TargetRuntimeContributionContext): TargetRuntimeContributions {
         return {
           references: [
-            csharpRuntimeAssemblyReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+            csharpRuntimeAssemblyReference(context, "@tsonic/csharp-runtime", "Tsonic.CSharp.Runtime"),
             ...csharpTypescriptCompatibilityRuntimeReferences(context),
           ],
         };
@@ -60,7 +60,7 @@ export function createCsharpTargetPack(): TargetPack {
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {
             references: [
-              csharpRuntimeAssemblyReference("csharp-js", "Tsonic.CSharp.Js"),
+              csharpRuntimeAssemblyReference(_context, "@tsonic/csharp-js", "Tsonic.CSharp.Js"),
             ],
           };
         },
@@ -77,19 +77,37 @@ export function createCsharpTargetPack(): TargetPack {
   };
 }
 
-function csharpRuntimeAssemblyReference(repositoryName: string, assemblyName: string): TargetRuntimeReference {
+function csharpRuntimeAssemblyReference(
+  context: TargetRuntimeContributionContext,
+  packageName: string,
+  assemblyName: string,
+): TargetRuntimeReference {
+  const packageRoot = resolveRuntimePackageRoot(context, packageName);
   return {
     kind: "assembly",
     include: assemblyName,
     attributes: {
-      HintPath: resolve(targetPackageRoot, `../${repositoryName}/runtimes/net10.0/${assemblyName}.dll`),
+      HintPath: resolve(packageRoot, `runtimes/net10.0/${assemblyName}.dll`),
     },
   };
+}
+
+function resolveRuntimePackageRoot(context: TargetRuntimeContributionContext, packageName: string): string {
+  const packageJsonSpecifier = `${packageName}/package.json`;
+  const projectRequire = createRequire(resolve(context.paths.projectRoot, "package.json"));
+  for (const resolver of [projectRequire, require]) {
+    try {
+      return dirname(resolver.resolve(packageJsonSpecifier));
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`Required C# runtime package '${packageName}' is not installed or does not export package.json.`);
 }
 
 function csharpTypescriptCompatibilityRuntimeReferences(context: TargetRuntimeContributionContext): readonly TargetRuntimeReference[] {
   if (readCsharpTypescriptCompatibilityMode(context.target) !== "compat" || context.selectedSurfaces.some((surface) => surface.id === "js")) {
     return [];
   }
-  return [csharpRuntimeAssemblyReference("csharp-js", "Tsonic.CSharp.Js")];
+  return [csharpRuntimeAssemblyReference(context, "@tsonic/csharp-js", "Tsonic.CSharp.Js")];
 }
