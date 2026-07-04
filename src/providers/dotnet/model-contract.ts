@@ -419,6 +419,9 @@ function validateDotnetSignatureList(
     const signaturePath = `${path}[${index}]`;
     requireNonEmptyString(signature.id, `${signaturePath}.id`, collector);
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
+    if (signature.providerSourceSignatureId !== undefined) {
+      requireNonEmptyString(signature.providerSourceSignatureId, `${signaturePath}.providerSourceSignatureId`, collector);
+    }
     validateDotnetTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
     validateDotnetParameters(signature.parameters, `${signaturePath}.parameters`, collector);
     if (signature.returnType === undefined) {
@@ -1079,8 +1082,26 @@ function validateOptionalDotnetRenderShape(
     supportedDotnetRenderShapeKinds,
   );
   requireNonEmptyString(shape.name, `${path}.name`, collector);
+  validateOptionalNonNegativeInteger(shape.genericArity, `${path}.genericArity`, collector);
   for (const [index, namespacePart] of (shape.namespace ?? []).entries()) {
     requireNonEmptyString(namespacePart, `${path}.namespace[${index}]`, collector);
+  }
+  for (const [index, nested] of (shape.nested ?? []).entries()) {
+    requireNonEmptyString(nested.name, `${path}.nested[${index}].name`, collector);
+    validateOptionalNonNegativeInteger(nested.genericArity, `${path}.nested[${index}].genericArity`, collector);
+  }
+}
+
+function validateOptionalNonNegativeInteger(
+  value: number | undefined,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (value === undefined) {
+    return;
+  }
+  if (!Number.isInteger(value) || value < 0) {
+    collector.add(path, "Value must be a non-negative integer.", value);
   }
 }
 

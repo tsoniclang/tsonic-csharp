@@ -62,6 +62,9 @@ import {
   selectCheckedPropertyTargetMember,
 } from "./selected-member.js";
 import {
+  targetTypeRefContainsBroadNumericFallback,
+} from "../target-ref-utils.js";
+import {
   rejectNativeArrayPropertyNotSupported,
   rejectPropertyAccessNotMapped,
   rejectTargetEventUnsupported,
@@ -178,7 +181,9 @@ export function mapCsharpCheckedPropertyAccess(
   if (csharpMember === undefined) {
     return rejectTargetPropertyNotRenderable(extensionId, member.id);
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target member property operation recorded from checked TSTS provider declaration and provider target identity." }]);
+  if (!targetTypeRefContainsBroadNumericFallback(csharpMember.declaringType)) {
+    recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target member property operation recorded from checked TSTS provider declaration and provider target identity." }]);
+  }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(csharpMember),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);

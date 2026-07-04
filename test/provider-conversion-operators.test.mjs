@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  targetConversionFactKey,
+} from "@tsonic/tsts";
 
 import {
   getCsharpProviderConversionOperatorById,
@@ -206,6 +209,57 @@ test("checked provider conversions do not inspect ambiguous type-pair candidates
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
+test("checked conversions reuse existing conversion facts instead of conflicting with them", () => {
+  const source = { id: "source-argument" };
+  const target = { id: "target-parameter" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const existing = {
+    convertedType: intType,
+    operation: {
+      operationId: "System.Convert.ToInt32",
+      operationKind: "method",
+      targetOperation: "ToInt32",
+    },
+  };
+  const { context, writes, entries } = fakeContext();
+  entries.set(factEntryKey(source, targetConversionFactKey), existing);
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, intType],
+    [target, intType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value, existing);
+  assert.equal(writes.length, 0);
+});
+
+test("checked conversions accept finalized source primitive refinements of broad numeric fallback targets", () => {
+  const source = { id: "source-span" };
+  const target = { id: "target-span" };
+  const sourceType = spanType({ kind: "source-primitive", name: "int32" });
+  const targetType = spanType({ kind: "source-primitive", name: "float64" });
+  const { context } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, sourceType],
+    [target, targetType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.convertedType, sourceType);
+});
+
 function hostForBindings(bindings) {
   const byId = new Map(bindings.map((binding) => [binding.id, binding]));
   return {
@@ -225,6 +279,7 @@ function fakeContext() {
   const entries = new Map();
   return {
     writes,
+    entries,
     context: {
       extensionId: "tsonic.csharp.operations",
       facts: {
@@ -235,7 +290,18 @@ function fakeContext() {
           return "inserted";
         },
       },
+      factResolver: {
+        resolve: (subject, key) => entries.get(factEntryKey(subject, key)),
+      },
     },
+  };
+}
+
+function spanType(element) {
+  return {
+    kind: "target-named",
+    id: "System.Span`1",
+    typeArguments: [element],
   };
 }
 

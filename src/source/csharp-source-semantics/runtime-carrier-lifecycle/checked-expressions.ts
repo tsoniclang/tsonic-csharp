@@ -51,7 +51,7 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
       allowRuntimeCarrier: false,
       sourceFile,
     });
-    if (directCarrier !== undefined) {
+    if (directCarrier !== undefined && !isDeferrableBroadNumericUseSite(compiler.ast, node, directCarrier)) {
       return directCarrier;
     }
     if (type === undefined) {
@@ -75,6 +75,19 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
   } catch {
     return undefined;
   }
+}
+
+function isDeferrableBroadNumericUseSite(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+  carrier: TargetTypeRef,
+): boolean {
+  return carrier.kind === "source-primitive" &&
+    carrier.name === "float64" &&
+    (
+      ast.kindName(node) === "KindIdentifier" ||
+      ast.kindName(node) === "KindConditionalExpression"
+    );
 }
 
 function getCheckedRuntimeCarrierType(

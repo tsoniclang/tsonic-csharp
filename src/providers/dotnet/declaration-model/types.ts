@@ -16,6 +16,7 @@ import {
 } from "./conversions.js";
 import {
   dotnetMemberToProviderMember,
+  filterTsCompatibleProviderMembers,
   mergeProviderMemberList,
 } from "./members.js";
 
@@ -50,13 +51,13 @@ function dotnetTypeSourceMembers(
     return cached;
   }
   const inheritedKeys = inheritedSourceMemberKeys(declaration, context, new Set());
-  const ownMembers = mergeProviderMemberList(declaration.members
+  const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(declaration.members
     ?.map((member) => dotnetMemberToProviderMember(member, declaration))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined)
     .filter((member) => {
       const key = inheritedSourceMemberKey(member);
       return key === undefined || !inheritedKeys.has(key);
-    }) ?? []);
+    }) ?? []));
   context.sourceMembersByTargetId.set(declaration.targetId, ownMembers);
   return ownMembers.length === 0 ? undefined : ownMembers;
 }

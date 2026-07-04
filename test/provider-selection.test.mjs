@@ -82,6 +82,32 @@ test("target member selection does not treat System.Object as an implicit wildca
   );
 });
 
+test("target member selection accepts source-primitive parameters only from exact checked source signatures", () => {
+  const argument = {};
+  const member = method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" });
+  const context = {};
+  const resolveTargetTypeRef = () => undefined;
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument], sourceSelectedSignature: { signatureId: member.id } },
+      context,
+      resolveTargetTypeRef,
+    )?.id,
+    member.id,
+  );
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument] },
+      context,
+      resolveTargetTypeRef,
+    ),
+    undefined,
+  );
+});
+
 test("target member selection uses source marker target expression for byref parameters", () => {
   const key = {};
   const outCall = {};

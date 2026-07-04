@@ -1,25 +1,32 @@
 import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  targetTypeRefEquals,
+  targetTypeRefRefinesBroadNumericFallback,
+} from "../target-ref-utils.js";
 
 export function getPreferredTargetTypeRefForSubject(
   directFact: TargetTypeRef | undefined,
   referenceFact: TargetTypeRef | undefined,
   declarationType: TargetTypeRef | undefined = undefined,
 ): TargetTypeRef | undefined {
-  const primitiveDeclarationPreference = preferredSourcePrimitiveDeclarationType(
-    declarationType,
-    directFact,
-    referenceFact,
-  );
-  if (primitiveDeclarationPreference !== undefined) {
-    return primitiveDeclarationPreference;
+  if (declarationType !== undefined) {
+    const declarationPreference = preferredExplicitSourcePrimitiveType(declarationType, directFact) ??
+      preferredExplicitSourcePrimitiveType(declarationType, referenceFact);
+    if (declarationPreference !== undefined) {
+      return declarationPreference;
+    }
   }
   if (directFact === undefined) {
     return referenceFact;
   }
   if (referenceFact === undefined) {
     return directFact;
+  }
+  const referencePreference = preferredExplicitSourcePrimitiveType(referenceFact, directFact);
+  if (referencePreference !== undefined) {
+    return referencePreference;
   }
   if (directFact.kind === "array" && referenceFact.kind !== "array") {
     return referenceFact;
@@ -30,21 +37,17 @@ export function getPreferredTargetTypeRefForSubject(
   return directFact;
 }
 
-function preferredSourcePrimitiveDeclarationType(
-  declarationType: TargetTypeRef | undefined,
-  directFact: TargetTypeRef | undefined,
-  referenceFact: TargetTypeRef | undefined,
+function preferredExplicitSourcePrimitiveType(
+  candidate: TargetTypeRef,
+  existing: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
-  if (declarationType?.kind !== "source-primitive") {
+  if (existing === undefined) {
     return undefined;
   }
-  if (
-    (directFact === undefined || directFact.kind === "source-primitive") &&
-    (referenceFact === undefined || referenceFact.kind === "source-primitive")
-  ) {
-    return declarationType;
+  if (targetTypeRefEquals(candidate, existing)) {
+    return undefined;
   }
-  return undefined;
+  return targetTypeRefRefinesBroadNumericFallback(candidate, existing) ? candidate : undefined;
 }
 
 function isSourceDeclarationTargetTypeRef(type: TargetTypeRef): boolean {

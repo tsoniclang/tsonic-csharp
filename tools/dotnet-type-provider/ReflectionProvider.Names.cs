@@ -242,25 +242,35 @@ sealed partial class ReflectionProvider
 
     static object RenderShape(Type type)
     {
-        var parts = new List<string>();
+        var namespaceParts = new List<string>();
         if (!string.IsNullOrEmpty(type.Namespace))
         {
-            parts.AddRange(type.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries));
+            namespaceParts.AddRange(type.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries));
         }
-        var declaringTypes = new Stack<string>();
-        for (var current = type.DeclaringType; current is not null; current = current.DeclaringType)
+        var typeSegments = new List<(string Name, int GenericArity)>();
+        for (var current = type; current is not null; current = current.DeclaringType)
         {
-            declaringTypes.Push(StripGenericArity(current.Name));
+            typeSegments.Add((StripGenericArity(current.Name), GenericArity(current.Name)));
         }
-        parts.AddRange(declaringTypes);
-        parts.Add(StripGenericArity(type.Name));
-        var name = parts[^1];
-        var namespaceParts = parts.Count > 1 ? parts.Take(parts.Count - 1).ToArray() : Array.Empty<string>();
+        typeSegments.Reverse();
+        var segments = typeSegments.ToArray();
+        var name = segments[0].Name;
+        var genericArity = segments[0].GenericArity;
+        var nested = segments
+            .Skip(1)
+            .Select(segment => new
+            {
+                name = segment.Name,
+                genericArity = segment.GenericArity == 0 ? null : (int?)segment.GenericArity,
+            })
+            .ToArray();
         return new
         {
             kind = "named",
-            @namespace = namespaceParts.Length == 0 ? null : namespaceParts,
+            @namespace = namespaceParts.Count == 0 ? null : namespaceParts.ToArray(),
             name,
+            genericArity = genericArity == 0 ? null : (int?)genericArity,
+            nested = nested.Length == 0 ? null : nested,
         };
     }
 
@@ -268,6 +278,14 @@ sealed partial class ReflectionProvider
     {
         var tick = name.IndexOf('`');
         return tick < 0 ? name : name[..tick];
+    }
+
+    static int GenericArity(string name)
+    {
+        var tick = name.IndexOf('`');
+        return tick < 0 || tick == name.Length - 1 || !int.TryParse(name[(tick + 1)..], out var arity)
+            ? 0
+            : arity;
     }
 
     static string SourceTypeName(Type type)

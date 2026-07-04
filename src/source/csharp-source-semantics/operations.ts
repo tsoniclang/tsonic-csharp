@@ -88,7 +88,12 @@ export function targetOperationFromMember(member: TargetMember): CheckedOperatio
   };
 }
 
-export function csharpTargetOperationFromMember(member: CsharpTargetMember): CsharpTargetMemberOperationFact {
+export function csharpTargetOperationFromMember(
+  member: CsharpTargetMember,
+  options: {
+    readonly typeArguments?: readonly TargetTypeRef[];
+  } = {},
+): CsharpTargetMemberOperationFact {
   const resultType = member.kind === "constructor"
     ? member.declaringType
     : member.returnType;
@@ -101,6 +106,7 @@ export function csharpTargetOperationFromMember(member: CsharpTargetMember): Csh
     ...(member.static === true ? { static: true } : {}),
     ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
     ...(resultType !== undefined ? { resultType } : {}),
+    ...(options.typeArguments !== undefined ? { typeArguments: options.typeArguments } : {}),
     ...(argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes } : {}),
     selectedMember: member,
   };

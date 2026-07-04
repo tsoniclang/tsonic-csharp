@@ -106,6 +106,16 @@ export function dotnetMemberToProviderMember(
   };
 }
 
+export function filterTsCompatibleProviderMembers(
+  members: readonly ProviderMemberDeclaration[],
+): readonly ProviderMemberDeclaration[] {
+  const hasNamedMembers = members.some((member) => member.kind !== "indexer");
+  if (!hasNamedMembers) {
+    return members;
+  }
+  return members.filter((member) => !isStringIndexerProviderMember(member));
+}
+
 const reservedProviderConstructorSourceNames = new Set(["constructor"]);
 
 function mergeProviderMemberWithLocalBase(
@@ -179,6 +189,14 @@ function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolea
 
 function isProviderTsCompatibleIndexType(type: ReturnType<typeof tryDotnetTypeRefToProviderType>): boolean {
   return isProviderNumberIndexType(type) || type?.kind === "string";
+}
+
+function isStringIndexerProviderMember(member: ProviderMemberDeclaration): boolean {
+  if (member.kind !== "indexer") {
+    return false;
+  }
+  const parameterType = member.signatures?.[0]?.parameters[0]?.type;
+  return parameterType?.kind === "string";
 }
 
 function isProviderNumberIndexType(type: ReturnType<typeof tryDotnetTypeRefToProviderType>): boolean {

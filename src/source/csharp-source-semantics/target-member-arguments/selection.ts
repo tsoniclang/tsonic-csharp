@@ -107,7 +107,7 @@ export function selectExactTargetMember(
     ) {
       continue;
     }
-    if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
+    if (targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) && request.sourceSelectedSignature !== undefined) {
       continue;
     }
     if (targetTypeArgumentMatchScore(
@@ -182,7 +182,7 @@ function targetMemberMatch(
       argumentScore += 20;
       continue;
     }
-    if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
+    if (targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) && request.sourceSelectedSignature !== undefined) {
       argumentScore += 20;
       continue;
     }
@@ -237,8 +237,15 @@ function getCheckedExpressionTargetTypeRef(
   }
 }
 
-function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter): boolean {
-  return parameter.csharpAcceptsCheckedSourceArgument === true ||
+function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter, argumentType: TargetTypeRef | undefined): boolean {
+  if (argumentType === undefined) {
+    return parameter.csharpAcceptsCheckedSourceArgument === true ||
+      parameter.type.kind === "source-primitive" ||
+      (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
+  }
+  return (parameter.type.kind === "source-primitive" &&
+      argumentType.kind === "source-primitive" &&
+      (argumentType.name === parameter.type.name || argumentType.name === "float64")) ||
     (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
 }
 

@@ -1713,6 +1713,100 @@ test("source-semantics propagates object-shape callable carriers through destruc
   assert.deepEqual(carrier.typeArguments?.map((argument) => argument.kind === "source-primitive" ? argument.name : argument.id), ["float64", "float64"]);
 });
 
+test("source-semantics preserves C# source-primitive carriers through conditional expressions", () => {
+  const sourceText = `
+    import type { bool, int } from "@tsonic/csharp/types.js";
+
+    export function choose(flag: bool, left: int, right: int): int {
+      const selected = flag ? left : right;
+      return selected;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const conditional = collectNodesByKind(sourceFile, session.ast, "KindConditionalExpression")[0];
+  const selectedName = collectIdentifiersByText(sourceFile, session.ast, "selected")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindVariableDeclaration");
+  assert.ok(conditional);
+  assert.ok(selectedName);
+
+  assert.deepEqual(extensionHost.facts.get(conditional, runtimeCarrierFactKey)?.carrier, {
+    kind: "source-primitive",
+    name: "int32",
+  });
+  assert.deepEqual(extensionHost.facts.get(selectedName, runtimeCarrierFactKey)?.carrier, {
+    kind: "source-primitive",
+    name: "int32",
+  });
+});
+
+test("source-semantics prefers explicit C# array aliases over broad numeric literal carriers", () => {
+  const sourceText = `
+    import type { int } from "@tsonic/csharp/types.js";
+
+    export function alias(): int[] {
+      const values: int[] = [0, 0];
+      const selected = values;
+      return selected;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedName = collectIdentifiersByText(sourceFile, session.ast, "selected")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindVariableDeclaration");
+  assert.ok(selectedName);
+
+  assert.deepEqual(extensionHost.facts.get(selectedName, runtimeCarrierFactKey)?.carrier, {
+    kind: "array",
+    element: {
+      kind: "source-primitive",
+      name: "int32",
+    },
+  });
+});
+
 test("source-semantics records Promise/Task await result carrier facts", () => {
   const sourceText = `
     export async function tick(): Promise<void> {

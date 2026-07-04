@@ -1,6 +1,7 @@
 import {
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
@@ -22,6 +23,7 @@ import {
 } from "./operations.js";
 import {
   csharpTargetMemberFact,
+  csharpTargetBindingFact,
 } from "./target-types.js";
 import {
   isCsharpSourceOwnedSelectedSignature,
@@ -31,7 +33,11 @@ import {
 } from "./selected-target-member-instantiation.js";
 import {
   targetMemberIsClosed,
+  targetTypeRefContainsBroadNumericFallback,
 } from "./target-ref-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "./runtime-carrier-context.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -55,6 +61,68 @@ export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
     }
     walkSelectedCallOperationFacts(lifecycleContext, sourceFile, host);
   }
+}
+
+export function recordCsharpSelectedPropertyOperationFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpFinalizedCallOperationHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    walkSelectedPropertyOperationFacts(lifecycleContext, sourceFile, host);
+  }
+}
+
+function walkSelectedPropertyOperationFacts(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node | undefined,
+  host: CsharpFinalizedCallOperationHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || node === undefined) {
+    return;
+  }
+  for (const child of getCsharpOperationChildNodes(compiler.ast, node)) {
+    walkSelectedPropertyOperationFacts(lifecycleContext, child, host);
+  }
+  if (!compiler.ast.is.IsPropertyAccessExpression(node) || lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
+    return;
+  }
+  const operation = lifecycleContext.host.facts.get(node, targetOperationFactKey) ??
+    lifecycleContext.host.factResolver.resolve(node, targetOperationFactKey);
+  if (operation?.operationKind !== "property") {
+    return;
+  }
+  const receiver = asNodeSubject(getNodeField(node, "Expression"));
+  const receiverTargetType = receiver === undefined
+    ? undefined
+    : lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+      lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+      host.getTargetTypeRefForSubject(receiver, createRuntimeCarrierLifecycleObservationContext(lifecycleContext));
+  if (receiverTargetType?.kind !== "target-named") {
+    return;
+  }
+  const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(receiverTargetType.id));
+  const member = binding?.members?.find((candidate) => candidate.id === operation.operationId);
+  if (member === undefined || (member.kind !== "property" && member.kind !== "field")) {
+    return;
+  }
+  const selectedMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType: receiverTargetType });
+  if (selectedMember === undefined || !targetMemberIsClosed(selectedMember)) {
+    return;
+  }
+  lifecycleContext.host.facts.set(
+    node,
+    csharpTargetOperationFactKey,
+    csharpTargetOperationFromMember(selectedMember),
+    [{ message: "C# selected property operation finalized from checked TSTS target operation and finalized receiver carrier facts." }],
+  );
 }
 
 function walkSelectedCallOperationFacts(
@@ -86,8 +154,9 @@ function walkSelectedCallOperationFacts(
     return;
   }
   const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
+  const memberToInstantiate = getOpenProviderMemberForFinalizedCall(selectedMember, declaringTargetType, host);
   const member = instantiateSelectedTargetMember({
-    member: selectedMember,
+    member: memberToInstantiate,
     ...(selectedSignature.targetTypeArguments === undefined ? {} : { targetTypeArguments: selectedSignature.targetTypeArguments }),
   }, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
@@ -96,9 +165,33 @@ function walkSelectedCallOperationFacts(
   lifecycleContext.host.facts.set(
     node,
     csharpTargetOperationFactKey,
-    csharpTargetOperationFromMember(member),
+    csharpTargetOperationFromMember(member, {
+      ...(selectedSignature.targetTypeArguments === undefined ? {} : { typeArguments: selectedSignature.targetTypeArguments }),
+    }),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
+}
+
+function getOpenProviderMemberForFinalizedCall(
+  selectedMember: ReturnType<typeof csharpTargetMemberFact>,
+  declaringTargetType: TargetTypeRef | undefined,
+  host: CsharpFinalizedCallOperationHost,
+): NonNullable<ReturnType<typeof csharpTargetMemberFact>> {
+  if (
+    selectedMember === undefined ||
+    !targetMemberContainsBroadNumericFallback(selectedMember) ||
+    declaringTargetType?.kind !== "target-named"
+  ) {
+    return selectedMember!;
+  }
+  const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(declaringTargetType.id));
+  return binding?.members?.find((candidate) => candidate.id === selectedMember.id) ?? selectedMember;
+}
+
+function targetMemberContainsBroadNumericFallback(member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>): boolean {
+  return targetTypeRefContainsBroadNumericFallback(member.declaringType) ||
+    (member.returnType?.kind !== "source-primitive" && targetTypeRefContainsBroadNumericFallback(member.returnType)) ||
+    member.parameters.some((parameter) => targetTypeRefContainsBroadNumericFallback(parameter.type));
 }
 
 function recordSourceOwnedCallReturnCarrierFact(
@@ -158,7 +251,8 @@ function getSelectedCallDeclaringTargetType(
   if (receiver === undefined) {
     return member.declaringType;
   }
-  return lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+  return lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+    lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
     member.declaringType;
 }
 

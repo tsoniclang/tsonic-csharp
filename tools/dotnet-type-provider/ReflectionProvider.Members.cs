@@ -651,9 +651,11 @@ sealed partial class ReflectionProvider
         var typeParameters = MethodTypeParameters(method);
         var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
         var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
+        var providerSourceSignatureId = ProviderSourceSignatureId(method, id);
         return new
         {
             id,
+            providerSourceSignatureId,
             targetName = method.Name,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -663,6 +665,23 @@ sealed partial class ReflectionProvider
             returnAttributes = returnAttributes.Supported.Length == 0 ? null : returnAttributes.Supported,
             unsupportedReturnAttributes = returnAttributes.Unsupported.Length == 0 ? null : returnAttributes.Unsupported,
         };
+    }
+
+    string? ProviderSourceSignatureId(MethodInfo method, string id)
+    {
+        if (method.IsStatic || !method.IsVirtual)
+        {
+            return null;
+        }
+        var baseDefinition = method.GetBaseDefinition();
+        if (baseDefinition == method ||
+            baseDefinition.DeclaringType == method.DeclaringType ||
+            !baseDefinition.IsPublic)
+        {
+            return null;
+        }
+        var sourceId = MethodId(baseDefinition);
+        return sourceId == id ? null : sourceId;
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)

@@ -5,6 +5,7 @@ import {
   providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedConversionMappingRequest,
@@ -46,6 +47,7 @@ import {
   asType,
   targetTypeRefEquals,
   targetTypeRefKey,
+  targetTypeRefRefinesBroadNumericFallback,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -163,6 +165,14 @@ export function mapCsharpCheckedConversion(
   if (target === undefined) {
     return deferObservation;
   }
+  const existingConversion = context.facts.get(request.source, targetConversionFactKey) ??
+    context.factResolver.resolve(request.source, targetConversionFactKey);
+  if (existingConversion?.convertedType !== undefined && targetTypeRefEquals(existingConversion.convertedType, target)) {
+    return acceptObservation<CheckedConversionMappingResult>(
+      existingConversion,
+      [{ message: "C# reused existing checked target conversion fact for repeated TSTS conversion observation." }],
+    );
+  }
   const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
@@ -179,6 +189,11 @@ export function mapCsharpCheckedConversion(
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
+  }
+  if (source !== undefined && targetTypeRefRefinesBroadNumericFallback(source, target)) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: source,
+    }, [{ message: "C# argument has a finalized source-primitive carrier that refines TSTS's broad numeric fallback target." }]);
   }
   if (source !== undefined && sourceFunctionExpressionMatchesTargetDelegate(request.source, source, target, context)) {
     return acceptObservation<CheckedConversionMappingResult>({

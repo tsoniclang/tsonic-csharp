@@ -12,8 +12,19 @@ import type {
 
 export type CsharpTargetTypeRenderShape =
   | { readonly kind: "predefined"; readonly name: string }
-  | { readonly kind: "named"; readonly namespace?: readonly string[]; readonly name: string }
+  | {
+      readonly kind: "named";
+      readonly namespace?: readonly string[];
+      readonly name: string;
+      readonly genericArity?: number;
+      readonly nested?: readonly CsharpTargetNestedTypeRenderShape[];
+    }
   | { readonly kind: "nullable" };
+
+export interface CsharpTargetNestedTypeRenderShape {
+  readonly name: string;
+  readonly genericArity?: number;
+}
 
 export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named" }> & {
   readonly csharpRender?: CsharpTargetTypeRenderShape;

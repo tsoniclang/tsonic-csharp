@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { selectedTargetSignatureFactKey } from "@tsonic/tsts";
+import { runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { recordCsharpSelectedCallOperationFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/csharp-operation-lifecycle.js";
 
@@ -117,6 +117,30 @@ test("selected constructor lifecycle records explicit result type from declaring
   assert.deepEqual(operation.resultType, declaringType);
 });
 
+test("selected call lifecycle reopens broad numeric provider members from finalized receiver carriers", () => {
+  const receiver = { Kind: "identifier" };
+  const callee = { Kind: "property", Expression: receiver };
+  const call = { Kind: "call", Expression: callee };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: spanType(csharpInt32TargetType()) });
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member: copyToMember(spanType(csharpFloat64TargetType())),
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost([spanBinding()]));
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.kind, "member");
+  assert.equal(operation.operationId, "Example.Span`1.CopyTo(Example.Span`1<T>)");
+  assert.deepEqual(operation.selectedMember.declaringType, spanType(csharpInt32TargetType()));
+  assert.deepEqual(operation.selectedMember.parameters[0].type, spanType(csharpInt32TargetType()));
+});
+
 function genericIdentityMember() {
   return {
     id: "Example.Box.identity``1",
@@ -131,6 +155,53 @@ function genericIdentityMember() {
     returnType: { kind: "type-parameter", name: "T" },
     typeParameters: [{ name: "T" }],
   };
+}
+
+function copyToMember(span) {
+  return {
+    id: "Example.Span`1.CopyTo(Example.Span`1<T>)",
+    sourceName: "CopyTo",
+    targetName: "CopyTo",
+    kind: "method",
+    declaringType: span,
+    parameters: [{
+      name: "destination",
+      type: span,
+      passingMode: "by-value",
+    }],
+    returnType: { kind: "source-primitive", name: "void" },
+  };
+}
+
+function spanBinding() {
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  return {
+    id: "Example.Span`1",
+    target: "csharp",
+    kind: "struct",
+    sourceName: "Span",
+    targetName: "Example.Span",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Span" },
+    typeParameters: [{ name: "T" }],
+    members: [copyToMember(spanType(typeParameter))],
+  };
+}
+
+function spanType(element) {
+  return {
+    kind: "target-named",
+    id: "Example.Span`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Span" },
+  };
+}
+
+function csharpInt32TargetType() {
+  return { kind: "source-primitive", name: "int32" };
+}
+
+function csharpFloat64TargetType() {
+  return { kind: "source-primitive", name: "float64" };
 }
 
 function csharpStringTargetType() {
@@ -182,8 +253,8 @@ function fakeCompiler(sourceFiles) {
       arguments: () => [],
       is: {
         IsNewExpression: () => false,
-        IsCallExpression: () => false,
-        IsPropertyAccessExpression: () => false,
+        IsCallExpression: (node) => node?.Kind === "call",
+        IsPropertyAccessExpression: (node) => node?.Kind === "property",
       },
     },
   };
@@ -200,9 +271,10 @@ function fakeObservationHost(facts) {
   };
 }
 
-function fakeTargetTypeHost() {
+function fakeTargetTypeHost(bindings = []) {
+  const byId = new Map(bindings.map((binding) => [binding.id, binding]));
   return {
-    getCsharpTargetBindingByTargetId: () => undefined,
+    getCsharpTargetBindingByTargetId: (id) => byId.get(id),
     getCsharpObjectShapeFactForSubject: () => undefined,
     getSemanticTypeDeclarationShape: () => undefined,
   };

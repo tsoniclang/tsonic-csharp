@@ -65,6 +65,7 @@ import {
 } from "../provider-unsupported-members.js";
 import {
   targetMemberIsClosed,
+  targetTypeRefContainsBroadNumericFallback,
   targetTypeRefContainsSourcePrimitive,
   targetTypeRefEquals,
   targetTypeRefIsClosed,
@@ -172,12 +173,15 @@ export function mapCsharpCheckedCall(
       existingSelectedMember !== undefined &&
       context.facts.get(request.call, csharpTargetOperationFactKey) === undefined &&
       targetMemberIsClosed(existingSelectedMember) &&
+      !targetMemberContainsBroadNumericFallback(existingSelectedMember) &&
       existingSelectedMember.receiverPassing !== "first-argument"
     ) {
       recordCsharpTargetOperation(
         context,
         request.call,
-        csharpTargetOperationFromMember(existingSelectedMember),
+        csharpTargetOperationFromMember(existingSelectedMember, {
+          ...(existingSelectedSignature.targetTypeArguments === undefined ? {} : { typeArguments: existingSelectedSignature.targetTypeArguments }),
+        }),
         [{ message: "C# target call operation reused from the existing finalized TSTS selected target signature for this checked call." }],
       );
     }
@@ -185,7 +189,7 @@ export function mapCsharpCheckedCall(
       selectedSignature: existingSelectedSignature,
     }, [{ message: "C# target call mapping reused the existing selected target signature for a repeated TSTS checker observation." }]);
   }
-  const sourceProfileCall = acceptCsharpSourceProfileCall(request, context, host);
+  const sourceProfileCall = acceptCsharpSourceProfileCall(request, context, extensionId);
   if (sourceProfileCall !== undefined) {
     return sourceProfileCall;
   }
@@ -337,7 +341,11 @@ export function mapCsharpCheckedCall(
       [targetArgumentConversionMissEvidence(csharpMember.id, sourceSelectedMember, request.arguments.length, virtualDeclaration)],
     ));
   }
-  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
+  if (!targetMemberContainsBroadNumericFallback(csharpMember)) {
+    recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember, {
+      ...(methodTargetTypeArguments !== undefined ? { typeArguments: methodTargetTypeArguments } : {}),
+    }), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
+  }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: {
       member: sourceSelectedMember,
@@ -348,10 +356,16 @@ export function mapCsharpCheckedCall(
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 
+function targetMemberContainsBroadNumericFallback(member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>): boolean {
+  return targetTypeRefContainsBroadNumericFallback(member.declaringType) ||
+    (member.returnType?.kind !== "source-primitive" && targetTypeRefContainsBroadNumericFallback(member.returnType)) ||
+    member.parameters.some((parameter) => targetTypeRefContainsBroadNumericFallback(parameter.type));
+}
+
 function acceptCsharpSourceProfileCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  _host: CsharpOperationsProviderHost,
+  extensionId: string,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
   const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration;
@@ -359,6 +373,23 @@ function acceptCsharpSourceProfileCall(
   const member = csharpSourceProfileCallMember(identity);
   if (member === undefined) {
     return undefined;
+  }
+  const argumentConversions = getTargetArgumentConversionTypes(member.parameters, request.arguments.length);
+  if (argumentConversions === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_SOURCE_PROFILE_ARGUMENT_CONVERSIONS_NOT_PROVEN",
+      9100163,
+      `C# source profile selected member '${member.id}', but argument conversion facts could not be closed for the checked call.`,
+      [{
+        message: "Missing source-profile selected target argument conversions",
+        details: {
+          selectedMemberId: member.id,
+          argumentCount: request.arguments.length,
+          parameterCount: member.parameters.length,
+        },
+      }],
+    ));
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{
     message: "C# source-profile call operation recorded from TSTS-selected source declaration identity and C# source profile metadata.",
@@ -369,7 +400,7 @@ function acceptCsharpSourceProfileCall(
     }]);
   }
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member },
+    selectedSignature: { member, argumentConversions },
   }, [{ message: "C# source-profile call selected from checked TSTS source declaration identity." }]);
 }
 

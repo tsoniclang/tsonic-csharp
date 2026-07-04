@@ -66,7 +66,9 @@ import {
 import {
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
+  getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
+  isCsharpNullableReferenceTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   isTstsUndefinedType,
@@ -87,6 +89,8 @@ export function planExpressionWithExpectedTypeCore(
   planners: ExpectedTypeExpressionPlanners,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
+  const effectiveExpectedTargetType = expectedTargetType ??
+    (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
   const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, expectedTargetType, expectedTypeSubject);
   if (expectedRuntimeNullishLiteral !== undefined) {
     return expectedRuntimeNullishLiteral;
@@ -145,8 +149,20 @@ export function planExpressionWithExpectedTypeCore(
       expectedTargetType,
     );
   }
-  if (expectedType.kind === "NullableType" && !HasSourceKind(input.ast, node, KindNullKeyword)) {
-    return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject, expectedTargetType);
+  if (
+    expectedType.kind === "NullableType" &&
+    !HasSourceKind(input.ast, node, KindNullKeyword) &&
+    HasSourceKind(input.ast, node, KindObjectLiteralExpression)
+  ) {
+    return planners.planExpressionWithExpectedType(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      expectedType.inner,
+      expectedTypeSubject,
+      getCsharpNullableElementTargetType(effectiveExpectedTargetType) ?? effectiveExpectedTargetType,
+    );
   }
   if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
     const binaryDiagnosticsStart = diagnostics.length;
@@ -210,7 +226,33 @@ export function planExpressionWithExpectedTypeCore(
       whenFalse,
     };
   }
-  return planners.planExpression(node, sourceFile, input, diagnostics);
+  const expression = planners.planExpression(node, sourceFile, input, diagnostics);
+  return projectNullableValueForExpectedTarget(node, sourceFile, input, expression, effectiveExpectedTargetType);
+}
+
+function projectNullableValueForExpectedTarget(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  expression: CsharpExpression | undefined,
+  expectedTargetType: TargetTypeRef | undefined,
+): CsharpExpression | undefined {
+  if (expression === undefined || expectedTargetType === undefined) {
+    return expression;
+  }
+  const expressionTargetType = getTargetTypeRefForNode(input, node, sourceFile);
+  if (expressionTargetType === undefined || isCsharpNullableReferenceTargetType(expressionTargetType)) {
+    return expression;
+  }
+  const nullableElementType = getCsharpNullableElementTargetType(expressionTargetType);
+  if (nullableElementType === undefined || !targetTypeRefsMatch(nullableElementType, expectedTargetType)) {
+    return expression;
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: expression,
+    name: "Value",
+  };
 }
 
 function planExpectedRuntimeNullishLiteral(

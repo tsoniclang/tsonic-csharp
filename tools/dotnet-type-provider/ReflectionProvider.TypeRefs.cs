@@ -53,7 +53,7 @@ sealed partial class ReflectionProvider
             return null;
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        var typeArguments = type.IsGenericType && !type.IsGenericTypeDefinition
+        var typeArguments = type.IsGenericType
             ? type.GetGenericArguments().Select(TypeRef).ToArray()
             : Array.Empty<object?>();
         if (typeArguments.Any(argument => argument is null))

@@ -117,6 +117,8 @@ export function dotnetRenderShapeToCsharpRenderShape(shape: DotnetRenderShape): 
         kind: "named",
         ...(shape.namespace !== undefined && shape.namespace.length > 0 ? { namespace: shape.namespace } : {}),
         name: shape.name,
+        ...(shape.genericArity !== undefined ? { genericArity: shape.genericArity } : {}),
+        ...(shape.nested !== undefined && shape.nested.length > 0 ? { nested: shape.nested } : {}),
       };
   }
 }

@@ -11,9 +11,6 @@ import type {
   RuntimeCarrierFact,
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
-import {
-  shouldReplaceUseSiteRuntimeCarrier,
-} from "./fact-strength.js";
 
 export function setRuntimeCarrierFactIfAbsent(
   lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
@@ -47,7 +44,7 @@ export function setRuntimeCarrierFactIfAbsentOrStronger(
     return;
   }
   const existing = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey);
-  if (existing !== undefined && !shouldReplaceUseSiteRuntimeCarrier(existing.carrier, fact.carrier)) {
+  if (existing !== undefined) {
     return;
   }
   lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);

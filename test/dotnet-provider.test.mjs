@@ -324,6 +324,36 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
   assert.ok(sourceSpecialFolder?.members?.some((member) => member.kind === "field" && member.name === "Desktop"));
 });
 
+test(".NET reflection provider exposes members on source-visible returned closure types", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.Net.js", {
+    requestedExports: ["HttpListener"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const httpListener = module.exports.find((declaration) => declaration.sourceName === "HttpListener");
+  const prefixes = module.exports.find((declaration) => declaration.sourceName === "HttpListenerPrefixCollection");
+  assert.ok(httpListener?.members?.some((member) => member.kind === "property" && member.sourceName === "Prefixes"));
+  assert.ok(prefixes?.members?.some((member) => member.kind === "method" && member.sourceName === "Add"));
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const sourceHttpListener = model.exports.find((declaration) => declaration.name === "HttpListener");
+  const sourcePrefixes = model.exports.find((declaration) => declaration.name === "HttpListenerPrefixCollection");
+  assert.ok(sourceHttpListener?.members?.some((member) => member.kind === "property" && member.name === "Prefixes"));
+  assert.ok(sourcePrefixes?.members?.some((member) => member.kind === "method" && member.name === "Add"));
+});
+
+test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.IO.js", "System.IO.StreamReader");
+
+  const readToEnd = findByIdSuffix(binding.members ?? [], "System.IO.StreamReader.ReadToEnd()");
+  const close = findByIdSuffix(binding.members ?? [], "System.IO.StreamReader.Close()");
+
+  assert.equal(stripAssemblyQualifiers(readToEnd?.providerSourceSignatureId), "System.IO.TextReader.ReadToEnd()");
+  assert.equal(stripAssemblyQualifiers(close?.providerSourceSignatureId), "System.IO.TextReader.Close()");
+});
+
 test(".NET reflection provider exposes conflicted nested closure types through stable provider-owned source names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
@@ -426,7 +456,7 @@ test(".NET reflection provider exposes method generic parameters without confusi
 });
 
 test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
-  const cacheRoot = join(repoRoot, ".temp/provider-cache/dotnet-reflection-test-slices");
+  const cacheRoot = join(repoRoot, ".temp/provider-cache/dotnet-reflection-test-slices", `${Date.now()}-${process.pid}`);
   const populateTelemetry = createDotnetProviderTelemetry();
   const populateProvider = createDotnetReflectionTypeDataProvider({
     cacheRoot,
@@ -2276,7 +2306,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
   assert.deepEqual(indexers[0].signatures[0].returnType, { kind: "string" });
 });
 
-test(".NET provider source declarations keep TS-compatible numeric and string indexers", () => {
+test(".NET provider source declarations keep TS-compatible numeric indexers and omit incompatible string indexers", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
   assert.equal("exports" in specializedModule, true);
@@ -2290,10 +2320,10 @@ test(".NET provider source declarations keep TS-compatible numeric and string in
   const nameValueCollection = declarationModel.exports.find((declaration) => declaration.name === "NameValueCollection");
   assert.ok(nameValueCollection);
   const indexers = nameValueCollection.members.filter((member) => member.kind === "indexer");
-  assert.equal(indexers.length, 2);
+  assert.equal(indexers.length, 1);
   assert.equal(indexers.some((member) =>
     member.signatures[0].parameters[0].type.kind === "string"
-  ), true);
+  ), false);
   assert.equal(indexers.some((member) =>
     member.signatures[0].parameters[0].type.kind === "source-primitive" &&
     member.signatures[0].parameters[0].type.name === "int32"
@@ -2305,6 +2335,24 @@ test(".NET provider source declarations keep TS-compatible numeric and string in
     assert.ok(raw);
     assert.equal(indexer.readonly, raw.writable === true ? undefined : true);
   }
+});
+
+test(".NET reflection provider preserves declaring generic type parameters in member type refs", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Span"] });
+  assert.equal("exports" in systemModule, true);
+
+  const rawSpan = systemModule.exports.find((declaration) => declaration.sourceName === "Span");
+  assert.ok(rawSpan);
+  const rawSlice = rawSpan.members
+    .find((member) => member.sourceName === "Slice" && member.signatures?.some((signature) => signature.parameters.length === 2));
+  const rawSliceSignature = rawSlice?.signatures.find((signature) => signature.parameters.length === 2);
+  assert.deepEqual(rawSliceSignature?.returnType?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Span`1");
+  const targetSlice = binding.members
+    ?.find((member) => member.sourceName === "Slice" && member.parameters.length === 2);
+  assert.deepEqual(targetSlice?.returnType?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
 });
 
 test(".NET target bindings retain generic Dictionary indexers as target-only facts", () => {
