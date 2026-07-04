@@ -2,6 +2,7 @@ import {
   acceptObservation,
   deferObservation,
   ExtensionObservationPoint,
+  providerVirtualDeclarationFactKey,
   rejectObservation,
 } from "@tsonic/tsts";
 import type {
@@ -87,7 +88,11 @@ export function validateCsharpTargetConstraintFactsBeforeFinalization(
     compiler,
   } satisfies ExtensionObservationContext<"target.validateConstraint">;
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (
+      sourceFile === undefined ||
+      sourceFile.IsDeclarationFile === true ||
+      lifecycleContext.host.facts.get(sourceFile, providerVirtualDeclarationFactKey) !== undefined
+    ) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {

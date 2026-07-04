@@ -246,14 +246,28 @@ sealed partial class ReflectionProvider
         {
             var groupTypes = namespaceGroup.ToArray();
             var disambiguateByArity = groupTypes.Length > 1;
-            foreach (var candidateGroup in groupTypes
+            var candidateGroups = groupTypes
                 .Select(type => new SourceReferenceCandidate(
                     type,
                     new SourceReference(SourceTypeName(type, disambiguateByArity), ModuleSpecifierForNamespace(type.Namespace!))))
                 .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
-                .Where(group => group.Count() == 1))
+                .ToArray();
+            foreach (var candidateGroup in candidateGroups.Where(group => group.Count() == 1))
             {
                 yield return candidateGroup.First();
+            }
+            foreach (var candidateGroup in candidateGroups.Where(group => group.Count() > 1))
+            {
+                foreach (var qualifiedCandidateGroup in candidateGroup
+                    .Where(candidate => candidate.Type.IsNested)
+                    .Select(candidate => new SourceReferenceCandidate(
+                        candidate.Type,
+                        new SourceReference(QualifiedNestedSourceTypeName(candidate.Type, disambiguateByArity), candidate.Reference.ModuleSpecifier)))
+                    .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
+                    .Where(group => group.Count() == 1))
+                {
+                    yield return qualifiedCandidateGroup.First();
+                }
             }
         }
     }

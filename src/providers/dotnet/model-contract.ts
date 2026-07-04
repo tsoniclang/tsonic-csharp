@@ -122,6 +122,30 @@ const supportedDotnetRenderShapeKinds = new Set([
   "named",
 ]);
 
+const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
+  ["void", new Set(["kind"])],
+  ["any", new Set(["kind"])],
+  ["unknown", new Set(["kind"])],
+  ["object", new Set(["kind"])],
+  ["string", new Set(["kind"])],
+  ["literal", new Set(["kind", "value"])],
+  ["boolean", new Set(["kind"])],
+  ["number", new Set(["kind"])],
+  ["bigint", new Set(["kind"])],
+  ["source-primitive", new Set(["kind", "name"])],
+  ["type-parameter", new Set(["kind", "name"])],
+  ["provider-ref", new Set(["kind", "moduleSpecifier", "exportName", "typeArguments"])],
+  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape"])],
+  ["nullable", new Set(["kind", "elementType"])],
+  ["array", new Set(["kind", "elementType", "rank"])],
+  ["tuple", new Set(["kind", "elements"])],
+  ["union", new Set(["kind", "types"])],
+  ["function", new Set(["kind", "parameters", "returnType", "typeParameters"])],
+  ["pointer", new Set(["kind", "pointee", "mutability"])],
+  ["function-pointer", new Set(["kind", "args", "result", "abi"])],
+  ["opaque", new Set(["kind", "id", "displayName", "sourceShape"])],
+]);
+
 export function validateDotnetModuleModelContract(module: DotnetModuleModel): DotnetProviderDiagnostic | undefined {
   const collector = createContractCollector("DOTNET_PROVIDER_MODEL_CONTRACT_INVALID", "Invalid .NET provider model contract.");
   requireNonEmptyString(module.moduleSpecifier, "$.moduleSpecifier", collector);
@@ -691,6 +715,7 @@ function validateDotnetTypeRef(
   )) {
     return;
   }
+  validateDotnetTypeRefFields(type, path, collector);
   switch (type.kind) {
     case "literal":
       if (!options.allowLiteral) {
@@ -760,6 +785,23 @@ function validateDotnetTypeRef(
     case "type-parameter":
       requireNonEmptyString(type.name, `${path}.name`, collector);
       return;
+  }
+}
+
+function validateDotnetTypeRefFields(
+  type: DotnetTypeRef,
+  path: string,
+  collector: ContractCollector,
+): void {
+  const record = type as unknown as Readonly<Record<string, unknown>>;
+  const allowed = dotnetTypeRefFieldsByKind.get(String(record.kind));
+  if (allowed === undefined) {
+    return;
+  }
+  for (const key of Object.keys(record)) {
+    if (!allowed.has(key)) {
+      collector.add(`${path}.${key}`, "Field is not valid for this .NET type-ref variant.", record[key]);
+    }
   }
 }
 

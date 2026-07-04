@@ -4,6 +4,7 @@ import type {
   Node,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
+  Signature,
   SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -267,7 +268,9 @@ function isCheckedJsonParseCall(
     return false;
   }
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
-  const declaration = asNodeSubject(signature === undefined ? undefined : compiler.checker.getSignatureDeclaration(signature));
+  const declaration = typeof compiler.checker.getSignatureDeclaration === "function"
+    ? asNodeSubject(signature === undefined ? undefined : compiler.checker.getSignatureDeclaration(signature as Signature))
+    : undefined;
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (
     sourceMember === undefined ||

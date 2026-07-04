@@ -13,6 +13,7 @@ import {
 } from "./ast-utils.js";
 import {
   getAliasedSymbolIfAvailable,
+  getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 
@@ -24,6 +25,10 @@ export interface CsharpCheckedCallRequestContext {
   readonly calleeReceiverType?: ExtensionFactSubject;
   readonly calleeReceiverTypeSymbol?: ExtensionFactSubject;
   readonly calleePropertyName?: string;
+  readonly calleeSelectedPropertySymbol?: ExtensionFactSubject;
+  readonly calleeSelectedPropertyDeclaration?: ExtensionFactSubject;
+  readonly calleeSelectedPropertyDeclarationContainer?: ExtensionFactSubject;
+  readonly calleeSelectedPropertyContainerSymbol?: ExtensionFactSubject;
   readonly calleeSymbol?: ExtensionFactSubject;
   readonly calleeResolvedSymbol?: ExtensionFactSubject;
   readonly calleeAliasedSymbol?: ExtensionFactSubject;
@@ -62,6 +67,23 @@ export function getCsharpCheckedCallRequestContext(
   const calleeReceiverTypeSymbol = calleeReceiverType === undefined
     ? undefined
     : getTypeSymbol(compiler, calleeReceiverType as Type);
+  const calleePropertyName = getPropertyAccessName(callee, compiler.ast);
+  const calleeSelectedPropertySymbol = getCheckedReceiverPropertySymbol(
+    calleeReceiverType,
+    calleePropertyName,
+    context,
+    receiverSourceFile,
+  );
+  const calleeSelectedPropertyDeclaration = getSymbolDeclarations(calleeSelectedPropertySymbol, compiler.checker)[0];
+  const calleeSelectedPropertyDeclarationContainer = getNodeParent(calleeSelectedPropertyDeclaration);
+  const calleeSelectedPropertyContainerSymbol = calleeSelectedPropertyDeclarationContainer === undefined
+    ? undefined
+    : getSymbolForDeclarationLookup(
+        compiler.ast,
+        compiler.checker,
+        calleeSelectedPropertyDeclarationContainer,
+        compiler.ast.getSourceFile(calleeSelectedPropertyDeclarationContainer),
+      );
   const sourceSelectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const sourceSelectedContainerSymbol = sourceSelectedDeclarationContainer === undefined
@@ -74,13 +96,38 @@ export function getCsharpCheckedCallRequestContext(
     ...(calleeReceiverAliasedSymbol !== undefined ? { calleeReceiverAliasedSymbol } : {}),
     ...(calleeReceiverType !== undefined ? { calleeReceiverType } : {}),
     ...(calleeReceiverTypeSymbol !== undefined ? { calleeReceiverTypeSymbol } : {}),
-    ...(getPropertyAccessName(callee, compiler.ast) !== undefined ? { calleePropertyName: getPropertyAccessName(callee, compiler.ast) } : {}),
+    ...(calleePropertyName !== undefined ? { calleePropertyName } : {}),
+    ...(calleeSelectedPropertySymbol !== undefined ? { calleeSelectedPropertySymbol } : {}),
+    ...(calleeSelectedPropertyDeclaration !== undefined ? { calleeSelectedPropertyDeclaration } : {}),
+    ...(calleeSelectedPropertyDeclarationContainer !== undefined ? { calleeSelectedPropertyDeclarationContainer } : {}),
+    ...(calleeSelectedPropertyContainerSymbol !== undefined ? { calleeSelectedPropertyContainerSymbol } : {}),
     ...(calleeSymbol !== undefined ? { calleeSymbol } : {}),
     ...(calleeResolvedSymbol !== undefined ? { calleeResolvedSymbol } : {}),
     ...(calleeAliasedSymbol !== undefined ? { calleeAliasedSymbol } : {}),
     ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
     ...(sourceSelectedContainerSymbol !== undefined ? { sourceSelectedContainerSymbol } : {}),
   };
+}
+
+function getCheckedReceiverPropertySymbol(
+  receiverType: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeAtLocation"]> | undefined,
+  propertyName: string | undefined,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): ExtensionFactSubject | undefined {
+  if (
+    receiverType === undefined ||
+    propertyName === undefined ||
+    context.compiler === undefined ||
+    typeof context.compiler.checker.getPropertyOfType !== "function"
+  ) {
+    return undefined;
+  }
+  try {
+    return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function getResolvedSymbol(

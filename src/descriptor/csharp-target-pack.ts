@@ -22,6 +22,10 @@ import {
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
 } from "../source/csharp-source-semantics.js";
+import {
+  csharpJsSurfaceSourceProfileContributions,
+  csharpSourceProfileContributions,
+} from "../source/csharp-source-semantics/source-profile-declarations.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
 
 export const csharpTargetId = "csharp";
@@ -34,6 +38,7 @@ export function createCsharpTargetPack(): TargetPack {
     provider: {
       id: "csharp-provider",
       displayName: "C# target provider",
+      sourceProfileContributions: csharpSourceProfileContributions,
       createExtensions(context: TargetProviderContext): readonly CompilerExtension[] {
         validateCsharpTargetOptions(context.target);
         return [
@@ -54,6 +59,7 @@ export function createCsharpTargetPack(): TargetPack {
       {
         id: "js",
         displayName: "JavaScript surface",
+        sourceProfileContributions: csharpJsSurfaceSourceProfileContributions,
         createExtensions(context) {
           return [createCsharpJsSurfaceExtension(context)];
         },

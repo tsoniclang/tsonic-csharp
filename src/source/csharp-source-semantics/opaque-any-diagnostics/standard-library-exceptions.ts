@@ -9,7 +9,7 @@ import {
   getNodeField,
 } from "../ast-utils.js";
 import {
-  isTstsBundledStandardLibraryFile,
+  isTsonicJsSurfaceSourceProfileFile,
 } from "../source-library.js";
 import {
   hardRejectedCompatOperation,
@@ -155,7 +155,7 @@ function getStandardLibraryDeclarationSelection(
   ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
 ): StandardLibraryDeclarationSelection | undefined {
   const sourceFile = ast.getSourceFile(declaration);
-  if (!isTstsBundledStandardLibraryFile(ast.getFileName(sourceFile))) {
+  if (!isTsonicJsSurfaceSourceProfileFile(ast.getFileName(sourceFile))) {
     return undefined;
   }
   const name = ast.text(ast.name(declaration));

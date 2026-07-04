@@ -15,26 +15,39 @@ sealed partial class ReflectionProvider
         var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
         var exportedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var exportedType in exportedTypes)
+        var pendingTypes = new Queue<Type>(exportedTypes);
+        var visitedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
+        while (pendingTypes.Count > 0)
         {
-            foreach (var dependency in DirectSourceDependencies(exportedType))
+            var type = pendingTypes.Dequeue();
+            foreach (var dependency in DirectSourceDependencies(type))
             {
                 var normalized = NormalizeClosureType(dependency);
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
                     exportedTargetIds.Contains(TargetId(normalized)) ||
                     !sourceExportableTargetIds.Contains(TargetId(normalized)) ||
-                    !allTypesByTargetId.ContainsKey(TargetId(normalized)))
+                    !allTypesByTargetId.ContainsKey(TargetId(normalized)) ||
+                    !visitedTargetIds.Add(TargetId(normalized)))
                 {
                     continue;
                 }
                 closureTargetIds.Add(TargetId(normalized));
+                if (normalized.IsNested)
+                {
+                    pendingTypes.Enqueue(normalized);
+                }
             }
         }
         return closureTargetIds
             .Select(targetId => allTypesByTargetId[targetId])
             .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
             .ToArray();
+    }
+
+    object? ToClosureTypeExport(Type type)
+    {
+        return type.IsNested ? ToTypeExport(type) : ToShallowTypeExport(type);
     }
 
     object ToShallowTypeExport(Type type)
@@ -65,50 +78,80 @@ sealed partial class ReflectionProvider
     {
         if (type.BaseType is not null && type.BaseType != typeof(object))
         {
-            yield return type.BaseType;
+            foreach (var dependency in SourceDependencyTypes(type.BaseType))
+            {
+                yield return dependency;
+            }
         }
         foreach (var contract in type.GetInterfaces())
         {
-            yield return contract;
+            foreach (var dependency in SourceDependencyTypes(contract))
+            {
+                yield return dependency;
+            }
         }
         foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             foreach (var parameter in constructor.GetParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return dependency;
+                }
             }
         }
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return property.PropertyType;
+            foreach (var dependency in SourceDependencyTypes(property.PropertyType))
+            {
+                yield return dependency;
+            }
             foreach (var parameter in property.GetIndexParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return dependency;
+                }
             }
         }
         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return field.FieldType;
+            foreach (var dependency in SourceDependencyTypes(field.FieldType))
+            {
+                yield return dependency;
+            }
         }
         foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
             if (eventInfo.EventHandlerType is not null)
             {
-                yield return eventInfo.EventHandlerType;
+                foreach (var dependency in SourceDependencyTypes(eventInfo.EventHandlerType))
+                {
+                    yield return dependency;
+                }
             }
         }
         foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return method.ReturnType;
+            foreach (var dependency in SourceDependencyTypes(method.ReturnType))
+            {
+                yield return dependency;
+            }
             foreach (var parameter in method.GetParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return dependency;
+                }
             }
             foreach (var methodParameter in method.GetGenericArguments())
             {
                 foreach (var constraint in methodParameter.GetGenericParameterConstraints())
                 {
-                    yield return constraint;
+                    foreach (var dependency in SourceDependencyTypes(constraint))
+                    {
+                        yield return dependency;
+                    }
                 }
             }
         }
@@ -116,9 +159,50 @@ sealed partial class ReflectionProvider
         {
             foreach (var constraint in typeParameter.GetGenericParameterConstraints())
             {
-                yield return constraint;
+                foreach (var dependency in SourceDependencyTypes(constraint))
+                {
+                    yield return dependency;
+                }
             }
         }
+    }
+
+    static IEnumerable<Type> SourceDependencyTypes(Type type)
+    {
+        type = UnwrapByRef(type);
+        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        {
+            yield break;
+        }
+        if (type.IsArray)
+        {
+            foreach (var dependency in SourceDependencyTypes(type.GetElementType()!))
+            {
+                yield return dependency;
+            }
+            yield break;
+        }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            foreach (var dependency in SourceDependencyTypes(nullableElement))
+            {
+                yield return dependency;
+            }
+            yield break;
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            yield return type.GetGenericTypeDefinition();
+            foreach (var argument in type.GetGenericArguments())
+            {
+                foreach (var dependency in SourceDependencyTypes(argument))
+                {
+                    yield return dependency;
+                }
+            }
+            yield break;
+        }
+        yield return type;
     }
 
     static Type? NormalizeClosureType(Type type)

@@ -51,11 +51,69 @@ export function sliceDotnetModuleExports(
   if (context.broadImport === true || context.requestedExports === undefined) {
     return module;
   }
-  const requestedExports = new Set(context.requestedExports);
+  const requestedExports = sameModuleProviderRefClosure(module, context.requestedExports);
   return {
     ...module,
     exports: module.exports.filter((declaration) => requestedExports.has(declaration.sourceName)),
   };
+}
+
+function sameModuleProviderRefClosure(
+  module: DotnetModuleModel,
+  requestedExports: readonly string[],
+): ReadonlySet<string> {
+  const included = new Set(requestedExports);
+  const pending = [...included];
+  const exportsByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
+  while (pending.length > 0) {
+    const exportName = pending.pop();
+    const declaration = exportName === undefined ? undefined : exportsByName.get(exportName);
+    if (declaration === undefined) {
+      continue;
+    }
+    for (const dependency of sameModuleProviderRefs(declaration, module.moduleSpecifier)) {
+      if (included.has(dependency)) {
+        continue;
+      }
+      included.add(dependency);
+      pending.push(dependency);
+    }
+  }
+  return included;
+}
+
+function sameModuleProviderRefs(value: unknown, moduleSpecifier: string): readonly string[] {
+  const refs = new Set<string>();
+  collectSameModuleProviderRefs(value, moduleSpecifier, refs, new WeakSet<object>());
+  return [...refs].sort();
+}
+
+function collectSameModuleProviderRefs(
+  value: unknown,
+  moduleSpecifier: string,
+  refs: Set<string>,
+  visited: WeakSet<object>,
+): void {
+  if (value === undefined || value === null || typeof value !== "object") {
+    return;
+  }
+  if (visited.has(value)) {
+    return;
+  }
+  visited.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectSameModuleProviderRefs(item, moduleSpecifier, refs, visited);
+    }
+    return;
+  }
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "provider-ref" && record.moduleSpecifier === moduleSpecifier && typeof record.exportName === "string") {
+    refs.add(record.exportName);
+  }
+  for (const child of Object.values(record)) {
+    collectSameModuleProviderRefs(child, moduleSpecifier, refs, visited);
+  }
 }
 
 function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {

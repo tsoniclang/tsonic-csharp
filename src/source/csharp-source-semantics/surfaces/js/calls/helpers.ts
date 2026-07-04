@@ -24,8 +24,13 @@ import type {
 import {
   asType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpJsCheckedTypeQuery,
+  resolveSourceLibraryMemberIdentity,
 } from "../source-library.js";
+import {
+  getSignatureDeclaration,
+} from "./declaration-identity.js";
 import {
   asNodeSubject,
 } from "../../../ast-utils.js";
@@ -113,6 +118,10 @@ export function getSourceLibraryCallReceiverTargetTypes(
     requestContext.calleeReceiverTypeSymbol,
   ];
   const result: TargetTypeRef[] = [];
+  const selectedReceiverType = getSelectedSourceLibraryReceiverTargetType(request, context);
+  if (selectedReceiverType !== undefined) {
+    result.push(selectedReceiverType);
+  }
   for (const candidate of candidates) {
     const targetType = host.unwrapNullableTargetType(getTargetTypeRefForOptionalSubject(candidate, context, host));
     if (targetType !== undefined && !result.includes(targetType)) {
@@ -120,6 +129,18 @@ export function getSourceLibraryCallReceiverTargetTypes(
     }
   }
   return result;
+}
+
+function getSelectedSourceLibraryReceiverTargetType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
+  if (sourceMember?.declaringName === "String") {
+    return csharpStringTargetType();
+  }
+  return undefined;
 }
 
 export function getSourceLibraryCallArgumentTargetTypes(

@@ -24,6 +24,7 @@ import {
 import {
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
+  findTargetBindingFromResolvedTargetType,
 } from "../provider-bindings.js";
 import {
   getCsharpCheckedPropertyAccessRequestContext,
@@ -71,6 +72,10 @@ import {
 import type {
   CheckedPropertyAccessContext,
 } from "./types.js";
+import {
+  csharpSourceProfilePropertyMember,
+  getCsharpSourceProfileMemberIdentity,
+} from "../source-profile-operations.js";
 
 export function mapCsharpCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -102,6 +107,10 @@ export function mapCsharpCheckedPropertyAccess(
     }, [{ message: "C# target accepted checked property access inside declaration-only source; backend does not emit declaration-file expressions." }]);
   }
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const sourceProfileProperty = mapCsharpSourceProfilePropertyAccess(request, context, host);
+  if (sourceProfileProperty !== undefined) {
+    return sourceProfileProperty;
+  }
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
@@ -121,6 +130,12 @@ export function mapCsharpCheckedPropertyAccess(
     selectedDeclaration,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
+  ) ?? findTargetBindingFromResolvedTargetType(
+    context,
+    [request.receiver, requestContext.receiverType],
+    host.getTargetTypeRefForSubject,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
   );
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
@@ -129,7 +144,7 @@ export function mapCsharpCheckedPropertyAccess(
       mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host) ??
       rejectPropertyAccessNotMapped(extensionId, request.propertyName);
   }
-  if (binding.id === dotnetNativeArrayTypeId && request.propertyName === "length") {
+  if (binding.id === dotnetNativeArrayTypeId && request.propertyName === "Length") {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
@@ -143,6 +158,11 @@ export function mapCsharpCheckedPropertyAccess(
   }
   const member = selected.member;
   if (member === undefined) {
+    if (propertyAccessIsCallCallee(request.expression, context)) {
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation("csharp.provider.method-group-call-callee", "property", "__tsonic_provider_method_group"),
+      }, [{ message: "C# provider method-group property access was checked as a call callee; the parent checked call must provide selected provider signature facts before emission." }]);
+    }
     return rejectTargetPropertyNotFound(extensionId, request.propertyName, targetBinding.id);
   }
   if (member.kind === "event") {
@@ -162,6 +182,27 @@ export function mapCsharpCheckedPropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(csharpMember),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
+}
+
+function mapCsharpSourceProfilePropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: CheckedPropertyAccessContext,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const identity = getCsharpSourceProfileMemberIdentity(requestContext.sourceSelectedDeclaration, context);
+  const receiverType = host.getTargetTypeRefForSubject(request.receiver, context) ??
+    host.getTargetTypeRefForSubject(requestContext.receiverType, context);
+  const member = csharpSourceProfilePropertyMember(identity, receiverType);
+  if (member === undefined) {
+    return undefined;
+  }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{
+    message: "C# source-profile property operation recorded from TSTS-selected source declaration identity and C# source profile metadata.",
+  }]);
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperationFromMember(member),
+  }, [{ message: "C# source-profile property access selected from checked TSTS source declaration identity." }]);
 }
 
 function isDeclarationOnlyPropertyAccess(

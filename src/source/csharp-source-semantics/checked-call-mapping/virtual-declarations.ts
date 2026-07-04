@@ -5,21 +5,45 @@ import type {
   CheckedCallMappingRequest,
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   ProviderVirtualDeclarationFact,
+  Signature,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
 } from "../ast-utils.js";
+import type {
+  CsharpCheckedCallRequestContext,
+} from "../checked-call-request-context.js";
 
 export function getSelectedCallProviderVirtualDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  requestContext?: CsharpCheckedCallRequestContext,
 ): ProviderVirtualDeclarationFact | undefined {
   return getProviderVirtualDeclaration(context, [
     request.sourceSelectedSignature,
+    getSignatureDeclaration(request.sourceSelectedSignature, context),
     request.sourceSelectedDeclaration,
     request.sourceCalleeSymbol,
+    requestContext?.calleeSelectedPropertySymbol,
+    requestContext?.calleeSelectedPropertyDeclaration,
+    requestContext?.calleeSelectedPropertyContainerSymbol,
+    requestContext?.calleeSelectedPropertyDeclarationContainer,
   ]) ?? getCalleePropertyProviderVirtualDeclaration(request, context);
+}
+
+function getSignatureDeclaration(
+  signature: CheckedCallMappingRequest["sourceSelectedSignature"],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Node | undefined {
+  const checker = context.compiler?.checker;
+  if (signature === undefined || checker === undefined) {
+    return undefined;
+  }
+  return typeof checker.getSignatureDeclaration === "function"
+    ? asNodeSubject(checker.getSignatureDeclaration(signature as Signature))
+    : undefined;
 }
 
 function getCalleePropertyProviderVirtualDeclaration(

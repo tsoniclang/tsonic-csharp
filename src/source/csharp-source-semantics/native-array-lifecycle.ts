@@ -102,7 +102,7 @@ function recordNativeArrayLengthFact(
     return;
   }
   const propertyName = compiler.ast.text(compiler.ast.name(node));
-  if (propertyName !== "length") {
+  if (propertyName !== "Length") {
     return;
   }
   if (selectedOperationConflictsWithNativeArray(context, node, "property", dotnetNativeArrayLengthMemberId)) {
@@ -110,11 +110,11 @@ function recordNativeArrayLengthFact(
   }
   const resultType = csharpSourcePrimitiveTargetType("int32");
   const operationId = getSelectedOperationIdOrDefault(context, node, "property", dotnetNativeArrayLengthMemberId);
-  recordNativeArrayTargetOperationIfMissing(context, node, operationId, "property", "System.Array.Length", resultType, [{ message: "C# native array length selected from checked TypeScript Array.length declaration and finalized native array carrier." }]);
+  recordNativeArrayTargetOperationIfMissing(context, node, operationId, "property", "System.Array.Length", resultType, [{ message: "C# native array length selected from checked C# source-profile Array.Length declaration and finalized native array carrier." }]);
   recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(operationId, "property", "Length", {
     declaringType: receiverType,
     resultType,
-  }), [{ message: "C# native array length operation recorded from checked TypeScript Array.length declaration and finalized native array carrier." }]);
+  }), [{ message: "C# native array length operation recorded from checked C# source-profile Array.Length declaration and finalized native array carrier." }]);
 }
 
 function recordNativeArrayElementAccessFact(

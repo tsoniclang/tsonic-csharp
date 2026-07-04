@@ -21,6 +21,7 @@ import {
 import {
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
+  findTargetBindingFromResolvedTargetType,
 } from "../provider-bindings.js";
 import {
   getCsharpCheckedElementAccessRequestContext,
@@ -79,6 +80,12 @@ export function mapCsharpCheckedElementAccess(
     request.receiver,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  ) ?? findTargetBindingFromResolvedTargetType(
+    context,
+    [request.receiver, requestContext.receiverType],
+    host.getTargetTypeRefForSubject,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
   );

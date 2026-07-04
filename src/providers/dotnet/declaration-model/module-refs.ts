@@ -1,5 +1,6 @@
 import type {
   ProviderExportDeclaration,
+  ProviderImportDeclaration,
   ProviderMemberDeclaration,
   ProviderParameterDeclaration,
   ProviderSignatureDeclaration,
@@ -59,12 +60,12 @@ function qualifyProviderTypeModuleRefs(
   switch (type.kind) {
     case "provider-ref":
       {
-        const renderedModuleSpecifier = type.moduleSpecifier === context.moduleSpecifier
-          ? type.moduleSpecifier
-          : context.dependencyModuleSpecifier?.(type.moduleSpecifier, type.exportName) ?? type.moduleSpecifier;
+        const localName = type.moduleSpecifier === context.moduleSpecifier
+          ? type.localName
+          : generatedProviderRefLocalName(type.moduleSpecifier, type.exportName);
         return {
           ...type,
-          moduleSpecifier: renderedModuleSpecifier,
+          ...(localName === undefined ? {} : { localName }),
           ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
         };
       }
@@ -94,4 +95,141 @@ function qualifyProviderTypeModuleRefs(
     default:
       return type;
   }
+}
+
+export function providerImportsForExternalRefs(
+  declarations: readonly ProviderExportDeclaration[],
+  currentModuleSpecifier: string,
+): readonly ProviderImportDeclaration[] {
+  const importsByModule = new Map<string, Map<string, string | undefined>>();
+  for (const declaration of declarations) {
+    collectProviderImportsFromExport(declaration, currentModuleSpecifier, importsByModule);
+  }
+  return [...importsByModule.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([moduleSpecifier, imports]) => ({
+      moduleSpecifier,
+      typeOnly: true,
+      namedImports: [...imports.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([exportedName, localName]) => ({
+          exportedName,
+          ...(localName === undefined || localName === exportedName ? {} : { localName }),
+          kind: "type" as const,
+        })),
+    }));
+}
+
+function collectProviderImportsFromExport(
+  declaration: ProviderExportDeclaration,
+  currentModuleSpecifier: string,
+  importsByModule: Map<string, Map<string, string | undefined>>,
+): void {
+  collectProviderImportsFromType(declaration.type, currentModuleSpecifier, importsByModule);
+  for (const heritage of declaration.heritage ?? []) {
+    collectProviderImportsFromType(heritage.type, currentModuleSpecifier, importsByModule);
+  }
+  for (const signature of declaration.signatures ?? []) {
+    collectProviderImportsFromSignature(signature, currentModuleSpecifier, importsByModule);
+  }
+  for (const member of declaration.members ?? []) {
+    collectProviderImportsFromType(member.type, currentModuleSpecifier, importsByModule);
+    for (const signature of member.signatures ?? []) {
+      collectProviderImportsFromSignature(signature, currentModuleSpecifier, importsByModule);
+    }
+  }
+}
+
+function collectProviderImportsFromSignature(
+  signature: ProviderSignatureDeclaration,
+  currentModuleSpecifier: string,
+  importsByModule: Map<string, Map<string, string | undefined>>,
+): void {
+  for (const parameter of signature.parameters) {
+    collectProviderImportsFromType(parameter.type, currentModuleSpecifier, importsByModule);
+  }
+  collectProviderImportsFromType(signature.returnType, currentModuleSpecifier, importsByModule);
+  for (const typeParameter of signature.typeParameters ?? []) {
+    collectProviderImportsFromType(typeParameter.defaultType, currentModuleSpecifier, importsByModule);
+    for (const constraint of typeParameter.constraints ?? []) {
+      collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
+    }
+  }
+}
+
+function collectProviderImportsFromType(
+  type: ProviderTypeExpression | undefined,
+  currentModuleSpecifier: string,
+  importsByModule: Map<string, Map<string, string | undefined>>,
+): void {
+  if (type === undefined) {
+    return;
+  }
+  switch (type.kind) {
+    case "provider-ref":
+      if (type.moduleSpecifier !== currentModuleSpecifier) {
+        const imports = importsByModule.get(type.moduleSpecifier) ?? new Map<string, string | undefined>();
+        imports.set(type.exportName, type.localName);
+        importsByModule.set(type.moduleSpecifier, imports);
+      }
+      for (const argument of type.typeArguments ?? []) {
+        collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
+      }
+      return;
+    case "target-named":
+      for (const argument of type.typeArguments ?? []) {
+        collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
+      }
+      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule);
+      return;
+    case "array":
+      collectProviderImportsFromType(type.elementType, currentModuleSpecifier, importsByModule);
+      return;
+    case "tuple":
+      for (const elementType of type.elementTypes) {
+        collectProviderImportsFromType(elementType, currentModuleSpecifier, importsByModule);
+      }
+      return;
+    case "union":
+    case "intersection":
+      for (const nestedType of type.types) {
+        collectProviderImportsFromType(nestedType, currentModuleSpecifier, importsByModule);
+      }
+      return;
+    case "function":
+      for (const parameter of type.parameters) {
+        collectProviderImportsFromType(parameter.type, currentModuleSpecifier, importsByModule);
+      }
+      collectProviderImportsFromType(type.returnType, currentModuleSpecifier, importsByModule);
+      for (const typeParameter of type.typeParameters ?? []) {
+        collectProviderImportsFromType(typeParameter.defaultType, currentModuleSpecifier, importsByModule);
+        for (const constraint of typeParameter.constraints ?? []) {
+          collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
+        }
+      }
+      return;
+    case "opaque":
+      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule);
+      return;
+    default:
+      return;
+  }
+}
+
+function generatedProviderRefLocalName(moduleSpecifier: string, exportName: string): string {
+  return `__TsonicDotnet_${sanitizeIdentifierPart(exportName)}_${stableIdentifierHash(moduleSpecifier)}`;
+}
+
+function sanitizeIdentifierPart(value: string): string {
+  const sanitized = value.replace(/[^A-Za-z0-9_$]/gu, "_");
+  return /^[A-Za-z_$]/u.test(sanitized) ? sanitized : `_${sanitized}`;
+}
+
+function stableIdentifierHash(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash.toString(36);
 }

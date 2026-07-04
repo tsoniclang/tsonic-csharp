@@ -15,7 +15,7 @@ import type {
 } from "./context.js";
 import { createDotnetDeclarationContext } from "./context.js";
 import { dotnetTargetIdentity } from "./conversions.js";
-import { qualifyProviderExportModuleRefs } from "./module-refs.js";
+import { providerImportsForExternalRefs, qualifyProviderExportModuleRefs } from "./module-refs.js";
 import { dotnetExportToNamespaceMember } from "./namespace-members.js";
 import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 import { dotnetSignatureToProviderSignature } from "./signatures.js";
@@ -27,17 +27,20 @@ export function dotnetModuleToProviderDeclarationModel(
 ): ProviderDeclarationModel {
   const qualifiedModule = qualifyDotnetModuleProviderRefs(module);
   const context = createDotnetDeclarationContext(qualifiedModule, options);
+  const exports = qualifiedModule.exports
+    .map((declaration) => {
+      const providerExport = dotnetExportToProviderExport(declaration, context);
+      return providerExport === undefined
+        ? undefined
+        : qualifyProviderExportModuleRefs(providerExport, context);
+    })
+    .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined);
+  const imports = providerImportsForExternalRefs(exports, qualifiedModule.moduleSpecifier);
   return {
     moduleSpecifier: qualifiedModule.moduleSpecifier,
     providerModuleId: options.providerModuleId ?? qualifiedModule.moduleSpecifier,
-    exports: qualifiedModule.exports
-      .map((declaration) => {
-        const providerExport = dotnetExportToProviderExport(declaration, context);
-        return providerExport === undefined
-          ? undefined
-          : qualifyProviderExportModuleRefs(providerExport, context);
-      })
-      .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined),
+    ...(imports.length === 0 ? {} : { imports }),
+    exports,
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
   };
 }

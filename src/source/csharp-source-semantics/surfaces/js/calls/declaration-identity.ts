@@ -15,7 +15,9 @@ export function getSignatureDeclaration(
   context: ExtensionObservationContext,
 ): Node | undefined {
   const checker = context.compiler?.checker;
-  return signature === undefined || checker === undefined
+  return signature === undefined ||
+    checker === undefined ||
+    typeof checker.getSignatureDeclaration !== "function"
     ? undefined
     : asNodeSubject(checker.getSignatureDeclaration(signature as Signature));
 }

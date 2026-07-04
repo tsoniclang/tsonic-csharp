@@ -206,6 +206,14 @@ test(".NET provider declaration model preserves explicit target parameter passin
 });
 
 test(".NET provider exposes explicit native Array as a provider-owned C# array projection", () => {
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
+    kind: "array",
+    elementType: { kind: "source-primitive", name: "int32" },
+  }), {
+    kind: "array",
+    elementType: { kind: "source-primitive", name: "int32" },
+  });
+
   const module = augmentDotnetModuleWithNativeArray({
     moduleSpecifier: "@tsonic/dotnet/System.js",
     namespaceName: "System",
@@ -314,6 +322,107 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
   assert.ok(sourceEnvironment?.members?.some((member) => member.kind === "property" && member.name === "NewLine"));
   assert.ok(sourceDateTime?.members?.some((member) => member.kind === "field" && member.name === "MinValue"));
   assert.ok(sourceSpecialFolder?.members?.some((member) => member.kind === "field" && member.name === "Desktop"));
+});
+
+test(".NET reflection provider exposes conflicted nested closure types through stable provider-owned source names", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
+    requestedExports: ["Dictionary"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const dictionary = module.exports.find((declaration) => declaration.sourceName === "Dictionary");
+  const valueCollection = module.exports.find((declaration) => declaration.sourceName === "Dictionary_ValueCollection");
+  assert.ok(dictionary);
+  assert.ok(valueCollection);
+  assert.equal(valueCollection.metadataName, "System.Collections.Generic.Dictionary`2.ValueCollection");
+
+  const values = dictionary.members?.find((member) => member.kind === "property" && member.sourceName === "Values");
+  assert.ok(values);
+  assert.deepEqual(values.type?.sourceShape, {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
+    exportName: "Dictionary_ValueCollection",
+    typeArguments: [
+      { kind: "type-parameter", name: "TKey" },
+      { kind: "type-parameter", name: "TValue" },
+    ],
+  });
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const sourceDictionary = model.exports.find((declaration) => declaration.name === "Dictionary");
+  const sourceValueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
+  assert.ok(sourceValueCollection?.members?.some((member) => member.kind === "method" && member.name === "GetEnumerator"));
+  assert.deepEqual(
+    sourceDictionary?.members?.find((member) => member.kind === "property" && member.name === "Values")?.type?.sourceShape,
+    {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
+      exportName: "Dictionary_ValueCollection",
+      typeArguments: [
+        { kind: "type-parameter", name: "TKey" },
+        { kind: "type-parameter", name: "TValue" },
+      ],
+    },
+  );
+});
+
+test(".NET provider virtual declaration slices retain same-module provider-ref closure exports", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Collections.Generic.js", {
+    requestedExports: ["Dictionary", "List"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const exportNames = model.exports.map((declaration) => declaration.name);
+  assert.ok(exportNames.includes("Dictionary"));
+  assert.ok(exportNames.includes("List"));
+  assert.ok(exportNames.includes("Dictionary_ValueCollection"));
+  assert.ok(exportNames.includes("Dictionary_ValueCollection_Enumerator"));
+
+  const valueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
+  assert.ok(valueCollection?.members?.some((member) => member.kind === "method" && member.name === "GetEnumerator"));
+  const enumerator = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection_Enumerator");
+  assert.ok(enumerator?.members?.some((member) => member.kind === "method" && member.name === "MoveNext"));
+  assert.ok(enumerator?.members?.some((member) => member.kind === "property" && member.name === "Current"));
+});
+
+test(".NET reflection provider exposes method generic parameters without confusing them for declaring type parameters", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.Text.Json.js", {
+    requestedExports: ["JsonSerializer"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const jsonSerializer = module.exports.find((declaration) => declaration.sourceName === "JsonSerializer");
+  assert.ok(jsonSerializer);
+  const genericDeserialize = jsonSerializer.members
+    ?.find((member) => member.kind === "method" && member.sourceName === "Deserialize")
+    ?.signatures?.find((signature) => signature.typeParameters?.some((parameter) => parameter.name === "TValue"));
+  const genericSerialize = jsonSerializer.members
+    ?.find((member) => member.kind === "method" && member.sourceName === "Serialize")
+    ?.signatures?.find((signature) => signature.typeParameters?.some((parameter) => parameter.name === "TValue"));
+  assert.ok(genericDeserialize);
+  assert.ok(genericSerialize);
+  assert.equal(
+    jsonSerializer.unsupportedMembers?.some((member) =>
+      member.sourceName === "Deserialize" &&
+      member.reason.includes("declaring generic type parameter")
+    ) ?? false,
+    false,
+  );
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const sourceJsonSerializer = model.exports.find((declaration) => declaration.name === "JsonSerializer");
+  assert.ok(sourceJsonSerializer?.members
+    ?.find((member) => member.kind === "method" && member.name === "Deserialize")
+    ?.signatures?.some((signature) => signature.typeParameters?.some((parameter) => parameter.name === "TValue")));
+  assert.ok(sourceJsonSerializer?.members
+    ?.find((member) => member.kind === "method" && member.name === "Serialize")
+    ?.signatures?.some((signature) => signature.typeParameters?.some((parameter) => parameter.name === "TValue")));
 });
 
 test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
@@ -583,7 +692,7 @@ test(".NET provider model keeps event facts target-only until source event seman
   assert.equal(idEndsWith(targetEvent.returnType.id, "System.EventHandler"), true);
 });
 
-test(".NET provider declaration model projects inherited source members deterministically", () => {
+test(".NET provider declaration model keeps inherited source members on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
   const stringType = { kind: "string" };
   const baseType = {
@@ -640,16 +749,21 @@ test(".NET provider declaration model projects inherited source members determin
   const derived = sourceModel.exports.find((declaration) => declaration.name === "Derived");
   assert.ok(derived);
   const members = new Map(derived.members.map((member) => [member.name, member]));
-  assert.equal(members.has("baseOnly"), true);
+  assert.deepEqual(derived.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+      exportName: "Base",
+    },
+  }]);
+  assert.equal(members.has("baseOnly"), false);
   assert.equal(members.has("ownOnly"), true);
-  assert.equal(members.has("collision"), false);
-  assert.deepEqual(members.get("overloaded").signatures.map((signature) => signature.parameters.map((parameter) => parameter.name)), [
-    ["text"],
-    ["count"],
-  ]);
+  assert.equal(members.has("collision"), true);
+  assert.equal(members.has("overloaded"), false);
 });
 
-test(".NET provider declaration model substitutes inherited generic type arguments without source-name lookup", () => {
+test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
   const baseType = {
     kind: "type",
@@ -699,11 +813,16 @@ test(".NET provider declaration model substitutes inherited generic type argumen
   });
   const derived = sourceModel.exports.find((declaration) => declaration.name === "IntDerived");
   assert.ok(derived);
-  const value = derived.members.find((member) => member.kind === "property" && member.name === "value");
-  const echo = derived.members.find((member) => member.kind === "method" && member.name === "echo");
-  assert.deepEqual(value.type, int32);
-  assert.deepEqual(echo.signatures[0].parameters[0].type, int32);
-  assert.deepEqual(echo.signatures[0].returnType, int32);
+  assert.deepEqual(derived.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+      exportName: "GenericBase",
+      typeArguments: [int32],
+    },
+  }]);
+  assert.equal(derived.members, undefined);
 
   const targetBinding = dotnetExportToTargetBinding(derivedType);
   assert.deepEqual(targetBinding.csharpBaseType.typeArguments, [int32]);
@@ -1313,7 +1432,7 @@ test(".NET target binding provider uses configured provider identity for diagnos
   assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
   assert.match(
     resolution.virtualFileName,
-    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\/broad\.d\.ts$/u,
+    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\.d\.ts$/u,
   );
 });
 
@@ -1357,7 +1476,7 @@ test(".NET target binding provider preserves requested-export slices through dec
   assert.equal(resolution.broadImport, undefined);
   assert.match(
     resolution.virtualFileName,
-    /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\/slice-Convert\.d\.ts$/u,
+    /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\.d\.ts$/u,
   );
 
   const model = bindingProvider.getDeclarationModel(resolution);
@@ -1811,7 +1930,11 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   const sourceEncodingParameter = sourceEncodingConstructor.signatures
     .find((signature) => idEndsWith(signature.id, "System.IO.BinaryReader..ctor(System.IO.Stream,System.Text.Encoding)"))
     ?.parameters.find((parameter) => parameter.name === "encoding");
-  assert.deepEqual(sourceEncodingParameter?.type.sourceShape, {
+  assert.equal(sourceEncodingParameter?.type.sourceShape.kind, "provider-ref");
+  assert.equal(sourceEncodingParameter?.type.sourceShape.moduleSpecifier, "@tsonic/dotnet/System.Text.js");
+  assert.equal(sourceEncodingParameter?.type.sourceShape.exportName, "Encoding");
+  assert.match(sourceEncodingParameter?.type.sourceShape.localName, /^__TsonicDotnet_Encoding_[a-z0-9]+$/u);
+  assert.deepEqual(omitLocalName(sourceEncodingParameter?.type.sourceShape), {
     kind: "provider-ref",
     moduleSpecifier: "@tsonic/dotnet/System.Text.js",
     exportName: "Encoding",
@@ -1844,7 +1967,14 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   });
   const tasksDeclarationModel = dotnetModuleToProviderDeclarationModel(tasksModule);
   const sourceTaskCanceled = tasksDeclarationModel.exports.find((declaration) => declaration.name === "TaskCanceledException");
-  assert.deepEqual(sourceTaskCanceled?.heritage, [{
+  assert.equal(sourceTaskCanceled?.heritage?.[0]?.type.kind, "provider-ref");
+  assert.equal(sourceTaskCanceled?.heritage?.[0]?.type.moduleSpecifier, "@tsonic/dotnet/System.js");
+  assert.equal(sourceTaskCanceled?.heritage?.[0]?.type.exportName, "OperationCanceledException");
+  assert.match(sourceTaskCanceled?.heritage?.[0]?.type.localName, /^__TsonicDotnet_OperationCanceledException_[a-z0-9]+$/u);
+  assert.deepEqual(sourceTaskCanceled?.heritage?.map((heritage) => ({
+    ...heritage,
+    type: omitLocalName(heritage.type),
+  })), [{
     kind: "extends",
     type: {
       kind: "provider-ref",
@@ -1899,7 +2029,7 @@ test(".NET target binding provider qualifies CLSCompliantAttribute base provider
   assertProviderDeclarationRefsFullyQualified(model);
 });
 
-test(".NET provider source declarations project cross-module inherited overloads", () => {
+test(".NET provider source declarations preserve cross-module inherited overloads through heritage", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});
   assert.equal("exports" in reflectionModule, true);
@@ -1912,24 +2042,24 @@ test(".NET provider source declarations project cross-module inherited overloads
   });
   const typeDelegator = declarationModel.exports.find((declaration) => declaration.name === "TypeDelegator");
   assert.ok(typeDelegator);
-  const getConstructors = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetConstructors");
-  assert.ok(getConstructors);
-  assert.equal(getConstructors.signatures?.some((signature) => signature.parameters.length === 0), true);
-  assert.equal(getConstructors.signatures?.some((signature) => signature.parameters.length === 1), true);
+  assert.deepEqual(typeDelegator.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/System.Reflection.js",
+      exportName: "TypeInfo",
+    },
+  }]);
+  assert.equal(typeDelegator.members?.some((member) => member.kind === "method" && member.name === "GetConstructors") ?? false, false);
 
-  const getEvent = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetEvent");
-  assert.ok(getEvent);
-  assert.equal(getEvent.signatures?.some((signature) => signature.parameters.length === 1), true);
-  assert.equal(getEvent.signatures?.some((signature) => signature.parameters.length === 2), true);
-
-  const getNestedType = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetNestedType");
-  assert.ok(getNestedType);
-  assert.equal(getNestedType.signatures?.every((signature) =>
-    signature.returnType?.kind === "target-named" &&
-    signature.returnType.sourceShape?.kind === "provider-ref" &&
-    signature.returnType.sourceShape.exportName === "Type" &&
-    signature.returnType.sourceShape.moduleSpecifier === "@tsonic/dotnet/System.js"
-  ), true);
+  const typeInfo = declarationModel.exports.find((declaration) => declaration.name === "TypeInfo");
+  assert.ok(typeInfo);
+  assert.equal(typeInfo.heritage?.[0]?.kind, "extends");
+  assert.equal(typeInfo.heritage?.[0]?.type.kind, "provider-ref");
+  assert.equal(typeInfo.heritage?.[0]?.type.moduleSpecifier, "@tsonic/dotnet/System.js");
+  assert.equal(typeInfo.heritage?.[0]?.type.exportName, "Type");
+  assert.equal(typeof typeInfo.heritage?.[0]?.type.localName, "string");
+  assertProviderDeclarationRefsFullyQualified(declarationModel);
 });
 
 test(".NET provider keeps target generic constraints out of source virtual declarations", () => {
@@ -2520,19 +2650,22 @@ test(".NET reflection provider preserves extension receiver passing per selected
   assert.equal(targetExtensionTransform.receiverPassing, "first-argument");
 });
 
-test(".NET reflection provider classifies unsupported type families without silently dropping them", () => {
+test(".NET reflection provider disambiguates conflicted nested type families without silently dropping them", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
 
-  const unsupportedFamilies = new Map(systemModule.unsupportedExports?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
-  const enumerator = unsupportedFamilies.get("Enumerator");
-
-  assert.ok(enumerator);
-  assert.equal(enumerator.kind, "unsupported-type-family");
-  assert.ok(enumerator.metadataNames.includes("System.ArraySegment`1.Enumerator"));
-  assert.ok(enumerator.metadataNames.includes("System.Span`1.Enumerator"));
-  assert.match(enumerator.reason, /provider type-family declaration model/);
+  assert.equal(systemModule.unsupportedExports?.some((declaration) => declaration.sourceName === "Enumerator") ?? false, false);
+  const arraySegmentEnumerator = systemModule.exports.find((declaration) =>
+    declaration.sourceName === "ArraySegment_Enumerator" &&
+    declaration.metadataName === "System.ArraySegment`1.Enumerator"
+  );
+  const spanEnumerator = systemModule.exports.find((declaration) =>
+    declaration.sourceName === "Span_Enumerator" &&
+    declaration.metadataName === "System.Span`1.Enumerator"
+  );
+  assert.ok(arraySegmentEnumerator);
+  assert.ok(spanEnumerator);
 
   assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Action_1" && declaration.kind === "type"));
   assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Func_2" && declaration.kind === "type"));
@@ -2540,7 +2673,7 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Func`2")?.kind, "delegate");
 });
 
-test(".NET reflection provider keeps requested unsupported type-family target IDs target-only", () => {
+test(".NET reflection provider exposes requested conflicted nested type-family target IDs through qualified source names", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const module = provider.getModule("@tsonic/dotnet/System.js", {
     requestedMetadataNames: ["System.Span`1.Enumerator"],
@@ -2548,27 +2681,22 @@ test(".NET reflection provider keeps requested unsupported type-family target ID
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   assert.equal(module.exports.some((declaration) => declaration.sourceName === "Enumerator"), false);
-  const targetOnlyEnumerator = module.targetOnlyTypes?.find((declaration) =>
+  assert.equal(module.unsupportedExports?.some((declaration) => declaration.sourceName === "Enumerator") ?? false, false);
+  const spanEnumerator = module.exports.find((declaration) =>
+    declaration.sourceName === "Span_Enumerator" &&
     declaration.metadataName === "System.Span`1.Enumerator"
   );
-  assert.ok(targetOnlyEnumerator);
-
-  const unsupportedFamily = module.unsupportedExports?.find((declaration) =>
-    declaration.kind === "unsupported-type-family" &&
-    declaration.sourceName === "Enumerator"
-  );
-  assert.ok(unsupportedFamily);
-  assert.ok(unsupportedFamily.metadataNames.includes("System.ArraySegment`1.Enumerator"));
-  assert.ok(unsupportedFamily.metadataNames.includes("System.Span`1.Enumerator"));
+  assert.ok(spanEnumerator);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   assert.equal(sourceModel.exports.some((declaration) => declaration.name === "Enumerator"), false);
+  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "Span_Enumerator"), true);
 
   const bindingProvider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const binding = bindingProvider.findTargetBindingByMetadataName("System.Span`1.Enumerator");
   assert.ok(binding);
   assert.equal(binding.kind, "struct");
-  assert.equal(binding.sourceName, "Enumerator");
+  assert.equal(binding.sourceName, "Span_Enumerator");
 });
 
 test(".NET reflection provider keeps requested unsupported source exports target-only", () => {
@@ -2937,6 +3065,14 @@ function typeFact(type) {
     default:
       return { kind: type.kind };
   }
+}
+
+function omitLocalName(type) {
+  if (type === undefined || type.localName === undefined) {
+    return type;
+  }
+  const { localName: _localName, ...rest } = type;
+  return rest;
 }
 
 function buildAttributeFixture() {

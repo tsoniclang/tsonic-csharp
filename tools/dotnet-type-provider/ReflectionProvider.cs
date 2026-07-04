@@ -130,7 +130,7 @@ sealed partial class ReflectionProvider
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes.Select(ToShallowTypeExport))
+            .Concat(closureTypes.Select(ToClosureTypeExport).Where(export => export is not null).Cast<object>())
             .ToArray();
 
         return new

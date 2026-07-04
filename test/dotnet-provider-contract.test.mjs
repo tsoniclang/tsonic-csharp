@@ -109,6 +109,64 @@ test(".NET provider model contract rejects malformed identities and type refs be
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].defaultValue.value"), true);
 });
 
+test(".NET provider model contract rejects extra fields on type-ref variants", () => {
+  const diagnostic = validateDotnetModuleModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "BadShapes",
+        namespaceName: "ProviderContractFixtures",
+        targetId: testTargetId("ProviderContractFixtures.BadShapes"),
+        metadataName: "ProviderContractFixtures.BadShapes",
+        members: [
+          {
+            kind: "method",
+            sourceName: "bad",
+            targetName: "Bad",
+            targetId: testTargetId("ProviderContractFixtures.BadShapes.Bad"),
+            metadataName: "ProviderContractFixtures.BadShapes.Bad",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.BadShapes.Bad(System.String,System.Int32[])"),
+                parameters: [
+                  {
+                    name: "text",
+                    type: { kind: "string", sourceShape: { kind: "string" } },
+                    passingMode: "by-value",
+                  },
+                  {
+                    name: "values",
+                    type: {
+                      kind: "array",
+                      elementType: { kind: "source-primitive", name: "int32", width: 32 },
+                      sourceShape: {
+                        kind: "provider-ref",
+                        moduleSpecifier: "@tsonic/dotnet/System.js",
+                        exportName: "Array",
+                      },
+                    },
+                    passingMode: "by-value",
+                  },
+                ],
+                returnType: { kind: "void", targetId: "System.Void" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].type.sourceShape"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.sourceShape"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.elementType.width"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].returnType.targetId"), true);
+});
+
 test(".NET provider model contract rejects metadata-name fallback identities and unsupported evidence holes", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",

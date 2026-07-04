@@ -18,6 +18,7 @@ import {
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
+import { validateCsharpTargetConstraintFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/target-constraint-validation.js";
 import {
   csharpNullableValueTargetType,
   csharpSourcePrimitiveDotnetMetadataName,
@@ -601,6 +602,39 @@ test("C# provider validates source primitive generic constraints from reflected 
     constraint: { kind: "implements", contract: "System.IEquatable`1" },
   }, fakeObservationContext({}));
   assert.equal(missingArgument.kind, "reject");
+});
+
+test("C# target constraint lifecycle skips provider virtual declaration files", () => {
+  const providerSourceFile = { IsDeclarationFile: false };
+  const diagnostics = [];
+  validateCsharpTargetConstraintFactsBeforeFinalization({
+    extensionId: "test",
+    host: {
+      facts: {
+        get: (subject, key) => subject === providerSourceFile && key === providerVirtualDeclarationFactKey
+          ? {
+              providerId: "test-provider",
+              providerVersion: "1",
+              providerModuleId: "@provider/module",
+              moduleSpecifier: "@provider/module",
+              virtualFileName: "tsts-provider://provider/module.d.ts",
+            }
+          : undefined,
+      },
+      factResolver: { resolve: () => undefined },
+      diagnostics: { append: (diagnostic) => diagnostics.push(diagnostic) },
+    },
+    compiler: {
+      getSourceFiles: () => [providerSourceFile],
+      ast: {
+        children: () => {
+          throw new Error("provider virtual source files must not be traversed for user-source target constraints");
+        },
+      },
+    },
+  }, {});
+
+  assert.deepEqual(diagnostics, []);
 });
 
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
@@ -2384,6 +2418,170 @@ test("C# provider keeps inferred generic method arguments after selected binding
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.operationId, genericMember.id);
   assert.deepEqual(operation?.selectedMember.parameters[0].type, markedType);
+});
+
+test("C# provider keeps explicit generic method target arguments for selected provider signatures", () => {
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const call = { Kind: "KindCallExpression" };
+  const stringType = csharpStringType();
+  const stringArgument = stringType;
+  const dtoType = {
+    kind: "target-named",
+    id: "Acme.Dto",
+    csharpRender: { kind: "named", namespace: ["Acme"], name: "Dto" },
+  };
+  const genericMember = {
+    id: "Acme.Json.Read``1(System.String)",
+    sourceName: "Read",
+    targetName: "Read",
+    kind: "method",
+    static: true,
+    declaringType: {
+      kind: "target-named",
+      id: "Acme.Json",
+      csharpRender: { kind: "named", namespace: ["Acme"], name: "Json" },
+    },
+    typeParameters: [{ name: "T" }],
+    parameters: [targetParameter("json", stringType)],
+    returnType: { kind: "type-parameter", name: "T" },
+    overloadGroup: "Acme.Json.Read",
+  };
+  const binding = {
+    id: "Acme.Json",
+    sourceName: "Json",
+    targetName: "Json",
+    target: "csharp",
+    kind: "class",
+    csharpType: genericMember.declaringType,
+    members: [genericMember],
+  };
+  const provider = getNativeSemanticProvider({
+    bindings: [
+      binding,
+      {
+        id: dtoType.id,
+        sourceName: "Dto",
+        targetName: "Dto",
+        target: "csharp",
+        kind: "class",
+        csharpType: dtoType,
+      },
+    ],
+  });
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleePropertyName: "Read",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [stringArgument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember(genericMember.id, "Read", binding.id),
+      signatureId: genericMember.id,
+    },
+    typeArgumentsByNode: new Map([[call, [dtoType]]]),
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.deepEqual(result.value.selectedSignature.targetTypeArguments, [dtoType]);
+  assert.deepEqual(result.value.selectedSignature.member.returnType, dtoType);
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, genericMember.id);
+  assert.deepEqual(operation?.selectedMember.returnType, dtoType);
+});
+
+test("C# provider trusts TSTS-selected generic source arguments when target carrier facts are lossy", () => {
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const sourceCarrierType = {
+    kind: "target-named",
+    id: "Acme.SourceCarrier",
+    csharpRender: { kind: "named", namespace: ["Acme"], name: "SourceCarrier" },
+  };
+  const dtoType = {
+    kind: "target-named",
+    id: "Acme.Dto",
+    csharpRender: { kind: "named", namespace: ["Acme"], name: "Dto" },
+  };
+  const genericMember = {
+    id: "Acme.Json.Write``1(T)",
+    sourceName: "Write",
+    targetName: "Write",
+    kind: "method",
+    static: true,
+    typeParameters: [{ name: "T" }],
+    parameters: [{
+      name: "value",
+      type: { kind: "type-parameter", name: "T" },
+      passingMode: "by-value",
+    }],
+    returnType: csharpVoidType(),
+    overloadGroup: "Acme.Json.Write",
+  };
+  const binding = {
+    id: "Acme.Json",
+    sourceName: "Json",
+    targetName: "Json",
+    target: "csharp",
+    kind: "class",
+    members: [genericMember],
+  };
+  const provider = getNativeSemanticProvider({
+    bindings: [
+      binding,
+      {
+        id: dtoType.id,
+        sourceName: "Dto",
+        targetName: "Dto",
+        target: "csharp",
+        kind: "class",
+        csharpType: dtoType,
+      },
+      {
+        id: sourceCarrierType.id,
+        sourceName: "SourceCarrier",
+        targetName: "SourceCarrier",
+        target: "csharp",
+        kind: "class",
+        csharpType: sourceCarrierType,
+      },
+    ],
+  });
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleePropertyName: "Write",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember(genericMember.id, "Write", binding.id),
+      signatureId: genericMember.id,
+    },
+    typeArgumentsByNode: new Map([[call, [dtoType]]]),
+    typesByNode: new Map([[argument, sourceCarrierType]]),
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, dtoType);
 });
 
 test("C# provider rejects exact selected generic signatures with contradictory target facts", () => {
@@ -4567,7 +4765,7 @@ function fakeObservationContext(options) {
         parent: (node) => node?.Parent,
         name: (node) => node?.name ?? node?.Name,
         text: (node) => node?.Text ?? "",
-        typeArguments: () => [],
+        typeArguments: (node) => options.typeArgumentsByNode?.get(node) ?? [],
         is: {
           IsIdentifier: (node) => node?.Kind === "KindIdentifier",
           IsPrivateIdentifier: () => false,
@@ -4577,6 +4775,7 @@ function fakeObservationContext(options) {
           IsParameterDeclaration: () => false,
           IsBindingElement: () => false,
           IsFunctionDeclaration: () => false,
+          IsCallExpression: (node) => node?.Kind === "KindCallExpression",
           IsClassDeclaration: () => false,
           IsMethodDeclaration: () => false,
           IsPropertyDeclaration: () => false,

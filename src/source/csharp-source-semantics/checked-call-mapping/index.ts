@@ -39,6 +39,7 @@ import {
 import {
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
+  findTargetBindingFromResolvedTargetType,
 } from "../provider-bindings.js";
 import {
   instantiateSelectedTargetMember,
@@ -121,6 +122,10 @@ import {
 import {
   sourceDeclarationTargetType,
 } from "../source-declaration-facts/target-type.js";
+import {
+  csharpSourceProfileCallMember,
+  getCsharpSourceProfileMemberIdentity,
+} from "../source-profile-operations.js";
 
 export function mapCsharpCheckedCall(
   request: CheckedCallMappingRequest,
@@ -133,7 +138,7 @@ export function mapCsharpCheckedCall(
   }
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
-  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
+  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context, requestContext);
   const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
   if (sourceMarkerCall !== undefined) {
     return sourceMarkerCall;
@@ -180,8 +185,16 @@ export function mapCsharpCheckedCall(
       selectedSignature: existingSelectedSignature,
     }, [{ message: "C# target call mapping reused the existing selected target signature for a repeated TSTS checker observation." }]);
   }
+  const sourceProfileCall = acceptCsharpSourceProfileCall(request, context, host);
+  if (sourceProfileCall !== undefined) {
+    return sourceProfileCall;
+  }
   const binding = findTargetBinding(context, [
     request.sourceSelectedDeclaration,
+    requestContext.calleeSelectedPropertySymbol,
+    requestContext.calleeSelectedPropertyContainerSymbol,
+    requestContext.calleeSelectedPropertyDeclarationContainer,
+    requestContext.calleeSelectedPropertyDeclaration,
     requestContext.sourceSelectedContainerSymbol,
     requestContext.sourceSelectedDeclarationContainer,
     requestContext.calleeAliasedSymbol,
@@ -196,6 +209,12 @@ export function mapCsharpCheckedCall(
     requestContext.calleeReceiverSymbol,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     virtualDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  ) ?? findTargetBindingFromResolvedTargetType(
+    context,
+    [requestContext.calleeReceiver, requestContext.calleeReceiverType],
+    host.getTargetTypeRefForSubject,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
   );
@@ -249,11 +268,13 @@ export function mapCsharpCheckedCall(
     ? getReceiverDeclaringTargetType(request, context, host)
     : constructorDeclaringTargetType;
   const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
+  const methodTargetTypeArguments = getExplicitCallMethodTargetTypeArguments(request.call, context, host);
   const selectionOptions: TargetMemberSelectionOptions = {
     getBaseTargetTypeRef: host.getBaseTargetTypeRef,
     ...(providerStaticContainerReceiver ? { firstArgumentReceiver: false as const } : {}),
     ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
     ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
+    ...(methodTargetTypeArguments !== undefined ? { methodTargetTypeArguments } : {}),
   };
   const member = findCsharpTargetMemberForCall(
     targetBinding,
@@ -296,7 +317,10 @@ export function mapCsharpCheckedCall(
   if (member.kind === "constructor" && declaringTargetType === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
   }
-  const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
+  const csharpMember = instantiateSelectedTargetMember({
+    member,
+    ...(methodTargetTypeArguments !== undefined ? { targetTypeArguments: methodTargetTypeArguments } : {}),
+  }, host, { declaringTargetType });
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
   }
@@ -318,9 +342,35 @@ export function mapCsharpCheckedCall(
     selectedSignature: {
       member: sourceSelectedMember,
       argumentConversions,
+      ...(methodTargetTypeArguments !== undefined ? { targetTypeArguments: methodTargetTypeArguments } : {}),
       ...(virtualDeclaration?.signatureId === undefined ? {} : { providerDeclaration: virtualDeclaration }),
     },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function acceptCsharpSourceProfileCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  _host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration;
+  const identity = getCsharpSourceProfileMemberIdentity(selectedDeclaration, context);
+  const member = csharpSourceProfileCallMember(identity);
+  if (member === undefined) {
+    return undefined;
+  }
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{
+    message: "C# source-profile call operation recorded from TSTS-selected source declaration identity and C# source profile metadata.",
+  }]);
+  if (member.returnType !== undefined) {
+    context.facts.set(request.call, runtimeCarrierFactKey, { carrier: member.returnType }, [{
+      message: "C# source-profile call runtime carrier recorded from selected source-profile declaration metadata.",
+    }]);
+  }
+  return acceptObservation<CheckedCallMappingResult>({
+    selectedSignature: { member },
+  }, [{ message: "C# source-profile call selected from checked TSTS source declaration identity." }]);
 }
 
 function getSelectedSignatureArgumentConversionDiagnostic(
@@ -620,6 +670,28 @@ function getSourceOwnedConstructionTypeArgumentTargetRef(
   }
 }
 
+function getExplicitCallMethodTargetTypeArguments(
+  call: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): readonly TargetTypeRef[] | undefined {
+  const ast = context.compiler?.ast;
+  const callNode = asNodeSubject(call);
+  if (ast === undefined || callNode === undefined || !ast.is.IsCallExpression(callNode)) {
+    return undefined;
+  }
+  const typeArguments = getAstTypeArguments(ast, callNode);
+  if (typeArguments.length === 0) {
+    return undefined;
+  }
+  const targetTypeArguments = typeArguments.map((argument) =>
+    getSourceOwnedConstructionTypeArgumentTargetRef(argument, context, host)
+  );
+  return targetTypeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : targetTypeArguments as readonly TargetTypeRef[];
+}
+
 function substituteSourceOwnedCallableTypeParameters(
   targetType: TargetTypeRef | undefined,
   request: CheckedCallMappingRequest,
@@ -911,7 +983,9 @@ function getSignatureDeclaration(
   if (signature === undefined || checker === undefined) {
     return undefined;
   }
-  return asNodeSubject(checker.getSignatureDeclaration(signature as Signature));
+  return typeof checker.getSignatureDeclaration === "function"
+    ? asNodeSubject(checker.getSignatureDeclaration(signature as Signature))
+    : undefined;
 }
 
 function getUniqueCalleeDeclaration(

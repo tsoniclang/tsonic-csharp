@@ -21,6 +21,7 @@ export interface TargetMemberSelectionOptions {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly declaringTargetType?: TargetTypeRef;
   readonly declaringTypeParameters?: readonly CsharpTargetTypeParameter[];
+  readonly methodTargetTypeArguments?: readonly TargetTypeRef[];
   readonly firstArgumentReceiver?: ExtensionFactSubject | false;
   readonly preferredMemberId?: string;
 }

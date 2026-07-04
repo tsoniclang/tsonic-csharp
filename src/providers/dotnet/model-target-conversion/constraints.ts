@@ -20,7 +20,15 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
     case "implements": {
       const contract = dotnetTypeRefToTargetTypeRef(constraint.contract);
       if (contract.kind !== "target-named") {
-        throw new Error(`Unsupported .NET target constraint 'implements' for non-named contract '${contract.kind}'. Add a typed TSTS target constraint before exposing this declaration.`);
+        return {
+          kind: "target-specific",
+          target: "csharp",
+          name: "unsupported-constraint",
+          value: {
+            reason: `Unsupported .NET target constraint 'implements' for non-named contract '${contract.kind}'.`,
+            contract,
+          },
+        };
       }
       return {
         kind: "implements",

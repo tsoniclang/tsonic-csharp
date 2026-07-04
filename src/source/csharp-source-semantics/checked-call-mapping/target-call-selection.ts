@@ -122,6 +122,7 @@ export function targetMemberMissEvidence(
         selectedMemberName: declaration?.memberName,
         selectedTargetIdentity: declaration?.targetIdentity,
         declaringTargetType: options.declaringTargetType,
+        methodTargetTypeArguments: options.methodTargetTypeArguments,
         firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
         argumentPassingFacts: request.arguments.map((argument, index) => argumentPassingMissDetails(context, argument, index)),
         candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),

@@ -1,6 +1,7 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
@@ -22,8 +23,10 @@ import {
   targetTypeArgumentMatchScore,
 } from "./type-matching.js";
 import {
+  bindTargetTypeParameter,
   getDeclaringTypeParameterBindings,
   substituteTargetMemberTypeParameters,
+  substituteTargetTypeRef,
 } from "./type-substitution.js";
 import {
   targetTypeRefIsClosed,
@@ -67,7 +70,11 @@ export function selectExactTargetMember(
   if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
   }
-  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  const typeParameterBindings = getSelectedTargetMemberTypeParameterBindings(member, options);
+  if (typeParameterBindings === undefined) {
+    return undefined;
+  }
+  const selectedTypeParameterBindings = new Set(typeParameterBindings.keys());
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(member.parameters, index);
     const argument = arguments_[index];
@@ -86,6 +93,12 @@ export function selectExactTargetMember(
       context,
       resolveTargetTypeRef,
     );
+    if (
+      request.sourceSelectedSignature !== undefined &&
+      targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
+    ) {
+      continue;
+    }
     if (
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
@@ -129,7 +142,11 @@ function targetMemberMatch(
   if (!targetArityMatches(parameters, arguments_.length)) {
     return undefined;
   }
-  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  const typeParameterBindings = getSelectedTargetMemberTypeParameterBindings(member, options);
+  if (typeParameterBindings === undefined) {
+    return undefined;
+  }
+  const selectedTypeParameterBindings = new Set(typeParameterBindings.keys());
   let argumentScore = 0;
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
@@ -149,6 +166,13 @@ function targetMemberMatch(
       context,
       resolveTargetTypeRef,
     );
+    if (
+      request.sourceSelectedSignature !== undefined &&
+      targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
+    ) {
+      argumentScore += 20;
+      continue;
+    }
     if (
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
@@ -222,6 +246,44 @@ function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParam
   return parameter.csharpAcceptsClosedSourceArgument === true;
 }
 
+function targetParameterAcceptsTstsCheckedSourceGenericArgument(
+  parameter: CsharpTargetParameter,
+  typeParameterBindings: ReadonlyMap<string, TargetTypeRef>,
+  selectedTypeParameterBindings: ReadonlySet<string>,
+): boolean {
+  return targetTypeRefHasSelectedBoundTypeParameter(parameter.type, typeParameterBindings, selectedTypeParameterBindings) &&
+    targetTypeRefIsClosed(substituteTargetTypeRef(parameter.type, typeParameterBindings));
+}
+
+function targetTypeRefHasSelectedBoundTypeParameter(
+  type: TargetTypeRef,
+  typeParameterBindings: ReadonlyMap<string, TargetTypeRef>,
+  selectedTypeParameterBindings: ReadonlySet<string>,
+): boolean {
+  switch (type.kind) {
+    case "type-parameter":
+      return typeParameterBindings.has(type.name) && selectedTypeParameterBindings.has(type.name);
+    case "target-named":
+      return (type.typeArguments ?? []).some((argument) => targetTypeRefHasSelectedBoundTypeParameter(argument, typeParameterBindings, selectedTypeParameterBindings));
+    case "array":
+      return targetTypeRefHasSelectedBoundTypeParameter(type.element, typeParameterBindings, selectedTypeParameterBindings);
+    case "tuple":
+      return type.elements.some((element) => targetTypeRefHasSelectedBoundTypeParameter(element, typeParameterBindings, selectedTypeParameterBindings));
+    case "pointer":
+      return targetTypeRefHasSelectedBoundTypeParameter(type.pointee, typeParameterBindings, selectedTypeParameterBindings);
+    case "function-pointer":
+      return targetTypeRefHasSelectedBoundTypeParameter(type.result, typeParameterBindings, selectedTypeParameterBindings) ||
+        type.args.some((argument) => targetTypeRefHasSelectedBoundTypeParameter(argument, typeParameterBindings, selectedTypeParameterBindings));
+    case "associated-type":
+      return targetTypeRefHasSelectedBoundTypeParameter(type.owner, typeParameterBindings, selectedTypeParameterBindings);
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return false;
+  }
+}
+
 function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter["type"]): boolean {
   switch (type.kind) {
     case "source-primitive":
@@ -233,6 +295,29 @@ function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter
     default:
       return false;
   }
+}
+
+function getSelectedTargetMemberTypeParameterBindings(
+  member: CsharpTargetMember,
+  options: TargetMemberSelectionOptions,
+): Map<string, TargetTypeRef> | undefined {
+  const bindings = getDeclaringTypeParameterBindings(options);
+  const methodTargetTypeArguments = options.methodTargetTypeArguments;
+  if (methodTargetTypeArguments === undefined) {
+    return bindings;
+  }
+  const methodTypeParameters = member.typeParameters ?? [];
+  if (methodTargetTypeArguments.length !== methodTypeParameters.length) {
+    return undefined;
+  }
+  for (let index = 0; index < methodTypeParameters.length; index += 1) {
+    const parameter = methodTypeParameters[index];
+    const argument = methodTargetTypeArguments[index];
+    if (parameter === undefined || argument === undefined || !bindTargetTypeParameter(parameter.name, argument, bindings)) {
+      return undefined;
+    }
+  }
+  return bindings;
 }
 
 function getTargetArgumentSubjectsForMember(

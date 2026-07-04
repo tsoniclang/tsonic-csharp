@@ -66,7 +66,7 @@ sealed partial class ReflectionProvider
         type = UnwrapByRef(type);
         if (type.IsGenericParameter)
         {
-            return type.DeclaringType == declaringType;
+            return type.DeclaringMethod is null && type.DeclaringType == declaringType;
         }
         if (type.HasElementType)
         {
@@ -282,9 +282,26 @@ sealed partial class ReflectionProvider
         return disambiguateByArity && arity > 0 ? $"{baseName}_{arity}" : baseName;
     }
 
+    static string QualifiedNestedSourceTypeName(Type type, bool disambiguateByArity)
+    {
+        var baseName = QualifiedNestedSourceTypeBaseName(type);
+        var arity = GenericTypeNameArity(type);
+        return disambiguateByArity && arity > 0 ? $"{baseName}_{arity}" : baseName;
+    }
+
     static string SourceTypeBaseName(Type type)
     {
         return Identifier(StripGenericArity(type.Name));
+    }
+
+    static string QualifiedNestedSourceTypeBaseName(Type type)
+    {
+        var parts = new Stack<string>();
+        for (var current = type; current is not null; current = current.DeclaringType)
+        {
+            parts.Push(StripGenericArity(current.Name));
+        }
+        return Identifier(string.Join("_", parts));
     }
 
     static int GenericTypeNameArity(Type type)
