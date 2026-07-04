@@ -295,25 +295,9 @@ sealed partial class ReflectionProvider
             : arity;
     }
 
-    static string LowerCamel(string name)
+    static string SourceMemberName(string name)
     {
-        var source = StripGenericArity(name);
-        if (source.Length == 0)
-        {
-            return source;
-        }
-        if (source.Length == 1)
-        {
-            return Identifier(source.ToLowerInvariant());
-        }
-        return Identifier(char.ToLowerInvariant(source[0]) + source[1..]);
-    }
-
-    static string OperatorSourceName(string name)
-    {
-        return name.StartsWith("op_", StringComparison.Ordinal)
-            ? LowerCamel(name[3..])
-            : LowerCamel(name);
+        return Identifier(StripGenericArity(name));
     }
 
     static string Identifier(string value)

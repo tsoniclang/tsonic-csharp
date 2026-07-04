@@ -232,8 +232,8 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.equal(providerArray.id, dotnetNativeArrayTypeId);
   assert.deepEqual(providerArray.typeParameters, [{ name: "T", defaultType: { kind: "unknown" } }]);
 
-  const create = providerArray.members.find((member) => member.name === "create");
-  const length = providerArray.members.find((member) => member.name === "length");
+  const create = providerArray.members.find((member) => member.name === "Create");
+  const length = providerArray.members.find((member) => member.name === "Length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
   assert.equal(create.id, `${dotnetNativeArrayCreateMemberId}#static`);
   assert.equal(create.static, true);
@@ -271,11 +271,49 @@ test(".NET reflection provider returns requested export declaration closures ins
 
   const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
   assert.ok(convert);
-  assert.equal(convert.members?.some((member) => member.sourceName === "toByte"), true);
+  assert.equal(convert.members?.some((member) => member.sourceName === "ToByte"), true);
 
   const formatProvider = module.exports.find((declaration) => declaration.sourceName === "IFormatProvider");
   assert.ok(formatProvider);
   assert.equal(formatProvider.members, undefined);
+});
+
+test(".NET provider preserves exact CLR source-visible member names", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {
+    requestedExports: ["Console", "Environment", "DateTime", "SpecialFolder"],
+  });
+  const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
+    requestedExports: ["List"],
+  });
+  assert.equal("exports" in systemModule, true, JSON.stringify(systemModule));
+  assert.equal("exports" in collectionsModule, true, JSON.stringify(collectionsModule));
+
+  const console = systemModule.exports.find((declaration) => declaration.sourceName === "Console");
+  const environment = systemModule.exports.find((declaration) => declaration.sourceName === "Environment");
+  const dateTime = systemModule.exports.find((declaration) => declaration.sourceName === "DateTime");
+  const specialFolder = systemModule.exports.find((declaration) => declaration.sourceName === "SpecialFolder");
+  const list = collectionsModule.exports.find((declaration) => declaration.sourceName === "List");
+
+  assert.ok(console?.members?.some((member) => member.kind === "method" && member.sourceName === "WriteLine" && member.targetName === "WriteLine"));
+  assert.ok(list?.members?.some((member) => member.kind === "method" && member.sourceName === "Add" && member.targetName === "Add"));
+  assert.ok(environment?.members?.some((member) => member.kind === "property" && member.sourceName === "NewLine" && member.targetName === "NewLine"));
+  assert.ok(dateTime?.members?.some((member) => member.kind === "field" && member.sourceName === "MinValue" && member.targetName === "MinValue"));
+  assert.ok(specialFolder?.members?.some((member) => member.kind === "field" && member.sourceName === "Desktop" && member.targetName === "Desktop"));
+
+  const systemModel = dotnetModuleToProviderDeclarationModel(systemModule);
+  const collectionsModel = dotnetModuleToProviderDeclarationModel(collectionsModule);
+  const sourceConsole = systemModel.exports.find((declaration) => declaration.name === "Console");
+  const sourceEnvironment = systemModel.exports.find((declaration) => declaration.name === "Environment");
+  const sourceDateTime = systemModel.exports.find((declaration) => declaration.name === "DateTime");
+  const sourceSpecialFolder = systemModel.exports.find((declaration) => declaration.name === "SpecialFolder");
+  const sourceList = collectionsModel.exports.find((declaration) => declaration.name === "List");
+
+  assert.ok(sourceConsole?.members?.some((member) => member.kind === "method" && member.name === "WriteLine"));
+  assert.ok(sourceList?.members?.some((member) => member.kind === "method" && member.name === "Add"));
+  assert.ok(sourceEnvironment?.members?.some((member) => member.kind === "property" && member.name === "NewLine"));
+  assert.ok(sourceDateTime?.members?.some((member) => member.kind === "field" && member.name === "MinValue"));
+  assert.ok(sourceSpecialFolder?.members?.some((member) => member.kind === "field" && member.name === "Desktop"));
 });
 
 test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
@@ -940,8 +978,8 @@ test(".NET target binding uses provider-owned target member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Collections.Generic.js", "System.Collections.Generic.List`1");
 
-  const count = binding.members.find((member) => member.sourceName === "count");
-  const item = binding.members.find((member) => member.sourceName === "item");
+  const count = binding.members.find((member) => member.sourceName === "Count");
+  const item = binding.members.find((member) => member.sourceName === "Item");
 
   assert.equal(count?.targetName, "Count");
   assert.equal(item?.targetName, "Item");
@@ -987,7 +1025,7 @@ test(".NET reflection provider records attribute facts as target data without so
     { kind: "named", name: "Label", memberKind: "field", value: { kind: "string", value: "type-field" } },
   ]);
 
-  const rawRun = rawTarget.members.find((member) => member.kind === "method" && member.sourceName === "run");
+  const rawRun = rawTarget.members.find((member) => member.kind === "method" && member.sourceName === "Run");
   assert.ok(rawRun);
   const runSignature = rawRun.signatures[0];
   const methodAttribute = runSignature.attributes?.find((attribute) =>
@@ -1064,7 +1102,7 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
   assert.ok(enumerable);
   const rawAverage = enumerable.members.find((member) =>
     member.kind === "method" &&
-    member.sourceName === "average" &&
+    member.sourceName === "Average" &&
     member.receiverPassing === "first-argument"
   );
   assert.ok(rawAverage);
@@ -1072,7 +1110,7 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Linq.js", "System.Linq.Enumerable");
   const average = binding.members.find((member) =>
     member.kind === "method" &&
-    member.sourceName === "average" &&
+    member.sourceName === "Average" &&
     member.receiverPassing === "first-argument"
   );
   assert.ok(average);
@@ -1091,7 +1129,7 @@ test(".NET provider source declarations keep extension-method signature identiti
 
   const asSpan = memoryExtensions.members.find((member) =>
     member.kind === "method" &&
-    member.name === "asSpan" &&
+    member.name === "AsSpan" &&
     member.static === true
   );
   assert.ok(asSpan);
@@ -1125,7 +1163,7 @@ test(".NET provider declaration model orders source-exact overloads before provi
   assert.ok(file);
   const writeAllText = file.members.find((member) =>
     member.kind === "method" &&
-    member.name === "writeAllText" &&
+    member.name === "WriteAllText" &&
     member.static === true
   );
   assert.ok(writeAllText);
@@ -1150,7 +1188,7 @@ test(".NET provider models LINQ ExtensionMethods receiver metadata from target f
   assert.ok(enumerable);
   const average = enumerable.members.find((member) =>
     member.kind === "method" &&
-    member.name === "average" &&
+    member.name === "Average" &&
     member.static === true
   );
   assert.ok(average);
@@ -1491,7 +1529,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   const dateTime = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.DateTime");
   assert.ok(dateTime.members.some((member) =>
     member.kind === "operator" &&
-    member.sourceName === "addition" &&
+    member.sourceName === "op_Addition" &&
     member.targetName === "op_Addition"
   ));
 
@@ -1500,7 +1538,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   assert.ok(specialFolder.members.some((member) =>
     member.kind === "field" &&
     member.static === true &&
-    member.sourceName === "desktop" &&
+    member.sourceName === "Desktop" &&
     member.targetName === "Desktop"
   ));
 
@@ -1521,7 +1559,7 @@ test(".NET reflection provider records events as target facts and omits source d
   assert.ok(rawProcess);
   const rawExited = rawProcess.members?.find((member) =>
     member.kind === "event" &&
-    member.sourceName === "exited" &&
+    member.sourceName === "Exited" &&
     member.targetName === "Exited"
   );
   assert.ok(rawExited);
@@ -1540,12 +1578,12 @@ test(".NET reflection provider records events as target facts and omits source d
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const process = declarationModel.exports.find((declaration) => declaration.name === "Process");
   assert.ok(process);
-  assert.equal(process.members?.some((member) => member.name === "exited"), false);
+  assert.equal(process.members?.some((member) => member.name === "Exited"), false);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Diagnostics.js", "System.Diagnostics.Process");
   const targetExited = binding.members?.find((member) =>
     member.kind === "event" &&
-    member.sourceName === "exited" &&
+    member.sourceName === "Exited" &&
     member.targetName === "Exited"
   );
   assert.ok(targetExited);
@@ -1564,7 +1602,7 @@ test(".NET reflection provider records unsupported source events without droppin
   assert.ok(rawEventSource);
   const rawPointerEvent = rawEventSource.members?.find((member) =>
     member.kind === "event" &&
-    member.sourceName === "pointerEvent" &&
+    member.sourceName === "PointerEvent" &&
     member.targetName === "PointerEvent"
   );
   assert.ok(rawPointerEvent);
@@ -1583,12 +1621,12 @@ test(".NET reflection provider records unsupported source events without droppin
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const eventSource = declarationModel.exports.find((declaration) => declaration.name === "EventSource");
   assert.ok(eventSource);
-  assert.equal(eventSource.members?.some((member) => member.name === "pointerEvent"), false);
+  assert.equal(eventSource.members?.some((member) => member.name === "PointerEvent"), false);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderEventFixtures.js", "ProviderEventFixtures.EventSource");
   const targetPointerEvent = binding.members?.find((member) =>
     member.kind === "event" &&
-    member.sourceName === "pointerEvent" &&
+    member.sourceName === "PointerEvent" &&
     member.targetName === "PointerEvent"
   );
   assert.ok(targetPointerEvent);
@@ -1605,7 +1643,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
   assert.ok(rawStringBuilder);
   const rawLength = rawStringBuilder.members.find((member) =>
     member.kind === "property" &&
-    member.sourceName === "length" &&
+    member.sourceName === "Length" &&
     member.targetName === "Length"
   );
   assert.ok(rawLength);
@@ -1619,7 +1657,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
   assert.ok(sourceStringBuilder);
   const sourceLength = sourceStringBuilder.members.find((member) =>
     member.kind === "property" &&
-    member.name === "length" &&
+    member.name === "Length" &&
     member.static === undefined
   );
   assert.ok(sourceLength);
@@ -1631,7 +1669,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
   assert.ok(rawConsole);
   const foregroundColor = rawConsole.members.find((member) =>
     member.kind === "property" &&
-    member.sourceName === "foregroundColor" &&
+    member.sourceName === "ForegroundColor" &&
     member.targetName === "ForegroundColor"
   );
   assert.ok(foregroundColor);
@@ -1646,7 +1684,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
   const systemDeclarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const sourceEnvironment = systemDeclarationModel.exports.find((declaration) => declaration.name === "Environment");
   assert.ok(sourceEnvironment);
-  const sourceNewLine = sourceEnvironment.members?.find((member) => member.name === "newLine");
+  const sourceNewLine = sourceEnvironment.members?.find((member) => member.name === "NewLine");
   assert.ok(sourceNewLine);
   assert.equal(sourceNewLine.readonly, true);
 });
@@ -1662,7 +1700,7 @@ test(".NET reflection provider exposes readable fields with readonly facts", () 
   const systemDeclarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const sourceDateTime = systemDeclarationModel.exports.find((declaration) => declaration.name === "DateTime");
   assert.ok(sourceDateTime);
-  const sourceMinValue = sourceDateTime.members?.find((member) => member.name === "minValue");
+  const sourceMinValue = sourceDateTime.members?.find((member) => member.name === "MinValue");
   assert.ok(sourceMinValue);
   assert.equal(sourceMinValue.readonly, true);
 
@@ -1671,12 +1709,12 @@ test(".NET reflection provider exposes readable fields with readonly facts", () 
   assert.ok(specialFolder.members.some((member) =>
     member.kind === "field" &&
     member.static === true &&
-    member.sourceName === "desktop" &&
+    member.sourceName === "Desktop" &&
     member.targetName === "Desktop"
   ));
 });
 
-test(".NET provider declaration model rejects static methods that collide with instance source names", () => {
+test(".NET provider declaration model preserves static and instance CLR member identities with the same source name", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["DateTime", "DateTimeOffset"] });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -1687,17 +1725,17 @@ test(".NET provider declaration model rejects static methods that collide with i
   for (const typeName of ["DateTime", "DateTimeOffset"]) {
     const declaration = model.exports.find((candidate) => candidate.name === typeName);
     assert.ok(declaration, typeName);
-    const equalsMembers = declaration.members?.filter((member) => member.name === "equals") ?? [];
-    assert.equal(equalsMembers.length, 1, typeName);
+    const equalsMembers = declaration.members?.filter((member) => member.name === "Equals") ?? [];
+    assert.equal(equalsMembers.length, 2, typeName);
     assert.equal(new Set(equalsMembers.map((member) => member.id)).size, equalsMembers.length, typeName);
     assert.ok(equalsMembers.some((member) => member.static !== true), typeName);
+    assert.ok(equalsMembers.some((member) => member.static === true), typeName);
     const rawDeclaration = module.exports.find((candidate) => candidate.sourceName === typeName);
-    assert.ok(rawDeclaration?.unsupportedMembers?.some((member) =>
+    assert.equal(rawDeclaration?.unsupportedMembers?.some((member) =>
       member.memberKind === "method" &&
-      member.sourceName === "equals" &&
-      member.static === true &&
-      /same source-visible name/.test(member.reason)
-    ), typeName);
+      member.sourceName === "Equals" &&
+      member.static === true
+    ) ?? false, false, typeName);
   }
 });
 
@@ -1708,17 +1746,17 @@ test(".NET reflection provider exposes unique nested CLR types as source declara
 
   const rawEnvironment = systemModule.exports.find((declaration) => declaration.sourceName === "Environment");
   assert.ok(rawEnvironment);
-  assert.ok(rawEnvironment.members.some((member) => member.sourceName === "getFolderPath"));
+  assert.ok(rawEnvironment.members.some((member) => member.sourceName === "GetFolderPath"));
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const environment = declarationModel.exports.find((declaration) => declaration.name === "Environment");
   assert.ok(environment);
-  assert.equal(environment.members.some((member) => member.name === "getFolderPath"), true);
-  assert.equal(environment.members.some((member) => member.name === "newLine"), true);
+  assert.equal(environment.members.some((member) => member.name === "GetFolderPath"), true);
+  assert.equal(environment.members.some((member) => member.name === "NewLine"), true);
   const specialFolder = declarationModel.exports.find((declaration) => declaration.name === "SpecialFolder");
   assert.ok(specialFolder);
   assert.equal(specialFolder.kind, "enum");
-  assert.equal(specialFolder.members.some((member) => member.name === "desktop"), true);
+  assert.equal(specialFolder.members.some((member) => member.name === "Desktop"), true);
 
   assert.ok(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Environment.SpecialFolder"));
 });
@@ -1874,17 +1912,17 @@ test(".NET provider source declarations project cross-module inherited overloads
   });
   const typeDelegator = declarationModel.exports.find((declaration) => declaration.name === "TypeDelegator");
   assert.ok(typeDelegator);
-  const getConstructors = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "getConstructors");
+  const getConstructors = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetConstructors");
   assert.ok(getConstructors);
   assert.equal(getConstructors.signatures?.some((signature) => signature.parameters.length === 0), true);
   assert.equal(getConstructors.signatures?.some((signature) => signature.parameters.length === 1), true);
 
-  const getEvent = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "getEvent");
+  const getEvent = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetEvent");
   assert.ok(getEvent);
   assert.equal(getEvent.signatures?.some((signature) => signature.parameters.length === 1), true);
   assert.equal(getEvent.signatures?.some((signature) => signature.parameters.length === 2), true);
 
-  const getNestedType = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "getNestedType");
+  const getNestedType = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetNestedType");
   assert.ok(getNestedType);
   assert.equal(getNestedType.signatures?.every((signature) =>
     signature.returnType?.kind === "target-named" &&
@@ -1994,7 +2032,7 @@ test(".NET reflection provider records generic constraints and variance as targe
     name: parameter.name,
     constraints: parameter.constraints,
   })), [{ name: "T", constraints: undefined }]);
-  const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
+  const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "Copy");
   assert.ok(sourceCopy);
   assert.equal(sourceCopy.signatures[0].typeParameters[0].constraints, undefined);
   const sourceNotNullTarget = declarationModel.exports.find((declaration) => declaration.name === "NotNullTarget");
@@ -2077,7 +2115,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
         members: [
           {
             kind: "indexer",
-            sourceName: "item",
+            sourceName: "Item",
             targetName: "Item",
             targetId: testTargetId("Example.Headers.Item(System.String)"),
             metadataName: "Example.Headers.Item(System.String)",
@@ -2162,7 +2200,7 @@ test(".NET target bindings retain generic Dictionary indexers as target-only fac
   assert.deepEqual(targetIndexers[0].parameters[0].type, { kind: "type-parameter", name: "TKey" });
 });
 
-test(".NET provider source declarations omit constructor-named non-constructor members", () => {
+test(".NET provider source declarations preserve Constructor property casing without colliding with constructor syntax", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});
   assert.equal("exports" in reflectionModule, true);
@@ -2171,14 +2209,14 @@ test(".NET provider source declarations omit constructor-named non-constructor m
   assert.ok(rawCustomAttributeData);
   assert.ok(rawCustomAttributeData.members.some((member) =>
     member.kind === "property" &&
-    member.sourceName === "constructor" &&
+    member.sourceName === "Constructor" &&
     member.targetName === "Constructor"
   ));
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(reflectionModule);
   const customAttributeData = declarationModel.exports.find((declaration) => declaration.name === "CustomAttributeData");
   assert.ok(customAttributeData);
-  assert.equal(customAttributeData.members.some((member) => member.kind !== "constructor" && member.name === "constructor"), false);
+  assert.equal(customAttributeData.members.some((member) => member.kind === "property" && member.name === "Constructor"), true);
 });
 
 test(".NET provider inheritance keeps provider refs in their owning virtual module", () => {
@@ -2283,7 +2321,7 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "SignatureTarget");
   assert.ok(sourceTarget);
-  const sourceM = sourceTarget.members.find((member) => member.name === "m");
+  const sourceM = sourceTarget.members.find((member) => member.name === "M");
   assert.ok(sourceM);
   assert.deepEqual(sourceM.signatures.map((signature) => stripAssemblyQualifiers(signature.id)), [
     "ProviderSignatureFixtures.SignatureTarget.M(System.Int32)",
@@ -2362,9 +2400,9 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ParameterModeTarget");
   assert.ok(sourceTarget);
-  const sourceOptionalDefaults = methodSignature(sourceTarget, "optionalDefaults", optionalDefaultsId);
-  const sourceParamsRest = methodSignature(sourceTarget, "paramsRest", paramsRestId);
-  const sourceByRefModes = methodSignature(sourceTarget, "byRefModes", byRefModesId);
+  const sourceOptionalDefaults = methodSignature(sourceTarget, "OptionalDefaults", optionalDefaultsId);
+  const sourceParamsRest = methodSignature(sourceTarget, "ParamsRest", paramsRestId);
+  const sourceByRefModes = methodSignature(sourceTarget, "ByRefModes", byRefModesId);
   assert.equal(sourceOptionalDefaults.name, "OptionalDefaults");
   assert.deepEqual(parameterFacts(sourceOptionalDefaults.parameters), [
     { name: "required", type: { kind: "string" } },
@@ -2462,7 +2500,7 @@ test(".NET reflection provider preserves extension receiver passing per selected
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "MixedExtensionTarget");
   assert.ok(sourceTarget);
-  const sourceTransform = sourceTarget.members.find((member) => member.kind === "method" && member.name === "transform");
+  const sourceTransform = sourceTarget.members.find((member) => member.kind === "method" && member.name === "Transform");
   assert.ok(sourceTransform);
   assert.deepEqual(sourceTransform.signatures.map((signature) => stripAssemblyQualifiers(signature.id)).sort(), [
     "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)",

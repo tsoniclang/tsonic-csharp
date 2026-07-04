@@ -23,7 +23,7 @@ test(".NET provider keeps CLR generic constraints in target facts, not source vi
 
   assert.equal(sourceReferenceNewTarget.typeParameters?.[0]?.constraints, undefined);
 
-  const sourceCopy = getSourceMember(sourceReferenceNewTarget, "copy");
+  const sourceCopy = getSourceMember(sourceReferenceNewTarget, "Copy");
   const sourceCopyTypeParameter = sourceCopy.signatures[0].typeParameters[0];
   assert.equal(sourceCopyTypeParameter.constraints, undefined);
 

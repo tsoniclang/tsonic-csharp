@@ -21,7 +21,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   const rawOptional = rawSignature(
     module,
     "ArgumentException",
-    "throwIfNullOrEmpty",
+    "ThrowIfNullOrEmpty",
     "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)",
   );
   assert.equal(rawOptional.parameters[0].optional, undefined);
@@ -31,7 +31,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   const rawParams = rawSignature(
     module,
     "Console",
-    "writeLine",
+    "WriteLine",
     "System.Console.WriteLine(System.String,System.Object[])",
   );
   assert.equal(rawParams.parameters[0].rest, undefined);
@@ -43,7 +43,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   const sourceOptional = sourceSignature(
     sourceModel,
     "ArgumentException",
-    "throwIfNullOrEmpty",
+    "ThrowIfNullOrEmpty",
     "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)",
   );
   assert.equal(sourceOptional.parameters[1].optional, true);
@@ -51,7 +51,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   const sourceParams = sourceSignature(
     sourceModel,
     "Console",
-    "writeLine",
+    "WriteLine",
     "System.Console.WriteLine(System.String,System.Object[])",
   );
   assert.equal(sourceParams.parameters[1].rest, true);
@@ -90,14 +90,14 @@ test(".NET provider preserves default parameter values only from reflected defau
     { kind: "null" },
   ];
 
-  const rawDefaults = rawSignature(module, "DefaultParameterSource", "withDefaults", defaultsSignatureId);
+  const rawDefaults = rawSignature(module, "DefaultParameterSource", "WithDefaults", defaultsSignatureId);
   assert.deepEqual(rawDefaults.parameters.map((parameter) => parameter.defaultValue), expectedDefaults);
   assert.equal(rawDefaults.parameters.every((parameter) => parameter.optional === true), true);
 
   const rawOptionalWithoutDefault = rawSignature(
     module,
     "DefaultParameterSource",
-    "optionalWithoutDefault",
+    "OptionalWithoutDefault",
     "ProviderDefaultFixtures.DefaultParameterSource.OptionalWithoutDefault(System.String)",
   );
   assert.equal(rawOptionalWithoutDefault.parameters[0].optional, true);
@@ -106,14 +106,14 @@ test(".NET provider preserves default parameter values only from reflected defau
   const rawRequired = rawSignature(
     module,
     "DefaultParameterSource",
-    "required",
+    "Required",
     "ProviderDefaultFixtures.DefaultParameterSource.Required(System.String)",
   );
   assert.equal(rawRequired.parameters[0].optional, undefined);
   assert.equal(rawRequired.parameters[0].defaultValue, undefined);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
-  const sourceDefaults = sourceSignature(sourceModel, "DefaultParameterSource", "withDefaults", defaultsSignatureId);
+  const sourceDefaults = sourceSignature(sourceModel, "DefaultParameterSource", "WithDefaults", defaultsSignatureId);
   assert.deepEqual(sourceDefaults.parameters.map((parameter) => parameter.optional), [true, true, true, true, true, true, true]);
   assert.equal(sourceDefaults.parameters.some((parameter) => "defaultValue" in parameter), false);
 
@@ -145,7 +145,7 @@ test(".NET provider records unsupported default parameter values without exposin
   const rawSignatureWithUnsupportedDefault = rawSignature(
     module,
     "UnsupportedDefaultParameterSource",
-    "unsupportedDateTimeDefault",
+    "UnsupportedDateTimeDefault",
     signatureId,
   );
   const rawParameter = rawSignatureWithUnsupportedDefault.parameters[0];
@@ -161,7 +161,7 @@ test(".NET provider records unsupported default parameter values without exposin
   const sourceSignatureWithUnsupportedDefault = sourceSignature(
     sourceModel,
     "UnsupportedDefaultParameterSource",
-    "unsupportedDateTimeDefault",
+    "UnsupportedDateTimeDefault",
     signatureId,
   );
   assert.equal(sourceSignatureWithUnsupportedDefault.parameters[0].optional, true);

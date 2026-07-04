@@ -477,14 +477,14 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   assert.equal(validateDotnetModuleModelContract(collectionsModule), undefined);
 
   const console = rawType(systemModule, "Console");
-  const rawWriteLineString = rawMethod(console, "writeLine", "System.Console.WriteLine(System.String)");
-  const rawWriteLineChar = rawMethod(console, "writeLine", "System.Console.WriteLine(System.Char)");
+  const rawWriteLineString = rawMethod(console, "WriteLine", "System.Console.WriteLine(System.String)");
+  const rawWriteLineChar = rawMethod(console, "WriteLine", "System.Console.WriteLine(System.Char)");
   assert.ok(rawWriteLineString);
   assert.ok(rawWriteLineChar);
-  assert.equal(rawMethod(console, "writeLine", "System.Console.WriteLine(System.String)").static, true);
+  assert.equal(rawMethod(console, "WriteLine", "System.Console.WriteLine(System.String)").static, true);
   const systemSourceModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const sourceConsole = sourceType(systemSourceModel, "Console");
-  const sourceWriteLine = sourceMember(sourceConsole, "writeLine");
+  const sourceWriteLine = sourceMember(sourceConsole, "WriteLine");
   const sourceStringWriteLineSignatures = (sourceWriteLine.signatures ?? []).filter((signature) =>
     signature.parameters.length === 1 &&
     signature.parameters[0]?.type.kind === "string"
@@ -504,11 +504,11 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   const list = rawType(collectionsModule, "List");
   assert.deepEqual(list.typeParameters.map((parameter) => parameter.name), ["T"]);
   assert.ok(rawConstructor(list, "System.Collections.Generic.List`1..ctor()"));
-  assert.ok(rawMethod(list, "add", "System.Collections.Generic.List`1.Add(T)"));
+  assert.ok(rawMethod(list, "Add", "System.Collections.Generic.List`1.Add(T)"));
 
   const dictionary = rawType(collectionsModule, "Dictionary");
   assert.deepEqual(dictionary.typeParameters.map((parameter) => parameter.name), ["TKey", "TValue"]);
-  assert.ok(rawMethod(dictionary, "add", "System.Collections.Generic.Dictionary`2.Add(TKey,TValue)"));
+  assert.ok(rawMethod(dictionary, "Add", "System.Collections.Generic.Dictionary`2.Add(TKey,TValue)"));
   assert.ok(rawIndexer(dictionary, "System.Collections.Generic.Dictionary`2.Item(TKey)"));
 });
 
@@ -556,7 +556,7 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
   assert.equal(nativeArray.targetType.kind, "array");
   assert.equal(nativeArray.targetType.rank, undefined);
   assert.deepEqual(
-    rawMethod(nativeArray, "create", "tsonic.dotnet.System.Array`1.create(System.Int32)").signatures[0].returnType,
+    rawMethod(nativeArray, "Create", "tsonic.dotnet.System.Array`1.Create(System.Int32)").signatures[0].returnType,
     {
       kind: "provider-ref",
       moduleSpecifier: "@tsonic/dotnet/System.js",
@@ -566,13 +566,13 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
   );
 
   const parameterModeTarget = rawType(signatureModule, "ParameterModeTarget");
-  const byRefModes = rawMethod(parameterModeTarget, "byRefModes", "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes(ref System.Int32,out System.Boolean,in System.Int64)").signatures[0];
+  const byRefModes = rawMethod(parameterModeTarget, "ByRefModes", "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes(ref System.Int32,out System.Boolean,in System.Int64)").signatures[0];
   assert.deepEqual(byRefModes.parameters.map((parameter) => parameter.passingMode), [
     "byref-readwrite",
     "byref-writeonly-must-init",
     "byref-readonly",
   ]);
-  const paramsRest = rawMethod(parameterModeTarget, "paramsRest", "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest(System.String,System.Int32[])").signatures[0];
+  const paramsRest = rawMethod(parameterModeTarget, "ParamsRest", "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest(System.String,System.Int32[])").signatures[0];
   assert.equal(paramsRest.parameters[1].rest, true);
   assert.equal(paramsRest.parameters[1].type.kind, "array");
 
@@ -665,7 +665,7 @@ test(".NET provider unsupported diagnostics preserve attribute and default-value
   const unsupportedDefaultSource = rawType(defaultModule, "UnsupportedDefaultParameterSource");
   const rawSignature = rawMethod(
     unsupportedDefaultSource,
-    "unsupportedDateTimeDefault",
+    "UnsupportedDateTimeDefault",
     "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)",
   ).signatures[0];
   const rawParameter = rawSignature.parameters[0];
@@ -678,7 +678,7 @@ test(".NET provider unsupported diagnostics preserve attribute and default-value
   const sourceModel = dotnetModuleToProviderDeclarationModel(defaultModule);
   assert.equal(validateDotnetProviderDeclarationModelContract(sourceModel), undefined);
   const sourceDefaultType = sourceModel.exports.find((declaration) => declaration.name === "UnsupportedDefaultParameterSource");
-  const sourceSignature = sourceDefaultType?.members?.find((member) => member.name === "unsupportedDateTimeDefault")?.signatures?.[0];
+  const sourceSignature = sourceDefaultType?.members?.find((member) => member.name === "UnsupportedDateTimeDefault")?.signatures?.[0];
   assert.ok(sourceSignature);
   assert.equal(sourceSignature.parameters[0].optional, true);
   assert.equal("defaultValue" in sourceSignature.parameters[0], false);

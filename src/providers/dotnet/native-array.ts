@@ -8,7 +8,7 @@ import {
 } from "./module-specifier.js";
 
 export const dotnetNativeArrayTypeId = "tsonic.dotnet.System.Array`1";
-export const dotnetNativeArrayCreateMemberId = `${dotnetNativeArrayTypeId}.create(System.Int32)`;
+export const dotnetNativeArrayCreateMemberId = `${dotnetNativeArrayTypeId}.Create(System.Int32)`;
 export const dotnetNativeArrayLengthMemberId = `${dotnetNativeArrayTypeId}.Length`;
 export const dotnetNativeArrayIndexerMemberId = `${dotnetNativeArrayTypeId}.Item(System.Int32)`;
 
@@ -84,10 +84,10 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
     members: [
       {
         kind: "method",
-        sourceName: "create",
-        targetName: "create",
+        sourceName: "Create",
+        targetName: "Create",
         targetId: dotnetNativeArrayCreateMemberId,
-        metadataName: "System.Array`1.create(System.Int32)",
+        metadataName: "System.Array`1.Create(System.Int32)",
         static: true,
         signatures: [
           {
@@ -107,7 +107,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
       },
       {
         kind: "property",
-        sourceName: "length",
+        sourceName: "Length",
         targetName: "Length",
         targetId: dotnetNativeArrayLengthMemberId,
         metadataName: "System.Array`1.Length",
@@ -117,7 +117,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
       },
       {
         kind: "indexer",
-        sourceName: "item",
+        sourceName: "Item",
         targetName: "Item",
         targetId: dotnetNativeArrayIndexerMemberId,
         metadataName: "System.Array`1.Item(System.Int32)",
