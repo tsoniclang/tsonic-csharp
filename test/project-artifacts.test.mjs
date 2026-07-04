@@ -1,9 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, symlinkSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { planCsharpProjectFile } from "../dist/backend/planner/project-artifacts.js";
 import { createCsharpTargetPack } from "../dist/descriptor/csharp-target-pack.js";
 import { printCsharpProjectFile } from "../dist/print/csharp-project-printer.js";
 import { createDotnetToolchain } from "../dist/toolchain/dotnet-toolchain.js";
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const tsonicLangRoot = dirname(repoRoot);
+const fixtureProjectRoot = join(repoRoot, ".temp", "project-artifacts-installed-runtime");
 
 test("project artifact emits explicit target-owned .NET references", () => {
   const project = planCsharpProjectFile(fakeInput({
@@ -168,9 +175,9 @@ test("target provider contributes closed compat carrier runtime without requirin
     selectedSurfaces: [jsSurface],
   })).references;
 
-  assert.equal(strictReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
-  assert.equal(compatReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 1);
-  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
+  assert.equal(strictReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
+  assert.equal(compatReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
+  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
 });
 
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {
@@ -202,6 +209,7 @@ function fakeInput(options = {}, runtimeReferences = []) {
 }
 
 function fakeRuntimeContributionContext(options = {}) {
+  ensureInstalledRuntimeFixtureProject();
   return {
     project: { targets: [] },
     target: options.target ?? { id: "csharp", options: {} },
@@ -209,9 +217,26 @@ function fakeRuntimeContributionContext(options = {}) {
     selectedSurfaces: options.selectedSurfaces ?? [],
     paths: {
       projectFilePath: "tsonic.json",
-      projectRoot: ".",
+      projectRoot: fixtureProjectRoot,
       outputRoot: "out",
       targetOutputRoot: "out/csharp",
     },
   };
+}
+
+function ensureInstalledRuntimeFixtureProject() {
+  mkdirSync(join(fixtureProjectRoot, "node_modules", "@tsonic"), { recursive: true });
+  linkInstalledRuntimePackage("@tsonic/csharp-runtime", join(tsonicLangRoot, "csharp-runtime"));
+  linkInstalledRuntimePackage("@tsonic/csharp-js", join(tsonicLangRoot, "csharp-js"));
+}
+
+function linkInstalledRuntimePackage(packageName, packageRoot) {
+  const linkPath = join(fixtureProjectRoot, "node_modules", ...packageName.split("/"));
+  try {
+    symlinkSync(packageRoot, linkPath, "dir");
+  } catch (error) {
+    if (error?.code !== "EEXIST") {
+      throw error;
+    }
+  }
 }

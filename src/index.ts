@@ -1,3 +1,5 @@
+import { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-target-pack.js";
+
 export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-target-pack.js";
 export {
   csharpLangModule,
@@ -5,10 +7,36 @@ export {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsProviderPackageExtension,
-  createCsharpNodejsProviderPackageOperationsMappers,
-  nodejsProviderPackageModuleOwnership,
 } from "./source/csharp-source-semantics.js";
+export {
+  csharpProviderDiagnostic,
+} from "./source/csharp-source-semantics/diagnostics.js";
+export {
+  csharpProviderVersion,
+  csharpSourceSemanticsExtensionId,
+  csharpTargetSemanticsExtensionId,
+  csharpJsSurfaceExtensionId,
+} from "./source/csharp-source-semantics/identity.js";
+export {
+  recordCsharpTargetOperation,
+} from "./source/csharp-source-semantics/operations.js";
+export {
+  getCsharpCheckedCallRequestContext,
+} from "./source/csharp-source-semantics/checked-call-request-context.js";
+export {
+  getCsharpCheckedElementAccessRequestContext,
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "./source/csharp-source-semantics/checked-member-access-request-context.js";
+export * from "./source/csharp-facts.js";
+export * from "./source/csharp-source-semantics/target-types.js";
+export * from "./source/csharp-source-semantics/surfaces/js/source-library.js";
+export * from "./source/csharp-source-semantics/surfaces/js/date/index.js";
+export {
+  csharpProviderPackageOperationsMapperKind,
+} from "./source/csharp-source-semantics/provider-packages/index.js";
+export type {
+  CsharpProviderPackageOperationsMapper,
+} from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
   CsharpArgument,
   CsharpBlock,
@@ -95,3 +123,12 @@ export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
 } from "./providers/dotnet/index.js";
+
+export function createTsonicPlugin() {
+  return {
+    kind: "target" as const,
+    id: "@tsonic/target-csharp",
+    targetId: csharpTargetId,
+    createTargetPack: createCsharpTargetPack,
+  };
+}
