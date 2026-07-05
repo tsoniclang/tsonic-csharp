@@ -49,6 +49,21 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedDelegateSourceShapeReason(Type type)
     {
+        var targetId = TargetId(type);
+        if (delegateSourceShapeUnsupportedReasons.TryGetValue(targetId, out var cachedReason))
+        {
+            return cachedReason;
+        }
+        var reason = ComputeUnsupportedDelegateSourceShapeReason(type);
+        if (reason is not null)
+        {
+            delegateSourceShapeUnsupportedReasons[targetId] = reason;
+        }
+        return reason;
+    }
+
+    string? ComputeUnsupportedDelegateSourceShapeReason(Type type)
+    {
         var invoke = type.GetMethod("Invoke");
         if (invoke is null)
         {

@@ -9,6 +9,10 @@ sealed partial class ReflectionProvider
     object? TypeRef(Type type)
     {
         type = UnwrapByRef(type);
+        if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(TargetId(type)))
+        {
+            return null;
+        }
         if (type == typeof(void))
         {
             return new { kind = "void" };
@@ -62,6 +66,10 @@ sealed partial class ReflectionProvider
         }
 
         var sourceShape = SourceShape(type);
+        if (IsDelegate(type) && sourceShape is null)
+        {
+            return null;
+        }
         return new
         {
             kind = "named",
@@ -77,6 +85,15 @@ sealed partial class ReflectionProvider
     string TypeRefFailureReason(Type type)
     {
         type = UnwrapByRef(type);
+        if (IsDelegate(type))
+        {
+            var targetId = TargetId(type);
+            return delegateSourceShapeInProgress.Contains(targetId)
+                ? $"Recursive delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape."
+                : delegateSourceShapeUnsupportedReasons.TryGetValue(targetId, out var reason)
+                    ? reason
+                    : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
+        }
         if (type.IsPointer)
         {
             return $"Pointer type '{TypeMetadataName(type)}' requires an explicit provider pointer type model before it can be exposed safely.";
@@ -301,27 +318,40 @@ sealed partial class ReflectionProvider
 
     object? DelegateSourceShape(Type type)
     {
-        if (UnsupportedDelegateSourceShapeReason(type) is not null)
+        var targetId = TargetId(type);
+        if (delegateSourceShapeInProgress.Contains(targetId))
         {
             return null;
         }
-        var invoke = type.GetMethod("Invoke");
-        if (invoke is null)
+        delegateSourceShapeInProgress.Add(targetId);
+        try
         {
-            return null;
+            if (UnsupportedDelegateSourceShapeReason(type) is not null)
+            {
+                return null;
+            }
+            var invoke = type.GetMethod("Invoke");
+            if (invoke is null)
+            {
+                return null;
+            }
+            var parameters = Parameters(invoke.GetParameters());
+            var returnType = TypeRef(invoke.ReturnType);
+            if (parameters is null || returnType is null)
+            {
+                return null;
+            }
+            return new
+            {
+                kind = "function",
+                parameters,
+                returnType,
+            };
         }
-        var parameters = Parameters(invoke.GetParameters());
-        var returnType = TypeRef(invoke.ReturnType);
-        if (parameters is null || returnType is null)
+        finally
         {
-            return null;
+            delegateSourceShapeInProgress.Remove(targetId);
         }
-        return new
-        {
-            kind = "function",
-            parameters,
-            returnType,
-        };
     }
 
     sealed record SourceReferenceCandidate(Type Type, SourceReference Reference);

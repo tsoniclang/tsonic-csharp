@@ -9,6 +9,8 @@ sealed partial class ReflectionProvider
     readonly Request request;
     readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
+    readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
+    readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
     string moduleSpecifierPrefix = "";
     string activeNamespaceName;
     string activeModuleSpecifier;
