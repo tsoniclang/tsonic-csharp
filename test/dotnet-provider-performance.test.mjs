@@ -144,7 +144,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
 
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.virtualDeclarationCount, 3);
-  assert.equal(snapshot.virtualDeclarationBytes > 0, true);
+  assert.equal(snapshot.virtualDeclarationBytes, JSON.stringify(declarationModel).length);
   assert.equal(snapshot.virtualDeclarationRenderMs >= 0, true);
 });
 

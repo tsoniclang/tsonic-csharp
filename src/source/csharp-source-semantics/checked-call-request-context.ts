@@ -123,11 +123,7 @@ function getCheckedReceiverPropertySymbol(
   ) {
     return undefined;
   }
-  try {
-    return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
 }
 
 function getResolvedSymbol(

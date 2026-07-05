@@ -510,7 +510,7 @@ test(".NET reflection provider reloads requested export slices from persistent c
   assert.equal(snapshot.diskCacheHits, 1);
   assert.equal(snapshot.diskCacheMisses, 0);
   assert.equal(snapshot.memoryCacheMisses, 1);
-  assert.equal(snapshot.modelBytes < 1_000_000, true, JSON.stringify(snapshot));
+  assert.equal(snapshot.modelBytes, JSON.stringify(cached).length);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
 });

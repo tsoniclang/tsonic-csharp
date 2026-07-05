@@ -402,7 +402,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(eventHandlerType);
+            var typeRef = TypeRef(eventHandlerType, requireDelegateSourceShape: false);
             if (typeRef is null)
             {
                 continue;
@@ -461,7 +461,7 @@ sealed partial class ReflectionProvider
         {
             return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
         }
-        if (TypeRef(eventHandlerType) is null)
+        if (TypeRef(eventHandlerType, requireDelegateSourceShape: false) is null)
         {
             return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }

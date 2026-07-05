@@ -759,9 +759,9 @@ function addReceiverDeclaringTypeArgumentSubstitutions(
     safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiverType, context, { allowSemanticTypeQuery: false }) ??
     safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiverType, context, { allowSemanticTypeQuery: true }) ??
     safeGetTargetTypeRefForSubject(host, requestContext.calleeReceiver, context, { allowSemanticTypeQuery: true });
-  const receiverTypeArguments = receiverType?.kind === "target-named" && (receiverType.typeArguments ?? []).length > 0
+  const receiverTypeArguments = receiverType?.kind === "target-named"
     ? receiverType.typeArguments ?? []
-    : getReceiverExpressionTypeArguments(requestContext.calleeReceiver, context, host);
+    : [];
   if (receiverTypeArguments.length === 0) {
     return;
   }
@@ -779,41 +779,12 @@ function addReceiverDeclaringTypeArgumentSubstitutions(
   }
 }
 
-function getReceiverExpressionTypeArguments(
-  receiver: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpOperationsProviderHost,
-): readonly TargetTypeRef[] {
-  const ast = context.compiler?.ast;
-  const receiverNode = asNodeSubject(receiver);
-  if (ast === undefined || receiverNode === undefined) {
-    return [];
-  }
-  const typeArguments = getAstTypeArguments(ast, receiverNode);
-  if (typeArguments.length === 0) {
-    return [];
-  }
-  const targetTypeArguments = typeArguments
-    .map((argument) => getSourceOwnedConstructionTypeArgumentTargetRef(argument, context, host));
-  return targetTypeArguments.some((argument) => argument === undefined)
-    ? []
-    : targetTypeArguments as readonly TargetTypeRef[];
-}
-
 function getAstTypeParameters(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
 ): readonly Node[] {
   const reader = ast as { readonly typeParameters?: (node: Node) => readonly Node[] };
   return typeof reader.typeParameters === "function" ? reader.typeParameters(node) : [];
-}
-
-function getAstTypeArguments(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): readonly Node[] {
-  const reader = ast as { readonly typeArguments?: (node: Node) => readonly Node[] };
-  return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
 }
 
 function getContainingSourceTypeDeclaration(

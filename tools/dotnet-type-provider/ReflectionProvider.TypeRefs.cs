@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    object? TypeRef(Type type)
+    object? TypeRef(Type type, bool requireDelegateSourceShape = true)
     {
         type = UnwrapByRef(type);
         if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(TargetId(type)))
@@ -40,14 +40,14 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var elementType = TypeRef(type.GetElementType()!);
+            var elementType = TypeRef(type.GetElementType()!, requireDelegateSourceShape);
             return elementType is null
                 ? null
                 : new { kind = "array", elementType };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
-            var elementType = TypeRef(nullableElement);
+            var elementType = TypeRef(nullableElement, requireDelegateSourceShape);
             return elementType is null
                 ? null
                 : new { kind = "nullable", elementType };
@@ -58,7 +58,7 @@ sealed partial class ReflectionProvider
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         var typeArguments = type.IsGenericType
-            ? type.GetGenericArguments().Select(TypeRef).ToArray()
+            ? type.GetGenericArguments().Select(typeArgument => TypeRef(typeArgument, requireDelegateSourceShape)).ToArray()
             : Array.Empty<object?>();
         if (typeArguments.Any(argument => argument is null))
         {
@@ -66,7 +66,7 @@ sealed partial class ReflectionProvider
         }
 
         var sourceShape = SourceShape(type);
-        if (IsDelegate(type) && sourceShape is null)
+        if (IsDelegate(type) && sourceShape is null && requireDelegateSourceShape)
         {
             return null;
         }

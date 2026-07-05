@@ -24,7 +24,7 @@ sealed partial class ReflectionProvider
     {
         return type.GetInterfaces()
             .OrderBy(MetadataName, StringComparer.Ordinal)
-            .Select(TypeRef)
+            .Select(contract => TypeRef(contract))
             .Where(contract => contract is not null)
             .Select(contract => new { kind = "implements", contract })
             .ToArray();
