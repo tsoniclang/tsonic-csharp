@@ -2479,6 +2479,7 @@ test("C# provider keeps explicit generic method target arguments for selected pr
     id: "Acme.Dto",
     csharpRender: { kind: "named", namespace: ["Acme"], name: "Dto" },
   };
+  const selectedDtoType = {};
   const genericMember = {
     id: "Acme.Json.Read``1(System.String)",
     sourceName: "Read",
@@ -2516,6 +2517,7 @@ test("C# provider keeps explicit generic method target arguments for selected pr
         csharpType: dtoType,
       },
     ],
+    targetTypesBySubject: new Map([[selectedDtoType, dtoType]]),
   });
   const recordedFacts = [];
 
@@ -2526,6 +2528,10 @@ test("C# provider keeps explicit generic method target arguments for selected pr
     calleePropertyName: "Read",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
+    sourceSelectedMethodTypeArguments: [{
+      typeParameterName: "T",
+      selectedType: selectedDtoType,
+    }],
     arguments: [stringArgument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -2535,7 +2541,6 @@ test("C# provider keeps explicit generic method target arguments for selected pr
       ...virtualMember(genericMember.id, "Read", binding.id),
       signatureId: genericMember.id,
     },
-    typeArgumentsByNode: new Map([[call, [dtoType]]]),
     recordedFacts,
   }));
 
@@ -2563,6 +2568,7 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
     id: "Acme.Dto",
     csharpRender: { kind: "named", namespace: ["Acme"], name: "Dto" },
   };
+  const selectedDtoType = {};
   const genericMember = {
     id: "Acme.Json.Write``1(T)",
     sourceName: "Write",
@@ -2606,6 +2612,7 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
         csharpType: sourceCarrierType,
       },
     ],
+    targetTypesBySubject: new Map([[selectedDtoType, dtoType]]),
   });
 
   const result = provider.mapCheckedCall({
@@ -2615,6 +2622,10 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
     calleePropertyName: "Write",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
+    sourceSelectedMethodTypeArguments: [{
+      typeParameterName: "T",
+      selectedType: selectedDtoType,
+    }],
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -2624,7 +2635,6 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
       ...virtualMember(genericMember.id, "Write", binding.id),
       signatureId: genericMember.id,
     },
-    typeArgumentsByNode: new Map([[call, [dtoType]]]),
     typesByNode: new Map([[argument, sourceCarrierType]]),
   }));
 
@@ -4437,6 +4447,10 @@ function getNativeSemanticProvider(options = {}) {
     getCsharpTargetBindingByTargetId: (targetId) => bindings.get(targetId),
     getCsharpTargetBindingByMetadataName: (metadataName) => metadataBindings.get(metadataName),
     getTargetTypeRefForSubject(subject, context) {
+      const mappedTargetType = options.targetTypesBySubject?.get(subject);
+      if (mappedTargetType !== undefined) {
+        return mappedTargetType;
+      }
       if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
         return subject;
       }

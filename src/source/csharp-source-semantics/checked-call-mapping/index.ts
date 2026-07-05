@@ -15,6 +15,7 @@ import type {
   ProviderVirtualDeclarationFact,
   SelectedTargetSignatureFact,
   Signature,
+  SourceSelectedMethodTypeArgument,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -270,7 +271,7 @@ export function mapCsharpCheckedCall(
     ? getReceiverDeclaringTargetType(request, context, host)
     : constructorDeclaringTargetType;
   const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
-  const methodTargetTypeArguments = getExplicitCallMethodTargetTypeArguments(request.call, context, host);
+  const methodTargetTypeArguments = getSelectedMethodTargetTypeArguments(request, context, host);
   const selectionOptions: TargetMemberSelectionOptions = {
     getBaseTargetTypeRef: host.getBaseTargetTypeRef,
     ...(providerStaticContainerReceiver ? { firstArgumentReceiver: false as const } : {}),
@@ -675,42 +676,34 @@ function getSourceOwnedConstructionTypeArgumentTargetRef(
   if (typeArgument === undefined) {
     return undefined;
   }
-  const direct = safeGetTargetTypeRefForSubject(host, typeArgument, context);
-  if (direct !== undefined) {
-    return direct;
-  }
-  if (context.compiler === undefined || host.getTargetTypeRefForType === undefined) {
-    return undefined;
-  }
-  const sourceFile = context.compiler.ast.getSourceFile(typeArgument);
-  try {
-    const semanticType = context.compiler.checker.getTypeFromTypeNode(typeArgument, { sourceFile });
-    return safeGetTargetTypeRefForType(host, semanticType, context, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return safeGetTargetTypeRefForSubject(host, typeArgument, context);
 }
 
-function getExplicitCallMethodTargetTypeArguments(
-  call: ExtensionFactSubject | undefined,
+function getSelectedMethodTargetTypeArguments(
+  request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): readonly TargetTypeRef[] | undefined {
-  const ast = context.compiler?.ast;
-  const callNode = asNodeSubject(call);
-  if (ast === undefined || callNode === undefined || !ast.is.IsCallExpression(callNode)) {
+  const sourceSelectedArguments = request.sourceSelectedMethodTypeArguments;
+  if (sourceSelectedArguments === undefined || sourceSelectedArguments.length === 0) {
     return undefined;
   }
-  const typeArguments = getAstTypeArguments(ast, callNode);
-  if (typeArguments.length === 0) {
-    return undefined;
-  }
-  const targetTypeArguments = typeArguments.map((argument) =>
-    getSourceOwnedConstructionTypeArgumentTargetRef(argument, context, host)
+  const targetTypeArguments = sourceSelectedArguments.map((argument) =>
+    getSelectedSourceTypeArgumentTargetRef(argument, context, host)
   );
-  return targetTypeArguments.some((argument) => argument === undefined)
-    ? undefined
-    : targetTypeArguments as readonly TargetTypeRef[];
+  if (targetTypeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return targetTypeArguments as readonly TargetTypeRef[];
+}
+
+function getSelectedSourceTypeArgumentTargetRef(
+  argument: SourceSelectedMethodTypeArgument,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  return safeGetTargetTypeRefForSubject(host, argument.selectedType, context) ??
+    safeGetTargetTypeRefForSubject(host, argument.explicitTypeNode, context);
 }
 
 function substituteSourceOwnedCallableTypeParameters(
@@ -724,40 +717,27 @@ function substituteSourceOwnedCallableTypeParameters(
     return undefined;
   }
   const substitutions = new Map<string, TargetTypeRef>();
-  addExplicitCallTypeArgumentSubstitutions(substitutions, request.call, selectedDeclaration, context, host);
+  addSelectedMethodTypeArgumentSubstitutions(substitutions, request, context, host);
   addReceiverDeclaringTypeArgumentSubstitutions(substitutions, request, selectedDeclaration, context, host);
   return substitutions.size === 0
     ? targetType
     : substituteTargetTypeRef(targetType, substitutions);
 }
 
-function addExplicitCallTypeArgumentSubstitutions(
+function addSelectedMethodTypeArgumentSubstitutions(
   substitutions: Map<string, TargetTypeRef>,
-  call: ExtensionFactSubject | undefined,
-  selectedDeclaration: Node | undefined,
+  request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): void {
-  const ast = context.compiler?.ast;
-  const callNode = asNodeSubject(call);
-  if (ast === undefined || callNode === undefined || selectedDeclaration === undefined) {
+  const sourceSelectedArguments = request.sourceSelectedMethodTypeArguments;
+  if (sourceSelectedArguments === undefined) {
     return;
   }
-  const typeParameters = getAstTypeParameters(ast, selectedDeclaration);
-  const typeArguments = getAstTypeArguments(ast, callNode);
-  if (typeParameters.length === 0 || typeArguments.length === 0) {
-    return;
-  }
-  for (let index = 0; index < typeParameters.length; index += 1) {
-    const parameter = typeParameters[index];
-    const argument = typeArguments[index];
-    if (parameter === undefined || argument === undefined) {
-      continue;
-    }
-    const name = ast.text(ast.name(parameter));
-    const targetType = getSourceOwnedConstructionTypeArgumentTargetRef(argument, context, host);
-    if (name.length > 0 && targetType !== undefined) {
-      substitutions.set(name, targetType);
+  for (const argument of sourceSelectedArguments) {
+    const targetType = getSelectedSourceTypeArgumentTargetRef(argument, context, host);
+    if (argument.typeParameterName.length > 0 && targetType !== undefined) {
+      substitutions.set(argument.typeParameterName, targetType);
     }
   }
 }
@@ -825,11 +805,7 @@ function getAstTypeParameters(
   node: Node,
 ): readonly Node[] {
   const reader = ast as { readonly typeParameters?: (node: Node) => readonly Node[] };
-  try {
-    return typeof reader.typeParameters === "function" ? reader.typeParameters(node) : [];
-  } catch {
-    return [];
-  }
+  return typeof reader.typeParameters === "function" ? reader.typeParameters(node) : [];
 }
 
 function getAstTypeArguments(
@@ -837,11 +813,7 @@ function getAstTypeArguments(
   node: Node,
 ): readonly Node[] {
   const reader = ast as { readonly typeArguments?: (node: Node) => readonly Node[] };
-  try {
-    return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
-  } catch {
-    return [];
-  }
+  return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
 }
 
 function getContainingSourceTypeDeclaration(
@@ -942,12 +914,7 @@ function getSourceOwnedCallableReturnTargetType(
     return undefined;
   }
   const sourceFile = compiler.ast.getSourceFile(returnTypeNode);
-  let semanticType: Type | undefined;
-  try {
-    semanticType = compiler.checker.getTypeFromTypeNode(returnTypeNode, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  const semanticType = compiler.checker.getTypeFromTypeNode(returnTypeNode, { sourceFile });
   const semantic = safeGetTargetTypeRefForType(host, semanticType, context, { sourceFile });
   return isFinalizedSourceOwnedReturnCarrier(semantic, returnTypeNode, context) ? semantic : undefined;
 }
