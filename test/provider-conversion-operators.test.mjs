@@ -239,12 +239,33 @@ test("checked conversions reuse existing conversion facts instead of conflicting
   assert.equal(writes.length, 0);
 });
 
-test("checked conversions accept finalized source primitive refinements of broad numeric fallback targets", () => {
+test("checked conversions reject real double generic targets without selected conversion identity", () => {
   const source = { id: "source-span" };
   const target = { id: "target-span" };
   const sourceType = spanType({ kind: "source-primitive", name: "int32" });
   const targetType = spanType({ kind: "source-primitive", name: "float64" });
-  const { context } = fakeContext();
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([spanBinding()], new Map([
+    [source, sourceType],
+    [target, targetType],
+  ])));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED");
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
+test("checked conversions accept source primitive widening only through explicit conversion facts", () => {
+  const source = { id: "source-int" };
+  const target = { id: "target-double" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const { context, writes } = fakeContext();
 
   const result = mapCsharpCheckedConversion({
     expression: source,
@@ -252,12 +273,14 @@ test("checked conversions accept finalized source primitive refinements of broad
     target,
     targetPlatform: "csharp",
   }, context, hostForConversion([], new Map([
-    [source, sourceType],
-    [target, targetType],
+    [source, intType],
+    [target, doubleType],
   ])));
 
   assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.convertedType, sourceType);
+  assert.deepEqual(result.value.convertedType, doubleType);
+  assert.equal(result.value.operation.operationId, "System.Convert.ToDouble");
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), true);
 });
 
 function hostForBindings(bindings) {
@@ -302,6 +325,16 @@ function spanType(element) {
     kind: "target-named",
     id: "System.Span`1",
     typeArguments: [element],
+  };
+}
+
+function spanBinding() {
+  return {
+    id: "System.Span`1",
+    target: "csharp",
+    kind: "struct",
+    sourceName: "Span",
+    targetName: "System.Span",
   };
 }
 

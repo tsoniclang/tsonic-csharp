@@ -1399,7 +1399,7 @@ test("C# target resolves source-core ptr and fnptr facts to target type refs", (
   assert.equal(resolveSubject(unresolvedFunctionPointerSubject), undefined);
 });
 
-test("C# source primitive provider identity resolves aliases before broad numeric fallback", () => {
+test("C# source primitive provider identity resolves aliases before numeric semantic defaults", () => {
   const typeName = {};
   const context = fakeObservationContext({
     factsBySubject: new Map([

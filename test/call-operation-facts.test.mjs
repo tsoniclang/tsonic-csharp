@@ -516,7 +516,7 @@ test("call argument emission rejects conversion facts that mismatch selected exp
   assert.match(diagnostics[0].message, /conversion fact does not match/);
 });
 
-test("call argument emission accepts explicit source primitive refinements of broad numeric selected parameters", () => {
+test("call argument emission rejects primitive-name mismatches for real double parameters", () => {
   const argument = identifier("values");
   const int32 = { kind: "source-primitive", name: "int32" };
   const float64 = { kind: "source-primitive", name: "float64" };
@@ -536,6 +536,33 @@ test("call argument emission accepts explicit source primitive refinements of br
     identifierExpressionPlanner,
     expectedTypeKindExpressionPlanner,
     { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+    undefined,
+    float64Array,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /conversion fact does not match/);
+});
+
+test("call argument emission accepts exact real double conversion facts", () => {
+  const argument = identifier("values");
+  const float64 = { kind: "source-primitive", name: "float64" };
+  const float64Array = { kind: "array", element: float64 };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: float64Array,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedTypeKindExpressionPlanner,
+    { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "double" } },
     undefined,
     float64Array,
   );

@@ -1761,7 +1761,7 @@ test("source-semantics preserves C# source-primitive carriers through conditiona
   });
 });
 
-test("source-semantics prefers explicit C# array aliases over broad numeric literal carriers", () => {
+test("source-semantics prefers explicit C# array aliases over numeric literal semantic carriers", () => {
   const sourceText = `
     import type { int } from "@tsonic/csharp/types.js";
 

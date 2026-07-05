@@ -117,7 +117,7 @@ test("selected constructor lifecycle records explicit result type from declaring
   assert.deepEqual(operation.resultType, declaringType);
 });
 
-test("selected call lifecycle reopens broad numeric provider members from finalized receiver carriers", () => {
+test("selected call lifecycle preserves real double provider members against receiver carrier mismatch", () => {
   const receiver = { Kind: "identifier" };
   const callee = { Kind: "property", Expression: receiver };
   const call = { Kind: "call", Expression: callee };
@@ -137,8 +137,8 @@ test("selected call lifecycle reopens broad numeric provider members from finali
   const operation = facts.get(call, csharpTargetOperationFactKey);
   assert.equal(operation.kind, "member");
   assert.equal(operation.operationId, "Example.Span`1.CopyTo(Example.Span`1<T>)");
-  assert.deepEqual(operation.selectedMember.declaringType, spanType(csharpInt32TargetType()));
-  assert.deepEqual(operation.selectedMember.parameters[0].type, spanType(csharpInt32TargetType()));
+  assert.deepEqual(operation.selectedMember.declaringType, spanType(csharpFloat64TargetType()));
+  assert.deepEqual(operation.selectedMember.parameters[0].type, spanType(csharpFloat64TargetType()));
 });
 
 function genericIdentityMember() {

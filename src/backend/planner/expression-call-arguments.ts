@@ -22,7 +22,6 @@ import {
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
-  targetTypeRefRefinesBroadNumericFallback,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
 import type {
   DestructuringPlannerState,
@@ -130,8 +129,7 @@ function planCallArgumentExpression(
     }
     if (
       conversionExpectedTargetType !== undefined &&
-      !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType) &&
-      !targetTypeRefRefinesBroadNumericFallback(conversion.convertedType, conversionExpectedTargetType)
+      !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(node, `Selected target argument conversion fact does not match the selected call parameter type. Node: ${SourceKind(input.ast, node)} '${Node_Text(node)}'. Conversion target: ${targetTypeRefKey(conversion.convertedType)}. Selected parameter target: ${targetTypeRefKey(conversionExpectedTargetType)}.`));
       return undefined;

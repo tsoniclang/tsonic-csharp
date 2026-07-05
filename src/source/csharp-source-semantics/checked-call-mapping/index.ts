@@ -65,7 +65,6 @@ import {
 } from "../provider-unsupported-members.js";
 import {
   targetMemberIsClosed,
-  targetTypeRefContainsBroadNumericFallback,
   targetTypeRefContainsSourcePrimitive,
   targetTypeRefEquals,
   targetTypeRefIsClosed,
@@ -173,7 +172,6 @@ export function mapCsharpCheckedCall(
       existingSelectedMember !== undefined &&
       context.facts.get(request.call, csharpTargetOperationFactKey) === undefined &&
       targetMemberIsClosed(existingSelectedMember) &&
-      !targetMemberContainsBroadNumericFallback(existingSelectedMember) &&
       existingSelectedMember.receiverPassing !== "first-argument"
     ) {
       recordCsharpTargetOperation(
@@ -341,11 +339,9 @@ export function mapCsharpCheckedCall(
       [targetArgumentConversionMissEvidence(csharpMember.id, sourceSelectedMember, request.arguments.length, virtualDeclaration)],
     ));
   }
-  if (!targetMemberContainsBroadNumericFallback(csharpMember)) {
-    recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember, {
-      ...(methodTargetTypeArguments !== undefined ? { typeArguments: methodTargetTypeArguments } : {}),
-    }), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
-  }
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember, {
+    ...(methodTargetTypeArguments !== undefined ? { typeArguments: methodTargetTypeArguments } : {}),
+  }), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: {
       member: sourceSelectedMember,
@@ -354,12 +350,6 @@ export function mapCsharpCheckedCall(
       ...(virtualDeclaration?.signatureId === undefined ? {} : { providerDeclaration: virtualDeclaration }),
     },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
-}
-
-function targetMemberContainsBroadNumericFallback(member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>): boolean {
-  return targetTypeRefContainsBroadNumericFallback(member.declaringType) ||
-    (member.returnType?.kind !== "source-primitive" && targetTypeRefContainsBroadNumericFallback(member.returnType)) ||
-    member.parameters.some((parameter) => targetTypeRefContainsBroadNumericFallback(parameter.type));
 }
 
 function acceptCsharpSourceProfileCall(

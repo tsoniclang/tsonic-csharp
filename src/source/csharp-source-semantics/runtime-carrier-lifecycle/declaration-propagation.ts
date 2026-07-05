@@ -27,7 +27,7 @@ import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
-  setRuntimeCarrierFactIfAbsentOrStronger,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "./fact-writes.js";
 
 export function propagateCsharpRuntimeCarrierFactFromDeclarationType(
@@ -51,12 +51,12 @@ export function propagateCsharpRuntimeCarrierFactFromDeclarationType(
     ? { carrier: csharpNullableTargetType(resolvedTypeFact.carrier) }
     : resolvedTypeFact;
   const message = "C# runtime carrier propagated from checked declaration type annotation.";
-  setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, node, typeFact, message);
+  setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, node, typeFact, message);
   if (name !== undefined) {
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, name, typeFact, message);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, name, typeFact, message);
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
     if (symbol !== undefined) {
-      setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, typeFact, message);
+      setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, symbol, typeFact, message);
     }
   }
 }

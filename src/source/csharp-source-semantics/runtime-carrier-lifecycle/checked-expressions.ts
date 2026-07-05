@@ -51,7 +51,7 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
       allowRuntimeCarrier: false,
       sourceFile,
     });
-    if (directCarrier !== undefined && !isDeferrableBroadNumericUseSite(compiler.ast, node, directCarrier)) {
+    if (directCarrier !== undefined && !shouldDeferNumberLikeSemanticUseSiteCarrier(compiler.ast, node, directCarrier)) {
       return directCarrier;
     }
     if (type === undefined) {
@@ -77,7 +77,7 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
   }
 }
 
-function isDeferrableBroadNumericUseSite(
+function shouldDeferNumberLikeSemanticUseSiteCarrier(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
   carrier: TargetTypeRef,

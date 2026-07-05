@@ -23,7 +23,7 @@ import {
   csharpReadOnlyListTargetType,
 } from "../../../target-types.js";
 import {
-  setRuntimeCarrierFactIfAbsentOrStronger,
+  setRuntimeCarrierFactIfLocallyAbsent,
   setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
@@ -126,13 +126,13 @@ export function recordArrayReturnFacts(
   for (const subject of arrayReturnFactSubjects(returnType)) {
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
   for (const subject of returnType.sourceReturnSubjects) {
     lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: carrierType }, evidence);
   }
   for (const subject of returnType.returnExpressions) {
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
 }
 

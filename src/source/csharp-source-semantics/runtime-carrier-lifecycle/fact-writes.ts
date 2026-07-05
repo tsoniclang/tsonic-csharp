@@ -34,7 +34,7 @@ export function setRuntimeCarrierFactIfUnresolved(
   return true;
 }
 
-export function setRuntimeCarrierFactIfAbsentOrStronger(
+export function setRuntimeCarrierFactIfLocallyAbsent(
   lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
   subject: ExtensionFactSubject | undefined,
   fact: { readonly carrier: TargetTypeRef },

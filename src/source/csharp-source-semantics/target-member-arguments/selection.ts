@@ -245,7 +245,7 @@ function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetPara
   }
   return (parameter.type.kind === "source-primitive" &&
       argumentType.kind === "source-primitive" &&
-      (argumentType.name === parameter.type.name || argumentType.name === "float64")) ||
+      argumentType.name === parameter.type.name) ||
     (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
 }
 

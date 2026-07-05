@@ -846,6 +846,37 @@ test("architecture validator rejects executable selectors in metadata-policy fil
   );
 });
 
+test("architecture validator rejects broad numeric primitive-name fallback", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/target-ref-utils.ts",
+    `
+      export function targetTypeRefRefinesBroadNumericFallback(candidate, existing) {
+        return candidate.name !== "float64" && existing.name === "float64";
+      }
+      if (argumentType.name === "float64") {
+        return true;
+      }
+    `,
+    [
+      "broad-numeric-fallback-helper",
+      "float64-primitive-refinement-heuristic",
+      "float64-primitive-refinement-heuristic",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/target-rules.ts",
+      `
+        if (source.name === "int32" && target.name === "float64") {
+          return csharpConvertToDoubleOperation;
+        }
+      `,
+    ),
+    [],
+  );
+});
+
 function ruleMatches(rule, text) {
   rule.pattern.lastIndex = 0;
   return rule.pattern.test(text);

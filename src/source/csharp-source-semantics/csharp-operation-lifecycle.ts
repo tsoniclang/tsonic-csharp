@@ -33,7 +33,6 @@ import {
 } from "./selected-target-member-instantiation.js";
 import {
   targetMemberIsClosed,
-  targetTypeRefContainsBroadNumericFallback,
 } from "./target-ref-utils.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
@@ -109,7 +108,7 @@ function walkSelectedPropertyOperationFacts(
     return;
   }
   const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(receiverTargetType.id));
-  const member = binding?.members?.find((candidate) => candidate.id === operation.operationId);
+  const member = binding?.members?.find((memberFact) => memberFact.id === operation.operationId);
   if (member === undefined || (member.kind !== "property" && member.kind !== "field")) {
     return;
   }
@@ -154,9 +153,8 @@ function walkSelectedCallOperationFacts(
     return;
   }
   const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
-  const memberToInstantiate = getOpenProviderMemberForFinalizedCall(selectedMember, declaringTargetType, host);
   const member = instantiateSelectedTargetMember({
-    member: memberToInstantiate,
+    member: selectedMember,
     ...(selectedSignature.targetTypeArguments === undefined ? {} : { targetTypeArguments: selectedSignature.targetTypeArguments }),
   }, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
@@ -170,28 +168,6 @@ function walkSelectedCallOperationFacts(
     }),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
-}
-
-function getOpenProviderMemberForFinalizedCall(
-  selectedMember: ReturnType<typeof csharpTargetMemberFact>,
-  declaringTargetType: TargetTypeRef | undefined,
-  host: CsharpFinalizedCallOperationHost,
-): NonNullable<ReturnType<typeof csharpTargetMemberFact>> {
-  if (
-    selectedMember === undefined ||
-    !targetMemberContainsBroadNumericFallback(selectedMember) ||
-    declaringTargetType?.kind !== "target-named"
-  ) {
-    return selectedMember!;
-  }
-  const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(declaringTargetType.id));
-  return binding?.members?.find((candidate) => candidate.id === selectedMember.id) ?? selectedMember;
-}
-
-function targetMemberContainsBroadNumericFallback(member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>): boolean {
-  return targetTypeRefContainsBroadNumericFallback(member.declaringType) ||
-    (member.returnType?.kind !== "source-primitive" && targetTypeRefContainsBroadNumericFallback(member.returnType)) ||
-    member.parameters.some((parameter) => targetTypeRefContainsBroadNumericFallback(parameter.type));
 }
 
 function recordSourceOwnedCallReturnCarrierFact(

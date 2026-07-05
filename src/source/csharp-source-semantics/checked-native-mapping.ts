@@ -47,7 +47,6 @@ import {
   asType,
   targetTypeRefEquals,
   targetTypeRefKey,
-  targetTypeRefRefinesBroadNumericFallback,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -189,11 +188,6 @@ export function mapCsharpCheckedConversion(
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
-  }
-  if (source !== undefined && targetTypeRefRefinesBroadNumericFallback(source, target)) {
-    return acceptObservation<CheckedConversionMappingResult>({
-      convertedType: source,
-    }, [{ message: "C# argument has a finalized source-primitive carrier that refines TSTS's broad numeric fallback target." }]);
   }
   if (source !== undefined && sourceFunctionExpressionMatchesTargetDelegate(request.source, source, target, context)) {
     return acceptObservation<CheckedConversionMappingResult>({

@@ -431,6 +431,18 @@ export const analysisAbstractionRules = Object.freeze([
       "NodeJS must be a provider-package contributor selected through the generic provider-package model, not a central C# semantic-host branch on providerPackage.id.",
   },
   {
+    id: "broad-numeric-fallback-helper",
+    pattern: /\b(?:targetTypeRef(?:Contains|Refines)BroadNumericFallback|canRefineBroadNumericFallback|BroadNumericFallback)\b/g,
+    replacement:
+      "Do not accept numeric target mismatches through broad float64 helper paths; require exact target facts or explicit widening provenance.",
+  },
+  {
+    id: "float64-primitive-refinement-heuristic",
+    pattern: /\bcandidate\.name\s*!==\s*["']float64["']\s*&&\s*existing\.name\s*===\s*["']float64["']|\bargumentType\.name\s*===\s*["']float64["']/g,
+    replacement:
+      "Do not treat the primitive name float64 as proof that another numeric carrier can satisfy a checked conversion or selected parameter.",
+  },
+  {
     id: "nodejs-target-id-source-name-synthesis",
     filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\b(?:id|targetMemberId|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:sourceName|sourceMemberName|exportName|memberName|targetName)\s*\}/g,

@@ -16,7 +16,7 @@ import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
-  setRuntimeCarrierFactIfAbsentOrStronger,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "./fact-writes.js";
 
 export function recordCsharpDeclarationReturnRuntimeCarrierFacts(
@@ -45,7 +45,7 @@ export function recordCsharpDeclarationReturnRuntimeCarrierFacts(
     if (carrier === undefined) {
       continue;
     }
-    setRuntimeCarrierFactIfAbsentOrStronger(
+    setRuntimeCarrierFactIfLocallyAbsent(
       lifecycleContext,
       returnType,
       { carrier },
