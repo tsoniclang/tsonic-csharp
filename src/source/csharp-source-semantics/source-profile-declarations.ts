@@ -2,6 +2,7 @@ import {
   targetSourceProfileDeclaration,
 } from "@tsonic/target-api";
 import type {
+  TargetProviderSourceProfileContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api";
 
@@ -112,6 +113,8 @@ interface ReadonlyArray<T> extends Iterable<T> {
 `.trim();
 
 const jsSurfaceProfileDeclarations = `
+${sharedNoLibDeclarations}
+
 interface Object {
   hasOwnProperty(key: PropertyKey): boolean;
   toString(): string;
@@ -476,7 +479,12 @@ declare var Proxy: ProxyConstructor;
 declare function eval(source: string): unknown;
 `.trim();
 
-export function csharpSourceProfileContributions(): TargetSourceProfileContributions {
+export function csharpSourceProfileContributions(context: TargetProviderSourceProfileContext): TargetSourceProfileContributions {
+  if (context.selectedSurfaces.some((surface) => surface.id === csharpJsSourceProfileOwnerId)) {
+    return {
+      declarations: [],
+    };
+  }
   return {
     declarations: [
       targetSourceProfileDeclaration("csharp-globals.d.ts", csharpProfileDeclarations),
