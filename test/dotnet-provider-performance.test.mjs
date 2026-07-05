@@ -19,6 +19,25 @@ import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
 
+function providerRefExportNames(value, moduleSpecifier, refs = new Set()) {
+  if (value === null || typeof value !== "object") {
+    return refs;
+  }
+  if (value.kind === "provider-ref" && value.moduleSpecifier === moduleSpecifier) {
+    refs.add(value.exportName);
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      providerRefExportNames(item, moduleSpecifier, refs);
+    }
+    return refs;
+  }
+  for (const nested of Object.values(value)) {
+    providerRefExportNames(nested, moduleSpecifier, refs);
+  }
+  return refs;
+}
+
 test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
   telemetry.providerInstance();
@@ -413,7 +432,27 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
 
   const declarationModel = bindingProvider.getDeclarationModel(resolution);
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
-  assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), ["Convert"]);
+  assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
+    "Convert",
+    "Base64FormattingOptions",
+    "DateTime",
+    "IFormatProvider",
+    "ReadOnlySpan",
+    "Span",
+    "Type",
+    "TypeCode",
+  ]);
+  const convert = declarationModel.exports.find((declaration) => declaration.name === "Convert");
+  assert.ok(convert);
+  assert.deepEqual([...providerRefExportNames(convert, "@tsonic/dotnet/System.js")].sort(), [
+    "Base64FormattingOptions",
+    "DateTime",
+    "IFormatProvider",
+    "ReadOnlySpan",
+    "Span",
+    "Type",
+    "TypeCode",
+  ]);
   const serializedModel = JSON.stringify(declarationModel);
   assert.equal(serializedModel.includes("System.Xml"), false);
   assert.equal(serializedModel.includes("System.ComponentModel"), false);
@@ -442,10 +481,31 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   assert.equal(byMetadata.status, 0, byMetadata.stderr);
   const metadataModel = JSON.parse(byMetadata.stdout);
   const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
-  assert.equal(metadataSourceNames.includes("Convert"), true);
-  assert.equal(metadataSourceNames.includes("Console"), false);
-  assert.equal(metadataSourceNames.includes("Environment"), false);
-  assert.equal(metadataSourceNames.length < 40, true);
+  assert.deepEqual(metadataSourceNames, [
+    "Convert",
+    "Base64FormattingOptions",
+    "Boolean",
+    "Byte",
+    "Char",
+    "DateTime",
+    "Decimal",
+    "Double",
+    "IFormatProvider",
+    "Int16",
+    "Int32",
+    "Int64",
+    "Object",
+    "ReadOnlySpan",
+    "SByte",
+    "Single",
+    "Span",
+    "String",
+    "Type",
+    "TypeCode",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+  ]);
   assert.equal(metadataModel.targetOnlyTypes, undefined);
   assert.equal(metadataModel.unsupportedExports, undefined);
 

@@ -271,11 +271,31 @@ test(".NET reflection provider returns requested export declaration closures ins
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
-  assert.equal(exportNames.includes("Convert"), true);
-  assert.equal(exportNames.includes("IFormatProvider"), true);
-  assert.equal(exportNames.includes("Type"), true);
-  assert.equal(exportNames.includes("SearchValues"), false);
-  assert.equal(exportNames.includes("Console"), false);
+  assert.deepEqual(exportNames, [
+    "Base64FormattingOptions",
+    "Boolean",
+    "Byte",
+    "Char",
+    "Convert",
+    "DateTime",
+    "Decimal",
+    "Double",
+    "IFormatProvider",
+    "Int16",
+    "Int32",
+    "Int64",
+    "Object",
+    "ReadOnlySpan",
+    "SByte",
+    "Single",
+    "Span",
+    "String",
+    "Type",
+    "TypeCode",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+  ]);
 
   const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
   assert.ok(convert);
@@ -408,10 +428,22 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
   const model = bindingProvider.getDeclarationModel(resolution);
   assert.equal("exports" in model, true, JSON.stringify(model));
   const exportNames = model.exports.map((declaration) => declaration.name);
-  assert.ok(exportNames.includes("Dictionary"));
-  assert.ok(exportNames.includes("List"));
-  assert.ok(exportNames.includes("Dictionary_ValueCollection"));
-  assert.ok(exportNames.includes("Dictionary_ValueCollection_Enumerator"));
+  assert.deepEqual(exportNames, [
+    "Dictionary",
+    "List",
+    "Dictionary_AlternateLookup_1",
+    "Dictionary_Enumerator",
+    "Dictionary_KeyCollection",
+    "Dictionary_KeyCollection_Enumerator",
+    "Dictionary_ValueCollection",
+    "Dictionary_ValueCollection_Enumerator",
+    "IComparer",
+    "IDictionary",
+    "IEnumerator",
+    "IEqualityComparer",
+    "IReadOnlyDictionary",
+    "List_Enumerator",
+  ]);
 
   const valueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
   assert.ok(valueCollection?.members?.some((member) => member.kind === "method" && member.name === "GetEnumerator"));
