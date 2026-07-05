@@ -15,6 +15,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Use selected TSTS declaration/signature identity, then policy/provider facts.",
   },
   {
+    id: "source-usage-member-scan-channel",
+    pattern: /\b(?:TargetSourceUsageHints|sourceUsage|sourceMemberNames|collectProjectSourceUsageHints)\b/g,
+    replacement:
+      "Provider declaration surfaces must come from selected metadata and source profiles, not source-usage member scanning channels.",
+  },
+  {
+    id: "provider-declaration-member-usage-filter",
+    pattern: /\bsourceMemberIsRequested\b/g,
+    replacement:
+      "Do not filter provider declarations by source-text member usage; expose the selected provider metadata surface or fail closed.",
+  },
+  {
     id: "source-library-type-check",
     pattern: /isSourceLibraryType\s*\(/g,
     replacement:

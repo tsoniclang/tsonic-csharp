@@ -685,6 +685,32 @@ test("architecture validator rejects raw source members in executable JS target 
   );
 });
 
+test("architecture validator rejects source-usage declaration filtering channels", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/semantic-hosts.ts",
+    "const hints = context.target.sourceMemberNames;",
+    ["source-usage-member-scan-channel"],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/semantic-hosts.ts",
+    "const hints = context.sourceUsage?.memberNames;",
+    ["source-usage-member-scan-channel"],
+  );
+
+  assertFindings(
+    "src/providers/dotnet/declaration-model/types.ts",
+    "function sourceMemberIsRequested(member, context) { return true; }",
+    ["provider-declaration-member-usage-filter"],
+  );
+
+  assertFindings(
+    "src/providers/dotnet/declaration-model/context.ts",
+    "export interface TargetSourceUsageHints {}",
+    ["source-usage-member-scan-channel"],
+  );
+});
+
 test("architecture validator rejects policy-shaped filenames", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
