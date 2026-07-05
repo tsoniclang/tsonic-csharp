@@ -1,6 +1,7 @@
 import {
   functionPointerFactKey,
   pointerFactKey,
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
@@ -21,6 +22,9 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
+import {
+  csharpSourcePrimitiveKindForProviderVirtualDeclaration,
+} from "./source-modules.js";
 import {
   resolveRuntimeCarrier,
 } from "./target-type-resolution-facts.js";
@@ -47,6 +51,12 @@ export function resolveTargetTypeRefFromSubjectFacts(
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
   if (primitive !== undefined) {
     return csharpSourcePrimitiveTargetType(primitive.kind);
+  }
+  const sourcePrimitiveFromProviderIdentity = csharpSourcePrimitiveKindForProviderVirtualDeclaration(
+    context.factResolver.resolve(subject, providerVirtualDeclarationFactKey),
+  );
+  if (sourcePrimitiveFromProviderIdentity !== undefined) {
+    return csharpSourcePrimitiveTargetType(sourcePrimitiveFromProviderIdentity);
   }
   const selectedCallReturn = selectedTargetSignatureReturnType(subject, context);
   if (selectedCallReturn !== undefined) {

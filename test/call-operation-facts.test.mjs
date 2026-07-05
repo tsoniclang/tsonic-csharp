@@ -516,6 +516,37 @@ test("call argument emission rejects conversion facts that mismatch selected exp
   assert.match(diagnostics[0].message, /conversion fact does not match/);
 });
 
+test("call argument emission accepts explicit source primitive refinements of broad numeric selected parameters", () => {
+  const argument = identifier("values");
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const float64 = { kind: "source-primitive", name: "float64" };
+  const int32Array = { kind: "array", element: int32 };
+  const float64Array = { kind: "array", element: float64 };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: int32Array,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedTypeKindExpressionPlanner,
+    { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+    undefined,
+    float64Array,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "values_as_ArrayType" },
+  });
+});
+
 test("call argument emission permits array render carriers for selected collection parameters", () => {
   const argument = identifier("items");
   const int32 = { kind: "source-primitive", name: "int32" };

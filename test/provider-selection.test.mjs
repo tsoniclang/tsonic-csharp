@@ -1399,6 +1399,28 @@ test("C# target resolves source-core ptr and fnptr facts to target type refs", (
   assert.equal(resolveSubject(unresolvedFunctionPointerSubject), undefined);
 });
 
+test("C# source primitive provider identity resolves aliases before broad numeric fallback", () => {
+  const typeName = {};
+  const context = fakeObservationContext({
+    factsBySubject: new Map([
+      [typeName, new Map([
+        [providerVirtualDeclarationFactKey, {
+          providerId: "test",
+          providerVersion: "0",
+          providerModuleId: "@tsonic/csharp/types.js",
+          moduleSpecifier: "@tsonic/csharp/types.js",
+          virtualFileName: "tsts-provider://@tsonic/csharp/types.js",
+          exportName: "int",
+          exportId: "@tsonic/csharp/types.js::int",
+        }],
+      ])],
+    ]),
+  });
+  const resolveSubject = (subject) => resolveTargetTypeRefFromSubjectFacts(subject, context, {}, resolveSubject);
+
+  assert.deepEqual(resolveSubject(typeName), { kind: "source-primitive", name: "int32" });
+});
+
 test("C# attribute builder marker identity comes from finalized attribute facts", () => {
   const provider = getNativeSemanticProvider();
   const call = {};
@@ -4409,6 +4431,8 @@ function getNativeSemanticProvider(options = {}) {
   const bindings = new Map((options.bindings ?? []).map((binding) => [binding.id, binding]));
   const metadataBindings = new Map(options.metadataBindings ?? []);
   const baseTypes = new Map(options.baseTypes ?? []);
+  const resolveSubjectFactTarget = (subject, context, resolutionOptions = {}) =>
+    resolveTargetTypeRefFromSubjectFacts(subject, context, resolutionOptions, resolveSubjectFactTarget);
   return createCsharpNativeOperationsProvider({
     getCsharpTargetBindingByTargetId: (targetId) => bindings.get(targetId),
     getCsharpTargetBindingByMetadataName: (metadataName) => metadataBindings.get(metadataName),
@@ -4416,11 +4440,7 @@ function getNativeSemanticProvider(options = {}) {
       if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
         return subject;
       }
-      const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
-      return primitive === undefined ? undefined : {
-        kind: "source-primitive",
-        name: primitive.kind,
-      };
+      return resolveSubjectFactTarget(subject, context);
     },
     getBaseTargetTypeRef(type) {
       return type.kind === "target-named" ? baseTypes.get(type.id) : undefined;
@@ -4700,6 +4720,10 @@ function fakeObservationContext(options) {
   return {
     facts: {
       get(subject, key) {
+        const mappedFact = options.factsBySubject?.get(subject)?.get(key);
+        if (mappedFact !== undefined) {
+          return mappedFact;
+        }
         if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
           return options.selectedSignature;
         }
@@ -4741,6 +4765,10 @@ function fakeObservationContext(options) {
     },
     factResolver: {
       resolve(subject, key) {
+        const mappedFact = options.factsBySubject?.get(subject)?.get(key);
+        if (mappedFact !== undefined) {
+          return mappedFact;
+        }
         if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
           return options.selectedSignature;
         }

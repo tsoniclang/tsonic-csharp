@@ -1,4 +1,5 @@
 import {
+  providerVirtualDeclarationFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -13,6 +14,9 @@ import {
 import {
   getAliasedSymbolIfAvailable,
 } from "./symbol-utils.js";
+import {
+  csharpSourcePrimitiveKindForProviderVirtualDeclaration,
+} from "./source-modules.js";
 
 export function typeSyntaxContainsSourcePrimitiveEvidence(
   node: Node,
@@ -29,7 +33,10 @@ export function typeSyntaxContainsSourcePrimitiveEvidence(
     if (current === undefined || found) {
       return;
     }
-    if (context.factResolver.resolve(current, sourcePrimitiveFactKey) !== undefined) {
+    if (
+      context.factResolver.resolve(current, sourcePrimitiveFactKey) !== undefined ||
+      csharpSourcePrimitiveKindForProviderVirtualDeclaration(context.factResolver.resolve(current, providerVirtualDeclarationFactKey)) !== undefined
+    ) {
       found = true;
       return;
     }
@@ -37,7 +44,9 @@ export function typeSyntaxContainsSourcePrimitiveEvidence(
     const aliasedSymbol = getAliasedSymbolIfAvailable(context.compiler.checker, symbol, sourceFile);
     if (
       (symbol !== undefined && context.factResolver.resolve(symbol, sourcePrimitiveFactKey) !== undefined) ||
-      (aliasedSymbol !== undefined && context.factResolver.resolve(aliasedSymbol, sourcePrimitiveFactKey) !== undefined)
+      (aliasedSymbol !== undefined && context.factResolver.resolve(aliasedSymbol, sourcePrimitiveFactKey) !== undefined) ||
+      (symbol !== undefined && csharpSourcePrimitiveKindForProviderVirtualDeclaration(context.factResolver.resolve(symbol, providerVirtualDeclarationFactKey)) !== undefined) ||
+      (aliasedSymbol !== undefined && csharpSourcePrimitiveKindForProviderVirtualDeclaration(context.factResolver.resolve(aliasedSymbol, providerVirtualDeclarationFactKey)) !== undefined)
     ) {
       found = true;
       return;

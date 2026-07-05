@@ -9,8 +9,10 @@ import type {
   ExtensionEvidence,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
@@ -20,6 +22,7 @@ import {
 } from "../diagnostics.js";
 import {
   asNodeSubject,
+  getNodeField,
 } from "../ast-utils.js";
 import {
   findTargetBinding,
@@ -171,8 +174,9 @@ export function getConstructorDeclaringTargetType(
   if (callNode === undefined || ast === undefined) {
     return undefined;
   }
-  const targetTypeArguments = ast.typeArguments(callNode)
-    .map((argument) => safeGetTargetTypeRefForSubject(host, argument, context));
+  const typeArguments = getNewExpressionTypeArguments(ast, callNode);
+  const targetTypeArguments = typeArguments
+    .map((argument) => getExplicitConstructorTargetTypeArgument(argument, context, host));
   if (targetTypeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
@@ -181,6 +185,72 @@ export function getConstructorDeclaringTargetType(
     return undefined;
   }
   return declaringTargetType;
+}
+
+function getNewExpressionTypeArguments(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  callNode: Node,
+): readonly Node[] {
+  const fromCall = getAstTypeArguments(ast, callNode);
+  if (fromCall.length > 0) {
+    return fromCall;
+  }
+  const expression = (callNode as { readonly Expression?: Node }).Expression;
+  return expression === undefined ? [] : getAstTypeArguments(ast, expression);
+}
+
+function getAstTypeArguments(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): readonly Node[] {
+  const reader = ast as { readonly typeArguments?: (node: Node) => readonly Node[] };
+  try {
+    return typeof reader.typeArguments === "function" ? reader.typeArguments(node) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getExplicitConstructorTargetTypeArgument(
+  typeArgument: Node | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  if (typeArgument === undefined) {
+    return undefined;
+  }
+  const sourceFile = context.compiler?.ast.getSourceFile(typeArgument);
+  const typeName = getTypeArgumentName(typeArgument, context);
+  const nameDirect = typeName === undefined
+    ? undefined
+    : safeGetTargetTypeRefForSubject(host, typeName, context, sourceFile === undefined ? undefined : { sourceFile });
+  if (nameDirect !== undefined) {
+    return nameDirect;
+  }
+  const direct = safeGetTargetTypeRefForSubject(host, typeArgument, context, sourceFile === undefined ? undefined : { sourceFile });
+  if (direct !== undefined) {
+    return direct;
+  }
+  if (sourceFile === undefined || context.compiler === undefined || host.getTargetTypeRefForType === undefined) {
+    return undefined;
+  }
+  try {
+    const semanticType = context.compiler.checker.getTypeFromTypeNode(typeArgument, { sourceFile });
+    return host.getTargetTypeRefForType(semanticType, context, { sourceFile });
+  } catch {
+    return undefined;
+  }
+}
+
+function getTypeArgumentName(
+  typeArgument: Node,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Node | undefined {
+  try {
+    return context.compiler?.ast.name(typeArgument) ?? asNodeSubject(getNodeField(typeArgument, "TypeName"));
+  } catch {
+    return asNodeSubject(getNodeField(typeArgument, "TypeName"));
+  }
 }
 
 export function isProviderStaticContainerReceiver(
