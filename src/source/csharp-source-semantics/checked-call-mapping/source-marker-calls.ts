@@ -87,6 +87,7 @@ export function mapCsharpSourceMarkerCall(
       request,
       context,
       virtualDeclaration,
+      attributeFact,
       extensionId,
     );
     if (missingFactDiagnostic !== undefined) {
@@ -103,6 +104,7 @@ function missingRequiredSourceMarkerFactDiagnostic(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   declaration: ProviderVirtualDeclarationFact,
+  attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
   extensionId: string,
 ): ReturnType<typeof csharpProviderDiagnostic> | undefined {
   switch (declaration.exportName) {
@@ -120,7 +122,7 @@ function missingRequiredSourceMarkerFactDiagnostic(
           : unsupportedCsharpSourceFlowMarkerDiagnostic(extensionId, flowState);
       }
     case "attribute":
-      return undefined;
+      return validateCsharpAttributeMarkerFact(attributeFact, extensionId);
     case "defaultof":
       {
         const defaultValue = getFinalizedDefaultValueFact(request, context);

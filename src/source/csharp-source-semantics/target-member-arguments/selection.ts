@@ -95,6 +95,7 @@ export function selectExactTargetMember(
     );
     if (
       request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
       continue;
@@ -103,11 +104,16 @@ export function selectExactTargetMember(
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
       request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
       continue;
     }
-    if (targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) && request.sourceSelectedSignature !== undefined) {
+    if (
+      targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
+      request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member)
+    ) {
       continue;
     }
     if (targetTypeArgumentMatchScore(
@@ -168,6 +174,7 @@ function targetMemberMatch(
     );
     if (
       request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
       argumentScore += 20;
@@ -177,12 +184,17 @@ function targetMemberMatch(
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
       request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
       argumentScore += 20;
       continue;
     }
-    if (targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) && request.sourceSelectedSignature !== undefined) {
+    if (
+      targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
+      request.sourceSelectedSignature !== undefined &&
+      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member)
+    ) {
       argumentScore += 20;
       continue;
     }
@@ -236,12 +248,22 @@ function getCheckedExpressionTargetTypeRef(
 function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter, argumentType: TargetTypeRef | undefined): boolean {
   if (argumentType === undefined) {
     return parameter.csharpAcceptsCheckedSourceArgument === true ||
+      (parameter.type.kind === "source-primitive" && parameter.passingMode === "by-value") ||
       (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
   }
   return (parameter.type.kind === "source-primitive" &&
       argumentType.kind === "source-primitive" &&
       argumentType.name === parameter.type.name) ||
     (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
+}
+
+function sourceSelectionProvesTargetMember(
+  sourceSelectedSignature: unknown,
+  member: CsharpTargetMember,
+): boolean {
+  const signatureId = (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId;
+  return typeof signatureId === "string" &&
+    (signatureId === member.id || signatureId === member.providerSourceSignatureId);
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {
