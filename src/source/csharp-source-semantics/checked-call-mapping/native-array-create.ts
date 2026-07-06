@@ -21,9 +21,6 @@ import {
   recordCsharpTargetOperation,
 } from "../operations.js";
 import {
-  asNodeSubject,
-} from "../ast-utils.js";
-import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
 import {
@@ -103,14 +100,12 @@ export function getNativeArrayCreateElementType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const ast = context.compiler?.ast;
-  const callNode = asNodeSubject(request.call);
-  if (ast !== undefined && callNode !== undefined) {
-    const explicitTypeArguments = ast.typeArguments(callNode)
-      .map((argument) => host.getTargetTypeRefForSubject(argument, context));
-    if (explicitTypeArguments.length === 1 && explicitTypeArguments[0] !== undefined) {
-      return explicitTypeArguments[0];
-    }
+  const selectedTypeArguments = request.sourceSelectedMethodTypeArguments?.map((argument) =>
+    host.getTargetTypeRefForSubject(argument.explicitTypeNode, context) ??
+      host.getTargetTypeRefForSubject(argument.selectedType, context)
+  ) ?? [];
+  if (selectedTypeArguments.length === 1 && selectedTypeArguments[0] !== undefined) {
+    return selectedTypeArguments[0];
   }
   const contextualReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
   return contextualReturnType?.kind === "array" ? contextualReturnType.element : undefined;

@@ -23,11 +23,6 @@ import {
   getSymbolForDeclarationLookup,
 } from "../../symbol-utils.js";
 import {
-  asNodeSubject,
-  getNodeField,
-  getNodeList,
-} from "../../ast-utils.js";
-import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "../../target-type-keywords.js";
 import {
@@ -226,18 +221,6 @@ function getExplicitTypeArgumentNodes(
   node: Node,
   context: ExtensionObservationContext,
 ): readonly Node[] {
-  const astTypeArguments = context.compiler?.ast.typeArguments(node)
+  return context.compiler?.ast.typeArguments(node)
     .filter((argument): argument is Node => argument !== undefined) ?? [];
-  if (astTypeArguments.length > 0) {
-    return astTypeArguments;
-  }
-  const direct = getNodeList(getNodeField(node, "TypeArguments"));
-  if (direct.length > 0) {
-    return direct;
-  }
-  const ast = context.compiler?.ast;
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  return ast !== undefined && expression !== undefined
-    ? getNodeList(getNodeField(expression, "TypeArguments"))
-    : [];
 }

@@ -2805,7 +2805,7 @@ function arrayConstructorDeclaration() {
   return sourceLibraryMemberDeclaration("ArrayConstructor", "");
 }
 
-function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "bundled:///libs/lib.es5.d.ts") {
+function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/src/.tsonic/source-profiles/js/js.d.ts") {
   const sourceFile = { FileName: fileName };
   const arrayDeclaration = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
   return {

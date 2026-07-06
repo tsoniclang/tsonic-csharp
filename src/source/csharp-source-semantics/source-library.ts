@@ -12,6 +12,9 @@ import {
 import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
+import {
+  csharpSourceProfileOwnerId,
+} from "./source-profile-declarations.js";
 
 export interface SourceLibraryMember {
   readonly id: SourceLibraryMemberKey;
@@ -123,7 +126,7 @@ export function getSourceLibraryDeclarationName(
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
   const name = ast.text(ast.name(declaration));
-  if (!isTsonicJsSurfaceSourceProfileFile(fileName)) {
+  if (!isTsonicSourceLibraryProfileFile(fileName)) {
     return undefined;
   }
   if (isSourceLibraryTypeName(name)) {
@@ -153,6 +156,11 @@ function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
 
 export function isTsonicJsSurfaceSourceProfileFile(fileName: string): boolean {
   return isTsonicSourceProfileDeclarationPath(fileName, "js");
+}
+
+function isTsonicSourceLibraryProfileFile(fileName: string): boolean {
+  return isTsonicJsSurfaceSourceProfileFile(fileName) ||
+    isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId);
 }
 
 function sourceLibraryMemberHasPrefix(sourceMember: SourceLibraryMember, prefix: SourceLibraryMemberKeyPrefix): boolean {

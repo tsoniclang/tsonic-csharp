@@ -188,7 +188,7 @@ test("JS surface maps console profile methods and rejects invalid label facts", 
   assert.equal(profileEndResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
 });
 
-function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "bundled:///libs/lib.es5.d.ts") {
+function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/src/.tsonic/source-profiles/js/js.d.ts") {
   const sourceFile = { FileName: fileName };
   const parent = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
   return {

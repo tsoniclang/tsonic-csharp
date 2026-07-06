@@ -90,7 +90,7 @@ export function findTargetMemberForCall(
       }
       return undefined;
     }
-    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId);
+    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
     if (sourceProjectionCandidates.length === 1) {
       return selectExactTargetMember(
         sourceProjectionCandidates[0]!,
@@ -212,7 +212,7 @@ export function findTargetMemberForElementAccess(
         options,
       );
     }
-    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId);
+    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
     if (sourceProjectionCandidates.length === 1) {
       return selectExactTargetMember(
         sourceProjectionCandidates[0]!,
@@ -396,8 +396,18 @@ function getTargetMemberById(
 function getTargetMembersByProviderSourceSignatureId(
   binding: CsharpTargetBindingFact | undefined,
   providerSourceSignatureId: string,
+  selectedMemberId?: string,
 ): readonly CsharpTargetMember[] {
-  return (binding?.members ?? []).filter((member) => member.providerSourceSignatureId === providerSourceSignatureId);
+  const sourceSignatureCandidates = (binding?.members ?? []).filter((member) => member.providerSourceSignatureId === providerSourceSignatureId);
+  if (selectedMemberId === undefined) {
+    return sourceSignatureCandidates;
+  }
+  const selectedMemberCandidates = getTargetMemberCandidatesForMemberId(binding, selectedMemberId);
+  if (selectedMemberCandidates.length === 0) {
+    return sourceSignatureCandidates;
+  }
+  const selectedMemberCandidateIds = new Set(selectedMemberCandidates.map((member) => member.id));
+  return sourceSignatureCandidates.filter((member) => selectedMemberCandidateIds.has(member.id));
 }
 
 function getTargetMemberCandidatesForSelectedMember(

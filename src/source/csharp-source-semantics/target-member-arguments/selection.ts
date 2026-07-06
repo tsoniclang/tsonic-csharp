@@ -226,21 +226,16 @@ function getCheckedExpressionTargetTypeRef(
   ) {
     return undefined;
   }
-  try {
-    if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
-      return undefined;
-    }
-    const sourceFile = compiler.ast.getSourceFile(node);
-    return resolveTargetTypeRef(compiler.checker.getTypeAtLocation(node, { sourceFile }), context, { sourceFile });
-  } catch {
+  if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
     return undefined;
   }
+  const sourceFile = compiler.ast.getSourceFile(node);
+  return resolveTargetTypeRef(compiler.checker.getTypeAtLocation(node, { sourceFile }), context, { sourceFile });
 }
 
 function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter, argumentType: TargetTypeRef | undefined): boolean {
   if (argumentType === undefined) {
     return parameter.csharpAcceptsCheckedSourceArgument === true ||
-      parameter.type.kind === "source-primitive" ||
       (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
   }
   return (parameter.type.kind === "source-primitive" &&
@@ -314,6 +309,9 @@ function getSelectedTargetMemberTypeParameterBindings(
     return bindings;
   }
   const methodTypeParameters = member.typeParameters ?? [];
+  if (methodTypeParameters.length === 0) {
+    return bindings;
+  }
   if (methodTargetTypeArguments.length !== methodTypeParameters.length) {
     return undefined;
   }

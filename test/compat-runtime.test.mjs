@@ -16,6 +16,12 @@ import {
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
+  csharpJsSourceProfileOwnerId,
+  csharpJsSurfaceSourceProfileContributions,
+  csharpSourceProfileContributions,
+  csharpSourceProfileOwnerId,
+} from "../dist/source/csharp-source-semantics/source-profile-declarations.js";
+import {
   readCsharpTypescriptCompatibilityMode,
 } from "../dist/options/csharp-target-options.js";
 
@@ -206,7 +212,7 @@ test("compat runtime hard rejects are not inferred from shadowable source names"
     Proxy["revocable"]({}, {});
     obj.__proto__ = {};
     Object["setPrototypeOf"](obj, {});
-  `, { typescriptCompatibility: "compat" });
+  `, { typescriptCompatibility: "compat" }, [], { sourceProfile: "js" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -227,7 +233,7 @@ test("compat runtime hard rejects resolved standard-library eval, Function, Prox
     Object.setPrototypeOf({}, null);
     Object.getPrototypeOf({});
     Object.create(null);
-  `, { typescriptCompatibility: "compat" });
+  `, { typescriptCompatibility: "compat" }, [], { sourceProfile: "js" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   session.ensureChecked(sourceFile);
 
@@ -533,14 +539,17 @@ test("unknown and object remain non-dynamic and are rejected by TSTS source chec
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
 
-function createNativeSession(sourceText, targetOptions = {}, extraExtensions = []) {
-  const context = csharpProviderContext(targetOptions);
+function createNativeSession(sourceText, targetOptions = {}, extraExtensions = [], options = {}) {
+  const sourceProfile = options.sourceProfile ?? "csharp";
+  const context = csharpProviderContext(targetOptions, sourceProfile);
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...sourceProfileFiles(sourceProfile).map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,
@@ -556,6 +565,26 @@ function createNativeSession(sourceText, targetOptions = {}, extraExtensions = [
       ],
     },
   });
+}
+
+function sourceProfileFiles(sourceProfile) {
+  if (sourceProfile === "js") {
+    return declarationFiles(
+      csharpJsSourceProfileOwnerId,
+      csharpJsSurfaceSourceProfileContributions().declarations ?? [],
+    );
+  }
+  return declarationFiles(
+    csharpSourceProfileOwnerId,
+    csharpSourceProfileContributions(csharpProviderContext({}, "csharp")).declarations ?? [],
+  );
+}
+
+function declarationFiles(ownerId, declarations) {
+  return declarations.map((declaration) => ({
+    path: `/src/.tsonic/source-profiles/${ownerId}/${declaration.fileName}`,
+    text: declaration.text,
+  }));
 }
 
 function createTestDynamicOperationFactExtension(kindName, options = {}) {
@@ -647,7 +676,7 @@ function createTestSelectedSignatureOnlyExtension(kindName) {
   };
 }
 
-function csharpProviderContext(targetOptions) {
+function csharpProviderContext(targetOptions, sourceProfile = "csharp") {
   const target = {
     id: "csharp",
     ...(Object.keys(targetOptions).length === 0 ? {} : { options: targetOptions }),
@@ -659,7 +688,7 @@ function csharpProviderContext(targetOptions) {
     },
     target,
     selectedPackages: [],
-    selectedSurfaces: [],
+    selectedSurfaces: sourceProfile === "js" ? [{ id: csharpJsSourceProfileOwnerId }] : [],
   };
 }
 

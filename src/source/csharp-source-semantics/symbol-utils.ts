@@ -54,20 +54,11 @@ export function getSymbolForDeclarationLookup(
   if (isControlFlowLabelIdentifier(ast, node) || isPropertyAccessName(ast, node)) {
     return undefined;
   }
-  let symbol: Symbol | undefined;
-  try {
-    symbol = checker.getSymbolAtLocation(node, { sourceFile });
-  } catch {
-    symbol = undefined;
-  }
+  const symbol = checker.getSymbolAtLocation(node, { sourceFile });
   if (symbol !== undefined || !isResolvedSymbolLookupNode(ast, node)) {
     return symbol;
   }
-  try {
-    return checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function isPropertyAccessName(

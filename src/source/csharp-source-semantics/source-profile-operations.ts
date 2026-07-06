@@ -26,6 +26,48 @@ export interface CsharpSourceProfileMemberIdentity {
   readonly memberName: string;
 }
 
+interface CsharpSourceProfileMethodRow {
+  readonly declaringName: CsharpSourceProfileMemberIdentity["declaringName"];
+  readonly memberName: string;
+  readonly returnType: TargetTypeRef;
+  readonly parameters: readonly { readonly name: string; readonly type: TargetTypeRef }[];
+}
+
+interface CsharpSourceProfilePropertyRow {
+  readonly declaringNames: readonly CsharpSourceProfileMemberIdentity["declaringName"][];
+  readonly memberName: string;
+  readonly returnType: TargetTypeRef;
+}
+
+const sourceProfileMethodRows: readonly CsharpSourceProfileMethodRow[] = [
+  {
+    declaringName: "String",
+    memberName: "Split",
+    returnType: { kind: "array", element: csharpStringTargetType() },
+    parameters: [{ name: "separator", type: csharpStringTargetType() }],
+  },
+  ...["StartsWith", "EndsWith", "Contains"].map((memberName): CsharpSourceProfileMethodRow => ({
+    declaringName: "String",
+    memberName,
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+    parameters: [{ name: "value", type: csharpStringTargetType() }],
+  })),
+  ...["Trim", "ToString"].map((memberName): CsharpSourceProfileMethodRow => ({
+    declaringName: "String",
+    memberName,
+    returnType: csharpStringTargetType(),
+    parameters: [],
+  })),
+];
+
+const sourceProfilePropertyRows: readonly CsharpSourceProfilePropertyRow[] = [
+  {
+    declaringNames: ["String", "Array", "ReadonlyArray"],
+    memberName: "Length",
+    returnType: csharpSourcePrimitiveTargetType("int32"),
+  },
+];
+
 export function getCsharpSourceProfileMemberIdentity(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
@@ -61,41 +103,28 @@ export function getCsharpSourceProfileMemberIdentity(
 export function csharpSourceProfileCallMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity?.declaringName !== "String") {
+  if (identity === undefined) {
     return undefined;
   }
-  switch (identity.memberName) {
-    case "Split":
-      return csharpSourceProfileMethod(identity, {
-        returnType: { kind: "array", element: csharpStringTargetType() },
-        parameters: [{ name: "separator", type: csharpStringTargetType() }],
-      });
-    case "StartsWith":
-    case "EndsWith":
-    case "Contains":
-      return csharpSourceProfileMethod(identity, {
-        returnType: csharpSourcePrimitiveTargetType("bool"),
-        parameters: [{ name: "value", type: csharpStringTargetType() }],
-      });
-    case "Trim":
-    case "ToString":
-      return csharpSourceProfileMethod(identity, {
-        returnType: csharpStringTargetType(),
-        parameters: [],
-      });
-    default:
-      return undefined;
-  }
+  const row = sourceProfileMethodRows.find((candidate) =>
+    candidate.declaringName === identity.declaringName &&
+    candidate.memberName === identity.memberName
+  );
+  return row === undefined ? undefined : csharpSourceProfileMethod(identity, row);
 }
 
 export function csharpSourceProfilePropertyMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
   receiverType: TargetTypeRef | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity?.memberName !== "Length") {
+  if (identity === undefined) {
     return undefined;
   }
-  if (identity.declaringName !== "String" && identity.declaringName !== "Array" && identity.declaringName !== "ReadonlyArray") {
+  const row = sourceProfilePropertyRows.find((candidate) =>
+    candidate.memberName === identity.memberName &&
+    candidate.declaringNames.includes(identity.declaringName)
+  );
+  if (row === undefined) {
     return undefined;
   }
   return {
@@ -106,16 +135,13 @@ export function csharpSourceProfilePropertyMember(
     static: false,
     parameters: [],
     declaringType: identity.declaringName === "String" ? csharpStringTargetType() : receiverType,
-    returnType: csharpSourcePrimitiveTargetType("int32"),
+    returnType: row.returnType,
   };
 }
 
 function csharpSourceProfileMethod(
   identity: CsharpSourceProfileMemberIdentity,
-  options: {
-    readonly returnType: TargetTypeRef;
-    readonly parameters: readonly { readonly name: string; readonly type: TargetTypeRef }[];
-  },
+  row: CsharpSourceProfileMethodRow,
 ): CsharpTargetMember {
   return {
     id: csharpSourceProfileMemberId(identity),
@@ -124,12 +150,12 @@ function csharpSourceProfileMethod(
     kind: "method",
     static: false,
     declaringType: csharpStringTargetType(),
-    parameters: options.parameters.map((parameter) => ({
+    parameters: row.parameters.map((parameter) => ({
       name: parameter.name,
       type: parameter.type,
       passingMode: "by-value",
     })),
-    returnType: options.returnType,
+    returnType: row.returnType,
   };
 }
 

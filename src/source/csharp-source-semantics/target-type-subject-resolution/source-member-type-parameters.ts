@@ -7,7 +7,6 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
-  getNodeList,
 } from "../ast-utils.js";
 import {
   getSymbolDeclarations,
@@ -208,9 +207,7 @@ function getHeritageTypeParameterSubstitutions(
     return new Map();
   }
   const baseTypeParameters = ast.typeParameters(baseDeclaration);
-  const typeArguments = ast.typeArguments(heritage).length > 0
-    ? ast.typeArguments(heritage)
-    : getNodeList(getNodeField(heritage, "TypeArguments"));
+  const typeArguments = ast.typeArguments(heritage);
   if (baseTypeParameters.length === 0 || typeArguments.length === 0) {
     return new Map();
   }

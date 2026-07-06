@@ -7,9 +7,6 @@ import type {
   CsharpTargetMember,
 } from "../../../../target-types.js";
 import {
-  asNodeSubject,
-} from "../../../../ast-utils.js";
-import {
   booleanConstructorTargetMembersForSelectedIdentity,
 } from "../../booleans.js";
 import {
@@ -300,21 +297,14 @@ function arrayElementTypeFromClosedFacts(
 function getExplicitCallTypeArguments(
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly (TargetTypeRef | undefined)[] {
-  const ast = request.context.compiler?.ast;
-  if (ast === undefined || typeof ast.typeArguments !== "function") {
-    return [];
-  }
-  const callNode = asNodeSubject(request.request.call);
-  if (callNode === undefined) {
-    return [];
-  }
-  return ast.typeArguments(callNode)
-    .map((argument) => argument === undefined
-      ? undefined
-      : request.host.getTargetTypeRefForSubject(argument, request.context, {
+  return request.request.sourceSelectedMethodTypeArguments?.map((argument) =>
+    request.host.getTargetTypeRefForSubject(argument.explicitTypeNode, request.context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+    }) ??
+      request.host.getTargetTypeRefForSubject(argument.selectedType, request.context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: true,
-        sourceFile: ast.getSourceFile(argument),
       })
-    );
+  ) ?? [];
 }
