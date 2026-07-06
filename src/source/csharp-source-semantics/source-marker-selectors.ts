@@ -30,6 +30,11 @@ const attributeBuilderChainMethods = new Set([
   "target",
 ]);
 
+const attributeMarkerModules = new Set([
+  tsonicCoreLangModule,
+  csharpLangModule,
+]);
+
 export function isAttributeSelectorApplicationTarget(
   subject: unknown,
   context: SelectorObservationContext,
@@ -215,7 +220,7 @@ function isAttributeBuilderMemberDeclaration(declaration: ProviderVirtualDeclara
 }
 
 function isAttributeBuilderDeclaration(declaration: ProviderVirtualDeclarationFact): boolean {
-  return (declaration.moduleSpecifier === tsonicCoreLangModule || declaration.moduleSpecifier === csharpLangModule) &&
+  return attributeMarkerModules.has(declaration.moduleSpecifier ?? "") &&
     (declaration.exportName === "__TsonicAttributeBuilder" || declaration.exportName === "__TsonicAttributeMemberBuilder");
 }
 
@@ -259,7 +264,7 @@ function providerVirtualDeclaration(
 }
 
 function isAttributeSourceMarkerDeclaration(declaration: ProviderVirtualDeclarationFact): boolean {
-  return (declaration.moduleSpecifier === tsonicCoreLangModule || declaration.moduleSpecifier === csharpLangModule) &&
+  return attributeMarkerModules.has(declaration.moduleSpecifier ?? "") &&
     declaration.exportName === "attribute";
 }
 

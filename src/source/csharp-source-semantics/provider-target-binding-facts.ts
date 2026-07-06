@@ -55,8 +55,8 @@ function getCsharpProviderTargetBindingForTypeReference(
     return undefined;
   }
   const checker = lifecycleContext.compiler.checker;
-  const symbol = tryGetSymbolAtLocation(checker, typeName, sourceFile);
-  const resolvedSymbol = tryGetResolvedSymbol(checker, typeName, sourceFile);
+  const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
+  const resolvedSymbol = checker.getResolvedSymbol(typeName, { sourceFile });
   const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
   const aliasedResolvedSymbol = getAliasedSymbolIfAvailable(checker, resolvedSymbol, sourceFile);
   const subjects = [typeName, symbol, aliasedSymbol, resolvedSymbol, aliasedResolvedSymbol];
@@ -75,28 +75,4 @@ function getCsharpProviderTargetBindingForTypeReference(
     }
   }
   return undefined;
-}
-
-function tryGetSymbolAtLocation(
-  checker: ExtensionLifecycleContext["compiler"]["checker"],
-  node: Node,
-  sourceFile: SourceFile,
-) {
-  try {
-    return checker.getSymbolAtLocation(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
-}
-
-function tryGetResolvedSymbol(
-  checker: ExtensionLifecycleContext["compiler"]["checker"],
-  node: Node,
-  sourceFile: SourceFile,
-) {
-  try {
-    return checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
 }

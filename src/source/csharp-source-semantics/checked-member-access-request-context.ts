@@ -108,11 +108,7 @@ function getCheckedReceiverPropertySymbol(
   ) {
     return undefined;
   }
-  try {
-    return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
 }
 
 function selectedMemberContext(
@@ -142,11 +138,7 @@ function getResolvedSymbol(
   node: Node,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): ExtensionFactSubject | undefined {
-  try {
-    return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
 }
 
 function getTypeAtLocation(
@@ -154,20 +146,12 @@ function getTypeAtLocation(
   node: Node,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Type | undefined {
-  try {
-    return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
 }
 
 function getTypeSymbol(
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
   type: Type,
 ): ExtensionFactSubject | undefined {
-  try {
-    return compiler.checker.getTypeSymbol(type);
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getTypeSymbol(type);
 }

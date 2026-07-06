@@ -106,11 +106,7 @@ export function getAliasedSymbolIfAvailable(
   if ((symbol.Flags & symbolFlagsAlias) === 0) {
     return undefined;
   }
-  try {
-    return checker.getAliasedSymbol(symbol, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getAliasedSymbol(symbol, { sourceFile });
 }
 
 export function getSymbolDeclarations(

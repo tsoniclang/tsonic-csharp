@@ -15,7 +15,6 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
-  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -202,12 +201,7 @@ function hasOpaqueAnyCarrier(
   if (node === undefined || compiler === undefined) {
     return false;
   }
-  let type: Type | undefined;
-  try {
-    type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
-  } catch {
-    return false;
-  }
+  const type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
   return type !== undefined && (
     compiler.typeShape.isAny(type) ||
     isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier)

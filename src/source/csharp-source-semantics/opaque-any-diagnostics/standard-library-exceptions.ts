@@ -143,11 +143,7 @@ function safeGetResolvedSymbol(
   sourceFile: SourceFile | undefined,
   checker: NonNullable<ExtensionLifecycleContext["compiler"]>["checker"],
 ): ReturnType<NonNullable<ExtensionLifecycleContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
-  try {
-    return checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function getStandardLibraryDeclarationSelection(

@@ -43,11 +43,7 @@ function recordCheckedOperationFact(
     return;
   }
   if (compiler.ast.is.IsCallExpression(node) || compiler.ast.is.IsNewExpression(node)) {
-    try {
-      compiler.checker.getResolvedSignature(node, { sourceFile });
-    } catch {
-      return;
-    }
+    compiler.checker.getResolvedSignature(node, { sourceFile });
     return;
   }
   if (
@@ -55,10 +51,6 @@ function recordCheckedOperationFact(
     compiler.ast.is.IsElementAccessExpression(node) ||
     compiler.ast.is.IsBinaryExpression(node)
   ) {
-    try {
-      compiler.checker.getTypeAtLocation(node, { sourceFile });
-    } catch {
-      return;
-    }
+    compiler.checker.getTypeAtLocation(node, { sourceFile });
   }
 }

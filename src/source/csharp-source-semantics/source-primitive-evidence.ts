@@ -77,9 +77,5 @@ function getTypeReferenceSymbol(
   if (lookupNode === undefined) {
     return undefined;
   }
-  try {
-    return checker.getSymbolAtLocation(lookupNode, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getSymbolAtLocation(lookupNode, { sourceFile });
 }

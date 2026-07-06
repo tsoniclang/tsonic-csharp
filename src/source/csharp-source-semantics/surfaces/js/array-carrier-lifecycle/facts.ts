@@ -33,6 +33,7 @@ import type {
   ArrayLocalAnalysis,
   ArrayParameterAnalysis,
   ArrayReturnAnalysis,
+  CsharpArrayLifecycleAst,
   CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
@@ -55,7 +56,7 @@ export function recordArrayParameterFacts(
     boundary: "exported-api",
   };
   const evidence = [{
-    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name)}' from generic structural source analysis requirements: ${Array.from(parameter.carrierRequirements).sort().join(",") || "none"}.`,
+    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name, lifecycleContext.compiler?.ast)}' from generic structural source analysis requirements: ${Array.from(parameter.carrierRequirements).sort().join(",") || "none"}.`,
   }];
   for (const subject of arrayFactSubjects(parameter)) {
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
@@ -224,12 +225,12 @@ function appendUnresolvedArrayCarrierDiagnostic(
       [{ message: `Observed structural requirements: ${Array.from(requirements).sort().join(",")}.` }],
     ),
     nodeOrSpan: node,
-    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node)}`,
+    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node, lifecycleContext.compiler?.ast)}`,
   });
   return true;
 }
 
-function getParameterName(name: Node): string {
-  const text = (name as { readonly Text?: unknown }).Text;
-  return typeof text === "string" ? text : "<array>";
+function getParameterName(name: Node, ast: CsharpArrayLifecycleAst | undefined): string {
+  const text = ast?.text(name);
+  return text === undefined || text.length === 0 ? "<array>" : text;
 }

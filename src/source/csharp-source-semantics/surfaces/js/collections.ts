@@ -169,11 +169,7 @@ function checkedTypeAtLocation(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): Type | undefined {
-  try {
-    return context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
 }
 
 function recordCollectionRuntimeCarrierFact(

@@ -108,6 +108,22 @@ function getDotnetBinding(provider, moduleSpecifier, metadataName) {
   return binding;
 }
 
+function requireDotnetMember(declaration, kind, sourceName, targetName = sourceName) {
+  const matches = declaration?.members?.filter((member) =>
+    member.kind === kind &&
+    member.sourceName === sourceName &&
+    member.targetName === targetName
+  ) ?? [];
+  assert.equal(matches.length, 1, `Expected exactly one ${kind} member ${sourceName} -> ${targetName} on ${declaration?.sourceName ?? "<missing>"}`);
+  return matches[0];
+}
+
+function requireProviderDeclarationMember(declaration, kind, name) {
+  const matches = declaration?.members?.filter((member) => member.kind === kind && member.name === name) ?? [];
+  assert.equal(matches.length, 1, `Expected exactly one source ${kind} member ${name} on ${declaration?.name ?? "<missing>"}`);
+  return matches[0];
+}
+
 function idEndsWith(id, metadataSuffix) {
   return stripAssemblyQualifiers(id) === metadataSuffix;
 }
@@ -323,11 +339,11 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
   const specialFolder = systemModule.exports.find((declaration) => declaration.sourceName === "SpecialFolder");
   const list = collectionsModule.exports.find((declaration) => declaration.sourceName === "List");
 
-  assert.ok(console?.members?.some((member) => member.kind === "method" && member.sourceName === "WriteLine" && member.targetName === "WriteLine"));
-  assert.ok(list?.members?.some((member) => member.kind === "method" && member.sourceName === "Add" && member.targetName === "Add"));
-  assert.ok(environment?.members?.some((member) => member.kind === "property" && member.sourceName === "NewLine" && member.targetName === "NewLine"));
-  assert.ok(dateTime?.members?.some((member) => member.kind === "field" && member.sourceName === "MinValue" && member.targetName === "MinValue"));
-  assert.ok(specialFolder?.members?.some((member) => member.kind === "field" && member.sourceName === "Desktop" && member.targetName === "Desktop"));
+  requireDotnetMember(console, "method", "WriteLine");
+  requireDotnetMember(list, "method", "Add");
+  requireDotnetMember(environment, "property", "NewLine");
+  requireDotnetMember(dateTime, "field", "MinValue");
+  requireDotnetMember(specialFolder, "field", "Desktop");
 
   const systemModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const collectionsModel = dotnetModuleToProviderDeclarationModel(collectionsModule);
@@ -337,11 +353,11 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
   const sourceSpecialFolder = systemModel.exports.find((declaration) => declaration.name === "SpecialFolder");
   const sourceList = collectionsModel.exports.find((declaration) => declaration.name === "List");
 
-  assert.ok(sourceConsole?.members?.some((member) => member.kind === "method" && member.name === "WriteLine"));
-  assert.ok(sourceList?.members?.some((member) => member.kind === "method" && member.name === "Add"));
-  assert.ok(sourceEnvironment?.members?.some((member) => member.kind === "property" && member.name === "NewLine"));
-  assert.ok(sourceDateTime?.members?.some((member) => member.kind === "field" && member.name === "MinValue"));
-  assert.ok(sourceSpecialFolder?.members?.some((member) => member.kind === "field" && member.name === "Desktop"));
+  requireProviderDeclarationMember(sourceConsole, "method", "WriteLine");
+  requireProviderDeclarationMember(sourceList, "method", "Add");
+  requireProviderDeclarationMember(sourceEnvironment, "property", "NewLine");
+  requireProviderDeclarationMember(sourceDateTime, "field", "MinValue");
+  requireProviderDeclarationMember(sourceSpecialFolder, "field", "Desktop");
 });
 
 test(".NET reflection provider exposes members on source-visible returned closure types", () => {
@@ -353,14 +369,14 @@ test(".NET reflection provider exposes members on source-visible returned closur
 
   const httpListener = module.exports.find((declaration) => declaration.sourceName === "HttpListener");
   const prefixes = module.exports.find((declaration) => declaration.sourceName === "HttpListenerPrefixCollection");
-  assert.ok(httpListener?.members?.some((member) => member.kind === "property" && member.sourceName === "Prefixes"));
-  assert.ok(prefixes?.members?.some((member) => member.kind === "method" && member.sourceName === "Add"));
+  requireDotnetMember(httpListener, "property", "Prefixes");
+  requireDotnetMember(prefixes, "method", "Add");
 
   const model = dotnetModuleToProviderDeclarationModel(module);
   const sourceHttpListener = model.exports.find((declaration) => declaration.name === "HttpListener");
   const sourcePrefixes = model.exports.find((declaration) => declaration.name === "HttpListenerPrefixCollection");
-  assert.ok(sourceHttpListener?.members?.some((member) => member.kind === "property" && member.name === "Prefixes"));
-  assert.ok(sourcePrefixes?.members?.some((member) => member.kind === "method" && member.name === "Add"));
+  requireProviderDeclarationMember(sourceHttpListener, "property", "Prefixes");
+  requireProviderDeclarationMember(sourcePrefixes, "method", "Add");
 });
 
 test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
@@ -402,7 +418,7 @@ test(".NET reflection provider exposes conflicted nested closure types through s
   const model = dotnetModuleToProviderDeclarationModel(module);
   const sourceDictionary = model.exports.find((declaration) => declaration.name === "Dictionary");
   const sourceValueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
-  assert.ok(sourceValueCollection?.members?.some((member) => member.kind === "method" && member.name === "GetEnumerator"));
+  requireProviderDeclarationMember(sourceValueCollection, "method", "GetEnumerator");
   assert.deepEqual(
     sourceDictionary?.members?.find((member) => member.kind === "property" && member.name === "Values")?.type?.sourceShape,
     {
@@ -446,10 +462,10 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
   ]);
 
   const valueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
-  assert.ok(valueCollection?.members?.some((member) => member.kind === "method" && member.name === "GetEnumerator"));
+  requireProviderDeclarationMember(valueCollection, "method", "GetEnumerator");
   const enumerator = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection_Enumerator");
-  assert.ok(enumerator?.members?.some((member) => member.kind === "method" && member.name === "MoveNext"));
-  assert.ok(enumerator?.members?.some((member) => member.kind === "property" && member.name === "Current"));
+  requireProviderDeclarationMember(enumerator, "method", "MoveNext");
+  requireProviderDeclarationMember(enumerator, "property", "Current");
 });
 
 test(".NET reflection provider exposes method generic parameters without confusing them for declaring type parameters", () => {
@@ -1716,12 +1732,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
 
   const specialFolder = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Environment.SpecialFolder");
   assert.equal(specialFolder.kind, "enum");
-  assert.ok(specialFolder.members.some((member) =>
-    member.kind === "field" &&
-    member.static === true &&
-    member.sourceName === "Desktop" &&
-    member.targetName === "Desktop"
-  ));
+  assert.equal(requireDotnetMember(specialFolder, "field", "Desktop").static, true);
 
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
@@ -1909,8 +1920,7 @@ test(".NET provider declaration model preserves static and instance CLR member i
     const equalsMembers = declaration.members?.filter((member) => member.name === "Equals") ?? [];
     assert.equal(equalsMembers.length, 2, typeName);
     assert.equal(new Set(equalsMembers.map((member) => member.id)).size, equalsMembers.length, typeName);
-    assert.ok(equalsMembers.some((member) => member.static !== true), typeName);
-    assert.ok(equalsMembers.some((member) => member.static === true), typeName);
+    assert.deepEqual(equalsMembers.map((member) => member.static === true).sort(), [false, true], typeName);
     const rawDeclaration = module.exports.find((candidate) => candidate.sourceName === typeName);
     assert.equal(rawDeclaration?.unsupportedMembers?.some((member) =>
       member.memberKind === "method" &&
@@ -1927,7 +1937,7 @@ test(".NET reflection provider exposes unique nested CLR types as source declara
 
   const rawEnvironment = systemModule.exports.find((declaration) => declaration.sourceName === "Environment");
   assert.ok(rawEnvironment);
-  assert.ok(rawEnvironment.members.some((member) => member.sourceName === "GetFolderPath"));
+  requireDotnetMember(rawEnvironment, "method", "GetFolderPath");
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const environment = declarationModel.exports.find((declaration) => declaration.name === "Environment");

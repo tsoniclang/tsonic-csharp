@@ -241,11 +241,7 @@ function getSafeResolvedNativeArrayReceiverType(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  try {
-    return getResolvedNativeArrayReceiverType(semanticType, receiver, context, host);
-  } catch {
-    return undefined;
-  }
+  return getResolvedNativeArrayReceiverType(semanticType, receiver, context, host);
 }
 
 function getSafeTargetTypeRefForSubject(
@@ -254,11 +250,7 @@ function getSafeTargetTypeRefForSubject(
   context: ExtensionObservationContext,
   options: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[2],
 ): TargetTypeRef | undefined {
-  try {
-    return host.getTargetTypeRefForSubject(subject, context, options);
-  } catch {
-    return undefined;
-  }
+  return host.getTargetTypeRefForSubject(subject, context, options);
 }
 
 function getSemanticTypeAtLocation(
@@ -266,11 +258,7 @@ function getSemanticTypeAtLocation(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): ExtensionFactSubject | undefined {
-  try {
-    return context.compiler?.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined;
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined;
 }
 
 function getSelectedOperationIdOrDefault(

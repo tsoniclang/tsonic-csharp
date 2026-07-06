@@ -181,12 +181,8 @@ function symbolForInitializerDeclarationLookup(
     return undefined;
   }
   const sourceFile = ast.getSourceFile(node);
-  try {
-    return checker.getSymbolAtLocation(node, { sourceFile }) ??
-      checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getSymbolAtLocation(node, { sourceFile }) ??
+    checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function isInitializerDeclarationSymbolLookupNode(

@@ -44,37 +44,33 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
   ) {
     return undefined;
   }
-  try {
-    const type = getCheckedRuntimeCarrierType(compiler, node, sourceFile);
-    const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-    const directCarrier = host.getTargetTypeRefForType(type, context, {
-      allowRuntimeCarrier: false,
-      sourceFile,
-    });
-    if (directCarrier !== undefined && !shouldDeferNumberLikeSemanticUseSiteCarrier(compiler.ast, node, directCarrier)) {
-      return directCarrier;
-    }
-    if (type === undefined) {
-      return undefined;
-    }
-    if (compiler.typeShape.isAny(type)) {
-      const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
-        type,
-        target: csharpTargetId,
-      }, host);
-      return result.kind === "accept" ? result.value.carrier : undefined;
-    }
-    if (!compiler.typeShape.isUnion(type)) {
-      return undefined;
-    }
+  const type = getCheckedRuntimeCarrierType(compiler, node, sourceFile);
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const directCarrier = host.getTargetTypeRefForType(type, context, {
+    allowRuntimeCarrier: false,
+    sourceFile,
+  });
+  if (directCarrier !== undefined && !shouldDeferNumberLikeSemanticUseSiteCarrier(compiler.ast, node, directCarrier)) {
+    return directCarrier;
+  }
+  if (type === undefined) {
+    return undefined;
+  }
+  if (compiler.typeShape.isAny(type)) {
     const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
       type,
       target: csharpTargetId,
     }, host);
     return result.kind === "accept" ? result.value.carrier : undefined;
-  } catch {
+  }
+  if (!compiler.typeShape.isUnion(type)) {
     return undefined;
   }
+  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+    type,
+    target: csharpTargetId,
+  }, host);
+  return result.kind === "accept" ? result.value.carrier : undefined;
 }
 
 function shouldDeferNumberLikeSemanticUseSiteCarrier(
