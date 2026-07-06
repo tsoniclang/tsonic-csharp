@@ -79,6 +79,28 @@ export function findTargetMemberForCall(
       if (exact !== undefined) {
         return exact;
       }
+      const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
+      if (sourceProjectionCandidates.length === 1) {
+        return selectExactTargetMember(
+          sourceProjectionCandidates[0]!,
+          selectionRequest,
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+      }
+      if (sourceProjectionCandidates.length > 1) {
+        const sourceProjection = selectTargetMember(
+          sourceProjectionCandidates,
+          selectionRequest,
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+        if (sourceProjection !== undefined) {
+          return sourceProjection;
+        }
+      }
       if (checkedCallHasTargetPassingFacts(request, context)) {
         return selectTargetMember(
           getTargetMemberOverloadGroupCandidates(csharpBinding, selectedMember),

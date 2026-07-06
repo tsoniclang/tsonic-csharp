@@ -115,7 +115,6 @@ export function csharpSourceProfileCallMember(
 
 export function csharpSourceProfilePropertyMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
-  receiverType: TargetTypeRef | undefined,
 ): CsharpTargetMember | undefined {
   if (identity === undefined) {
     return undefined;
@@ -134,7 +133,7 @@ export function csharpSourceProfilePropertyMember(
     kind: "property",
     static: false,
     parameters: [],
-    declaringType: identity.declaringName === "String" ? csharpStringTargetType() : receiverType,
+    ...(identity.declaringName === "String" ? { declaringType: csharpStringTargetType() } : {}),
     returnType: row.returnType,
   };
 }

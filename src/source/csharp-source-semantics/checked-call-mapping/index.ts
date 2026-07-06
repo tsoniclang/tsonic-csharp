@@ -136,9 +136,8 @@ export function mapCsharpCheckedCall(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
-  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context, requestContext);
+  let virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
   const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
   if (sourceMarkerCall !== undefined) {
     return sourceMarkerCall;
@@ -191,6 +190,8 @@ export function mapCsharpCheckedCall(
   if (sourceProfileCall !== undefined) {
     return sourceProfileCall;
   }
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  virtualDeclaration ??= getSelectedCallProviderVirtualDeclaration(request, context, requestContext);
   const binding = findTargetBinding(context, [
     request.sourceSelectedDeclaration,
     requestContext.calleeSelectedPropertySymbol,

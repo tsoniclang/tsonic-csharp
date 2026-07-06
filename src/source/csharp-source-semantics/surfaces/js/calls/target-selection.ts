@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
+  SourceLibraryMemberKey,
 } from "../source-library.js";
 import {
   getCsharpCheckedCallRequestContext,
@@ -20,6 +21,7 @@ export function selectSourceLibraryCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
   selectedSourceSignature: unknown,
+  selectedSourceIdentity: SourceLibraryMemberKey,
 ): TargetMember | undefined {
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const selected = host.selectTargetMember(candidates, {
@@ -28,6 +30,7 @@ export function selectSourceLibraryCallMember(
     receiver: requestContext.calleeReceiver,
     receiverTargetType: getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
     sourceSelectedSignature: selectedSourceSignature,
+    sourceSelectedIdentity: selectedSourceIdentity,
   }, context);
   return selected !== undefined && selectedSourceSignature !== undefined ? selected : undefined;
 }

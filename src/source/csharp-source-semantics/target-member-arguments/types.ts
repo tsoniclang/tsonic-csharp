@@ -14,6 +14,7 @@ export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
   readonly sourceSelectedSignature?: unknown;
+  readonly sourceSelectedIdentity?: string;
   readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
 }
 

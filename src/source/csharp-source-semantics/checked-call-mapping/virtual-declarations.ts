@@ -30,7 +30,8 @@ export function getSelectedCallProviderVirtualDeclaration(
     requestContext?.calleeSelectedPropertyDeclaration,
     requestContext?.calleeSelectedPropertyContainerSymbol,
     requestContext?.calleeSelectedPropertyDeclarationContainer,
-  ]) ?? getCalleePropertyProviderVirtualDeclaration(request, context);
+  ], { preferSignatureId: request.sourceSelectedSignature !== undefined }) ??
+    getCalleePropertyProviderVirtualDeclaration(request, context);
 }
 
 function getSignatureDeclaration(
@@ -65,15 +66,22 @@ function getCalleePropertyProviderVirtualDeclaration(
 function getProviderVirtualDeclaration(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   subjects: readonly (ExtensionFactSubject | undefined)[],
+  options: { readonly preferSignatureId?: boolean } = {},
 ): ProviderVirtualDeclarationFact | undefined {
+  let first: ProviderVirtualDeclarationFact | undefined;
   for (const subject of subjects) {
     if (subject === undefined) {
       continue;
     }
     const declaration = context.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
     if (declaration !== undefined) {
-      return declaration;
+      if (first === undefined) {
+        first = declaration;
+      }
+      if (options.preferSignatureId !== true || declaration.signatureId !== undefined) {
+        return declaration;
+      }
     }
   }
-  return undefined;
+  return first;
 }

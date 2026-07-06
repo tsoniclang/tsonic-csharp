@@ -157,6 +157,5 @@ function isResolvedSymbolLookupNode(
 ): boolean {
   return ast.is.IsIdentifier(node) ||
     ast.is.IsPrivateIdentifier(node) ||
-    ast.is.IsQualifiedName(node) ||
-    ast.is.IsPropertyAccessExpression(node);
+    ast.is.IsQualifiedName(node);
 }

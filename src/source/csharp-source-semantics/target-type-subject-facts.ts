@@ -34,6 +34,7 @@ import {
 } from "./ast-utils.js";
 import {
   getSymbolDeclarations,
+  getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 
 export type SubjectTargetTypeResolver = (
@@ -180,9 +181,7 @@ function symbolForInitializerDeclarationLookup(
   if (!isInitializerDeclarationSymbolLookupNode(ast, node)) {
     return undefined;
   }
-  const sourceFile = ast.getSourceFile(node);
-  return checker.getSymbolAtLocation(node, { sourceFile }) ??
-    checker.getResolvedSymbol(node, { sourceFile });
+  return getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
 }
 
 function isInitializerDeclarationSymbolLookupNode(

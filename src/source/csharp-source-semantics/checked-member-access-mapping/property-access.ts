@@ -42,6 +42,9 @@ import {
   getNodeField,
 } from "../ast-utils.js";
 import {
+  getSymbolDeclarations,
+} from "../symbol-utils.js";
+import {
   isDeclarationOrVirtualSourceFile,
 } from "../ast-utils/source-file.js";
 import {
@@ -106,11 +109,11 @@ export function mapCsharpCheckedPropertyAccess(
       operation: targetOperation("source-declaration.property-access", "property", "__tsonic_declaration_only"),
     }, [{ message: "C# target accepted checked property access inside declaration-only source; backend does not emit declaration-file expressions." }]);
   }
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const sourceProfileProperty = mapCsharpSourceProfilePropertyAccess(request, context, host);
+  const sourceProfileProperty = mapCsharpSourceProfilePropertyAccess(request, context);
   if (sourceProfileProperty !== undefined) {
     return sourceProfileProperty;
   }
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
@@ -187,13 +190,12 @@ export function mapCsharpCheckedPropertyAccess(
 function mapCsharpSourceProfilePropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
-  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const identity = getCsharpSourceProfileMemberIdentity(requestContext.sourceSelectedDeclaration, context);
-  const receiverType = host.getTargetTypeRefForSubject(request.receiver, context) ??
-    host.getTargetTypeRefForSubject(requestContext.receiverType, context);
-  const member = csharpSourceProfilePropertyMember(identity, receiverType);
+  const identity = getCsharpSourceProfileMemberIdentity(
+    getSourceSelectedPropertyDeclaration(request, context),
+    context,
+  ) ?? getSourceSelectedPropertyIdentity(request, context);
+  const member = csharpSourceProfilePropertyMember(identity);
   if (member === undefined) {
     return undefined;
   }
@@ -203,6 +205,29 @@ function mapCsharpSourceProfilePropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(member),
   }, [{ message: "C# source-profile property access selected from checked TSTS source declaration identity." }]);
+}
+
+function getSourceSelectedPropertyDeclaration(
+  request: CheckedPropertyAccessMappingRequest,
+  context: CheckedPropertyAccessContext,
+): ExtensionFactSubject | undefined {
+  const checker = context.compiler?.checker;
+  const declarations = getSymbolDeclarations(request.sourceSelectedSymbol, checker);
+  return declarations.length === 1 ? declarations[0] : undefined;
+}
+
+function getSourceSelectedPropertyIdentity(
+  request: CheckedPropertyAccessMappingRequest,
+  context: CheckedPropertyAccessContext,
+): ReturnType<typeof getCsharpSourceProfileMemberIdentity> {
+  const checker = context.compiler?.checker;
+  const identities = getSymbolDeclarations(request.sourceSelectedSymbol, checker)
+    .map((declaration) => getCsharpSourceProfileMemberIdentity(declaration, context))
+    .filter((identity): identity is NonNullable<typeof identity> =>
+      identity !== undefined && identity.memberName === request.propertyName
+    );
+  const unique = new Map(identities.map((identity) => [`${identity.declaringName}.${identity.memberName}`, identity]));
+  return unique.size === 1 ? [...unique.values()][0] : undefined;
 }
 
 function isDeclarationOnlyPropertyAccess(

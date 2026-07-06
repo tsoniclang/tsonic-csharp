@@ -95,7 +95,7 @@ export function selectExactTargetMember(
     );
     if (
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
+      sourceSelectionProvesTargetMember(request, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
       continue;
@@ -104,7 +104,7 @@ export function selectExactTargetMember(
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
+      sourceSelectionProvesTargetMember(request, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
       continue;
@@ -112,7 +112,7 @@ export function selectExactTargetMember(
     if (
       targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member)
+      sourceSelectionProvesTargetMember(request, member)
     ) {
       continue;
     }
@@ -174,7 +174,7 @@ function targetMemberMatch(
     );
     if (
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
+      sourceSelectionProvesTargetMember(request, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
       argumentScore += 20;
@@ -184,7 +184,7 @@ function targetMemberMatch(
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member) &&
+      sourceSelectionProvesTargetMember(request, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
       argumentScore += 20;
@@ -193,7 +193,7 @@ function targetMemberMatch(
     if (
       targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
       request.sourceSelectedSignature !== undefined &&
-      sourceSelectionProvesTargetMember(request.sourceSelectedSignature, member)
+      sourceSelectionProvesTargetMember(request, member)
     ) {
       argumentScore += 20;
       continue;
@@ -258,12 +258,19 @@ function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetPara
 }
 
 function sourceSelectionProvesTargetMember(
-  sourceSelectedSignature: unknown,
+  request: TargetMemberSelectionRequest,
   member: CsharpTargetMember,
 ): boolean {
+  const sourceSelectedSignature = request.sourceSelectedSignature;
   const signatureId = (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId;
-  return typeof signatureId === "string" &&
-    (signatureId === member.id || signatureId === member.providerSourceSignatureId);
+  if (
+    typeof signatureId === "string" &&
+    (signatureId === member.id || signatureId === member.providerSourceSignatureId)
+  ) {
+    return true;
+  }
+  return request.sourceSelectedIdentity !== undefined &&
+    member.sourceIdentityKeys?.includes(request.sourceSelectedIdentity) === true;
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {

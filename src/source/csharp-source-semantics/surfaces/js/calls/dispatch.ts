@@ -88,7 +88,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
   }
-  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, request.sourceSelectedSignature ?? signatureDeclaration);
+  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, signatureDeclaration, sourceLibraryMemberIdentity(sourceMember));
   const closedFactsStatus = operationRow === undefined
     ? { kind: "satisfied" } as const
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);

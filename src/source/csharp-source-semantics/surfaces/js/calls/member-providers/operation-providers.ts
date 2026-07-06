@@ -124,6 +124,13 @@ export function targetMembersFromOperationTargetProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly CsharpTargetMember[] {
+  return withSelectedSourceIdentity(targetMembersFromOperationTargetProviderCore(provider, request), request.selectedIdentity.key);
+}
+
+function targetMembersFromOperationTargetProviderCore(
+  provider: JsSurfaceOperationTargetProvider,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly CsharpTargetMember[] {
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
@@ -134,6 +141,16 @@ export function targetMembersFromOperationTargetProvider(
     case "semantic-exception":
       return targetMembersFromSemanticException(provider.exception, request);
   }
+}
+
+function withSelectedSourceIdentity(
+  members: readonly CsharpTargetMember[],
+  sourceIdentityKey: SourceLibraryMemberKey,
+): readonly CsharpTargetMember[] {
+  return members.map((member) => ({
+    ...member,
+    sourceIdentityKeys: [...new Set([...(member.sourceIdentityKeys ?? []), sourceIdentityKey])],
+  }));
 }
 
 export function operationTargetProviderHasCallableMember(
