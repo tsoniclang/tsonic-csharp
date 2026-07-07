@@ -80,26 +80,30 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (typeAlias !== undefined) {
     return typeAlias;
   }
+  const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
+  const directTargetTypePreservesPrimitiveEvidence = directTargetType === undefined ||
+    targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType);
+  if (directTargetType !== undefined) {
+    if (directTargetTypePreservesPrimitiveEvidence) {
+      const directType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, directTargetType, diagnostics, node);
+      if (directType !== undefined) {
+        return directType;
+      }
+    }
+  }
   const providerType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
   if (providerType !== undefined) {
     return providerType;
   }
-  const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
-  if (directTargetType !== undefined) {
-    if (!targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType)) {
-      diagnostics?.push({
-        ...unsupportedNodeDiagnostic(
-          node,
-          "C# type emission requires transformed source-core primitive type syntax to preserve explicit target primitive evidence; backend must not collapse source-core primitives to TypeScript primitive fallbacks.",
-        ),
-        evidence: describeSourcePrimitiveEvidence(input, node, sourceFile),
-      });
-      return invalidCsharpType("source primitive type transform");
-    }
-    const directType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, directTargetType, diagnostics, node);
-    if (directType !== undefined) {
-      return directType;
-    }
+  if (directTargetType !== undefined && !directTargetTypePreservesPrimitiveEvidence) {
+    diagnostics?.push({
+      ...unsupportedNodeDiagnostic(
+        node,
+        "C# type emission requires transformed source-core primitive type syntax to preserve explicit target primitive evidence; backend must not collapse source-core primitives to TypeScript primitive fallbacks.",
+      ),
+      evidence: describeSourcePrimitiveEvidence(input, node, sourceFile),
+    });
+    return invalidCsharpType("source primitive type transform");
   }
   const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (collectionType !== undefined) {

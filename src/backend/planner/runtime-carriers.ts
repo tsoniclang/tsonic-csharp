@@ -7,6 +7,9 @@ import {
   targetTypeRefContainsSourcePrimitive,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
 import {
+  csharpTargetTypeFromBinding,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
 import {
@@ -42,7 +45,8 @@ export function getTargetTypeRefForNode(
   }
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
-      return probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
+    return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
+      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
       getTargetTypeRefFromDirectFacts(input, sourceNode) ??
       typeReferenceFact;
   }
@@ -53,6 +57,22 @@ export function getTargetTypeRefForNode(
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromSymbolDeclarations(input, sourceNode, sourceFile);
+}
+
+function getTargetTypeRefFromTargetBindingForReference(
+  input: TargetCompileInput,
+  sourceNode: Node,
+  sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  const binding = input.targetFacts.getTargetBindingForReference(sourceNode, { sourceFile });
+  if (binding === undefined) {
+    return undefined;
+  }
+  const typeArguments = input.ast.typeArguments(sourceNode)
+    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
+  return typeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
 }
 
 function getTargetTypeRefFromSymbolDeclarations(
