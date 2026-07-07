@@ -20,7 +20,7 @@
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "test": "npm run build && npm run test:parallel",
+    "test": "node ../tsonic/scripts/test/run-parallel.mjs --scope tsonic-csharp --with-preruns",
     "test:parallel": "node ../tsonic/scripts/test/run-parallel.mjs --scope tsonic-csharp"
   },
   "peerDependencies": {
