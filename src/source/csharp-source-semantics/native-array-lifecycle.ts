@@ -51,7 +51,6 @@ import {
 } from "./target-rules.js";
 import {
   asNativeArrayTargetType,
-  getNativeArrayReceiverType as getResolvedNativeArrayReceiverType,
 } from "./checked-member-access-mapping/lifecycle-helpers.js";
 
 type LifecycleContext = {
@@ -73,7 +72,7 @@ export function recordCsharpNativeArrayFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordNativeArrayLengthFact(node, sourceFile, context, host);
+      recordNativeArrayLengthFact(node, sourceFile, context);
       recordNativeArrayElementAccessFact(node, sourceFile, context, host);
     });
   }
@@ -83,7 +82,6 @@ function recordNativeArrayLengthFact(
   node: Node,
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
-  host: CsharpOperationsProviderHost,
 ): void {
   const compiler = context.compiler;
   if (
@@ -97,7 +95,7 @@ function recordNativeArrayLengthFact(
   if (receiver === undefined) {
     return;
   }
-  const receiverType = getNativeArrayReceiverType(receiver, sourceFile, context, host);
+  const receiverType = getNativeArrayReceiverType(receiver, sourceFile, context);
   if (receiverType?.kind !== "array") {
     return;
   }
@@ -136,7 +134,7 @@ function recordNativeArrayElementAccessFact(
   if (receiver === undefined || argument === undefined) {
     return;
   }
-  const receiverType = getNativeArrayReceiverType(receiver, sourceFile, context, host);
+  const receiverType = getNativeArrayReceiverType(receiver, sourceFile, context);
   if (receiverType?.kind !== "array") {
     return;
   }
@@ -203,21 +201,18 @@ function getNativeArrayReceiverType(
   receiver: Node,
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
-  host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  const semanticType = getSemanticTypeAtLocation(receiver, sourceFile, context);
-  const resolved = getSafeResolvedNativeArrayReceiverType(semanticType, receiver, context, host);
-  if (resolved !== undefined) {
-    return resolved;
-  }
   const boundaryCarrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context, sourceFile);
   if (boundaryCarrier !== undefined) {
     return asNativeArrayTargetType(unwrapNullableTargetType(boundaryCarrier));
   }
-  return asNativeArrayTargetType(unwrapNullableTargetType(
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
-      context.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier,
-  ));
+  const recordedCarrier = context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+    context.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier;
+  const recordedNativeArrayType = asNativeArrayTargetType(unwrapNullableTargetType(recordedCarrier));
+  if (recordedNativeArrayType !== undefined) {
+    return recordedNativeArrayType;
+  }
+  return undefined;
 }
 
 function hasIntegralIndex(
@@ -225,23 +220,20 @@ function hasIntegralIndex(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ): boolean {
+  const directIndexType = getSafeTargetTypeRefForSubject(host, node, context, { allowSemanticTypeQuery: false }) ??
+    getSafeTargetTypeRefForSubject(host, node, context, { allowSemanticTypeQuery: true });
+  if (
+    isIntegralTargetTypeRef(directIndexType) ||
+    isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context)
+  ) {
+    return true;
+  }
   const sourceFile = context.compiler?.ast.getSourceFile(node);
   const semanticType = sourceFile === undefined
     ? undefined
     : getSemanticTypeAtLocation(node, sourceFile, context);
-  const indexType = getSafeTargetTypeRefForSubject(host, node, context, { allowSemanticTypeQuery: true }) ??
-    getSafeTargetTypeRefForSubject(host, semanticType, context, { allowSemanticTypeQuery: true });
-  return isIntegralTargetTypeRef(indexType) ||
-    isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context);
-}
-
-function getSafeResolvedNativeArrayReceiverType(
-  semanticType: ExtensionFactSubject | undefined,
-  receiver: Node,
-  context: ExtensionObservationContext,
-  host: CsharpOperationsProviderHost,
-): TargetTypeRef | undefined {
-  return getResolvedNativeArrayReceiverType(semanticType, receiver, context, host);
+  const indexType = getSafeTargetTypeRefForSubject(host, semanticType, context, { allowSemanticTypeQuery: true });
+  return isIntegralTargetTypeRef(indexType);
 }
 
 function getSafeTargetTypeRefForSubject(

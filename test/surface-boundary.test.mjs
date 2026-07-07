@@ -8,6 +8,12 @@ import {
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
 } from "../dist/index.js";
+import {
+  csharpJsSourceProfileOwnerId,
+  csharpJsSurfaceSourceProfileContributions,
+  csharpSourceProfileContributions,
+  csharpSourceProfileOwnerId,
+} from "../dist/source/csharp-source-semantics/source-profile-declarations.js";
 import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals/index.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import {
@@ -2865,6 +2871,7 @@ function fakeNamespaceImportContext(facts, sourceFile) {
         parent: (node) => node?.Parent,
         name: (node) => node?.Name,
         text: (node) => node?.Text ?? "",
+        typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
       },
       checker: {
         getSignatureDeclaration: (signature) => signature?.declaration,
@@ -2949,6 +2956,7 @@ function fakeContext(facts) {
         parent: (node) => node?.Parent,
         name: (node) => node?.Name,
         text: (node) => node?.Text ?? "",
+        typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
       },
       checker: {
         getSignatureDeclaration: (signature) => signature?.declaration,
@@ -3001,8 +3009,10 @@ function createCsharpSession(sourceText, options = {}) {
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...sourceProfileFiles(context).map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,
@@ -3022,6 +3032,28 @@ function createCsharpSession(sourceText, options = {}) {
       ],
     },
   });
+}
+
+function sourceProfileFiles(context) {
+  if (context.selectedSurfaces.some((surface) => surface.id === "js")) {
+    const declarations = csharpJsSurfaceSourceProfileContributions().declarations ?? [];
+    return declarationFiles(csharpJsSourceProfileOwnerId, declarations);
+  }
+  const declarations = csharpSourceProfileContributions({
+    project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    target: context.target,
+    targetPack: fakeTargetPack,
+    selectedCapabilities: [],
+    selectedSurfaces: context.selectedSurfaces,
+  }).declarations ?? [];
+  return declarationFiles(csharpSourceProfileOwnerId, declarations);
+}
+
+function declarationFiles(ownerId, declarations) {
+  return declarations.map((declaration) => ({
+    path: `/src/.tsonic/source-profiles/${ownerId}/${declaration.fileName}`,
+    text: declaration.text,
+  }));
 }
 
 const fakeTargetPack = {

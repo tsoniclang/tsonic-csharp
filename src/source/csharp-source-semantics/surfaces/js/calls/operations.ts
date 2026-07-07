@@ -31,3 +31,12 @@ export function acceptSourceLibraryCheckedCall(
     selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }
+
+export function acceptDeferredSourceLibraryCheckedCall(
+  sourceMember: SourceLibraryMember,
+  member: TargetMember,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return acceptObservation<CheckedCallMappingResult>({
+    selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },
+  }, [{ message: `C# JS surface target call signature accepted from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'; target operation recording waits for finalized closed facts.` }]);
+}

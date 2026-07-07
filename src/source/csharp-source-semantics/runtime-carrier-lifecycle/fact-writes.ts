@@ -39,15 +39,16 @@ export function setRuntimeCarrierFactIfLocallyAbsent(
   subject: ExtensionFactSubject | undefined,
   fact: { readonly carrier: TargetTypeRef },
   message: string,
-): void {
+): boolean {
   if (subject === undefined) {
-    return;
+    return false;
   }
   const existing = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey);
   if (existing !== undefined) {
-    return;
+    return false;
   }
   lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);
+  return true;
 }
 
 function getResolvedRuntimeCarrierFact(

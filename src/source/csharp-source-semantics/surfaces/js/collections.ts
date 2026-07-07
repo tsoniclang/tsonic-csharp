@@ -35,7 +35,7 @@ import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
 import {
-  setRuntimeCarrierFactIfUnresolved,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "../../runtime-carrier-lifecycle/fact-writes.js";
 
 export {
@@ -193,7 +193,7 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  setRuntimeCarrierFactIfUnresolved(context, subject, fact, evidence);
+  setRuntimeCarrierFactIfLocallyAbsent(context, subject, fact, evidence[0]?.message ?? "C# JS surface collection runtime carrier recorded from checked TypeScript Map/Set library type.");
 }
 
 function completeTargetTypeArguments(

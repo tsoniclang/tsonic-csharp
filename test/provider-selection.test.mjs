@@ -834,7 +834,7 @@ test("C# provider preserves optional defaults and params-array conversion closur
 
 test("C# provider defers when no provider target binding proves ownership", () => {
   const provider = getNativeSemanticProvider();
-  const containerSymbol = {};
+  const calleeSymbol = {};
   const argument = {};
 
   const result = provider.mapCheckedCall({
@@ -842,7 +842,7 @@ test("C# provider defers when no provider target binding proves ownership", () =
     call: {},
     callee: {},
     calleePropertyName: "m",
-    sourceSelectedContainerSymbol: containerSymbol,
+    sourceCalleeSymbol: calleeSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     sourcePrimitiveSubject: argument,
@@ -855,6 +855,30 @@ test("C# provider defers when no provider target binding proves ownership", () =
   }));
 
   assert.equal(result.kind, "defer");
+});
+
+test("C# provider rejects checked calls without selected source evidence", () => {
+  const provider = getNativeSemanticProvider();
+  const argument = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    arguments: [argument],
+  }, fakeObservationContext({
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_NOT_MAPPED");
 });
 
 test("C# erased source marker rejects missing provider member identity", () => {

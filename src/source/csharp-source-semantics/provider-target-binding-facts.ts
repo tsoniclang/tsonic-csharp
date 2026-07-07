@@ -3,6 +3,7 @@ import {
   targetBindingFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionFactSubject,
   ExtensionLifecycleContext,
   Node,
   SourceFile,
@@ -54,16 +55,8 @@ function getCsharpProviderTargetBindingForTypeReference(
   if (typeName === undefined) {
     return undefined;
   }
-  const checker = lifecycleContext.compiler.checker;
-  const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
-  const resolvedSymbol = checker.getResolvedSymbol(typeName, { sourceFile });
-  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
-  const aliasedResolvedSymbol = getAliasedSymbolIfAvailable(checker, resolvedSymbol, sourceFile);
-  const subjects = [typeName, symbol, aliasedSymbol, resolvedSymbol, aliasedResolvedSymbol];
+  const subjects = getProviderTargetBindingSubjectsForTypeName(typeName, sourceFile, lifecycleContext);
   for (const subject of subjects) {
-    if (subject === undefined) {
-      continue;
-    }
     const virtualDeclaration = lifecycleContext.host.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
     const targetIdentity = virtualDeclaration?.targetIdentity;
     if (targetIdentity?.kind !== "target-named") {
@@ -75,4 +68,64 @@ function getCsharpProviderTargetBindingForTypeReference(
     }
   }
   return undefined;
+}
+
+function getProviderTargetBindingSubjectsForTypeName(
+  typeName: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: ExtensionLifecycleContext,
+): readonly ExtensionFactSubject[] {
+  const compiler = lifecycleContext.compiler;
+  const checker = lifecycleContext.compiler.checker;
+  const nodeSubjects = providerBindingTypeNameNodes(typeName, compiler.ast);
+  const subjects: ExtensionFactSubject[] = [];
+  for (const subject of nodeSubjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    subjects.push(subject);
+    if (!compiler.ast.is.IsIdentifier(subject) && !compiler.ast.is.IsPrivateIdentifier(subject)) {
+      continue;
+    }
+    const symbol = checker.getSymbolAtLocation(subject, { sourceFile });
+    const resolvedSymbol = checker.getResolvedSymbolOrNil(subject, { sourceFile }) ?? undefined;
+    const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
+    const aliasedResolvedSymbol = getAliasedSymbolIfAvailable(checker, resolvedSymbol, sourceFile);
+    pushFactSubject(subjects, symbol);
+    pushFactSubject(subjects, aliasedSymbol);
+    pushFactSubject(subjects, resolvedSymbol);
+    pushFactSubject(subjects, aliasedResolvedSymbol);
+  }
+  return Array.from(new Set(subjects));
+}
+
+function pushFactSubject(
+  subjects: ExtensionFactSubject[],
+  subject: ExtensionFactSubject | undefined,
+): void {
+  if (subject !== undefined) {
+    subjects.push(subject);
+  }
+}
+
+function providerBindingTypeNameNodes(
+  typeName: Node,
+  ast: ExtensionLifecycleContext["compiler"]["ast"],
+): readonly Node[] {
+  const nodes: Node[] = [typeName];
+  if (!ast.is.IsQualifiedName(typeName)) {
+    return nodes;
+  }
+  for (let current: Node | undefined = typeName; current !== undefined && ast.is.IsQualifiedName(current);) {
+    const right = asNodeSubject(getNodeField(current, "Right"));
+    const left = asNodeSubject(getNodeField(current, "Left"));
+    if (right !== undefined) {
+      nodes.push(right);
+    }
+    if (left !== undefined && !ast.is.IsQualifiedName(left)) {
+      nodes.push(left);
+    }
+    current = left;
+  }
+  return nodes;
 }

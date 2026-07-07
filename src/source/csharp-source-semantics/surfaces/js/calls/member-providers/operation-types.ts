@@ -116,6 +116,7 @@ export type JsSurfaceSelectedMetadataSelection =
   | {
     readonly kind: "closed-sequence";
     readonly requireResultElementType: boolean;
+    readonly requireClosedInputElementType?: boolean;
   }
   | {
     readonly kind: "closed-keyed-collection";

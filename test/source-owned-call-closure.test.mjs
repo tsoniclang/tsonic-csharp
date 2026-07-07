@@ -40,6 +40,7 @@ test("source-owned checked calls close over destructured binding carrier facts",
     call,
     callee,
     sourceCalleeSymbol: symbol,
+    sourceCalleeDeclaration: bindingElement,
     sourceReturnType,
     arguments: [],
   }, context);
@@ -68,6 +69,7 @@ test("source-owned checked calls close over implicit source class constructor sy
     call,
     callee,
     sourceCalleeSymbol: symbol,
+    sourceCalleeDeclaration: classDeclaration,
     arguments: [],
   }, fakeObservationContext({
     declarationsBySymbol: new Map([[symbol, [classDeclaration]]]),

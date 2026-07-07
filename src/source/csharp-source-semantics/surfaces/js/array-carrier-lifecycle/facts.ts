@@ -24,7 +24,6 @@ import {
 } from "../../../target-types.js";
 import {
   setRuntimeCarrierFactIfLocallyAbsent,
-  setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
   boundaryFactForArrayParameter,
@@ -63,7 +62,7 @@ export function recordArrayParameterFacts(
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
   for (const subject of arrayRuntimeCarrierSubjects(parameter)) {
-    setRuntimeCarrierFactIfUnresolved(lifecycleContext, subject, { carrier: boundary.coreCarrierType }, evidence);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: boundary.coreCarrierType }, evidence[0]?.message ?? "C# JS surface array carrier selected from finalized structural source analysis.");
   }
   void context;
 }

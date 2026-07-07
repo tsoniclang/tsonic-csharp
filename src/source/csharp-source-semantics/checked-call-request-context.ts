@@ -13,7 +13,6 @@ import {
 } from "./ast-utils.js";
 import {
   getAliasedSymbolIfAvailable,
-  getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 
@@ -43,11 +42,13 @@ export function getCsharpCheckedCallRequestContext(
   const compiler = context.compiler;
   const callee = asNodeSubject(request.callee);
   if (compiler === undefined || callee === undefined) {
-    return {};
+    return {
+      ...(request.sourceCalleeSymbol !== undefined ? { calleeSelectedPropertySymbol: request.sourceCalleeSymbol } : {}),
+      ...(request.sourceCalleeDeclaration !== undefined ? { calleeSelectedPropertyDeclaration: request.sourceCalleeDeclaration } : {}),
+    };
   }
   const sourceFile = compiler.ast.getSourceFile(callee);
-  const calleeSymbol = request.sourceCalleeSymbol ??
-    getSymbolForDeclarationLookup(compiler.ast, compiler.checker, callee, sourceFile);
+  const calleeSymbol = request.sourceCalleeSymbol;
   const calleeResolvedSymbol = getResolvedSymbol(compiler, callee, sourceFile);
   const calleeAliasedSymbol = getAliasedSymbolIfAvailable(compiler.checker, calleeResolvedSymbol ?? calleeSymbol, sourceFile);
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
@@ -68,8 +69,8 @@ export function getCsharpCheckedCallRequestContext(
     ? undefined
     : getTypeSymbol(compiler, calleeReceiverType as Type);
   const calleePropertyName = getPropertyAccessName(callee, compiler.ast);
-  const calleeSelectedPropertySymbol = undefined;
-  const calleeSelectedPropertyDeclaration = getSymbolDeclarations(calleeSelectedPropertySymbol, compiler.checker)[0];
+  const calleeSelectedPropertySymbol = request.sourceCalleeSymbol;
+  const calleeSelectedPropertyDeclaration = asNodeSubject(request.sourceCalleeDeclaration);
   const calleeSelectedPropertyDeclarationContainer = getNodeParent(calleeSelectedPropertyDeclaration);
   const calleeSelectedPropertyContainerSymbol = calleeSelectedPropertyDeclarationContainer === undefined
     ? undefined

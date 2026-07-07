@@ -110,7 +110,11 @@ export function selectExactTargetMember(
       continue;
     }
     if (
-      targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
+      targetParameterAcceptsCheckedSourceArgument(
+        parameter,
+        argumentType,
+        sourceSelectionProvesExactTargetMember(request, member),
+      ) &&
       request.sourceSelectedSignature !== undefined &&
       sourceSelectionProvesTargetMember(request, member)
     ) {
@@ -177,7 +181,14 @@ function targetMemberMatch(
       sourceSelectionProvesTargetMember(request, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
-      argumentScore += 20;
+      argumentScore += targetTypeArgumentMatchScore(
+        getExpectedTargetTypeForArgument(parameter),
+        argumentType,
+        effectiveArgument.subject,
+        context,
+        typeParameterBindings,
+        options,
+      ) ?? 20;
       continue;
     }
     if (
@@ -187,15 +198,33 @@ function targetMemberMatch(
       sourceSelectionProvesTargetMember(request, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
-      argumentScore += 20;
+      argumentScore += targetTypeArgumentMatchScore(
+        getExpectedTargetTypeForArgument(parameter),
+        argumentType,
+        effectiveArgument.subject,
+        context,
+        typeParameterBindings,
+        options,
+      ) ?? 20;
       continue;
     }
     if (
-      targetParameterAcceptsCheckedSourceArgument(parameter, argumentType) &&
+      targetParameterAcceptsCheckedSourceArgument(
+        parameter,
+        argumentType,
+        sourceSelectionProvesExactTargetMember(request, member),
+      ) &&
       request.sourceSelectedSignature !== undefined &&
       sourceSelectionProvesTargetMember(request, member)
     ) {
-      argumentScore += 20;
+      argumentScore += targetTypeArgumentMatchScore(
+        getExpectedTargetTypeForArgument(parameter),
+        argumentType,
+        effectiveArgument.subject,
+        context,
+        typeParameterBindings,
+        options,
+      ) ?? 20;
       continue;
     }
     const matchScore = targetTypeArgumentMatchScore(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options);
@@ -245,11 +274,15 @@ function getCheckedExpressionTargetTypeRef(
   return resolveTargetTypeRef(compiler.checker.getTypeAtLocation(node, { sourceFile }), context, { sourceFile });
 }
 
-function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter, argumentType: TargetTypeRef | undefined): boolean {
+function targetParameterAcceptsCheckedSourceArgument(
+  parameter: CsharpTargetParameter,
+  argumentType: TargetTypeRef | undefined,
+  exactSourceSelection: boolean,
+): boolean {
   if (argumentType === undefined) {
     return parameter.csharpAcceptsCheckedSourceArgument === true ||
-      (parameter.type.kind === "source-primitive" && parameter.passingMode === "by-value") ||
-      (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
+      (exactSourceSelection && parameter.type.kind === "source-primitive" && parameter.passingMode === "by-value") ||
+      (exactSourceSelection && parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
   }
   return (parameter.type.kind === "source-primitive" &&
       argumentType.kind === "source-primitive" &&
@@ -261,16 +294,23 @@ function sourceSelectionProvesTargetMember(
   request: TargetMemberSelectionRequest,
   member: CsharpTargetMember,
 ): boolean {
-  const sourceSelectedSignature = request.sourceSelectedSignature;
-  const signatureId = (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId;
-  if (
-    typeof signatureId === "string" &&
-    (signatureId === member.id || signatureId === member.providerSourceSignatureId)
-  ) {
+  if (sourceSelectionProvesExactTargetMember(request, member)) {
     return true;
   }
   return request.sourceSelectedIdentity !== undefined &&
     member.sourceIdentityKeys?.includes(request.sourceSelectedIdentity) === true;
+}
+
+function sourceSelectionProvesExactTargetMember(
+  request: TargetMemberSelectionRequest,
+  member: CsharpTargetMember,
+): boolean {
+  const sourceSelectedSignature = request.sourceSelectedSignature;
+  const signatureId = (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId;
+  return (
+    typeof signatureId === "string" &&
+    (signatureId === member.id || signatureId === member.providerSourceSignatureId)
+  );
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {

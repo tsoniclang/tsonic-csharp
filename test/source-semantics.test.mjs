@@ -23,6 +23,12 @@ import {
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
+  csharpJsSourceProfileOwnerId,
+  csharpJsSurfaceSourceProfileContributions,
+  csharpSourceProfileContributions,
+  csharpSourceProfileOwnerId,
+} from "../dist/source/csharp-source-semantics/source-profile-declarations.js";
+import {
   createTsonicCoreSourceExtension,
   providerExportDeclarationsForSourceModule,
   tsonicCoreSourceSemanticsModules,
@@ -757,8 +763,10 @@ test("source-semantics reuses utility-projected object shape identity inside Par
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -849,11 +857,13 @@ test("source-semantics records generic and C# operation facts for optional sourc
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
       ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
         "./types.js": "./types.js",
       })],
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -1822,8 +1832,10 @@ test("source-semantics records Promise/Task await result carrier facts", () => {
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
     },
@@ -1871,8 +1883,10 @@ test("source-semantics refines awaited source-primitive aliases from Promise/Tas
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -1912,8 +1926,10 @@ test("source-semantics records Promise/Task result carriers with async object-li
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -2111,8 +2127,10 @@ test("source-semantics records array boundary facts for destructured rest bindin
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ...csharpJsSourceProfileFiles().map((file) => [file.path, file.text]),
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -2321,6 +2339,28 @@ function csharpProviderContext(options = {}) {
     selectedPackages: [],
     selectedSurfaces: [],
   };
+}
+
+function csharpSourceProfileFiles() {
+  const declarations = csharpSourceProfileContributions({
+    project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    target: { id: "csharp" },
+    targetPack: { id: "csharp", displayName: "C#" },
+    selectedCapabilities: [],
+    selectedSurfaces: [],
+  }).declarations ?? [];
+  return declarations.map((declaration) => ({
+    path: `/src/.tsonic/source-profiles/${csharpSourceProfileOwnerId}/${declaration.fileName}`,
+    text: declaration.text,
+  }));
+}
+
+function csharpJsSourceProfileFiles() {
+  const declarations = csharpJsSurfaceSourceProfileContributions().declarations ?? [];
+  return declarations.map((declaration) => ({
+    path: `/src/.tsonic/source-profiles/${csharpJsSourceProfileOwnerId}/${declaration.fileName}`,
+    text: declaration.text,
+  }));
 }
 
 function createAttributeProviderExtension() {

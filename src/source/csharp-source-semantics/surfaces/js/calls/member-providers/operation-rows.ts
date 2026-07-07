@@ -56,10 +56,12 @@ const selectedSignatureProviderFacts = [
 
 const arrayStaticCallIdentityPolicy = {
   ids: [
-    "Array.from",
     "Array.of",
     "Array.isArray",
   ],
+} as const satisfies JsSurfaceSourceIdentitySelector;
+const arrayFromIdentityPolicy = {
+  ids: ["Array.from"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
 const arrayConcatIdentityPolicy = {
   ids: ["Array.concat", "ReadonlyArray.concat"],
@@ -332,6 +334,11 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: arrayStaticCallIdentityPolicy,
     policyKind: "carrier-member",
     targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: false })],
+  },
+  {
+    identity: arrayFromIdentityPolicy,
+    policyKind: "carrier-member",
+    targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: false, requireClosedInputElementType: true })],
   },
   {
     identity: arrayConcatIdentityPolicy,

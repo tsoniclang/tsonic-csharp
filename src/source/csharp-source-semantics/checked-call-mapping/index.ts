@@ -14,7 +14,6 @@ import type {
   Node,
   ProviderVirtualDeclarationFact,
   SelectedTargetSignatureFact,
-  Signature,
   SourceSelectedMethodTypeArgument,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -114,9 +113,6 @@ import {
   getNodeNameText,
 } from "../ast-utils.js";
 import {
-  getSymbolDeclarations,
-} from "../symbol-utils.js";
-import {
   isAmbientOrExternalDeclaration,
 } from "../source-declaration-utils.js";
 import {
@@ -189,6 +185,9 @@ export function mapCsharpCheckedCall(
   const sourceProfileCall = acceptCsharpSourceProfileCall(request, context, extensionId);
   if (sourceProfileCall !== undefined) {
     return sourceProfileCall;
+  }
+  if (!checkedCallHasSelectedSourceEvidence(request)) {
+    return rejectCheckedCallNotMapped(request, extensionId);
   }
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   virtualDeclaration ??= getSelectedCallProviderVirtualDeclaration(request, context, requestContext);
@@ -361,8 +360,7 @@ function acceptCsharpSourceProfileCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   extensionId: string,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
-  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration;
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   const identity = getCsharpSourceProfileMemberIdentity(selectedDeclaration, context);
   const member = csharpSourceProfileCallMember(identity);
   if (member === undefined) {
@@ -396,6 +394,35 @@ function acceptCsharpSourceProfileCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member, argumentConversions },
   }, [{ message: "C# source-profile call selected from checked TSTS source declaration identity." }]);
+}
+
+function checkedCallHasSelectedSourceEvidence(request: CheckedCallMappingRequest): boolean {
+  return request.sourceSelectedSignature !== undefined ||
+    request.sourceSelectedDeclaration !== undefined ||
+    request.sourceCalleeSymbol !== undefined ||
+    request.sourceCalleeDeclaration !== undefined;
+}
+
+function rejectCheckedCallNotMapped(
+  request: CheckedCallMappingRequest,
+  extensionId: string,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_CHECKED_CALL_NOT_MAPPED",
+    9100164,
+    "C# checked call must be selected by TSTS/provider facts before emission.",
+    [{
+      message: "Missing TSTS-selected call/member evidence",
+      details: {
+        hasSourceSelectedSignature: request.sourceSelectedSignature !== undefined,
+        hasSourceSelectedDeclaration: request.sourceSelectedDeclaration !== undefined,
+        hasSourceCalleeSymbol: request.sourceCalleeSymbol !== undefined,
+        hasSourceCalleeDeclaration: request.sourceCalleeDeclaration !== undefined,
+      },
+    }],
+    request.call,
+  ));
 }
 
 function getSelectedSignatureArgumentConversionDiagnostic(
@@ -547,9 +574,8 @@ function getSourceOwnedCallReturnType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
-  const uniqueCalleeDeclaration = getUniqueCalleeDeclaration(request, context);
-  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration ?? uniqueCalleeDeclaration;
+  const calleeDeclaration = asNodeSubject(request.sourceCalleeDeclaration);
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? calleeDeclaration;
   const constructedType = getSourceOwnedConstructionReturnType(request.call, selectedDeclaration, context, host);
   if (constructedType !== undefined) {
     return constructedType;
@@ -568,8 +594,7 @@ function getSourceOwnedCallReturnType(
   }
   const selectedDeclarationReturnCarrier = getSourceReturnCarrierForSubjects([
     selectedDeclaration,
-    signatureDeclaration,
-    uniqueCalleeDeclaration,
+    calleeDeclaration,
     request.sourceCalleeSymbol,
   ], context);
   if (isFinalizedSourceOwnedReturnCarrier(selectedDeclarationReturnCarrier)) {
@@ -896,12 +921,11 @@ function getSourceOwnedCallDeclaration(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): Node | undefined {
-  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ??
-    getSignatureDeclaration(request.sourceSelectedSignature, context);
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   if (sourceDeclarationIsOwnedProjectDeclaration(selectedDeclaration, context)) {
     return selectedDeclaration;
   }
-  const symbolDeclaration = getUniqueCalleeDeclaration(request, context);
+  const symbolDeclaration = asNodeSubject(request.sourceCalleeDeclaration);
   if (
     sourceDeclarationIsOwnedProjectDeclaration(symbolDeclaration, context) &&
     isSourceCallableSymbolDeclaration(symbolDeclaration, request, context, host)
@@ -909,35 +933,6 @@ function getSourceOwnedCallDeclaration(
     return symbolDeclaration;
   }
   return undefined;
-}
-
-function getSignatureDeclaration(
-  signature: CheckedCallMappingRequest["sourceSelectedSignature"],
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): Node | undefined {
-  const checker = context.compiler?.checker;
-  if (signature === undefined || checker === undefined) {
-    return undefined;
-  }
-  return typeof checker.getSignatureDeclaration === "function"
-    ? asNodeSubject(checker.getSignatureDeclaration(signature as Signature))
-    : undefined;
-}
-
-function getUniqueCalleeDeclaration(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): Node | undefined {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  const callee = asNodeSubject(request.callee);
-  const sourceFile = callee === undefined ? undefined : compiler.ast.getSourceFile(callee);
-  const resolvedSymbol = request.sourceCalleeSymbol ??
-    (callee === undefined ? undefined : compiler.checker.getResolvedSymbolOrNil(callee, { sourceFile }));
-  const declarations = getSymbolDeclarations(resolvedSymbol, compiler.checker);
-  return declarations.length === 1 ? declarations[0] : undefined;
 }
 
 function sourceDeclarationIsOwnedProjectDeclaration(
