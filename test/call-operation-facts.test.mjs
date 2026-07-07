@@ -1,19 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
-import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
-import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
-import {
-  planSelectedTargetCallee,
-  planSelectedTargetReceiverExpression,
-} from "../dist/backend/planner/expression-selected-target-members.js";
-import {
-  KindIdentifier,
-} from "../dist/backend/planner/source-ast.js";
-import {
-  targetMemberAsSourceSelectedSignature,
-} from "../dist/source/csharp-source-semantics/selected-target-source-signature.js";
+import { test, assert, csharpTargetOperationFactKey, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature, selectedMember, closedIdentityMember, csharpStringType, extensionMember, callableInvokeMember, callableByrefInvokeMember, fakeInput, fakeArgumentInput, fakeSelectedInput, identifier, identifierExpressionPlanner, expectedIdentifierExpressionPlanner, expectedTypeKindExpressionPlanner, sourceFile, sourceFileWithText, sourceLocatedIdentifier } from "./call-operation-facts.helpers.mjs";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -30,7 +15,6 @@ test("call emission requires finalized C# target member operation facts", () => 
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /generic selected target member 'Example.Box.identity``1' is not enough/);
 });
-
 test("call emission requires closed selected member in finalized C# operation fact", () => {
   const call = { Kind: 1 };
   const diagnostics = [];
@@ -55,7 +39,6 @@ test("call emission requires closed selected member in finalized C# operation fa
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a closed selected C# member/);
 });
-
 test("call emission accepts finalized C# member operation facts with substituted generic members", () => {
   const call = { Kind: 1 };
   const diagnostics = [];
@@ -83,7 +66,6 @@ test("call emission accepts finalized C# member operation facts with substituted
   assert.deepEqual(operation.selectedMember.parameters[0].type, selected.returnType);
   assert.deepEqual(operation.resultType, selected.returnType);
 });
-
 test("call emission rejects operation facts that drift selected return types", () => {
   const call = { Kind: 1 };
   const selected = closedIdentityMember(csharpStringType());
@@ -113,7 +95,6 @@ test("call emission rejects operation facts that drift selected return types", (
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /return-type/);
 });
-
 test("call emission rejects operation facts that drift selected declaring types", () => {
   const call = { Kind: 1 };
   const selected = {
@@ -146,7 +127,6 @@ test("call emission rejects operation facts that drift selected declaring types"
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /declaring-type/);
 });
-
 test("call emission rejects operation facts that drift selected parameter types", () => {
   const call = { Kind: 1 };
   const selected = closedIdentityMember(csharpStringType());
@@ -179,7 +159,6 @@ test("call emission rejects operation facts that drift selected parameter types"
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-type/);
 });
-
 test("call emission rejects operation facts that drop extension receiver passing", () => {
   const call = { Kind: 1 };
   const selected = extensionMember();
@@ -208,7 +187,6 @@ test("call emission rejects operation facts that drop extension receiver passing
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /receiver-passing/);
 });
-
 test("call emission rejects operation facts that change target parameter passing", () => {
   const call = { Kind: 1 };
   const selectedTargetMember = extensionMember();
@@ -246,7 +224,6 @@ test("call emission rejects operation facts that change target parameter passing
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
-
 test("call emission accepts finalized callable Invoke facts with default and params parameters", () => {
   const call = { Kind: 1 };
   const selected = callableInvokeMember();
@@ -273,7 +250,6 @@ test("call emission accepts finalized callable Invoke facts with default and par
   assert.equal(operation?.selectedMember?.parameters[1]?.defaultValue.value, "proved");
   assert.equal(operation?.selectedMember?.parameters[2]?.paramsArray, true);
 });
-
 test("call emission accepts finalized callable Invoke facts with byref parameter modes", () => {
   const call = { Kind: 1 };
   const selected = callableByrefInvokeMember();
@@ -301,7 +277,6 @@ test("call emission accepts finalized callable Invoke facts with byref parameter
   assert.equal(operation?.selectedMember?.parameters[1]?.passingMode, "byref-writeonly-must-init");
   assert.equal(operation?.selectedMember?.parameters[2]?.passingMode, "byref-readonly");
 });
-
 test("call emission rejects operation facts that drift selected parameter default facts", () => {
   const call = { Kind: 1 };
   const selected = callableInvokeMember();
@@ -335,7 +310,6 @@ test("call emission rejects operation facts that drift selected parameter defaul
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-default/);
 });
-
 test("call emission rejects callable Invoke facts that drift byref parameter modes", () => {
   const call = { Kind: 1 };
   const selected = callableByrefInvokeMember();
@@ -367,7 +341,6 @@ test("call emission rejects callable Invoke facts that drift byref parameter mod
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
-
 test("call emission rejects operation facts that hide mismatched first-argument receiver types", () => {
   const call = { Kind: 1 };
   const selectedTargetMember = extensionMember();
@@ -409,7 +382,6 @@ test("call emission rejects operation facts that hide mismatched first-argument 
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /mismatched selected member/);
 });
-
 test("call emission rejects operation facts with mismatched target operation kind", () => {
   const call = { Kind: 1 };
   const selected = closedIdentityMember({ kind: "target-named", id: "System.String" });
@@ -436,7 +408,6 @@ test("call emission rejects operation facts with mismatched target operation kin
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /target operation kind/);
 });
-
 test("call argument emission applies explicit target conversion facts before selected expected types", () => {
   const argument = identifier("value");
   const diagnostics = [];
@@ -461,7 +432,6 @@ test("call argument emission applies explicit target conversion facts before sel
     expression: { kind: "IdentifierName", name: "value_as_long" },
   });
 });
-
 test("call argument emission separates semantic conversion type from render expected type", () => {
   const argument = identifier("value");
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -489,7 +459,6 @@ test("call argument emission separates semantic conversion type from render expe
     expression: { kind: "IdentifierName", name: "value_as_long" },
   });
 });
-
 test("call argument emission rejects conversion facts that mismatch selected expected types", () => {
   const argument = identifier("value");
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -515,7 +484,6 @@ test("call argument emission rejects conversion facts that mismatch selected exp
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /conversion fact does not match/);
 });
-
 test("call argument emission rejects primitive-name mismatches for real double parameters", () => {
   const argument = identifier("values");
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -544,7 +512,6 @@ test("call argument emission rejects primitive-name mismatches for real double p
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /conversion fact does not match/);
 });
-
 test("call argument emission accepts exact real double conversion facts", () => {
   const argument = identifier("values");
   const float64 = { kind: "source-primitive", name: "float64" };
@@ -573,7 +540,6 @@ test("call argument emission accepts exact real double conversion facts", () => 
     expression: { kind: "IdentifierName", name: "values_as_ArrayType" },
   });
 });
-
 test("call argument emission permits array render carriers for selected collection parameters", () => {
   const argument = identifier("items");
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -602,7 +568,6 @@ test("call argument emission permits array render carriers for selected collecti
     expression: { kind: "IdentifierName", name: "items_as_ArrayType" },
   });
 });
-
 test("call argument emission rejects unsupported finalized argument-passing modes", () => {
   const argument = identifier("borrow");
   const targetExpression = identifier("value");
@@ -626,7 +591,6 @@ test("call argument emission rejects unsupported finalized argument-passing mode
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /does not support finalized argument-passing mode 'borrow-shared'/);
 });
-
 test("call argument emission reports source evidence when selected byref facts are missing", () => {
   const argument = sourceLocatedIdentifier("value");
   const diagnostics = [];
@@ -650,7 +614,6 @@ test("call argument emission reports source evidence when selected byref facts a
   assert.ok(diagnostics[0].evidence?.includes("source.file=/src/index.ts"));
   assert.ok(diagnostics[0].evidence?.some((entry) => entry.startsWith("source.span=2:10-2:15")));
 });
-
 test("selected target receiver expression uses planned binding identity instead of source text", () => {
   const receiver = identifier("array");
   const diagnostics = [];
@@ -665,7 +628,6 @@ test("selected target receiver expression uses planned binding identity instead 
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(expression, { kind: "IdentifierName", name: "array_1" });
 });
-
 test("selected target identifier calls reject instance members without a value receiver", () => {
   const callee = identifier("parse");
   const diagnostics = [];
@@ -690,220 +652,3 @@ test("selected target identifier calls reject instance members without a value r
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a value receiver/);
 });
-
-function selectedMember() {
-  return {
-    id: "Example.Box.identity``1",
-    sourceName: "identity",
-    targetName: "Identity",
-    kind: "method",
-    parameters: [{
-      name: "value",
-      type: { kind: "type-parameter", name: "T" },
-      passingMode: "by-value",
-    }],
-    returnType: { kind: "type-parameter", name: "T" },
-    typeParameters: [{ name: "T" }],
-  };
-}
-
-function closedIdentityMember(type) {
-  return {
-    id: "Example.Box.identity``1",
-    sourceName: "identity",
-    targetName: "Identity",
-    kind: "method",
-    parameters: [{
-      name: "value",
-      type,
-      passingMode: "by-value",
-    }],
-    returnType: type,
-    typeParameters: [{ name: "T" }],
-  };
-}
-
-function csharpStringType() {
-  return { kind: "target-named", id: "System.String" };
-}
-
-function extensionMember() {
-  const int32 = { kind: "source-primitive", name: "int32" };
-  return {
-    id: "Example.MemoryExtensions.Overlaps(Example.Span`1<System.Int32>,Example.ReadOnlySpan`1<System.Int32>,System.Int32)",
-    sourceName: "overlaps",
-    targetName: "Overlaps",
-    kind: "method",
-    static: true,
-    receiverPassing: "first-argument",
-    parameters: [
-      {
-        name: "span",
-        type: { kind: "target-named", id: "Example.Span`1", typeArguments: [int32] },
-        passingMode: "by-value",
-      },
-      {
-        name: "other",
-        type: { kind: "target-named", id: "Example.ReadOnlySpan`1", typeArguments: [int32] },
-        passingMode: "by-value",
-      },
-      {
-        name: "elementOffset",
-        type: int32,
-        passingMode: "byref-writeonly-must-init",
-      },
-    ],
-    returnType: { kind: "source-primitive", name: "bool" },
-    overloadGroup: "Example.MemoryExtensions.Overlaps",
-  };
-}
-
-function callableInvokeMember() {
-  const int32 = { kind: "source-primitive", name: "int32" };
-  return {
-    id: "Example.Callback.Invoke(System.String,System.String,System.Int32[])",
-    sourceName: "invoke",
-    targetName: "Invoke",
-    kind: "method",
-    parameters: [
-      {
-        name: "value",
-        type: csharpStringType(),
-        passingMode: "by-value",
-      },
-      {
-        name: "label",
-        type: csharpStringType(),
-        passingMode: "by-value",
-        optional: true,
-        defaultValue: { kind: "string", value: "proved" },
-      },
-      {
-        name: "items",
-        type: { kind: "array", element: int32 },
-        passingMode: "by-value",
-        paramsArray: true,
-      },
-    ],
-    returnType: int32,
-    overloadGroup: "Example.Callback.Invoke",
-  };
-}
-
-function callableByrefInvokeMember() {
-  const int32 = { kind: "source-primitive", name: "int32" };
-  const bool = { kind: "source-primitive", name: "bool" };
-  const int64 = { kind: "source-primitive", name: "int64" };
-  return {
-    id: "Example.Callback.Invoke(ref System.Int32,out System.Boolean,in System.Int64)",
-    sourceName: "invoke",
-    targetName: "Invoke",
-    kind: "method",
-    parameters: [
-      {
-        name: "current",
-        type: int32,
-        passingMode: "byref-readwrite",
-      },
-      {
-        name: "assigned",
-        type: bool,
-        passingMode: "byref-writeonly-must-init",
-      },
-      {
-        name: "snapshot",
-        type: int64,
-        passingMode: "byref-readonly",
-      },
-    ],
-    returnType: bool,
-    overloadGroup: "Example.Callback.Invoke",
-  };
-}
-
-function fakeInput(options = {}) {
-  return {
-    facts: {
-      getFact: (subject, key) =>
-        subject === options.subject && key === csharpTargetOperationFactKey
-          ? options.operation
-          : undefined,
-    },
-  };
-}
-
-function fakeArgumentInput(options = {}) {
-  return {
-    ast: {
-      kindName: (node) => String(node?.Kind),
-    },
-    facts: {
-      getArgumentPassingFact: (subject) =>
-        subject === options.argumentPassingSubject ? options.argumentPassing : undefined,
-      getTargetConversionFact: (subject) =>
-        subject === options.conversionSubject ? options.conversion : undefined,
-    },
-  };
-}
-
-function fakeSelectedInput() {
-  return {
-    ast: {
-      kindName: (node) => String(node?.Kind),
-    },
-    analysis: {
-      getSymbolName: () => undefined,
-      getSymbolDeclarations: () => [],
-      getTypeSymbol: () => undefined,
-      getTypeAliasSymbol: () => undefined,
-      getProjectSourceReferenceForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
-    },
-  };
-}
-
-function identifier(text) {
-  return { Kind: KindIdentifier, Text: text };
-}
-
-function identifierExpressionPlanner(node) {
-  return { kind: "IdentifierName", name: node.Text };
-}
-
-function expectedIdentifierExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
-  return {
-    kind: "IdentifierName",
-    name: `${node.Text}_as_${expectedType.name}`,
-  };
-}
-
-function expectedTypeKindExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
-  return {
-    kind: "IdentifierName",
-    name: `${node.Text}_as_${expectedType.kind}`,
-  };
-}
-
-const sourceFile = {
-  FileName: "/src/index.ts",
-  IsDeclarationFile: false,
-};
-
-const sourceFileWithText = {
-  Kind: "KindSourceFile",
-  FileName: "/src/index.ts",
-  Text: "function f() {\n  target(value);\n}\n",
-  IsDeclarationFile: false,
-};
-
-function sourceLocatedIdentifier(text) {
-  return {
-    Kind: KindIdentifier,
-    Text: text,
-    Parent: sourceFileWithText,
-    Loc: {
-      pos: sourceFileWithText.Text.indexOf(text),
-      end: sourceFileWithText.Text.indexOf(text) + text.length,
-    },
-  };
-}

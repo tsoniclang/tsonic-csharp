@@ -1,27 +1,4 @@
-import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import test from "node:test";
-import { fileURLToPath } from "node:url";
-
-import {
-  createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
-  dotnetModuleToProviderDeclarationModel,
-  dotnetNativeArrayTypeId,
-  validateDotnetModuleModelContract,
-  validateDotnetProviderDeclarationModelContract,
-} from "../dist/index.js";
-import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
-
-const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const testAssemblyId = "Provider.Contract.Tests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
-const supportedPassingModes = new Set([
-  "by-value",
-  "byref-readonly",
-  "byref-readwrite",
-  "byref-writeonly-must-init",
-]);
+import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "./dotnet-provider-contract.helpers.mjs";
 
 test(".NET provider model contract rejects legacy and incomplete provider refs", () => {
   const diagnostic = validateDotnetModuleModelContract({
@@ -53,7 +30,6 @@ test(".NET provider model contract rejects legacy and incomplete provider refs",
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.moduleSpecifier"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.exportName"), true);
 });
-
 test(".NET provider model contract rejects malformed identities and type refs before conversion", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -108,7 +84,6 @@ test(".NET provider model contract rejects malformed identities and type refs be
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].defaultValue.value"), true);
 });
-
 test(".NET provider model contract rejects extra fields on type-ref variants", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -166,7 +141,6 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.elementType.width"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].returnType.targetId"), true);
 });
-
 test(".NET provider model contract rejects metadata-name fallback identities and unsupported evidence holes", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -218,7 +192,6 @@ test(".NET provider model contract rejects metadata-name fallback identities and
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].reason"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds"), true);
 });
-
 test(".NET provider model contract rejects assembly identity drift", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -253,7 +226,6 @@ test(".NET provider model contract rejects assembly identity drift", () => {
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds[0]"), true);
 });
-
 test(".NET provider model contract rejects unsupported discriminants and conversion operator drift", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -320,7 +292,6 @@ test(".NET provider model contract rejects unsupported discriminants and convers
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[1].conversionKind"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[1].kind"), true);
 });
-
 test(".NET provider model contract rejects supported rows with unsupported CLR source shapes", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -424,7 +395,6 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[2].signatures[0].parameters[0].type"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), true);
 });
-
 test(".NET provider declaration contract rejects provider refs missing public TSTS identity", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -451,7 +421,6 @@ test(".NET provider declaration contract rejects provider refs missing public TS
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetIdentity"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].heritage[0].type.moduleSpecifier"), true);
 });
-
 test(".NET provider declaration contract rejects invalid provider parameter passing and rest facts", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -519,7 +488,6 @@ test(".NET provider declaration contract rejects invalid provider parameter pass
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].passingMode"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
 });
-
 test(".NET reflection provider emits contract-valid SDK metadata slices", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {
@@ -569,7 +537,6 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   assert.ok(rawMethod(dictionary, "Add", "System.Collections.Generic.Dictionary`2.Add(TKey,TValue)"));
   assert.ok(rawIndexer(dictionary, "System.Collections.Generic.Dictionary`2.Item(TKey)"));
 });
-
 test(".NET target binding provider emits contract-valid virtual declaration models", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetTargetBindingProvider({ provider });
@@ -582,7 +549,6 @@ test(".NET target binding provider emits contract-valid virtual declaration mode
   assert.equal("exports" in model, true, JSON.stringify(model));
   assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
 });
-
 test(".NET provider invariant scan closes reflected models, virtual declarations, and target bindings", () => {
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
@@ -648,7 +614,6 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
     /System\.Int32\*/u.test(member.reason)
   ));
 });
-
 test(".NET target binding provider reports unsupported requested exports with provider evidence", () => {
   const bindingProvider = createDotnetTargetBindingProvider({
     provider: {
@@ -691,591 +656,3 @@ test(".NET target binding provider reports unsupported requested exports with pr
   assert.match(JSON.stringify(model.evidence), /ProviderUnsupportedFixtures\.PointerDelegate/u);
   assert.match(JSON.stringify(model.evidence), new RegExp(escapeRegExp(testTargetId("ProviderUnsupportedFixtures.PointerDelegate")), "u"));
 });
-
-test(".NET provider unsupported diagnostics preserve attribute and default-value omission facts", () => {
-  const provider = createDotnetReflectionTypeDataProvider({
-    disablePersistentCache: true,
-    references: [
-      buildAttributeFixture(),
-      buildUnsupportedDefaultParameterFixture(),
-    ],
-  });
-
-  const attributeModule = provider.getModule("@tsonic/dotnet/ProviderAttributeFixtures.js", {});
-  assert.equal("exports" in attributeModule, true, JSON.stringify(attributeModule));
-  assert.equal(validateDotnetModuleModelContract(attributeModule), undefined);
-  const unsupportedAttributeTarget = rawType(attributeModule, "UnsupportedAttributeTarget");
-  const unsupportedAttribute = unsupportedAttributeTarget.unsupportedAttributes?.find((attribute) =>
-    /Type attribute value 'System\.Int32\*' cannot be represented/u.test(attribute.reason)
-  );
-  assert.ok(unsupportedAttribute);
-  assert.equal(unsupportedAttribute.target, "type");
-  const attributeBinding = provider.findTargetBindingByTargetId(unsupportedAttributeTarget.targetId);
-  assert.ok(attributeBinding);
-  assert.ok(attributeBinding.unsupportedAttributes?.some((attribute) =>
-    attribute.id === unsupportedAttribute.id &&
-    attribute.reason === unsupportedAttribute.reason
-  ));
-
-  const defaultModule = provider.getModule("@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
-  assert.equal("exports" in defaultModule, true, JSON.stringify(defaultModule));
-  assert.equal(validateDotnetModuleModelContract(defaultModule), undefined);
-  const unsupportedDefaultSource = rawType(defaultModule, "UnsupportedDefaultParameterSource");
-  const rawSignature = rawMethod(
-    unsupportedDefaultSource,
-    "UnsupportedDateTimeDefault",
-    "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)",
-  ).signatures[0];
-  const rawParameter = rawSignature.parameters[0];
-  assert.equal(rawParameter.optional, true);
-  assert.equal(rawParameter.defaultValue, undefined);
-  assert.equal(rawParameter.unsupportedDefaultValue.kind, "unsupported-default-value");
-  assert.equal(rawParameter.unsupportedDefaultValue.parameterName, "value");
-  assert.match(rawParameter.unsupportedDefaultValue.reason, /System\.DateTime/u);
-
-  const sourceModel = dotnetModuleToProviderDeclarationModel(defaultModule);
-  assert.equal(validateDotnetProviderDeclarationModelContract(sourceModel), undefined);
-  const sourceDefaultType = sourceModel.exports.find((declaration) => declaration.name === "UnsupportedDefaultParameterSource");
-  const sourceSignature = sourceDefaultType?.members?.find((member) => member.name === "UnsupportedDateTimeDefault")?.signatures?.[0];
-  assert.ok(sourceSignature);
-  assert.equal(sourceSignature.parameters[0].optional, true);
-  assert.equal("defaultValue" in sourceSignature.parameters[0], false);
-  assert.equal("unsupportedDefaultValue" in sourceSignature.parameters[0], false);
-
-  const defaultBinding = provider.findTargetBindingByTargetId(unsupportedDefaultSource.targetId);
-  assert.ok(defaultBinding);
-  const targetSignature = defaultBinding.members
-    ?.find((member) => idHasShape(member.id, "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)"));
-  assert.ok(targetSignature);
-  assert.deepEqual(targetSignature.parameters[0].unsupportedDefaultValue, rawParameter.unsupportedDefaultValue);
-});
-
-test(".NET synthetic native array target binding is discoverable by provider target id", () => {
-  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const binding = provider.findTargetBindingByTargetId(dotnetNativeArrayTypeId);
-  assert.ok(binding);
-  assert.equal(binding.id, dotnetNativeArrayTypeId);
-  assert.equal(binding.sourceName, "Array");
-});
-
-function testTargetId(metadataName) {
-  return `${testAssemblyId}::${metadataName}`;
-}
-
-function hasEvidencePath(diagnostic, path) {
-  return diagnostic?.evidence?.some((entry) => entry.path === path) === true;
-}
-
-function assertRawModuleContractInvariants(module) {
-  assert.equal(typeof module.moduleSpecifier, "string");
-  assert.equal(typeof module.namespaceName, "string");
-  if (module.assembly !== undefined) {
-    assertAssemblyReference(module.assembly, "$.assembly");
-  }
-  for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
-    if (declaration.kind !== "type") {
-      continue;
-    }
-    assertTargetIdentity(declaration.targetId, declaration.metadataName, `${declaration.sourceName}.targetId`, declaration.assembly);
-    if (declaration.assembly !== undefined) {
-      assertAssemblyReference(declaration.assembly, `${declaration.sourceName}.assembly`);
-    }
-    walkDotnetTypeDeclarationRefs(declaration, (type, path) => assertDotnetTypeRefInvariant(type, `${declaration.sourceName}.${path}`));
-    for (const parameter of declaration.typeParameters ?? []) {
-      assertTypeParameterInvariant(parameter, `${declaration.sourceName}<${parameter.name}>`);
-    }
-    for (const member of declaration.members ?? []) {
-      assertTargetIdentity(member.targetId, member.metadataName, `${declaration.sourceName}.${member.targetName}.targetId`);
-      for (const signature of member.signatures ?? []) {
-        assertRawSignatureInvariant(signature, `${declaration.sourceName}.${member.targetName}`);
-      }
-      if (member.kind === "event") {
-        assert.ok(
-          declaration.unsupportedMembers?.some((unsupported) =>
-            unsupported.memberKind === "event" &&
-            unsupported.targetId === member.targetId &&
-            typeof unsupported.reason === "string" &&
-            unsupported.reason.length > 0
-          ),
-          `Source-visible event '${declaration.sourceName}.${member.targetName}' must carry unsupported source-event evidence.`,
-        );
-      }
-    }
-    for (const unsupportedMember of declaration.unsupportedMembers ?? []) {
-      assertTargetIdentity(unsupportedMember.targetId, unsupportedMember.metadataName, `${declaration.sourceName}.${unsupportedMember.targetName}.unsupportedTargetId`);
-      assert.equal(typeof unsupportedMember.reason, "string");
-      assert.notEqual(unsupportedMember.reason.length, 0);
-    }
-  }
-  for (const unsupportedExport of module.unsupportedExports ?? []) {
-    assert.equal(typeof unsupportedExport.reason, "string");
-    assert.notEqual(unsupportedExport.reason.length, 0);
-    if (unsupportedExport.kind === "unsupported-type-export") {
-      assertTargetIdentity(unsupportedExport.targetId, unsupportedExport.metadataName, `${unsupportedExport.sourceName}.unsupportedTargetId`, unsupportedExport.assembly);
-      continue;
-    }
-    assert.ok(Array.isArray(unsupportedExport.targetIds));
-    assert.ok(Array.isArray(unsupportedExport.metadataNames));
-    assert.equal(unsupportedExport.targetIds.length, unsupportedExport.metadataNames.length);
-    for (const [index, targetId] of unsupportedExport.targetIds.entries()) {
-      assertTargetIdentity(targetId, unsupportedExport.metadataNames[index], `${unsupportedExport.sourceName}.unsupportedTargetIds[${index}]`, unsupportedExport.assemblies?.[index]);
-    }
-  }
-}
-
-function assertProviderDeclarationContractInvariants(model) {
-  assert.equal(typeof model.moduleSpecifier, "string");
-  assert.equal(typeof model.providerModuleId, "string");
-  for (const declaration of model.exports) {
-    if (declaration.kind !== "namespace") {
-      assert.equal(declaration.targetIdentity?.target, "csharp");
-      assert.equal(typeof declaration.targetIdentity?.id, "string");
-      assert.notEqual(declaration.targetIdentity.id.length, 0);
-    }
-    walkProviderExportRefs(declaration, (type, path) => assertProviderTypeExpressionInvariant(type, `${declaration.name}.${path}`));
-  }
-}
-
-function assertTargetBindingContractInvariants(provider, module) {
-  for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
-    if (declaration.kind !== "type") {
-      continue;
-    }
-    const binding = provider.findTargetBindingByTargetId(declaration.targetId);
-    assert.ok(binding, `Missing target binding for ${declaration.targetId}`);
-    assert.equal(binding.id, declaration.targetId);
-    assert.equal(binding.target, "csharp");
-    if ((declaration.unsupportedMembers?.length ?? 0) > 0) {
-      assert.equal(binding.unsupportedMembers?.length >= declaration.unsupportedMembers.length, true);
-    }
-    if ((declaration.unsupportedImplementedContracts?.length ?? 0) > 0) {
-      assert.equal(binding.unsupportedImplementedContracts?.length >= declaration.unsupportedImplementedContracts.length, true);
-    }
-  }
-}
-
-function assertRawSignatureInvariant(signature, path) {
-  for (const [index, parameter] of signature.parameters.entries()) {
-    assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${path}.parameters[${index}].passingMode`);
-    walkDotnetTypeRef(parameter.type, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].type.${typePath}`));
-    if (parameter.rest === true) {
-      assert.equal(index, signature.parameters.length - 1, `${path}.parameters[${index}].rest`);
-      assert.equal(parameter.passingMode, "by-value", `${path}.parameters[${index}].rest.passingMode`);
-      assert.equal(parameter.type.kind, "array", `${path}.parameters[${index}].rest.type`);
-    }
-    if (parameter.defaultValue !== undefined || parameter.unsupportedDefaultValue !== undefined) {
-      assert.equal(parameter.optional, true, `${path}.parameters[${index}].default.optional`);
-      assert.equal(parameter.defaultValue === undefined || parameter.unsupportedDefaultValue === undefined, true, `${path}.parameters[${index}].default.exclusive`);
-    }
-    if (parameter.unsupportedDefaultValue !== undefined) {
-      assert.equal(typeof parameter.unsupportedDefaultValue.reason, "string");
-      assert.notEqual(parameter.unsupportedDefaultValue.reason.length, 0);
-    }
-  }
-  if (signature.returnType !== undefined) {
-    walkDotnetTypeRef(signature.returnType, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.returnType.${typePath}`));
-  }
-  if (signature.targetReturnType !== undefined) {
-    walkDotnetTypeRef(signature.targetReturnType, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.targetReturnType.${typePath}`));
-  }
-  for (const parameter of signature.typeParameters ?? []) {
-    assertTypeParameterInvariant(parameter, `${path}.${parameter.name}`);
-  }
-}
-
-function assertTypeParameterInvariant(parameter, path) {
-  assert.equal(typeof parameter.name, "string", path);
-  assert.notEqual(parameter.name.length, 0, path);
-  if (parameter.variance !== undefined) {
-    assert.ok(["in", "out", "invariant", "target-defined"].includes(parameter.variance), `${path}.variance`);
-  }
-  for (const constraint of parameter.constraints ?? []) {
-    if (constraint.kind === "implements") {
-      walkDotnetTypeRef(constraint.contract, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.constraint.${typePath}`));
-    }
-  }
-}
-
-function assertDotnetTypeRefInvariant(type, path) {
-  if (type.kind === "provider-ref") {
-    assert.equal(typeof type.moduleSpecifier, "string", `${path}.moduleSpecifier`);
-    assert.notEqual(type.moduleSpecifier.length, 0, `${path}.moduleSpecifier`);
-    assert.equal(typeof type.exportName, "string", `${path}.exportName`);
-    assert.notEqual(type.exportName.length, 0, `${path}.exportName`);
-    assert.equal("name" in type, false, `${path}.name`);
-  }
-  if (type.kind === "named") {
-    assertTargetIdentity(type.targetId, type.metadataName, `${path}.targetId`);
-  }
-  if (type.kind === "array" && type.rank !== undefined) {
-    assert.equal(Number.isInteger(type.rank) && type.rank >= 1, true, `${path}.rank`);
-  }
-}
-
-function assertProviderTypeExpressionInvariant(type, path) {
-  if (type.kind === "provider-ref") {
-    assert.equal(typeof type.moduleSpecifier, "string", `${path}.moduleSpecifier`);
-    assert.notEqual(type.moduleSpecifier.length, 0, `${path}.moduleSpecifier`);
-    assert.equal(typeof type.exportName, "string", `${path}.exportName`);
-    assert.notEqual(type.exportName.length, 0, `${path}.exportName`);
-    assert.equal("name" in type, false, `${path}.name`);
-  }
-  if (type.kind === "target-named") {
-    assert.equal(type.target, "csharp", `${path}.target`);
-    assert.equal(typeof type.id, "string", `${path}.id`);
-    assert.notEqual(type.id.length, 0, `${path}.id`);
-  }
-}
-
-function assertAssemblyReference(reference, path) {
-  assert.equal(typeof reference.name, "string", `${path}.name`);
-  assert.notEqual(reference.name.length, 0, `${path}.name`);
-  if (reference.version !== undefined) {
-    assert.equal(typeof reference.version, "string", `${path}.version`);
-    assert.notEqual(reference.version.length, 0, `${path}.version`);
-  }
-  if (reference.path !== undefined) {
-    assert.equal(typeof reference.path, "string", `${path}.path`);
-    assert.notEqual(reference.path.length, 0, `${path}.path`);
-  }
-}
-
-function assertTargetIdentity(targetId, metadataName, path, assembly) {
-  assert.equal(typeof targetId, "string", path);
-  assert.notEqual(targetId.length, 0, path);
-  assert.equal(typeof metadataName, "string", `${path}.metadataName`);
-  assert.notEqual(metadataName.length, 0, `${path}.metadataName`);
-  assert.notEqual(targetId, metadataName, `${path} must not fall back to metadataName`);
-  if (assembly !== undefined) {
-    assert.match(targetId, /::/u, `${path} must be assembly-qualified`);
-  }
-}
-
-function walkDotnetTypeDeclarationRefs(declaration, visit) {
-  for (const type of [
-    declaration.baseType,
-    declaration.sourceShape,
-    declaration.targetType,
-  ]) {
-    if (type !== undefined) {
-      walkDotnetTypeRef(type, visit);
-    }
-  }
-  for (const constraint of declaration.implementedContracts ?? []) {
-    if (constraint.kind === "implements") {
-      walkDotnetTypeRef(constraint.contract, visit);
-    }
-  }
-  for (const parameter of declaration.typeParameters ?? []) {
-    if (parameter.defaultType !== undefined) {
-      walkDotnetTypeRef(parameter.defaultType, visit);
-    }
-  }
-  for (const member of declaration.members ?? []) {
-    if (member.type !== undefined) {
-      walkDotnetTypeRef(member.type, visit);
-    }
-    for (const signature of member.signatures ?? []) {
-      for (const parameter of signature.parameters) {
-        walkDotnetTypeRef(parameter.type, visit);
-      }
-      if (signature.returnType !== undefined) {
-        walkDotnetTypeRef(signature.returnType, visit);
-      }
-      if (signature.targetReturnType !== undefined) {
-        walkDotnetTypeRef(signature.targetReturnType, visit);
-      }
-    }
-  }
-}
-
-function walkDotnetTypeRef(type, visit, path = "$") {
-  visit(type, path);
-  switch (type.kind) {
-    case "provider-ref":
-      for (const [index, argument] of (type.typeArguments ?? []).entries()) {
-        walkDotnetTypeRef(argument, visit, `${path}.typeArguments[${index}]`);
-      }
-      return;
-    case "named":
-      for (const [index, argument] of (type.typeArguments ?? []).entries()) {
-        walkDotnetTypeRef(argument, visit, `${path}.typeArguments[${index}]`);
-      }
-      if (type.sourceShape !== undefined) {
-        walkDotnetTypeRef(type.sourceShape, visit, `${path}.sourceShape`);
-      }
-      return;
-    case "array":
-      walkDotnetTypeRef(type.elementType, visit, `${path}.elementType`);
-      return;
-    case "nullable":
-      walkDotnetTypeRef(type.elementType, visit, `${path}.elementType`);
-      return;
-    case "tuple":
-      for (const [index, element] of type.elements.entries()) {
-        walkDotnetTypeRef(element, visit, `${path}.elements[${index}]`);
-      }
-      return;
-    case "union":
-      for (const [index, element] of type.types.entries()) {
-        walkDotnetTypeRef(element, visit, `${path}.types[${index}]`);
-      }
-      return;
-    case "function":
-      for (const [index, parameter] of type.parameters.entries()) {
-        walkDotnetTypeRef(parameter.type, visit, `${path}.parameters[${index}].type`);
-      }
-      walkDotnetTypeRef(type.returnType, visit, `${path}.returnType`);
-      return;
-    case "pointer":
-      walkDotnetTypeRef(type.pointee, visit, `${path}.pointee`);
-      return;
-    case "function-pointer":
-      for (const [index, argument] of type.args.entries()) {
-        walkDotnetTypeRef(argument, visit, `${path}.args[${index}]`);
-      }
-      walkDotnetTypeRef(type.result, visit, `${path}.result`);
-      return;
-    case "opaque":
-      if (type.sourceShape !== undefined) {
-        walkDotnetTypeRef(type.sourceShape, visit, `${path}.sourceShape`);
-      }
-      return;
-    default:
-      return;
-  }
-}
-
-function walkProviderExportRefs(declaration, visit) {
-  if (declaration.type !== undefined) {
-    walkProviderTypeExpression(declaration.type, visit);
-  }
-  for (const parameter of declaration.typeParameters ?? []) {
-    for (const constraint of parameter.constraints ?? []) {
-      walkProviderTypeExpression(constraint, visit);
-    }
-    if (parameter.defaultType !== undefined) {
-      walkProviderTypeExpression(parameter.defaultType, visit);
-    }
-  }
-  for (const heritage of declaration.heritage ?? []) {
-    walkProviderTypeExpression(heritage.type, visit);
-  }
-  for (const member of declaration.members ?? []) {
-    if (member.type !== undefined) {
-      walkProviderTypeExpression(member.type, visit);
-    }
-    for (const signature of member.signatures ?? []) {
-      for (const parameter of signature.parameters) {
-        walkProviderTypeExpression(parameter.type, visit);
-      }
-      if (signature.returnType !== undefined) {
-        walkProviderTypeExpression(signature.returnType, visit);
-      }
-    }
-  }
-  for (const signature of declaration.signatures ?? []) {
-    for (const parameter of signature.parameters) {
-      walkProviderTypeExpression(parameter.type, visit);
-    }
-    if (signature.returnType !== undefined) {
-      walkProviderTypeExpression(signature.returnType, visit);
-    }
-  }
-}
-
-function walkProviderTypeExpression(type, visit, path = "$") {
-  visit(type, path);
-  switch (type.kind) {
-    case "provider-ref":
-      for (const [index, argument] of (type.typeArguments ?? []).entries()) {
-        walkProviderTypeExpression(argument, visit, `${path}.typeArguments[${index}]`);
-      }
-      return;
-    case "target-named":
-      for (const [index, argument] of (type.typeArguments ?? []).entries()) {
-        walkProviderTypeExpression(argument, visit, `${path}.typeArguments[${index}]`);
-      }
-      if (type.sourceShape !== undefined) {
-        walkProviderTypeExpression(type.sourceShape, visit, `${path}.sourceShape`);
-      }
-      return;
-    case "array":
-      walkProviderTypeExpression(type.elementType, visit, `${path}.elementType`);
-      return;
-    case "tuple":
-      for (const [index, element] of type.elementTypes.entries()) {
-        walkProviderTypeExpression(element, visit, `${path}.elementTypes[${index}]`);
-      }
-      return;
-    case "union":
-    case "intersection":
-      for (const [index, element] of type.types.entries()) {
-        walkProviderTypeExpression(element, visit, `${path}.types[${index}]`);
-      }
-      return;
-    case "function":
-      for (const [index, parameter] of type.parameters.entries()) {
-        walkProviderTypeExpression(parameter.type, visit, `${path}.parameters[${index}].type`);
-      }
-      walkProviderTypeExpression(type.returnType, visit, `${path}.returnType`);
-      return;
-    case "opaque":
-      if (type.sourceShape !== undefined) {
-        walkProviderTypeExpression(type.sourceShape, visit, `${path}.sourceShape`);
-      }
-      return;
-    default:
-      return;
-  }
-}
-
-function rawType(module, sourceName) {
-  const declaration = module.exports.find((candidate) => candidate.kind === "type" && candidate.sourceName === sourceName);
-  assert.ok(declaration, `Missing raw type ${sourceName}`);
-  return declaration;
-}
-
-function rawMethod(type, sourceName, signatureShape) {
-  const member = type.members?.find((candidate) =>
-    candidate.kind === "method" &&
-    candidate.sourceName === sourceName &&
-    candidate.signatures?.some((signature) => idHasShape(signature.id, signatureShape))
-  );
-  assert.ok(member, `Missing method ${type.sourceName}.${sourceName} with signature ${signatureShape}`);
-  return member;
-}
-
-function sourceType(model, sourceName) {
-  const declaration = model.exports.find((candidate) => candidate.name === sourceName);
-  assert.ok(declaration, `Missing source type ${sourceName}`);
-  return declaration;
-}
-
-function sourceMember(type, sourceName) {
-  const member = type.members?.find((candidate) => candidate.name === sourceName);
-  assert.ok(member, `Missing source member ${type.name}.${sourceName}`);
-  return member;
-}
-
-function rawConstructor(type, signatureShape) {
-  const member = type.members?.find((candidate) =>
-    candidate.kind === "constructor" &&
-    candidate.signatures?.some((signature) => idHasShape(signature.id, signatureShape))
-  );
-  assert.ok(member, `Missing constructor ${type.sourceName} with signature ${signatureShape}`);
-  return member;
-}
-
-function rawIndexer(type, signatureShape) {
-  const member = type.members?.find((candidate) =>
-    candidate.kind === "indexer" &&
-    candidate.signatures?.some((signature) => idHasShape(signature.id, signatureShape))
-  );
-  assert.ok(member, `Missing indexer ${type.sourceName} with signature ${signatureShape}`);
-  return member;
-}
-
-function idHasShape(id, metadataShape) {
-  return stripAssemblyQualifiers(id) === metadataShape;
-}
-
-function stripAssemblyQualifiers(id) {
-  return id.replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
-    `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`);
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
-function buildConstraintFixture() {
-  const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
-  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
-  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "ConstraintProviderFixture.dll",
-    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
-  });
-}
-
-function buildSignatureIdentityFixture() {
-  const project = join(repoRoot, "test/fixtures/dotnet-provider/signature-identity/SignatureIdentityProviderFixture.csproj");
-  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/bin");
-  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/obj/");
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "SignatureIdentityProviderFixture.dll",
-    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/signature-identity"),
-  });
-}
-
-function buildUnsupportedMemberFixture() {
-  const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members/UnsupportedMembersProviderFixture.csproj");
-  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/bin");
-  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/obj/");
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "UnsupportedMembersProviderFixture.dll",
-    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members"),
-  });
-}
-
-function buildAttributeFixture() {
-  const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
-  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
-  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "AttributeProviderFixture.dll",
-    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/attributes"),
-  });
-}
-
-function buildUnsupportedDefaultParameterFixture() {
-  const fixtureDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-default-params");
-  const project = join(fixtureDirectory, "UnsupportedDefaultParameterProviderFixture.csproj");
-  const source = join(fixtureDirectory, "UnsupportedDefaultParameterSource.cs");
-  const outputDirectory = join(fixtureDirectory, "bin");
-  const intermediateDirectory = join(fixtureDirectory, "obj/");
-  mkdirSync(fixtureDirectory, { recursive: true });
-  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
-</Project>
-`);
-  writeFileSync(source, `using System;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-
-namespace ProviderUnsupportedDefaultFixtures;
-
-public sealed class UnsupportedDefaultParameterSource
-{
-    public void UnsupportedDateTimeDefault(
-        [Optional, DateTimeConstant(638000000000000000L)] DateTime value)
-    {
-    }
-}
-`);
-  return buildDotnetFixture({
-    project,
-    outputDirectory,
-    intermediateDirectory,
-    outputAssemblyName: "UnsupportedDefaultParameterProviderFixture.dll",
-    projectDirectory: fixtureDirectory,
-  });
-}
