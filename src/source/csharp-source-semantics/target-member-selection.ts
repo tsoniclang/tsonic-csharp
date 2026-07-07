@@ -1,13 +1,9 @@
 import type {
-  ArgumentPassingFact,
   CheckedCallMappingRequest,
   CheckedElementAccessMappingRequest,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
-} from "@tsonic/tsts";
-import {
-  argumentPassingFactKey,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetBindingFact,
@@ -101,15 +97,6 @@ export function findTargetMemberForCall(
           return sourceProjection;
         }
       }
-      if (checkedCallHasTargetPassingFacts(request, context)) {
-        return selectTargetMember(
-          getTargetMemberOverloadGroupCandidates(csharpBinding, selectedMember),
-          selectionRequest,
-          context,
-          resolveTargetTypeRef,
-          options,
-        );
-      }
       return undefined;
     }
     const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
@@ -151,40 +138,6 @@ export function findTargetMemberForCall(
         resolveTargetTypeRef,
         options,
       );
-}
-
-function checkedCallHasTargetPassingFacts(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext,
-): boolean {
-  return request.arguments.some((argument) => {
-    const passing = getArgumentPassingFact(argument, context);
-    return passing !== undefined && passing.mode !== "by-value";
-  });
-}
-
-function getArgumentPassingFact(
-  argument: CheckedCallMappingRequest["arguments"][number],
-  context: ExtensionObservationContext,
-): ArgumentPassingFact | undefined {
-  const factContext = context as {
-    readonly factResolver?: ExtensionObservationContext["factResolver"];
-    readonly facts?: ExtensionObservationContext["facts"];
-  };
-  return factContext.factResolver?.resolve(argument, argumentPassingFactKey) ??
-    factContext.facts?.get(argument, argumentPassingFactKey);
-}
-
-function getTargetMemberOverloadGroupCandidates(
-  binding: CsharpTargetBindingFact | undefined,
-  selectedMember: CsharpTargetMember,
-): readonly CsharpTargetMember[] {
-  return (binding?.members ?? []).filter((member) =>
-    member.kind === selectedMember.kind &&
-    member.overloadGroup !== undefined &&
-    selectedMember.overloadGroup !== undefined &&
-    member.overloadGroup === selectedMember.overloadGroup
-  );
 }
 
 function targetMemberSelectionRequest(

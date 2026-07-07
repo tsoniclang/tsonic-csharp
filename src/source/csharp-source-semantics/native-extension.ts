@@ -177,9 +177,17 @@ function runBeforeFinalizedStage(stage: string, action: () => void): void {
   } catch (error) {
     const wrapped = new Error(`C# semantics.beforeFinalized stage '${stage}' failed.`);
     (wrapped as { cause?: unknown }).cause = error;
+    const cause = error instanceof Error ? error : undefined;
+    if (cause !== undefined && wrapped.stack !== undefined) {
+      wrapped.stack = `${wrapped.message}\nCaused by: ${cause.stack ?? cause.message}\nStage wrapper stack:\n${wrapped.stack}`;
+    }
     Object.assign(wrapped, {
       stage,
       diagnosticMessage: wrapped.message,
+      ...(cause === undefined ? {} : {
+        causeMessage: cause.message,
+        causeStack: cause.stack,
+      }),
     });
     throw wrapped;
   }

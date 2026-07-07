@@ -146,7 +146,7 @@ test("C# provider closes ref out and in parameter modes from selected provider m
     "byref-readonly",
   ]);
 });
-test("C# provider refines selected provider overload group from finalized byref argument facts", () => {
+test("C# provider does not refine exact selected constructor signatures from byref argument facts", () => {
   const selectedSignature = {};
   const containerSymbol = {};
   const call = {};
@@ -223,8 +223,9 @@ test("C# provider refines selected provider overload group from finalized byref 
     },
   }));
 
-  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
-  assert.equal(result.value.selectedSignature.member.id, refMember.id);
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.match(result.diagnostic.message, /could not map checked call '<anonymous>'/);
 });
 test("C# provider rejects argument-passing facts tied to another selected provider signature", () => {
   const selectedSignature = {};

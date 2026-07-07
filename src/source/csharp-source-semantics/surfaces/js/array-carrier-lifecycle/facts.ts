@@ -230,6 +230,9 @@ function appendUnresolvedArrayCarrierDiagnostic(
 }
 
 function getParameterName(name: Node, ast: CsharpArrayLifecycleAst | undefined): string {
+  if (ast === undefined || !ast.is.IsIdentifier(name)) {
+    return "<binding-pattern>";
+  }
   const text = ast?.text(name);
   return text === undefined || text.length === 0 ? "<array>" : text;
 }

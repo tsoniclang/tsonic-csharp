@@ -54,6 +54,7 @@ import {
   resolveTargetTypeArgumentsForTypeWithResolver,
 } from "./target-type-semantic-resolution.js";
 import {
+  enrichCsharpTargetTypeRef,
   getCsharpTargetTypeFromBinding,
 } from "./target-enrichment.js";
 import {
@@ -113,9 +114,13 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   }
   const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
   if (aliasedType !== undefined) {
-    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(aliasedType)
+    const enrichedAliasedType = enrichCsharpTargetTypeRef(aliasedType, host);
+    if (enrichedAliasedType === undefined) {
+      return undefined;
+    }
+    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(enrichedAliasedType)
       ? undefined
-      : aliasedType;
+      : enrichedAliasedType;
   }
   const binding = resolveTargetBindingFact(context, node) ??
     resolveTargetBindingFact(context, typeName) ??
