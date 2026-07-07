@@ -21,7 +21,7 @@
   "scripts": {
     "build": "bash scripts/build.sh",
     "test": "npm run build && npm run test:parallel",
-    "test:parallel": "node --test test/*.test.mjs"
+    "test:parallel": "node ../tsonic/scripts/test/run-parallel.mjs --scope tsonic-csharp"
   },
   "peerDependencies": {
     "@tsonic/source-core": "0.0.1",
