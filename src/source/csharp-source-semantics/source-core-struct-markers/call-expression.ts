@@ -17,8 +17,8 @@ import {
   getSourceCoreLangStructImportSymbols,
 } from "./imports.js";
 import {
-  getSafeResolvedSymbol,
-  getSafeSymbol,
+  getSourceCoreResolvedSymbol,
+  getSourceCoreSymbolAtLocation,
 } from "./symbols.js";
 
 export function isSourceCoreStructMarkerCallExpression(
@@ -56,8 +56,8 @@ function getCanonicalIdentityForNode(
   if (direct !== undefined) {
     return direct;
   }
-  const symbol = getSafeSymbol(node, context);
-  const resolved = getSafeResolvedSymbol(node, context);
+  const symbol = getSourceCoreSymbolAtLocation(node, context);
+  const resolved = getSourceCoreResolvedSymbol(node, context);
   return context.facts.get(symbol, canonicalIdentityFactKey) ??
     context.facts.get(resolved, canonicalIdentityFactKey);
 }
@@ -81,11 +81,11 @@ function isSourceCoreStructMarkerCallExpressionFromImportSymbols(
     if (propertyName === undefined || receiver === undefined || compiler.ast.text(propertyName) !== "struct") {
       return false;
     }
-    const receiverSymbol = getSafeSymbol(receiver, context) ?? getSafeResolvedSymbol(receiver, context);
+    const receiverSymbol = getSourceCoreSymbolAtLocation(receiver, context) ?? getSourceCoreResolvedSymbol(receiver, context);
     return receiverSymbol !== undefined && getSourceCoreLangNamespaceImportSymbols(sourceFile, context)
       .some((symbol) => symbol === receiverSymbol);
   }
-  const expressionSymbol = getSafeSymbol(expression, context) ?? getSafeResolvedSymbol(expression, context);
+  const expressionSymbol = getSourceCoreSymbolAtLocation(expression, context) ?? getSourceCoreResolvedSymbol(expression, context);
   return expressionSymbol !== undefined && getSourceCoreLangStructImportSymbols(sourceFile, context)
     .some((symbol) => symbol === expressionSymbol);
 }

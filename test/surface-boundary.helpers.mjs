@@ -161,13 +161,16 @@ export function arrayLengthRequest(expression, receiverType, sourceSelectedSymbo
   if (receiverType !== undefined) {
     receiver.SemanticType = receiverType;
   }
+  const selectedDeclaration = sourceSelectedSymbol?.Kind !== undefined ? sourceSelectedSymbol : options.sourceSelectedDeclaration;
+  const selectedSymbol = sourceSelectedSymbol?.Kind === undefined ? sourceSelectedSymbol : options.sourceSelectedSymbol;
   return {
     target: "csharp",
     expression,
     receiver,
     receiverType,
     propertyName: "length",
-    ...(sourceSelectedSymbol !== undefined ? { sourceSelectedSymbol } : {}),
+    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
+    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
   };
 }
 
@@ -264,13 +267,16 @@ export function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, p
   if (options.receiverType !== undefined) {
     receiver.SemanticType = options.receiverType;
   }
+  const selectedDeclaration = sourceSelectedSymbol?.Kind !== undefined ? sourceSelectedSymbol : options.sourceSelectedDeclaration;
+  const selectedSymbol = sourceSelectedSymbol?.Kind === undefined ? sourceSelectedSymbol : options.sourceSelectedSymbol;
   return {
     target: "csharp",
     expression,
     receiver,
     receiverType: options.receiverType ?? {},
     propertyName,
-    sourceSelectedSymbol,
+    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
+    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
   };
 }
 

@@ -23,6 +23,7 @@ export {
   createSourceLibraryMember,
   isBundledStandardLibraryType,
   resolveSourceLibraryMemberIdentity,
+  resolveSelectedSourceLibraryMemberIdentity,
   sourceLibraryMemberIdSet,
   sourceLibraryMemberIdentity,
   sourceLibraryMemberMatches,

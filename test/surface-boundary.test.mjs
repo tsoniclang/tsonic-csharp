@@ -32,9 +32,11 @@ test("JS surface maps property access from sourceSelectedSymbol before declarati
   const receiver = fakeNodeSubject({});
   const receiverType = {};
   receiver.SemanticType = receiverType;
+  const selectedDeclaration = sourceLibraryMemberDeclaration("String", "length");
   const sourceSelectedSymbol = {
-    ...sourceLibraryMemberDeclaration("String", "length"),
-    declarations: [arrayLengthDeclaration()],
+    Flags: 0,
+    Name: "length",
+    declarations: [selectedDeclaration],
   };
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
@@ -127,6 +129,7 @@ test("JS surface attributes array element diagnostics to the selected surface op
     receiver,
     receiverType,
     argument: index,
+    sourceSelectedDeclaration: arrayMemberDeclaration("at"),
   }, fakeContext(facts));
 
   assert.equal(result.kind, "reject");
@@ -141,6 +144,7 @@ test("JS surface attributes string element diagnostics to the selected surface o
   receiver.SemanticType = receiverType;
   const index = fakeNodeSubject({});
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: stringType() });
   const targetTypes = new Map([
     [receiverType, stringType()],
     [index, stringType()],
@@ -153,6 +157,7 @@ test("JS surface attributes string element diagnostics to the selected surface o
     receiver,
     receiverType,
     argument: index,
+    sourceSelectedDeclaration: sourceLibraryMemberDeclaration("String", "charAt"),
   }, fakeContext(facts));
 
   assert.equal(result.kind, "reject");
@@ -160,7 +165,30 @@ test("JS surface attributes string element diagnostics to the selected surface o
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_STRING_INDEX");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
-test("JS surface maps array element access from finalized receiver carrier facts", () => {
+test("JS surface maps array element access from selected source evidence", () => {
+  const expression = {};
+  const receiver = fakeNodeSubject({});
+  const index = fakeNodeSubject({});
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
+  const targetTypes = new Map([
+    [index, int32Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    argument: index,
+    sourceSelectedDeclaration: arrayMemberDeclaration("at"),
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+});
+test("JS surface defers element access without selected source evidence even when receiver carrier is finalized", () => {
   const expression = {};
   const receiver = fakeNodeSubject({});
   const index = fakeNodeSubject({});
@@ -178,9 +206,8 @@ test("JS surface maps array element access from finalized receiver carrier facts
     argument: index,
   }, fakeContext(facts));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.array.indexer");
-  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 test("JS surface defers element access without selected receiver facts", () => {
   const expression = {};

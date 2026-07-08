@@ -9,5 +9,5 @@ export const dotnetReflectionProviderIdentity: DotnetProviderIdentity = {
   displayName: "Tsonic C# .NET reflection provider",
 };
 
-export const dotnetReflectionProviderCacheAbiVersion = "dotnet-reflection-provider-cache-v7";
+export const dotnetReflectionProviderCacheAbiVersion = "dotnet-reflection-provider-cache-v9";
 export const dotnetReflectionSupportedTargetFramework = "net10.0";

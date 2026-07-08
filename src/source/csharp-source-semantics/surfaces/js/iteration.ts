@@ -32,6 +32,7 @@ import {
 import {
   asNodeSubject,
   getNodeField,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
@@ -57,7 +58,7 @@ export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
   }
   const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedIteration);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {

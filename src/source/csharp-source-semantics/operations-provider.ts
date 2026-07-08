@@ -1,5 +1,6 @@
 import {
   TstsProviderContractVersion,
+  acceptObservation,
   deferObservation,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
@@ -7,6 +8,7 @@ import {
 import type {
   CheckedCallMappingRequest,
   CheckedElementAccessMappingRequest,
+  CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservation,
@@ -68,6 +70,9 @@ import {
   mapCsharpCheckedPropertyAccess,
 } from "./checked-member-access-mapping.js";
 import {
+  targetOperation,
+} from "./operations.js";
+import {
   mapCsharpCheckedOperator,
 } from "./checked-operator-mapping/index.js";
 import {
@@ -82,21 +87,19 @@ import {
   validateCsharpTargetConstraint,
 } from "./target-constraint-validation.js";
 import {
+  getSelectedSourceLibraryDeclarationName,
   resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import {
   getReferencedDeclarationTargetTypeRef,
 } from "./referenced-declaration-target.js";
 import {
-  getCsharpCheckedElementAccessRequestContext,
   getCsharpCheckedPropertyAccessRequestContext,
 } from "./checked-member-access-request-context.js";
 import {
-  isSourceStandardLibraryArrayLikeType,
-} from "./source-type-classification.js";
-import {
-  asSemanticType,
-} from "../fact-subjects.js";
+  asNodeSubject,
+  isDeclarationOrVirtualSourceFile,
+} from "./ast-utils.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -184,6 +187,9 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
+      if (isDeclarationOrVirtualRequestSubject(request.expression, context)) {
+        return acceptDeclarationOnlyOperation("property");
+      }
       const compatObservation = typescriptCompatibilityMode === "compat"
         ? mapCsharpCompatRuntimeCheckedPropertyAccess(request, context)
         : deferObservation;
@@ -206,6 +212,9 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
+      if (isDeclarationOrVirtualRequestSubject(request.expression, context)) {
+        return acceptDeclarationOnlyOperation("indexer");
+      }
       const compatObservation = typescriptCompatibilityMode === "compat"
         ? mapCsharpCompatRuntimeCheckedElementAccess(request, context)
         : deferObservation;
@@ -228,6 +237,9 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedElementAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedOperator(request, context) {
+      if (isDeclarationOrVirtualRequestSubject(request.expression, context)) {
+        return acceptDeclarationOnlyOperation("operator");
+      }
       return mapCsharpCheckedOperator(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
     observePostCheckAssignability(request, context) {
@@ -237,6 +249,9 @@ export function createCsharpTargetOperationsProvider(
       return validateCsharpTargetConstraint(request, context, surfaceAwareHost);
     },
     mapCheckedIteration(request, context) {
+      if (isDeclarationOrVirtualRequestSubject(request.statement, context)) {
+        return acceptDeclarationOnlyOperation("iteration");
+      }
       return useObservationOrWhenDeferred(
         jsSurface?.mapCheckedIteration(request, context) ?? deferObservation,
         () => mapCsharpNativeCheckedIteration(request, context, surfaceAwareHost),
@@ -342,9 +357,31 @@ function jsSurfaceOwnsCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): boolean {
-  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = asSemanticType(requestContext.receiverType);
-  return receiverType !== undefined && isSourceStandardLibraryArrayLikeType(receiverType, context);
+  return getSelectedSourceLibraryDeclarationName(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context) !== undefined;
+}
+
+function isDeclarationOrVirtualRequestSubject(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(subject);
+  if (node === undefined) {
+    return false;
+  }
+  const sourceFile = context.compiler.ast.getSourceFile(node);
+  return sourceFile === undefined || isDeclarationOrVirtualSourceFile(sourceFile, context.compiler.ast);
+}
+
+function acceptDeclarationOnlyOperation(
+  operationKind: CheckedOperationMappingResult["operation"]["operationKind"],
+): ExtensionObservation<CheckedOperationMappingResult> {
+  return acceptObservation({
+    operation: targetOperation(
+      `tsonic.csharp.declaration-only.${operationKind}`,
+      operationKind,
+      "declaration-only",
+    ),
+  }, [{ message: "C# operation mapping accepted a declaration/virtual source operation without target emission semantics." }]);
 }
 
 export function useObservationOrWhenDeferred<T>(

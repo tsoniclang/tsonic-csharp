@@ -5,12 +5,14 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-member-declaring-name",
     pattern: /sourceMember\.declaringName/g,
+    allowedFilePattern: sourceIdentityMetadataFilePattern(),
     replacement:
       "Use selected TSTS declaration/signature identity, then policy/provider facts.",
   },
   {
     id: "source-member-name",
     pattern: /sourceMember\.memberName/g,
+    allowedFilePattern: sourceIdentityMetadataFilePattern(),
     replacement:
       "Use selected TSTS declaration/signature identity, then policy/provider facts.",
   },
@@ -25,6 +27,13 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /\bsourceMemberIsRequested\b/g,
     replacement:
       "Do not filter provider declarations by source-text member usage; expose the selected provider metadata surface or fail closed.",
+  },
+  {
+    id: "broad-checker-catch-return",
+    filePattern: /(?:^|\/)src\/source\/csharp-source-semantics\/.+\.ts$/,
+    pattern: /catch\s*\{\s*return\s+(?:undefined|false);?\s*\}/g,
+    replacement:
+      "Semantic lifecycle code must not swallow checker/AST failures as missing evidence; consume selected TSTS evidence or fail closed with diagnostics.",
   },
   {
     id: "source-library-type-check",

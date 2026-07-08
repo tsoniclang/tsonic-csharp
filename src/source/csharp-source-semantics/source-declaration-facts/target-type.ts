@@ -2,7 +2,6 @@ import type {
   ExtensionObservationContext,
   Node,
   TargetTypeRef,
-  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -103,12 +102,7 @@ function getSourceClassBaseTargetType(
   if (compiler === undefined) {
     return undefined;
   }
-  let type: Type | undefined;
-  try {
-    type = compiler.checker.getTypeAtLocation(expression, { sourceFile: ast.getSourceFile(expression) });
-  } catch {
-    return undefined;
-  }
+  const type = compiler.checker.getTypeAtLocation(expression, { sourceFile: ast.getSourceFile(expression) });
   return host.getTargetTypeRefForType(type, context, { allowRuntimeCarrier: true });
 }
 

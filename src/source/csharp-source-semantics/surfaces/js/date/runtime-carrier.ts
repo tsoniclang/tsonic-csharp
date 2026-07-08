@@ -12,24 +12,21 @@ import type {
 import {
   acceptObservation,
   deferObservation,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
   getNodeField,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../../ast-utils.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
 import {
-  getSymbolDeclarations,
-} from "../../../symbol-utils.js";
-import {
   asType,
+  resolveSelectedSourceLibraryMemberIdentity,
 } from "../source-library.js";
-import {
-  getSourceLibraryDeclarationName,
-} from "../../../source-library.js";
 import {
   isSourceStandardLibraryDateType,
 } from "../../../source-type-classification.js";
@@ -87,7 +84,7 @@ export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
@@ -146,13 +143,13 @@ function isCheckedSourceLibraryDateConstruction(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): boolean {
-  const compiler = context.compiler;
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  if (compiler === undefined || expression === undefined) {
-    return false;
-  }
-  const symbol = compiler.checker.getSymbolAtLocation(expression, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(expression, { sourceFile });
-  return getSymbolDeclarations(symbol, context.compiler?.checker).some((declaration) =>
-    getSourceLibraryDeclarationName(declaration, context) === "Date");
+  void sourceFile;
+  const selectedSignature = context.host.facts.get(node, selectedTargetSignatureFactKey) ??
+    context.factResolver.resolve(node, selectedTargetSignatureFactKey);
+  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
+    selectedSignature?.sourceDeclaration,
+    selectedSignature?.sourceSignature,
+    context,
+  );
+  return sourceMember?.declaringName === "Date";
 }

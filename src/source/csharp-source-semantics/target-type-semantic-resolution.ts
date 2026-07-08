@@ -165,11 +165,7 @@ function safeGetTypeOfSymbol(
   symbol: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeOfSymbol"]>[0],
   context: ExtensionObservationContext,
 ): Type | undefined {
-  try {
-    return context.compiler?.checker.getTypeOfSymbol(symbol);
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getTypeOfSymbol(symbol);
 }
 
 export function getNullableUnionTargetTypeRef(

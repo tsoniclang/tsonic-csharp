@@ -4,13 +4,13 @@ import type {
   Node,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
-  Signature,
   SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   acceptObservation,
   deferObservation,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import {
   csharpJsArrayCarrierTargetType,
@@ -44,6 +44,7 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeList,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
@@ -140,7 +141,7 @@ export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
@@ -267,11 +268,9 @@ function isCheckedJsonParseCall(
   if (compiler === undefined) {
     return false;
   }
-  const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
-  const declaration = typeof compiler.checker.getSignatureDeclaration === "function"
-    ? asNodeSubject(signature === undefined ? undefined : compiler.checker.getSignatureDeclaration(signature as Signature))
-    : undefined;
-  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
+  const selectedSignature = context.host.facts.get(call, selectedTargetSignatureFactKey) ??
+    context.factResolver.resolve(call, selectedTargetSignatureFactKey);
+  const sourceMember = resolveSourceLibraryMemberIdentity(selectedSignature?.sourceDeclaration, context);
   if (
     sourceMember === undefined ||
     !jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), jsonParseIdentityPolicy)

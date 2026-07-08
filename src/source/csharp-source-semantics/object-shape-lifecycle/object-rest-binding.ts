@@ -75,12 +75,8 @@ function getObjectRestBindingShapeFromCheckedType(
   host: CsharpObjectShapeLifecycleHost,
   context: ExtensionObservationContext,
 ): CsharpObjectShapeFact | undefined {
-  try {
-    const restType = compiler.checker.getTypeAtLocation(restBindingElement, { sourceFile });
-    return host.getCsharpObjectShapeFactForSubject(restType, context);
-  } catch {
-    return undefined;
-  }
+  const restType = compiler.checker.getTypeAtLocation(restBindingElement, { sourceFile });
+  return host.getCsharpObjectShapeFactForSubject(restType, context);
 }
 
 function recordCsharpObjectRestBindingFact(

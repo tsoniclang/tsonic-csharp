@@ -158,7 +158,20 @@ function getCheckedSourceSelectionEvidence(
   sourceSelectedSignature: CheckedCallMappingRequest["sourceSelectedSignature"],
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): unknown {
-  return sourceSelectedSignature ?? (declaration?.signatureId === undefined ? undefined : declaration);
+  if (sourceSelectedSignature === undefined) {
+    return declaration?.signatureId === undefined ? undefined : declaration;
+  }
+  return selectedSignatureCarriesProviderIdentity(sourceSelectedSignature)
+    ? sourceSelectedSignature
+    : declaration?.signatureId === undefined
+      ? sourceSelectedSignature
+      : declaration;
+}
+
+function selectedSignatureCarriesProviderIdentity(
+  sourceSelectedSignature: CheckedCallMappingRequest["sourceSelectedSignature"],
+): boolean {
+  return typeof (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId === "string";
 }
 
 export function findTargetMemberForElementAccess(

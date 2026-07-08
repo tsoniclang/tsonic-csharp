@@ -103,9 +103,5 @@ function safeGetResolvedSymbol(
   if (node === undefined) {
     return undefined;
   }
-  try {
-    return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
 }

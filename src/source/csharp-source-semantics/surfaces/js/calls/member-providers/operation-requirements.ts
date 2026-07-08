@@ -178,11 +178,7 @@ function argumentHasNullishSourceType(
   if (node === undefined || compiler === undefined) {
     return false;
   }
-  try {
-    const sourceFile = compiler.ast.getSourceFile(node);
-    const type = compiler.checker.getTypeAtLocation(node, { sourceFile });
-    return type === undefined ? false : compiler.typeShape.isNullish(type);
-  } catch {
-    return false;
-  }
+  const sourceFile = compiler.ast.getSourceFile(node);
+  const type = compiler.checker.getTypeAtLocation(node, { sourceFile });
+  return type === undefined ? false : compiler.typeShape.isNullish(type);
 }

@@ -60,11 +60,7 @@ function getTstsConstantValue(
   sourceFile: SourceFile | undefined,
   host: TstsTupleElementIndexHost,
 ): unknown {
-  try {
-    return host.getConstantValue(argumentNode, sourceFile === undefined ? undefined : { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return host.getConstantValue(argumentNode, sourceFile === undefined ? undefined : { sourceFile });
 }
 
 function getTstsTupleElementIndexFromNumericLiteral(

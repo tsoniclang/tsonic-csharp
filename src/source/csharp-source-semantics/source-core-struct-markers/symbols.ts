@@ -4,7 +4,7 @@ import type {
   Symbol,
 } from "@tsonic/tsts";
 
-export function getSafeSymbol(
+export function getSourceCoreSymbolAtLocation(
   node: Node,
   context: ExtensionObservationContext,
 ): Symbol | undefined {
@@ -12,14 +12,10 @@ export function getSafeSymbol(
   if (compiler === undefined) {
     return undefined;
   }
-  try {
-    return compiler.checker.getSymbolAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getSymbolAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
 }
 
-export function getSafeResolvedSymbol(
+export function getSourceCoreResolvedSymbol(
   node: Node,
   context: ExtensionObservationContext,
 ): Symbol | undefined {
@@ -27,9 +23,5 @@ export function getSafeResolvedSymbol(
   if (compiler === undefined) {
     return undefined;
   }
-  try {
-    return compiler.checker.getResolvedSymbol(node, { sourceFile: compiler.ast.getSourceFile(node) });
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile: compiler.ast.getSourceFile(node) }) ?? undefined;
 }

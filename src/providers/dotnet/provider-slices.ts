@@ -59,12 +59,25 @@ export function sliceDotnetModuleExports(
   };
 }
 
+export function missingDotnetSameModuleProviderRefExports(
+  module: DotnetModuleModel,
+  requestedExports: readonly string[] | undefined,
+): readonly string[] {
+  if (requestedExports === undefined) {
+    return [];
+  }
+  const exportedNames = new Set(module.exports.flatMap(dotnetSourceExportNames));
+  return [...sameModuleProviderRefClosure(module, requestedExports)]
+    .filter((exportName) => !exportedNames.has(exportName));
+}
+
 function sameModuleProviderRefClosure(
   module: DotnetModuleModel,
   requestedExports: readonly string[],
 ): ReadonlySet<string> {
   const included = new Set(requestedExports);
   const pending = [...included];
+  const expanded = new Set<string>();
   const exportsByName = new Map<string, DotnetExportDeclaration[]>();
   for (const declaration of module.exports) {
     for (const exportName of dotnetSourceExportNames(declaration)) {
@@ -75,11 +88,18 @@ function sameModuleProviderRefClosure(
   }
   while (pending.length > 0) {
     const exportName = pending.pop();
-    const declarations = exportName === undefined ? undefined : exportsByName.get(exportName);
+    if (exportName === undefined || expanded.has(exportName)) {
+      continue;
+    }
+    expanded.add(exportName);
+    const declarations = exportsByName.get(exportName);
     if (declarations === undefined) {
       continue;
     }
     for (const declaration of declarations) {
+      if (!requestedExports.includes(exportName) && !dotnetDeclarationExpandsSourceClosure(declaration)) {
+        continue;
+      }
       for (const dependency of sameModuleProviderRefs(declaration, module.moduleSpecifier)) {
         if (included.has(dependency)) {
           continue;
@@ -90,6 +110,22 @@ function sameModuleProviderRefClosure(
     }
   }
   return included;
+}
+
+function dotnetDeclarationExpandsSourceClosure(declaration: DotnetExportDeclaration): boolean {
+  switch (declaration.kind) {
+    case "type":
+      return (declaration.members?.length ?? 0) > 0 ||
+        (declaration.conversionOperators?.length ?? 0) > 0 ||
+        declaration.baseType !== undefined ||
+        (declaration.implementedContracts?.length ?? 0) > 0;
+    case "function":
+      return declaration.signatures.length > 0;
+    case "value":
+      return true;
+    case "namespace":
+      return declaration.exports.length > 0;
+  }
 }
 
 function dotnetSourceExportNames(declaration: DotnetExportDeclaration): readonly string[] {
@@ -130,10 +166,23 @@ function collectSameModuleProviderRefs(
   if (record.kind === "provider-ref" && record.moduleSpecifier === moduleSpecifier && typeof record.exportName === "string") {
     refs.add(record.exportName);
   }
-  for (const child of Object.values(record)) {
+  for (const [key, child] of Object.entries(record)) {
+    if (nonSourceClosureMetadataKeys.has(key)) {
+      continue;
+    }
     collectSameModuleProviderRefs(child, moduleSpecifier, refs, visited);
   }
 }
+
+const nonSourceClosureMetadataKeys = new Set([
+  "assembly",
+  "attributes",
+  "evidence",
+  "targetIdentity",
+  "unsupportedAttributes",
+  "unsupportedImplementedContracts",
+  "unsupportedMembers",
+]);
 
 function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
   if (values === undefined || values.length === 0) {

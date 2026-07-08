@@ -1,4 +1,5 @@
 import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
   const receiver = {};
@@ -65,6 +66,68 @@ test("target member selection binds first-argument receiver generics before expl
     selectTargetMember([member], { arguments: [validArgument] }, context, resolveTargetTypeRef),
     undefined,
   );
+});
+
+test("C# provider call selection uses provider signature identity when TSTS signature object lacks signatureId", () => {
+  const argument = {};
+  const signatureId = "Example.Json.Serializer.Serialize``1(T,Example.Json.Options)";
+  const binding = {
+    target: "csharp",
+    id: "Example.Json.Serializer",
+    kind: "class",
+    members: [{
+      id: signatureId,
+      providerSourceSignatureId: signatureId,
+      sourceName: "Serialize",
+      targetName: "Serialize",
+      kind: "method",
+      static: true,
+      parameters: [
+        {
+          name: "value",
+          type: { kind: "type-parameter", name: "T" },
+          passingMode: "by-value",
+        },
+        {
+          name: "options",
+          type: { kind: "target-named", id: "Example.Json.Options" },
+          passingMode: "by-value",
+          optional: true,
+          defaultValue: { kind: "null" },
+        },
+      ],
+      returnType: { kind: "string" },
+      typeParameters: [{ name: "T" }],
+      overloadGroup: "Example.Json.Serializer.Serialize",
+    }],
+  };
+  const declaration = {
+    moduleSpecifier: "@example/json.js",
+    exportName: "Serializer",
+    memberId: "Example.Json.Serializer.Serialize#static",
+    memberName: "Serialize",
+    signatureId,
+  };
+  const selected = findTargetMemberForCall(
+    binding,
+    declaration,
+    {
+      target: "csharp",
+      call: {},
+      callee: {},
+      arguments: [argument],
+      sourceSelectedSignature: {},
+    },
+    fakeObservationContext({}),
+    () => undefined,
+    {
+      firstArgumentReceiver: false,
+      methodTargetTypeArguments: [{ kind: "target-named", id: "ErrorResponse" }],
+    },
+  );
+
+  assert.equal(selected?.id, signatureId);
+  assert.deepEqual(selected?.parameters[0]?.type, { kind: "target-named", id: "ErrorResponse" });
 });
 test("target member selection does not prepend provider static container for explicit extension calls", () => {
   const staticContainer = {};

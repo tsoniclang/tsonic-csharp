@@ -11,7 +11,6 @@ import type {
   ExtensionObservationContext,
   Node,
   TargetTypeRef,
-  Type,
 } from "@tsonic/tsts";
 import type { CsharpJsSurfaceHost } from "../source-library.js";
 import {
@@ -30,6 +29,7 @@ import {
 import {
   asNodeSubject,
   getNodeField,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../../ast-utils.js";
 import {
@@ -38,10 +38,6 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
-import {
-  isSourceStandardLibraryArrayLikeType,
-} from "../../../source-type-classification.js";
-
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
@@ -78,8 +74,11 @@ export function mapCsharpJsArrayElementAccess(
       }),
     }, [{ message: "C# JS surface array indexer reused existing finalized C# target indexer operation after proving no canonical target operation already exists." }]);
   }
-  const indexType = host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
-  if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
+  const literalIndex = host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context);
+  const indexType = literalIndex
+    ? undefined
+    : host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
+  if (!literalIndex && !host.isIntegralTargetTypeRef(indexType)) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array element access requires an integral provider-backed index type."));
   }
   if (receiverCarrier !== undefined) {
@@ -106,14 +105,14 @@ export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (
         !compiler.ast.is.IsElementAccessExpression(node) ||
-        context.facts.get(node, targetOperationFactKey) !== undefined ||
-        context.factResolver.resolve(node, targetOperationFactKey) !== undefined
+        context.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
+        context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
       ) {
         return;
       }
@@ -137,7 +136,6 @@ function recordCsharpJsArrayElementAccessFact(
   if (receiver === undefined || argument === undefined || sourceFile === undefined) {
     return;
   }
-  const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const receiverCarrier = getFinalizedArrayElementReceiverCarrier(receiver, context, host);
   const request = {
     expression: node,
@@ -157,14 +155,6 @@ function recordCsharpJsArrayElementAccessFact(
     return;
   }
   if (mapped?.kind !== "accept") {
-    if (receiverCarrier === undefined && isSourceLibraryArrayType(receiverType, context)) {
-      context.diagnostics.append(host.csharpProviderDiagnostic(
-        host.extensionId,
-        "CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER",
-        9100145,
-        "C# JS surface array element access requires finalized array runtime carrier facts; semantic TypeScript Array<T> shape is not enough for target emission.",
-      ));
-    }
     return;
   }
   const existingOperation = context.facts.get(node, targetOperationFactKey) ??
@@ -192,11 +182,4 @@ function getFinalizedArrayElementReceiverCarrier(
         allowSemanticTypeQuery: false,
       }),
   );
-}
-
-function isSourceLibraryArrayType(
-  type: Type | undefined,
-  context: ExtensionObservationContext,
-): boolean {
-  return type !== undefined && isSourceStandardLibraryArrayLikeType(type, context);
 }

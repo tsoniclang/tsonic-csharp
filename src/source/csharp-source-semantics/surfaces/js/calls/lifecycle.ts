@@ -6,7 +6,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
-  Signature,
   SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -14,6 +13,7 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeList,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../../ast-utils.js";
 import {
@@ -45,9 +45,6 @@ import {
   recordCsharpJsCollectionRuntimeCarrierFactForNode,
 } from "../collections.js";
 import {
-  getSignatureDeclaration,
-} from "./declaration-identity.js";
-import {
   getSymbolForDeclarationLookup,
 } from "../../../symbol-utils.js";
 import {
@@ -68,7 +65,7 @@ export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
   }
   const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedCall);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     const checkedCallNodes: Node[] = [];
@@ -139,9 +136,10 @@ function recordCsharpSourceLibraryCallFact(
   if (callee === undefined) {
     return "pending";
   }
-  const sourceSelectedSignature = getResolvedCallSignature(node, sourceFile, context);
-  const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature, context);
-  const sourceReturnType = getSourceReturnTypeForSelectedCall(node, sourceFile, sourceSelectedSignature, context);
+  const selectedSignature = context.host.facts.get(node, selectedTargetSignatureFactKey) ??
+    context.factResolver.resolve(node, selectedTargetSignatureFactKey);
+  const sourceSelectedSignature = selectedSignature?.sourceSignature;
+  const sourceSelectedDeclaration = selectedSignature?.sourceDeclaration;
   const sourceMember = resolveSourceLibraryMemberIdentity(sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return "pending";
@@ -156,7 +154,6 @@ function recordCsharpSourceLibraryCallFact(
     arguments: getNodeList(getNodeField(node, "Arguments")),
     ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
     ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
-    ...(sourceReturnType !== undefined ? { sourceReturnType } : {}),
     ...(host.targetId !== undefined ? { target: host.targetId } : {}),
   }, context, host, { phase });
   if (mapped?.kind === "reject") {
@@ -178,39 +175,6 @@ function recordCsharpSourceLibraryCallFact(
   }
   recordSelectedSourceLibraryCallReturnCarrierFact(node, sourceFile, mapped.value.selectedSignature.member.returnType, context);
   return "accepted";
-}
-
-function getResolvedCallSignature(
-  node: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): ExtensionFactSubject | undefined {
-  try {
-    return context.compiler?.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function getSourceReturnTypeForSelectedCall(
-  node: Node,
-  sourceFile: SourceFile,
-  sourceSelectedSignature: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): ExtensionFactSubject | undefined {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  try {
-    return compiler.ast.is.IsNewExpression(node)
-      ? compiler.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined
-      : sourceSelectedSignature === undefined
-        ? undefined
-        : compiler.checker.getReturnTypeOfSignature(sourceSelectedSignature as Signature, { sourceFile }) as ExtensionFactSubject | undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function recordSelectedSourceLibraryCallReturnCarrierFact(

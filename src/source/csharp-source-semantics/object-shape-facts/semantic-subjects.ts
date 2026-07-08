@@ -60,21 +60,17 @@ export function getSafeObjectShapeSymbol(
   if (compiler === undefined) {
     return undefined;
   }
-  try {
-    if (isControlFlowLabelIdentifier(compiler.ast, node)) {
-      return undefined;
-    }
-    if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
-      return undefined;
-    }
-    const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
-    if (symbol !== undefined || !isResolvedObjectShapeSymbolLookupNode(compiler.ast, node)) {
-      return symbol;
-    }
-    return compiler.checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
+  if (isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
+  if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
+    return undefined;
+  }
+  const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
+  if (symbol !== undefined || !isResolvedObjectShapeSymbolLookupNode(compiler.ast, node)) {
+    return symbol;
+  }
+  return compiler.checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function isResolvedObjectShapeSymbolLookupNode(
@@ -101,19 +97,15 @@ function getTypeSubject(
   if (compiler === undefined || node === undefined || sourceFile === undefined) {
     return undefined;
   }
-  try {
-    if (isControlFlowLabelIdentifier(compiler.ast, node)) {
-      return undefined;
-    }
-    if (isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)) {
-      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
-    }
-    return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
-      ? compiler.checker.getTypeAtLocation(node, { sourceFile })
-      : undefined;
-  } catch {
+  if (isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
+  if (isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)) {
+    return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+  }
+  return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+    ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+    : undefined;
 }
 
 function isTypeSyntaxNodeForObjectShapeRecording(

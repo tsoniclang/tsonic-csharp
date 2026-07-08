@@ -19,7 +19,7 @@ import {
   filterTsCompatibleProviderMembers,
   mergeProviderMemberList,
 } from "./members.js";
-import { providerSignatureShapeKey } from "./signatures.js";
+import { mergeProviderSignatures, providerSignatureShapeKey } from "./signatures.js";
 
 export function dotnetTypeToProviderExport(
   declaration: DotnetTypeDeclaration,
@@ -56,7 +56,7 @@ function dotnetTypeSourceMembers(
   const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(declaration.members
     ?.map((member) => dotnetMemberToProviderMember(member, declaration))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined)
-    .map((member) => removeInheritedDuplicateSignatures(member, inheritedMembers))
+    .map((member) => mergeInheritedOverloadSignatures(member, inheritedMembers))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []));
   context.sourceMembersByTargetId.set(declaration.targetId, ownMembers);
   return ownMembers.length === 0 ? undefined : ownMembers;
@@ -96,7 +96,7 @@ function inheritedSourceMembers(
   return membersByKey;
 }
 
-function removeInheritedDuplicateSignatures(
+function mergeInheritedOverloadSignatures(
   member: ProviderMemberDeclaration,
   inheritedMembers: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>,
 ): ProviderMemberDeclaration | undefined {
@@ -111,14 +111,18 @@ function removeInheritedDuplicateSignatures(
   if (member.kind !== "method" || member.signatures === undefined) {
     return undefined;
   }
-  const inheritedSignatureShapes = new Set(inherited.flatMap((inheritedMember) =>
-    (inheritedMember.signatures ?? []).map(providerSignatureShapeKey)));
+  const inheritedSignatures = inherited.flatMap((inheritedMember) => inheritedMember.signatures ?? []);
+  const inheritedSignatureShapes = new Set(inheritedSignatures.map(providerSignatureShapeKey));
   const signatures = member.signatures.filter((signature) =>
     !inheritedSignatureShapes.has(providerSignatureShapeKey(signature)));
-  if (signatures.length === 0) {
+  const mergedSignatures = mergeProviderSignatures([
+    ...inheritedSignatures,
+    ...signatures,
+  ]);
+  if (mergedSignatures === undefined || mergedSignatures.length === 0) {
     return undefined;
   }
-  return { ...member, signatures };
+  return { ...member, signatures: mergedSignatures };
 }
 
 function inheritedSourceMemberKey(member: ProviderMemberDeclaration): string | undefined {

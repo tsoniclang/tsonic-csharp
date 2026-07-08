@@ -17,6 +17,7 @@ export {
   getStructuralChildNodes,
 } from "./ast-utils/node-access.js";
 export {
+  isCsharpUserSourceFile,
   isDeclarationOrVirtualSourceFile,
 } from "./ast-utils/source-file.js";
 export {

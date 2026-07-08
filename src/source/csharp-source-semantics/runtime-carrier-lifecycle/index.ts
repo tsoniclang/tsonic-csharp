@@ -8,6 +8,9 @@ import type {
 import {
   isRuntimeCarrierTypeSyntaxNode,
 } from "../runtime-carrier-subjects.js";
+import {
+  isCsharpUserSourceFile,
+} from "../ast-utils.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
@@ -52,7 +55,7 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     return;
   }
   const sourceFiles = compiler.getSourceFiles()
-    .filter((sourceFile): sourceFile is SourceFile => sourceFile !== undefined && sourceFile.IsDeclarationFile !== true);
+    .filter((sourceFile): sourceFile is SourceFile => isCsharpUserSourceFile(sourceFile, compiler.ast));
   const nodesBySourceFile = sourceFiles.map((sourceFile) => ({
     sourceFile,
     nodes: collectRuntimeCarrierNodes(compiler.ast, sourceFile),

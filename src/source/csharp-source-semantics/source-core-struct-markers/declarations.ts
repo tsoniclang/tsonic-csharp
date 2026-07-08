@@ -16,8 +16,8 @@ import {
   isSourceCoreStructMarkerCallExpression,
 } from "./call-expression.js";
 import {
-  getSafeResolvedSymbol,
-  getSafeSymbol,
+  getSourceCoreResolvedSymbol,
+  getSourceCoreSymbolAtLocation,
 } from "./symbols.js";
 
 export function getSourceCoreStructMarkerDeclarationFromSubject(
@@ -34,14 +34,10 @@ export function getSourceCoreStructMarkerDeclarationFromSubject(
     return undefined;
   }
   if (kind === "KindTypeReference") {
-    try {
-      const type = compiler.checker.getTypeFromTypeNode(node, { sourceFile: compiler.ast.getSourceFile(node) });
-      const aliasSymbol = compiler.checker.getTypeAliasSymbol(type);
-      const typeSymbol = compiler.checker.getTypeSymbol(type);
-      return getSourceCoreStructMarkerDeclarationFromSymbol(aliasSymbol ?? typeSymbol, context);
-    } catch {
-      return undefined;
-    }
+    const type = compiler.checker.getTypeFromTypeNode(node, { sourceFile: compiler.ast.getSourceFile(node) });
+    const aliasSymbol = compiler.checker.getTypeAliasSymbol(type);
+    const typeSymbol = compiler.checker.getTypeSymbol(type);
+    return getSourceCoreStructMarkerDeclarationFromSymbol(aliasSymbol ?? typeSymbol, context);
   }
   const referenceName = kind === "KindTypeQuery"
     ? asNodeSubject(getNodeField(node, "ExprName"))
@@ -90,7 +86,7 @@ export function getSourceCoreStructMarkerDeclarationFromSymbol(
         : undefined;
       const referenced = exprName === undefined
         ? undefined
-        : getSafeSymbol(exprName, context) ?? getSafeResolvedSymbol(exprName, context);
+        : getSourceCoreSymbolAtLocation(exprName, context) ?? getSourceCoreResolvedSymbol(exprName, context);
       const structDeclaration = getSourceCoreStructMarkerDeclarationFromSymbol(referenced, context);
       if (structDeclaration !== undefined) {
         return structDeclaration;

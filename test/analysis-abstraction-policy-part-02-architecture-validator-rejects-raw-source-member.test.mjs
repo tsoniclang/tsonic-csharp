@@ -308,3 +308,41 @@ test("architecture validator rejects broad numeric primitive-name fallback", () 
     [],
   );
 });
+
+test("architecture validator rejects broad semantic checker catch recovery", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/lifecycle.ts",
+    `
+      try {
+        const signature = compiler.checker.getResolvedSignature(node, { sourceFile });
+        return signature;
+      } catch {
+        return undefined;
+      }
+      try {
+        const type = compiler.checker.getTypeAtLocation(node, { sourceFile });
+        return compiler.typeShape.isNullish(type);
+      } catch {
+        return false;
+      }
+    `,
+    [
+      "broad-checker-catch-return",
+      "broad-checker-catch-return",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/calls/lifecycle.ts",
+      `
+        const selectedSignature = context.host.facts.get(node, selectedTargetSignatureFactKey) ??
+          context.factResolver.resolve(node, selectedTargetSignatureFactKey);
+        if (selectedSignature === undefined) {
+          return undefined;
+        }
+      `,
+    ),
+    [],
+  );
+});

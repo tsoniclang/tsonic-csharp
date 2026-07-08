@@ -19,3 +19,10 @@ export function isDeclarationOrVirtualSourceFile(
     fileName.startsWith("bundled:") ||
     fileName.startsWith("tsts-provider:");
 }
+
+export function isCsharpUserSourceFile(
+  sourceFile: SourceFile | undefined,
+  ast: Pick<AstReader, "getFileName">,
+): sourceFile is SourceFile {
+  return sourceFile !== undefined && !isDeclarationOrVirtualSourceFile(sourceFile, ast);
+}

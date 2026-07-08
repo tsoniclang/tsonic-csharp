@@ -200,9 +200,5 @@ function safeGetTypeOfSymbol(
   context: ExtensionObservationContext,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Type | undefined {
-  try {
-    return context.compiler?.checker.getTypeOfSymbol(symbol, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getTypeOfSymbol(symbol, { sourceFile });
 }

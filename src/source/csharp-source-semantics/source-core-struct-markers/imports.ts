@@ -12,8 +12,8 @@ import {
   getNodeList,
 } from "../ast-utils.js";
 import {
-  getSafeResolvedSymbol,
-  getSafeSymbol,
+  getSourceCoreResolvedSymbol,
+  getSourceCoreSymbolAtLocation,
 } from "./symbols.js";
 
 export function getSourceCoreLangStructImportSymbols(
@@ -34,7 +34,7 @@ export function getSourceCoreLangStructImportSymbols(
       const localName = asNodeSubject(getNodeField(importSpecifier, "name"));
       const exportedName = asNodeSubject(getNodeField(importSpecifier, "PropertyName")) ?? localName;
       if (localName !== undefined && exportedName !== undefined && compiler.ast.text(exportedName) === "struct") {
-        const symbol = getSafeSymbol(localName, context) ?? getSafeResolvedSymbol(localName, context);
+        const symbol = getSourceCoreSymbolAtLocation(localName, context) ?? getSourceCoreResolvedSymbol(localName, context);
         if (symbol !== undefined) {
           symbols.push(symbol);
         }
@@ -62,7 +62,7 @@ export function getSourceCoreLangNamespaceImportSymbols(
     if (name === undefined) {
       continue;
     }
-    const symbol = getSafeSymbol(name, context) ?? getSafeResolvedSymbol(name, context);
+    const symbol = getSourceCoreSymbolAtLocation(name, context) ?? getSourceCoreResolvedSymbol(name, context);
     if (symbol !== undefined) {
       symbols.push(symbol);
     }

@@ -11,7 +11,6 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
-  SourceFile,
   TargetMember,
 } from "@tsonic/tsts";
 import type {
@@ -20,8 +19,7 @@ import type {
 } from "./source-library.js";
 import {
   csharpTargetOperationFromMember,
-  csharpJsCheckedTypeQuery,
-  resolveSourceLibraryMemberIdentity,
+  resolveSelectedSourceLibraryMemberIdentity,
   recordCsharpTargetOperation,
   sourceLibraryMemberIdentity,
   targetOperation,
@@ -50,14 +48,12 @@ import {
 import {
   asNodeSubject,
   getNodeField,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
   createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
-import {
-  getCsharpCheckedPropertyAccessRequestContext,
-} from "../../checked-member-access-request-context.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
@@ -74,9 +70,7 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const sourceMember = resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) ??
-    resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context);
+  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context);
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host, options);
 }
 
@@ -90,18 +84,17 @@ export function recordCsharpSourceLibraryPropertyFactsBeforeFinalization(
   }
   const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedPropertyAccess);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordCsharpSourceLibraryPropertyFact(node, sourceFile, context, host);
+      recordCsharpSourceLibraryPropertyFact(node, context, host);
     });
   }
 }
 
 function recordCsharpSourceLibraryPropertyFact(
   node: Node,
-  sourceFile: SourceFile,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
 ): void {
@@ -118,16 +111,13 @@ function recordCsharpSourceLibraryPropertyFact(
     return;
   }
   const propertyName = compiler.ast.text(name);
-  const receiverSemanticType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const propertySymbol = compiler.checker.getSymbolAtLocation(name, { sourceFile }) ??
-    safeGetResolvedSymbol(name, sourceFile, context) ??
-    compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    safeGetResolvedSymbol(node, sourceFile, context) ??
-    compiler.checker.getPropertyOfType(receiverSemanticType, propertyName, { sourceFile }) ??
-    compiler.typeShape.getProperty(receiverSemanticType, propertyName, { sourceFile });
-  const declaration = firstSymbolDeclaration(propertySymbol, context);
-  const sourceMember = resolveSourceLibraryMemberIdentity(propertySymbol, context) ??
-    resolveSourceLibraryMemberIdentity(declaration, context);
+  const selectedOperation = context.host.facts.get(node, targetOperationFactKey) ??
+    context.factResolver.resolve(node, targetOperationFactKey);
+  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
+    selectedOperation?.provenance?.sourceSelectedDeclaration,
+    selectedOperation?.provenance?.sourceSelectedSymbol,
+    context,
+  );
   if (sourceMember === undefined) {
     return;
   }
@@ -143,7 +133,8 @@ function recordCsharpSourceLibraryPropertyFact(
     expression: node,
     receiver,
     propertyName,
-    ...(propertySymbol !== undefined ? { sourceSelectedSymbol: propertySymbol } : {}),
+    ...(selectedOperation?.provenance?.sourceSelectedSymbol !== undefined ? { sourceSelectedSymbol: selectedOperation.provenance.sourceSelectedSymbol } : {}),
+    ...(selectedOperation?.provenance?.sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedOperation.provenance.sourceSelectedDeclaration } : {}),
     target: host.targetId,
   }, context, sourceMember, host, { phase: "finalization" });
   if (mapped?.kind === "reject") {
@@ -182,18 +173,6 @@ function hasRecordedGenericPropertyOperation(
     context.factResolver.resolve(node, targetOperationFactKey) !== undefined;
 }
 
-function safeGetResolvedSymbol(
-  node: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
-): ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
-  try {
-    return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
-}
-
 function isCallCalleePropertyAccess(
   node: Node,
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
@@ -207,10 +186,6 @@ function isCallCalleePropertyAccess(
     asNodeSubject(getNodeField(parent, "Expression")) === node;
 }
 
-function firstSymbolDeclaration(symbol: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getSymbolAtLocation"]>, context: ExtensionObservationContext): Node | undefined {
-  return context.compiler?.checker.getSymbolDeclarations(symbol)[0];
-}
-
 function mapCsharpSourceLibraryPropertyOperation(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
@@ -221,7 +196,6 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceMember === undefined) {
     return undefined;
   }
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
   const expressionNode = asNodeSubject(request.expression);
@@ -231,7 +205,7 @@ function mapCsharpSourceLibraryPropertyOperation(
       sourceMember,
       receiverType,
       expressionNode !== undefined && isCallCalleePropertyAccess(expressionNode, context.compiler?.ast),
-      requestContext.sourceSelectedDeclaration,
+      request.sourceSelectedDeclaration,
       context,
     )
   ) {
@@ -312,7 +286,6 @@ function getSourceLibraryPropertyReceiverType(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   host: CsharpJsSurfaceHost,
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)) {
     return host.unwrapNullableTargetType(
       getCsharpArrayBoundaryCoreCarrierForReference(request.receiver, context) ??
@@ -329,25 +302,15 @@ function getSourceLibraryPropertyReceiverType(
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
       }) ??
-        host.getTargetTypeRefForSubject(requestContext.receiverType, context, {
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: false,
-        }) ??
-        context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
-        (requestContext.receiverType === undefined ? undefined : context.factResolver.resolve(requestContext.receiverType, runtimeCarrierFactKey)?.carrier) ??
-        host.getTargetTypeRefForSubject(request.receiver, context, {
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: false,
-        }) ??
-          host.getTargetTypeRefForSubject(requestContext.receiverType, context, {
-            allowRuntimeCarrier: true,
-            allowSemanticTypeQuery: false,
-          }),
+        context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier,
     );
   }
   return host.unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiver, context, csharpJsCheckedTypeQuery) ??
-      host.getTargetTypeRefForSubject(requestContext.receiverType, context, csharpJsCheckedTypeQuery),
+    host.getTargetTypeRefForSubject(request.receiver, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: false,
+    }) ??
+      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier,
   );
 }
 

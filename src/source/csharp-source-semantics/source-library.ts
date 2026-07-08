@@ -97,6 +97,40 @@ export function resolveSourceLibraryMemberIdentity(
     : createSourceLibraryMember(declaringName, memberName);
 }
 
+export function resolveSelectedSourceLibraryMemberIdentity(
+  declarationSubject: ExtensionFactSubject | undefined,
+  symbolSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryMember | undefined {
+  const direct = resolveSourceLibraryMemberIdentityFromDeclaration(declarationSubject, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const checker = context.compiler?.checker;
+  for (const declaration of getSymbolDeclarations(symbolSubject, checker)) {
+    const sourceMember = resolveSourceLibraryMemberIdentityFromDeclaration(declaration, context);
+    if (sourceMember !== undefined) {
+      return sourceMember;
+    }
+  }
+  return undefined;
+}
+
+function resolveSourceLibraryMemberIdentityFromDeclaration(
+  declarationSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryMember | undefined {
+  const declaration = asNodeSubject(declarationSubject);
+  if (declaration === undefined) {
+    return undefined;
+  }
+  const direct = resolveSourceLibraryMemberIdentity(declaration, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  return resolveSourceLibraryMemberIdentity(context.compiler?.ast.parent(declaration), context);
+}
+
 export function isBundledStandardLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
   const compiler = context.compiler;
   const ast = compiler?.ast;
@@ -133,6 +167,44 @@ export function getSourceLibraryDeclarationName(
     return name;
   }
   return sourceLibraryDeclaringName(name);
+}
+
+export function getSelectedSourceLibraryDeclarationName(
+  declarationSubject: ExtensionFactSubject | undefined,
+  symbolSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryTypeName | undefined {
+  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(declarationSubject, symbolSubject, context);
+  if (sourceMember !== undefined) {
+    return sourceMember.declaringName;
+  }
+  const direct = getSourceLibraryDeclarationNameForDeclaration(declarationSubject, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const checker = context.compiler?.checker;
+  for (const declaration of getSymbolDeclarations(symbolSubject, checker)) {
+    const declarationName = getSourceLibraryDeclarationNameForDeclaration(declaration, context);
+    if (declarationName !== undefined) {
+      return declarationName;
+    }
+  }
+  return undefined;
+}
+
+function getSourceLibraryDeclarationNameForDeclaration(
+  declarationSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryTypeName | undefined {
+  const declaration = asNodeSubject(declarationSubject);
+  if (declaration === undefined) {
+    return undefined;
+  }
+  const direct = getSourceLibraryDeclarationName(declaration, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  return getSourceLibraryDeclarationName(context.compiler?.ast.parent(declaration), context);
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringKey | undefined {

@@ -115,9 +115,5 @@ function safeGetResolvedSymbol(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
-  try {
-    return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
 }

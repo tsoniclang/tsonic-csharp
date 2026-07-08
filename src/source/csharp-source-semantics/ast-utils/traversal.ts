@@ -47,13 +47,9 @@ export function visitAstReaderNodes(
 }
 
 function astReaderTraversalKey(ast: AstReader, node: Node): string | undefined {
-  try {
-    const sourceFile = ast.getSourceFile(node);
-    const fileName = sourceFile === undefined ? "" : ast.getFileName(sourceFile);
-    return `${fileName}:${ast.kindName(node)}:${ast.pos(node)}:${ast.end(node)}`;
-  } catch {
-    return undefined;
-  }
+  const sourceFile = ast.getSourceFile(node);
+  const fileName = sourceFile === undefined ? "" : ast.getFileName(sourceFile);
+  return `${fileName}:${ast.kindName(node)}:${ast.pos(node)}:${ast.end(node)}`;
 }
 
 export function getAstReaderChildNodes(

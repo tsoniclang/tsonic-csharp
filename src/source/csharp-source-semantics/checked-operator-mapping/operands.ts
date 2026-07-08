@@ -273,14 +273,10 @@ function getCheckedExpressionTargetTypeRef(
   ) {
     return undefined;
   }
-  try {
-    return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
-      ...options,
-      sourceFile,
-    });
-  } catch {
-    return undefined;
-  }
+  return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
+    ...options,
+    sourceFile,
+  });
 }
 
 function getMappedRuntimeCarrierTargetTypeRef(

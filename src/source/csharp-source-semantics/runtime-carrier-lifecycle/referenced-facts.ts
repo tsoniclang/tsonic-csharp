@@ -42,12 +42,8 @@ export function getReferencedRuntimeCarrierTargetTypeRef(
   if (direct !== undefined) {
     return direct;
   }
-  try {
-    const resolved = compiler.checker.getResolvedSymbol(node, { sourceFile });
-    return getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(lifecycleContext, resolved);
-  } catch {
-    return undefined;
-  }
+  const resolved = compiler.checker.getResolvedSymbol(node, { sourceFile });
+  return getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(lifecycleContext, resolved);
 }
 
 function getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(

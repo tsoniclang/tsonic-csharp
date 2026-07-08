@@ -21,14 +21,10 @@ export function getSemanticTypeForObjectShapeSubject(
   if (isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
-  try {
-    if (isTypeSyntaxNode(compiler.ast, node)) {
-      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
-    }
-    return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
-      ? compiler.checker.getTypeAtLocation(node, { sourceFile })
-      : undefined;
-  } catch {
-    return undefined;
+  if (isTypeSyntaxNode(compiler.ast, node)) {
+    return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
   }
+  return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+    ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+    : undefined;
 }

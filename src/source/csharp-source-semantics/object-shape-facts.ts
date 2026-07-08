@@ -106,11 +106,7 @@ function safeDeriveCsharpObjectShapeFactForCanonicalSubject(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): CsharpObjectShapeFact | undefined {
-  try {
-    return deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
-  } catch {
-    return undefined;
-  }
+  return deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
 }
 
 function deriveCsharpObjectShapeFactForCanonicalSubject(

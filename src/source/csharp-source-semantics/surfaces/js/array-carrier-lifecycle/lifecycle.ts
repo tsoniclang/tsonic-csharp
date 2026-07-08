@@ -8,6 +8,9 @@ import type {
   CsharpOperationsProviderHost,
 } from "../../../operations-provider.js";
 import {
+  isCsharpUserSourceFile,
+} from "../../../ast-utils.js";
+import {
   recordArrayLocalFacts,
   recordArrayParameterFacts,
   recordArrayReturnFacts,
@@ -31,7 +34,7 @@ export function recordCsharpJsArrayCarrierFactsBeforeFinalization(
   }
   const userSourceFiles = compiler.getSourceFiles().filter(
     (sourceFile): sourceFile is NonNullable<typeof sourceFile> =>
-      sourceFile !== undefined && sourceFile.IsDeclarationFile !== true,
+      isCsharpUserSourceFile(sourceFile, compiler.ast),
   );
   const analysisContext = {
     ...lifecycleContext,

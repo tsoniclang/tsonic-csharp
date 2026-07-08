@@ -224,18 +224,10 @@ function getSemanticTypeForObjectShapeLookup(
   }
   const sourceFile = compiler.ast.getSourceFile(node);
   if (isTypeSyntaxNode(compiler.ast, node)) {
-    try {
-      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
-    } catch {
-      return undefined;
-    }
+    return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
   }
   if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
     return undefined;
   }
-  try {
-    return compiler.checker.getTypeAtLocation(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getTypeAtLocation(node, { sourceFile });
 }

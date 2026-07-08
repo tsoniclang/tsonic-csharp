@@ -61,11 +61,7 @@ function getAliasedSymbolForReference(
   if (checker === undefined) {
     return undefined;
   }
-  try {
-    return getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
-  } catch {
-    return undefined;
-  }
+  return getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
 }
 
 function uniqueReferenceSubjects(subjects: readonly (ExtensionFactSubject | undefined)[]): readonly ExtensionFactSubject[] {

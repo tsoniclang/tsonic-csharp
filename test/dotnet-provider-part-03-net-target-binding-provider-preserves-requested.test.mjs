@@ -54,6 +54,59 @@ test(".NET target binding provider preserves requested-export slices through dec
   }]);
   assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Convert"]);
 });
+test(".NET target binding provider expands requested slices for same-module provider refs emitted by source-shape conversion", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+    containingFile: "same-module-provider-ref-closure.ts",
+    requestedExports: ["Console", "String"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const exportNames = new Set(model.exports.flatMap((declaration) => [
+    declaration.name,
+    declaration.sourceTypeFamily?.exportName,
+  ].filter(Boolean)));
+  const missingSameModuleRefs = collectProviderRefs(
+    model,
+    (providerRef) => providerRef.moduleSpecifier === model.moduleSpecifier && !exportNames.has(providerRef.exportName),
+  );
+  assert.deepEqual(missingSameModuleRefs, []);
+  assert.equal(exportNames.has("Range"), true);
+  assert.equal(exportNames.has("SpanSplitEnumerator"), true);
+  assert.equal(exportNames.has("TryWriteInterpolatedStringHandler"), true);
+});
+test(".NET provider source declarations preserve inherited overload signatures on derived members", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.IO.js", {
+    containingFile: "inherited-overload-closure.ts",
+    requestedExports: ["FileStream"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const fileStream = model.exports.find((declaration) => declaration.name === "FileStream");
+  assert.ok(fileStream);
+  const flush = fileStream.members?.find((member) => member.kind === "method" && member.name === "Flush");
+  assert.ok(flush);
+  assert.deepEqual(flush.signatures.map((signature) => ({
+    id: stripAssemblyQualifiers(signature.id),
+    parameters: signature.parameters.map((parameter) => parameter.name),
+  })), [
+    {
+      id: "System.IO.Stream.Flush()",
+      parameters: [],
+    },
+    {
+      id: "System.IO.FileStream.Flush(System.Boolean)",
+      parameters: ["flushToDisk"],
+    },
+  ]);
+});
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Collections.Generic.js", "System.Collections.Generic.List`1");
@@ -592,7 +645,21 @@ test(".NET provider source declarations preserve cross-module inherited overload
       exportName: "TypeInfo",
     },
   }]);
-  assert.equal(typeDelegator.members?.some((member) => member.kind === "method" && member.name === "GetConstructors") ?? false, false);
+  const getConstructors = typeDelegator.members?.find((member) => member.kind === "method" && member.name === "GetConstructors");
+  assert.ok(getConstructors);
+  assert.deepEqual(getConstructors.signatures.map((signature) => ({
+    id: stripAssemblyQualifiers(signature.id),
+    parameters: signature.parameters.map((parameter) => parameter.name),
+  })), [
+    {
+      id: "System.Type.GetConstructors()",
+      parameters: [],
+    },
+    {
+      id: "System.Type.GetConstructors(System.Reflection.BindingFlags)",
+      parameters: ["bindingAttr"],
+    },
+  ]);
 
   const typeInfo = declarationModel.exports.find((declaration) => declaration.name === "TypeInfo");
   assert.ok(typeInfo);

@@ -19,6 +19,7 @@ import {
 import {
   asNodeSubject,
   getNodeField,
+  isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
@@ -59,7 +60,7 @@ export function recordCsharpJsArrayMutationFactsBeforeFinalization(
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
