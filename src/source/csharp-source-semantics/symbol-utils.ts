@@ -54,20 +54,11 @@ export function getSymbolForDeclarationLookup(
   if (isControlFlowLabelIdentifier(ast, node) || isPropertyAccessName(ast, node)) {
     return undefined;
   }
-  let symbol: Symbol | undefined;
-  try {
-    symbol = checker.getSymbolAtLocation(node, { sourceFile });
-  } catch {
-    symbol = undefined;
-  }
+  const symbol = checker.getSymbolAtLocation(node, { sourceFile });
   if (symbol !== undefined || !isResolvedSymbolLookupNode(ast, node)) {
     return symbol;
   }
-  try {
-    return checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function isPropertyAccessName(
@@ -115,11 +106,7 @@ export function getAliasedSymbolIfAvailable(
   if ((symbol.Flags & symbolFlagsAlias) === 0) {
     return undefined;
   }
-  try {
-    return checker.getAliasedSymbol(symbol, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getAliasedSymbol(symbol, { sourceFile });
 }
 
 export function getSymbolDeclarations(
@@ -170,6 +157,5 @@ function isResolvedSymbolLookupNode(
 ): boolean {
   return ast.is.IsIdentifier(node) ||
     ast.is.IsPrivateIdentifier(node) ||
-    ast.is.IsQualifiedName(node) ||
-    ast.is.IsPropertyAccessExpression(node);
+    ast.is.IsQualifiedName(node);
 }

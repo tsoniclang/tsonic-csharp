@@ -20,6 +20,7 @@ import {
   createCsharpLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
 import {
+  setRuntimeCarrierFactIfLocallyAbsent,
   setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
@@ -245,7 +246,7 @@ function setRuntimeCarrierFactIfMissing(
   fact: { readonly carrier: TargetTypeRef },
   message: string,
 ): boolean {
-  return setRuntimeCarrierFactIfUnresolved(context, subject, fact, [{ message }]);
+  return setRuntimeCarrierFactIfLocallyAbsent(context, subject, fact, message);
 }
 
 function recordLifecycleRuntimeCarrierFactsForSelectedCall(

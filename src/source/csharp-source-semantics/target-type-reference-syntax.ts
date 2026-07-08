@@ -1,4 +1,5 @@
 import {
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
@@ -42,6 +43,9 @@ import {
   csharpVoidTargetType,
 } from "./target-types.js";
 import {
+  csharpSourcePrimitiveKindForProviderVirtualDeclaration,
+} from "./source-modules.js";
+import {
   isVoidTargetType,
 } from "./target-rules.js";
 import {
@@ -50,6 +54,7 @@ import {
   resolveTargetTypeArgumentsForTypeWithResolver,
 } from "./target-type-semantic-resolution.js";
 import {
+  enrichCsharpTargetTypeRef,
   getCsharpTargetTypeFromBinding,
 } from "./target-enrichment.js";
 import {
@@ -100,12 +105,22 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     if (primitive !== undefined) {
       return csharpSourcePrimitiveTargetType(primitive.kind);
     }
+    const primitiveFromProviderIdentity = csharpSourcePrimitiveKindForProviderVirtualDeclaration(
+      context.factResolver.resolve(candidate, providerVirtualDeclarationFactKey),
+    );
+    if (primitiveFromProviderIdentity !== undefined) {
+      return csharpSourcePrimitiveTargetType(primitiveFromProviderIdentity);
+    }
   }
   const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
   if (aliasedType !== undefined) {
-    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(aliasedType)
+    const enrichedAliasedType = enrichCsharpTargetTypeRef(aliasedType, host);
+    if (enrichedAliasedType === undefined) {
+      return undefined;
+    }
+    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(enrichedAliasedType)
       ? undefined
-      : aliasedType;
+      : enrichedAliasedType;
   }
   const binding = resolveTargetBindingFact(context, node) ??
     resolveTargetBindingFact(context, typeName) ??

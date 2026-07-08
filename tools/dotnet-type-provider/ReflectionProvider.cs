@@ -9,6 +9,8 @@ sealed partial class ReflectionProvider
     readonly Request request;
     readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
+    readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
+    readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
     string moduleSpecifierPrefix = "";
     string activeNamespaceName;
     string activeModuleSpecifier;
@@ -130,7 +132,7 @@ sealed partial class ReflectionProvider
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes.Select(ToShallowTypeExport))
+            .Concat(closureTypes.Select(ToClosureTypeExport).Where(export => export is not null).Cast<object>())
             .ToArray();
 
         return new

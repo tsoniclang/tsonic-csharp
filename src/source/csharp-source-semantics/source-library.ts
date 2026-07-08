@@ -4,14 +4,17 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  getBundledLibraryPath,
-} from "@tsonic/tsts";
+  isTsonicSourceProfileDeclarationPath,
+} from "@tsonic/target-api";
 import {
   asNodeSubject,
 } from "../fact-subjects.js";
 import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
+import {
+  csharpSourceProfileOwnerId,
+} from "./source-profile-declarations.js";
 
 export interface SourceLibraryMember {
   readonly id: SourceLibraryMemberKey;
@@ -83,7 +86,7 @@ export function resolveSourceLibraryMemberIdentity(
   }
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
-  if (!isTstsBundledStandardLibraryFile(fileName)) {
+  if (!isTsonicJsSurfaceSourceProfileFile(fileName)) {
     return undefined;
   }
   const containerName = ast.text(ast.name(ast.parent(declaration)));
@@ -123,7 +126,7 @@ export function getSourceLibraryDeclarationName(
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
   const name = ast.text(ast.name(declaration));
-  if (!isTstsBundledStandardLibraryFile(fileName)) {
+  if (!isTsonicSourceLibraryProfileFile(fileName)) {
     return undefined;
   }
   if (isSourceLibraryTypeName(name)) {
@@ -151,14 +154,13 @@ function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
   return isSourceLibraryDeclaringName(name) || name === "Record";
 }
 
-export function isTstsBundledStandardLibraryFile(fileName: string): boolean {
-  const libraryPath = normalizePathPrefix(getBundledLibraryPath());
-  const normalizedFileName = normalizePathPrefix(fileName);
-  return normalizedFileName.startsWith(`${libraryPath}/`);
+export function isTsonicJsSurfaceSourceProfileFile(fileName: string): boolean {
+  return isTsonicSourceProfileDeclarationPath(fileName, "js");
 }
 
-function normalizePathPrefix(value: string): string {
-  return value.split("\\").join("/").replace(/\/+$/, "");
+function isTsonicSourceLibraryProfileFile(fileName: string): boolean {
+  return isTsonicJsSurfaceSourceProfileFile(fileName) ||
+    isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId);
 }
 
 function sourceLibraryMemberHasPrefix(sourceMember: SourceLibraryMember, prefix: SourceLibraryMemberKeyPrefix): boolean {

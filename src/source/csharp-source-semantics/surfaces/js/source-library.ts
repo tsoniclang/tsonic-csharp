@@ -94,6 +94,7 @@ export interface CsharpJsSurfaceHost {
       readonly receiver?: ExtensionFactSubject;
       readonly receiverTargetType?: TargetTypeRef;
       readonly sourceSelectedSignature?: unknown;
+      readonly sourceSelectedIdentity?: string;
     },
     context: ExtensionObservationContext,
     options?: {

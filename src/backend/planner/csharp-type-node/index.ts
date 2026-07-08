@@ -98,13 +98,13 @@ export function getCsharpTypeForNode(
   if (sourceNewExpressionType !== undefined) {
     return sourceNewExpressionType;
   }
-  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, diagnostics);
-  if (sourceCallReturnType !== undefined) {
-    return sourceCallReturnType;
-  }
   const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
   if (selectedTargetCallType !== undefined) {
     return selectedTargetCallType;
+  }
+  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, diagnostics);
+  if (sourceCallReturnType !== undefined) {
+    return sourceCallReturnType;
   }
   const targetConversionType = getCsharpTypeFromTargetConversion(node, input, diagnostics);
   if (targetConversionType !== undefined) {

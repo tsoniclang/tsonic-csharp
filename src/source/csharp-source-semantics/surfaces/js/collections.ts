@@ -23,11 +23,6 @@ import {
   getSymbolForDeclarationLookup,
 } from "../../symbol-utils.js";
 import {
-  asNodeSubject,
-  getNodeField,
-  getNodeList,
-} from "../../ast-utils.js";
-import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "../../target-type-keywords.js";
 import {
@@ -40,7 +35,7 @@ import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
 import {
-  setRuntimeCarrierFactIfUnresolved,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "../../runtime-carrier-lifecycle/fact-writes.js";
 
 export {
@@ -174,11 +169,7 @@ function checkedTypeAtLocation(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): Type | undefined {
-  try {
-    return context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
 }
 
 function recordCollectionRuntimeCarrierFact(
@@ -202,7 +193,7 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  setRuntimeCarrierFactIfUnresolved(context, subject, fact, evidence);
+  setRuntimeCarrierFactIfLocallyAbsent(context, subject, fact, evidence[0]?.message ?? "C# JS surface collection runtime carrier recorded from checked TypeScript Map/Set library type.");
 }
 
 function completeTargetTypeArguments(
@@ -226,18 +217,6 @@ function getExplicitTypeArgumentNodes(
   node: Node,
   context: ExtensionObservationContext,
 ): readonly Node[] {
-  const astTypeArguments = context.compiler?.ast.typeArguments(node)
+  return context.compiler?.ast.typeArguments(node)
     .filter((argument): argument is Node => argument !== undefined) ?? [];
-  if (astTypeArguments.length > 0) {
-    return astTypeArguments;
-  }
-  const direct = getNodeList(getNodeField(node, "TypeArguments"));
-  if (direct.length > 0) {
-    return direct;
-  }
-  const ast = context.compiler?.ast;
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  return ast !== undefined && expression !== undefined
-    ? getNodeList(getNodeField(expression, "TypeArguments"))
-    : [];
 }

@@ -94,20 +94,47 @@ function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly k
 function csharpNamedTypeFromRenderShape(
   shape: Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>,
   typeArguments: readonly CsharpTypeNode[],
-): CsharpTypeNode {
-  const parts = [...(shape.namespace ?? []), shape.name].map(sanitizeIdentifier);
-  let current: CsharpTypeNode = {
-    kind: "IdentifierName",
-    name: parts[0]!,
-    ...(parts.length === 1 && typeArguments.length > 0 ? { typeArguments } : {}),
-  };
-  for (let index = 1; index < parts.length; index += 1) {
+): CsharpTypeNode | undefined {
+  const namespaceParts = (shape.namespace ?? []).map(sanitizeIdentifier);
+  const segments = [
+    { name: shape.name, genericArity: shape.genericArity },
+    ...(shape.nested ?? []),
+  ];
+  let current: CsharpTypeNode | undefined;
+  for (const namespacePart of namespaceParts) {
+    current = current === undefined
+      ? { kind: "IdentifierName", name: namespacePart }
+      : { kind: "QualifiedName", left: current, name: namespacePart };
+  }
+  let argumentOffset = 0;
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index]!;
+    const arity = segment.genericArity ?? (shape.nested === undefined && index === segments.length - 1
+      ? typeArguments.length - argumentOffset
+      : 0);
+    const segmentTypeArguments = arity === 0 ? [] : typeArguments.slice(argumentOffset, argumentOffset + arity);
+    if (segmentTypeArguments.length !== arity) {
+      return undefined;
+    }
+    argumentOffset += arity;
+    const name = sanitizeIdentifier(segment.name);
+    if (current === undefined) {
+      current = {
+        kind: "IdentifierName",
+        name,
+        ...(segmentTypeArguments.length > 0 ? { typeArguments: segmentTypeArguments } : {}),
+      };
+      continue;
+    }
     current = {
       kind: "QualifiedName",
       left: current,
-      name: parts[index]!,
-      ...(index === parts.length - 1 && typeArguments.length > 0 ? { typeArguments } : {}),
+      name,
+      ...(segmentTypeArguments.length > 0 ? { typeArguments: segmentTypeArguments } : {}),
     };
+  }
+  if (argumentOffset !== typeArguments.length) {
+    return undefined;
   }
   return current;
 }

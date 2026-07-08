@@ -15,6 +15,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Use selected TSTS declaration/signature identity, then policy/provider facts.",
   },
   {
+    id: "source-usage-member-scan-channel",
+    pattern: /\b(?:TargetSourceUsageHints|sourceUsage|sourceMemberNames|collectProjectSourceUsageHints)\b/g,
+    replacement:
+      "Provider declaration surfaces must come from selected metadata and source profiles, not source-usage member scanning channels.",
+  },
+  {
+    id: "provider-declaration-member-usage-filter",
+    pattern: /\bsourceMemberIsRequested\b/g,
+    replacement:
+      "Do not filter provider declarations by source-text member usage; expose the selected provider metadata surface or fail closed.",
+  },
+  {
     id: "source-library-type-check",
     pattern: /isSourceLibraryType\s*\(/g,
     replacement:
@@ -417,6 +429,18 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /\bproviderPackage\.id\s*(?:={2,3}|!={1,2})\s*["']nodejs["']/g,
     replacement:
       "NodeJS must be a provider-package contributor selected through the generic provider-package model, not a central C# semantic-host branch on providerPackage.id.",
+  },
+  {
+    id: "broad-numeric-fallback-helper",
+    pattern: /\b(?:targetTypeRef(?:Contains|Refines)BroadNumericFallback|canRefineBroadNumericFallback|BroadNumericFallback)\b/g,
+    replacement:
+      "Do not accept numeric target mismatches through broad float64 helper paths; require exact target facts or explicit widening provenance.",
+  },
+  {
+    id: "float64-primitive-refinement-heuristic",
+    pattern: /\bcandidate\.name\s*!==\s*["']float64["']\s*&&\s*existing\.name\s*===\s*["']float64["']|\bargumentType\.name\s*===\s*["']float64["']/g,
+    replacement:
+      "Do not treat the primitive name float64 as proof that another numeric carrier can satisfy a checked conversion or selected parameter.",
   },
   {
     id: "nodejs-target-id-source-name-synthesis",

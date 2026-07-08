@@ -119,13 +119,9 @@ function isNullishExpressionOperand(
   if (kind !== "KindIdentifier" || compiler.ast.text(node) !== "undefined") {
     return false;
   }
-  try {
-    const checkedSourceFile = sourceFile ?? compiler.ast.getSourceFile(node);
-    const type = compiler.checker.getTypeAtLocation(node, { sourceFile: checkedSourceFile });
-    return type === undefined ? false : compiler.typeShape.isNullish(type);
-  } catch {
-    return false;
-  }
+  const checkedSourceFile = sourceFile ?? compiler.ast.getSourceFile(node);
+  const type = compiler.checker.getTypeAtLocation(node, { sourceFile: checkedSourceFile });
+  return type === undefined ? false : compiler.typeShape.isNullish(type);
 }
 
 function getPromotedSourcePrimitiveArithmeticType(left: TargetTypeRef, right: TargetTypeRef | undefined): TargetTypeRef | undefined {

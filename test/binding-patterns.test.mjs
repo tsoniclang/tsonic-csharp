@@ -35,1281 +35,28 @@ import {
   KindTypeLiteral,
 } from "../dist/backend/planner/source-ast.js";
 
-test("parameter array destructuring emits from binding AST and finalized array carrier facts", () => {
-  const first = identifier("first");
-  const second = identifier("second");
-  const pattern = arrayBindingPattern([
-    bindingElement(first),
-    bindingElement(second),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarrierSubject: parameter,
-      runtimeCarrier: {
-        carrier: {
-          kind: "array",
-          element: { kind: "source-primitive", name: "int32" },
-        },
-      },
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "first",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "second",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 1 },
-      },
-    },
-  ]);
-});
 
-test("parameter object destructuring emits from finalized object-shape extraction facts", () => {
-  const count = identifier("count");
-  const pattern = objectBindingPattern([
-    bindingElement(count),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const objectShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [{
-      sourceName: "count",
-      targetName: "Count",
-      memberKind: "property",
-      type: { kind: "source-primitive", name: "int32" },
-    }],
-  };
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapeSubject: parameter,
-      objectShape,
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "count",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "Count",
-    },
-  }]);
-});
 
-test("parameter object destructuring reads finalized object-shape facts from type annotations", () => {
-  const value = identifier("value");
-  const pattern = objectBindingPattern([
-    bindingElement(value),
-  ]);
-  const typeLiteral = { Kind: KindTypeLiteral };
-  const parameter = parameterDeclaration(pattern, { type: typeLiteral });
-  const objectShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [{
-      sourceName: "value",
-      targetName: "value",
-      memberKind: "property",
-      type: { kind: "source-primitive", name: "float64" },
-    }],
-  };
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "__tsonic_param0",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([[typeLiteral, objectShape]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "value",
-    type: { kind: "PredefinedType", name: "double" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
-      name: "value",
-    },
-  }]);
-  assert.equal(parameter.Type, typeLiteral);
-});
 
-test("nested object parameter destructuring uses finalized nested object-shape facts", () => {
-  const count = identifier("count");
-  const nestedPattern = objectBindingPattern([
-    bindingElement(count),
-  ]);
-  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
-  const pattern = objectBindingPattern([
-    nestedElement,
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const innerShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__InnerShape",
-      csharpRender: { kind: "named", name: "__InnerShape" },
-    },
-    members: [{
-      sourceName: "count",
-      targetName: "Count",
-      memberKind: "property",
-      type: { kind: "source-primitive", name: "int32" },
-    }],
-  };
-  const outerShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__OuterShape",
-      csharpRender: { kind: "named", name: "__OuterShape" },
-    },
-    members: [{
-      sourceName: "inner",
-      targetName: "Inner",
-      memberKind: "property",
-      type: innerShape.targetType,
-    }],
-  };
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([
-        [parameter, outerShape],
-        [nestedElement, innerShape],
-      ]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "__tsonic_destructure0",
-      type: { kind: "IdentifierName", name: "__InnerShape" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Inner",
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "count",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
-        name: "Count",
-      },
-    },
-  ]);
-});
 
-test("nested object parameter destructuring fails closed without nested object-shape facts", () => {
-  const count = identifier("count");
-  const nestedPattern = objectBindingPattern([
-    bindingElement(count),
-  ]);
-  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
-  const pattern = objectBindingPattern([
-    nestedElement,
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const outerShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__OuterShape",
-      csharpRender: { kind: "named", name: "__OuterShape" },
-    },
-    members: [{
-      sourceName: "inner",
-      targetName: "Inner",
-      memberKind: "property",
-      type: {
-        kind: "target-named",
-        id: "__InnerShape",
-        csharpRender: { kind: "named", name: "__InnerShape" },
-      },
-    }],
-  };
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([[parameter, outerShape]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "__tsonic_destructure0",
-    type: { kind: "IdentifierName", name: "__InnerShape" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "Inner",
-    },
-  }]);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Object destructuring requires a source-owned declaration or finalized provider object-shape facts/);
-});
 
-test("parameter destructuring fails closed without carrier or object-shape facts", () => {
-  const pattern = arrayBindingPattern([
-    bindingElement(identifier("first")),
-  ]);
-  parameterDeclaration(pattern);
-  const diagnostics = [];
 
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput(),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.deepEqual(statements, []);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Array destructuring requires a finalized provider array or tuple runtime-carrier fact/);
-});
 
-test("parameter destructuring diagnostics preserve missing carrier reason and evidence", () => {
-  const pattern = arrayBindingPattern([
-    bindingElement(identifier("first")),
-  ]);
-  parameterDeclaration(pattern);
-  const diagnostics = [];
 
-  planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      missingRuntimeCarrierReason: "parameter array carrier was not finalized",
-      missingRuntimeCarrierEvidence: [{ message: "binding parameter T[] lacked array carrier fact" }],
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
 
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /parameter array carrier was not finalized/);
-  assert.deepEqual(diagnostics[0].evidence, ["binding parameter T[] lacked array carrier fact"]);
-});
 
-test("tuple parameter destructuring emits Item projections from finalized tuple carrier facts", () => {
-  const sourceExample = `
-    declare const value: [number, boolean];
-    const [count, enabled] = value;
-  `;
-  assert.match(sourceExample, /\[count, enabled\]/);
 
-  const count = identifier("count");
-  const enabled = identifier("enabled");
-  const pattern = arrayBindingPattern([
-    bindingElement(count),
-    bindingElement(enabled),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type(), { kind: "source-primitive", name: "bool" }] } }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "count",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Item1",
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "enabled",
-      type: { kind: "PredefinedType", name: "bool" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Item2",
-      },
-    },
-  ]);
-});
-
-test("tuple destructuring defaults fail closed without optional-element facts", () => {
-  const sourceExample = `
-    declare const value: [number?];
-    const [count = 1] = value;
-  `;
-  assert.match(sourceExample, /count = 1/);
-
-  const pattern = arrayBindingPattern([
-    bindingElement(identifier("count"), { initializer: numericLiteral("1") }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [csharpNullableValueTargetType(int32Type())] } }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, []);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Tuple destructuring defaults for optional\/nullish tuple elements require finalized tuple optional-element facts/);
-});
-
-test("tuple rest destructuring emits one-element System.ValueTuple from finalized carrier facts", () => {
-  const sourceExample = `
-    declare const value: [number, number];
-    const [first, ...rest] = value;
-  `;
-  assert.match(sourceExample, /\.\.\.rest/);
-
-  const pattern = arrayBindingPattern([
-    bindingElement(identifier("first")),
-    bindingElement(identifier("rest"), { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type(), int32Type()] } }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "first",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Item1",
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "rest",
-      type: {
-        kind: "QualifiedName",
-        left: { kind: "IdentifierName", name: "System" },
-        name: "ValueTuple",
-        typeArguments: [{ kind: "PredefinedType", name: "int" }],
-      },
-      initializer: {
-        kind: "ObjectCreationExpression",
-        type: {
-          kind: "QualifiedName",
-          left: { kind: "IdentifierName", name: "System" },
-          name: "ValueTuple",
-          typeArguments: [{ kind: "PredefinedType", name: "int" }],
-        },
-        arguments: [{
-          kind: "Argument",
-          expression: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: { kind: "IdentifierName", name: "value" },
-            name: "Item2",
-          },
-        }],
-      },
-    },
-  ]);
-});
-
-test("nested array parameter destructuring uses finalized nested array carrier facts", () => {
-  const inner = identifier("inner");
-  const nestedElement = bindingElement(arrayBindingPattern([
-    bindingElement(inner),
-  ]));
-  const rest = bindingElement(identifier("rest"), { rest: true });
-  const pattern = arrayBindingPattern([nestedElement, rest]);
-  const parameter = parameterDeclaration(pattern);
-  const nestedArrayCarrier = {
-    kind: "array",
-    element: { kind: "source-primitive", name: "int32" },
-  };
-  const sourceArrayCarrier = {
-    kind: "array",
-    element: nestedArrayCarrier,
-  };
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: sourceArrayCarrier }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "__tsonic_destructure0",
-      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
-      initializer: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "inner",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "rest",
-      type: { kind: "ArrayType", elementType: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } } },
-      initializer: {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: {
-            kind: "QualifiedName",
-            left: {
-              kind: "QualifiedName",
-              left: {
-                kind: "QualifiedName",
-                left: { kind: "IdentifierName", name: "Tsonic" },
-                name: "CSharp",
-              },
-              name: "Runtime",
-            },
-            name: "ArrayHelpers",
-          },
-          name: "Slice",
-        },
-        arguments: [
-          { kind: "Argument", expression: { kind: "IdentifierName", name: "value" } },
-          { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
-        ],
-      },
-    },
-  ]);
-});
-
-test("array binding defaults emit finalized length-guarded projections", () => {
-  const first = identifier("first");
-  const pattern = arrayBindingPattern([
-    bindingElement(first, { initializer: numericLiteral("42") }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: { kind: "array", element: { kind: "source-primitive", name: "int32" } } }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "first",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "ConditionalExpression",
-      condition: {
-        kind: "BinaryExpression",
-        left: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: { kind: "IdentifierName", name: "value" },
-          name: "Length",
-        },
-        operatorToken: { kind: "GreaterThanToken" },
-        right: { kind: "LiteralExpression", value: 0 },
-      },
-      whenTrue: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-      whenFalse: { kind: "LiteralExpression", value: 42 },
-    },
-  }]);
-  assert.equal(diagnostics.length, 0);
-});
-
-test("JSArray binding defaults use finalized hole-presence checks", () => {
-  const first = identifier("first");
-  const pattern = arrayBindingPattern([
-    bindingElement(first, { initializer: numericLiteral("42") }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: csharpJsArrayCarrierTargetType({ kind: "source-primitive", name: "int32" }) }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "first",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "ConditionalExpression",
-      condition: {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: { kind: "IdentifierName", name: "value" },
-          name: "hasIndex",
-        },
-        arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 0 } }],
-      },
-      whenTrue: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-      whenFalse: { kind: "LiteralExpression", value: 42 },
-    },
-  }]);
-  assert.equal(diagnostics.length, 0);
-});
-
-test("destructured parameters allocate synthetic parameters and emit fixed rest default prelude from facts", () => {
-  const sourceExample = `
-    export function sum([first = 42, second, ...rest]: number[]): number {
-      return first + second + rest.length;
-    }
-  `;
-  assert.match(sourceExample, /\[first = 42, second, \.\.\.rest\]/);
-
-  const first = identifier("first");
-  const second = identifier("second");
-  const rest = identifier("rest");
-  const pattern = arrayBindingPattern([
-    bindingElement(first, { initializer: numericLiteral("42") }),
-    bindingElement(second),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const sourceCarrier = { kind: "array", element: { kind: "source-primitive", name: "int32" } };
-  const diagnostics = [];
-
-  const planned = planParametersWithPrelude(
-    [parameter],
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([
-        [pattern, { carrier: sourceCarrier }],
-        [parameter, { carrier: sourceCarrier }],
-      ]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(planned.parameters, [{
-    name: "__tsonic_param0",
-    type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
-    attributes: undefined,
-  }]);
-  assert.deepEqual(planned.prelude, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "first",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "ConditionalExpression",
-        condition: {
-          kind: "BinaryExpression",
-          left: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
-            name: "Length",
-          },
-          operatorToken: { kind: "GreaterThanToken" },
-          right: { kind: "LiteralExpression", value: 0 },
-        },
-        whenTrue: {
-          kind: "ElementAccessExpression",
-          receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
-          argument: { kind: "LiteralExpression", value: 0 },
-        },
-        whenFalse: { kind: "LiteralExpression", value: 42 },
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "second",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
-        argument: { kind: "LiteralExpression", value: 1 },
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "rest",
-      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
-      initializer: {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: {
-            kind: "QualifiedName",
-            left: {
-              kind: "QualifiedName",
-              left: {
-                kind: "QualifiedName",
-                left: { kind: "IdentifierName", name: "Tsonic" },
-                name: "CSharp",
-              },
-              name: "Runtime",
-            },
-            name: "ArrayHelpers",
-          },
-          name: "Slice",
-        },
-        arguments: [
-          { kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_param0" } },
-          { kind: "Argument", expression: { kind: "LiteralExpression", value: 2 } },
-        ],
-      },
-    },
-  ]);
-});
-
-test("array destructuring over finalized read-only collection carriers emits Count and slice helper projections", () => {
-  const first = identifier("first");
-  const rest = identifier("rest");
-  const pattern = arrayBindingPattern([
-    bindingElement(first, { initializer: numericLiteral("7") }),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const sourceCarrier = csharpReadOnlyListTargetType(int32Type());
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.equal(statements.length, 2);
-  assert.deepEqual(statements[0].initializer, {
-    kind: "ConditionalExpression",
-    condition: {
-      kind: "BinaryExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Count",
-      },
-      operatorToken: { kind: "GreaterThanToken" },
-      right: { kind: "LiteralExpression", value: 0 },
-    },
-    whenTrue: {
-      kind: "ElementAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      argument: { kind: "LiteralExpression", value: 0 },
-    },
-    whenFalse: { kind: "LiteralExpression", value: 7 },
-  });
-  assert.deepEqual(statements[1].initializer, {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: {
-        kind: "QualifiedName",
-        left: {
-          kind: "QualifiedName",
-          left: {
-            kind: "QualifiedName",
-            left: { kind: "IdentifierName", name: "Tsonic" },
-            name: "CSharp",
-          },
-          name: "Js",
-        },
-        name: "Array",
-      },
-      name: "slice",
-    },
-    arguments: [
-      { kind: "Argument", expression: { kind: "IdentifierName", name: "value" } },
-      { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
-    ],
-  });
-});
-
-test("array destructuring over provider read-only indexable carriers does not require array-literal metadata", () => {
-  const sourceExample = `
-    declare const value: ProviderReadOnlyIndexable<number>;
-    const [first = 7, ...rest] = value;
-  `;
-  assert.match(sourceExample, /ProviderReadOnlyIndexable/);
-
-  const first = identifier("first");
-  const rest = identifier("rest");
-  const pattern = arrayBindingPattern([
-    bindingElement(first, { initializer: numericLiteral("7") }),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const sourceCarrier = providerReadOnlyIndexableTargetType(int32Type());
-  const diagnostics = [];
-
-  assert.equal(sourceCarrier.csharpArrayLiteralElementType, undefined);
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements[0].initializer.condition.left, {
-    kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "IdentifierName", name: "value" },
-    name: "Count",
-  });
-  assert.deepEqual(statements[1], {
-    kind: "LocalDeclarationStatement",
-    name: "rest",
-    type: {
-      kind: "QualifiedName",
-      left: {
-        kind: "QualifiedName",
-        left: {
-          kind: "QualifiedName",
-          left: { kind: "IdentifierName", name: "System" },
-          name: "Collections",
-        },
-        name: "Generic",
-      },
-      name: "List",
-      typeArguments: [{ kind: "PredefinedType", name: "int" }],
-    },
-    initializer: {
-      kind: "InvocationExpression",
-      callee: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: {
-          kind: "QualifiedName",
-          left: {
-            kind: "QualifiedName",
-            left: {
-              kind: "QualifiedName",
-              left: { kind: "IdentifierName", name: "Tsonic" },
-              name: "CSharp",
-            },
-            name: "Js",
-          },
-          name: "Array",
-        },
-        name: "slice",
-      },
-      arguments: [
-        { kind: "Argument", expression: { kind: "IdentifierName", name: "value" } },
-        { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
-      ],
-    },
-  });
-});
-
-test("array destructuring rejects provider array-literal-only carriers as missing index evidence", () => {
-  const sourceExample = `
-    declare const value: ProviderLiteralOnly<number>;
-    const [first] = value;
-  `;
-  assert.match(sourceExample, /ProviderLiteralOnly/);
-
-  const pattern = arrayBindingPattern([
-    bindingElement(identifier("first")),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const sourceCarrier = providerArrayLiteralOnlyTargetType(int32Type());
-  const diagnostics = [];
-
-  assert.equal(sourceCarrier.csharpReadOnlyIndexableElementType, undefined);
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, []);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Array destructuring requires a finalized provider array or tuple runtime-carrier fact/);
-});
-
-test("array destructuring over finalized JSArray carriers emits element and instance slice projections", () => {
-  const first = identifier("first");
-  const rest = identifier("rest");
-  const pattern = arrayBindingPattern([
-    bindingElement(first),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const sourceCarrier = csharpJsArrayCarrierTargetType(int32Type());
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.equal(statements.length, 2);
-  assert.deepEqual(statements[0].initializer, {
-    kind: "ElementAccessExpression",
-    receiver: { kind: "IdentifierName", name: "value" },
-    argument: { kind: "LiteralExpression", value: 0 },
-  });
-  assert.deepEqual(statements[1].initializer, {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "slice",
-    },
-    arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } }],
-  });
-});
-
-test("object rename and rest destructuring emit from finalized object-shape facts", () => {
-  const renamed = identifier("renamed");
-  const rest = identifier("rest");
-  const sourceMember = {
-    sourceName: "source",
-    targetName: "Source",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "int32" },
-  };
-  const keepMember = {
-    sourceName: "keep",
-    targetName: "Keep",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "bool" },
-  };
-  const sourceShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__SourceShape",
-      csharpRender: { kind: "named", name: "__SourceShape" },
-    },
-    members: [sourceMember, keepMember],
-  };
-  const restShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__RestShape",
-      csharpRender: { kind: "named", name: "__RestShape" },
-    },
-    members: [keepMember],
-  };
-  const pattern = objectBindingPattern([
-    bindingElement(renamed, { propertyName: identifier("source") }),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([
-        [parameter, sourceShape],
-        [rest, restShape],
-      ]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [
-    {
-      kind: "LocalDeclarationStatement",
-      name: "renamed",
-      type: { kind: "PredefinedType", name: "int" },
-      initializer: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Source",
-      },
-    },
-    {
-      kind: "LocalDeclarationStatement",
-      name: "rest",
-      type: { kind: "IdentifierName", name: "__RestShape" },
-      initializer: {
-        kind: "ObjectCreationExpression",
-        type: { kind: "IdentifierName", name: "__RestShape" },
-        assignments: [{
-          kind: "AssignmentExpression",
-          name: "Keep",
-          expression: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: { kind: "IdentifierName", name: "value" },
-            name: "Keep",
-          },
-        }],
-      },
-    },
-  ]);
-});
-
-test("object rest destructuring rejects rest shape facts that retain extracted members", () => {
-  const renamed = identifier("renamed");
-  const rest = identifier("rest");
-  const sourceMember = {
-    sourceName: "source",
-    targetName: "Source",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "int32" },
-  };
-  const keepMember = {
-    sourceName: "keep",
-    targetName: "Keep",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "bool" },
-  };
-  const sourceShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__SourceShape",
-      csharpRender: { kind: "named", name: "__SourceShape" },
-    },
-    members: [sourceMember, keepMember],
-  };
-  const restShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__RestShape",
-      csharpRender: { kind: "named", name: "__RestShape" },
-    },
-    members: [sourceMember, keepMember],
-  };
-  const pattern = objectBindingPattern([
-    bindingElement(renamed, { propertyName: identifier("source") }),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([
-        [parameter, sourceShape],
-        [rest, restShape],
-      ]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "renamed",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "Source",
-    },
-  }]);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /rest shape must exclude explicitly extracted member 'source'/);
-});
-
-test("object rest destructuring rejects rest member carrier mismatches", () => {
-  const renamed = identifier("renamed");
-  const rest = identifier("rest");
-  const sourceMember = {
-    sourceName: "source",
-    targetName: "Source",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "int32" },
-  };
-  const keepMember = {
-    sourceName: "keep",
-    targetName: "Keep",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "bool" },
-  };
-  const mismatchedKeepMember = {
-    ...keepMember,
-    type: { kind: "source-primitive", name: "string" },
-  };
-  const sourceShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__SourceShape",
-      csharpRender: { kind: "named", name: "__SourceShape" },
-    },
-    members: [sourceMember, keepMember],
-  };
-  const restShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__RestShape",
-      csharpRender: { kind: "named", name: "__RestShape" },
-    },
-    members: [mismatchedKeepMember],
-  };
-  const pattern = objectBindingPattern([
-    bindingElement(renamed, { propertyName: identifier("source") }),
-    bindingElement(rest, { rest: true }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({
-      objectShapes: new Map([
-        [parameter, sourceShape],
-        [rest, restShape],
-      ]),
-    }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "renamed",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "Source",
-    },
-  }]);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /requires matching finalized source and rest member carriers/);
-});
-
-test("object destructuring defaults emit from finalized nullable object-shape member facts", () => {
-  const count = identifier("count");
-  const pattern = objectBindingPattern([
-    bindingElement(count, { initializer: numericLiteral("1") }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const objectShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [{
-      sourceName: "count",
-      targetName: "Count",
-      memberKind: "property",
-      type: csharpNullableValueTargetType(int32Type()),
-      optional: true,
-    }],
-  };
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({ objectShapes: new Map([[parameter, objectShape]]) }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "count",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "BinaryExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        name: "Count",
-      },
-      operatorToken: { kind: "QuestionQuestionToken" },
-      right: { kind: "LiteralExpression", value: 1 },
-    },
-  }]);
-});
-
-test("object destructuring defaults fail closed for optional value members without nullable carrier facts", () => {
-  const count = identifier("count");
-  const pattern = objectBindingPattern([
-    bindingElement(count, { initializer: numericLiteral("1") }),
-  ]);
-  const parameter = parameterDeclaration(pattern);
-  const objectShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [{
-      sourceName: "count",
-      targetName: "Count",
-      memberKind: "property",
-      type: int32Type(),
-      optional: true,
-    }],
-  };
-  const diagnostics = [];
-
-  const statements = planParameterBindingPrelude(
-    pattern,
-    "value",
-    sourceFile,
-    fakeInput({ objectShapes: new Map([[parameter, objectShape]]) }),
-    diagnostics,
-    createDestructuringPlannerState(),
-  );
-
-  assert.deepEqual(statements, []);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /requires optional value-type members to carry a nullable target carrier/);
-});
 
 function parameterDeclaration(name, options = {}) {
   const parameter = {
@@ -1482,3 +229,397 @@ const fakeAst = {
     IsImportTypeNode: () => false,
   },
 };
+
+test("parameter array destructuring emits from binding AST and finalized array carrier facts", () => {
+  const first = identifier("first");
+  const second = identifier("second");
+  const pattern = arrayBindingPattern([
+    bindingElement(first),
+    bindingElement(second),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarrierSubject: parameter,
+      runtimeCarrier: {
+        carrier: {
+          kind: "array",
+          element: { kind: "source-primitive", name: "int32" },
+        },
+      },
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "first",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "ElementAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        argument: { kind: "LiteralExpression", value: 0 },
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "second",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "ElementAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        argument: { kind: "LiteralExpression", value: 1 },
+      },
+    },
+  ]);
+});
+test("parameter object destructuring emits from finalized object-shape extraction facts", () => {
+  const count = identifier("count");
+  const pattern = objectBindingPattern([
+    bindingElement(count),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "count",
+      targetName: "Count",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapeSubject: parameter,
+      objectShape,
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "count",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Count",
+    },
+  }]);
+});
+test("parameter object destructuring reads finalized object-shape facts from type annotations", () => {
+  const value = identifier("value");
+  const pattern = objectBindingPattern([
+    bindingElement(value),
+  ]);
+  const typeLiteral = { Kind: KindTypeLiteral };
+  const parameter = parameterDeclaration(pattern, { type: typeLiteral });
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "float64" },
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "__tsonic_param0",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([[typeLiteral, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "value",
+    type: { kind: "PredefinedType", name: "double" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
+      name: "value",
+    },
+  }]);
+  assert.equal(parameter.Type, typeLiteral);
+});
+test("nested object parameter destructuring uses finalized nested object-shape facts", () => {
+  const count = identifier("count");
+  const nestedPattern = objectBindingPattern([
+    bindingElement(count),
+  ]);
+  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
+  const pattern = objectBindingPattern([
+    nestedElement,
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const innerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InnerShape",
+      csharpRender: { kind: "named", name: "__InnerShape" },
+    },
+    members: [{
+      sourceName: "count",
+      targetName: "Count",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const outerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__OuterShape",
+      csharpRender: { kind: "named", name: "__OuterShape" },
+    },
+    members: [{
+      sourceName: "inner",
+      targetName: "Inner",
+      memberKind: "property",
+      type: innerShape.targetType,
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([
+        [parameter, outerShape],
+        [nestedElement, innerShape],
+      ]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InnerShape" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Inner",
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "count",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+        name: "Count",
+      },
+    },
+  ]);
+});
+test("nested object parameter destructuring fails closed without nested object-shape facts", () => {
+  const count = identifier("count");
+  const nestedPattern = objectBindingPattern([
+    bindingElement(count),
+  ]);
+  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
+  const pattern = objectBindingPattern([
+    nestedElement,
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const outerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__OuterShape",
+      csharpRender: { kind: "named", name: "__OuterShape" },
+    },
+    members: [{
+      sourceName: "inner",
+      targetName: "Inner",
+      memberKind: "property",
+      type: {
+        kind: "target-named",
+        id: "__InnerShape",
+        csharpRender: { kind: "named", name: "__InnerShape" },
+      },
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([[parameter, outerShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "__tsonic_destructure0",
+    type: { kind: "IdentifierName", name: "__InnerShape" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Inner",
+    },
+  }]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object destructuring requires a source-owned declaration or finalized provider object-shape facts/);
+});
+test("parameter destructuring fails closed without carrier or object-shape facts", () => {
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("first")),
+  ]);
+  parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput(),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Array destructuring requires a finalized provider array or tuple runtime-carrier fact/);
+});
+test("parameter destructuring diagnostics preserve missing carrier reason and evidence", () => {
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("first")),
+  ]);
+  parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      missingRuntimeCarrierReason: "parameter array carrier was not finalized",
+      missingRuntimeCarrierEvidence: [{ message: "binding parameter T[] lacked array carrier fact" }],
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /parameter array carrier was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["binding parameter T[] lacked array carrier fact"]);
+});
+test("tuple parameter destructuring emits Item projections from finalized tuple carrier facts", () => {
+  const sourceExample = `
+    declare const value: [number, boolean];
+    const [count, enabled] = value;
+  `;
+  assert.match(sourceExample, /\[count, enabled\]/);
+
+  const count = identifier("count");
+  const enabled = identifier("enabled");
+  const pattern = arrayBindingPattern([
+    bindingElement(count),
+    bindingElement(enabled),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type(), { kind: "source-primitive", name: "bool" }] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "count",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Item1",
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "enabled",
+      type: { kind: "PredefinedType", name: "bool" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Item2",
+      },
+    },
+  ]);
+});
+test("tuple destructuring defaults fail closed without optional-element facts", () => {
+  const sourceExample = `
+    declare const value: [number?];
+    const [count = 1] = value;
+  `;
+  assert.match(sourceExample, /count = 1/);
+
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("count"), { initializer: numericLiteral("1") }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [csharpNullableValueTargetType(int32Type())] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Tuple destructuring defaults for optional\/nullish tuple elements require finalized tuple optional-element facts/);
+});

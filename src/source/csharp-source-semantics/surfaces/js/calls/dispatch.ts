@@ -12,9 +12,6 @@ import {
   sourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
-  getSignatureDeclaration,
-} from "./declaration-identity.js";
-import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
 } from "./closed-facts/index.js";
 import {
@@ -22,8 +19,8 @@ import {
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "../unsupported.js";
 import {
-  rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallSignatureDeclarationMismatch,
+  rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallWithoutClosedArgumentFacts,
   rejectSourceLibraryCallWithoutClosedFacts,
   rejectSourceLibraryCallWithoutUniqueTargetMember,
@@ -37,6 +34,7 @@ import {
   operationRowClosedFactsStatus,
 } from "./member-providers/index.js";
 import {
+  acceptDeferredSourceLibraryCheckedCall,
   acceptSourceLibraryCheckedCall,
 } from "./operations.js";
 import {
@@ -56,18 +54,15 @@ export function mapCsharpSourceLibraryCheckedCall(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
-  const sourceMember = resolveSourceLibraryMemberIdentity(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
+  const signatureDeclaration = request.sourceSelectedDeclaration;
+  const sourceMember = resolveCheckedCallSourceLibraryMember(request, context);
   if (sourceMember === undefined) {
     return undefined;
   }
-  if (signatureDeclaration === undefined) {
+  if (request.sourceSelectedSignature === undefined) {
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
-  if (
-    request.sourceSelectedDeclaration !== undefined &&
-    signatureDeclaration !== request.sourceSelectedDeclaration
-  ) {
+  if (signatureDeclaration !== undefined && !selectedSignatureMatchesSourceDeclaration(request.sourceSelectedSignature, signatureDeclaration)) {
     return rejectSourceLibraryCallSignatureDeclarationMismatch(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(
@@ -88,13 +83,16 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
   }
-  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, request.sourceSelectedSignature ?? signatureDeclaration);
+  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, request.sourceSelectedSignature, sourceLibraryMemberIdentity(sourceMember));
   const closedFactsStatus = operationRow === undefined
     ? { kind: "satisfied" } as const
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
   if (closedFactsStatus.kind !== "satisfied") {
     if (canWaitForFinalizedFacts) {
-      return undefined;
+      const deferredMember = selectedMember ?? (candidates.length === 1 ? candidates[0] : undefined);
+      return deferredMember === undefined
+        ? undefined
+        : acceptDeferredSourceLibraryCheckedCall(sourceMember, deferredMember);
     }
     return closedFactsStatus.kind === "missing" &&
       closedFactsStatus.reason === "argument" &&
@@ -134,6 +132,22 @@ export function mapCsharpSourceLibraryCheckedCall(
     });
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
+}
+
+export function resolveCheckedCallSourceLibraryMember(
+  request: Pick<CheckedCallMappingRequest, "sourceCalleeDeclaration" | "sourceSelectedDeclaration">,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+) {
+  return resolveSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, context) ??
+    resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context);
+}
+
+function selectedSignatureMatchesSourceDeclaration(
+  sourceSelectedSignature: unknown,
+  sourceSelectedDeclaration: unknown,
+): boolean {
+  const declaration = (sourceSelectedSignature as { readonly declaration?: unknown } | undefined)?.declaration;
+  return declaration === undefined || declaration === sourceSelectedDeclaration;
 }
 
 function targetMemberSelectionRequiresReceiverFacts(

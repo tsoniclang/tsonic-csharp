@@ -6,7 +6,10 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
+    readonly record struct SourceDependency(Type Type, bool IncludeMembers);
+    readonly record struct SourceClosureType(Type Type, bool IncludeMembers);
+
+    SourceClosureType[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
     {
         if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
@@ -15,11 +18,15 @@ sealed partial class ReflectionProvider
         var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
         var exportedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var exportedType in exportedTypes)
+        var sourceVisibleTargetIds = new SortedSet<string>(StringComparer.Ordinal);
+        var pendingTypes = new Queue<Type>(exportedTypes);
+        var expandedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
+        while (pendingTypes.Count > 0)
         {
-            foreach (var dependency in DirectSourceDependencies(exportedType))
+            var type = pendingTypes.Dequeue();
+            foreach (var dependency in DirectSourceDependencies(type))
             {
-                var normalized = NormalizeClosureType(dependency);
+                var normalized = NormalizeClosureType(dependency.Type);
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
                     exportedTargetIds.Contains(TargetId(normalized)) ||
@@ -28,13 +35,29 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                closureTargetIds.Add(TargetId(normalized));
+                var targetId = TargetId(normalized);
+                closureTargetIds.Add(targetId);
+                var shouldIncludeMembers = dependency.IncludeMembers || normalized.IsNested;
+                if (shouldIncludeMembers)
+                {
+                    sourceVisibleTargetIds.Add(targetId);
+                }
+                if (shouldIncludeMembers && expandedTargetIds.Add(targetId))
+                {
+                    pendingTypes.Enqueue(normalized);
+                }
             }
         }
         return closureTargetIds
             .Select(targetId => allTypesByTargetId[targetId])
             .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
+            .Select(type => new SourceClosureType(type, sourceVisibleTargetIds.Contains(TargetId(type))))
             .ToArray();
+    }
+
+    object? ToClosureTypeExport(SourceClosureType closure)
+    {
+        return closure.IncludeMembers ? ToTypeExport(closure.Type) : ToShallowTypeExport(closure.Type);
     }
 
     object ToShallowTypeExport(Type type)
@@ -61,54 +84,84 @@ sealed partial class ReflectionProvider
         };
     }
 
-    IEnumerable<Type> DirectSourceDependencies(Type type)
+    IEnumerable<SourceDependency> DirectSourceDependencies(Type type)
     {
         if (type.BaseType is not null && type.BaseType != typeof(object))
         {
-            yield return type.BaseType;
+            foreach (var dependency in SourceDependencyTypes(type.BaseType))
+            {
+                yield return new SourceDependency(dependency, true);
+            }
         }
         foreach (var contract in type.GetInterfaces())
         {
-            yield return contract;
+            foreach (var dependency in SourceDependencyTypes(contract))
+            {
+                yield return new SourceDependency(dependency, true);
+            }
         }
         foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             foreach (var parameter in constructor.GetParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return new SourceDependency(dependency, false);
+                }
             }
         }
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return property.PropertyType;
+            foreach (var dependency in SourceDependencyTypes(property.PropertyType))
+            {
+                yield return new SourceDependency(dependency, true);
+            }
             foreach (var parameter in property.GetIndexParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return new SourceDependency(dependency, false);
+                }
             }
         }
         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return field.FieldType;
+            foreach (var dependency in SourceDependencyTypes(field.FieldType))
+            {
+                yield return new SourceDependency(dependency, true);
+            }
         }
         foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
             if (eventInfo.EventHandlerType is not null)
             {
-                yield return eventInfo.EventHandlerType;
+                foreach (var dependency in SourceDependencyTypes(eventInfo.EventHandlerType))
+                {
+                    yield return new SourceDependency(dependency, true);
+                }
             }
         }
         foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
-            yield return method.ReturnType;
+            foreach (var dependency in SourceDependencyTypes(method.ReturnType))
+            {
+                yield return new SourceDependency(dependency, false);
+            }
             foreach (var parameter in method.GetParameters())
             {
-                yield return parameter.ParameterType;
+                foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
+                {
+                    yield return new SourceDependency(dependency, false);
+                }
             }
             foreach (var methodParameter in method.GetGenericArguments())
             {
                 foreach (var constraint in methodParameter.GetGenericParameterConstraints())
                 {
-                    yield return constraint;
+                    foreach (var dependency in SourceDependencyTypes(constraint))
+                    {
+                        yield return new SourceDependency(dependency, false);
+                    }
                 }
             }
         }
@@ -116,9 +169,50 @@ sealed partial class ReflectionProvider
         {
             foreach (var constraint in typeParameter.GetGenericParameterConstraints())
             {
-                yield return constraint;
+                foreach (var dependency in SourceDependencyTypes(constraint))
+                {
+                    yield return new SourceDependency(dependency, false);
+                }
             }
         }
+    }
+
+    static IEnumerable<Type> SourceDependencyTypes(Type type)
+    {
+        type = UnwrapByRef(type);
+        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        {
+            yield break;
+        }
+        if (type.IsArray)
+        {
+            foreach (var dependency in SourceDependencyTypes(type.GetElementType()!))
+            {
+                yield return dependency;
+            }
+            yield break;
+        }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            foreach (var dependency in SourceDependencyTypes(nullableElement))
+            {
+                yield return dependency;
+            }
+            yield break;
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            yield return type.GetGenericTypeDefinition();
+            foreach (var argument in type.GetGenericArguments())
+            {
+                foreach (var dependency in SourceDependencyTypes(argument))
+                {
+                    yield return dependency;
+                }
+            }
+            yield break;
+        }
+        yield return type;
     }
 
     static Type? NormalizeClosureType(Type type)

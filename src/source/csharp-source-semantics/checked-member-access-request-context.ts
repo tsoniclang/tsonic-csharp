@@ -12,7 +12,6 @@ import {
 } from "./ast-utils.js";
 import {
   getAliasedSymbolIfAvailable,
-  getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 
@@ -43,30 +42,29 @@ export function getCsharpCheckedPropertyAccessRequestContext(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): CsharpCheckedPropertyAccessRequestContext {
-  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, context, {
-    propertyName: request.propertyName,
-  });
+  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, request.sourceSelectedDeclaration, context);
 }
 
 export function getCsharpCheckedElementAccessRequestContext(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): CsharpCheckedElementAccessRequestContext {
-  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, context);
+  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, request.sourceSelectedDeclaration, context);
 }
 
 function getCsharpCheckedMemberAccessRequestContext(
   receiverSubject: ExtensionFactSubject,
   selectedSymbol: ExtensionFactSubject | undefined,
+  selectedDeclaration: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-  selectedPropertyOptions: { readonly propertyName?: string | undefined } = {},
 ): CsharpCheckedMemberReceiverContext & CsharpCheckedSelectedMemberContext {
   const compiler = context.compiler;
   const receiver = asNodeSubject(receiverSubject);
   if (compiler === undefined || receiver === undefined) {
     return {
       ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
-      ...selectedMemberContext(selectedSymbol, context),
+      ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
+      ...selectedMemberContext(selectedDeclaration, context),
     };
   }
   const receiverSourceFile = compiler.ast.getSourceFile(receiver);
@@ -77,12 +75,7 @@ function getCsharpCheckedMemberAccessRequestContext(
   const receiverTypeSymbol = receiverType === undefined
     ? undefined
     : getTypeSymbol(compiler, receiverType as Type);
-  const effectiveSelectedSymbol = selectedSymbol ?? getCheckedReceiverPropertySymbol(
-    receiverType,
-    selectedPropertyOptions.propertyName,
-    context,
-    receiverSourceFile,
-  );
+  const effectiveSelectedSymbol = selectedSymbol;
   return {
     ...(receiverSymbol !== undefined ? { receiverSymbol } : {}),
     ...(receiverResolvedSymbol !== undefined ? { receiverResolvedSymbol } : {}),
@@ -90,37 +83,17 @@ function getCsharpCheckedMemberAccessRequestContext(
     ...(receiverType !== undefined ? { receiverType } : {}),
     ...(receiverTypeSymbol !== undefined ? { receiverTypeSymbol } : {}),
     ...(effectiveSelectedSymbol !== undefined ? { sourceSelectedSymbol: effectiveSelectedSymbol } : {}),
-    ...selectedMemberContext(effectiveSelectedSymbol, context),
+    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
+    ...selectedMemberContext(selectedDeclaration, context),
   };
 }
 
-function getCheckedReceiverPropertySymbol(
-  receiverType: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeAtLocation"]> | undefined,
-  propertyName: string | undefined,
-  context: ExtensionObservationContext,
-  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
-): ExtensionFactSubject | undefined {
-  if (
-    receiverType === undefined ||
-    propertyName === undefined ||
-    context.compiler === undefined ||
-    typeof context.compiler.checker.getPropertyOfType !== "function"
-  ) {
-    return undefined;
-  }
-  try {
-    return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function selectedMemberContext(
-  selectedSymbol: ExtensionFactSubject | undefined,
+  selectedDeclarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): CsharpCheckedSelectedMemberContext {
   const compiler = context.compiler;
-  const sourceSelectedDeclaration = getSymbolDeclarations(selectedSymbol, compiler?.checker)[0];
+  const sourceSelectedDeclaration = asNodeSubject(selectedDeclarationSubject);
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const sourceSelectedContainerSymbol = compiler === undefined || sourceSelectedDeclarationContainer === undefined
     ? undefined
@@ -142,11 +115,7 @@ function getResolvedSymbol(
   node: Node,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): ExtensionFactSubject | undefined {
-  try {
-    return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getResolvedSymbolOrNil(node, { sourceFile }) ?? undefined;
 }
 
 function getTypeAtLocation(
@@ -154,20 +123,12 @@ function getTypeAtLocation(
   node: Node,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Type | undefined {
-  try {
-    return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getTypeAtLocation(node, { sourceFile }) as Type | undefined;
 }
 
 function getTypeSymbol(
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
   type: Type,
 ): ExtensionFactSubject | undefined {
-  try {
-    return compiler.checker.getTypeSymbol(type);
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getTypeSymbol(type);
 }

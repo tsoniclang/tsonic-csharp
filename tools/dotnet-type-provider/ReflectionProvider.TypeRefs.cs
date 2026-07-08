@@ -6,9 +6,13 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    object? TypeRef(Type type)
+    object? TypeRef(Type type, bool requireDelegateSourceShape = true)
     {
         type = UnwrapByRef(type);
+        if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(TargetId(type)))
+        {
+            return null;
+        }
         if (type == typeof(void))
         {
             return new { kind = "void" };
@@ -36,14 +40,14 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var elementType = TypeRef(type.GetElementType()!);
+            var elementType = TypeRef(type.GetElementType()!, requireDelegateSourceShape);
             return elementType is null
                 ? null
                 : new { kind = "array", elementType };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
-            var elementType = TypeRef(nullableElement);
+            var elementType = TypeRef(nullableElement, requireDelegateSourceShape);
             return elementType is null
                 ? null
                 : new { kind = "nullable", elementType };
@@ -53,8 +57,8 @@ sealed partial class ReflectionProvider
             return null;
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        var typeArguments = type.IsGenericType && !type.IsGenericTypeDefinition
-            ? type.GetGenericArguments().Select(TypeRef).ToArray()
+        var typeArguments = type.IsGenericType
+            ? type.GetGenericArguments().Select(typeArgument => TypeRef(typeArgument, requireDelegateSourceShape)).ToArray()
             : Array.Empty<object?>();
         if (typeArguments.Any(argument => argument is null))
         {
@@ -62,6 +66,10 @@ sealed partial class ReflectionProvider
         }
 
         var sourceShape = SourceShape(type);
+        if (IsDelegate(type) && sourceShape is null && requireDelegateSourceShape)
+        {
+            return null;
+        }
         return new
         {
             kind = "named",
@@ -77,6 +85,15 @@ sealed partial class ReflectionProvider
     string TypeRefFailureReason(Type type)
     {
         type = UnwrapByRef(type);
+        if (IsDelegate(type))
+        {
+            var targetId = TargetId(type);
+            return delegateSourceShapeInProgress.Contains(targetId)
+                ? $"Recursive delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape."
+                : delegateSourceShapeUnsupportedReasons.TryGetValue(targetId, out var reason)
+                    ? reason
+                    : $"Delegate type '{TypeMetadataName(type)}' cannot be represented as a closed source function shape.";
+        }
         if (type.IsPointer)
         {
             return $"Pointer type '{TypeMetadataName(type)}' requires an explicit provider pointer type model before it can be exposed safely.";
@@ -246,14 +263,28 @@ sealed partial class ReflectionProvider
         {
             var groupTypes = namespaceGroup.ToArray();
             var disambiguateByArity = groupTypes.Length > 1;
-            foreach (var candidateGroup in groupTypes
+            var candidateGroups = groupTypes
                 .Select(type => new SourceReferenceCandidate(
                     type,
                     new SourceReference(SourceTypeName(type, disambiguateByArity), ModuleSpecifierForNamespace(type.Namespace!))))
                 .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
-                .Where(group => group.Count() == 1))
+                .ToArray();
+            foreach (var candidateGroup in candidateGroups.Where(group => group.Count() == 1))
             {
                 yield return candidateGroup.First();
+            }
+            foreach (var candidateGroup in candidateGroups.Where(group => group.Count() > 1))
+            {
+                foreach (var qualifiedCandidateGroup in candidateGroup
+                    .Where(candidate => candidate.Type.IsNested)
+                    .Select(candidate => new SourceReferenceCandidate(
+                        candidate.Type,
+                        new SourceReference(QualifiedNestedSourceTypeName(candidate.Type, disambiguateByArity), candidate.Reference.ModuleSpecifier)))
+                    .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
+                    .Where(group => group.Count() == 1))
+                {
+                    yield return qualifiedCandidateGroup.First();
+                }
             }
         }
     }
@@ -287,27 +318,40 @@ sealed partial class ReflectionProvider
 
     object? DelegateSourceShape(Type type)
     {
-        if (UnsupportedDelegateSourceShapeReason(type) is not null)
+        var targetId = TargetId(type);
+        if (delegateSourceShapeInProgress.Contains(targetId))
         {
             return null;
         }
-        var invoke = type.GetMethod("Invoke");
-        if (invoke is null)
+        delegateSourceShapeInProgress.Add(targetId);
+        try
         {
-            return null;
+            if (UnsupportedDelegateSourceShapeReason(type) is not null)
+            {
+                return null;
+            }
+            var invoke = type.GetMethod("Invoke");
+            if (invoke is null)
+            {
+                return null;
+            }
+            var parameters = Parameters(invoke.GetParameters());
+            var returnType = TypeRef(invoke.ReturnType);
+            if (parameters is null || returnType is null)
+            {
+                return null;
+            }
+            return new
+            {
+                kind = "function",
+                parameters,
+                returnType,
+            };
         }
-        var parameters = Parameters(invoke.GetParameters());
-        var returnType = TypeRef(invoke.ReturnType);
-        if (parameters is null || returnType is null)
+        finally
         {
-            return null;
+            delegateSourceShapeInProgress.Remove(targetId);
         }
-        return new
-        {
-            kind = "function",
-            parameters,
-            returnType,
-        };
     }
 
     sealed record SourceReferenceCandidate(Type Type, SourceReference Reference);

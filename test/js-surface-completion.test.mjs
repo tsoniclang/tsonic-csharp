@@ -188,7 +188,7 @@ test("JS surface maps console profile methods and rejects invalid label facts", 
   assert.equal(profileEndResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
 });
 
-function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "bundled:///libs/lib.es5.d.ts") {
+function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/src/.tsonic/source-profiles/js/js.d.ts") {
   const sourceFile = { FileName: fileName };
   const parent = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
   return {
@@ -255,6 +255,28 @@ function fakeContext(facts) {
         kindName: (node) => node?.Kind ?? "Undefined",
         is: {
           IsPropertyAccessExpression: (node) => node?.Kind === "KindPropertyAccessExpression",
+          IsArrayLiteralExpression: () => false,
+          IsObjectLiteralExpression: () => false,
+          IsElementAccessExpression: () => false,
+          IsBinaryExpression: () => false,
+          IsPrefixUnaryExpression: () => false,
+          IsPostfixUnaryExpression: () => false,
+          IsConditionalExpression: () => false,
+          IsFunctionExpression: () => false,
+          IsArrowFunction: () => false,
+          IsClassExpression: () => false,
+          IsParenthesizedExpression: () => false,
+          IsAsExpression: () => false,
+          IsSatisfiesExpression: () => false,
+          IsNonNullExpression: () => false,
+          IsTemplateExpression: () => false,
+          IsTaggedTemplateExpression: () => false,
+          IsRegularExpressionLiteral: () => false,
+          IsKeywordExpression: () => false,
+          IsDeleteExpression: () => false,
+          IsTypeOfExpression: () => false,
+          IsVoidExpression: () => false,
+          IsAwaitExpression: () => false,
           IsIdentifier: (node) => node?.Kind === "KindIdentifier",
           IsPrivateIdentifier: () => false,
           IsQualifiedName: () => false,

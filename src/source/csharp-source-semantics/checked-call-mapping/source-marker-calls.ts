@@ -14,6 +14,7 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   FlowStateFact,
+  Node,
   ProviderVirtualDeclarationFact,
   StructFact,
 } from "@tsonic/tsts";
@@ -87,8 +88,8 @@ export function mapCsharpSourceMarkerCall(
       request,
       context,
       virtualDeclaration,
-      extensionId,
       attributeFact,
+      extensionId,
     );
     if (missingFactDiagnostic !== undefined) {
       return rejectObservation(missingFactDiagnostic);
@@ -104,8 +105,8 @@ function missingRequiredSourceMarkerFactDiagnostic(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   declaration: ProviderVirtualDeclarationFact,
-  extensionId: string,
   attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
+  extensionId: string,
 ): ReturnType<typeof csharpProviderDiagnostic> | undefined {
   switch (declaration.exportName) {
     case "out":
@@ -122,6 +123,9 @@ function missingRequiredSourceMarkerFactDiagnostic(
           : unsupportedCsharpSourceFlowMarkerDiagnostic(extensionId, flowState);
       }
     case "attribute":
+      if (attributeFact === undefined && attributeBuilderFactoryCallFeedsBuilderChain(request, context)) {
+        return undefined;
+      }
       return validateCsharpAttributeMarkerFact(attributeFact, extensionId);
     case "defaultof":
       {
@@ -144,6 +148,28 @@ function missingRequiredSourceMarkerFactDiagnostic(
     default:
       return undefined;
   }
+}
+
+function attributeBuilderFactoryCallFeedsBuilderChain(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const call = request.call as Node | undefined;
+  const ast = context.compiler?.ast;
+  if (call === undefined || ast === undefined) {
+    return false;
+  }
+  const parent = ast.parent(call);
+  if (parent === undefined || !ast.is.IsPropertyAccessExpression(parent)) {
+    return false;
+  }
+  const methodName = ast.text(ast.name(parent));
+  return methodName === "constructor" ||
+    methodName === "method" ||
+    methodName === "parameter" ||
+    methodName === "property" ||
+    methodName === "target" ||
+    methodName === "add";
 }
 
 export function validateCsharpAttributeMarkerFact(

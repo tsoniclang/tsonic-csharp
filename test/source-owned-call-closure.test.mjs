@@ -40,6 +40,7 @@ test("source-owned checked calls close over destructured binding carrier facts",
     call,
     callee,
     sourceCalleeSymbol: symbol,
+    sourceCalleeDeclaration: bindingElement,
     sourceReturnType,
     arguments: [],
   }, context);
@@ -68,6 +69,7 @@ test("source-owned checked calls close over implicit source class constructor sy
     call,
     callee,
     sourceCalleeSymbol: symbol,
+    sourceCalleeDeclaration: classDeclaration,
     arguments: [],
   }, fakeObservationContext({
     declarationsBySymbol: new Map([[symbol, [classDeclaration]]]),
@@ -352,7 +354,7 @@ test("source-owned checked calls close over TSTS-selected semantic return types"
   assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: instantiatedReturn });
 });
 
-test("source-owned checked calls prefer receiver type-argument facts over broad TSTS semantic return types", () => {
+test("source-owned checked calls prefer receiver type-argument facts over numeric semantic return types", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const typeParameterName = node("KindIdentifier", sourceFile, { Text: "T" });
   const typeParameter = node("KindTypeParameter", sourceFile, { name: typeParameterName });

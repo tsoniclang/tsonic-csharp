@@ -16,14 +16,9 @@ import {
 } from "./conversions.js";
 import {
   dotnetMemberToProviderMember,
-  mergeOwnAndBaseProviderMembers,
+  filterTsCompatibleProviderMembers,
   mergeProviderMemberList,
 } from "./members.js";
-import { qualifyProviderMemberModuleRefs } from "./module-refs.js";
-import {
-  getBaseTypeParameterSubstitutions,
-  substituteProviderMember,
-} from "./substitutions.js";
 
 export function dotnetTypeToProviderExport(
   declaration: DotnetTypeDeclaration,
@@ -55,33 +50,51 @@ function dotnetTypeSourceMembers(
   if (cached !== undefined) {
     return cached;
   }
-  const ownMembers = mergeProviderMemberList(declaration.members
+  const inheritedKeys = inheritedSourceMemberKeys(declaration, context, new Set());
+  const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(declaration.members
     ?.map((member) => dotnetMemberToProviderMember(member, declaration))
-    .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []);
-  const baseMembers = dotnetBaseSourceMembers(declaration, context);
-  const members = mergeOwnAndBaseProviderMembers(ownMembers, baseMembers);
-  context.sourceMembersByTargetId.set(declaration.targetId, members);
-  return members.length === 0 ? undefined : members;
+    .filter((member): member is ProviderMemberDeclaration => member !== undefined)
+    .filter((member) => {
+      const key = inheritedSourceMemberKey(member);
+      return key === undefined || !inheritedKeys.has(key);
+    }) ?? []));
+  context.sourceMembersByTargetId.set(declaration.targetId, ownMembers);
+  return ownMembers.length === 0 ? undefined : ownMembers;
 }
 
-function dotnetBaseSourceMembers(
+function inheritedSourceMemberKeys(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
-): readonly ProviderMemberDeclaration[] {
+  visitedTargetIds: Set<string>,
+): ReadonlySet<string> {
+  if (!visitedTargetIds.add(declaration.targetId)) {
+    return new Set();
+  }
+  const keys = new Set<string>();
   const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
   const baseType = baseHeritage?.type;
   if (baseType?.kind !== "provider-ref") {
-    return [];
+    return keys;
   }
   const baseDeclaration = dotnetProviderRefToTypeDeclaration(baseType, context);
   if (baseDeclaration === undefined) {
-    return [];
+    return keys;
   }
-  const baseMembers = (dotnetTypeSourceMembers(baseDeclaration, context) ?? [])
-    .filter((member) => member.static !== true);
-  const inheritedMembers = baseMembers.map((member) => qualifyProviderMemberModuleRefs(member, context));
-  const substitutions = getBaseTypeParameterSubstitutions(baseDeclaration, baseType);
-  return substitutions.size === 0
-    ? inheritedMembers
-    : inheritedMembers.map((member) => substituteProviderMember(member, substitutions));
+  for (const member of dotnetTypeSourceMembers(baseDeclaration, context) ?? []) {
+    const key = inheritedSourceMemberKey(member);
+    if (key !== undefined) {
+      keys.add(key);
+    }
+  }
+  for (const key of inheritedSourceMemberKeys(baseDeclaration, context, visitedTargetIds)) {
+    keys.add(key);
+  }
+  return keys;
+}
+
+function inheritedSourceMemberKey(member: ProviderMemberDeclaration): string | undefined {
+  if (member.static === true || member.kind === "constructor") {
+    return undefined;
+  }
+  return `${member.kind}:${JSON.stringify(member.name)}`;
 }

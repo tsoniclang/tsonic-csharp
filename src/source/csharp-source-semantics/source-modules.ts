@@ -2,7 +2,9 @@ import {
   sourcePrimitive,
 } from "@tsonic/tsts";
 import type {
+  ProviderVirtualDeclarationFact,
   SourceSemanticsModule,
+  SourcePrimitiveKind,
 } from "@tsonic/tsts";
 import {
   csharpLangModule,
@@ -56,4 +58,18 @@ export function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[]
       exports: csharpMarkerAliasDeclarations,
     },
   ];
+}
+
+export function csharpSourcePrimitiveKindForProviderVirtualDeclaration(
+  declaration: ProviderVirtualDeclarationFact | undefined,
+): SourcePrimitiveKind | undefined {
+  if (declaration?.moduleSpecifier !== csharpTypesModule || declaration.exportName === undefined) {
+    return undefined;
+  }
+  return csharpSourcePrimitiveKindForExport(declaration.exportName);
+}
+
+export function csharpSourcePrimitiveKindForExport(exportName: string): SourcePrimitiveKind | undefined {
+  const declaration = csharpPrimitiveAliasDeclarations.find((candidate) => candidate.exportName === exportName);
+  return declaration?.primitive;
 }

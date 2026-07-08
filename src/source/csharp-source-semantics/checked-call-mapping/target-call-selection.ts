@@ -11,6 +11,7 @@ import type {
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
@@ -19,8 +20,8 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
-  asNodeSubject,
-} from "../ast-utils.js";
+  getCsharpTargetTypeFromBinding,
+} from "../target-enrichment.js";
 import {
   findTargetBinding,
 } from "../provider-bindings.js";
@@ -35,9 +36,6 @@ import {
   findUnsupportedProviderTargetMember,
   unsupportedProviderTargetMemberEvidence,
 } from "../provider-unsupported-members.js";
-import {
-  getCsharpTargetTypeFromBinding,
-} from "../target-enrichment.js";
 import {
   getCsharpCheckedCallRequestContext,
 } from "../checked-call-request-context.js";
@@ -76,7 +74,7 @@ export function findCsharpTargetMemberForCall(
     declaration,
     request,
     context,
-    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
+    (subject, resolutionContext, resolutionOptions) => host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions),
     options,
   );
   if (selectedMember !== undefined) {
@@ -122,6 +120,7 @@ export function targetMemberMissEvidence(
         selectedMemberName: declaration?.memberName,
         selectedTargetIdentity: declaration?.targetIdentity,
         declaringTargetType: options.declaringTargetType,
+        methodTargetTypeArguments: options.methodTargetTypeArguments,
         firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
         argumentPassingFacts: request.arguments.map((argument, index) => argumentPassingMissDetails(context, argument, index)),
         candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),
@@ -164,22 +163,41 @@ export function getConstructorDeclaringTargetType(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
+  selectedTypeArguments: readonly TargetTypeRef[] | undefined,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const callNode = asNodeSubject(request.call);
-  const ast = context.compiler?.ast;
-  if (callNode === undefined || ast === undefined) {
+  const sourceReturnTargetType = host.getTargetTypeRefForSubject(request.sourceReturnType, context, {
+    allowSemanticTypeQuery: true,
+  });
+  const selectedConstructedType = getSelectedConstructedProviderType(binding, selectedTypeArguments, host);
+  if (
+    selectedConstructedType !== undefined &&
+    (sourceReturnTargetType === undefined ||
+      (sourceReturnTargetType.kind === "target-named" && sourceReturnTargetType.id === binding.id))
+  ) {
+    return selectedConstructedType;
+  }
+  if (sourceReturnTargetType === undefined) {
+    const typeParameters = binding.typeParameters ?? [];
+    return typeParameters.length === 0 ? getCsharpTargetTypeFromBinding(binding, [], host) : undefined;
+  }
+  if (sourceReturnTargetType.kind !== "target-named" || sourceReturnTargetType.id !== binding.id) {
     return undefined;
   }
-  const targetTypeArguments = ast.typeArguments(callNode)
-    .map((argument) => safeGetTargetTypeRefForSubject(host, argument, context));
-  if (targetTypeArguments.some((argument) => argument === undefined)) {
+  return sourceReturnTargetType;
+}
+
+function getSelectedConstructedProviderType(
+  binding: TargetBindingFact,
+  selectedTypeArguments: readonly TargetTypeRef[] | undefined,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  if (selectedTypeArguments === undefined) {
     return undefined;
   }
-  const declaringTargetType = getCsharpTargetTypeFromBinding(binding, targetTypeArguments as NonNullable<typeof targetTypeArguments[number]>[], host);
-  if (declaringTargetType === undefined) {
-    return undefined;
-  }
-  return declaringTargetType;
+  const typeParameters = binding.typeParameters ?? [];
+  return typeParameters.length === selectedTypeArguments.length
+    ? getCsharpTargetTypeFromBinding(binding, selectedTypeArguments, host)
+    : undefined;
 }
 
 export function isProviderStaticContainerReceiver(
@@ -216,20 +234,7 @@ function findConstructorTargetMemberForProviderType(
       receiver: requestContext.calleeReceiver,
     },
     context,
-    (subject, resolutionContext, resolutionOptions) => safeGetTargetTypeRefForSubject(host, subject, resolutionContext, resolutionOptions),
+    (subject, resolutionContext, resolutionOptions) => host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions),
     options,
   );
-}
-
-function safeGetTargetTypeRefForSubject(
-  host: CsharpOperationsProviderHost,
-  subject: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[0],
-  context: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[1],
-  options?: Parameters<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>[2],
-): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  try {
-    return host.getTargetTypeRefForSubject(subject, context, options);
-  } catch {
-    return undefined;
-  }
 }

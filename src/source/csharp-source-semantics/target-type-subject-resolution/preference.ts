@@ -7,13 +7,8 @@ export function getPreferredTargetTypeRefForSubject(
   referenceFact: TargetTypeRef | undefined,
   declarationType: TargetTypeRef | undefined = undefined,
 ): TargetTypeRef | undefined {
-  const primitiveDeclarationPreference = preferredSourcePrimitiveDeclarationType(
-    declarationType,
-    directFact,
-    referenceFact,
-  );
-  if (primitiveDeclarationPreference !== undefined) {
-    return primitiveDeclarationPreference;
+  if (declarationType !== undefined) {
+    return declarationType;
   }
   if (directFact === undefined) {
     return referenceFact;
@@ -28,23 +23,6 @@ export function getPreferredTargetTypeRefForSubject(
     return referenceFact;
   }
   return directFact;
-}
-
-function preferredSourcePrimitiveDeclarationType(
-  declarationType: TargetTypeRef | undefined,
-  directFact: TargetTypeRef | undefined,
-  referenceFact: TargetTypeRef | undefined,
-): TargetTypeRef | undefined {
-  if (declarationType?.kind !== "source-primitive") {
-    return undefined;
-  }
-  if (
-    (directFact === undefined || directFact.kind === "source-primitive") &&
-    (referenceFact === undefined || referenceFact.kind === "source-primitive")
-  ) {
-    return declarationType;
-  }
-  return undefined;
 }
 
 function isSourceDeclarationTargetTypeRef(type: TargetTypeRef): boolean {

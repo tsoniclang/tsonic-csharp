@@ -4,6 +4,7 @@ import {
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Type,
 } from "@tsonic/tsts";
 import type {
   CsharpObjectShapeFact,
@@ -75,7 +76,8 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     compiler.typeShape.isUnion(semanticType)) {
     return undefined;
   }
-  const contextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);
+  const rawContextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);
+  const contextualTargetType = getSingleNonNullishContextualType(rawContextualTargetType, compiler.typeShape) ?? rawContextualTargetType;
   const declaredShape = getSemanticTypeDeclarationShape(contextualTargetType ?? semanticType, context, host);
   const isObjectLiteral = node !== undefined && compiler.ast.is.IsObjectLiteralExpression(node);
   const contextualObjectShape = isObjectLiteral && contextualTargetType !== undefined
@@ -135,6 +137,18 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     members: resolvedMembers,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function getSingleNonNullishContextualType(
+  type: Type | undefined,
+  typeShape: NonNullable<ExtensionObservationContext["compiler"]>["typeShape"],
+): Type | undefined {
+  if (type === undefined || !typeShape.isUnion(type)) {
+    return undefined;
+  }
+  const members = typeShape.getUnionOrIntersectionTypes(type)
+    .filter((member): member is Type => member !== undefined && !typeShape.isNullish(member));
+  return members.length === 1 ? members[0] : undefined;
 }
 
 function objectShapeRuntimeNodeIsFunctionLike(

@@ -10,7 +10,6 @@ import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
-  readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
 }
 
@@ -20,7 +19,6 @@ export interface DotnetDeclarationContext {
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
   readonly modulesBySpecifier: Map<string, DotnetModuleModel[]>;
-  readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
 }
 
@@ -36,7 +34,6 @@ export function createDotnetDeclarationContext(
       .map((declaration) => [declaration.sourceName, declaration])),
     sourceMembersByTargetId: new Map(),
     modulesBySpecifier: new Map([[module.moduleSpecifier, [module]]]),
-    ...(options.dependencyModuleSpecifier !== undefined ? { dependencyModuleSpecifier: options.dependencyModuleSpecifier } : {}),
     ...(options.resolveModule !== undefined ? { resolveModule: options.resolveModule } : {}),
   };
 }

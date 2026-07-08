@@ -8,7 +8,6 @@ import {
   dotnetProviderResolutionContext,
 } from "./provider-slices.js";
 import {
-  parseDotnetProviderDependencyModuleSpecifier,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
 
@@ -20,19 +19,7 @@ export interface DotnetProviderModuleRequest {
 
 export function dotnetProviderModuleRequest(
   specifier: string,
-  providerId: string,
-  context?: ProviderModuleContext,
 ): DotnetProviderModuleRequest | undefined {
-  const dependency = parseDotnetProviderDependencyModuleSpecifier(specifier);
-  if (dependency !== undefined) {
-    return dependency.providerId === providerId && isProviderGeneratedContainingFile(context)
-      ? {
-          moduleSpecifier: dependency.moduleSpecifier,
-          requestedExports: dependency.requestedExports,
-          internal: true,
-        }
-      : undefined;
-  }
   return parseDotnetModuleSpecifier(specifier) === undefined
     ? undefined
     : { moduleSpecifier: specifier };
@@ -51,14 +38,6 @@ export function dotnetProviderModuleContext(
 export function providerVirtualDeclarationFileName(
   providerId: string,
   specifier: string,
-  context: DotnetProviderResolutionContext,
 ): string {
-  const sliceKey = context.broadImport === true
-    ? "broad"
-    : `slice-${encodeURIComponent(context.requestedExports?.join(",") ?? "")}`;
-  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}/${sliceKey}.d.ts`;
-}
-
-function isProviderGeneratedContainingFile(context: ProviderModuleContext | undefined): boolean {
-  return context?.containingFile?.startsWith("tsts-provider:") === true;
+  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}.d.ts`;
 }

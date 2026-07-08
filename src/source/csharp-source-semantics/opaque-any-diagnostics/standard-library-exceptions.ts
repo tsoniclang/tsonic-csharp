@@ -1,7 +1,6 @@
 import type {
   ExtensionLifecycleContext,
   Node,
-  SourceFile,
   Symbol,
 } from "@tsonic/tsts";
 import {
@@ -9,7 +8,7 @@ import {
   getNodeField,
 } from "../ast-utils.js";
 import {
-  isTstsBundledStandardLibraryFile,
+  isTsonicJsSurfaceSourceProfileFile,
 } from "../source-library.js";
 import {
   hardRejectedCompatOperation,
@@ -122,9 +121,17 @@ function getSelectedStandardLibraryDeclaration(
   if (kind !== "KindIdentifier" && kind !== "KindPropertyAccessExpression") {
     return undefined;
   }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const symbol = safeGetResolvedSymbol(node, sourceFile, compiler.checker) ??
-    compiler.checker.getSymbolAtLocation(node, { sourceFile });
+  const lookupNode = kind === "KindPropertyAccessExpression"
+    ? asNodeSubject(compiler.ast.name(node))
+    : node;
+  if (lookupNode === undefined) {
+    return undefined;
+  }
+  const sourceFile = compiler.ast.getSourceFile(lookupNode);
+  const symbol = kind === "KindIdentifier"
+    ? compiler.checker.getResolvedSymbolOrNil(lookupNode, { sourceFile }) ??
+      compiler.checker.getSymbolAtLocation(lookupNode, { sourceFile })
+    : compiler.checker.getSymbolAtLocation(lookupNode, { sourceFile });
   const declarations = compiler.checker.getSymbolDeclarations(symbol as Symbol);
   for (const declaration of declarations) {
     if (declaration === undefined) {
@@ -138,24 +145,12 @@ function getSelectedStandardLibraryDeclaration(
   return undefined;
 }
 
-function safeGetResolvedSymbol(
-  node: Node,
-  sourceFile: SourceFile | undefined,
-  checker: NonNullable<ExtensionLifecycleContext["compiler"]>["checker"],
-): ReturnType<NonNullable<ExtensionLifecycleContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
-  try {
-    return checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
-}
-
 function getStandardLibraryDeclarationSelection(
   declaration: Node,
   ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
 ): StandardLibraryDeclarationSelection | undefined {
   const sourceFile = ast.getSourceFile(declaration);
-  if (!isTstsBundledStandardLibraryFile(ast.getFileName(sourceFile))) {
+  if (!isTsonicJsSurfaceSourceProfileFile(ast.getFileName(sourceFile))) {
     return undefined;
   }
   const name = ast.text(ast.name(declaration));

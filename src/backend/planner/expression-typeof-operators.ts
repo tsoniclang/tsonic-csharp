@@ -23,6 +23,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  getRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
+import {
   tryPlanRuntimeUnionTypeTest,
 } from "./runtime-union-projections.js";
 import {
@@ -35,6 +38,9 @@ import type {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import {
+  targetTypeRefEquals,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
 import {
   getBinaryLeft,
   getBinaryRight,
@@ -129,6 +135,10 @@ export function tryPlanTypeofComparisonExpression(
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${comparison.runtimeKind}'.`));
     return undefined;
+  }
+  const operandCarrier = getRuntimeCarrierForExpression(input, operand, sourceFile);
+  if (operandCarrier !== undefined && targetTypeRefEquals(operandCarrier, comparison.targetType)) {
+    return { kind: "LiteralExpression", value: comparison.negated !== true };
   }
   const planned = planExpression(operand, sourceFile, input, diagnostics);
   if (planned === undefined) {

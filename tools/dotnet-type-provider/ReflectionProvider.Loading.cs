@@ -34,7 +34,7 @@ sealed partial class ReflectionProvider
                 yield return type;
             }
         }
-        foreach (var path in currentRequestPaths)
+        foreach (var path in currentRequestPaths.OrderBy(path => path, StringComparer.Ordinal))
         {
             if (loadedPaths.Contains(path))
             {
@@ -84,9 +84,14 @@ sealed partial class ReflectionProvider
         {
             return assembly.GetExportedTypes();
         }
-        catch (ReflectionTypeLoadException exception)
+        catch (ReflectionTypeLoadException exception) when (!failOnError)
         {
             return exception.Types.Where(type => type is not null).Cast<Type>().ToArray();
+        }
+        catch (ReflectionTypeLoadException exception)
+        {
+            var loaderDetails = LoaderExceptionDetails(exception);
+            throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path ?? assembly.FullName}': {exception.Message}{loaderDetails}", exception);
         }
         catch (Exception) when (!failOnError)
         {
@@ -96,6 +101,19 @@ sealed partial class ReflectionProvider
         {
             throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path ?? assembly.FullName}': {exception.Message}", exception);
         }
+    }
+
+    static string LoaderExceptionDetails(ReflectionTypeLoadException exception)
+    {
+        var details = exception.LoaderExceptions
+            .Where(loaderException => loaderException is not null)
+            .Select(loaderException => loaderException!.Message)
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return details.Length == 0
+            ? ""
+            : $" Loader exceptions: {string.Join(" | ", details)}";
     }
 
     IEnumerable<string> RuntimeAssemblyPaths()

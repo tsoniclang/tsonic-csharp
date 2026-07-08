@@ -1,6 +1,7 @@
 import {
   functionPointerFactKey,
   pointerFactKey,
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
@@ -22,6 +23,9 @@ import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
+  csharpSourcePrimitiveKindForProviderVirtualDeclaration,
+} from "./source-modules.js";
+import {
   resolveRuntimeCarrier,
 } from "./target-type-resolution-facts.js";
 import {
@@ -30,6 +34,7 @@ import {
 } from "./ast-utils.js";
 import {
   getSymbolDeclarations,
+  getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 
 export type SubjectTargetTypeResolver = (
@@ -47,6 +52,12 @@ export function resolveTargetTypeRefFromSubjectFacts(
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
   if (primitive !== undefined) {
     return csharpSourcePrimitiveTargetType(primitive.kind);
+  }
+  const sourcePrimitiveFromProviderIdentity = csharpSourcePrimitiveKindForProviderVirtualDeclaration(
+    context.factResolver.resolve(subject, providerVirtualDeclarationFactKey),
+  );
+  if (sourcePrimitiveFromProviderIdentity !== undefined) {
+    return csharpSourcePrimitiveTargetType(sourcePrimitiveFromProviderIdentity);
   }
   const selectedCallReturn = selectedTargetSignatureReturnType(subject, context);
   if (selectedCallReturn !== undefined) {
@@ -170,13 +181,7 @@ function symbolForInitializerDeclarationLookup(
   if (!isInitializerDeclarationSymbolLookupNode(ast, node)) {
     return undefined;
   }
-  const sourceFile = ast.getSourceFile(node);
-  try {
-    return checker.getSymbolAtLocation(node, { sourceFile }) ??
-      checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
 }
 
 function isInitializerDeclarationSymbolLookupNode(

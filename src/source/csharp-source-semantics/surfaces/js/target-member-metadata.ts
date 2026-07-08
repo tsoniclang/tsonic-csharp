@@ -128,6 +128,9 @@ export function jsSurfaceTargetMembersForSelectedSourceIdentity(
 }
 
 export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): CsharpTargetMember {
+  const sourceIdentityKeys = record.identity === undefined || sourceIdentityHasPrefixes(record.identity)
+    ? []
+    : exactSourceIdentityKeys(record.identity);
   return {
     id: record.id,
     sourceName: record.sourceName,
@@ -139,6 +142,7 @@ export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberM
     ...(record.static !== undefined ? { static: record.static } : {}),
     ...(record.receiverPassing !== undefined ? { receiverPassing: record.receiverPassing } : {}),
     ...(record.typeParameters !== undefined ? { typeParameters: record.typeParameters } : {}),
+    ...(sourceIdentityKeys.length === 0 ? {} : { sourceIdentityKeys }),
   };
 }
 
@@ -188,6 +192,13 @@ function exactSourceIdentityKeys(
     }
   }
   return keys;
+}
+
+function sourceIdentityHasPrefixes(
+  selectors: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[],
+): boolean {
+  const selectorList = sourceIdentitySelectorsAreArray(selectors) ? selectors : [selectors];
+  return selectorList.some((selector) => selector.prefixes !== undefined);
 }
 
 function jsSurfaceSourceMemberIdentity(

@@ -296,6 +296,7 @@ export function createCsharpJsSurfaceHost(
         readonly receiver?: ExtensionFactSubject;
         readonly receiverTargetType?: TargetTypeRef;
         readonly sourceSelectedSignature?: unknown;
+        readonly sourceSelectedIdentity?: string;
       },
       context: ExtensionObservationContext,
       options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},
@@ -324,7 +325,8 @@ function jsSurfaceOwnsCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
-  return resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
+  return resolveSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, context) !== undefined ||
+    resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedPropertyAccess(

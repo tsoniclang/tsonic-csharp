@@ -5,6 +5,10 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
+} from "@tsonic/tsts";
+import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
@@ -40,13 +44,33 @@ export function getReferencedDeclarationTargetTypeRef(
       const target = getDeclarationAnnotationTargetTypeRef(declaration, context, resolveTargetTypeRef, {
         ...options,
         sourceFile: compiler.ast.getSourceFile(declaration) ?? sourceFile,
-      });
+      }) ?? getDeclarationInitializerTargetTypeRef(declaration, context);
       if (target !== undefined) {
         return target;
       }
     }
   }
   return undefined;
+}
+
+function getDeclarationInitializerTargetTypeRef(
+  declaration: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const declarationNode = asNodeSubject(declaration);
+  if (declarationNode === undefined) {
+    return undefined;
+  }
+  const initializer = asNodeSubject(getNodeField(declarationNode, "Initializer")) ??
+    asNodeSubject(getNodeField(declarationNode, "initializer"));
+  if (initializer === undefined) {
+    return undefined;
+  }
+  const localSelected = context.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType;
+  const localCarrier = context.facts.get(initializer, runtimeCarrierFactKey)?.carrier;
+  const resolvedSelected = context.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
+  const resolvedCarrier = context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
+  return localSelected ?? localCarrier ?? resolvedSelected ?? resolvedCarrier;
 }
 
 function getDeclarationAnnotationTargetTypeRef(

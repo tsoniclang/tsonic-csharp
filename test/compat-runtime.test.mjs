@@ -1,23 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import {
-  ExtensionLifecycleEvent,
-  createCompilerSessionFromFiles,
-  formatDiagnostics,
-  runtimeCarrierFactKey,
-  selectedTargetSignatureFactKey,
-} from "@tsonic/tsts";
-import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import {
-  createCsharpSourceSemanticsExtension,
-  createCsharpTargetSemanticsExtension,
-} from "../dist/index.js";
-import {
-  csharpTargetOperationFactKey,
-} from "../dist/source/csharp-facts.js";
-import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../dist/options/csharp-target-options.js";
+import { test, assert, ExtensionLifecycleEvent, createCompilerSessionFromFiles, formatDiagnostics, runtimeCarrierFactKey, selectedTargetSignatureFactKey, createTsonicCoreSourceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpTargetOperationFactKey, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, readCsharpTypescriptCompatibilityMode, createNativeSession, sourceProfileFiles, declarationFiles, createTestDynamicOperationFactExtension, tsValueCarrier, compatCarrier, createTestSelectedSignatureOnlyExtension, csharpProviderContext, expectedOpaqueAnyOperationMessages, assertAnyDiagnosticMessages, sortedMessages, anyOperationDiagnostics, compatRuntimeDiagnostics, collectIdentifiersByText, collectNodesByKind } from "./compat-runtime.helpers.mjs";
 
 test("C# TypeScript compatibility mode defaults to strict-native and accepts explicit compat", () => {
   assert.equal(readCsharpTypescriptCompatibilityMode({ id: "csharp" }), "strict-native");
@@ -37,7 +18,6 @@ test("C# TypeScript compatibility mode defaults to strict-native and accepts exp
     /typescriptCompatibility.*strict-native.*compat/u,
   );
 });
-
 test("strict-native hard-rejects opaque any operations without carrier operation facts", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -55,7 +35,6 @@ test("strict-native hard-rejects opaque any operations without carrier operation
   const extensionHost = session.finalizeExtensions();
   assertAnyDiagnosticMessages(extensionHost, expectedOpaqueAnyOperationMessages("strict-native"));
 });
-
 test("compat mode records closed carrier operation facts for opaque any operations", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -92,7 +71,6 @@ test("compat mode records closed carrier operation facts for opaque any operatio
     "Tsonic.CSharp.Js.TsValue",
   ]);
 });
-
 test("compat mode records closed carrier facts for exported any parameter operations", () => {
   const session = createNativeSession(`
     export function writeName(value: any): any {
@@ -133,7 +111,6 @@ test("compat mode records closed carrier facts for exported any parameter operat
     "tsonic.csharp.compat.any.call",
   ]);
 });
-
 test("compat mode deterministically rejects unsupported explicit any operator forms", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -162,7 +139,6 @@ test("compat mode deterministically rejects unsupported explicit any operator fo
     );
   }
 });
-
 test("strict-native hard-rejects object-literal prototype mutation syntax", () => {
   const session = createNativeSession(`
     const obj = {} as { __proto__: object };
@@ -182,7 +158,6 @@ test("strict-native hard-rejects object-literal prototype mutation syntax", () =
     JSON.stringify(diagnostic.evidence).includes("closed Tsonic-owned compat-runtime carrier")
   ));
 });
-
 test("compat runtime hard rejects are not inferred from shadowable source names", () => {
   const session = createNativeSession(`
     export {};
@@ -206,7 +181,7 @@ test("compat runtime hard rejects are not inferred from shadowable source names"
     Proxy["revocable"]({}, {});
     obj.__proto__ = {};
     Object["setPrototypeOf"](obj, {});
-  `, { typescriptCompatibility: "compat" });
+  `, { typescriptCompatibility: "compat" }, [], { sourceProfile: "js" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
@@ -216,7 +191,6 @@ test("compat runtime hard rejects are not inferred from shadowable source names"
   assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.message), []);
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
-
 test("compat runtime hard rejects resolved standard-library eval, Function, Proxy, and prototype APIs", () => {
   const session = createNativeSession(`
     eval("1 + 1");
@@ -227,7 +201,7 @@ test("compat runtime hard rejects resolved standard-library eval, Function, Prox
     Object.setPrototypeOf({}, null);
     Object.getPrototypeOf({});
     Object.create(null);
-  `, { typescriptCompatibility: "compat" });
+  `, { typescriptCompatibility: "compat" }, [], { sourceProfile: "js" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   session.ensureChecked(sourceFile);
 
@@ -247,7 +221,6 @@ test("compat runtime hard rejects resolved standard-library eval, Function, Prox
     JSON.stringify(diagnostic.evidence).includes("source-name guessing")
   ));
 });
-
 test("with statements remain hard-rejected as dynamic scope even when TSTS already rejects them", () => {
   const session = createNativeSession(`
     with ({ value: 1 }) {
@@ -264,7 +237,6 @@ test("with statements remain hard-rejected as dynamic scope even when TSTS alrea
   assert.equal(diagnostics[0].message, "C# emission cannot support JavaScript 'with' dynamic scope.");
   assert.match(JSON.stringify(diagnostics[0].evidence), /dynamic scope/u);
 });
-
 test("compat mode rejects opaque any operations when the operation fact is not a closed compat carrier", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -283,7 +255,6 @@ test("compat mode rejects opaque any operations when the operation fact is not a
   assert.match(anyDiagnostics[0].message, /compatibility mode without finalized target operation facts/u);
   assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
 });
-
 test("compat mode preserves selected closed operation facts from other providers", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -300,7 +271,6 @@ test("compat mode preserves selected closed operation facts from other providers
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
   assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
 });
-
 test("compat mode records opaque any property write operation facts", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -317,7 +287,6 @@ test("compat mode records opaque any property write operation facts", () => {
   assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.property-read:name");
   assert.equal(extensionHost.facts.get(assignment, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.property-write:name");
 });
-
 test("compat mode accepts each closed Tsonic-owned compat carrier for opaque any operations", () => {
   const carrierIds = [
     "Tsonic.CSharp.Js.TsValue",
@@ -352,7 +321,6 @@ test("compat mode accepts each closed Tsonic-owned compat carrier for opaque any
     extensionHost.facts.get(node, csharpTargetOperationFactKey)?.declaringType?.id
   ), carrierIds);
 });
-
 test("compat mode rejects closed compat carrier facts on non-any unknown and object operations", () => {
   const session = createNativeSession(`
     declare let unknownValue: unknown;
@@ -378,7 +346,6 @@ test("compat mode rejects closed compat carrier facts on non-any unknown and obj
   ));
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
-
 test("strict-native rejects every opaque any operation even when compatibility facts exist", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -402,7 +369,6 @@ test("strict-native rejects every opaque any operation even when compatibility f
   const extensionHost = session.finalizeExtensions();
   assertAnyDiagnosticMessages(extensionHost, expectedOpaqueAnyOperationMessages("strict-native"));
 });
-
 test("compat mode records opaque any construction operation facts", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -417,7 +383,6 @@ test("compat mode records opaque any construction operation facts", () => {
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
   assert.equal(extensionHost.facts.get(newExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.construct");
 });
-
 test("compat mode records opaque any call, element, and supported operator facts", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -446,7 +411,6 @@ test("compat mode records opaque any call, element, and supported operator facts
   assert.equal(extensionHost.facts.get(prefixUnaryExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:!");
   assert.equal(extensionHost.facts.get(typeOfExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:typeof");
 });
-
 test("compat mode hard rejects unsupported opaque any operators without fallback", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -470,7 +434,6 @@ test("compat mode hard rejects unsupported opaque any operators without fallback
   ]));
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
-
 test("compat mode hard rejects opaque any delete without fallback", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -487,7 +450,6 @@ test("compat mode hard rejects opaque any delete without fallback", () => {
   assert.match(JSON.stringify(diagnostics[0].evidence), /sparse-slot state/u);
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
-
 test("strict-native rejects opaque any when only an unclosed selected signature fact exists", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -506,7 +468,6 @@ test("strict-native rejects opaque any when only an unclosed selected signature 
   assert.match(anyDiagnostics[0].message, /strict-native mode/u);
   assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey), undefined);
 });
-
 test("unknown and object remain non-dynamic and are rejected by TSTS source checking", () => {
   const session = createNativeSession(`
     declare let unknownValue: unknown;
@@ -532,197 +493,3 @@ test("unknown and object remain non-dynamic and are rejected by TSTS source chec
   assert.deepEqual(objectCarriers, []);
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
-
-function createNativeSession(sourceText, targetOptions = {}, extraExtensions = []) {
-  const context = csharpProviderContext(targetOptions);
-  return createCompilerSessionFromFiles({
-    currentDirectory: "/src",
-    files: new Map([
-      ["/src/index.ts", sourceText],
-    ]),
-    compilerOptions: {
-      module: "esnext",
-      moduleResolution: "bundler",
-      strictNullChecks: true,
-      target: "es2022",
-    },
-    extensionHostOptions: {
-      activeTarget: "csharp",
-      extensions: [
-        createTsonicCoreSourceExtension(),
-        createCsharpSourceSemanticsExtension(context),
-        ...extraExtensions,
-        createCsharpTargetSemanticsExtension(context),
-      ],
-    },
-  });
-}
-
-function createTestDynamicOperationFactExtension(kindName, options = {}) {
-  return {
-    identity: {
-      id: `test.compat.dynamic-operation-facts.${kindName}`,
-      version: "1.0.0",
-      capabilityNamespace: "test.compat",
-    },
-    initialize(context) {
-      context.registerLifecycleHook(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        const compiler = lifecycleContext.compiler;
-        if (compiler === undefined) {
-          return;
-        }
-        for (const sourceFile of compiler.getSourceFiles()) {
-          if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-            continue;
-          }
-          const nodes = collectNodesByKind(sourceFile, compiler.ast, kindName).filter((node) =>
-            options.skipAssignment !== true ||
-            node.OperatorToken === undefined ||
-            compiler.ast.kindName(node.OperatorToken) !== "KindEqualsToken"
-          );
-          for (const [index, node] of nodes.entries()) {
-            const carrier = options.closedCompatCarrier === false
-              ? undefined
-              : compatCarrier(options.carrierIds?.[index] ?? options.carrierId);
-            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, {
-              kind: "member",
-              operationId: "test.compat.any.dynamic-get",
-              operationKind: "method",
-              memberName: "ReadDynamicSlot",
-              declaringType: carrier,
-              resultType: options.closedCompatCarrier === false ? { kind: "opaque", id: "any" } : carrier,
-            }, [{ message: "Test-only closed compat carrier operation fact." }]);
-          }
-        }
-      });
-    },
-  };
-}
-
-function tsValueCarrier() {
-  return compatCarrier();
-}
-
-function compatCarrier(id = "Tsonic.CSharp.Js.TsValue") {
-  const segments = id.split(".");
-  return {
-    kind: "target-named",
-    id,
-    csharpRender: { kind: "named", namespace: segments.slice(0, -1), name: segments.at(-1) },
-  };
-}
-
-function createTestSelectedSignatureOnlyExtension(kindName) {
-  return {
-    identity: {
-      id: "test.compat.selected-signature-only",
-      version: "1.0.0",
-      capabilityNamespace: "test.compat",
-    },
-    initialize(context) {
-      context.registerLifecycleHook(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        const compiler = lifecycleContext.compiler;
-        if (compiler === undefined) {
-          return;
-        }
-        for (const sourceFile of compiler.getSourceFiles()) {
-          if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-            continue;
-          }
-          for (const node of collectNodesByKind(sourceFile, compiler.ast, kindName)) {
-            lifecycleContext.host.facts.set(node, selectedTargetSignatureFactKey, {
-              member: {
-                id: "test.compat.any.unclosed-signature",
-                sourceName: "name",
-                targetName: "ReadDynamicSlot",
-                kind: "method",
-                parameters: [],
-                returnType: { kind: "type-parameter", name: "T" },
-              },
-            }, [{ message: "Test-only unclosed selected signature fact without a finalized C# operation." }]);
-          }
-        }
-      });
-    },
-  };
-}
-
-function csharpProviderContext(targetOptions) {
-  const target = {
-    id: "csharp",
-    ...(Object.keys(targetOptions).length === 0 ? {} : { options: targetOptions }),
-  };
-  return {
-    project: {
-      entryPoint: "index.ts",
-      targets: [target],
-    },
-    target,
-    selectedPackages: [],
-    selectedSurfaces: [],
-  };
-}
-
-function expectedOpaqueAnyOperationMessages(compatibilityMode) {
-  const suffix = compatibilityMode === "strict-native"
-    ? "uses TypeScript any in strict-native mode."
-    : "uses TypeScript any in compatibility mode without finalized target operation facts.";
-  return [
-    "C# property access emission",
-    "C# property access emission",
-    "C# element access emission",
-    "C# call emission",
-    "C# construct emission",
-    "C# '+' operator emission",
-    "C# 'void' operator emission",
-  ].map((description) => `${description} ${suffix}`);
-}
-
-function assertAnyDiagnosticMessages(extensionHost, expectedMessages) {
-  assert.deepEqual(
-    sortedMessages(anyOperationDiagnostics(extensionHost).map((diagnostic) => diagnostic.message)),
-    sortedMessages(expectedMessages),
-  );
-}
-
-function sortedMessages(messages) {
-  return [...messages].sort((left, right) => left.localeCompare(right));
-}
-
-function anyOperationDiagnostics(extensionHost) {
-  return extensionHost.diagnostics.all().filter((diagnostic) =>
-    diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
-  );
-}
-
-function compatRuntimeDiagnostics(extensionHost) {
-  return extensionHost.diagnostics.all().filter((diagnostic) =>
-    diagnostic.extensionCode === "CSHARP_COMPAT_RUNTIME_OPERATION_UNSUPPORTED"
-  );
-}
-
-function collectIdentifiersByText(sourceFile, ast, text) {
-  const nodes = [];
-  visit(sourceFile);
-  return nodes;
-
-  function visit(node) {
-    if (ast.kindName(node) === "KindIdentifier" && ast.text(node) === text) {
-      nodes.push(node);
-    }
-    ast.forEachChild(node, visit);
-  }
-}
-
-function collectNodesByKind(sourceFile, ast, kindName) {
-  const nodes = [];
-  visit(sourceFile);
-  return nodes;
-
-  function visit(node) {
-    if (ast.kindName(node) === kindName) {
-      nodes.push(node);
-    }
-    ast.forEachChild(node, visit);
-  }
-}

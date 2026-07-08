@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  targetConversionFactKey,
+} from "@tsonic/tsts";
 
 import {
   getCsharpProviderConversionOperatorById,
@@ -206,6 +209,80 @@ test("checked provider conversions do not inspect ambiguous type-pair candidates
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
+test("checked conversions reuse existing conversion facts instead of conflicting with them", () => {
+  const source = { id: "source-argument" };
+  const target = { id: "target-parameter" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const existing = {
+    convertedType: intType,
+    operation: {
+      operationId: "System.Convert.ToInt32",
+      operationKind: "method",
+      targetOperation: "ToInt32",
+    },
+  };
+  const { context, writes, entries } = fakeContext();
+  entries.set(factEntryKey(source, targetConversionFactKey), existing);
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, intType],
+    [target, intType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value, existing);
+  assert.equal(writes.length, 0);
+});
+
+test("checked conversions reject real double generic targets without selected conversion identity", () => {
+  const source = { id: "source-span" };
+  const target = { id: "target-span" };
+  const sourceType = spanType({ kind: "source-primitive", name: "int32" });
+  const targetType = spanType({ kind: "source-primitive", name: "float64" });
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([spanBinding()], new Map([
+    [source, sourceType],
+    [target, targetType],
+  ])));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED");
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
+test("checked conversions accept source primitive widening only through explicit conversion facts", () => {
+  const source = { id: "source-int" };
+  const target = { id: "target-double" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, intType],
+    [target, doubleType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.convertedType, doubleType);
+  assert.equal(result.value.operation.operationId, "System.Convert.ToDouble");
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), true);
+});
+
 function hostForBindings(bindings) {
   const byId = new Map(bindings.map((binding) => [binding.id, binding]));
   return {
@@ -225,6 +302,7 @@ function fakeContext() {
   const entries = new Map();
   return {
     writes,
+    entries,
     context: {
       extensionId: "tsonic.csharp.operations",
       facts: {
@@ -235,7 +313,28 @@ function fakeContext() {
           return "inserted";
         },
       },
+      factResolver: {
+        resolve: (subject, key) => entries.get(factEntryKey(subject, key)),
+      },
     },
+  };
+}
+
+function spanType(element) {
+  return {
+    kind: "target-named",
+    id: "System.Span`1",
+    typeArguments: [element],
+  };
+}
+
+function spanBinding() {
+  return {
+    id: "System.Span`1",
+    target: "csharp",
+    kind: "struct",
+    sourceName: "Span",
+    targetName: "System.Span",
   };
 }
 

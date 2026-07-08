@@ -14,6 +14,13 @@ export interface DotnetRenderShape {
   readonly kind: "named";
   readonly namespace?: readonly string[];
   readonly name: string;
+  readonly genericArity?: number;
+  readonly nested?: readonly DotnetNestedRenderShape[];
+}
+
+export interface DotnetNestedRenderShape {
+  readonly name: string;
+  readonly genericArity?: number;
 }
 
 export interface DotnetAssemblyReference {
@@ -154,6 +161,7 @@ export interface DotnetUnsupportedMemberDeclaration {
 
 export interface DotnetSignatureDeclaration {
   readonly id: string;
+  readonly providerSourceSignatureId?: string;
   readonly targetName?: string;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];

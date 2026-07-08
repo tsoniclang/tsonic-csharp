@@ -3,12 +3,13 @@ import type {
   ExtensionObservationContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
+} from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
 } from "../../../../target-types.js";
-import {
-  asNodeSubject,
-} from "../../../../ast-utils.js";
 import {
   booleanConstructorTargetMembersForSelectedIdentity,
 } from "../../booleans.js";
@@ -55,6 +56,9 @@ import {
   isStringKeyedRecordDictionaryTargetType,
   isNewExpression,
 } from "../helpers.js";
+import {
+  asNodeSubject,
+} from "../../../../ast-utils.js";
 import {
   getObjectPrimitiveReceiverCallMembers,
   getObjectRecordDictionaryAssignMembers,
@@ -127,6 +131,13 @@ export function targetMembersFromOperationTargetProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly CsharpTargetMember[] {
+  return withSelectedSourceIdentity(targetMembersFromOperationTargetProviderCore(provider, request), request.selectedIdentity.key);
+}
+
+function targetMembersFromOperationTargetProviderCore(
+  provider: JsSurfaceOperationTargetProvider,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly CsharpTargetMember[] {
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
@@ -137,6 +148,16 @@ export function targetMembersFromOperationTargetProvider(
     case "semantic-exception":
       return targetMembersFromSemanticException(provider.exception, request);
   }
+}
+
+function withSelectedSourceIdentity(
+  members: readonly CsharpTargetMember[],
+  sourceIdentityKey: SourceLibraryMemberKey,
+): readonly CsharpTargetMember[] {
+  return members.map((member) => ({
+    ...member,
+    sourceIdentityKeys: [...new Set([...(member.sourceIdentityKeys ?? []), sourceIdentityKey])],
+  }));
 }
 
 export function operationTargetProviderHasCallableMember(
@@ -177,8 +198,8 @@ function targetMembersFromSelectedMetadata(
       return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
         contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
         contextualResultType: selection.useResultCarrier
-          ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host) ??
-            getExplicitCollectionConstructorResultType(request)
+          ? getExplicitCollectionConstructorResultType(request) ??
+            getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
           : undefined,
       });
   }
@@ -187,13 +208,37 @@ function targetMembersFromSelectedMetadata(
 function getExplicitCollectionConstructorResultType(
   request: JsSurfaceCallTargetProviderRequest,
 ): TargetTypeRef | undefined {
-  const typeArguments = getExplicitCallTypeArguments(request);
+  const typeArguments = getExplicitCallTypeArguments(request).length > 0
+    ? getExplicitCallTypeArguments(request)
+    : getExplicitConstructorTypeArguments(request);
   if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
   return collectionTargetTypeForSelectedIdentity(
     request.selectedIdentity,
     typeArguments as readonly TargetTypeRef[],
+  );
+}
+
+function getExplicitConstructorTypeArguments(
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly (TargetTypeRef | undefined)[] {
+  if (!isNewExpression(request.request.call, request.context)) {
+    return [];
+  }
+  const ast = request.context.compiler?.ast;
+  const callNode = asNodeSubject(request.request.call);
+  if (ast === undefined || callNode === undefined) {
+    return [];
+  }
+  const sourceFile = ast.getSourceFile(callNode);
+  const typeArguments = ast.typeArguments(callNode);
+  return typeArguments.map((argument) =>
+    request.host.getTargetTypeRefForSubject(argument, request.context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      sourceFile,
+    })
   );
 }
 
@@ -276,45 +321,84 @@ function sequenceElementTypeFromClosedFacts(
   providerRequest: JsSurfaceCallTargetProviderRequest,
   options: {
     readonly requireResultElementType: boolean;
+    readonly requireClosedInputElementType?: boolean;
   },
 ): TargetTypeRef | undefined {
   const { request, context, host } = providerRequest;
-  const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
   const explicitElementType = getExplicitCallTypeArguments(providerRequest)[0];
-  if (options.requireResultElementType && resultElementType === undefined) {
-    return explicitElementType;
+  const closedInputElementType = arrayElementTypeFromClosedInputFacts(request, context, host);
+  const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
+  if (options.requireClosedInputElementType === true && explicitElementType === undefined && closedInputElementType === undefined) {
+    return undefined;
   }
-  return resultElementType ?? explicitElementType ?? arrayElementTypeFromClosedFacts(request, context, host);
+  if (options.requireResultElementType && resultElementType === undefined) {
+    return explicitElementType ?? closedInputElementType;
+  }
+  return explicitElementType ?? closedInputElementType ?? resultElementType;
 }
 
-function arrayElementTypeFromClosedFacts(
+function arrayElementTypeFromClosedInputFacts(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  return getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host)) ??
-    getSourceLibraryCallReceiverElementType(request, context, host) ??
-    getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined);
+  return getSourceLibraryCallReceiverElementType(request, context, host) ??
+    request.arguments.map((argument) => {
+      const nested = getClosedNestedCallArgumentTargetType(argument, context);
+      if (nested !== undefined || isNestedCallArgument(argument, context)) {
+        return nested;
+      }
+      return getSourceLibraryCallArgumentTargetType(argument, request, context, host);
+    }).map(getCsharpArrayLikeElementType).find((element) => element !== undefined);
+}
+
+function getSourceLibraryCallArgumentTargetType(
+  argument: CheckedCallMappingRequest["arguments"][number],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const index = request.arguments.indexOf(argument);
+  return index < 0
+    ? undefined
+    : getSourceLibraryCallArgumentTargetTypes(request, context, host)[index];
+}
+
+function getClosedNestedCallArgumentTargetType(
+  argument: CheckedCallMappingRequest["arguments"][number],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(argument);
+  const ast = context.compiler?.ast;
+  if (node === undefined || ast === undefined || (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node))) {
+    return undefined;
+  }
+  return context.facts.get(argument, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.facts.get(argument, runtimeCarrierFactKey)?.carrier;
+}
+
+function isNestedCallArgument(
+  argument: CheckedCallMappingRequest["arguments"][number],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const node = asNodeSubject(argument);
+  const ast = context.compiler?.ast;
+  return node !== undefined &&
+    ast !== undefined &&
+    (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node));
 }
 
 function getExplicitCallTypeArguments(
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly (TargetTypeRef | undefined)[] {
-  const ast = request.context.compiler?.ast;
-  if (ast === undefined || typeof ast.typeArguments !== "function") {
+  const sourceSelectedArguments = request.request.sourceSelectedMethodTypeArguments;
+  if (sourceSelectedArguments === undefined || sourceSelectedArguments.some((argument) => argument.explicitTypeNode === undefined)) {
     return [];
   }
-  const callNode = asNodeSubject(request.request.call);
-  if (callNode === undefined) {
-    return [];
-  }
-  return ast.typeArguments(callNode)
-    .map((argument) => argument === undefined
-      ? undefined
-      : request.host.getTargetTypeRefForSubject(argument, request.context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: true,
-        sourceFile: ast.getSourceFile(argument),
-      })
-    );
+  return sourceSelectedArguments.map((argument) =>
+    request.host.getTargetTypeRefForSubject(argument.explicitTypeNode, request.context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+    })
+  );
 }

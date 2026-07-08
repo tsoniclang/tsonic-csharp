@@ -5,6 +5,7 @@ import {
   providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedConversionMappingRequest,
@@ -162,6 +163,14 @@ export function mapCsharpCheckedConversion(
   const target = host.getTargetTypeRefForSubject(request.target, context);
   if (target === undefined) {
     return deferObservation;
+  }
+  const existingConversion = context.facts.get(request.source, targetConversionFactKey) ??
+    context.factResolver.resolve(request.source, targetConversionFactKey);
+  if (existingConversion?.convertedType !== undefined && targetTypeRefEquals(existingConversion.convertedType, target)) {
+    return acceptObservation<CheckedConversionMappingResult>(
+      existingConversion,
+      [{ message: "C# reused existing checked target conversion fact for repeated TSTS conversion observation." }],
+    );
   }
   const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {

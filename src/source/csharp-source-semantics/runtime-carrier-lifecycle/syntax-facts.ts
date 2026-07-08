@@ -41,6 +41,9 @@ import {
 import {
   getCallableExpressionRuntimeCarrierTargetTypeRef,
 } from "./callable-expressions.js";
+import {
+  getConditionalExpressionRuntimeCarrierTargetTypeRef,
+} from "./conditional-expressions.js";
 import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
@@ -89,9 +92,10 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
     return;
   }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
+    getConditionalExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node) ??
+    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getClosedSyntaxRuntimeCarrier(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
-    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getUseSiteRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
   if (carrier === undefined) {
     return;

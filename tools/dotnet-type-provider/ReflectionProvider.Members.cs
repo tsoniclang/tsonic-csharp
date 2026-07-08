@@ -40,7 +40,7 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "method",
-                sourceName = LowerCamel(first.Name),
+                sourceName = SourceMemberName(first.Name),
                 targetName = first.Name,
                 targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
@@ -61,7 +61,7 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "operator",
-                sourceName = OperatorSourceName(first.Name),
+                sourceName = SourceMemberName(first.Name),
                 targetName = first.Name,
                 targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
@@ -190,7 +190,7 @@ sealed partial class ReflectionProvider
                 yield return new
                 {
                     kind = "indexer",
-                    sourceName = "item",
+                    sourceName = SourceMemberName(property.Name),
                     targetName = property.Name,
                     targetId,
                     metadataName,
@@ -226,7 +226,7 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "property",
-                sourceName = LowerCamel(property.Name),
+                sourceName = SourceMemberName(property.Name),
                 targetName = property.Name,
                 targetId = $"{TargetId(type)}.{property.Name}",
                 metadataName = $"{MetadataName(type)}.{property.Name}",
@@ -261,7 +261,7 @@ sealed partial class ReflectionProvider
                 : $"{MetadataName(type)}.{property.Name}";
             yield return UnsupportedMember(
                 memberKind,
-                indexParameters.Length > 0 ? "item" : LowerCamel(property.Name),
+                SourceMemberName(property.Name),
                 property.Name,
                 targetId,
                 metadataName,
@@ -338,7 +338,7 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "field",
-                sourceName = LowerCamel(field.Name),
+                sourceName = SourceMemberName(field.Name),
                 targetName = field.Name,
                 targetId = $"{TargetId(type)}.{field.Name}",
                 metadataName = $"{MetadataName(type)}.{field.Name}",
@@ -363,7 +363,7 @@ sealed partial class ReflectionProvider
             }
             yield return UnsupportedMember(
                 "field",
-                LowerCamel(field.Name),
+                SourceMemberName(field.Name),
                 field.Name,
                 $"{TargetId(type)}.{field.Name}",
                 $"{MetadataName(type)}.{field.Name}",
@@ -402,7 +402,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(eventHandlerType);
+            var typeRef = TypeRef(eventHandlerType, requireDelegateSourceShape: false);
             if (typeRef is null)
             {
                 continue;
@@ -416,7 +416,7 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "event",
-                sourceName = LowerCamel(eventInfo.Name),
+                sourceName = SourceMemberName(eventInfo.Name),
                 targetName = eventInfo.Name,
                 targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
@@ -444,7 +444,7 @@ sealed partial class ReflectionProvider
             {
                 kind = "unsupported-member",
                 memberKind = "event",
-                sourceName = LowerCamel(eventInfo.Name),
+                sourceName = SourceMemberName(eventInfo.Name),
                 targetName = eventInfo.Name,
                 targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
@@ -461,7 +461,7 @@ sealed partial class ReflectionProvider
         {
             return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
         }
-        if (TypeRef(eventHandlerType) is null)
+        if (TypeRef(eventHandlerType, requireDelegateSourceShape: false) is null)
         {
             return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }
@@ -513,7 +513,7 @@ sealed partial class ReflectionProvider
             }
             yield return UnsupportedMember(
                 "method",
-                LowerCamel(method.Name),
+                SourceMemberName(method.Name),
                 method.Name,
                 MethodId(method),
                 MethodMetadataId(method),
@@ -524,10 +524,6 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedMethodReason(Type type, MethodInfo method)
     {
-        if (method.IsStatic && HasInstanceMethodWithSameSourceName(type, method))
-        {
-            return "Static method has the same source-visible name as an instance method; provider virtual member attribution requires a unique source member identity before both can be exposed safely.";
-        }
         if (type.IsInterface && method.IsStatic)
         {
             return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
@@ -541,13 +537,6 @@ sealed partial class ReflectionProvider
             return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
         return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
-    }
-
-    static bool HasInstanceMethodWithSameSourceName(Type type, MethodInfo method)
-    {
-        var sourceName = LowerCamel(method.Name);
-        return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Any(candidate => !candidate.IsSpecialName && LowerCamel(candidate.Name) == sourceName);
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)
@@ -564,7 +553,7 @@ sealed partial class ReflectionProvider
             }
             yield return UnsupportedMember(
                 "operator",
-                OperatorSourceName(method.Name),
+                SourceMemberName(method.Name),
                 method.Name,
                 OperatorId(method),
                 MethodMetadataId(method),
@@ -662,9 +651,11 @@ sealed partial class ReflectionProvider
         var typeParameters = MethodTypeParameters(method);
         var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
         var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
+        var providerSourceSignatureId = ProviderSourceSignatureId(method, id);
         return new
         {
             id,
+            providerSourceSignatureId,
             targetName = method.Name,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -674,6 +665,23 @@ sealed partial class ReflectionProvider
             returnAttributes = returnAttributes.Supported.Length == 0 ? null : returnAttributes.Supported,
             unsupportedReturnAttributes = returnAttributes.Unsupported.Length == 0 ? null : returnAttributes.Unsupported,
         };
+    }
+
+    string? ProviderSourceSignatureId(MethodInfo method, string id)
+    {
+        if (method.IsStatic || !method.IsVirtual)
+        {
+            return null;
+        }
+        var baseDefinition = method.GetBaseDefinition();
+        if (baseDefinition == method ||
+            baseDefinition.DeclaringType == method.DeclaringType ||
+            !baseDefinition.IsPublic)
+        {
+            return null;
+        }
+        var sourceId = MethodId(baseDefinition);
+        return sourceId == id ? null : sourceId;
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)

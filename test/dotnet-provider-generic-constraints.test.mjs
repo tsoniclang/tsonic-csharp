@@ -23,7 +23,7 @@ test(".NET provider keeps CLR generic constraints in target facts, not source vi
 
   assert.equal(sourceReferenceNewTarget.typeParameters?.[0]?.constraints, undefined);
 
-  const sourceCopy = getSourceMember(sourceReferenceNewTarget, "copy");
+  const sourceCopy = getSourceMember(sourceReferenceNewTarget, "Copy");
   const sourceCopyTypeParameter = sourceCopy.signatures[0].typeParameters[0];
   assert.equal(sourceCopyTypeParameter.constraints, undefined);
 
@@ -76,8 +76,9 @@ test(".NET provider preserves nested and generic target identities without metad
   assert.equal(specialFolder.metadataName, "System.Environment.SpecialFolder");
   assert.deepEqual(specialFolder.renderShape, {
     kind: "named",
-    namespace: ["System", "Environment"],
-    name: "SpecialFolder",
+    namespace: ["System"],
+    name: "Environment",
+    nested: [{ name: "SpecialFolder" }],
   });
 
   const specialFolderBinding = provider.findTargetBindingByTargetId(specialFolder.targetId);
@@ -87,8 +88,9 @@ test(".NET provider preserves nested and generic target identities without metad
   assert.equal(specialFolderBinding.csharpType.id, specialFolder.targetId);
   assert.deepEqual(specialFolderBinding.csharpType.csharpRender, {
     kind: "named",
-    namespace: ["System", "Environment"],
-    name: "SpecialFolder",
+    namespace: ["System"],
+    name: "Environment",
+    nested: [{ name: "SpecialFolder" }],
   });
 
   const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {});

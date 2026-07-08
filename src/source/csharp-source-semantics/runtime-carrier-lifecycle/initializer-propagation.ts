@@ -23,7 +23,7 @@ import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
-  setRuntimeCarrierFactIfAbsentOrStronger,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "./fact-writes.js";
 
 export function propagateCsharpRuntimeCarrierFactFromDeclarationInitializer(
@@ -44,11 +44,11 @@ export function propagateCsharpRuntimeCarrierFactFromDeclarationInitializer(
     return;
   }
   const message = "C# runtime carrier propagated from checked initializer syntax.";
-  setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, node, initializerFact, message);
+  setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, node, initializerFact, message);
   if (name !== undefined) {
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, name, initializerFact, message);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, name, initializerFact, message);
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, initializerFact, message);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, symbol, initializerFact, message);
   }
 }
 

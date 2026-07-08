@@ -10,6 +10,7 @@ import {
   asNodeSubject,
   getAstReaderChildNodes,
   getNodeField,
+  isSemanticTypeQueryableValueExpressionNode,
 } from "../ast-utils.js";
 import {
   getBinaryOperatorText,
@@ -130,12 +131,10 @@ function hasOpaqueAnyCarrier(
   if (compiler === undefined) {
     return false;
   }
-  let semanticType: Type | undefined;
-  try {
-    semanticType = compiler.checker.getTypeAtLocation(subject, { sourceFile: compiler.ast.getSourceFile(subject) });
-  } catch {
+  if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, subject)) {
     return false;
   }
+  const semanticType = compiler.checker.getTypeAtLocation(subject, { sourceFile: compiler.ast.getSourceFile(subject) }) as Type | undefined;
   return semanticType !== undefined && (
     compiler.typeShape.isAny(semanticType) ||
     isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(semanticType, runtimeCarrierFactKey)?.carrier)

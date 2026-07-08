@@ -1,51 +1,4 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import {
-  missingCarrierResolution,
-  missingParameterCarrierResolution,
-  resolvedCarrierResolution,
-} from "./helpers/target-facts.mjs";
-import {
-  csharpObjectShapeFactKey,
-  csharpTargetOperationFactKey,
-} from "../dist/source/csharp-facts.js";
-import {
-  beginObjectShapePlanning,
-  beginObjectShapeSourceFilePlanning,
-  csharpTypeFromObjectShapeFact,
-  objectShapeStorageMemberName,
-  takeObjectShapeDeclarations,
-} from "../dist/backend/planner/object-shapes.js";
-import { planObjectLiteralExpressionWithExpectedType } from "../dist/backend/planner/expression-object-literals.js";
-import { planObjectShapeSpreadAssignments } from "../dist/backend/planner/expression-object-literal-spread.js";
-import { tryPlanRecordDictionaryLiteralWithExpectedType } from "../dist/backend/planner/expression-dictionary-literals.js";
-import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
-import {
-  planElementAccessExpression,
-  planPropertyAccessExpression,
-} from "../dist/backend/planner/expression-target-members/index.js";
-import {
-  KindElementAccessExpression,
-  KindFalseKeyword,
-  KindGetAccessor,
-  KindIdentifier,
-  KindMethodDeclaration,
-  KindNumericLiteral,
-  KindObjectLiteralExpression,
-  KindPropertyAccessExpression,
-  KindPropertyAssignment,
-  KindShorthandPropertyAssignment,
-  KindSpreadAssignment,
-  KindStringLiteral,
-  KindTrueKeyword,
-} from "../dist/backend/planner/source-ast.js";
-import {
-  csharpQualifiedTypeRenderShape,
-  csharpDelegateTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpStringTargetType,
-  csharpTargetNamedType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+import { test, assert, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, csharpObjectShapeFactKey, csharpTargetOperationFactKey, beginObjectShapePlanning, beginObjectShapeSourceFilePlanning, csharpTypeFromObjectShapeFact, objectShapeStorageMemberName, takeObjectShapeDeclarations, planObjectLiteralExpressionWithExpectedType, planObjectShapeSpreadAssignments, tryPlanRecordDictionaryLiteralWithExpectedType, printCsharpCompilationUnit, planElementAccessExpression, planPropertyAccessExpression, KindElementAccessExpression, KindFalseKeyword, KindGetAccessor, KindIdentifier, KindMethodDeclaration, KindNumericLiteral, KindObjectLiteralExpression, KindPropertyAccessExpression, KindPropertyAssignment, KindShorthandPropertyAssignment, KindSpreadAssignment, KindStringLiteral, KindTrueKeyword, csharpQualifiedTypeRenderShape, csharpDelegateTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, identifier, propertyAccess, elementAccess, numericLiteral, binaryExpression, objectLiteral, shorthandPropertyAssignment, spreadAssignment, propertyAssignment, getAccessor, methodDeclaration, parameter, block, stringLiteral, sourceFileNode, attachSourceFile, setParentRecursive, childNodes, span, trueKeyword, falseKeyword, planExpression, planExpectedExpression, fakeInput, targetOperation, csharpMemberOperation, recordDictionaryType, dictionaryTypeNode, fakeAst } from "./object-shape-boundary.helpers.mjs";
 
 test("object-shape property access lowers through finalized shape member facts", () => {
   const sourceFile = {};
@@ -77,7 +30,6 @@ test("object-shape property access lowers through finalized shape member facts",
   });
   assert.deepEqual(diagnostics, []);
 });
-
 test("object-shape property access diagnoses missing finalized member evidence", () => {
   const receiver = identifier("shape");
   const access = propertyAccess(receiver, "add");
@@ -105,7 +57,6 @@ test("object-shape property access diagnoses missing finalized member evidence",
   assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /must match a finalized object-shape member/);
 });
-
 test("object-shape property access diagnoses ambiguous finalized member evidence", () => {
   const receiver = identifier("shape");
   const access = propertyAccess(receiver, "count");
@@ -141,7 +92,6 @@ test("object-shape property access diagnoses ambiguous finalized member evidence
   assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /matched multiple finalized object-shape members/);
 });
-
 test("provider-owned property access without selected operation facts fails closed", () => {
   const receiver = identifier("values");
   const access = propertyAccess(receiver, "add");
@@ -158,7 +108,6 @@ test("provider-owned property access without selected operation facts fails clos
   assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /must be selected by TSTS\/provider facts before emission/);
 });
-
 test("provider-owned property access emits from finalized selected member fact, not source spelling", () => {
   const receiver = identifier("values");
   const access = propertyAccess(receiver, "sourceSpellingMustNotPickTarget");
@@ -188,7 +137,6 @@ test("provider-owned property access emits from finalized selected member fact, 
     name: "Actual",
   });
 });
-
 test("provider-owned property access rejects generic selected fact without C# operation fact", () => {
   const receiver = identifier("values");
   const access = propertyAccess(receiver, "actual");
@@ -210,7 +158,6 @@ test("provider-owned property access rejects generic selected fact without C# op
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
   assert.match(diagnostics[0].message, /generic TSTS target operation 'Example\.Values\.Actual' is not enough/);
 });
-
 test("provider-owned property access rejects C# helper facts without checked target operation facts", () => {
   const receiver = identifier("values");
   const access = propertyAccess(receiver, "sourceSpellingMustNotSelectActual");
@@ -232,7 +179,6 @@ test("provider-owned property access rejects C# helper facts without checked tar
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /must be selected by TSTS\/provider facts before emission/);
 });
-
 test("provider-owned element access emits only from finalized selected indexer facts", () => {
   const receiver = identifier("values");
   const access = elementAccess(receiver, numericLiteral("0"));
@@ -259,7 +205,6 @@ test("provider-owned element access emits only from finalized selected indexer f
     argument: { kind: "LiteralExpression", value: 0 },
   });
 });
-
 test("provider-owned element access rejects generic selected indexer without C# operation fact", () => {
   const receiver = identifier("values");
   const access = elementAccess(receiver, numericLiteral("0"));
@@ -280,7 +225,6 @@ test("provider-owned element access rejects generic selected indexer without C# 
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
-
 test("tuple element access emits Roslyn member access only from proven tuple indexes", () => {
   const receiver = identifier("pair");
   const index = numericLiteral("1");
@@ -311,7 +255,6 @@ test("tuple element access emits Roslyn member access only from proven tuple ind
     name: "Item2",
   });
 });
-
 test("tuple element access consumes finalized selected tuple member operation facts", () => {
   const receiver = identifier("pair");
   const index = identifier("index");
@@ -345,7 +288,6 @@ test("tuple element access consumes finalized selected tuple member operation fa
     name: "Item2",
   });
 });
-
 test("tuple element access fails closed instead of reading semantic type strings", () => {
   const receiver = identifier("pair");
   const index = identifier("index");
@@ -366,7 +308,6 @@ test("tuple element access fails closed instead of reading semantic type strings
   assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /TSTS literal or constant facts/);
 });
-
 test("object-shape method storage names require exact member identity", () => {
   const member = {
     sourceName: "run",
@@ -385,7 +326,6 @@ test("object-shape method storage names require exact member identity", () => {
     /must belong to its object-shape fact/,
   );
 });
-
 test("generated structural carriers close over finalized type-parameter target arguments", () => {
   const sourceExample = `
     type Box<T> = { value: T };
@@ -449,7 +389,6 @@ test("generated structural carriers close over finalized type-parameter target a
   assert.match(printed, /public class __TsonicShape_Generic<T>/);
   assert.match(printed, /public T value;/);
 });
-
 test("generated structural carriers reuse declarations only when implemented-interface facts match", () => {
   const sourceExample = `
     interface HasValue {
@@ -498,7 +437,6 @@ test("generated structural carriers reuse declarations only when implemented-int
   assert.match(printed, /public class __TsonicShape_InterfaceBox : Contracts\.IHasValue/);
   assert.match(printed, /public int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
 });
-
 test("generated structural carriers emit once across source files", () => {
   const sourceExample = `
     // a.ts
@@ -543,7 +481,6 @@ test("generated structural carriers emit once across source files", () => {
   assert.equal(secondDeclarations.length, 0);
   assert.equal(allDeclarations.length, 1);
 });
-
 test("generated structural carriers fail closed when duplicate target identities carry different interfaces", () => {
   const sourceExample = `
     interface ReadableBox {
@@ -594,7 +531,6 @@ test("generated structural carriers fail closed when duplicate target identities
   assert.match(printed, /Contracts\.IReadableBox/);
   assert.doesNotMatch(printed, /Contracts\.IWritableBox/);
 });
-
 test("generated structural carriers fail closed when type-parameter facts are not declared on the carrier", () => {
   const sourceExample = `
     type Box<T> = { value: T };
@@ -634,7 +570,6 @@ test("generated structural carriers fail closed when type-parameter facts are no
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /uses type parameter 'T' without declaring it/);
 });
-
 test("object-shape object literals fail closed for computed property names", () => {
   const literal = objectLiteral([
     propertyAssignment(binaryExpression(identifier("prefix"), identifier("suffix")), numericLiteral("1")),
@@ -670,7 +605,6 @@ test("object-shape object literals fail closed for computed property names", () 
   assert.match(diagnostics[0].message, /require identifier or string-literal property names/);
   assert.match(diagnostics[1].message, /must match a finalized provider object-shape member/);
 });
-
 test("object-shape object literals fail closed for accessors", () => {
   const literal = objectLiteral([
     getAccessor(identifier("value")),
@@ -705,7 +639,6 @@ test("object-shape object literals fail closed for accessors", () => {
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal member is outside the current C# planning surface/);
 });
-
 test("object-shape object literals fail closed for generic methods", () => {
   const method = methodDeclaration(identifier("map"), {
     typeParameters: [identifier("T")],
@@ -743,625 +676,3 @@ test("object-shape object literals fail closed for generic methods", () => {
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
 });
-
-test("object-shape method object literals require delegate signature facts", () => {
-  const method = methodDeclaration(identifier("run"), {
-    parameters: [parameter(identifier("value"))],
-    body: block([]),
-  });
-  const literal = objectLiteral([method]);
-  const shape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [{
-      sourceName: "run",
-      targetName: "Run",
-      memberKind: "method",
-      type: csharpTargetNamedType("Provider.CustomDelegate", undefined, { kind: "named", name: "CustomDelegate" }),
-    }],
-  };
-  const diagnostics = [];
-
-  const planned = planObjectLiteralExpressionWithExpectedType(
-    literal,
-    {},
-    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
-    diagnostics,
-    { kind: "IdentifierName", name: "__Shape" },
-    undefined,
-    planExpression,
-    planExpectedExpression,
-  );
-
-  assert.equal(planned, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /must carry a finalized delegate target type/);
-});
-
-test("record dictionary object literals lower through explicit nested Record carriers", () => {
-  const sourceFile = {};
-  const nestedLiteral = objectLiteral([
-    propertyAssignment(identifier("password"), trueKeyword()),
-    propertyAssignment(identifier("dev"), trueKeyword()),
-    propertyAssignment(stringLiteral("openid connect"), falseKeyword()),
-  ]);
-  const rootLiteral = objectLiteral([
-    propertyAssignment(identifier("authentication_methods"), nestedLiteral),
-  ]);
-  const innerDictionary = recordDictionaryType(csharpStringTargetType(), { kind: "source-primitive", name: "bool" });
-  const outerDictionary = recordDictionaryType(csharpStringTargetType(), innerDictionary);
-  const diagnostics = [];
-
-  const planned = tryPlanRecordDictionaryLiteralWithExpectedType(
-    rootLiteral,
-    sourceFile,
-    fakeInput({ runtimeCarriers: new Map([[rootLiteral, outerDictionary]]) }),
-    diagnostics,
-    rootLiteral,
-    planExpectedExpression,
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(planned, {
-    kind: "ObjectCreationExpression",
-    type: dictionaryTypeNode(
-      { kind: "PredefinedType", name: "string" },
-      dictionaryTypeNode({ kind: "PredefinedType", name: "string" }, { kind: "PredefinedType", name: "bool" }),
-    ),
-    collectionInitializers: [{
-      kind: "IndexerInitializer",
-      arguments: [{ kind: "LiteralExpression", value: "authentication_methods" }],
-      expression: {
-        kind: "ObjectCreationExpression",
-        type: dictionaryTypeNode({ kind: "PredefinedType", name: "string" }, { kind: "PredefinedType", name: "bool" }),
-        collectionInitializers: [
-          {
-            kind: "IndexerInitializer",
-            arguments: [{ kind: "LiteralExpression", value: "password" }],
-            expression: { kind: "LiteralExpression", value: true },
-          },
-          {
-            kind: "IndexerInitializer",
-            arguments: [{ kind: "LiteralExpression", value: "dev" }],
-            expression: { kind: "LiteralExpression", value: true },
-          },
-          {
-            kind: "IndexerInitializer",
-            arguments: [{ kind: "LiteralExpression", value: "openid connect" }],
-            expression: { kind: "LiteralExpression", value: false },
-          },
-        ],
-      },
-    }],
-  });
-});
-
-test("object spread assignments emit only from finalized source and target object-shape facts", () => {
-  const source = identifier("source");
-  const spread = spreadAssignment(source);
-  const countMember = {
-    sourceName: "count",
-    targetName: "Count",
-    memberKind: "property",
-    type: { kind: "source-primitive", name: "int32" },
-  };
-  const labelMember = {
-    sourceName: "label",
-    targetName: "Label",
-    memberKind: "property",
-    type: csharpStringTargetType(),
-  };
-  const sourceShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__SourceShape",
-      csharpRender: { kind: "named", name: "__SourceShape" },
-    },
-    members: [countMember, labelMember],
-  };
-  const targetShape = {
-    targetType: {
-      kind: "target-named",
-      id: "__TargetShape",
-      csharpRender: { kind: "named", name: "__TargetShape" },
-    },
-    members: [
-      { ...countMember, targetName: "TargetCount" },
-      { ...labelMember, targetName: "TargetLabel" },
-    ],
-  };
-  const diagnostics = [];
-
-  const assignments = planObjectShapeSpreadAssignments(
-    spread,
-    targetShape,
-    {},
-    fakeInput({ objectShapes: new Map([[source, sourceShape]]) }),
-    diagnostics,
-    planExpression,
-  );
-
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(assignments, [
-    {
-      kind: "AssignmentExpression",
-      name: "TargetCount",
-      expression: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "source" },
-        name: "Count",
-      },
-    },
-    {
-      kind: "AssignmentExpression",
-      name: "TargetLabel",
-      expression: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "source" },
-        name: "Label",
-      },
-    },
-  ]);
-});
-
-test("object spread fails closed without finalized source object-shape facts", () => {
-  const spread = spreadAssignment(identifier("source"));
-  const sourceText = "const value = { ...source };\n";
-  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
-  spread.Loc = span(sourceText, "...source");
-  attachSourceFile(sourceFile, objectLiteral([spread]));
-  const diagnostics = [];
-
-  const assignments = planObjectShapeSpreadAssignments(
-    spread,
-    {
-      targetType: {
-        kind: "target-named",
-        id: "__TargetShape",
-        csharpRender: { kind: "named", name: "__TargetShape" },
-      },
-      members: [{
-        sourceName: "count",
-        targetName: "Count",
-        memberKind: "property",
-        type: { kind: "source-primitive", name: "int32" },
-      }],
-    },
-    sourceFile,
-    fakeInput(),
-    diagnostics,
-    planExpression,
-  );
-
-  assert.equal(assignments, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
-  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:26"));
-  assert.deepEqual(diagnostics[0].sourceSpan, {
-    fileName: "/repo/src/object-spread.ts",
-    line: 1,
-    column: 17,
-    endLine: 1,
-    endColumn: 26,
-  });
-});
-
-test("object spread rejects non-identifier expressions until single-evaluation facts exist", () => {
-  const spread = spreadAssignment(objectLiteral([]));
-  const sourceText = "const value = { ...{} };\n";
-  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
-  spread.Loc = span(sourceText, "...{}");
-  attachSourceFile(sourceFile, objectLiteral([spread]));
-  const diagnostics = [];
-
-  const assignments = planObjectShapeSpreadAssignments(
-    spread,
-    {
-      targetType: {
-        kind: "target-named",
-        id: "__TargetShape",
-        csharpRender: { kind: "named", name: "__TargetShape" },
-      },
-      members: [],
-    },
-    sourceFile,
-    fakeInput(),
-    diagnostics,
-    planExpression,
-  );
-
-  assert.equal(assignments, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /requires a single-evaluation provider lowering/);
-  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:22"));
-  assert.deepEqual(diagnostics[0].sourceSpan, {
-    fileName: "/repo/src/object-spread.ts",
-    line: 1,
-    column: 17,
-    endLine: 1,
-    endColumn: 22,
-  });
-});
-
-test("object literal spread missing facts fail closed before partial C# object creation", () => {
-  const sourceExample = `
-    type Shape = { count: number; label: string };
-    declare const source: Shape;
-    const value: Shape = { count: 1, ...source };
-  `;
-  assert.match(sourceExample, /\.\.\.source/);
-
-  const source = identifier("source");
-  const sourceText = "const value: Shape = { count: 1, ...source };\n";
-  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
-  const literal = objectLiteral([
-    propertyAssignment(identifier("count"), numericLiteral("1")),
-    spreadAssignment(source),
-  ]);
-  literal.Properties.Nodes[1].Loc = span(sourceText, "...source");
-  attachSourceFile(sourceFile, literal);
-  const shape = {
-    targetType: {
-      kind: "target-named",
-      id: "__Shape",
-      csharpRender: { kind: "named", name: "__Shape" },
-    },
-    members: [
-      {
-        sourceName: "count",
-        targetName: "Count",
-        memberKind: "property",
-        type: { kind: "source-primitive", name: "int32" },
-      },
-      {
-        sourceName: "label",
-        targetName: "Label",
-        memberKind: "property",
-        type: csharpStringTargetType(),
-      },
-    ],
-  };
-  const diagnostics = [];
-
-  const planned = planObjectLiteralExpressionWithExpectedType(
-    literal,
-    sourceFile,
-    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
-    diagnostics,
-    { kind: "IdentifierName", name: "__Shape" },
-    undefined,
-    planExpression,
-    planExpectedExpression,
-  );
-
-  assert.equal(planned, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
-  assert.ok(diagnostics[0].evidence?.includes("source.span=1:34-1:43"));
-  assert.deepEqual(diagnostics[0].sourceSpan, {
-    fileName: "/repo/src/object-spread.ts",
-    line: 1,
-    column: 34,
-    endLine: 1,
-    endColumn: 43,
-  });
-});
-
-function identifier(text) {
-  return { Kind: KindIdentifier, Text: text };
-}
-
-function propertyAccess(receiver, name) {
-  return {
-    Kind: KindPropertyAccessExpression,
-    Expression: receiver,
-    name: identifier(name),
-  };
-}
-
-function elementAccess(receiver, argument) {
-  return {
-    Kind: KindElementAccessExpression,
-    Expression: receiver,
-    ArgumentExpression: argument,
-  };
-}
-
-function numericLiteral(text) {
-  return {
-    Kind: KindNumericLiteral,
-    Text: text,
-  };
-}
-
-function binaryExpression(left, right) {
-  return {
-    Kind: "KindBinaryExpression",
-    Left: left,
-    Right: right,
-  };
-}
-
-function objectLiteral(properties) {
-  return {
-    Kind: KindObjectLiteralExpression,
-    Properties: { Nodes: properties },
-  };
-}
-
-function shorthandPropertyAssignment(name) {
-  return {
-    Kind: KindShorthandPropertyAssignment,
-    name,
-  };
-}
-
-function spreadAssignment(expression) {
-  return {
-    Kind: KindSpreadAssignment,
-    Expression: expression,
-  };
-}
-
-function propertyAssignment(name, initializer) {
-  return {
-    Kind: KindPropertyAssignment,
-    name,
-    Initializer: initializer,
-  };
-}
-
-function getAccessor(name) {
-  return {
-    Kind: KindGetAccessor,
-    name,
-  };
-}
-
-function methodDeclaration(name, options = {}) {
-  return {
-    Kind: KindMethodDeclaration,
-    name,
-    TypeParameters: { Nodes: options.typeParameters ?? [] },
-    Parameters: { Nodes: options.parameters ?? [] },
-    Body: options.body,
-  };
-}
-
-function parameter(name) {
-  return {
-    Kind: "KindParameter",
-    name,
-  };
-}
-
-function block(statements) {
-  return {
-    Kind: "KindBlock",
-    Statements: { Nodes: statements },
-  };
-}
-
-function stringLiteral(text) {
-  return { Kind: KindStringLiteral, Text: text };
-}
-
-function sourceFileNode(fileName, text) {
-  return {
-    Kind: "KindSourceFile",
-    Statements: { Nodes: [] },
-    FileName: () => fileName,
-    Text: () => text,
-    Loc: { pos: 0, end: text.length },
-  };
-}
-
-function attachSourceFile(sourceFile, root) {
-  sourceFile.Statements = { Nodes: [root] };
-  setParentRecursive(root, sourceFile);
-}
-
-function setParentRecursive(subject, parent) {
-  if (subject === undefined || subject === null || typeof subject !== "object") {
-    return;
-  }
-  subject.Parent = parent;
-  for (const child of childNodes(subject)) {
-    setParentRecursive(child, subject);
-  }
-}
-
-function childNodes(subject) {
-  return [
-    ...(subject.Properties?.Nodes ?? []),
-    ...(subject.Elements?.Nodes ?? []),
-    subject.Expression,
-    subject.Initializer,
-    subject.name,
-    subject.Left,
-    subject.Right,
-    subject.ArgumentExpression,
-  ].filter((child) => child !== undefined);
-}
-
-function span(text, token) {
-  const pos = text.indexOf(token);
-  assert.notEqual(pos, -1, `missing token '${token}'`);
-  return { pos, end: pos + token.length };
-}
-
-function trueKeyword() {
-  return { Kind: KindTrueKeyword };
-}
-
-function falseKeyword() {
-  return { Kind: KindFalseKeyword };
-}
-
-function planExpression(node) {
-  if (node.Kind === KindNumericLiteral) {
-    return { kind: "LiteralExpression", value: Number(node.Text) };
-  }
-  return { kind: "IdentifierName", name: node.Text };
-}
-
-function planExpectedExpression(node) {
-  switch (node.Kind) {
-    case KindTrueKeyword:
-      return { kind: "LiteralExpression", value: true };
-    case KindFalseKeyword:
-      return { kind: "LiteralExpression", value: false };
-    case KindNumericLiteral:
-      return { kind: "LiteralExpression", value: Number(node.Text) };
-    case KindIdentifier:
-      return { kind: "IdentifierName", name: node.Text };
-    default:
-      throw new Error(`Unsupported expected expression fixture node ${node.Kind}`);
-  }
-}
-
-function fakeInput(options = {}) {
-  const runtimeCarriers = options.runtimeCarriers ?? new Map();
-  const objectShapes = options.objectShapes ?? new Map(
-    options.objectShapeSubject === undefined ? [] : [[options.objectShapeSubject, options.objectShape]],
-  );
-  return {
-    ast: fakeAst,
-    sourceFiles: [],
-    facts: {
-      getSelectedTargetProperty: (subject) => subject === options.selectedPropertySubject
-        ? options.selectedProperty
-        : undefined,
-      getSelectedTargetElementAccess: (subject) => subject === options.selectedElementSubject
-        ? options.selectedElement
-        : undefined,
-      getSelectedTargetCall: () => undefined,
-      getSelectedTargetOperator: () => undefined,
-      getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
-        ? { target: "csharp", id: "Example.Values", sourceName: "Values", targetName: "Values", kind: "class" }
-        : undefined,
-      getFact: (subject, key) => {
-        if (key === csharpObjectShapeFactKey) {
-          return objectShapes.get(subject);
-        }
-        if (key === csharpTargetOperationFactKey && subject === options.csharpOperationSubject) {
-          return options.csharpOperation;
-        }
-        return undefined;
-      },
-      getRuntimeCarrierFact: (subject) => {
-        const carrier = runtimeCarriers.get(subject);
-        return carrier === undefined ? undefined : { carrier };
-      },
-      getSourcePrimitiveFact: () => undefined,
-      getTargetConversionFact: () => undefined,
-      getContextualTargetTypeFact: () => undefined,
-      getArgumentPassingFact: () => undefined,
-      getStructFact: () => undefined,
-      getFieldFact: () => undefined,
-      getAttributeFact: () => undefined,
-      getDefaultValueFact: () => undefined,
-      getPointerFact: () => undefined,
-      getFunctionPointerFact: () => undefined,
-    },
-    types: {
-      getConstantValue: (subject) => options.constantValues?.get(subject),
-      isNumberLike: () => false,
-    },
-    analysis: {
-      getSymbolName: () => undefined,
-      getSymbolDeclarations: () => [],
-      getTypeSymbol: () => undefined,
-      getTypeAliasSymbol: () => undefined,
-      getProjectSourceReferenceForNode: () => undefined,
-      getSymbolAtLocation: () => undefined,
-      getResolvedSymbol: () => undefined,
-      getTypeAtLocation: (subject) => options.nodeTypes?.get(subject),
-      getTypeFromTypeNode: () => undefined,
-      isProjectSourceShapeForNode: () => false,
-    },
-    targetFacts: {
-      getTargetBinding: () => undefined,
-      getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
-      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
-      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
-      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
-    },
-  };
-}
-
-function targetOperation(operationId, operationKind) {
-  return {
-    operationId,
-    operationKind,
-    targetOperation: operationId,
-  };
-}
-
-function csharpMemberOperation(operationId, operationKind, memberName) {
-  return {
-    kind: "member",
-    operationId,
-    operationKind,
-    memberName,
-    declaringType: csharpTargetNamedType("Example.Values", undefined, csharpQualifiedTypeRenderShape("Example", "Values")),
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  };
-}
-
-function recordDictionaryType(keyType, valueType) {
-  return {
-    ...csharpTargetNamedType("System.Collections.Generic.Dictionary`2", [keyType, valueType], csharpQualifiedTypeRenderShape("System.Collections.Generic", "Dictionary")),
-    csharpCollectionSurface: "record",
-  };
-}
-
-function dictionaryTypeNode(keyType, valueType) {
-  return {
-    kind: "QualifiedName",
-    left: {
-      kind: "QualifiedName",
-      left: {
-        kind: "QualifiedName",
-        left: { kind: "IdentifierName", name: "System" },
-        name: "Collections",
-      },
-      name: "Generic",
-    },
-    name: "Dictionary",
-    typeArguments: [keyType, valueType],
-  };
-}
-
-const fakeAst = {
-  kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
-  kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
-  name: (node) => node?.name,
-  text: (node) => String(node?.Text ?? ""),
-  is: {
-    IsKeywordTypeNode: () => false,
-    IsTypeReferenceNode: () => false,
-    IsUnionTypeNode: () => false,
-    IsIntersectionTypeNode: () => false,
-    IsConditionalTypeNode: () => false,
-    IsInferTypeNode: () => false,
-    IsArrayTypeNode: () => false,
-    IsIndexedAccessTypeNode: () => false,
-    IsLiteralTypeNode: () => false,
-    IsThisTypeNode: () => false,
-    IsMappedTypeNode: () => false,
-    IsTupleTypeNode: () => false,
-    IsOptionalTypeNode: () => false,
-    IsRestTypeNode: () => false,
-    IsParenthesizedTypeNode: () => false,
-    IsFunctionTypeNode: () => false,
-    IsConstructorTypeNode: () => false,
-    IsTemplateLiteralTypeNode: () => false,
-    IsImportTypeNode: () => false,
-  },
-};

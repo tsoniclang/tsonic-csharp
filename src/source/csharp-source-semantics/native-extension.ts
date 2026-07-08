@@ -53,6 +53,7 @@ import {
 } from "./native-array-lifecycle.js";
 import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
+  recordCsharpSelectedPropertyOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
 import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
@@ -135,6 +136,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
         runBeforeFinalizedStage("object-shape-property-access-facts", () => recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
         runBeforeFinalizedStage("compat-runtime-operation-facts", () => recordCsharpCompatRuntimeOperationFactsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
+        runBeforeFinalizedStage("selected-property-operation-facts", () => recordCsharpSelectedPropertyOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("checked-operator-facts", () => recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost));
         runBeforeFinalizedStage("target-constraint-validation", () => validateCsharpTargetConstraintFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         if (jsSurfaceSelected) {
@@ -175,9 +177,17 @@ function runBeforeFinalizedStage(stage: string, action: () => void): void {
   } catch (error) {
     const wrapped = new Error(`C# semantics.beforeFinalized stage '${stage}' failed.`);
     (wrapped as { cause?: unknown }).cause = error;
+    const cause = error instanceof Error ? error : undefined;
+    if (cause !== undefined && wrapped.stack !== undefined) {
+      wrapped.stack = `${wrapped.message}\nCaused by: ${cause.stack ?? cause.message}\nStage wrapper stack:\n${wrapped.stack}`;
+    }
     Object.assign(wrapped, {
       stage,
       diagnosticMessage: wrapped.message,
+      ...(cause === undefined ? {} : {
+        causeMessage: cause.message,
+        causeStack: cause.stack,
+      }),
     });
     throw wrapped;
   }

@@ -23,8 +23,7 @@ import {
   csharpReadOnlyListTargetType,
 } from "../../../target-types.js";
 import {
-  setRuntimeCarrierFactIfAbsentOrStronger,
-  setRuntimeCarrierFactIfUnresolved,
+  setRuntimeCarrierFactIfLocallyAbsent,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
   boundaryFactForArrayParameter,
@@ -33,6 +32,7 @@ import type {
   ArrayLocalAnalysis,
   ArrayParameterAnalysis,
   ArrayReturnAnalysis,
+  CsharpArrayLifecycleAst,
   CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
@@ -55,14 +55,14 @@ export function recordArrayParameterFacts(
     boundary: "exported-api",
   };
   const evidence = [{
-    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name)}' from generic structural source analysis requirements: ${Array.from(parameter.carrierRequirements).sort().join(",") || "none"}.`,
+    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name, lifecycleContext.compiler?.ast)}' from generic structural source analysis requirements: ${Array.from(parameter.carrierRequirements).sort().join(",") || "none"}.`,
   }];
   for (const subject of arrayFactSubjects(parameter)) {
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
   for (const subject of arrayRuntimeCarrierSubjects(parameter)) {
-    setRuntimeCarrierFactIfUnresolved(lifecycleContext, subject, { carrier: boundary.coreCarrierType }, evidence);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: boundary.coreCarrierType }, evidence[0]?.message ?? "C# JS surface array carrier selected from finalized structural source analysis.");
   }
   void context;
 }
@@ -126,13 +126,13 @@ export function recordArrayReturnFacts(
   for (const subject of arrayReturnFactSubjects(returnType)) {
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
   for (const subject of returnType.sourceReturnSubjects) {
     lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: carrierType }, evidence);
   }
   for (const subject of returnType.returnExpressions) {
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
+    setRuntimeCarrierFactIfLocallyAbsent(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
 }
 
@@ -224,12 +224,15 @@ function appendUnresolvedArrayCarrierDiagnostic(
       [{ message: `Observed structural requirements: ${Array.from(requirements).sort().join(",")}.` }],
     ),
     nodeOrSpan: node,
-    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node)}`,
+    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node, lifecycleContext.compiler?.ast)}`,
   });
   return true;
 }
 
-function getParameterName(name: Node): string {
-  const text = (name as { readonly Text?: unknown }).Text;
-  return typeof text === "string" ? text : "<array>";
+function getParameterName(name: Node, ast: CsharpArrayLifecycleAst | undefined): string {
+  if (ast === undefined || !ast.is.IsIdentifier(name)) {
+    return "<binding-pattern>";
+  }
+  const text = ast?.text(name);
+  return text === undefined || text.length === 0 ? "<array>" : text;
 }

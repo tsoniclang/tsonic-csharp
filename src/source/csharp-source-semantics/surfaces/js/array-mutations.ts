@@ -33,6 +33,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
+import {
+  getCsharpArrayBoundaryCoreCarrierForReference,
+} from "./array-boundary-facts.js";
 
 export const csharpJsArrayDeleteAtOperationId = "tsonic.csharp.js.array.deleteAt";
 export const csharpJsArraySetLengthOperationId = "tsonic.csharp.js.array.setLength";
@@ -162,6 +165,7 @@ function getJsArrayCarrierForReceiver(
 ): TargetTypeRef | undefined {
   const type = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
   const candidates = [
+    getCsharpArrayBoundaryCoreCarrierForReference(receiver, context, sourceFile),
     context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier,
     host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }),
     host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile }),

@@ -6,7 +6,6 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
-  getNodeList,
 } from "./ast-utils.js";
 import {
   findTargetBinding,
@@ -39,7 +38,11 @@ export function getTargetTypeRefFromConstructedExpressionSyntax(
   if (binding === undefined) {
     return undefined;
   }
-  const typeArguments = getNodeList(getNodeField(node, "TypeArguments"))
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(node)
     .map((argument) => resolver.resolveSubject(argument, context, options, host));
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;

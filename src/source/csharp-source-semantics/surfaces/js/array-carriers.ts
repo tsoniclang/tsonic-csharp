@@ -19,11 +19,6 @@ import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
 import {
-  asNodeSubject,
-  getNodeField,
-  getNodeList,
-} from "../../ast-utils.js";
-import {
   getCsharpCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
@@ -130,7 +125,7 @@ function getCsharpJsArrayRuntimeCarrierForSyntaxNode(
   if (ast === undefined || !ast.is.IsNewExpression(node)) {
     return undefined;
   }
-  const typeArguments = getExplicitTypeArgumentNodes(node).map((argument) =>
+  const typeArguments = ast.typeArguments(node).map((argument) =>
     argument === undefined
       ? undefined
       : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
@@ -144,15 +139,4 @@ function getCsharpJsArrayRuntimeCarrierForSyntaxNode(
     return undefined;
   }
   return csharpJsArrayCarrierTargetType(typeArguments[0]!);
-}
-
-function getExplicitTypeArgumentNodes(node: Node): readonly Node[] {
-  const direct = getNodeList(getNodeField(node, "TypeArguments"));
-  if (direct.length > 0) {
-    return direct;
-  }
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  return expression === undefined
-    ? []
-    : getNodeList(getNodeField(expression, "TypeArguments"));
 }

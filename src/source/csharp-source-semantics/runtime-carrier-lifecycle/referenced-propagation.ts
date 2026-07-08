@@ -9,9 +9,6 @@ import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
-  shouldReplaceUseSiteRuntimeCarrier,
-} from "./fact-strength.js";
-import {
   getReferencedRuntimeCarrierTargetTypeRef,
 } from "./referenced-facts.js";
 
@@ -25,7 +22,7 @@ export function propagateCsharpRuntimeCarrierFactFromReferencedSymbol(
     return;
   }
   const existing = lifecycleContext.host.facts.get(node, runtimeCarrierFactKey);
-  if (existing !== undefined && !shouldReplaceUseSiteRuntimeCarrier(existing.carrier, carrier)) {
+  if (existing !== undefined) {
     return;
   }
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {

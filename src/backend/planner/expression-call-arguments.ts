@@ -127,7 +127,10 @@ function planCallArgumentExpression(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
       return undefined;
     }
-    if (conversionExpectedTargetType !== undefined && !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)) {
+    if (
+      conversionExpectedTargetType !== undefined &&
+      !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)
+    ) {
       diagnostics.push(unsupportedNodeDiagnostic(node, `Selected target argument conversion fact does not match the selected call parameter type. Node: ${SourceKind(input.ast, node)} '${Node_Text(node)}'. Conversion target: ${targetTypeRefKey(conversion.convertedType)}. Selected parameter target: ${targetTypeRefKey(conversionExpectedTargetType)}.`));
       return undefined;
     }
