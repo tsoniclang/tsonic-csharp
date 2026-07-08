@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,7 @@ import {
   createDotnetReflectionTypeDataProvider,
 } from "../dist/providers/dotnet/reflection/provider.js";
 import {
+  readCsharpReferences,
   readCsharpReflectionReferencePaths,
 } from "../dist/options/csharp-target-options.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
@@ -29,6 +30,33 @@ test("C# framework references do not become reflection reference paths", () => {
   });
 
   assert.deepEqual(references, ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
+});
+
+test("C# provider references are reflection-only provider inputs", () => {
+  const referenceDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/provider-reference-options");
+  mkdirSync(referenceDirectory, { recursive: true });
+  const providerOnlyAssembly = join(referenceDirectory, "ProviderOnly.dll");
+  writeFileSync(providerOnlyAssembly, "");
+
+  const target = {
+    id: "csharp",
+    options: {
+      references: {
+        assemblies: [{ include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" }],
+      },
+      providerReferences: {
+        directories: [referenceDirectory],
+      },
+    },
+  };
+
+  assert.deepEqual(readCsharpReflectionReferencePaths(target), [
+    "../lib/Project.Assembly.dll",
+    providerOnlyAssembly,
+  ]);
+  assert.deepEqual(readCsharpReferences(target), [
+    { kind: "assembly", include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" },
+  ]);
 });
 
 test("C# reflection framework policy has no installed-runtime version selector", () => {
@@ -71,6 +99,20 @@ test(".NET reflection provider fails closed for explicit references with missing
   const evidence = JSON.stringify(module.evidence);
   assert.match(evidence, /Unable to read exported types from explicit \.NET reference assembly/u);
   assert.match(evidence, /MissingReference\.Dependency/u);
+});
+
+test(".NET reflection provider resolves transitive assemblies from the explicit reference set", () => {
+  const references = completeReferenceSet();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references,
+  });
+  const module = provider.getModule("@tsonic/dotnet/MissingReference.Consumer.js", {
+    requestedExports: ["BrokenConsumer"],
+  });
+
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  assert.deepEqual(module.exports.map((declaration) => declaration.sourceName), ["BrokenConsumer"]);
 });
 
 test(".NET reflection provider reports recursive delegates unsupported instead of crashing", () => {
@@ -116,4 +158,19 @@ function isolatedBrokenReference() {
   const isolatedAssembly = join(isolatedDirectory, "MissingReference.Consumer.dll");
   copyFileSync(consumerAssembly, isolatedAssembly);
   return isolatedAssembly;
+}
+
+function completeReferenceSet() {
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/missing-reference-dependency/source");
+  const consumerAssembly = buildDotnetFixture({
+    project: join(repoRoot, "test/fixtures/dotnet-provider/missing-reference-dependency/MissingReference.Consumer/MissingReference.Consumer.csproj"),
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/missing-reference-dependency"),
+    outputDirectory,
+    intermediateDirectory: join(repoRoot, ".temp/dotnet-provider-fixtures/missing-reference-dependency/obj/"),
+    outputAssemblyName: "MissingReference.Consumer.dll",
+  });
+  return [
+    consumerAssembly,
+    join(outputDirectory, "MissingReference.Dependency.dll"),
+  ];
 }

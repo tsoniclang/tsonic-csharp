@@ -42,8 +42,11 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
     case "operator":
       const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
       const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName);
+      const targetDeclaringType = member.targetDeclaringType === undefined
+        ? declaringType
+        : dotnetTypeRefToTargetTypeRef(member.targetDeclaringType);
       return (member.signatures ?? []).map((signature) =>
-        dotnetSignatureToTargetMember(member, signature, declaringType, signature.providerSourceSignatureId ?? providerSignatureIds.get(signature.id)));
+        dotnetSignatureToTargetMember(member, signature, targetDeclaringType, signature.providerSourceSignatureId ?? providerSignatureIds.get(signature.id)));
     case "property":
     case "field":
     case "event":

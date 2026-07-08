@@ -13,6 +13,10 @@ export interface CsharpProjectFile {
   readonly references: readonly CsharpProjectReference[];
 }
 
+export type CsharpProjectPlan =
+  | { readonly kind: "generated"; readonly project: CsharpProjectFile }
+  | { readonly kind: "user-owned"; readonly projectFile: string };
+
 export interface CsharpProjectProperty {
   readonly name: string;
   readonly value: string;

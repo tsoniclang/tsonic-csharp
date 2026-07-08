@@ -10,3 +10,4 @@ export * from "./delegates.js";
 export * from "./collections.js";
 export * from "./runtime-carriers.js";
 export * from "./identity.js";
+export * from "./extern-aliases.js";

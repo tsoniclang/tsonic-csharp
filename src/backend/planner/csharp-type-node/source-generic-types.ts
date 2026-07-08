@@ -219,6 +219,11 @@ export function substituteCsharpTypeNode(
         left: substituteCsharpTypeNode(type.left, substitutions),
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteCsharpTypeNode(argument, substitutions)) }),
       };
+    case "AliasQualifiedName":
+      return {
+        ...type,
+        name: substituteCsharpTypeNode(type.name, substitutions),
+      };
     case "ArrayType":
       return { ...type, elementType: substituteCsharpTypeNode(type.elementType, substitutions) };
     case "TupleType":

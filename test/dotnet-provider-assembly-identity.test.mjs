@@ -4,8 +4,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  csharpApplyExternAliasToTargetBinding,
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
+  parseDotnetModuleSpecifier,
+  printCsharpType,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
@@ -78,6 +81,60 @@ test(".NET target binding provider reports assembly-qualified unsupported export
   assert.match(diagnosticJson, /"assemblies"/u);
 });
 
+test(".NET alias module specifiers select one assembly without source-name or declaration broadening", () => {
+  const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
+  const moduleSpecifier = "@tsonic/dotnet/aliases/acme/Acme.Contracts/Shared.js";
+  const parsed = parseDotnetModuleSpecifier(moduleSpecifier);
+  const module = provider.getModule(moduleSpecifier, { requestedExports: ["Widget"] });
+
+  assert.deepEqual(parsed, {
+    moduleSpecifier,
+    namespaceName: "Shared",
+    subpath: "aliases/acme/Acme.Contracts/Shared",
+    externAlias: {
+      alias: "acme",
+      assemblyName: "Acme.Contracts",
+    },
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  assert.equal(module.moduleSpecifier, moduleSpecifier);
+  assertAssemblyReference(module.assembly, "Acme.Contracts");
+  assert.equal(module.unsupportedExports, undefined);
+
+  const widgetExports = module.exports.filter(isSharedWidgetDeclaration);
+  assert.equal(widgetExports.length, 1);
+  assert.equal(assemblySimpleNameFromTargetId(widgetExports[0].targetId), "Acme.Contracts");
+});
+
+test(".NET alias facts render C# extern-alias qualified target types", () => {
+  const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
+  const module = provider.getModule("@tsonic/dotnet/aliases/acme/Acme.Contracts/Shared.js", { requestedExports: ["Widget"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  const widget = module.exports.find(isSharedWidgetDeclaration);
+  assert.ok(widget);
+
+  const binding = provider.findTargetBindingByTargetId(widget.targetId);
+  assert.ok(binding);
+  const aliasedBinding = csharpApplyExternAliasToTargetBinding(binding, {
+    alias: "acme",
+    assemblyName: "Acme.Contracts",
+  });
+
+  assert.equal(aliasedBinding.csharpType?.csharpRender?.externAlias, "acme");
+  assert.equal(aliasedBinding.members[0].declaringType?.csharpRender?.externAlias, "acme");
+  assert.equal(printCsharpType({
+    kind: "AliasQualifiedName",
+    alias: "acme",
+    name: {
+      kind: "QualifiedName",
+      left: { kind: "IdentifierName", name: "Shared" },
+      name: "Widget",
+    },
+  }), "acme::Shared.Widget");
+});
+
 function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&
@@ -119,6 +176,12 @@ function assertAssemblyQualifiedIds(targetIds) {
     assert.match(targetId, /::Shared\.Widget$/u);
   }
   assert.deepEqual(assemblyNamesFromTargetIds(targetIds), ["Acme.Contracts", "Contoso.Contracts"]);
+}
+
+function assemblySimpleNameFromTargetId(targetId) {
+  const separator = targetId.indexOf("::");
+  assert.notEqual(separator, -1, `Expected assembly-qualified target id: ${targetId}`);
+  return targetId.slice(0, separator).split(",")[0];
 }
 
 function assemblyNamesFromTargetIds(targetIds) {

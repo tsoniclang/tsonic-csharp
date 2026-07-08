@@ -117,29 +117,73 @@ test(".NET reflection provider returns requested export declaration closures ins
 
   const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
   assert.deepEqual(exportNames, [
+    "Action_1",
+    "Array",
+    "ArraySegment",
     "Base64FormattingOptions",
     "Boolean",
     "Byte",
     "Char",
+    "CharEnumerator",
+    "Comparison",
     "Convert",
+    "Converter",
+    "DateOnly",
     "DateTime",
+    "DateTimeKind",
+    "DateTimeOffset",
+    "DayOfWeek",
     "Decimal",
     "Double",
+    "Enum",
+    "Func_2",
+    "Func_4",
+    "Guid",
+    "Half",
+    "ICloneable",
+    "IComparable",
+    "IComparable_1",
+    "IConvertible",
+    "IDisposable",
+    "IEquatable",
     "IFormatProvider",
+    "IFormattable",
+    "IParsable",
+    "ISpanFormattable",
+    "ISpanParsable",
+    "IUtf8SpanFormattable",
+    "IUtf8SpanParsable",
+    "Int128",
     "Int16",
     "Int32",
     "Int64",
+    "IntPtr",
+    "MidpointRounding",
+    "ModuleHandle",
     "Object",
+    "Predicate",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "SByte",
     "Single",
     "Span",
     "String",
+    "StringComparison",
+    "StringSplitOptions",
+    "TimeOnly",
+    "TimeSpan",
     "Type",
     "TypeCode",
+    "UInt128",
     "UInt16",
     "UInt32",
     "UInt64",
+    "UIntPtr",
+    "ValueTuple_2",
+    "ValueType",
   ]);
 
   const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
@@ -187,6 +231,57 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
   requireProviderDeclarationMember(sourceDateTime, "field", "MinValue");
   requireProviderDeclarationMember(sourceSpecialFolder, "field", "Desktop");
 });
+
+test(".NET reflection provider exposes CLR arity variants as source-visible type families", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {
+    requestedExports: ["Task"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const task = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Task"
+  );
+  const taskOfT = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Task_1"
+  );
+  assert.ok(task);
+  assert.ok(taskOfT);
+  assert.deepEqual(task.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 0,
+  });
+  assert.deepEqual(taskOfT.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 1,
+  });
+  assert.equal(task.typeParameters, undefined);
+  assert.deepEqual(taskOfT.typeParameters?.map((parameter) => parameter.name), ["TResult"]);
+  assert.equal(task.members?.some((member) => member.sourceName === "Result"), false);
+  assert.equal(taskOfT.members?.some((member) => member.sourceName === "Result"), true);
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTask = model.exports.find((declaration) =>
+    declaration.kind === "class" && declaration.name === "Task"
+  );
+  const sourceTaskOfT = model.exports.find((declaration) =>
+    declaration.kind === "class" && declaration.name === "Task_1"
+  );
+  assert.ok(sourceTask);
+  assert.ok(sourceTaskOfT);
+  assert.deepEqual(sourceTask.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 0,
+  });
+  assert.deepEqual(sourceTaskOfT.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 1,
+  });
+  assert.equal(sourceTask.members?.some((member) => member.name === "Result"), false);
+  assert.equal(sourceTaskOfT.members?.some((member) => member.name === "Result"), true);
+  assert.equal(sourceTaskOfT.members?.some((member) => member.name === "ContinueWith"), true);
+});
+
 test(".NET reflection provider exposes members on source-visible returned closure types", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const module = provider.getModule("@tsonic/dotnet/System.Net.js", {
@@ -654,5 +749,7 @@ test(".NET provider declaration model keeps inherited source members on heritage
   assert.equal(members.has("baseOnly"), false);
   assert.equal(members.has("ownOnly"), true);
   assert.equal(members.has("collision"), true);
-  assert.equal(members.has("overloaded"), false);
+  assert.equal(members.has("overloaded"), true);
+  assert.deepEqual(members.get("overloaded").signatures.map((signature) =>
+    signature.parameters.map((parameter) => parameter.type)), [[int32]]);
 });

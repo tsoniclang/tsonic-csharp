@@ -36,7 +36,13 @@ function missingRequestedExports(
   if (requestedExports === undefined) {
     return [];
   }
-  const exports = new Set(module.exports.map((declaration) => declaration.sourceName));
+  const exports = new Set(module.exports.flatMap((declaration) =>
+    declaration.kind === "type" && declaration.sourceTypeFamily !== undefined
+      ? declaration.sourceName === declaration.sourceTypeFamily.exportName
+        ? [declaration.sourceName]
+        : [declaration.sourceName, declaration.sourceTypeFamily.exportName]
+      : [declaration.sourceName]
+  ));
   const unsupportedExports = new Set((module.unsupportedExports ?? []).map((declaration) => declaration.sourceName));
   return requestedExports.filter((exportName) => !exports.has(exportName) && !unsupportedExports.has(exportName));
 }

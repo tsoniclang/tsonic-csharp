@@ -145,7 +145,7 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(method.ReturnType))
             {
-                yield return new SourceDependency(dependency, false);
+                yield return new SourceDependency(dependency, true);
             }
             foreach (var parameter in method.GetParameters())
             {

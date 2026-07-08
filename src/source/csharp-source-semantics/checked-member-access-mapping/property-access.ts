@@ -22,6 +22,7 @@ import {
   targetOperationFromMember,
 } from "../operations.js";
 import {
+  applyProviderVirtualExternAlias,
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
   findTargetBindingFromResolvedTargetType,
@@ -165,7 +166,7 @@ export function mapCsharpCheckedPropertyAccess(
       rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
   const targetBinding = binding.target === csharpTargetId
-    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, selectedDeclaration) ?? binding
     : binding;
   const selected = selectCheckedPropertyTargetMember(targetBinding, request, context);
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, selected.selectedDeclaration);

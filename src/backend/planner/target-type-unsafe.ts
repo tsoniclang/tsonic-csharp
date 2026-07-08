@@ -11,6 +11,8 @@ export function csharpTypeRequiresUnsafe(type: CsharpTypeNode): boolean {
       return type.elements.some(csharpTypeRequiresUnsafe);
     case "NullableType":
       return csharpTypeRequiresUnsafe(type.inner);
+    case "AliasQualifiedName":
+      return csharpTypeRequiresUnsafe(type.name);
     case "IdentifierName":
     case "QualifiedName":
       return (type.typeArguments ?? []).some(csharpTypeRequiresUnsafe) ||

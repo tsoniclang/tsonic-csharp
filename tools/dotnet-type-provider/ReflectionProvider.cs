@@ -11,6 +11,7 @@ sealed partial class ReflectionProvider
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
     readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
+    Type[] activeModuleTypes = [];
     string moduleSpecifierPrefix = "";
     string activeNamespaceName;
     string activeModuleSpecifier;
@@ -49,6 +50,7 @@ sealed partial class ReflectionProvider
         return LoadTypes()
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
+            .Where(type => request.AssemblyName is null || StringComparer.Ordinal.Equals(type.Assembly.GetName().Name, request.AssemblyName))
             .GroupBy(TargetId, StringComparer.Ordinal)
             .Select(group => group.First())
             .OrderBy(type => TargetId(type), StringComparer.Ordinal)
@@ -62,6 +64,7 @@ sealed partial class ReflectionProvider
         var allTypes = loadedTypes
             .Where(type => type.Namespace == activeNamespaceName)
             .ToArray();
+        activeModuleTypes = allTypes;
         var assembly = ModuleAssemblyReference(allTypes);
         var requestedExports = request.Exports.Count == 0
             ? null
@@ -76,7 +79,7 @@ sealed partial class ReflectionProvider
             requestedTargetIds is not null ||
             requestedMetadataNames is not null;
         var sourceGroups = allTypes
-            .GroupBy(ProviderSourceTypeName, StringComparer.Ordinal)
+            .GroupBy(ProviderSourceExportName, StringComparer.Ordinal)
             .Select(group => new
             {
                 SourceName = group.Key,
@@ -96,14 +99,14 @@ sealed partial class ReflectionProvider
             .Where(group => group.RequestedTypes.Length > 0)
             .ToArray();
         var sourceExportableTargetIds = sourceGroups
-            .Where(group => group.AllTypes.Length == 1)
-            .Select(group => group.AllTypes[0])
+            .Where(group => group.AllTypes.Length == 1 || IsProviderTypeFamilyGroup(group.SourceName, group.AllTypes))
+            .SelectMany(group => group.AllTypes)
             .Where(type => UnsupportedSourceExportReason(type) is null)
             .Select(TargetId)
             .ToHashSet(StringComparer.Ordinal);
         var exportCandidates = requestedSourceGroups
-            .Where(group => group.AllTypes.Length == 1)
-            .Select(group => group.RequestedTypes[0])
+            .Where(group => group.AllTypes.Length == 1 || IsProviderTypeFamilyGroup(group.SourceName, group.AllTypes))
+            .SelectMany(group => group.AllTypes.Length == 1 ? group.RequestedTypes.Take(1) : group.AllTypes)
             .ToArray();
         var exportTypes = exportCandidates
             .Where(type => UnsupportedSourceExportReason(type) is null)
@@ -111,7 +114,7 @@ sealed partial class ReflectionProvider
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTypes = SourceClosureTypes(allTypes, exportTypes, sourceExportableTargetIds);
         var unsupportedExports = requestedSourceGroups
-            .Where(group => group.AllTypes.Length > 1)
+            .Where(group => group.AllTypes.Length > 1 && !IsProviderTypeFamilyGroup(group.SourceName, group.AllTypes))
             .Select(group => ToUnsupportedTypeFamilyExport(group.SourceName, group.AllTypes))
             .Concat(exportCandidates
                 .Select(type => ToUnsupportedTypeExport(type, UnsupportedSourceExportReason(type)))
@@ -156,9 +159,35 @@ sealed partial class ReflectionProvider
         {
             return true;
         }
-        return requestedExports?.Contains(ProviderSourceTypeName(type)) == true ||
+        return requestedExports?.Contains(ProviderSourceExportName(type)) == true ||
             requestedTargetIds?.Contains(TargetId(type)) == true ||
             requestedMetadataNames?.Contains(MetadataName(type)) == true;
+    }
+
+    bool IsProviderTypeFamilyGroup(string sourceName, IReadOnlyCollection<Type> types)
+    {
+        if (types.Count < 2)
+        {
+            return false;
+        }
+        var arities = new HashSet<int>();
+        foreach (var type in types)
+        {
+            var family = ProviderSourceTypeFamily(type);
+            if (family is null || family.Value.ExportName != sourceName || !arities.Add(family.Value.TypeArgumentCount))
+            {
+                return false;
+            }
+        }
+        var ordered = arities.OrderBy(arity => arity).ToArray();
+        for (var arity = ordered[0]; arity <= ordered[^1]; arity++)
+        {
+            if (!arities.Contains(arity))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     static bool IsRequestedTargetType(

@@ -2,6 +2,16 @@ import type {
   TargetSelection,
   TargetTypescriptCompatibilityMode,
 } from "@tsonic/target-api";
+import {
+  existsSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
+import {
+  isAbsolute,
+  join,
+  resolve,
+} from "node:path";
 
 export type CsharpProjectReference =
   | { readonly kind: "project"; readonly include: string }
@@ -17,6 +27,8 @@ const supportedCsharpTargetOptionKeys = Object.freeze([
   "namespace",
   "nullable",
   "outputType",
+  "providerReferences",
+  "projectFile",
   "properties",
   "publishAot",
   "references",
@@ -58,6 +70,10 @@ export function readCsharpOutputType(target: TargetSelection): CsharpOutputType 
   return value;
 }
 
+export function readCsharpUserProjectFile(target: TargetSelection): string | undefined {
+  return readOptionalStringOption(target, "projectFile");
+}
+
 export function readCsharpReferences(target: TargetSelection): readonly CsharpProjectReference[] {
   const raw = target.options?.references;
   if (raw === undefined) {
@@ -76,9 +92,12 @@ export function readCsharpReferences(target: TargetSelection): readonly CsharpPr
 }
 
 export function readCsharpReflectionReferencePaths(target: TargetSelection): readonly string[] {
-  return readCsharpReferences(target)
-    .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
-    .map((reference) => reference.hintPath ?? reference.include);
+  return rejectDuplicateReflectionReferencePaths([
+    ...readCsharpReferences(target)
+      .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
+      .map((reference) => reference.hintPath ?? reference.include),
+    ...readCsharpProviderReferencePaths(target),
+  ]);
 }
 
 export function readStringOption(target: TargetSelection, key: string, defaultValue: string): string {
@@ -203,6 +222,40 @@ function readAssemblyReferences(raw: Readonly<Record<string, unknown>>): readonl
   });
 }
 
+function readCsharpProviderReferencePaths(target: TargetSelection): readonly string[] {
+  const raw = target.options?.providerReferences;
+  if (raw === undefined) {
+    return [];
+  }
+  if (!isRecord(raw)) {
+    throw new Error("C# target option 'providerReferences' must be an object.");
+  }
+  rejectUnknownKeys(raw, "providerReferences", ["assemblies", "directories"]);
+  return [
+    ...readStringArrayProperty(raw, "assemblies").map((reference) => resolve(reference)),
+    ...readStringArrayProperty(raw, "directories").flatMap((directory, index) =>
+      readProviderReferenceDirectory(directory, `providerReferences.directories[${index}]`)
+    ),
+  ];
+}
+
+function readProviderReferenceDirectory(directory: string, path: string): readonly string[] {
+  if (!isAbsolute(directory)) {
+    throw new Error(`C# target option '${path}' must be an absolute directory path.`);
+  }
+  if (!existsSync(directory) || !statSync(directory).isDirectory()) {
+    throw new Error(`C# target option '${path}' directory does not exist: ${directory}`);
+  }
+  const references = readdirSync(directory)
+    .filter((entry) => entry.endsWith(".dll"))
+    .sort((left, right) => left.localeCompare(right))
+    .map((entry) => join(directory, entry));
+  if (references.length === 0) {
+    throw new Error(`C# target option '${path}' directory contains no .NET assemblies: ${directory}`);
+  }
+  return references;
+}
+
 function rejectDuplicateReferences(references: readonly CsharpProjectReference[]): readonly CsharpProjectReference[] {
   const seen = new Set<string>();
   for (const reference of references) {
@@ -213,4 +266,17 @@ function rejectDuplicateReferences(references: readonly CsharpProjectReference[]
     seen.add(key);
   }
   return references;
+}
+
+function rejectDuplicateReflectionReferencePaths(references: readonly string[]): readonly string[] {
+  const seen = new Map<string, string>();
+  for (const reference of references) {
+    const resolved = resolve(reference);
+    const duplicate = seen.get(resolved);
+    if (duplicate !== undefined) {
+      throw new Error(`C# provider references contain duplicate assembly path '${duplicate}' and '${reference}'.`);
+    }
+    seen.set(resolved, reference);
+  }
+  return [...seen.values()];
 }

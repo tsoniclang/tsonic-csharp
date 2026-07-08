@@ -3,6 +3,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   DotnetModuleModel,
+  DotnetExportDeclaration,
 } from "./model.js";
 
 export interface DotnetProviderResolutionContext {
@@ -40,7 +41,7 @@ export function missingDotnetRequestedExports(
   if (context.broadImport === true || context.requestedExports === undefined) {
     return [];
   }
-  const exportedNames = new Set(module.exports.map((declaration) => declaration.sourceName));
+  const exportedNames = new Set(module.exports.flatMap(dotnetSourceExportNames));
   return context.requestedExports.filter((exportName) => !exportedNames.has(exportName));
 }
 
@@ -54,7 +55,7 @@ export function sliceDotnetModuleExports(
   const requestedExports = sameModuleProviderRefClosure(module, context.requestedExports);
   return {
     ...module,
-    exports: module.exports.filter((declaration) => requestedExports.has(declaration.sourceName)),
+    exports: module.exports.filter((declaration) => dotnetSourceExportNames(declaration).some((exportName) => requestedExports.has(exportName))),
   };
 }
 
@@ -64,22 +65,40 @@ function sameModuleProviderRefClosure(
 ): ReadonlySet<string> {
   const included = new Set(requestedExports);
   const pending = [...included];
-  const exportsByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
+  const exportsByName = new Map<string, DotnetExportDeclaration[]>();
+  for (const declaration of module.exports) {
+    for (const exportName of dotnetSourceExportNames(declaration)) {
+      const declarations = exportsByName.get(exportName) ?? [];
+      declarations.push(declaration);
+      exportsByName.set(exportName, declarations);
+    }
+  }
   while (pending.length > 0) {
     const exportName = pending.pop();
-    const declaration = exportName === undefined ? undefined : exportsByName.get(exportName);
-    if (declaration === undefined) {
+    const declarations = exportName === undefined ? undefined : exportsByName.get(exportName);
+    if (declarations === undefined) {
       continue;
     }
-    for (const dependency of sameModuleProviderRefs(declaration, module.moduleSpecifier)) {
-      if (included.has(dependency)) {
-        continue;
+    for (const declaration of declarations) {
+      for (const dependency of sameModuleProviderRefs(declaration, module.moduleSpecifier)) {
+        if (included.has(dependency)) {
+          continue;
+        }
+        included.add(dependency);
+        pending.push(dependency);
       }
-      included.add(dependency);
-      pending.push(dependency);
     }
   }
   return included;
+}
+
+function dotnetSourceExportNames(declaration: DotnetExportDeclaration): readonly string[] {
+  if (declaration.kind === "type" && declaration.sourceTypeFamily !== undefined) {
+    return declaration.sourceName === declaration.sourceTypeFamily.exportName
+      ? [declaration.sourceName]
+      : [declaration.sourceName, declaration.sourceTypeFamily.exportName];
+  }
+  return [declaration.sourceName];
 }
 
 function sameModuleProviderRefs(value: unknown, moduleSpecifier: string): readonly string[] {

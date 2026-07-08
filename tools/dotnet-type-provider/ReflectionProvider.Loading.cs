@@ -16,34 +16,43 @@ sealed partial class ReflectionProvider
         var currentRequestPaths = runtimePaths
             .Concat(referencePaths)
             .ToHashSet(StringComparer.Ordinal);
-        var loadedPaths = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        var resolver = new RequestAssemblyResolver(currentRequestPaths, assembliesByPath);
+        AssemblyLoadContext.Default.Resolving += resolver.Resolve;
+        try
         {
-            if (string.IsNullOrEmpty(assembly.Location))
+            var loadedPaths = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                continue;
+                if (string.IsNullOrEmpty(assembly.Location))
+                {
+                    continue;
+                }
+                var path = Path.GetFullPath(assembly.Location);
+                if (!currentRequestPaths.Contains(path))
+                {
+                    continue;
+                }
+                loadedPaths.Add(path);
+                foreach (var type in ExportedTypes(assembly, path, referencePaths.Contains(path)))
+                {
+                    yield return type;
+                }
             }
-            var path = Path.GetFullPath(assembly.Location);
-            if (!currentRequestPaths.Contains(path))
+            foreach (var path in currentRequestPaths.OrderBy(path => path, StringComparer.Ordinal))
             {
-                continue;
-            }
-            loadedPaths.Add(path);
-            foreach (var type in ExportedTypes(assembly, path, referencePaths.Contains(path)))
-            {
-                yield return type;
+                if (loadedPaths.Contains(path))
+                {
+                    continue;
+                }
+                foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: referencePaths.Contains(path)))
+                {
+                    yield return type;
+                }
             }
         }
-        foreach (var path in currentRequestPaths.OrderBy(path => path, StringComparer.Ordinal))
+        finally
         {
-            if (loadedPaths.Contains(path))
-            {
-                continue;
-            }
-            foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: referencePaths.Contains(path)))
-            {
-                yield return type;
-            }
+            AssemblyLoadContext.Default.Resolving -= resolver.Resolve;
         }
     }
 
@@ -160,5 +169,30 @@ sealed partial class ReflectionProvider
             throw new InvalidOperationException($"Explicit .NET reference assembly '{reference}' does not exist.");
         }
         return paths;
+    }
+
+    sealed class RequestAssemblyResolver
+    {
+        readonly ConcurrentDictionary<string, Assembly> assembliesByPath;
+        readonly Dictionary<string, string> pathsBySimpleName;
+
+        public RequestAssemblyResolver(IEnumerable<string> paths, ConcurrentDictionary<string, Assembly> assembliesByPath)
+        {
+            this.assembliesByPath = assembliesByPath;
+            pathsBySimpleName = paths
+                .Where(path => string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .GroupBy(path => Path.GetFileNameWithoutExtension(path), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        }
+
+        public Assembly? Resolve(AssemblyLoadContext context, AssemblyName assemblyName)
+        {
+            if (assemblyName.Name is null || !pathsBySimpleName.TryGetValue(assemblyName.Name, out var path))
+            {
+                return null;
+            }
+            return assembliesByPath.GetOrAdd(path, static candidate => AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate));
+        }
     }
 }

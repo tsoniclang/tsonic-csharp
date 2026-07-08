@@ -88,9 +88,10 @@ export function dotnetMemberToProviderMember(
     return undefined;
   }
   const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
-  const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName);
+  const sourceParameterOptions = { sourceParameterOffset: member.sourceParameterOffset };
+  const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName, sourceParameterOptions);
   const signatures = member.signatures
-    ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id)))
+    ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id), sourceParameterOptions))
     .filter((signature): signature is NonNullable<typeof signature> => signature !== undefined);
   if (member.signatures !== undefined && (signatures === undefined || signatures.length === 0)) {
     return undefined;
@@ -99,7 +100,7 @@ export function dotnetMemberToProviderMember(
     id: dotnetProviderMemberId(member),
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
-    ...(member.static !== undefined ? { static: member.static } : {}),
+    ...(member.sourceStatic !== undefined || member.static !== undefined ? { static: member.sourceStatic ?? member.static } : {}),
     ...(isReadonlyProviderMember(member) ? { readonly: true } : {}),
     ...(type !== undefined ? { type } : {}),
     ...(signatures !== undefined ? { signatures: mergeProviderSignatures(signatures) } : {}),

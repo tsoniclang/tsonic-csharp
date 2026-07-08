@@ -67,6 +67,8 @@ export interface DotnetProviderModuleContext {
   readonly requestedExports?: readonly string[];
   readonly requestedTargetIds?: readonly string[];
   readonly requestedMetadataNames?: readonly string[];
+  readonly assemblyName?: string;
+  readonly externAlias?: string;
   readonly broadImport?: boolean;
 }
 
@@ -110,7 +112,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return { kind: "unowned" };
       }
-      return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module) ?? { broadImport: true }, options, context.containingFile)));
+      return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module) ?? { broadImport: true }, options, context.containingFile, module)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
       const module = dotnetProviderModuleRequest(specifier);
@@ -121,7 +123,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, specifier);
       }
-      const ownership = options.provider.ownsModule(module.moduleSpecifier, providerContext(resolutionContext, options, context.containingFile));
+      const ownership = options.provider.ownsModule(module.moduleSpecifier, providerContext(resolutionContext, options, context.containingFile, module));
       if (ownership.kind === "rejected") {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, ownership.diagnostic);
       }
@@ -149,7 +151,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
-      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options, resolution.virtualFileName));
+      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options, resolution.virtualFileName, module));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
@@ -237,6 +239,7 @@ function providerContext(
   context: DotnetProviderResolutionContext,
   options: DotnetBindingProviderOptions,
   containingFile?: string,
+  module?: ReturnType<typeof dotnetProviderModuleRequest>,
 ): DotnetProviderModuleContext {
   return {
     ...(containingFile !== undefined ? { containingFile } : {}),
@@ -244,6 +247,8 @@ function providerContext(
     ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),
     ...(options.references !== undefined ? { references: options.references } : {}),
+    ...(module?.assemblyName !== undefined ? { assemblyName: module.assemblyName } : {}),
+    ...(module?.externAlias !== undefined ? { externAlias: module.externAlias } : {}),
   };
 }
 

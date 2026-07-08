@@ -19,6 +19,7 @@ import {
   filterTsCompatibleProviderMembers,
   mergeProviderMemberList,
 } from "./members.js";
+import { providerSignatureShapeKey } from "./signatures.js";
 
 export function dotnetTypeToProviderExport(
   declaration: DotnetTypeDeclaration,
@@ -34,6 +35,7 @@ export function dotnetTypeToProviderExport(
     id: declaration.targetId,
     name: declaration.sourceName,
     kind,
+    ...(declaration.sourceTypeFamily !== undefined ? { sourceTypeFamily: declaration.sourceTypeFamily } : {}),
     targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
     ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
@@ -50,46 +52,73 @@ function dotnetTypeSourceMembers(
   if (cached !== undefined) {
     return cached;
   }
-  const inheritedKeys = inheritedSourceMemberKeys(declaration, context, new Set());
+  const inheritedMembers = inheritedSourceMembers(declaration, context, new Set());
   const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(declaration.members
     ?.map((member) => dotnetMemberToProviderMember(member, declaration))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined)
-    .filter((member) => {
-      const key = inheritedSourceMemberKey(member);
-      return key === undefined || !inheritedKeys.has(key);
-    }) ?? []));
+    .map((member) => removeInheritedDuplicateSignatures(member, inheritedMembers))
+    .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []));
   context.sourceMembersByTargetId.set(declaration.targetId, ownMembers);
   return ownMembers.length === 0 ? undefined : ownMembers;
 }
 
-function inheritedSourceMemberKeys(
+function inheritedSourceMembers(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
   visitedTargetIds: Set<string>,
-): ReadonlySet<string> {
+): ReadonlyMap<string, readonly ProviderMemberDeclaration[]> {
   if (!visitedTargetIds.add(declaration.targetId)) {
-    return new Set();
+    return new Map();
   }
-  const keys = new Set<string>();
+  const membersByKey = new Map<string, ProviderMemberDeclaration[]>();
   const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
   const baseType = baseHeritage?.type;
   if (baseType?.kind !== "provider-ref") {
-    return keys;
+    return membersByKey;
   }
   const baseDeclaration = dotnetProviderRefToTypeDeclaration(baseType, context);
   if (baseDeclaration === undefined) {
-    return keys;
+    return membersByKey;
   }
   for (const member of dotnetTypeSourceMembers(baseDeclaration, context) ?? []) {
     const key = inheritedSourceMemberKey(member);
     if (key !== undefined) {
-      keys.add(key);
+      const members = membersByKey.get(key) ?? [];
+      members.push(member);
+      membersByKey.set(key, members);
     }
   }
-  for (const key of inheritedSourceMemberKeys(baseDeclaration, context, visitedTargetIds)) {
-    keys.add(key);
+  for (const [key, members] of inheritedSourceMembers(baseDeclaration, context, visitedTargetIds)) {
+    const existing = membersByKey.get(key) ?? [];
+    existing.push(...members);
+    membersByKey.set(key, existing);
   }
-  return keys;
+  return membersByKey;
+}
+
+function removeInheritedDuplicateSignatures(
+  member: ProviderMemberDeclaration,
+  inheritedMembers: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>,
+): ProviderMemberDeclaration | undefined {
+  const key = inheritedSourceMemberKey(member);
+  if (key === undefined) {
+    return member;
+  }
+  const inherited = inheritedMembers.get(key) ?? [];
+  if (inherited.length === 0) {
+    return member;
+  }
+  if (member.kind !== "method" || member.signatures === undefined) {
+    return undefined;
+  }
+  const inheritedSignatureShapes = new Set(inherited.flatMap((inheritedMember) =>
+    (inheritedMember.signatures ?? []).map(providerSignatureShapeKey)));
+  const signatures = member.signatures.filter((signature) =>
+    !inheritedSignatureShapes.has(providerSignatureShapeKey(signature)));
+  if (signatures.length === 0) {
+    return undefined;
+  }
+  return { ...member, signatures };
 }
 
 function inheritedSourceMemberKey(member: ProviderMemberDeclaration): string | undefined {

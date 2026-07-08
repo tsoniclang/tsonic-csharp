@@ -22,6 +22,7 @@ sealed partial class ReflectionProvider
             kind = "type",
             typeKind = TypeKind(type),
             sourceName = ProviderSourceTypeName(type),
+            sourceTypeFamily = ProviderSourceTypeFamilyObject(type),
             namespaceName = activeNamespaceName,
             targetId = TargetId(type),
             metadataName = MetadataName(type),

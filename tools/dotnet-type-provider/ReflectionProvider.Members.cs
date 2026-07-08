@@ -50,6 +50,11 @@ sealed partial class ReflectionProvider
             };
         }
 
+        foreach (var member in ExtensionProjectionMembers(type))
+        {
+            yield return member;
+        }
+
         foreach (var group in Operators(type).GroupBy(MethodGroupKey))
         {
             var first = group.First();
@@ -488,6 +493,79 @@ sealed partial class ReflectionProvider
             .Where(method => !method.IsSpecialName)
             .Where(method => UnsupportedMethodReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    IEnumerable<object> ExtensionProjectionMembers(Type receiverType)
+    {
+        foreach (var group in ExtensionProjectionMethods(receiverType).GroupBy(ExtensionProjectionGroupKey))
+        {
+            var first = group.First();
+            var signatures = group.Select(method => MethodSignature(method)).Where(signature => signature is not null).Cast<object>().ToArray();
+            var targetDeclaringType = TypeRef(first.DeclaringType!, requireDelegateSourceShape: false);
+            if (signatures.Length == 0 || targetDeclaringType is null)
+            {
+                continue;
+            }
+            yield return new
+            {
+                kind = "method",
+                sourceName = SourceMemberName(first.Name),
+                targetName = first.Name,
+                targetId = $"{TargetId(first.DeclaringType!)}.{first.Name}",
+                metadataName = $"{MetadataName(first.DeclaringType!)}.{first.Name}",
+                @static = true,
+                sourceStatic = false,
+                receiverPassing = "first-argument",
+                sourceParameterOffset = 1,
+                targetDeclaringType,
+                signatures,
+            };
+        }
+    }
+
+    IEnumerable<MethodInfo> ExtensionProjectionMethods(Type receiverType)
+    {
+        return activeModuleTypes
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Where(method => IsExtensionMethod(method))
+            .Where(method => !method.IsSpecialName)
+            .Where(method => ExtensionReceiverApplies(receiverType, method))
+            .Where(method => UnsupportedMethodReason(method.DeclaringType!, method) is null)
+            .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    static string ExtensionProjectionGroupKey(MethodInfo method)
+    {
+        return $"{TargetId(method.DeclaringType!)}:{method.Name}";
+    }
+
+    static bool ExtensionReceiverApplies(Type receiverType, MethodInfo method)
+    {
+        var receiverParameter = method.GetParameters().FirstOrDefault();
+        if (receiverParameter is null)
+        {
+            return false;
+        }
+        return ReceiverTypeAccepts(UnwrapByRef(receiverParameter.ParameterType), receiverType);
+    }
+
+    static bool ReceiverTypeAccepts(Type receiverParameterType, Type receiverType)
+    {
+        if (receiverParameterType.IsAssignableFrom(receiverType))
+        {
+            return true;
+        }
+        if (receiverParameterType.IsGenericType)
+        {
+            var receiverParameterDefinition = receiverParameterType.GetGenericTypeDefinition();
+            if (receiverType.IsGenericType && receiverType.GetGenericTypeDefinition() == receiverParameterDefinition)
+            {
+                return true;
+            }
+            return receiverType.GetInterfaces().Any(candidate =>
+                candidate.IsGenericType && candidate.GetGenericTypeDefinition() == receiverParameterDefinition);
+        }
+        return false;
     }
 
     IEnumerable<MethodInfo> Operators(Type type)
