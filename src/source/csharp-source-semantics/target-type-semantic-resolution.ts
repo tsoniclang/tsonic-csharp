@@ -130,7 +130,7 @@ export function getCallableTargetTypeRefForSemanticType(
 ): TargetTypeRef | undefined {
   const checker = context.compiler?.checker;
   const types = context.compiler?.typeShape;
-  if (checker === undefined || types === undefined) {
+  if (checker === undefined || types === undefined || options.sourceFile === undefined) {
     return undefined;
   }
   if (classifySourceStandardLibraryType(type, context) !== undefined) {
@@ -143,7 +143,7 @@ export function getCallableTargetTypeRefForSemanticType(
   const signature = signatures[0]!;
   const parameters = checker.getSignatureParameters(signature);
   const parameterTypes = parameters.map((parameter) => {
-    const parameterType = safeGetTypeOfSymbol(parameter, context);
+    const parameterType = getTypeOfSymbol(parameter, context, options.sourceFile);
     return parameterType === undefined
       ? undefined
       : resolver.resolveType(parameterType, context, options, host);
@@ -161,11 +161,12 @@ export function getCallableTargetTypeRefForSemanticType(
   return csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
 }
 
-function safeGetTypeOfSymbol(
+function getTypeOfSymbol(
   symbol: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeOfSymbol"]>[0],
   context: ExtensionObservationContext,
+  sourceFile: SourceFile | undefined,
 ): Type | undefined {
-  return context.compiler?.checker.getTypeOfSymbol(symbol);
+  return context.compiler?.checker.getTypeOfSymbol(symbol, sourceFile === undefined ? undefined : { sourceFile });
 }
 
 export function getNullableUnionTargetTypeRef(

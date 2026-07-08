@@ -41,6 +41,9 @@ import {
   recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/arrays.js";
 import {
+  recordCsharpSourceLibraryElementAccessFactsBeforeFinalization,
+} from "./surfaces/js/elements.js";
+import {
   recordCsharpJsArrayMutationFactsBeforeFinalization,
 } from "./surfaces/js/array-mutations.js";
 import {
@@ -137,6 +140,7 @@ export function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
   recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost, options);
   recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpSourceLibraryElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);

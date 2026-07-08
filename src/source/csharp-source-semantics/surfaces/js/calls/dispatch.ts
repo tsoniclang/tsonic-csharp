@@ -8,7 +8,7 @@ import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
 import {
-  resolveSourceLibraryMemberIdentity,
+  resolveSelectedSourceLibraryMemberIdentity,
   sourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
@@ -78,9 +78,6 @@ export function mapCsharpSourceLibraryCheckedCall(
   const operationRow = getCsharpJsSourceLibraryOperationRow(sourceMember);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
-    if (canWaitForFinalizedFacts) {
-      return undefined;
-    }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
   }
   const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, request.sourceSelectedSignature, sourceLibraryMemberIdentity(sourceMember));
@@ -91,7 +88,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     if (canWaitForFinalizedFacts) {
       const deferredMember = selectedMember ?? (candidates.length === 1 ? candidates[0] : undefined);
       return deferredMember === undefined
-        ? undefined
+        ? rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host)
         : acceptDeferredSourceLibraryCheckedCall(sourceMember, deferredMember);
     }
     return closedFactsStatus.kind === "missing" &&
@@ -135,11 +132,11 @@ export function mapCsharpSourceLibraryCheckedCall(
 }
 
 export function resolveCheckedCallSourceLibraryMember(
-  request: Pick<CheckedCallMappingRequest, "sourceCalleeDeclaration" | "sourceSelectedDeclaration">,
+  request: Pick<CheckedCallMappingRequest, "sourceCalleeDeclaration" | "sourceCalleeSymbol" | "sourceSelectedDeclaration">,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ) {
-  return resolveSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, context) ??
-    resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context);
+  return resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context) ??
+    resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context);
 }
 
 function selectedSignatureMatchesSourceDeclaration(

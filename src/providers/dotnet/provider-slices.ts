@@ -66,7 +66,10 @@ export function missingDotnetSameModuleProviderRefExports(
   if (requestedExports === undefined) {
     return [];
   }
-  const exportedNames = new Set(module.exports.flatMap(dotnetSourceExportNames));
+  const exportedNames = new Set([
+    ...module.exports.flatMap(dotnetSourceExportNames),
+    ...(module.unsupportedExports ?? []).map((declaration) => declaration.sourceName),
+  ]);
   return [...sameModuleProviderRefClosure(module, requestedExports)]
     .filter((exportName) => !exportedNames.has(exportName));
 }
@@ -181,6 +184,7 @@ const nonSourceClosureMetadataKeys = new Set([
   "targetIdentity",
   "unsupportedAttributes",
   "unsupportedImplementedContracts",
+  "unsupportedExports",
   "unsupportedMembers",
 ]);
 

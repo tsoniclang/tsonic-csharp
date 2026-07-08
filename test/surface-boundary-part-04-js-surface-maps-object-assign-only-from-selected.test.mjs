@@ -474,6 +474,7 @@ test("JS surface maps Record element access through provider-owned Dictionary in
     expression,
     receiver,
     argument: key,
+    sourceSelectedDeclaration: sourceLibraryMemberDeclaration("Record", ""),
   }, fakeContext(facts));
 
   assert.equal(result.kind, "accept");

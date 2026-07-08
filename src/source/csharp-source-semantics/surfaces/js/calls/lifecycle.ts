@@ -48,9 +48,6 @@ import {
   getSymbolForDeclarationLookup,
 } from "../../../symbol-utils.js";
 import {
-  csharpTargetOperationFactKey,
-} from "../../../../csharp-facts.js";
-import {
   mapCsharpSourceLibraryCheckedCall,
 } from "./dispatch.js";
 
@@ -124,11 +121,7 @@ function recordCsharpSourceLibraryCallFact(
   const compiler = context.compiler;
   if (
     compiler === undefined ||
-    (!compiler.ast.is.IsCallExpression(node) && !compiler.ast.is.IsNewExpression(node)) ||
-    (
-      context.host.facts.get(node, selectedTargetSignatureFactKey) !== undefined &&
-      context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined
-    )
+    (!compiler.ast.is.IsCallExpression(node) && !compiler.ast.is.IsNewExpression(node))
   ) {
     return "pending";
   }

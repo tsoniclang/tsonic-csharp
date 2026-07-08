@@ -292,6 +292,8 @@ export function fakeHost(receiverType, targetTypes = new Map(), targetBinding, o
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByMetadataName: (metadataName) => metadataName === "System.Collections.Generic.Dictionary`2" ? targetBinding : undefined }),
     getTargetTypeRefForSubject: (subject, context) => targetTypes.get(subject) ??
+      targetTypes.get(subject?.TargetType) ??
+      targetTypes.get(subject?.SemanticType) ??
       context?.factResolver?.resolve(subject, runtimeCarrierFactKey)?.carrier ??
       context?.factResolver?.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
       (receiverType !== undefined && subject === receiverType

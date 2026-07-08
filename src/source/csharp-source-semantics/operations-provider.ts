@@ -89,6 +89,7 @@ import {
 import {
   getSelectedSourceLibraryDeclarationName,
   resolveSourceLibraryMemberIdentity,
+  resolveSelectedSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import {
   getReferencedDeclarationTargetTypeRef,
@@ -340,8 +341,8 @@ function jsSurfaceOwnsCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
-  return resolveSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, context) !== undefined ||
-    resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
+  return resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context) !== undefined ||
+    resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedPropertyAccess(
