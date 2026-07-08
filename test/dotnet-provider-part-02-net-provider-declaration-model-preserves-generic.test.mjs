@@ -495,6 +495,48 @@ test(".NET provider source declarations keep extension-method signature identiti
   assert.ok(targetMember);
   assert.equal(targetMember.receiverPassing, "first-argument");
 });
+test(".NET provider projects extension methods onto proven source receivers without changing target identity", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["String"] });
+  assert.equal("exports" in module, true);
+
+  const rawString = module.exports.find((declaration) => declaration.sourceName === "String");
+  assert.ok(rawString);
+  const rawAsSpan = rawString.members.find((member) =>
+    member.kind === "method" &&
+    member.sourceName === "AsSpan" &&
+    member.sourceParameterOffset === 1
+  );
+  assert.ok(rawAsSpan);
+  assert.equal(rawAsSpan.static, true);
+  assert.equal(rawAsSpan.sourceStatic, false);
+  assert.equal(rawAsSpan.receiverPassing, "first-argument");
+  assert.equal(rawAsSpan.targetDeclaringType.metadataName, "System.MemoryExtensions");
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module, {
+    resolveModule(specifier, requestedExports) {
+      const resolved = provider.getModule(specifier, { requestedExports });
+      return "exports" in resolved ? resolved : undefined;
+    },
+  });
+  const sourceString = declarationModel.exports.find((declaration) => declaration.name === "String");
+  assert.ok(sourceString);
+  const sourceAsSpan = sourceString.members.find((member) =>
+    member.kind === "method" &&
+    member.name === "AsSpan"
+  );
+  assert.ok(sourceAsSpan);
+  assert.equal(sourceAsSpan.static, false);
+  assert.deepEqual(sourceAsSpan.signatures[0].parameters.map((parameter) => parameter.name), []);
+
+  const binding = dotnetExportToTargetBinding(rawString);
+  const targetAsSpan = findByIdSuffix(binding.members, "System.MemoryExtensions.AsSpan(System.String)");
+  assert.ok(targetAsSpan);
+  assert.equal(targetAsSpan.static, true);
+  assert.equal(targetAsSpan.receiverPassing, "first-argument");
+  assert.equal(stripAssemblyQualifiers(targetAsSpan.declaringType.id), "System.MemoryExtensions");
+  assert.deepEqual(targetAsSpan.parameters.map((parameter) => parameter.name), ["text"]);
+});
 test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = provider.getModule("@tsonic/dotnet/System.IO.js", {});

@@ -15,11 +15,17 @@ import {
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
+  parseDotnetModuleSpecifier,
+} from "../../providers/dotnet/module-specifier.js";
+import {
   getAliasedSymbolIfAvailable,
 } from "./symbol-utils.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
+import {
+  csharpApplyExternAliasToTargetBinding,
+} from "./target-types.js";
 
 export function recordCsharpProviderTargetBindingFactsBeforeFinalization(
   lifecycleContext: ExtensionLifecycleContext,
@@ -59,12 +65,15 @@ function getCsharpProviderTargetBindingForTypeReference(
   for (const subject of subjects) {
     const virtualDeclaration = lifecycleContext.host.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
     const targetIdentity = virtualDeclaration?.targetIdentity;
-    if (targetIdentity?.kind !== "target-named") {
+    if (virtualDeclaration === undefined || targetIdentity?.kind !== "target-named") {
       continue;
     }
     const binding = host.getCsharpTargetBindingByTargetId(targetIdentity.id);
     if (binding !== undefined) {
-      return binding;
+      const parsedModule = parseDotnetModuleSpecifier(virtualDeclaration.moduleSpecifier);
+      return parsedModule?.externAlias === undefined
+        ? binding
+        : csharpApplyExternAliasToTargetBinding(binding, parsedModule.externAlias);
     }
   }
   return undefined;

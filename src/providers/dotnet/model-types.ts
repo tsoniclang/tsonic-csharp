@@ -31,6 +31,11 @@ export interface DotnetAssemblyReference {
   readonly path?: string;
 }
 
+export interface DotnetSourceTypeFamilyDeclaration {
+  readonly exportName: string;
+  readonly typeArgumentCount: number;
+}
+
 export interface DotnetModuleModel {
   readonly moduleSpecifier: string;
   readonly namespaceName: string;
@@ -80,6 +85,7 @@ export interface DotnetTypeDeclaration {
   readonly kind: "type";
   readonly typeKind: DotnetTypeKind;
   readonly sourceName: string;
+  readonly sourceTypeFamily?: DotnetSourceTypeFamilyDeclaration;
   readonly namespaceName: string;
   readonly targetId: string;
   readonly metadataName: string;
@@ -139,7 +145,10 @@ export interface DotnetMemberDeclaration {
   readonly targetId: string;
   readonly metadataName: string;
   readonly static?: boolean;
+  readonly sourceStatic?: boolean;
   readonly receiverPassing?: "instance" | "first-argument";
+  readonly sourceParameterOffset?: number;
+  readonly targetDeclaringType?: DotnetTypeRef;
   readonly readable?: boolean;
   readonly writable?: boolean;
   readonly type?: DotnetTypeRef;

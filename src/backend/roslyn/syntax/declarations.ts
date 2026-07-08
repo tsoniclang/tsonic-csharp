@@ -10,6 +10,7 @@ import type { CsharpTypeNode } from "./types.js";
 
 export interface CsharpCompilationUnit {
   readonly kind: "CompilationUnit";
+  readonly externAliases?: readonly string[];
   readonly usings: readonly CsharpUsing[];
   readonly members: readonly CsharpMember[];
 }

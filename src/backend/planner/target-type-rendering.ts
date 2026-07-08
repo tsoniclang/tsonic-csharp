@@ -136,5 +136,19 @@ function csharpNamedTypeFromRenderShape(
   if (argumentOffset !== typeArguments.length) {
     return undefined;
   }
+  if (current === undefined) {
+    return undefined;
+  }
+  if (shape.externAlias !== undefined) {
+    const alias = tryCsharpIdentifier(shape.externAlias);
+    if (alias === undefined) {
+      return undefined;
+    }
+    return {
+      kind: "AliasQualifiedName",
+      alias,
+      name: current,
+    };
+  }
   return current;
 }

@@ -17,6 +17,12 @@ export function printCsharpCompilationUnit(
   context: CsharpPrintContext,
 ): string {
   const lines: string[] = [];
+  for (const externAlias of unit.externAliases ?? []) {
+    lines.push(`extern alias ${externAlias};`);
+  }
+  if ((unit.externAliases ?? []).length > 0 && (unit.usings.length > 0 || unit.members.length > 0)) {
+    lines.push("");
+  }
   for (const using of unit.usings) {
     lines.push(`using ${using.namespace};`);
   }

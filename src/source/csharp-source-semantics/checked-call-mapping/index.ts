@@ -36,6 +36,7 @@ import {
   isDotnetNativeArrayCreateMemberId,
 } from "../../../providers/dotnet/native-array.js";
 import {
+  applyProviderVirtualExternAlias,
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
   findTargetBindingFromResolvedTargetType,
@@ -240,7 +241,7 @@ export function mapCsharpCheckedCall(
     return deferObservation;
   }
   const targetBinding = binding.target === csharpTargetId
-    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, virtualDeclaration) ?? binding
     : binding;
   if (request.sourceSelectedSignature !== undefined && getVirtualDeclarationSignatureId(virtualDeclaration) === undefined) {
     return rejectObservation(csharpProviderDiagnostic(

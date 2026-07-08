@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
 {
     public static Request Parse(string[] args)
     {
@@ -17,6 +17,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         var metadataNames = new List<string>();
         string? referenceDirectory = null;
         var references = new List<string>();
+        string? assemblyName = null;
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
@@ -49,11 +50,14 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                 case "--reference":
                     references.Add(RequiredValue(args, ref index, arg));
                     break;
+                case "--assembly-name":
+                    assemblyName = RequiredValue(args, ref index, arg);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, targetIds, metadataNames, referenceDirectory, references);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, targetIds, metadataNames, referenceDirectory, references, assemblyName);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)

@@ -27,6 +27,10 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
       const rightArgs = right.typeArguments ?? [];
       return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
     }
+    case "AliasQualifiedName":
+      return right.kind === "AliasQualifiedName" &&
+        left.alias === right.alias &&
+        sameCsharpType(left.name, right.name);
     case "ArrayType":
       return right.kind === "ArrayType" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
     case "TupleType":

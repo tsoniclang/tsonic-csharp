@@ -48,6 +48,7 @@ export function createDotnetReflectionCacheRequest(
     requestedTargetIds: sortedNonEmpty(input.context.requestedTargetIds),
     requestedMetadataNames: sortedNonEmpty(input.context.requestedMetadataNames),
     broadImport: input.context.broadImport,
+    assemblyName: input.context.assemblyName,
     referenceDirectory: input.options.referenceDirectory,
     referenceIdentities: referenceIdentities([...(input.context.references ?? []), ...(input.options.references ?? [])]),
     toolIdentity: input.toolIdentity,
@@ -78,6 +79,9 @@ export function pushDotnetReflectionReferenceArgs(
   }
   for (const reference of [...(context.references ?? []), ...(options.references ?? [])]) {
     args.push("--reference", reference);
+  }
+  if (context.assemblyName !== undefined) {
+    args.push("--assembly-name", context.assemblyName);
   }
 }
 

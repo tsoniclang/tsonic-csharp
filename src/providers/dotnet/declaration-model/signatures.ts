@@ -13,8 +13,9 @@ export function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
   signatureId: string = signature.id,
+  options: { readonly sourceParameterOffset?: number } = {},
 ): ProviderSignatureDeclaration | undefined {
-  const parameters = signature.parameters.map(dotnetParameterToProviderParameter);
+  const parameters = signature.parameters.slice(options.sourceParameterOffset ?? 0).map(dotnetParameterToProviderParameter);
   const returnType = signature.returnType === undefined ? undefined : tryDotnetTypeRefToProviderType(signature.returnType);
   if (parameters.some((parameter) => parameter === undefined) || (signature.returnType !== undefined && returnType === undefined)) {
     return undefined;
@@ -31,10 +32,11 @@ export function dotnetSignatureToProviderSignature(
 export function dotnetProviderSignatureIdsForMember(
   member: DotnetMemberDeclaration,
   memberTargetName?: string,
+  options: { readonly sourceParameterOffset?: number } = {},
 ): ReadonlyMap<string, string> {
   const shapeEntries = (member.signatures ?? [])
     .map((signature) => {
-      const shapeKey = dotnetProviderSignatureShapeKey(signature, memberTargetName);
+      const shapeKey = dotnetProviderSignatureShapeKey(signature, memberTargetName, options);
       return shapeKey === undefined ? undefined : { signature, shapeKey };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
@@ -53,8 +55,9 @@ export function dotnetProviderSignatureIdsForMember(
 export function dotnetProviderSignatureShapeKey(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
+  options: { readonly sourceParameterOffset?: number } = {},
 ): string | undefined {
-  const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName);
+  const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName, signature.id, options);
   return providerSignature === undefined ? undefined : providerSignatureShapeKey(providerSignature);
 }
 
@@ -80,7 +83,7 @@ function providerSignatureSourceSpecificityScore(signature: ProviderSignatureDec
     score + providerTypeExpressionSourceSpecificityScore(parameter.type), 0);
 }
 
-function providerSignatureShapeKey(signature: ProviderSignatureDeclaration): string {
+export function providerSignatureShapeKey(signature: ProviderSignatureDeclaration): string {
   return JSON.stringify({
     typeParameters: signature.typeParameters?.map((parameter) => ({
       variance: parameter.variance,

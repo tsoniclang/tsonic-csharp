@@ -118,7 +118,11 @@ export function createDotnetReflectionTypeDataProvider(
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
     }
-    const cacheRequest = createCacheRequest(specifier, parsed.namespaceName, context);
+    const effectiveContext = contextWithParsedExternAlias(context, parsed.externAlias);
+    if (isProviderContextDiagnostic(effectiveContext)) {
+      return effectiveContext;
+    }
+    const cacheRequest = createCacheRequest(specifier, parsed.namespaceName, effectiveContext);
     const memoryKey = moduleMemoryCacheKey(cacheRequest);
     const existing = modules.get(memoryKey);
     if (existing !== undefined) {
@@ -155,7 +159,7 @@ export function createDotnetReflectionTypeDataProvider(
       return brokerDiagnostic;
     }
     telemetry.memoryCacheMiss();
-    return loadSingleModule(cacheRequest, context);
+    return loadSingleModule(cacheRequest, effectiveContext);
   }
 
   function loadSingleModule(
@@ -330,5 +334,37 @@ export function createDotnetReflectionTypeDataProvider(
     diagnostics.set(memoryKey, contractDiagnostic);
     providerBroker?.writeDiagnostic(cacheRequest, contractDiagnostic);
     return contractDiagnostic;
+  }
+
+  function contextWithParsedExternAlias(
+    context: DotnetProviderModuleContext,
+    externAlias: NonNullable<ReturnType<typeof parseDotnetModuleSpecifier>>["externAlias"],
+  ): DotnetProviderModuleContext | DotnetProviderDiagnostic {
+    if (externAlias === undefined) {
+      return context;
+    }
+    if (context.assemblyName !== undefined && context.assemblyName !== externAlias.assemblyName) {
+      return diagnostic("DOTNET_REFLECTION_ALIAS_CONTEXT_CONFLICT", ".NET reflection provider alias module context conflicts with the alias module specifier.", {
+        moduleAssemblyName: externAlias.assemblyName,
+        contextAssemblyName: context.assemblyName,
+      });
+    }
+    if (context.externAlias !== undefined && context.externAlias !== externAlias.alias) {
+      return diagnostic("DOTNET_REFLECTION_ALIAS_CONTEXT_CONFLICT", ".NET reflection provider alias module context conflicts with the alias module specifier.", {
+        moduleAlias: externAlias.alias,
+        contextAlias: context.externAlias,
+      });
+    }
+    return {
+      ...context,
+      assemblyName: externAlias.assemblyName,
+      externAlias: externAlias.alias,
+    };
+  }
+
+  function isProviderContextDiagnostic(
+    value: DotnetProviderModuleContext | DotnetProviderDiagnostic,
+  ): value is DotnetProviderDiagnostic {
+    return "code" in value && "message" in value;
   }
 }

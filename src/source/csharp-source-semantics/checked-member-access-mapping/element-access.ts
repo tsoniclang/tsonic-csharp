@@ -19,6 +19,7 @@ import {
   targetOperationFromMember,
 } from "../operations.js";
 import {
+  applyProviderVirtualExternAlias,
   findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
   findTargetBindingFromResolvedTargetType,
@@ -100,7 +101,7 @@ export function mapCsharpCheckedElementAccess(
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
   const targetBinding = binding.target === csharpTargetId
-    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, selectedDeclaration) ?? binding
     : binding;
   const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
   const selected = selectCheckedElementTargetMember(targetBinding, request, context, host, declaringTargetType);

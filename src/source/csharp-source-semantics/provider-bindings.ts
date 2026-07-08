@@ -8,9 +8,15 @@ import type {
   TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  parseDotnetModuleSpecifier,
+} from "../../providers/dotnet/module-specifier.js";
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
+import {
+  csharpApplyExternAliasToTargetBinding,
+} from "./target-types.js";
 
 export function findTargetBinding(
   context: ExtensionObservationContext,
@@ -44,7 +50,23 @@ export function findTargetBindingFromVirtualDeclaration(
   if (targetIdentity?.kind !== "target-named") {
     return undefined;
   }
-  return lookupByTargetId(targetIdentity.id) ?? lookupByMetadataName?.(targetIdentity.id);
+  return applyProviderVirtualExternAlias(
+    lookupByTargetId(targetIdentity.id) ?? lookupByMetadataName?.(targetIdentity.id),
+    declaration,
+  );
+}
+
+export function applyProviderVirtualExternAlias(
+  binding: TargetBindingFact | undefined,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+): TargetBindingFact | undefined {
+  if (binding === undefined || declaration === undefined) {
+    return binding;
+  }
+  const parsedModule = parseDotnetModuleSpecifier(declaration.moduleSpecifier);
+  return parsedModule?.externAlias === undefined
+    ? binding
+    : csharpApplyExternAliasToTargetBinding(binding, parsedModule.externAlias);
 }
 
 export function findTargetBindingFromResolvedTargetType(

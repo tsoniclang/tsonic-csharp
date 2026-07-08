@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { planCsharpProjectFile } from "../dist/backend/planner/project-artifacts.js";
+import { planCsharpProject, planCsharpProjectFile } from "../dist/backend/planner/project-artifacts.js";
+import { materializeCsharpOutputPlan } from "../dist/backend/planner/csharp-output-plan.js";
 import { createCsharpTargetPack } from "../dist/descriptor/csharp-target-pack.js";
 import { printCsharpProjectFile } from "../dist/print/csharp-project-printer.js";
 import { createDotnetToolchain } from "../dist/toolchain/dotnet-toolchain.js";
@@ -48,6 +49,46 @@ test("project artifact emits library output deterministically by default", () =>
   assert.match(text, /<OutputType>Library<\/OutputType>/);
   assert.doesNotMatch(text, /<ItemGroup>/);
   assert.doesNotMatch(text, /<PublishAot>/);
+});
+
+test("user-owned project mode plans source-only output and never emits a generated project artifact", () => {
+  const userProjectFile = ensureUserProjectFile("UserOwned.csproj");
+  const diagnostics = [];
+  const project = planCsharpProject(fakeInput({
+    projectFile: "UserOwned.csproj",
+    outputType: "Exe",
+    references: {
+      frameworks: ["Microsoft.AspNetCore.App"],
+    },
+  }), {}, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(project, {
+    kind: "user-owned",
+    projectFile: userProjectFile,
+  });
+
+  const artifacts = materializeCsharpOutputPlan({
+    project,
+    sources: [{
+      path: "src/Index.cs",
+      unit: { kind: "CompilationUnit", usings: [], members: [] },
+    }],
+  });
+  assert.deepEqual(artifacts.map((artifact) => artifact.kind), ["source"]);
+  assert.equal(artifacts[0].path, "src/Index.cs");
+});
+
+test("user-owned project mode reports deterministic diagnostics for invalid project files", () => {
+  const notCsharpProject = ensureUserProjectFile("NotCsharpProject.txt");
+  const generatedProject = ensureUserProjectFile("out/csharp/Generated.csproj");
+  const directoryProjectPath = join(fixtureProjectRoot, "DirectoryProject.csproj");
+  mkdirSync(directoryProjectPath, { recursive: true });
+
+  assertUserProjectDiagnostic({ projectFile: "Missing.csproj" }, /does not exist/u);
+  assertUserProjectDiagnostic({ projectFile: notCsharpProject }, /must point to a \.csproj file/u);
+  assertUserProjectDiagnostic({ projectFile: directoryProjectPath }, /must point to a file/u);
+  assertUserProjectDiagnostic({ projectFile: generatedProject }, /must not point inside generated target output root/u);
 });
 
 test("project artifact emits executable output only from explicit C# target option", () => {
@@ -205,7 +246,31 @@ function fakeInput(options = {}, runtimeReferences = []) {
   return {
     target: { id: "csharp", options },
     runtimeReferences,
+    paths: {
+      projectFilePath: join(fixtureProjectRoot, "tsonic.json"),
+      projectRoot: fixtureProjectRoot,
+      outputRoot: join(fixtureProjectRoot, "out"),
+      targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+    },
   };
+}
+
+function ensureUserProjectFile(relativePath) {
+  const projectFile = resolve(fixtureProjectRoot, relativePath);
+  mkdirSync(dirname(projectFile), { recursive: true });
+  writeFileSync(projectFile, "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+  return projectFile;
+}
+
+function assertUserProjectDiagnostic(options, messagePattern) {
+  const diagnostics = [];
+  const project = planCsharpProject(fakeInput(options), {}, diagnostics);
+
+  assert.equal(project, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_USER_PROJECT_INVALID");
+  assert.match(diagnostics[0].message, messagePattern);
+  assert.deepEqual(diagnostics[0].category, "error");
 }
 
 function fakeRuntimeContributionContext(options = {}) {

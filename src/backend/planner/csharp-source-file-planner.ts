@@ -178,13 +178,58 @@ export function planSourceFile(
     }],
   };
   const requiresUnsafe = compilationUnitRequiresUnsafe(unit);
+  const finalUnit = withRequiredExternAliases(requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit);
   return {
     fileName,
     moduleClassName,
-    unit: requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit,
+    unit: finalUnit,
     requiresUnsafe,
     hasModuleInitializer,
   };
+}
+
+function withRequiredExternAliases(unit: CsharpCompilationUnit): CsharpCompilationUnit {
+  const aliases = collectExternAliases(unit);
+  return aliases.length === 0
+    ? unit
+    : {
+        ...unit,
+        externAliases: aliases,
+      };
+}
+
+function collectExternAliases(value: unknown): readonly string[] {
+  const aliases = new Set<string>();
+  const seen = new WeakSet<object>();
+  visitCsharpAstValue(value, aliases, seen);
+  return Array.from(aliases).sort((left, right) => left.localeCompare(right));
+}
+
+function visitCsharpAstValue(
+  value: unknown,
+  aliases: Set<string>,
+  seen: WeakSet<object>,
+): void {
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+  if (seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const element of value) {
+      visitCsharpAstValue(element, aliases, seen);
+    }
+    return;
+  }
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "AliasQualifiedName" && typeof record.alias === "string") {
+    aliases.add(record.alias);
+  }
+  for (const field of Object.values(record)) {
+    visitCsharpAstValue(field, aliases, seen);
+  }
 }
 
 function createModuleInitializerCall(moduleClassName: string): CsharpStatement {

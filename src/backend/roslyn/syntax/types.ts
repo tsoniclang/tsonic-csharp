@@ -3,6 +3,7 @@ export type CsharpTypeNode =
   | { readonly kind: "InvalidType"; readonly reason: string }
   | { readonly kind: "IdentifierName"; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "QualifiedName"; readonly left: CsharpTypeNode; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
+  | { readonly kind: "AliasQualifiedName"; readonly alias: string; readonly name: CsharpTypeNode }
   | { readonly kind: "ArrayType"; readonly elementType: CsharpTypeNode; readonly rank?: number }
   | { readonly kind: "TupleType"; readonly elements: readonly CsharpTypeNode[] }
   | { readonly kind: "PointerType"; readonly pointee: CsharpTypeNode }

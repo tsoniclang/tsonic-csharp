@@ -200,7 +200,7 @@ sealed partial class ReflectionProvider
             {
                 kind = "provider-ref",
                 moduleSpecifier = sourceReference.ModuleSpecifier,
-                exportName = sourceReference.Name,
+                exportName = sourceReference.TypeFamilyExportName ?? sourceReference.Name,
                 typeArguments = args.Length == 0 ? null : args,
             };
         }
@@ -262,11 +262,17 @@ sealed partial class ReflectionProvider
         foreach (var namespaceGroup in types.GroupBy(type => $"{type.Namespace}\0{SourceTypeBaseName(type)}", StringComparer.Ordinal))
         {
             var groupTypes = namespaceGroup.ToArray();
+            var familyExportName = SourceTypeBaseName(groupTypes[0]);
+            var useTypeFamily = CanRepresentProviderTypeFamily(groupTypes);
             var disambiguateByArity = groupTypes.Length > 1;
             var candidateGroups = groupTypes
                 .Select(type => new SourceReferenceCandidate(
                     type,
-                    new SourceReference(SourceTypeName(type, disambiguateByArity), ModuleSpecifierForNamespace(type.Namespace!))))
+                    new SourceReference(
+                        SourceTypeName(type, disambiguateByArity),
+                        ModuleSpecifierForNamespace(type.Namespace!),
+                        useTypeFamily ? familyExportName : null,
+                        useTypeFamily ? GenericTypeNameArity(type) : null)))
                 .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
                 .ToArray();
             foreach (var candidateGroup in candidateGroups.Where(group => group.Count() == 1))
@@ -279,7 +285,11 @@ sealed partial class ReflectionProvider
                     .Where(candidate => candidate.Type.IsNested)
                     .Select(candidate => new SourceReferenceCandidate(
                         candidate.Type,
-                        new SourceReference(QualifiedNestedSourceTypeName(candidate.Type, disambiguateByArity), candidate.Reference.ModuleSpecifier)))
+                        new SourceReference(
+                            QualifiedNestedSourceTypeName(candidate.Type, disambiguateByArity),
+                            candidate.Reference.ModuleSpecifier,
+                            useTypeFamily ? familyExportName : null,
+                            useTypeFamily ? GenericTypeNameArity(candidate.Type) : null)))
                     .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
                     .Where(group => group.Count() == 1))
                 {
@@ -294,6 +304,62 @@ sealed partial class ReflectionProvider
         return providerSourceReferencesByTargetId.TryGetValue(TargetId(type), out var reference)
             ? reference.Name
             : SourceTypeName(type);
+    }
+
+    string ProviderSourceExportName(Type type)
+    {
+        return providerSourceReferencesByTargetId.TryGetValue(TargetId(type), out var reference) &&
+            !string.IsNullOrEmpty(reference.TypeFamilyExportName)
+            ? reference.TypeFamilyExportName
+            : ProviderSourceTypeName(type);
+    }
+
+    (string ExportName, int TypeArgumentCount)? ProviderSourceTypeFamily(Type type)
+    {
+        if (!providerSourceReferencesByTargetId.TryGetValue(TargetId(type), out var reference) ||
+            string.IsNullOrEmpty(reference.TypeFamilyExportName) ||
+            reference.TypeFamilyTypeArgumentCount is null)
+        {
+            return null;
+        }
+        return (reference.TypeFamilyExportName, reference.TypeFamilyTypeArgumentCount.Value);
+    }
+
+    object? ProviderSourceTypeFamilyObject(Type type)
+    {
+        var family = ProviderSourceTypeFamily(type);
+        return family is null
+            ? null
+            : new
+            {
+                exportName = family.Value.ExportName,
+                typeArgumentCount = family.Value.TypeArgumentCount,
+            };
+    }
+
+    static bool CanRepresentProviderTypeFamily(IReadOnlyCollection<Type> types)
+    {
+        if (types.Count < 2)
+        {
+            return false;
+        }
+        var arities = new HashSet<int>();
+        foreach (var type in types)
+        {
+            if (!arities.Add(GenericTypeNameArity(type)))
+            {
+                return false;
+            }
+        }
+        var ordered = arities.OrderBy(arity => arity).ToArray();
+        for (var arity = ordered[0]; arity <= ordered[^1]; arity++)
+        {
+            if (!arities.Contains(arity))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     string ModuleSpecifierForNamespace(string namespaceName)

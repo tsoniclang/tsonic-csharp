@@ -272,6 +272,7 @@ function validateDotnetTypeDeclaration(
     supportedDotnetTypeKinds,
   );
   requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
+  validateOptionalDotnetSourceTypeFamily(declaration.sourceTypeFamily, declaration.typeParameters?.length ?? 0, `${path}.sourceTypeFamily`, collector);
   requireNonEmptyString(declaration.namespaceName, `${path}.namespaceName`, collector);
   validateDotnetTargetIdentity(declaration.targetId, declaration.metadataName, `${path}.targetId`, `${path}.metadataName`, collector, {
     assembly: declaration.assembly,
@@ -323,6 +324,24 @@ function validateDotnetTypeDeclaration(
   }
 }
 
+function validateOptionalDotnetSourceTypeFamily(
+  family: DotnetTypeDeclaration["sourceTypeFamily"] | undefined,
+  typeParameterCount: number,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (family === undefined) {
+    return;
+  }
+  requireNonEmptyString(family.exportName, `${path}.exportName`, collector);
+  if (!Number.isSafeInteger(family.typeArgumentCount) || family.typeArgumentCount < 0) {
+    collector.add(`${path}.typeArgumentCount`, "Provider source type-family arity must be a non-negative safe integer.", family.typeArgumentCount);
+  }
+  if (family.typeArgumentCount !== typeParameterCount) {
+    collector.add(`${path}.typeArgumentCount`, "Provider source type-family arity must match the declaration type parameter count.", family.typeArgumentCount);
+  }
+}
+
 function validateDotnetMemberList(
   members: readonly DotnetMemberDeclaration[],
   path: string,
@@ -346,6 +365,10 @@ function validateDotnetMemberList(
     requireNonEmptyString(member.sourceName, `${memberPath}.sourceName`, collector);
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     validateDotnetTargetIdentity(member.targetId, member.metadataName, `${memberPath}.targetId`, `${memberPath}.metadataName`, collector);
+    if (member.sourceParameterOffset !== undefined && (!Number.isSafeInteger(member.sourceParameterOffset) || member.sourceParameterOffset < 0)) {
+      collector.add(`${memberPath}.sourceParameterOffset`, "Source parameter offset must be a non-negative safe integer.", member.sourceParameterOffset);
+    }
+    validateOptionalDotnetTypeRef(member.targetDeclaringType, `${memberPath}.targetDeclaringType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     switch (member.kind) {
       case "constructor":
       case "method":
@@ -389,10 +412,10 @@ function validateSourceVisibleCallableMemberClrShapes(
 ): void {
   for (const [signatureIndex, signature] of (member.signatures ?? []).entries()) {
     const signaturePath = `${path}.signatures[${signatureIndex}]`;
-    for (const [parameterIndex, parameter] of signature.parameters.entries()) {
+    for (const [parameterIndex, parameter] of signature.parameters.slice(member.sourceParameterOffset ?? 0).entries()) {
       validateNoUnsupportedClrSourceTypeRef(
         parameter.type,
-        `${signaturePath}.parameters[${parameterIndex}].type`,
+        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].type`,
         collector,
         `Source-visible ${member.kind} parameter '${parameter.name}' type`,
       );

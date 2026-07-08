@@ -4,7 +4,7 @@ import { planCsharpEntrypointSourceFile } from "./csharp-entrypoint-planner.js";
 import { planCsharpModuleInitialization } from "./csharp-module-initialization.js";
 import { planSourceFile } from "./csharp-source-file-planner.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
-import { planCsharpProjectFile } from "./project-artifacts.js";
+import { planCsharpProject } from "./project-artifacts.js";
 import {
   sourceFileArtifactPath,
   validateSourceFileOutputIdentities,
@@ -50,10 +50,17 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
       diagnostics,
     };
   }
+  const project = planCsharpProject(input, {
+    allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
+  }, diagnostics);
+  if (diagnostics.length > 0 || project === undefined) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
   const artifacts = materializeCsharpOutputPlan({
-    project: planCsharpProjectFile(input, {
-      allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
-    }),
+    project,
     sources: [
       ...plannedSources.map((source) => ({
         path: sourceFileArtifactPath(input, source.fileName),

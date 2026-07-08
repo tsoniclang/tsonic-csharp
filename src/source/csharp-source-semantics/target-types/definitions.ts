@@ -14,6 +14,7 @@ export type CsharpTargetTypeRenderShape =
   | { readonly kind: "predefined"; readonly name: string }
   | {
       readonly kind: "named";
+      readonly externAlias?: string;
       readonly namespace?: readonly string[];
       readonly name: string;
       readonly genericArity?: number;

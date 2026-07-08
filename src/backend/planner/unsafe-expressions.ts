@@ -26,6 +26,7 @@ export function expressionRequiresUnsafe(
   blockRequiresUnsafe: BlockUnsafeChecker,
 ): boolean {
   switch (expression.kind) {
+    case "AliasQualifiedName":
     case "ArrayType":
     case "FunctionPointerType":
     case "IdentifierName":

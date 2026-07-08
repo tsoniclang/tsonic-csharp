@@ -17,6 +17,8 @@ export function printCsharpType(type: CsharpTypeNode): string {
         : `${type.name}<${type.typeArguments.map(printCsharpType).join(", ")}>`;
       return `${printCsharpType(type.left)}.${suffix}`;
     }
+    case "AliasQualifiedName":
+      return `${type.alias}::${printCsharpType(type.name)}`;
     case "ArrayType":
       return `${printCsharpType(type.elementType)}${printArrayRankSuffix(type.rank)}`;
     case "TupleType":
@@ -33,6 +35,7 @@ export function printCsharpType(type: CsharpTypeNode): string {
 
 export function isCsharpTypeSyntax(expression: CsharpExpression): expression is CsharpTypeNode {
   switch (expression.kind) {
+    case "AliasQualifiedName":
     case "ArrayType":
     case "FunctionPointerType":
     case "IdentifierName":

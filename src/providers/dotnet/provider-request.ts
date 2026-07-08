@@ -15,14 +15,25 @@ export interface DotnetProviderModuleRequest {
   readonly moduleSpecifier: string;
   readonly requestedExports?: readonly string[];
   readonly internal?: boolean;
+  readonly assemblyName?: string;
+  readonly externAlias?: string;
 }
 
 export function dotnetProviderModuleRequest(
   specifier: string,
 ): DotnetProviderModuleRequest | undefined {
-  return parseDotnetModuleSpecifier(specifier) === undefined
+  const parsed = parseDotnetModuleSpecifier(specifier);
+  return parsed === undefined
     ? undefined
-    : { moduleSpecifier: specifier };
+    : {
+        moduleSpecifier: specifier,
+        ...(parsed.externAlias !== undefined
+          ? {
+              assemblyName: parsed.externAlias.assemblyName,
+              externAlias: parsed.externAlias.alias,
+            }
+          : {}),
+      };
 }
 
 export function dotnetProviderModuleContext(

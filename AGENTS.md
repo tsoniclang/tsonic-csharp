@@ -19,6 +19,14 @@ This repo follows the Tsonic “airplane-grade” architecture rules.
 - Build-time provider tooling may inspect known first-party assemblies or source metadata, but generated user code must remain statically closed.
 - Missing finalized facts or provider metadata must produce deterministic diagnostics instead of guessing.
 
+## .NET Toolchain Config Boundary
+
+- Advanced .NET build/toolchain configuration belongs in user-owned `.csproj`/MSBuild files, not in `tsonic.json`.
+- Keep SDK selection, framework/package/reference items, assembly aliases, analyzers, publish profiles, trimming, NativeAOT knobs, deployment settings, and other open-ended MSBuild/NuGet configuration in the .NET project file when the .NET toolchain already supports them.
+- Do not add parallel C# target config for those knobs unless the value is compiler semantic input, provider metadata selection, source-profile selection, or deterministic codegen policy.
+- User-owned project mode must emit generated C# sources without mutating the user `.csproj`; the user project owns how generated sources are included and built.
+- If emitted C# requires alias-qualified type names or other code semantics, C# must prove and emit that source shape from explicit source/provider facts. The `.csproj` may declare the build alias, but it must not become a hidden semantic fallback.
+
 ## Work Hygiene
 
 - Use `.temp/` for Tsonic-specific scratch work and do not use `/tmp`.

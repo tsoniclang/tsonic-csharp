@@ -2,10 +2,10 @@ import type { TargetArtifact, TargetSourceFile } from "@tsonic/target-api";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { printCsharpProjectFile } from "../../print/csharp-project-printer.js";
 import type { CsharpCompilationUnit } from "../roslyn/syntax.js";
-import type { CsharpProjectFile } from "./project-artifacts.js";
+import type { CsharpProjectPlan } from "./project-artifacts.js";
 
 export interface CsharpOutputPlan {
-  readonly project: CsharpProjectFile;
+  readonly project: CsharpProjectPlan;
   readonly sources: readonly CsharpOutputSourceFile[];
 }
 
@@ -21,12 +21,14 @@ export function materializeCsharpOutputPlan(plan: CsharpOutputPlan): readonly Ta
     path: source.path,
     text: printCsharpCompilationUnit(source.unit),
   }));
-  return [
-    {
-      kind: "project",
-      path: plan.project.path,
-      text: printCsharpProjectFile(plan.project),
-    },
-    ...sourceArtifacts,
-  ];
+  return plan.project.kind === "generated"
+    ? [
+        {
+          kind: "project",
+          path: plan.project.project.path,
+          text: printCsharpProjectFile(plan.project.project),
+        },
+        ...sourceArtifacts,
+      ]
+    : sourceArtifacts;
 }
