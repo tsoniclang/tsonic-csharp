@@ -248,7 +248,7 @@ test("JS surface rejects single-target calls without selected signature identity
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE");
 });
-test("JS surface rejects calls when selected signature and declaration facts disagree", () => {
+test("JS surface uses the TSTS-selected signature declaration instead of reselecting from callee evidence", () => {
   const call = {};
   const receiver = {};
   const value = {};
@@ -267,8 +267,8 @@ test("JS surface rejects calls when selected signature and declaration facts dis
     sourceCalleeDeclaration: mismatchedCalleeDeclaration,
   }), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_SIGNATURE_DECLARATION_MISMATCH");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.sourceName, "includes");
 });
 test("JS surface maps Array.concat from selected declaration and closed array argument facts", () => {
   const call = {};

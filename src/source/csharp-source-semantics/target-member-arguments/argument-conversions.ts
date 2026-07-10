@@ -27,7 +27,7 @@ export function getTargetArgumentConversionTypes(
   return conversions;
 }
 
-function getTargetArgumentConversionType(parameter: CsharpTargetParameter): TargetTypeRef {
+export function getTargetArgumentConversionType(parameter: CsharpTargetParameter): TargetTypeRef {
   return parameter.paramsArray === true && parameter.type.kind === "array"
     ? parameter.type.element
     : parameter.type;

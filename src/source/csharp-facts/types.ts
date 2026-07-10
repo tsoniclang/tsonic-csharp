@@ -166,6 +166,14 @@ export interface CsharpSourceReturnCarrierFact {
   readonly carrier: TargetTypeRef;
 }
 
+export interface CsharpSelectedCallTargetFact {
+  readonly member: CsharpTargetMember;
+}
+
+export interface CsharpSelectedPropertyTargetFact {
+  readonly operationId: string;
+}
+
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
   | CsharpTargetArrayCreationOperationFact

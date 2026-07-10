@@ -8,6 +8,9 @@ import type {
   ExtensionObservationContext,
   TargetMember,
 } from "@tsonic/tsts";
+import {
+  csharpSelectedCallTargetFactKey,
+} from "../../../../csharp-facts.js";
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
@@ -33,9 +36,14 @@ export function acceptSourceLibraryCheckedCall(
 }
 
 export function acceptDeferredSourceLibraryCheckedCall(
+  request: CheckedCallMappingRequest,
   sourceMember: SourceLibraryMember,
   member: TargetMember,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
+  context.facts.set(request.call, csharpSelectedCallTargetFactKey, {
+    member,
+  }, [{ message: `C# retained the exact selected target member for checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}' until closed receiver facts are finalized.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },
   }, [{ message: `C# JS surface target call signature accepted from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'; target operation recording waits for finalized closed facts.` }]);

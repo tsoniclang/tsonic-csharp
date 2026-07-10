@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { recordCsharpSelectedCallOperationFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/csharp-operation-lifecycle.js";
+import { runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
+import { csharpSelectedCallTargetFactKey, csharpSelectedPropertyTargetFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { recordCsharpSelectedCallOperationFactsBeforeFinalization, recordCsharpSelectedPropertyOperationFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/csharp-operation-lifecycle.js";
 
 test("selected call lifecycle records closed C# operation facts from selected type arguments", () => {
   const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
@@ -47,7 +47,7 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
-test("selected call lifecycle does not synthesize first-argument receiver operations", () => {
+test("selected call lifecycle requires a finalized first-argument receiver carrier", () => {
   const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
   const call = { Kind: 1 };
   sourceFile.Statements.Nodes.push(call);
@@ -63,6 +63,29 @@ test("selected call lifecycle does not synthesize first-argument receiver operat
   }, fakeTargetTypeHost());
 
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("selected call lifecycle records first-argument receiver operations from exact selected signature and carrier facts", () => {
+  const receiver = { Kind: "identifier" };
+  const callee = { Kind: "property", Expression: receiver };
+  const call = { Kind: "call", Expression: callee };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const member = firstArgumentReceiverMember();
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: member.parameters[0].type });
+  facts.set(call, selectedTargetSignatureFactKey, { member });
+  facts.set(call, csharpSelectedCallTargetFactKey, { member });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.kind, "member");
+  assert.equal(operation.operationId, member.id);
+  assert.equal(operation.selectedMember.receiverPassing, "first-argument");
 });
 
 test("selected call lifecycle rejects mismatched selected type argument facts", () => {
@@ -139,6 +162,58 @@ test("selected call lifecycle preserves real double provider members against rec
   assert.equal(operation.operationId, "Example.Span`1.CopyTo(Example.Span`1<T>)");
   assert.deepEqual(operation.selectedMember.declaringType, spanType(csharpFloat64TargetType()));
   assert.deepEqual(operation.selectedMember.parameters[0].type, spanType(csharpFloat64TargetType()));
+});
+
+test("selected property lifecycle closes JS property operations from exact selected identity and receiver carrier facts", () => {
+  const receiver = { Kind: "identifier" };
+  const property = { Kind: "property", Expression: receiver };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [property] } };
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, {
+    carrier: { kind: "array", element: csharpInt32TargetType() },
+  });
+  facts.set(property, targetOperationFactKey, {
+    operationId: "tsonic.csharp.js.Array.length",
+    operationKind: "property",
+    targetOperation: "length",
+  });
+  facts.set(property, csharpSelectedPropertyTargetFactKey, {
+    operationId: "tsonic.csharp.js.Array.length",
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedPropertyOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  const operation = facts.get(property, csharpTargetOperationFactKey);
+  assert.equal(operation.kind, "member");
+  assert.equal(operation.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(operation.memberName, "Length");
+});
+
+test("selected property lifecycle does not infer JS property operations without selected identity facts", () => {
+  const receiver = { Kind: "identifier" };
+  const property = { Kind: "property", Expression: receiver };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [property] } };
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, {
+    carrier: { kind: "array", element: csharpInt32TargetType() },
+  });
+  facts.set(property, targetOperationFactKey, {
+    operationId: "tsonic.csharp.js.Array.length",
+    operationKind: "property",
+    targetOperation: "length",
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedPropertyOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.equal(facts.get(property, csharpTargetOperationFactKey), undefined);
 });
 
 function genericIdentityMember() {
@@ -219,6 +294,7 @@ function firstArgumentReceiverMember() {
     kind: "target-named",
     id: "Example.Span`1",
     typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Span" },
   };
   return {
     id: "Example.MemoryExtensions.Clear(Example.Span`1<System.Int32>)",
@@ -243,7 +319,8 @@ function fakeCompiler(sourceFiles) {
   return {
     getSourceFiles: () => sourceFiles,
     ast: {
-      children: () => [],
+      children: (node) => node?.Statements?.Nodes ??
+        (node?.Expression === undefined ? [] : [node.Expression]),
       typeArguments: () => [],
       typeParameters: () => [],
       parameters: () => [],

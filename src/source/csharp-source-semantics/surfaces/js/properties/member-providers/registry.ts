@@ -56,6 +56,24 @@ export function getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(
     : singlePropertyMember(propertyMembersFromRow(row, { selectedIdentity, receiverType, host }));
 }
 
+export function getCsharpJsSourceLibraryDeferredPropertyMemberForOperation(
+  operationId: string,
+  receiverType: TargetTypeRef,
+  host?: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  const members = jsSurfacePropertyRows.flatMap((row) => {
+    if (row.receiverFacts?.finalCarrierSelection !== true) {
+      return [];
+    }
+    return (row.targetProviders ?? []).flatMap((provider) =>
+      provider.kind === "receiver-member"
+        ? targetMembersFromReceiverMetadata(provider.members, receiverType, host)
+        : [],
+    );
+  }).filter((member) => member.id === operationId);
+  return singlePropertyMember(members);
+}
+
 export function csharpJsSourceLibraryPropertyPrecheck(selectedIdentity: JsSurfaceSelectedSourceIdentity): CsharpJsSourceLibraryPropertyPrecheck {
   const row = propertyRowForSelectedIdentity(selectedIdentity);
   return row?.precheck === undefined

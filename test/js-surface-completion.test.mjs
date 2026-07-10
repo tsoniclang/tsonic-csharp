@@ -254,6 +254,7 @@ function fakeContext(facts) {
         text: (node) => node?.Text ?? "",
         kindName: (node) => node?.Kind ?? "Undefined",
         is: {
+          IsSourceFile: (node) => typeof node?.FileName === "string" && node?.Kind === undefined,
           IsPropertyAccessExpression: (node) => node?.Kind === "KindPropertyAccessExpression",
           IsArrayLiteralExpression: () => false,
           IsObjectLiteralExpression: () => false,

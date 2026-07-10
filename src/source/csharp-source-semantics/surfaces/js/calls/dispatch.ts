@@ -19,7 +19,6 @@ import {
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "../unsupported.js";
 import {
-  rejectSourceLibraryCallSignatureDeclarationMismatch,
   rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallWithoutClosedArgumentFacts,
   rejectSourceLibraryCallWithoutClosedFacts,
@@ -61,23 +60,6 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (request.sourceSelectedSignature === undefined) {
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
-  const calleeMember = resolveSelectedSourceLibraryMemberIdentity(
-    request.sourceCalleeDeclaration,
-    request.sourceCalleeSymbol,
-    context,
-  );
-  const signatureMember = resolveSelectedSourceLibraryMemberIdentity(
-    request.sourceSelectedDeclaration,
-    undefined,
-    context,
-  );
-  if (
-    calleeMember !== undefined &&
-    signatureMember !== undefined &&
-    sourceLibraryMemberIdentity(calleeMember) !== sourceLibraryMemberIdentity(signatureMember)
-  ) {
-    return rejectSourceLibraryCallSignatureDeclarationMismatch(sourceMember, host);
-  }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(
     sourceMember,
     host,
@@ -102,7 +84,7 @@ export function mapCsharpSourceLibraryCheckedCall(
       const deferredMember = selectedMember ?? (candidates.length === 1 ? candidates[0] : undefined);
       return deferredMember === undefined
         ? rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host)
-        : acceptDeferredSourceLibraryCheckedCall(sourceMember, deferredMember);
+        : acceptDeferredSourceLibraryCheckedCall(request, sourceMember, deferredMember, context);
     }
     return closedFactsStatus.kind === "missing" &&
       closedFactsStatus.reason === "argument" &&

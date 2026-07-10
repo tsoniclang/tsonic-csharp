@@ -20,7 +20,7 @@ import {
 
 export function getCsharpArrayBoundaryCoreCarrier(
   subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
+  context: Pick<ExtensionObservationContext, "facts" | "factResolver">,
 ): TargetTypeRef | undefined {
   return subject === undefined
     ? undefined

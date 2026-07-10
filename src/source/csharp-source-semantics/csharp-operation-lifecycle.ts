@@ -10,6 +10,8 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpSelectedCallTargetFactKey,
+  csharpSelectedPropertyTargetFactKey,
   csharpSourceReturnCarrierFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
@@ -32,6 +34,7 @@ import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
+  targetTypeRefEquals,
   targetMemberIsClosed,
 } from "./target-ref-utils.js";
 import {
@@ -43,6 +46,12 @@ import type {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  getCsharpJsSourceLibraryDeferredPropertyMemberForOperation,
+} from "./surfaces/js/properties/member-providers/index.js";
+import {
+  getCsharpArrayBoundaryCoreCarrier,
+} from "./surfaces/js/array-boundary-facts.js";
 
 type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpOperationsProviderHost;
 
@@ -101,10 +110,32 @@ function walkSelectedPropertyOperationFacts(
   const receiver = asNodeSubject(getNodeField(node, "Expression"));
   const receiverTargetType = receiver === undefined
     ? undefined
-    : lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+    : getCsharpArrayBoundaryCoreCarrier(receiver, lifecycleContext.host) ??
+      lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
       lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
       host.getTargetTypeRefForSubject(receiver, createRuntimeCarrierLifecycleObservationContext(lifecycleContext));
-  if (receiverTargetType?.kind !== "target-named") {
+  if (receiverTargetType === undefined) {
+    return;
+  }
+  const selectedPropertyTarget = lifecycleContext.host.facts.get(node, csharpSelectedPropertyTargetFactKey) ??
+    lifecycleContext.host.factResolver.resolve(node, csharpSelectedPropertyTargetFactKey);
+  if (selectedPropertyTarget !== undefined) {
+    const selectedMember = getCsharpJsSourceLibraryDeferredPropertyMemberForOperation(
+      selectedPropertyTarget.operationId,
+      receiverTargetType,
+    );
+    if (selectedMember === undefined || !targetMemberIsClosed(selectedMember)) {
+      return;
+    }
+    lifecycleContext.host.facts.set(
+      node,
+      csharpTargetOperationFactKey,
+      csharpTargetOperationFromMember(selectedMember),
+      [{ message: "C# selected JS property operation finalized from TSTS-selected source identity and finalized receiver carrier facts." }],
+    );
+    return;
+  }
+  if (receiverTargetType.kind !== "target-named") {
     return;
   }
   const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(receiverTargetType.id));
@@ -148,8 +179,13 @@ function walkSelectedCallOperationFacts(
     recordSourceOwnedCallReturnCarrierFact(lifecycleContext, node, selectedSignature);
     return;
   }
-  const selectedMember = csharpTargetMemberFact(selectedSignature.member);
-  if (selectedMember === undefined || selectedMember.receiverPassing === "first-argument") {
+  const selectedCallTarget = lifecycleContext.host.facts.get(node, csharpSelectedCallTargetFactKey) ??
+    lifecycleContext.host.factResolver.resolve(node, csharpSelectedCallTargetFactKey);
+  const selectedMember = selectedCallTarget?.member ?? csharpTargetMemberFact(selectedSignature.member);
+  if (selectedMember === undefined) {
+    return;
+  }
+  if (selectedMember.receiverPassing === "first-argument" && selectedCallTarget === undefined) {
     return;
   }
   const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
@@ -160,6 +196,9 @@ function walkSelectedCallOperationFacts(
   if (member === undefined || !targetMemberIsClosed(member)) {
     return;
   }
+  if (!selectedFirstArgumentReceiverIsClosed(lifecycleContext, node, member, host)) {
+    return;
+  }
   lifecycleContext.host.facts.set(
     node,
     csharpTargetOperationFactKey,
@@ -168,6 +207,30 @@ function walkSelectedCallOperationFacts(
     }),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
+}
+
+function selectedFirstArgumentReceiverIsClosed(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>,
+  host: CsharpFinalizedCallOperationHost,
+): boolean {
+  if (member.receiverPassing !== "first-argument") {
+    return true;
+  }
+  const receiver = getSelectedCallReceiver(lifecycleContext, node);
+  const receiverParameter = member.parameters[0];
+  if (receiver === undefined || receiverParameter === undefined) {
+    return false;
+  }
+  const receiverCarrier = lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+    lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier;
+  if (receiverCarrier === undefined) {
+    return false;
+  }
+  return targetTypeRefEquals(receiverCarrier, receiverParameter.type) ||
+    (host.getAssignableTargetTypeRefs?.(receiverCarrier) ?? [])
+      .some((candidate) => targetTypeRefEquals(candidate, receiverParameter.type));
 }
 
 function recordSourceOwnedCallReturnCarrierFact(
@@ -215,21 +278,28 @@ function getSelectedCallDeclaringTargetType(
   if (member.kind === "constructor" || member.static === true) {
     return member.declaringType;
   }
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || !compiler.ast.is.IsCallExpression(node)) {
-    return member.declaringType;
-  }
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  if (expression === undefined || !compiler.ast.is.IsPropertyAccessExpression(expression)) {
-    return member.declaringType;
-  }
-  const receiver = asNodeSubject(getNodeField(expression, "Expression"));
+  const receiver = getSelectedCallReceiver(lifecycleContext, node);
   if (receiver === undefined) {
     return member.declaringType;
   }
   return lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
     lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
     member.declaringType;
+}
+
+function getSelectedCallReceiver(
+  lifecycleContext: { readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+): Node | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsCallExpression(node)) {
+    return undefined;
+  }
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  if (expression === undefined || !compiler.ast.is.IsPropertyAccessExpression(expression)) {
+    return undefined;
+  }
+  return asNodeSubject(getNodeField(expression, "Expression"));
 }
 
 function getCsharpOperationChildNodes(

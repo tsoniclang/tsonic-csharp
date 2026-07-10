@@ -13,3 +13,6 @@ export {
   targetTypeRefArrayEquals,
   targetTypeRefEquals,
 } from "./equality/target-type-ref.js";
+export {
+  targetMemberEquals,
+} from "./equality/target-member.js";

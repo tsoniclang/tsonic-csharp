@@ -363,6 +363,34 @@ test("checked conversions accept source primitive widening only through explicit
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), true);
 });
 
+test("checked params-array argument conversions use the selected parameter element type", () => {
+  const source = { id: "source-console-argument" };
+  const paramsArrayType = { kind: "array", element: meterType };
+  const targetParameter = {
+    name: "values",
+    type: paramsArrayType,
+    passingMode: "by-value",
+    paramsArray: true,
+  };
+  const { context } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target: paramsArrayType,
+    targetParameter,
+    parameterIndex: 0,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, meterType],
+    [paramsArrayType, paramsArrayType],
+    [meterType, meterType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.convertedType, meterType);
+});
+
 function hostForBindings(bindings) {
   const byId = new Map(bindings.map((binding) => [binding.id, binding]));
   return {

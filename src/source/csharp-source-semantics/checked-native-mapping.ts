@@ -52,6 +52,9 @@ import {
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 import {
+  getTargetArgumentConversionType,
+} from "./target-member-arguments/argument-conversions.js";
+import {
   asNodeSubject,
 } from "./ast-utils.js";
 
@@ -124,7 +127,10 @@ export function mapCsharpCheckedConversion(
     return deferObservation;
   }
   const source = host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery);
-  const target = host.getTargetTypeRefForSubject(request.target, context);
+  const conversionTarget = request.targetParameter === undefined
+    ? request.target
+    : getTargetArgumentConversionType(request.targetParameter);
+  const target = host.getTargetTypeRefForSubject(conversionTarget, context);
   if (target === undefined) {
     return deferObservation;
   }

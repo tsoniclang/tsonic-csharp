@@ -7,6 +7,7 @@ import {
   csharpTypeParameterConstraintArrayEquals,
   extensionFactSubjectTypeRefEquals,
   objectShapeMemberArrayEquals,
+  targetMemberEquals,
   targetTypeRefArrayEquals,
   targetTypeRefEquals,
 } from "./equality.js";
@@ -17,6 +18,8 @@ import type {
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
   CsharpRegularExpressionLiteralFact,
+  CsharpSelectedCallTargetFact,
+  CsharpSelectedPropertyTargetFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
   CsharpTargetNameFact,
@@ -85,6 +88,18 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   extensionId: "tsonic.csharp",
   name: "targetOperation",
   equals: csharpTargetOperationFactEquals,
+});
+
+export const csharpSelectedCallTargetFactKey = defineExtensionFactKey<CsharpSelectedCallTargetFact>({
+  extensionId: "tsonic.csharp",
+  name: "selectedCallTarget",
+  equals: (left, right) => targetMemberEquals(left.member, right.member),
+});
+
+export const csharpSelectedPropertyTargetFactKey = defineExtensionFactKey<CsharpSelectedPropertyTargetFact>({
+  extensionId: "tsonic.csharp",
+  name: "selectedPropertyTarget",
+  equals: (left, right) => left.operationId === right.operationId,
 });
 
 export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({

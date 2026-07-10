@@ -48,22 +48,6 @@ export function rejectSourceLibraryCallMissingSelectedSignature(
   ));
 }
 
-export function rejectSourceLibraryCallSignatureDeclarationMismatch(
-  sourceMember: SourceLibraryMember,
-  host: CsharpJsSurfaceHost,
-): ExtensionObservation<CheckedCallMappingResult> {
-  return rejectObservation(host.csharpProviderDiagnostic(
-    host.extensionId,
-    "CSHARP_SOURCE_LIBRARY_CALL_SIGNATURE_DECLARATION_MISMATCH",
-    9100114,
-    `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' received mismatched selected TypeScript declaration and signature facts.`,
-    missingSurfaceCallEvidence(sourceMember, "selected-declaration-signature-mismatch", [
-      "matching selected source declaration fact",
-      "matching selected source signature declaration fact",
-    ]),
-  ));
-}
-
 export function rejectSourceLibraryCallWithoutUniqueTargetMember(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,

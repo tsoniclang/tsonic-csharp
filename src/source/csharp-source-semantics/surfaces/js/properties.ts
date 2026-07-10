@@ -53,6 +53,9 @@ import {
 import {
   getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./array-boundary-facts.js";
+import {
+  csharpSelectedPropertyTargetFactKey,
+} from "../../../csharp-facts.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -122,6 +125,9 @@ function mapCsharpSourceLibraryPropertyOperation(
     if (deferredOperation === undefined) {
       return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
     }
+    context.facts.set(request.expression, csharpSelectedPropertyTargetFactKey, {
+      operationId: deferredOperation.operationId,
+    }, [{ message: `C# retained selected JS property identity '${sourceLibraryMemberIdentity(sourceMember)}' until receiver carrier finalization.` }]);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
         deferredOperation.operationId,
