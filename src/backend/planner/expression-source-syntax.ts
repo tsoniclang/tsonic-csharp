@@ -74,14 +74,14 @@ export function tryPlanSourceSyntaxExpression(
 ): CsharpExpression | undefined {
   switch (SourceKind(input.ast, node)) {
     case KindStringLiteral:
-      return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
+      return { kind: "LiteralExpression", value: Node_Text(input.ast, AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
       if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
         return undefined;
       }
-      return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
+      return { kind: "LiteralExpression", value: Node_Text(input.ast, AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral: {
-      const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+      const value = parseFiniteNumberLiteral(Node_Text(input.ast, AsNumericLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
         return undefined;
@@ -89,7 +89,7 @@ export function tryPlanSourceSyntaxExpression(
       return { kind: "LiteralExpression", value };
     }
     case KindBigIntLiteral: {
-      const value = parseBigIntLiteral(Node_Text(AsBigIntLiteral(node)));
+      const value = parseBigIntLiteral(Node_Text(input.ast, AsBigIntLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
         return undefined;

@@ -94,7 +94,7 @@ function planBindingNameFromProjection(
   if (HasSourceKind(input.ast, name, KindIdentifier)) {
     return [{
       kind: "LocalDeclarationStatement",
-      name: requireCsharpIdentifier(Node_Text(name), diagnostics, "Destructuring binding"),
+      name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
       type: projectedType ??
         getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(name, { sourceFile }), sourceFile, input) ??
         getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),

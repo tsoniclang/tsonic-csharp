@@ -65,10 +65,10 @@ function recordCsharpTypeParameterConstraintFact(
 ): void {
   const ast = context.compiler?.ast;
   const constraintNode = asNodeSubject(getNodeField(node, "Constraint"));
-  if (ast === undefined || constraintNode === undefined || getNodeNameText(node).length === 0 || ast.kindName(node) !== "KindTypeParameter") {
+  if (ast === undefined || constraintNode === undefined || getNodeNameText(ast, node).length === 0 || ast.kindName(node) !== "KindTypeParameter") {
     return;
   }
-  const constraints = getCsharpTypeParameterConstraintsForSyntaxNode(constraintNode, getNodeNameText(node), context, host);
+  const constraints = getCsharpTypeParameterConstraintsForSyntaxNode(constraintNode, getNodeNameText(ast, node), context, host);
   if (constraints.length === 0) {
     return;
   }

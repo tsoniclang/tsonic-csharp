@@ -39,7 +39,7 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "class declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
   const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
@@ -113,14 +113,14 @@ export function planFunctionDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
   state.currentReturnTypeSubject = declaration.Type;
-  if (isAsyncNode(node)) {
+  if (isAsyncNode(input.ast, node)) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
@@ -129,7 +129,7 @@ export function planFunctionDeclaration(
   return {
     kind: "MethodDeclaration",
     name,
-    modifiers: isAsyncNode(node) ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: isAsyncNode(input.ast, node) ? ["public", "static", "async"] : ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,

@@ -37,7 +37,7 @@ export function getReferencedDeclarationTargetTypeRef(
   }
   const symbols = [
     compiler.checker.getSymbolAtLocation(node, { sourceFile }),
-    safeGetResolvedSymbol(node, sourceFile, context),
+    getResolvedSymbol(node, sourceFile, context),
   ];
   for (const symbol of symbols) {
     for (const declaration of compiler.checker.getSymbolDeclarations(symbol)) {
@@ -94,7 +94,7 @@ function getDeclarationAnnotationTargetTypeRef(
     : resolveTargetTypeRef(typeNode, context, options);
 }
 
-function safeGetResolvedSymbol(
+function getResolvedSymbol(
   subject: ExtensionFactSubject,
   sourceFile: SourceFile,
   context: ExtensionObservationContext,

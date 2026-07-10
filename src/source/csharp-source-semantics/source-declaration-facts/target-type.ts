@@ -34,7 +34,7 @@ export function getSourceDeclarationTargetType(
   if (getSourceLibraryDeclarationName(node, context) !== undefined) {
     return undefined;
   }
-  return sourceDeclarationTargetType(getNodeNameText(node), kind, undefined, {
+  return sourceDeclarationTargetType(getNodeNameText(ast, node), kind, undefined, {
     baseType: kind === "KindClassDeclaration" && host !== undefined
       ? getSourceClassBaseTargetType(ast, node, context, host)
       : undefined,
@@ -51,7 +51,7 @@ export function getEnumMemberTargetType(
   const enumDeclaration = ast.parent(node);
   return enumDeclaration === undefined || ast.kindName(enumDeclaration) !== "KindEnumDeclaration"
     ? undefined
-    : sourceDeclarationTargetType(getNodeNameText(enumDeclaration), "KindEnumDeclaration");
+    : sourceDeclarationTargetType(getNodeNameText(ast, enumDeclaration), "KindEnumDeclaration");
 }
 
 export function sourceDeclarationTargetType(

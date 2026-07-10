@@ -135,6 +135,33 @@ const unsupportedObjectShapeMutationIdentityPolicy = {
 
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
+    identity: { ids: ["Global.eval"] },
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "eval executes source text with runtime lexical scope access; no closed target carrier can make those bindings statically visible to the C# backend.",
+      requiredFacts: ["selected JS source declaration/signature identity", "closed runtime lexical-environment operation metadata"],
+      capabilityId: "compat.eval-hard-reject",
+    },
+  },
+  {
+    identity: { prefixes: ["Function."] },
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Function construction compiles source text at runtime; Tsonic does not use embedded JavaScript engines, C# dynamic, or runtime code generation as language semantics.",
+      requiredFacts: ["selected JS source declaration/signature identity", "closed runtime code-construction operation metadata"],
+      capabilityId: "compat.function-constructor-hard-reject",
+    },
+  },
+  {
+    identity: { prefixes: ["Proxy."] },
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Proxy traps redefine object operations at runtime; Tsonic requires closed provider facts for every emitted operation and cannot dispatch through runtime target reflection or dynamic traps.",
+      requiredFacts: ["selected JS source declaration/signature identity", "closed proxy-trap operation metadata"],
+      capabilityId: "compat.proxy-hard-reject",
+    },
+  },
+  {
     ...operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "known-argument-targets" },
   },

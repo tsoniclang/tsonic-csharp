@@ -23,7 +23,6 @@ export function getSelectedCallProviderVirtualDeclaration(
     request.sourceCalleeSymbol,
     requestContext?.calleeSelectedPropertyDeclaration,
     requestContext?.calleeSelectedPropertySymbol,
-    requestContext?.calleeSelectedPropertyContainerSymbol,
     requestContext?.calleeSelectedPropertyDeclarationContainer,
   ], { preferSignatureId: request.sourceSelectedSignature !== undefined });
 }

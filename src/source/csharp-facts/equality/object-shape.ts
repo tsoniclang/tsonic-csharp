@@ -16,10 +16,23 @@ export function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMem
     const other = right[index];
     return other !== undefined
       && member.sourceName === other.sourceName
+      && optionalSubjectArrayEquals(member.sourceSubjects, other.sourceSubjects)
       && member.targetName === other.targetName
       && member.memberKind === other.memberKind
       && targetTypeRefEquals(member.type, other.type)
       && member.optional === other.optional
       && member.readonly === other.readonly;
   });
+}
+
+function optionalSubjectArrayEquals(
+  left: readonly unknown[] | undefined,
+  right: readonly unknown[] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  return left !== undefined && right !== undefined &&
+    left.length === right.length &&
+    left.every((subject, index) => subject === right[index]);
 }

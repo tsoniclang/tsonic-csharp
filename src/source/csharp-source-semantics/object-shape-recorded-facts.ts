@@ -151,7 +151,7 @@ function getRecordedCsharpObjectShapeFactForReference(
   const symbol = type === undefined
     ? getSymbolForDeclarationLookup(compiler.ast, compiler.checker, referenceName, sourceFile)
     : undefined;
-  const aliasedSymbol = type === undefined ? getAliasedSymbolIfAvailable(compiler.checker, symbol, sourceFile) : undefined;
+  const aliasedSymbol = type === undefined ? getAliasedSymbolIfAvailable(compiler.ast, compiler.checker, symbol, sourceFile) : undefined;
   for (const candidate of [node, referenceName, typeAliasSymbol, type, typeSymbol, symbol, aliasedSymbol]) {
     const fact = context.facts.get(candidate, csharpObjectShapeFactKey);
     if (fact !== undefined) {

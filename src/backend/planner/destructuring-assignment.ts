@@ -349,7 +349,7 @@ function planAssignmentTargetFromProjection(
       kind: "ExpressionStatement",
       expression: {
         kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(target.node), diagnostics, "Destructuring assignment target") },
+        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(input.ast, target.node), diagnostics, "Destructuring assignment target") },
         operatorToken: { kind: "EqualsToken" },
         right: projected,
       },
@@ -804,7 +804,7 @@ function getObjectAssignmentPropertySourceName(
     diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(propertyName);
+  return Node_Text(input.ast, propertyName);
 }
 
 function destructuringAssignmentPattern(
@@ -842,7 +842,7 @@ function destructuringAssignmentArrayElement(
   }
   if (hasDestructuringAssignmentKind(node, input, KindSpreadElement)) {
     const spread = AsSpreadElement(node);
-    const target = Node_Expression(node) ?? spread?.Expression;
+    const target = Node_Expression(input.ast, node) ?? spread?.Expression;
     return target === undefined ? undefined : {
       kind: "array-element",
       sourceNode: node,

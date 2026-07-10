@@ -27,7 +27,6 @@ test("C# provider closes by-value provider calls over selected signature identit
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -103,7 +102,6 @@ test("C# provider preserves optional defaults and params-array conversion closur
     callee: {},
     calleePropertyName: "log",
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [required, label, first, second],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,

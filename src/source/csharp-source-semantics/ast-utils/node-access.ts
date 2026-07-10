@@ -1,4 +1,5 @@
 import type {
+  AstModifierKind,
   AstReader,
   Node,
 } from "@tsonic/tsts";
@@ -20,63 +21,24 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
   return Object.getOwnPropertyDescriptor(node, field)?.value;
 }
 
-export function nodeHasModifierKind(ast: AstReader, node: Node | undefined, modifierKind: string): boolean {
-  const modifiers = getNodeField(node, "modifiers") ?? getNodeField(node, "Modifiers");
-  if (typeof modifiers === "function") {
-    return getNodeList(modifiers.call(node)).some((modifier) => ast.kindName(modifier) === modifierKind);
-  }
-  return getNodeList(modifiers).some((modifier) => ast.kindName(modifier) === modifierKind);
+export function nodeHasModifierKind(ast: AstReader, node: Node | undefined, modifierKind: AstModifierKind): boolean {
+  return node !== undefined && ast.hasModifierKind(node, modifierKind);
 }
 
-export function getNodeParent(node: Node | undefined): Node | undefined {
-  return asNodeSubject(getNodeField(node, "Parent"));
+export function getNodeParent(ast: AstReader | undefined, node: Node | undefined): Node | undefined {
+  return ast === undefined || node === undefined ? undefined : ast.parent(node);
 }
 
 export function getPropertyAccessName(node: Node, ast: AstReader): string | undefined {
   if (!ast.is.IsPropertyAccessExpression(node)) {
     return undefined;
   }
-  const name = asNodeSubject(getNodeField(node, "name"));
+  const name = ast.name(node);
   const text = name === undefined ? "" : ast.text(name);
   return text.length === 0 ? undefined : text;
 }
 
-export function getNodeNameText(node: Node): string {
-  const name = asNodeSubject(getNodeField(node, "name"));
-  const text = (name as { readonly Text?: unknown } | undefined)?.Text;
-  return typeof text === "function" || text === undefined ? "" : String(text);
-}
-
-export function getStructuralChildNodes(node: Node): readonly Node[] {
-  const children: Node[] = [];
-  const listFields = ["Statements", "Members", "Parameters", "TypeParameters", "TypeArguments", "Types", "Arguments", "Elements", "Properties", "Declarations"];
-  for (const key of listFields) {
-    children.push(...getNodeList(getNodeField(node, key)));
-  }
-  const nodeFields = [
-    "name",
-    "Body",
-    "Type",
-    "ElementType",
-    "Constraint",
-    "Expression",
-    "Initializer",
-    "Left",
-    "Right",
-    "ThenStatement",
-    "ElseStatement",
-    "Statement",
-    "DeclarationList",
-    "ImportClause",
-    "NamedBindings",
-    "ModuleSpecifier",
-    "TypeName",
-  ];
-  for (const key of nodeFields) {
-    const direct = asNodeSubject(getNodeField(node, key));
-    if (direct !== undefined) {
-      children.push(direct);
-    }
-  }
-  return children;
+export function getNodeNameText(ast: AstReader, node: Node): string {
+  const name = ast.name(node);
+  return name === undefined ? "" : ast.text(name);
 }

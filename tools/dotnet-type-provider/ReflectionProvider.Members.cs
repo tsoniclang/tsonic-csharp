@@ -500,7 +500,7 @@ sealed partial class ReflectionProvider
         foreach (var group in ExtensionProjectionMethods(receiverType).GroupBy(ExtensionProjectionGroupKey))
         {
             var first = group.First();
-            var signatures = group.Select(method => MethodSignature(method)).Where(signature => signature is not null).Cast<object>().ToArray();
+            var signatures = group.Select(method => MethodSignature(method, GenericParameterContext.ForExtensionProjection(method, receiverType))).Where(signature => signature is not null).Cast<object>().ToArray();
             var targetDeclaringType = TypeRef(first.DeclaringType!, requireDelegateSourceShape: false);
             if (signatures.Length == 0 || targetDeclaringType is null)
             {
@@ -715,18 +715,19 @@ sealed partial class ReflectionProvider
             method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), inherit: false);
     }
 
-    object? MethodSignature(MethodInfo method)
+    object? MethodSignature(MethodInfo method, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.ForMethod(method, method.DeclaringType!);
         var id = method.IsSpecialName && method.Name.StartsWith("op_", StringComparison.Ordinal) && !IsConversionOperator(method)
             ? OperatorId(method)
             : MethodId(method);
-        var parameters = Parameters(method.GetParameters(), id);
-        var returnType = TypeRef(method.ReturnType);
+        var parameters = Parameters(method.GetParameters(), id, genericParameters);
+        var returnType = TypeRef(method.ReturnType, genericParameters: genericParameters);
         if (parameters is null || returnType is null)
         {
             return null;
         }
-        var typeParameters = MethodTypeParameters(method);
+        var typeParameters = MethodTypeParameters(method, genericParameters);
         var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
         var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
         var providerSourceSignatureId = ProviderSourceSignatureId(method, id);
@@ -780,19 +781,21 @@ sealed partial class ReflectionProvider
         };
     }
 
-    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null)
+    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         var result = new List<object>();
         for (var index = 0; index < parameters.Length; index++)
         {
             var parameter = parameters[index];
             var parameterType = UnwrapByRef(parameter.ParameterType);
-            var type = TypeRef(parameterType);
+            var type = TypeRef(parameterType, genericParameters: genericParameters);
             if (type is null)
             {
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
+            var sourceType = NullableParameterSourceTypeRef(parameter, parameterType, isParamsArray, genericParameters);
             var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, index, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
@@ -801,6 +804,7 @@ sealed partial class ReflectionProvider
             {
                 name = ParameterIdentifier(parameter, index),
                 type,
+                sourceType,
                 passingMode = PassingMode(parameter),
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,

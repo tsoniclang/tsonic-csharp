@@ -58,7 +58,7 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   host: CsharpObjectShapeSemanticsHost,
   callableMemberMode: "property" | "callable-property-as-method",
 ): CsharpObjectShapeMemberFact | undefined {
-  const sourceName = property.Name;
+  const sourceName = context.compiler?.checker.getSymbolName(property) ?? "";
   if (sourceName.length === 0 || context.compiler === undefined) {
     return undefined;
   }
@@ -79,8 +79,10 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   }
   const optional = propertyHasOptionalDeclaration(property, context) ||
     propertyTypeIncludesNullish(propertyType, context);
+  const sourceSubjects = [property, ...getSymbolDeclarations(property, context.compiler.checker)];
   return {
     sourceName,
+    sourceSubjects,
     targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
     type: optional ? csharpNullableTargetType(type) : type,
@@ -178,7 +180,7 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   }
   const parameterTypes = compiler.checker.getSignatureParameters(signature as Parameters<typeof compiler.checker.getSignatureParameters>[0])
     .map((parameter) => {
-      const parameterType = safeGetTypeOfSymbol(parameter, context, sourceFile);
+      const parameterType = getTypeOfSymbol(parameter, context, sourceFile);
       return parameterType === undefined
         ? undefined
         : host.getTargetTypeRefForType(parameterType, context);
@@ -195,7 +197,7 @@ function getFunctionTargetTypeRefFromSemanticSignature(
     : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
 }
 
-function safeGetTypeOfSymbol(
+function getTypeOfSymbol(
   symbol: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeOfSymbol"]>[0],
   context: ExtensionObservationContext,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,

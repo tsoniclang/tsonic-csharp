@@ -106,7 +106,7 @@ export function jsonRecordDictionaryStringifyTargetMembers(
     returnType: stringTargetType,
     semanticException: {
       reason: "JSON.stringify accepts closed string-keyed Record dictionary carriers through the JSON runtime shim.",
-      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized string-keyed Record dictionary carrier facts.",
+      provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized string-keyed Record dictionary carrier facts.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.stringify source signature", "closed string-keyed Record dictionary argument carrier", "JSON.stringify dictionary runtime metadata row"],
     },
@@ -128,7 +128,7 @@ export function mapCsharpJsJsonRuntimeCarrier(
   }
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: jsonValueTargetType,
-  }, [{ message: "C# JS surface JSON.parse runtime carrier recorded from selected TypeScript standard-library declaration and closed string argument facts." }]);
+  }, [{ message: "C# JS surface JSON.parse runtime carrier recorded from selected Tsonic JS source-profile declaration and closed string argument facts." }]);
 }
 
 export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
@@ -188,7 +188,7 @@ const jsonTargetMemberMetadata = [
     returnType: jsonValueTargetType,
     semanticException: {
       reason: "JSON.parse returns the closed TsValue runtime carrier instead of System.Object.",
-      provenance: "TypeScript standard-library JSON.parse declaration selected with a provider-proven string argument.",
+      provenance: "Tsonic JS source-profile JSON.parse declaration selected with a provider-proven string argument.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.parse source signature", "closed string argument carrier", "closed TsValue result carrier metadata"],
     },
@@ -222,7 +222,7 @@ const jsonTargetMemberMetadata = [
     returnType: stringTargetType,
     semanticException: {
       reason: "JSON.stringify accepts the closed JSObject carrier through the JSON runtime shim.",
-      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSObject carrier facts.",
+      provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized JSObject carrier facts.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.stringify source signature", "closed JSObject argument carrier", "JSON.stringify object runtime metadata row"],
     },
@@ -235,7 +235,7 @@ const jsonTargetMemberMetadata = [
     returnType: stringTargetType,
     semanticException: {
       reason: "JSON.stringify accepts the closed JSArray carrier through the JSON runtime shim.",
-      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSArray carrier facts.",
+      provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized JSArray carrier facts.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.stringify source signature", "closed JSArray argument carrier", "JSON.stringify array runtime metadata row"],
     },
@@ -248,7 +248,7 @@ const jsonTargetMemberMetadata = [
     returnType: stringTargetType,
     semanticException: {
       reason: "JSON.stringify preserves the closed TsValue carrier produced by JSON.parse.",
-      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized TsValue carrier facts.",
+      provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized TsValue carrier facts.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.stringify source signature", "closed TsValue argument carrier", "JSON.stringify TsValue runtime metadata row"],
     },

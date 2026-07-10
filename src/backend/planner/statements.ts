@@ -2,7 +2,6 @@ import {
   AsBlock,
   AsForInOrOfStatement,
   AsLabeledStatement,
-  AsVariableDeclarationList,
   AsVariableStatement,
   KindBlock,
   KindBreakStatement,
@@ -94,9 +93,9 @@ export function planStatements(
     case KindReturnStatement:
       return planReturnStatement(node, sourceFile, input, diagnostics, state);
     case KindBreakStatement:
-      return planBreakStatement(node, diagnostics, state);
+      return planBreakStatement(node, input.ast, diagnostics, state);
     case KindContinueStatement:
-      return planContinueStatement(node, diagnostics, state);
+      return planContinueStatement(node, input.ast, diagnostics, state);
     case KindThrowStatement:
       return planThrowStatement(node, sourceFile, input, diagnostics, state);
     case KindDebuggerStatement:
@@ -135,14 +134,15 @@ export function planStatements(
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(node)!.DeclarationList;
-      const declarations = AsVariableDeclarationList(declarationList)!.Declarations?.Nodes ?? [];
+      const declarations = declarationList === undefined
+        ? []
+        : input.ast.children(declarationList)
+          .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
       if (declarations.length === 0) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
         return [];
       }
-      return declarations
-        .filter((declaration): declaration is Node => declaration !== undefined)
-        .flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
+      return declarations.flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));

@@ -1,5 +1,4 @@
 import {
-  ExtensionObservationPoint,
   deferObservation,
   rejectObservation,
   runtimeCarrierFactKey,
@@ -9,7 +8,6 @@ import type {
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
 } from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
@@ -31,13 +29,7 @@ import {
 } from "./array-carriers.js";
 import {
   asNodeSubject,
-  getNodeField,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
 } from "../../ast-utils.js";
-import {
-  createCsharpLifecycleObservationContext,
-} from "../../runtime-carriers.js";
 import {
   getReferencedDeclarationTargetTypeRef,
 } from "../../referenced-declaration-target.js";
@@ -47,57 +39,6 @@ import {
 import type {
   CsharpIterationOperationRow,
 } from "../../operation-selection/iteration.js";
-
-export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedIteration);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordCsharpJsSurfaceIterationFact(node, context, host);
-    });
-  }
-}
-
-function recordCsharpJsSurfaceIterationFact(
-  node: Node,
-  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const kind = compiler.ast.is.IsForInStatement(node)
-    ? "for-in"
-    : compiler.ast.is.IsForOfStatement(node)
-      ? "for-of"
-      : undefined;
-  if (kind === undefined) {
-    return;
-  }
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  if (expression === undefined) {
-    return;
-  }
-  const mapped = mapCsharpJsSurfaceCheckedIteration({
-    statement: node,
-    expression,
-    kind,
-    target: host.targetId,
-  }, context, host);
-  if (mapped.kind === "reject") {
-    context.diagnostics.append(mapped.diagnostic);
-  }
-}
 
 export function mapCsharpJsSurfaceCheckedIteration(
   request: CheckedIterationMappingRequest,

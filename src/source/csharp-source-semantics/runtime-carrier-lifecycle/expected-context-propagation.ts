@@ -105,7 +105,7 @@ function getEnclosingReturnRuntimeCarrierFact(
       const typeNode = asNodeSubject(getNodeField(current, "Type"));
       const declarationReturnFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
         resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
-      if (!nodeHasModifierKind(compiler.ast, current, "KindAsyncKeyword")) {
+      if (!nodeHasModifierKind(compiler.ast, current, "async")) {
         return declarationReturnFact;
       }
       const asyncResultCarrier = getCsharpTaskResultTargetType(declarationReturnFact?.carrier);

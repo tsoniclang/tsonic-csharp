@@ -6,8 +6,9 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    object? TypeRef(Type type, bool requireDelegateSourceShape = true)
+    object? TypeRef(Type type, bool requireDelegateSourceShape = true, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         type = UnwrapByRef(type);
         if (IsDelegate(type) && delegateSourceShapeInProgress.Contains(TargetId(type)))
         {
@@ -32,7 +33,13 @@ sealed partial class ReflectionProvider
         }
         if (type.IsGenericParameter)
         {
-            return new { kind = "type-parameter", name = type.Name };
+            if (genericParameters.TryGetSubstitution(type, out var substitution) && substitution != type)
+            {
+                return TypeRef(substitution, requireDelegateSourceShape, genericParameters);
+            }
+            return genericParameters.IsOmitted(type)
+                ? null
+                : new { kind = "type-parameter", name = genericParameters.SourceName(type) };
         }
         if (type.IsArray)
         {
@@ -40,14 +47,14 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var elementType = TypeRef(type.GetElementType()!, requireDelegateSourceShape);
+            var elementType = TypeRef(type.GetElementType()!, requireDelegateSourceShape, genericParameters);
             return elementType is null
                 ? null
                 : new { kind = "array", elementType };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
-            var elementType = TypeRef(nullableElement, requireDelegateSourceShape);
+            var elementType = TypeRef(nullableElement, requireDelegateSourceShape, genericParameters);
             return elementType is null
                 ? null
                 : new { kind = "nullable", elementType };
@@ -58,14 +65,14 @@ sealed partial class ReflectionProvider
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         var typeArguments = type.IsGenericType
-            ? type.GetGenericArguments().Select(typeArgument => TypeRef(typeArgument, requireDelegateSourceShape)).ToArray()
+            ? type.GetGenericArguments().Select(typeArgument => TypeRef(typeArgument, requireDelegateSourceShape, genericParameters)).ToArray()
             : Array.Empty<object?>();
         if (typeArguments.Any(argument => argument is null))
         {
             return null;
         }
 
-        var sourceShape = SourceShape(type);
+        var sourceShape = SourceShape(type, genericParameters);
         if (IsDelegate(type) && sourceShape is null && requireDelegateSourceShape)
         {
             return null;
@@ -123,11 +130,12 @@ sealed partial class ReflectionProvider
         return $"Type '{TypeMetadataName(type)}' is outside the supported provider type-ref model.";
     }
 
-    object? SourceShape(Type type)
+    object? SourceShape(Type type, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         if (IsDelegate(type))
         {
-            var delegateShape = DelegateSourceShape(type);
+            var delegateShape = DelegateSourceShape(type, genericParameters);
             if (delegateShape is not null)
             {
                 return delegateShape;
@@ -152,45 +160,51 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var element = SourceShape(type.GetElementType()!);
+            var element = SourceShape(type.GetElementType()!, genericParameters);
             return element is null ? null : new { kind = "array", elementType = element };
         }
         if (type.IsGenericParameter)
         {
-            return new { kind = "type-parameter", name = type.Name };
+            if (genericParameters.TryGetSubstitution(type, out var substitution) && substitution != type)
+            {
+                return SourceShape(substitution, genericParameters);
+            }
+            return genericParameters.IsOmitted(type)
+                ? null
+                : new { kind = "type-parameter", name = genericParameters.SourceName(type) };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
-            var element = SourceShape(nullableElement);
+            var element = SourceShape(nullableElement, genericParameters);
             return element is null
                 ? null
                 : new { kind = "union", types = new[] { element, NullLiteralTypeRef() } };
         }
         if (TryValueTupleElementTypes(type, out var tupleElements))
         {
-            var elements = tupleElements.Select(SourceShape).ToArray();
+            var elements = tupleElements.Select(element => SourceShape(element, genericParameters)).ToArray();
             return elements.Any(element => element is null)
                 ? null
                 : new { kind = "tuple", elements };
         }
         if (IsKeyValuePairShape(type, out var keyType, out var valueType))
         {
-            var key = SourceShape(keyType);
-            var value = SourceShape(valueType);
+            var key = SourceShape(keyType, genericParameters);
+            var value = SourceShape(valueType, genericParameters);
             return key is null || value is null
                 ? null
                 : new { kind = "tuple", elements = new[] { key, value } };
         }
         if (IsEnumerableShape(type, out var enumerableElement))
         {
-            var element = SourceShape(enumerableElement);
+            var element = SourceShape(enumerableElement, genericParameters);
             return element is null ? null : new { kind = "array", elementType = element };
         }
         var referenceDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         if (providerSourceReferencesByTargetId.TryGetValue(TargetId(referenceDefinition), out var sourceReference))
         {
             var args = type.IsGenericType
-                ? type.GetGenericArguments().Select(SourceShape).ToArray()
+                ? type.GetGenericArguments().Select(argument => SourceShape(argument, genericParameters)).ToArray()
                 : Array.Empty<object>();
             if (args.Any(argument => argument is null))
             {
@@ -200,7 +214,9 @@ sealed partial class ReflectionProvider
             {
                 kind = "provider-ref",
                 moduleSpecifier = sourceReference.ModuleSpecifier,
-                exportName = sourceReference.TypeFamilyExportName ?? sourceReference.Name,
+                exportName = sourceReference.ModuleSpecifier == activeModuleSpecifier
+                    ? sourceReference.Name
+                    : sourceReference.TypeFamilyExportName ?? sourceReference.Name,
                 typeArguments = args.Length == 0 ? null : args,
             };
         }
@@ -210,6 +226,62 @@ sealed partial class ReflectionProvider
     static object NullLiteralTypeRef()
     {
         return new LiteralTypeRef(null);
+    }
+
+    static object UndefinedTypeRef()
+    {
+        return new { kind = "undefined" };
+    }
+
+    static object SourceUndefinedUnionTypeRef(object type)
+    {
+        return new { kind = "union", types = new object[] { type, UndefinedTypeRef() } };
+    }
+
+    object? NullableParameterSourceTypeRef(ParameterInfo parameter, Type parameterType, bool isParamsArray, GenericParameterContext? genericParameters = null)
+    {
+        if (isParamsArray)
+        {
+            return NullableParamsArrayParameterSourceTypeRef(parameter, parameterType, genericParameters);
+        }
+        if (!ParameterAllowsSourceUndefined(parameter))
+        {
+            return null;
+        }
+        var type = TypeRef(parameterType, genericParameters: genericParameters);
+        return type is null ? null : SourceUndefinedUnionTypeRef(type);
+    }
+
+    object? NullableParamsArrayParameterSourceTypeRef(ParameterInfo parameter, Type parameterType, GenericParameterContext? genericParameters = null)
+    {
+        var elementType = parameterType.GetElementType();
+        if (elementType is null || !ParamsArrayElementAllowsSourceUndefined(parameter))
+        {
+            return null;
+        }
+        var sourceElementType = TypeRef(elementType, genericParameters: genericParameters);
+        return sourceElementType is null
+            ? null
+            : new { kind = "array", elementType = SourceUndefinedUnionTypeRef(sourceElementType) };
+    }
+
+    bool ParameterAllowsSourceUndefined(ParameterInfo parameter)
+    {
+        var parameterType = UnwrapByRef(parameter.ParameterType);
+        if (parameterType.IsValueType)
+        {
+            return false;
+        }
+        var nullabilityInfo = nullability.Create(parameter);
+        return nullabilityInfo.ReadState == NullabilityState.Nullable ||
+            nullabilityInfo.WriteState == NullabilityState.Nullable;
+    }
+
+    bool ParamsArrayElementAllowsSourceUndefined(ParameterInfo parameter)
+    {
+        var nullabilityInfo = nullability.Create(parameter);
+        return nullabilityInfo.ElementType?.ReadState == NullabilityState.Nullable ||
+            nullabilityInfo.ElementType?.WriteState == NullabilityState.Nullable;
     }
 
     sealed class LiteralTypeRef
@@ -382,8 +454,9 @@ sealed partial class ReflectionProvider
         return IsDelegate(type) ? DelegateSourceShape(type) : null;
     }
 
-    object? DelegateSourceShape(Type type)
+    object? DelegateSourceShape(Type type, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         var targetId = TargetId(type);
         if (delegateSourceShapeInProgress.Contains(targetId))
         {
@@ -401,8 +474,8 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var parameters = Parameters(invoke.GetParameters());
-            var returnType = TypeRef(invoke.ReturnType);
+            var parameters = Parameters(invoke.GetParameters(), genericParameters: genericParameters);
+            var returnType = TypeRef(invoke.ReturnType, genericParameters: genericParameters);
             if (parameters is null || returnType is null)
             {
                 return null;

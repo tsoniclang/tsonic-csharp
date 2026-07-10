@@ -22,7 +22,6 @@ test("C# provider rejects same-spelling property members without selected member
     expression,
     receiver,
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -33,6 +32,81 @@ test("C# provider rejects same-spelling property members without selected member
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_FOUND");
+});
+test("C# provider closes selected generic property results only from TSTS sourceResultType evidence", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const expression = {};
+  const receiver = {};
+  const binding = {
+    id: "Example.Box",
+    sourceName: "Box",
+    targetName: "Box",
+    target: "csharp",
+    kind: "class",
+    typeParameters: [{ name: "T" }],
+    members: [{
+      id: "Example.Box.Value",
+      sourceName: "Value",
+      targetName: "Value",
+      kind: "property",
+      parameters: [],
+      returnType: { kind: "type-parameter", name: "T" },
+    }],
+  };
+  const context = fakeObservationContext({
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Box.Value", "Value"),
+  });
+
+  const accepted = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    sourceSelectedSymbol: selectedDeclaration,
+    sourceResultType: csharpStringType(),
+    propertyName: "Value",
+  }, context);
+  const missingEvidence = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver,
+    sourceSelectedSymbol: selectedDeclaration,
+    propertyName: "Value",
+  }, context);
+
+  assert.equal(accepted.kind, "accept");
+  assert.deepEqual(accepted.value.operation.resultType, csharpStringType());
+  assert.equal(missingEvidence.kind, "reject");
+  assert.equal(missingEvidence.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE");
+});
+test("C# provider rejects contradictory TSTS sourceResultType evidence for a selected property", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [property("Example.Target.Value", "Value", "Value")],
+  };
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    sourceSelectedSymbol: selectedDeclaration,
+    sourceResultType: csharpStringType(),
+    propertyName: "Value",
+  }, fakeObservationContext({
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.Value", "Value"),
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE");
 });
 test("C# provider reports selected unsupported property identities with provider reason", () => {
   const provider = getNativeSemanticProvider();
@@ -58,7 +132,6 @@ test("C# provider reports selected unsupported property identities with provider
     expression: {},
     receiver: {},
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "unrelated",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -101,7 +174,6 @@ test("C# provider rejects events even when target facts exist until event source
     expression: {},
     receiver: {},
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "changed",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -145,7 +217,6 @@ test("C# provider reports selected unsupported call identities with provider rea
     callee: {},
     calleePropertyName: "notUsedForSelection",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -199,7 +270,6 @@ test("C# provider reports selected unsupported constructor identities with provi
     call: {},
     callee: {},
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -281,6 +351,73 @@ test("C# provider reports selected unsupported indexer identities with provider 
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
+test("C# provider closes selected generic indexer results from TSTS sourceResultType evidence", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const signatureId = "Example.Box.Item(System.Int32)";
+  const binding = {
+    id: "Example.Box",
+    sourceName: "Box",
+    targetName: "Box",
+    target: "csharp",
+    kind: "class",
+    typeParameters: [{ name: "T" }],
+    members: [{
+      id: signatureId,
+      sourceName: "Item",
+      targetName: "Item",
+      kind: "indexer",
+      overloadGroup: "Example.Box.Item",
+      parameters: [{
+        name: "index",
+        type: { kind: "source-primitive", name: "int32" },
+        passingMode: "by-value",
+      }],
+      returnType: { kind: "type-parameter", name: "T" },
+    }],
+  };
+  const context = fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Box.Item", "Item"),
+      signatureId,
+    },
+  });
+
+  const accepted = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    sourceResultType: csharpStringType(),
+    argument,
+  }, context);
+  const missingEvidence = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    argument,
+  }, context);
+
+  assert.equal(accepted.kind, "accept");
+  assert.deepEqual(accepted.value.operation.resultType, csharpStringType());
+  assert.equal(missingEvidence.kind, "reject");
+  assert.equal(missingEvidence.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_RENDERABLE");
+});
 test("C# provider does not infer unsupported identity from metadata-name-only matches", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -303,7 +440,6 @@ test("C# provider does not infer unsupported identity from metadata-name-only ma
     expression: {},
     receiver: {},
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "pointerProperty",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -533,6 +669,53 @@ test("C# provider rejects indexer conversion metadata without exact signature id
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
+test("C# provider does not select the sole target indexer without exact provider signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const expression = {};
+  const argument = {};
+  const recordedFacts = [];
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = indexer("Example.Values.Item(System.Int32)", int32, {
+    sourceName: "item",
+    overloadGroup: "Example.Values.Item",
+  });
+  const binding = {
+    id: "Example.Values",
+    sourceName: "Values",
+    targetName: "Values",
+    target: "csharp",
+    kind: "class",
+    members: [member],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Values.Item", "item"),
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
 test("C# provider maps selected byref indexers from source marker target expressions", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -648,4 +831,54 @@ test("C# provider rejects selected byref indexers without source marker facts", 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+test("C# provider rejects element access without TSTS-selected element evidence", () => {
+  const provider = getNativeSemanticProvider();
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    argument: {},
+  }, fakeObservationContext({}));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_ELEMENT_ACCESS_NOT_MAPPED");
+});
+test("C# object-shape property access requires the exact TSTS-selected member subject", () => {
+  const receiver = {};
+  const selectedDeclaration = {};
+  const sameSpellingDeclaration = {};
+  const objectShape = {
+    targetType: { kind: "target-named", id: "Example.Shape" },
+    members: [{
+      sourceName: "value",
+      sourceSubjects: [selectedDeclaration],
+      targetName: "Value",
+      memberKind: "property",
+      type: csharpStringType(),
+    }],
+  };
+  const provider = getNativeSemanticProvider({
+    objectShapesBySubject: new Map([[receiver, objectShape]]),
+  });
+
+  const accepted = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver,
+    propertyName: "value",
+    sourceSelectedDeclaration: selectedDeclaration,
+  }, fakeObservationContext({}));
+  const rejected = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver,
+    propertyName: "value",
+    sourceSelectedDeclaration: sameSpellingDeclaration,
+  }, fakeObservationContext({}));
+
+  assert.equal(accepted.kind, "accept");
+  assert.equal(accepted.value.operation.targetOperation, "Value");
+  assert.equal(rejected.kind, "reject");
+  assert.equal(rejected.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
 });

@@ -26,6 +26,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "any":
     case "unknown":
       return { kind: "opaque", id: type.kind };
+    case "undefined":
+      throw new Error("Undefined is a source declaration shape only and cannot be emitted as a target type.");
     case "object":
       return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
     case "string":

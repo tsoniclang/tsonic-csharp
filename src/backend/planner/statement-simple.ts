@@ -11,6 +11,7 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type {
+  AstReader,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
@@ -105,12 +106,13 @@ export function planReturnStatement(
 
 export function planBreakStatement(
   node: Node,
+  ast: AstReader,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsBreakStatement(node)!;
   if (statement.Label !== undefined) {
-    const target = findControlLabel(state, Node_Text(statement.Label));
+    const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
       return [];
@@ -122,12 +124,13 @@ export function planBreakStatement(
 
 export function planContinueStatement(
   node: Node,
+  ast: AstReader,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsContinueStatement(node)!;
   if (statement.Label !== undefined) {
-    const target = findControlLabel(state, Node_Text(statement.Label));
+    const target = findControlLabel(state, Node_Text(ast, statement.Label));
     if (target?.continueLabel === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
       return [];

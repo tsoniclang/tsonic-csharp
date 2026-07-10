@@ -26,6 +26,7 @@ export function isCsharpSourceOwnedPropertyOperation(operation: TargetOperationF
 
 export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
+  readonly sourceSubjects?: readonly ExtensionFactSubject[];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;

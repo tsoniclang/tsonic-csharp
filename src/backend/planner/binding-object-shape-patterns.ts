@@ -206,5 +206,5 @@ function getObjectShapeBindingPropertySourceName(
     diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(propertyName);
+  return Node_Text(input.ast, propertyName);
 }

@@ -10,7 +10,7 @@ import type {
   SourceLibraryTypeName,
 } from "./source-library.js";
 import {
-  isBundledStandardLibraryType,
+  isTsonicSourceLibraryType,
 } from "./source-library.js";
 import {
   getSymbolDeclarations,
@@ -46,7 +46,7 @@ export function classifySourceStandardLibraryType(
   type: Type,
   context: ExtensionObservationContext,
 ): SourceStandardLibraryTypeClassification | undefined {
-  return sourceStandardLibraryTypePolicies.find((policy) => isBundledStandardLibraryType(type, context, policy.name));
+  return sourceStandardLibraryTypePolicies.find((policy) => isTsonicSourceLibraryType(type, context, policy.name));
 }
 
 export function isSourceStandardLibraryArrayLikeType(

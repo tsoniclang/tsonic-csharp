@@ -42,7 +42,7 @@ export function planIdentifierExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const sourceName = Node_Text(AsIdentifier(identifier));
+  const sourceName = Node_Text(input.ast, AsIdentifier(identifier));
   const sourceReference = input.analysis.getProjectSourceReferenceForNode(identifier, { sourceFile });
   const referenceTargetBinding = input.targetFacts.getTargetBindingForReference(identifier, { sourceFile });
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference, referenceTargetBinding)) {
@@ -280,7 +280,7 @@ function planProjectSourceModuleMemberName(
     return sanitizeIdentifier("default");
   }
   return planIdentifierName(
-    Node_Name(declaration),
+    Node_Name(input.ast, declaration),
     "InvalidCrossFileReference",
     input,
     diagnostics,

@@ -29,26 +29,8 @@ import {
   tsonicCoreSourceExtensionId,
 } from "@tsonic/source-core";
 import {
-  recordCsharpSourceLibraryCallFactsBeforeFinalization,
-} from "./surfaces/js/calls.js";
-import {
-  recordCsharpSourceLibraryPropertyFactsBeforeFinalization,
-} from "./surfaces/js/properties.js";
-import {
   recordCsharpJsArrayCarrierFactsBeforeFinalization,
 } from "./surfaces/js/array-carrier-lifecycle.js";
-import {
-  recordCsharpJsArrayElementAccessFactsBeforeFinalization,
-} from "./surfaces/js/arrays.js";
-import {
-  recordCsharpSourceLibraryElementAccessFactsBeforeFinalization,
-} from "./surfaces/js/elements.js";
-import {
-  recordCsharpJsArrayMutationFactsBeforeFinalization,
-} from "./surfaces/js/array-mutations.js";
-import {
-  recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization,
-} from "./surfaces/js/dictionary-lifecycle.js";
 import {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/regexp/index.js";
@@ -58,9 +40,6 @@ import {
 import {
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/json.js";
-import {
-  recordCsharpJsSurfaceIterationFactsBeforeFinalization,
-} from "./surfaces/js/iteration.js";
 
 type CsharpSurfaceLifecycleContext = {
   readonly host: ExtensionObservationContext["host"];
@@ -103,6 +82,9 @@ export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtens
     mapCheckedElementAccess(request, context) {
       return mapper.mapCheckedElementAccess(request, context);
     },
+    mapCheckedOperator(request, context) {
+      return mapper.mapCheckedOperator(request, context);
+    },
     mapCheckedIteration(request, context) {
       return mapper.mapCheckedIteration(request, context);
     },
@@ -129,19 +111,4 @@ export function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-}
-
-export function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
-  lifecycleContext: CsharpSurfaceLifecycleContext,
-  hosts: CsharpExtensionSemanticHosts,
-  options: { readonly diagnostics?: "append" | "suppress" } = {},
-): void {
-  const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
-  recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost, options);
-  recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpSourceLibraryElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }

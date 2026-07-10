@@ -21,7 +21,7 @@ export type {
 } from "../../source-library.js";
 export {
   createSourceLibraryMember,
-  isBundledStandardLibraryType,
+  isTsonicSourceLibraryType,
   resolveSourceLibraryMemberIdentity,
   resolveSelectedSourceLibraryMemberIdentity,
   sourceLibraryMemberIdSet,
@@ -94,7 +94,7 @@ export interface CsharpJsSurfaceHost {
       readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
       readonly receiver?: ExtensionFactSubject;
       readonly receiverTargetType?: TargetTypeRef;
-      readonly sourceSelectedSignature?: unknown;
+      readonly sourceSelectionProven?: true;
       readonly sourceSelectedIdentity?: string;
     },
     context: ExtensionObservationContext,

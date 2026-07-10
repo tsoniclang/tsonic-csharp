@@ -76,7 +76,7 @@ function getVoidExpressionOperand(
   node: Node,
   input: TargetCompileInput,
 ): Node | undefined {
-  return Node_Expression(node) ??
+  return Node_Expression(input.ast, node) ??
     AsVoidExpression(node)?.Expression ??
     asNodeSubject(getNodeField(node, "Expression")) ??
     asNodeSubject(getNodeField(node, "Operand")) ??

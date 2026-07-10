@@ -13,29 +13,43 @@ export const selectedEvidenceClassifications = Object.freeze([
 export const selectedEvidenceRiskRules = Object.freeze([
   { id: "checker.getResolvedSignature", pattern: /getResolvedSignature\s*\(/g },
   { id: "checker.getResolvedSymbol", pattern: /getResolvedSymbol\s*\(/g },
+  { id: "checker.getResolvedSymbolOrNil", pattern: /getResolvedSymbolOrNil\s*\(/g },
+  { id: "checker.getSignatureDeclaration", pattern: /getSignatureDeclaration\s*\(/g },
   { id: "checker.getSymbolAtLocation", pattern: /getSymbolAtLocation\s*\(/g },
   { id: "checker.getPropertyOfType", pattern: /getPropertyOfType\s*\(/g },
   { id: "checker.getTypeAtLocation", pattern: /getTypeAtLocation\s*\(/g },
   { id: "checker.getTypeFromTypeNode", pattern: /getTypeFromTypeNode\s*\(/g },
   { id: "broad-catch-return", pattern: /catch\s*\{\s*return\s+(?:undefined|false);?\s*\}/g },
-  { id: "safe-helper", pattern: /\bsafeGet[A-Za-z0-9_]*/g },
+  { id: "safe-helper", pattern: /\b(?:safe|getSafe)[A-Z][A-Za-z0-9_]*/g },
   { id: "raw-TypeArguments", pattern: /\bTypeArguments\b/g },
   { id: "raw-Text", pattern: /\.Text\b/g },
   { id: "object-keys", pattern: /\bObject\.keys\s*\(/g },
   { id: "ownKeys", pattern: /\bownKeys\b/g },
+  { id: "raw-object-field-probe", pattern: /Object\.getOwnPropertyDescriptor\s*\(/g },
+  { id: "raw-node-field-helper", pattern: /\bgetNodeField\s*\(/g },
+  { id: "raw-node-record-probe", pattern: /\(node\s+as\s+Record<string,\s*unknown>/g },
+  { id: "raw-compiler-node-kind", pattern: /\.Kind\b/g },
+  { id: "raw-compiler-subject-field", pattern: /\.(?:Flags|Name|Declarations|ValueDeclaration)\b/g },
+  { id: "raw-semantic-subject-field", pattern: /["']flags["']\s+in\s+subject/g },
   { id: "source-usage-channel", pattern: /\b(?:sourceUsage|sourceMemberNames|TargetSourceUsageHints)\b/g },
+  { id: "target-analysis-selected-call-query", pattern: /\bgetResolvedCall(?:ReturnType|ParameterDeclarations|ParameterTypes)\b/g },
+  { id: "local-method-type-argument-reconstruction", pattern: /\b(?:getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions)\b/g },
+  { id: "source-marker-name-reconstruction", pattern: /\b(?:attributeBuilderChainMethods|isAttributeSelectorCallbackExpression|isAttributeBuilderExpression)\b/g },
+  { id: "contextual-target-type-requery", pattern: /getTargetTypeRefForSubject\s*\(\s*request\.context\b/g },
+  { id: "single-target-member-inference", pattern: /\b(?:selectSingleProviderIndexer|getSingleSourceIndexSignature)\b/g },
+  { id: "opaque-selected-signature-field-probe", pattern: /\bsourceSelectedSignature\s+as\b/g },
+  { id: "lifecycle-source-walk", pattern: /visitAstReaderNodes\s*\(/g },
+  { id: "checker-forcing-operation-lifecycle", pattern: /\b(?:recordCsharpCheckedOperationFactsBeforeFinalization|recordCsharpCheckedOperatorFactsBeforeFinalization|recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization)\b/g },
 ]);
 
 export const selectedEvidenceFileClassifications = Object.freeze(new Map([
   ...classified(
     [
       "src/backend/planner/array-boundary-facts.ts",
-      "src/backend/planner/binding-object-source-patterns.ts",
       "src/backend/planner/binding-patterns.ts",
       "src/backend/planner/binding-state.ts",
       "src/backend/planner/csharp-fact-queries.ts",
       "src/backend/planner/csharp-target-operations.ts",
-      "src/backend/planner/csharp-type-expression.ts",
       "src/backend/planner/csharp-type-facts.ts",
       "src/backend/planner/csharp-type-node/index.ts",
       "src/backend/planner/csharp-type-node/type-aliases.ts",
@@ -52,8 +66,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/backend/planner/semantic-fact-reasons.ts",
       "src/backend/planner/semantic-general-ownership.ts",
       "src/backend/planner/semantic-queryable-symbols.ts",
-      "src/backend/planner/source-ast-nodes.ts",
-      "src/backend/planner/source-ast-types.ts",
       "src/backend/planner/source-primitive-evidence.ts",
     ],
     {
@@ -80,8 +92,8 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
   ...classified(
     [
       "src/source/csharp-source-semantics/ast-utils/node-access.ts",
+      "src/source/csharp-source-semantics/ast-utils/traversal.ts",
       "src/source/csharp-source-semantics/selected-target-source-signature.ts",
-      "src/source/csharp-source-semantics/source-primitive-evidence.ts",
       "src/source/csharp-source-semantics/symbol-utils.ts",
       "src/source/csharp-source-semantics/target-member-arguments/selection.ts",
       "src/source/csharp-source-semantics/target-name-facts.ts",
@@ -103,12 +115,13 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/source-declaration-facts/recording.ts",
       "src/source/csharp-source-semantics/source-declaration-facts/struct-declaration.ts",
       "src/source/csharp-source-semantics/source-declaration-facts/target-type.ts",
-      "src/source/csharp-source-semantics/source-marker-selectors.ts",
       "src/source/csharp-source-semantics/provider-target-binding-facts.ts",
       "src/source/csharp-source-semantics/referenced-declaration-target.ts",
       "src/source/csharp-source-semantics/target-type-reference-syntax.ts",
       "src/source/csharp-source-semantics/target-type-syntax-resolution.ts",
       "src/source/csharp-source-semantics/target-type-union-syntax.ts",
+      "src/source/csharp-source-semantics/object-shape-syntax/constraints.ts",
+      "src/source/csharp-source-semantics/source-declaration-facts.ts",
     ],
     {
       symbol: "source/provider declaration fact production",
@@ -129,12 +142,9 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/checked-operator-mapping/operator-rules.ts",
       "src/source/csharp-source-semantics/checked-operator-mapping/typeof.ts",
       "src/source/csharp-source-semantics/compat-runtime-checked-operations.ts",
-      "src/source/csharp-source-semantics/native-array-lifecycle.ts",
       "src/source/csharp-source-semantics/object-shape-recorded-facts.ts",
-      "src/source/csharp-source-semantics/object-shape-semantic/member-facts.ts",
       "src/source/csharp-source-semantics/object-shape-semantic/subject-type.ts",
       "src/source/csharp-source-semantics/opaque-any-diagnostics/opaque-operation.ts",
-      "src/source/csharp-source-semantics/opaque-any-diagnostics/standard-library-exceptions.ts",
       "src/source/csharp-source-semantics/opaque-any-diagnostics/unsupported-compat.ts",
       "src/source/csharp-source-semantics/operation-selection/iteration.ts",
       "src/source/csharp-source-semantics/runtime-carrier-subjects.ts",
@@ -144,10 +154,8 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/surfaces/js/date/runtime-carrier.ts",
       "src/source/csharp-source-semantics/surfaces/js/iteration.ts",
       "src/source/csharp-source-semantics/target-constraint-validation.ts",
-      "src/source/csharp-source-semantics/target-type-semantic-resolution.ts",
       "src/source/csharp-source-semantics/target-type-subject-resolution.ts",
       "src/source/csharp-source-semantics/target-type-subject-resolution/callable-expression.ts",
-      "src/source/csharp-source-semantics/target-type-subject-resolution/source-member-type-parameters.ts",
     ],
     {
       symbol: "checked source type/fact analysis",
@@ -159,38 +167,184 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
   ),
   ...classified(
     [
-      "src/source/csharp-source-semantics/checked-operation-lifecycle.ts",
-      "src/source/csharp-source-semantics/checked-operator-lifecycle.ts",
       "src/source/csharp-source-semantics/object-shape-facts/semantic-subjects.ts",
+      "src/source/csharp-source-semantics/object-shape-facts.ts",
       "src/source/csharp-source-semantics/object-shape-lifecycle/object-rest-binding.ts",
-      "src/source/csharp-source-semantics/object-shape-lifecycle/property-access.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/checked-expressions.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/initializer-propagation.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/referenced-facts.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/return-propagation.ts",
       "src/source/csharp-source-semantics/surfaces/js/array-boundary-facts.ts",
       "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
-      "src/source/csharp-source-semantics/surfaces/js/array-mutations.ts",
-      "src/source/csharp-source-semantics/surfaces/js/dictionary-lifecycle.ts",
       "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
+      "src/source/csharp-source-semantics/surfaces/js/json.ts",
     ],
     {
-      symbol: "lifecycle fact propagation",
-      purpose: "Propagate existing runtime-carrier/object-shape/operation facts after source checking.",
-      classification: "lifecycle-ordering-bug",
-      action: "Keep only as fact propagation; if a path needs selected operation identity, replace with request/fact evidence rather than checker rediscovery.",
-      coverage: "selected-evidence-audit file coverage; missing selected evidence regression coverage for mapper entrypoints.",
+      symbol: "post-check lifecycle type and fact propagation",
+      purpose: "Propagate runtime-carrier and object-shape facts from checked source types without selecting source operation identity.",
+      classification: "post-check-type-only-query",
+      action: "Keep as post-check type/fact materialization; operation identity must remain sourced from selected or finalized facts.",
+      coverage: "selected-evidence audit, runtime-carrier/object-shape tests, and missing-selected-evidence mapper regressions.",
     },
   ),
-  ...classified(
-    [
-    ],
+]));
+
+const rawAstReaderContractGapFiles = Object.freeze([
+  "src/backend/planner/csharp-fact-queries.ts",
+  "src/backend/planner/csharp-type-facts.ts",
+  "src/backend/planner/csharp-type-node/array-types.ts",
+  "src/backend/planner/csharp-type-node/function-types.ts",
+  "src/backend/planner/csharp-type-node/type-aliases.ts",
+  "src/backend/planner/expression-target-members/property-access.ts",
+  "src/backend/planner/expression-void.ts",
+  "src/backend/planner/runtime-carriers.ts",
+  "src/backend/planner/semantic-source-ownership.ts",
+  "src/source/csharp-source-semantics/ast-utils/expression-syntax.ts",
+  "src/source/csharp-source-semantics/ast-utils/node-access.ts",
+  "src/source/csharp-source-semantics/ast-utils/type-syntax.ts",
+  "src/source/csharp-source-semantics/attribute-application-facts.ts",
+  "src/source/csharp-source-semantics/callable-target-types.ts",
+  "src/source/csharp-source-semantics/checked-assignability-validation/context-nodes.ts",
+  "src/source/csharp-source-semantics/checked-assignability-validation/index.ts",
+  "src/source/csharp-source-semantics/checked-assignability-validation/member-write.ts",
+  "src/source/csharp-source-semantics/checked-assignability-validation/typed-boundary.ts",
+  "src/source/csharp-source-semantics/checked-call-mapping/index.ts",
+  "src/source/csharp-source-semantics/checked-call-request-context.ts",
+  "src/source/csharp-source-semantics/checked-member-access-mapping/property-access.ts",
+  "src/source/csharp-source-semantics/checked-operator-mapping/operands.ts",
+  "src/source/csharp-source-semantics/checked-operator-mapping/typeof.ts",
+  "src/source/csharp-source-semantics/compat-runtime-checked-operations.ts",
+  "src/source/csharp-source-semantics/csharp-operation-lifecycle.ts",
+  "src/source/csharp-source-semantics/object-shape-facts/binding-carriers.ts",
+  "src/source/csharp-source-semantics/object-shape-lifecycle/object-rest-binding.ts",
+  "src/source/csharp-source-semantics/object-shape-lifecycle/source-name.ts",
+  "src/source/csharp-source-semantics/object-shape-recorded-facts.ts",
+  "src/source/csharp-source-semantics/object-shape-semantic/class-constructible.ts",
+  "src/source/csharp-source-semantics/object-shape-semantic/member-facts.ts",
+  "src/source/csharp-source-semantics/object-shape-semantic/type-parameter-substitution.ts",
+  "src/source/csharp-source-semantics/object-shape-syntax/constraints.ts",
+  "src/source/csharp-source-semantics/object-shape-syntax/target-type-ref.ts",
+  "src/source/csharp-source-semantics/object-shape-type-literal-facts.ts",
+  "src/source/csharp-source-semantics/opaque-any-diagnostics/opaque-operation.ts",
+  "src/source/csharp-source-semantics/opaque-any-diagnostics/unsupported-compat.ts",
+  "src/source/csharp-source-semantics/operation-selection/iteration.ts",
+  "src/source/csharp-source-semantics/operator-syntax.ts",
+  "src/source/csharp-source-semantics/provider-target-binding-facts.ts",
+  "src/source/csharp-source-semantics/referenced-declaration-target.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/async-await.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/checked-expressions.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/conditional-expressions.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/declaration-propagation.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/expected-context-propagation.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/initializer-propagation.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/object-binding-propagation.ts",
+  "src/source/csharp-source-semantics/runtime-carrier-lifecycle/referenced-facts.ts",
+  "src/source/csharp-source-semantics/source-core-struct-markers/declarations.ts",
+  "src/source/csharp-source-semantics/source-declaration-facts/recording.ts",
+  "src/source/csharp-source-semantics/source-declaration-facts/struct-declaration.ts",
+  "src/source/csharp-source-semantics/source-declaration-facts/target-type.ts",
+  "src/source/csharp-source-semantics/surfaces/js/array-boundary-facts.ts",
+  "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/mutation-classification.ts",
+  "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
+  "src/source/csharp-source-semantics/surfaces/js/date/runtime-carrier.ts",
+  "src/source/csharp-source-semantics/surfaces/js/json.ts",
+  "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
+  "src/source/csharp-source-semantics/symbol-utils.ts",
+  "src/source/csharp-source-semantics/target-constraint-validation.ts",
+  "src/source/csharp-source-semantics/target-member-arguments/type-matching.ts",
+  "src/source/csharp-source-semantics/target-member-literals.ts",
+  "src/source/csharp-source-semantics/target-type-checked-expression-syntax.ts",
+  "src/source/csharp-source-semantics/target-type-constructed-expression-syntax.ts",
+  "src/source/csharp-source-semantics/target-type-function-signatures.ts",
+  "src/source/csharp-source-semantics/target-type-literal-syntax.ts",
+  "src/source/csharp-source-semantics/target-type-reference-syntax.ts",
+  "src/source/csharp-source-semantics/target-type-resolution-facts.ts",
+  "src/source/csharp-source-semantics/target-type-subject-facts.ts",
+  "src/source/csharp-source-semantics/target-type-syntax-resolution.ts",
+  "src/source/csharp-source-semantics/target-type-union-syntax.ts",
+  "src/source/csharp-source-semantics/tuple-element-index.ts",
+]);
+
+const rawCompilerNodeKindGapFiles = Object.freeze([
+  "src/backend/planner/csharp-type-facts.ts",
+  "src/backend/planner/destructuring-assignment.ts",
+  "src/backend/planner/diagnostics.ts",
+  "src/backend/planner/expression-binary-operands.ts",
+  "src/backend/planner/expression-unary-operators.ts",
+  "src/backend/planner/names.ts",
+  "src/backend/planner/source-ast-kinds.ts",
+  "src/source/csharp-source-semantics/checked-assignability-validation/context-nodes.ts",
+  "src/source/csharp-source-semantics/symbol-utils.ts",
+  "src/source/fact-subjects.ts",
+]);
+
+export const selectedEvidenceFindingClassifications = Object.freeze(new Map([
+  ...classifiedFindings(
+    rawAstReaderContractGapFiles,
+    ["raw-node-field-helper"],
     {
-      symbol: "recordCsharpJsArrayElementAccessFact",
-      purpose: "Finalize JS array element operations from selected element evidence and finalized carrier facts.",
+      symbol: "public AST structural accessor gap",
+      purpose: "Read already-parsed structural child slots through the remaining centralized raw-node adapter.",
       classification: "tsts-contract-gap",
-      action: "Local checker receiver re-query removed; remaining element source identity must come from TSTS selected element evidence before broader proof work continues.",
-      coverage: "selected-evidence-audit file coverage and JS element missing-evidence regression.",
+      action: "Replace with public AstReader structural accessors and delete getNodeField; tracked by .analysis/tsts-issues/20260710-011200-public-ast-reader-structural-accessor-gap.md.",
+      coverage: "Every current getNodeField occurrence is enumerated here; new files fail the selected-evidence inventory gate.",
+    },
+  ),
+  ...classifiedFindings(
+    rawCompilerNodeKindGapFiles,
+    ["raw-compiler-node-kind"],
+    {
+      symbol: "public compiler subject/node kind gap",
+      purpose: "Classify opaque compiler subjects or legacy backend syntax through raw TS-Go Kind fields.",
+      classification: "tsts-contract-gap",
+      action: "Replace opaque-subject checks with public subjectKind and syntax checks with AstReader.kind/kindName; no new raw Kind reads are allowed.",
+      coverage: "Every current raw Kind occurrence is enumerated here; subject classification is tracked by .analysis/tsts-issues/20260710-013000-public-fact-subject-kind-and-alias-queries.md.",
+    },
+  ),
+  ...classifiedFindings(
+    [
+      "src/source/csharp-source-semantics/checked-assignability-validation/context-nodes.ts",
+      "src/source/fact-subjects.ts",
+    ],
+    ["raw-semantic-subject-field"],
+    {
+      symbol: "public semantic fact-subject discriminator gap",
+      purpose: "Distinguish an opaque semantic Type subject from nodes, symbols, signatures, and target facts.",
+      classification: "tsts-contract-gap",
+      action: "Replace raw flags-shape inspection with a public TSTS fact-subject kind query.",
+      coverage: "Selected-evidence inventory plus .analysis/tsts-issues/20260710-013000-public-fact-subject-kind-and-alias-queries.md.",
+    },
+  ),
+  ...classifiedFindings(
+    [
+      "src/backend/planner/array-boundary-facts.ts",
+      "src/backend/planner/csharp-fact-queries.ts",
+      "src/backend/planner/csharp-type-node/array-types.ts",
+      "src/backend/planner/csharp-type-node/function-types.ts",
+      "src/backend/planner/csharp-type-node/type-aliases.ts",
+      "src/backend/planner/expression-target-members/property-access.ts",
+      "src/backend/planner/locals.ts",
+      "src/backend/planner/runtime-carriers.ts",
+      "src/source/csharp-source-semantics/ast-utils/node-access.ts",
+    ],
+    ["raw-object-field-probe", "raw-node-record-probe"],
+    {
+      symbol: "public AST accessor gap",
+      purpose: "Read structural AST fields for already-checked syntax where the public TSTS AstReader exposes no corresponding accessor.",
+      classification: "tsts-contract-gap",
+      action: "Replace with public AstReader accessors; raw TS-Go object field probing is not an accepted final path.",
+      coverage: "selected-evidence scanner and a dedicated neutral TSTS AstReader contract issue.",
+    },
+  ),
+  ...classifiedFindings(
+    ["src/source/csharp-source-semantics/symbol-utils.ts"],
+    ["raw-compiler-subject-field"],
+    {
+      symbol: "public fact-subject discriminator gap",
+      purpose: "Distinguish an opaque ExtensionFactSubject symbol before calling public symbol query APIs.",
+      classification: "tsts-contract-gap",
+      action: "Replace with a public TSTS subject-kind/symbol-alias query; raw Symbol Flags/Name checks are not an accepted final path.",
+      coverage: "selected-evidence scanner plus .analysis/tsts-issues/20260710-013000-public-fact-subject-kind-and-alias-queries.md.",
     },
   ),
 ]));
@@ -198,10 +352,13 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
 export function buildSelectedEvidenceAuditRows(repoRoot) {
   const findings = collectSelectedEvidenceFindings(repoRoot);
   return findings.map((finding) => {
-    const classification = selectedEvidenceFileClassifications.get(finding.file);
+    const classification = selectedEvidenceFindingClassifications.get(findingKey(finding.file, finding.ruleId)) ??
+      selectedEvidenceFileClassifications.get(finding.file);
+    const resolvedClassification = classification ?? missingClassification(finding.file);
     return {
       ...finding,
-      ...(classification ?? missingClassification(finding.file)),
+      ...resolvedClassification,
+      symbol: `${finding.enclosingSymbol} (${resolvedClassification.symbol})`,
     };
   });
 }
@@ -217,17 +374,29 @@ export function collectSelectedEvidenceFindings(repoRoot) {
         ruleId: rule.id,
         line: lineNumberAt(text, match.index ?? 0),
         snippet: lineAt(text, match.index ?? 0).trim(),
+        enclosingSymbol: enclosingSymbolAt(text, match.index ?? 0),
       }));
     });
   });
 }
 
 export function selectedEvidenceAuditedFiles() {
-  return [...selectedEvidenceFileClassifications.keys()].sort();
+  return [...new Set([
+    ...selectedEvidenceFileClassifications.keys(),
+    ...[...selectedEvidenceFindingClassifications.keys()].map((key) => key.slice(0, key.lastIndexOf("::"))),
+  ])].sort();
 }
 
 function classified(files, classification) {
   return files.map((file) => [file, Object.freeze(classification)]);
+}
+
+function classifiedFindings(files, ruleIds, classification) {
+  return files.flatMap((file) => ruleIds.map((ruleId) => [findingKey(file, ruleId), Object.freeze(classification)]));
+}
+
+function findingKey(file, ruleId) {
+  return `${file}::${ruleId}`;
 }
 
 function missingClassification(file) {
@@ -245,7 +414,8 @@ function selectedEvidenceSourceFiles(repoRoot) {
     "src/source/csharp-source-semantics",
     "src/backend",
     "src/providers",
-  ].flatMap((directory) => sourceFiles(join(repoRoot, directory)));
+  ].flatMap((directory) => sourceFiles(join(repoRoot, directory)))
+    .concat(join(repoRoot, "src/source/fact-subjects.ts"));
 }
 
 function sourceFiles(directory) {
@@ -273,4 +443,20 @@ function lineAt(text, index) {
   const start = text.lastIndexOf("\n", index) + 1;
   const end = text.indexOf("\n", index);
   return text.slice(start, end === -1 ? text.length : end);
+}
+
+function enclosingSymbolAt(text, index) {
+  const lines = text.slice(0, index).split("\n");
+  for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+    const line = lines[lineIndex];
+    const functionMatch = line.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\b/u);
+    if (functionMatch !== null) {
+      return functionMatch[1];
+    }
+    const bindingMatch = line.match(/^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=/u);
+    if (bindingMatch !== null) {
+      return bindingMatch[1];
+    }
+  }
+  return "<module>";
 }

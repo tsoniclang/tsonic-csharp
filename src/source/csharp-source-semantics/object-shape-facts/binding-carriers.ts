@@ -23,7 +23,7 @@ import type {
   CsharpObjectShapeSemanticsHost,
 } from "../object-shape-types.js";
 import {
-  getSafeObjectShapeSymbol,
+  getObjectShapeSymbolForQueryableNode,
 } from "./semantic-subjects.js";
 
 export type CsharpObjectShapeFactResolver = (
@@ -80,7 +80,7 @@ export function recordObjectBindingMemberRuntimeCarriers(
       lifecycleContext.host.facts.set(bindingElement, csharpObjectShapeFactKey, bindingObjectShape, evidence);
       lifecycleContext.host.facts.set(bindingName, csharpObjectShapeFactKey, bindingObjectShape, evidence);
     }
-    const symbol = getSafeObjectShapeSymbol(bindingName, sourceFile, context);
+    const symbol = getObjectShapeSymbolForQueryableNode(bindingName, sourceFile, context);
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
       if (bindingObjectShape !== undefined) {

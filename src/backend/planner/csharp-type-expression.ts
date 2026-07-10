@@ -53,7 +53,7 @@ export function expressionToCsharpType(
     case KindExpressionWithTypeArguments: {
       const expression = AsExpressionWithTypeArguments(node)!;
       const rendered = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
-      const typeArguments = (expression.TypeArguments?.Nodes ?? [])
+      const typeArguments = input.ast.typeArguments(expression)
         .filter((argument): argument is Node => argument !== undefined)
         .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidCsharpType("missing type argument"), diagnostics));
       if (typeArguments.length === 0) {

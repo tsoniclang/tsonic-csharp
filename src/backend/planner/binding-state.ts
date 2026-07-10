@@ -87,7 +87,7 @@ export function declareCsharpLocalBindingName(
   if (existing !== undefined) {
     return existing;
   }
-  const sourceName = Node_Text(node);
+  const sourceName = Node_Text(input.ast, node);
   const baseName = requireCsharpIdentifier(sourceName, diagnostics, description);
   const count = state.localNameCounts.get(baseName) ?? 0;
   const plannedName = count === 0 && !state.localBoundNames.has(baseName)
@@ -225,7 +225,7 @@ function collectReservedSourceNames(value: unknown, names: Set<string>, seen: We
   seen.add(value);
   const node = asNodeSubject(value);
   if (node !== undefined && ast?.kindName(node) === KindIdentifier) {
-    const identifier = tryCsharpIdentifier(Node_Text(node));
+    const identifier = tryCsharpIdentifier(Node_Text(ast, node));
     if (identifier !== undefined) {
       names.add(identifier);
     }

@@ -91,7 +91,7 @@ export function planObjectShapeLiteralAssignment(
       }
       const sourceName = getObjectLiteralPropertySourceName(property, input, diagnostics);
       const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
-      const nameNode = Node_Name(property);
+      const nameNode = Node_Name(input.ast, property);
       if (member === undefined || nameNode === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal shorthand must match a finalized provider object-shape member."));
         return undefined;

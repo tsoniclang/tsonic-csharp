@@ -20,7 +20,7 @@ export function selectSourceLibraryCallMember(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-  selectedSourceSignature: unknown,
+  sourceSelectionProven: boolean,
   selectedSourceIdentity: SourceLibraryMemberKey,
 ): TargetMember | undefined {
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
@@ -29,8 +29,8 @@ export function selectSourceLibraryCallMember(
     argumentTargetTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
     receiver: requestContext.calleeReceiver,
     receiverTargetType: getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-    sourceSelectedSignature: selectedSourceSignature,
+    ...(sourceSelectionProven ? { sourceSelectionProven: true } : {}),
     sourceSelectedIdentity: selectedSourceIdentity,
   }, context);
-  return selected !== undefined && selectedSourceSignature !== undefined ? selected : undefined;
+  return selected !== undefined && sourceSelectionProven ? selected : undefined;
 }

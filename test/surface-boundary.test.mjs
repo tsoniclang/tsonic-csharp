@@ -12,7 +12,7 @@ test("Array.length is rejected without the JS surface", () => {
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
-test("JS surface maps Array.length only from the selected standard-library declaration", () => {
+test("JS surface maps Array.length only from the selected Tsonic JS source-profile declaration", () => {
   const expression = {};
   const receiver = fakeNodeSubject({});
   const receiverType = {};
@@ -253,7 +253,7 @@ test("JS surface rejects calls when selected signature and declaration facts dis
   const receiver = {};
   const value = {};
   const selectedDeclaration = arrayMemberDeclaration("includes");
-  const mismatchedSignature = selectedSourceLibrarySignature(arrayMemberDeclaration("join"));
+  const mismatchedCalleeDeclaration = arrayMemberDeclaration("join");
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [receiver, int32ReadOnlyListType()],
@@ -264,7 +264,7 @@ test("JS surface rejects calls when selected signature and declaration facts dis
   const result = provider.mapCheckedCall(jsCallRequest(call, selectedDeclaration, {
     arguments: [value],
     calleeReceiver: receiver,
-    sourceSelectedSignature: mismatchedSignature,
+    sourceCalleeDeclaration: mismatchedCalleeDeclaration,
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");

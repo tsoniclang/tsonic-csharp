@@ -59,7 +59,7 @@ export function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "property declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "property declaration", diagnostics);
   const fieldFact = getClassPropertyFieldFact(node, declaration, input);
   if (fieldFact !== undefined) {
     const type = getCsharpTypeForFieldFact(fieldFact, node, "Class field", sourceFile, input, diagnostics);
@@ -120,7 +120,7 @@ export function mergeAccessorProperty(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): void {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "accessor declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "accessor declaration", diagnostics);
   const accessor = HasSourceKind(input.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(node)!
     : AsSetAccessorDeclaration(node)!;

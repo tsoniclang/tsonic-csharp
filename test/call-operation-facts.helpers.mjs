@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import {
   planSelectedTargetCallee,
+  planSelectedTargetCallArguments,
   planSelectedTargetReceiverExpression,
 } from "../dist/backend/planner/expression-selected-target-members.js";
 import {
@@ -14,7 +15,7 @@ import {
 import {
   targetMemberAsSourceSelectedSignature,
 } from "../dist/source/csharp-source-semantics/selected-target-source-signature.js";
-export { test, assert, csharpTargetOperationFactKey, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature };
+export { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature };
 
 
 
@@ -183,14 +184,39 @@ export function fakeInput(options = {}) {
 
 export function fakeArgumentInput(options = {}) {
   return {
+    sourceFiles: [sourceFile],
     ast: {
       kindName: (node) => String(node?.Kind),
+    },
+    analysis: {
+      getProjectSourceReferenceForNode: (node) => options.sourceReferences?.get(node),
+      getSymbolAtLocation: () => undefined,
+      getResolvedSymbol: () => undefined,
+      getSymbolDeclarations: () => [],
     },
     facts: {
       getArgumentPassingFact: (subject) =>
         subject === options.argumentPassingSubject ? options.argumentPassing : undefined,
       getTargetConversionFact: (subject) =>
         subject === options.conversionSubject ? options.conversion : undefined,
+      getRuntimeCarrierFact: (subject) => {
+        const carrier = options.runtimeCarriers?.get(subject);
+        return carrier === undefined ? undefined : { carrier };
+      },
+      getPointerFact: () => undefined,
+      getFunctionPointerFact: () => undefined,
+      getSourcePrimitiveFact: () => undefined,
+      getTargetBindingFact: () => undefined,
+      getFact: () => undefined,
+    },
+    targetFacts: {
+      resolveRuntimeCarrierForNode: (subject) => {
+        const carrier = options.runtimeCarriers?.get(subject);
+        return carrier === undefined
+          ? { kind: "missing", evidence: [] }
+          : { kind: "resolved", carrier, evidence: [] };
+      },
+      getTargetBindingForReference: () => undefined,
     },
   };
 }

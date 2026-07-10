@@ -19,6 +19,7 @@ export interface CsharpTargetTypeResolutionHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
+  readonly getAssignableTargetTypeRefs?: (type: TargetTypeRef) => readonly TargetTypeRef[];
   readonly getCatchVariableTargetTypeRef?: () => TargetTypeRef | undefined;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,

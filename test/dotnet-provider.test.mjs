@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
@@ -91,12 +92,12 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
   assert.equal(create.id, `${dotnetNativeArrayCreateMemberId}#static`);
   assert.equal(create.static, true);
-  assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
+  assert.deepEqual(create.signatures[0].typeParameters, [{ name: "TMethod" }]);
   assert.deepEqual(create.signatures[0].returnType, {
     kind: "provider-ref",
     moduleSpecifier: "@tsonic/dotnet/System.js",
     exportName: "Array",
-    typeArguments: [{ kind: "type-parameter", name: "T" }],
+    typeArguments: [{ kind: "type-parameter", name: "TMethod" }],
   });
   assert.equal(length.id, dotnetNativeArrayLengthMemberId);
   assert.equal(length.readonly, true);
@@ -121,25 +122,58 @@ test(".NET reflection provider returns requested export declaration closures ins
     "Boolean",
     "Byte",
     "Char",
+    "CharEnumerator",
     "Convert",
+    "DateOnly",
     "DateTime",
+    "DateTimeKind",
+    "DayOfWeek",
     "Decimal",
     "Double",
+    "Enum",
+    "ICloneable",
+    "IComparable",
+    "IComparable_1",
+    "IConvertible",
+    "IEquatable",
     "IFormatProvider",
+    "IFormattable",
+    "IParsable",
+    "ISpanFormattable",
+    "ISpanParsable",
+    "IUtf8SpanFormattable",
+    "IUtf8SpanParsable",
+    "Int128",
     "Int16",
     "Int32",
     "Int64",
+    "MidpointRounding",
     "Object",
     "ReadOnlySpan",
     "SByte",
     "Single",
     "Span",
     "String",
+    "StringComparison",
+    "StringSplitOptions",
+    "TimeOnly",
+    "TimeSpan",
     "Type",
     "TypeCode",
+    "UInt128",
     "UInt16",
     "UInt32",
     "UInt64",
+    "ValueTuple",
+    "ValueTuple_1",
+    "ValueTuple_2",
+    "ValueTuple_3",
+    "ValueTuple_4",
+    "ValueTuple_5",
+    "ValueTuple_6",
+    "ValueTuple_7",
+    "ValueTuple_8",
+    "ValueType",
   ]);
 
   const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
@@ -215,6 +249,32 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.deepEqual(taskOfT.typeParameters?.map((parameter) => parameter.name), ["TResult"]);
   assert.equal(task.members?.some((member) => member.sourceName === "Result"), false);
   assert.equal(taskOfT.members?.some((member) => member.sourceName === "Result"), true);
+  const rawContinueWith = taskOfT.members?.find((member) => member.sourceName === "ContinueWith");
+  const rawFuncStateContinueWith = rawContinueWith?.signatures.find((signature) =>
+    signature.id.includes("System.Threading.Tasks.Task`1.ContinueWith``1(") &&
+    signature.id.includes("System.Func`3<") &&
+    signature.id.includes("System.Object,TNewResult>") &&
+    signature.parameters.length === 2
+  );
+  assert.ok(rawFuncStateContinueWith);
+  assert.deepEqual(rawFuncStateContinueWith.parameters[1].type, { kind: "object" });
+  assert.deepEqual(rawFuncStateContinueWith.parameters[1].sourceType, {
+    kind: "union",
+    types: [{ kind: "object" }, { kind: "undefined" }],
+  });
+  const targetTaskOfT = dotnetExportToTargetBinding(taskOfT);
+  const targetContinueWithState = targetTaskOfT.members.find((member) =>
+    member.id.includes("System.Threading.Tasks.Task`1.ContinueWith``1(") &&
+    member.id.includes("System.Func`3<") &&
+    member.parameters?.length === 2
+  );
+  assert.ok(targetContinueWithState);
+  assert.deepEqual(targetContinueWithState.parameters[1].type, {
+    kind: "target-named",
+    id: "System.Object",
+    csharpRender: { kind: "predefined", name: "object" },
+  });
+  assert.equal(targetContinueWithState.parameters[1].csharpAcceptsCheckedSourceArgument, true);
 
   const model = dotnetModuleToProviderDeclarationModel(module);
   const sourceTask = model.exports.find((declaration) =>
@@ -236,6 +296,116 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.equal(sourceTask.members?.some((member) => member.name === "Result"), false);
   assert.equal(sourceTaskOfT.members?.some((member) => member.name === "Result"), true);
   assert.equal(sourceTaskOfT.members?.some((member) => member.name === "ContinueWith"), true);
+  const continueWith = sourceTaskOfT.members?.find((member) => member.name === "ContinueWith");
+  assert.ok(continueWith);
+  const firstGenericContinueWith = continueWith.signatures.find((signature) =>
+    signature.id.includes("System.Threading.Tasks.Task`1.ContinueWith``1(")
+  );
+  const firstBaseGenericContinueWith = continueWith.signatures.find((signature) =>
+    signature.id.includes("System.Threading.Tasks.Task.ContinueWith``1(")
+  );
+  assert.ok(firstGenericContinueWith);
+  assert.ok(firstBaseGenericContinueWith);
+  assert.ok(
+    continueWith.signatures.indexOf(firstGenericContinueWith) < continueWith.signatures.indexOf(firstBaseGenericContinueWith),
+    "derived Task<T>.ContinueWith overloads must precede inherited Task.ContinueWith overloads so TSTS contextual typing preserves Task<T>.Result",
+  );
+
+  const actionStateContinueWith = continueWith.signatures.find((signature) =>
+    signature.id.includes("System.Threading.Tasks.Task`1.ContinueWith(System.Private.CoreLib") &&
+    signature.id.includes("System.Action`2<") &&
+    signature.id.includes("System.Object)")
+  );
+  const funcStateContinueWith = continueWith.signatures.find((signature) =>
+    signature.id.includes("System.Threading.Tasks.Task`1.ContinueWith``1(") &&
+    signature.id.includes("System.Func`3<") &&
+    signature.id.includes("System.Object,TNewResult>")
+  );
+  assert.ok(actionStateContinueWith);
+  assert.ok(funcStateContinueWith);
+  assert.deepEqual(funcStateContinueWith.parameters[1].type, {
+    kind: "union",
+    types: [{ kind: "object" }, { kind: "undefined" }],
+  });
+  assert.ok(
+    continueWith.signatures.indexOf(funcStateContinueWith) < continueWith.signatures.indexOf(actionStateContinueWith),
+    "value-returning source callback overloads must precede void Action overloads so TypeScript does not discard callback result typing",
+  );
+});
+
+test(".NET reflection provider includes full type-family variants for same-module closure refs", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {
+    requestedExports: ["Parallel"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const task = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Task"
+  );
+  const taskOfT = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Task_1"
+  );
+  const valueTask = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "ValueTask"
+  );
+  const valueTaskOfT = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "ValueTask_1"
+  );
+
+  assert.deepEqual(task?.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 0,
+  });
+  assert.deepEqual(taskOfT?.sourceTypeFamily, {
+    exportName: "Task",
+    typeArgumentCount: 1,
+  });
+  assert.deepEqual(valueTask?.sourceTypeFamily, {
+    exportName: "ValueTask",
+    typeArgumentCount: 0,
+  });
+  assert.deepEqual(valueTaskOfT?.sourceTypeFamily, {
+    exportName: "ValueTask",
+    typeArgumentCount: 1,
+  });
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const taskFamily = model.exports.filter((declaration) =>
+    declaration.kind === "class" && declaration.sourceTypeFamily?.exportName === "Task"
+  );
+  const valueTaskFamily = model.exports.filter((declaration) =>
+    declaration.kind === "class" && declaration.sourceTypeFamily?.exportName === "ValueTask"
+  );
+  assert.deepEqual(taskFamily.map((declaration) => declaration.sourceTypeFamily.typeArgumentCount).sort(), [0, 1]);
+  assert.deepEqual(valueTaskFamily.map((declaration) => declaration.sourceTypeFamily.typeArgumentCount).sort(), [0, 1]);
+});
+
+test(".NET reflection provider exposes members on source-visible method return closure types", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.IO.js", {
+    requestedExports: ["File"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const file = module.exports.find((declaration) => declaration.sourceName === "File");
+  const fileStream = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "FileStream"
+  );
+  requireDotnetMember(file, "method", "OpenRead");
+  requireDotnetMember(fileStream, "property", "Handle");
+  requireDotnetMember(fileStream, "method", "Read");
+  requireDotnetMember(fileStream, "method", "Flush");
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const sourceFile = model.exports.find((declaration) => declaration.name === "File");
+  const sourceFileStream = model.exports.find((declaration) =>
+    declaration.kind === "class" && declaration.name === "FileStream"
+  );
+  requireProviderDeclarationMember(sourceFile, "method", "OpenRead");
+  requireProviderDeclarationMember(sourceFileStream, "property", "Handle");
+  requireProviderDeclarationMember(sourceFileStream, "method", "Read");
+  requireProviderDeclarationMember(sourceFileStream, "method", "Flush");
 });
 
 test(".NET reflection provider exposes members on source-visible returned closure types", () => {
@@ -331,7 +501,6 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
     "Dictionary_ValueCollection_Enumerator",
     "IComparer",
     "IDictionary",
-    "IEnumerator",
     "IEqualityComparer",
     "IReadOnlyDictionary",
     "ISet",
@@ -397,11 +566,15 @@ test(".NET reflection provider reloads requested export slices from persistent c
   assert.equal("exports" in cached, true, JSON.stringify(cached));
 
   const snapshot = cachedProvider.getTelemetrySnapshot();
+  const cachedRecords = readdirSync(cacheRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+    .map((entry) => JSON.parse(readFileSync(join(cacheRoot, entry.name), "utf8")));
+  const cachedModelBytes = cachedRecords.reduce((total, record) => total + JSON.stringify(record.model).length, 0);
   assert.equal(snapshot.toolInvocations, 0);
-  assert.equal(snapshot.diskCacheHits, 1);
+  assert.equal(snapshot.diskCacheHits, cachedRecords.length);
   assert.equal(snapshot.diskCacheMisses, 0);
   assert.equal(snapshot.memoryCacheMisses, 1);
-  assert.ok(snapshot.modelBytes >= JSON.stringify(cached).length);
+  assert.equal(snapshot.modelBytes, cachedModelBytes);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
 });

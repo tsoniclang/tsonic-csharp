@@ -13,18 +13,10 @@ import type {
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import {
-  AsCallExpression,
   AsPropertyAccessExpression,
   HasSourceKind,
   KindPropertyAccessExpression,
 } from "../source-ast.js";
-import {
-  getCsharpTypeForNode,
-} from "../csharp-types.js";
-import {
-  getSourceCallTypeParameterSubstitutions,
-  substituteCsharpTypeNode,
-} from "../csharp-type-node/source-generic-types.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -33,7 +25,6 @@ import type {
   ExpressionPlanner,
 } from "../expression-planner-types.js";
 import {
-  getTargetTypeRefForNode,
   getTargetTypeRefForType,
   missingCarrierDiagnosticDetail,
   probeCarrierFromResolution,
@@ -41,12 +32,6 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
-import {
-  substituteTargetTypeParameters,
-} from "../../../source/csharp-source-semantics/target-types.js";
-import {
-  inferSelectedTargetTypeParameters,
-} from "../../../source/csharp-source-semantics/target-member-arguments/type-matching/type-parameter-inference.js";
 import {
   planIdentifierName,
 } from "../names.js";
@@ -104,8 +89,15 @@ export function planSourceOwnedCallCallee(
   if (callee === undefined) {
     return undefined;
   }
-  const typeArguments = input.ast.typeArguments(callNode)
-    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, undefined, diagnostics));
+  const selectedCall = input.facts.getSelectedTargetCall(callNode);
+  const selectedTargetTypeArguments = isCsharpSourceOwnedSelectedSignature(selectedCall)
+    ? selectedCall?.targetTypeArguments
+    : undefined;
+  const typeArguments = selectedTargetTypeArguments?.map(csharpTypeFromTargetTypeRef) ?? [];
+  if (typeArguments.some((argument) => argument === undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(callNode, "Source-owned generic call emission requires every TSTS-selected method type argument to carry a renderable finalized C# target type fact."));
+    return undefined;
+  }
   if (typeArguments.length === 0) {
     return callee;
   }
@@ -114,13 +106,13 @@ export function planSourceOwnedCallCallee(
     case "QualifiedName":
       return {
         ...callee,
-        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments],
+        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments as CsharpTypeNode[]],
       };
     case "SimpleMemberAccessExpression":
     case "ConditionalAccessExpression":
       return {
         ...callee,
-        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments],
+        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments as CsharpTypeNode[]],
       };
     default:
       diagnostics.push(unsupportedNodeDiagnostic(callNode, "Source-owned generic call emission requires a callee that can carry finalized C# type arguments."));
@@ -168,21 +160,15 @@ function getResolvedSourceCallArgumentExpectation(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): { readonly kind?: "expectation"; readonly type?: CsharpTypeNode; readonly subject?: Node; readonly targetType?: TargetTypeRef } | { readonly kind: "failed" } | undefined {
-  const sourceCall = AsCallExpression(call);
-  const declaration = input.analysis.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
-  const declarationType = getNodeType(declaration);
-  const substitutedDeclarationType = getSubstitutedSourceCallParameterType(call, sourceCall, declarationType, sourceFile, input);
-  const selectedSourceCallDeclaration = sourceCall === undefined
-    ? undefined
-    : input.analysis.getProjectSourceReferenceForNode(sourceCall.Expression, { sourceFile })?.declaration;
-  const targetSubstitutions = sourceCall === undefined || selectedSourceCallDeclaration === undefined
-    ? new Map<string, TargetTypeRef>()
-    : getSourceCallTargetTypeParameterSubstitutions(call, sourceCall, selectedSourceCallDeclaration, sourceFile, input);
+  const selectedCall = input.facts.getSelectedTargetCall(call);
+  const selectedParameter = isCsharpSourceOwnedSelectedSignature(selectedCall)
+    ? selectedCall?.member.parameters[argumentIndex]
+    : undefined;
   const parameterCarrierResolution = input.targetFacts.resolveCallParameterRuntimeCarriers(call, { sourceFile });
   if (parameterCarrierResolution.kind === "resolved-parameters") {
     const carrierResolution = parameterCarrierResolution.parameters[argumentIndex];
     const carrier = probeCarrierFromResolution(carrierResolution);
-    if (carrier === undefined && declaration !== undefined) {
+    if (carrier === undefined && selectedParameter !== undefined) {
       const detail = missingCarrierDiagnosticDetail(carrierResolution, "Parameter runtime carrier fact is missing for the TSTS-selected source call parameter.");
       diagnostics.push(unsupportedNodeDiagnostic(argument, `Source-owned call argument emission requires a finalized parameter carrier fact: ${detail.reason}`, detail.evidence));
       return { kind: "failed" };
@@ -190,30 +176,20 @@ function getResolvedSourceCallArgumentExpectation(
     if (carrier === undefined) {
       return undefined;
     }
-    const substitutedCarrier = substituteTargetTypeParameters(carrier, targetSubstitutions);
-    const targetType = csharpTypeFromTargetTypeRef(substitutedCarrier);
+    const targetType = csharpTypeFromTargetTypeRef(carrier);
     if (targetType !== undefined) {
       return {
-        type: substitutedDeclarationType ?? targetType,
-        subject: declarationType ?? declaration,
-        targetType: substitutedCarrier,
+        type: targetType,
+        targetType: carrier,
       };
     }
     diagnostics.push(unsupportedNodeDiagnostic(argument, "Source-owned call argument emission requires a renderable finalized parameter carrier fact."));
     return { kind: "failed" };
   }
-  if (declaration !== undefined) {
+  if (selectedParameter !== undefined) {
     const detail = missingCarrierDiagnosticDetail(parameterCarrierResolution, "Parameter carrier resolution is missing for the TSTS-selected source call signature.");
     diagnostics.push(unsupportedNodeDiagnostic(argument, `Source-owned call argument emission requires finalized parameter carrier facts: ${detail.reason}`, detail.evidence));
     return { kind: "failed" };
-  }
-  if (substitutedDeclarationType !== undefined) {
-    const targetType = getTargetTypeRefForNode(input, declarationType ?? declaration, sourceFile);
-    return {
-      type: substitutedDeclarationType,
-      subject: declarationType ?? declaration,
-      targetType: targetType === undefined ? undefined : substituteTargetTypeParameters(targetType, targetSubstitutions),
-    };
   }
   const contextualExpectation = getContextualArgumentExpectation(argument, sourceFile, input, diagnostics);
   if (contextualExpectation !== undefined) {
@@ -260,116 +236,4 @@ function getConcreteContextualTargetType(
     return semanticTargetType;
   }
   return recordedTargetType ?? semanticTargetType;
-}
-
-function getSubstitutedSourceCallParameterType(
-  callNode: Node,
-  call: ReturnType<typeof AsCallExpression>,
-  declarationType: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpTypeNode | undefined {
-  if (call === undefined || declarationType === undefined) {
-    return undefined;
-  }
-  const sourceReference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
-  if (sourceReference === undefined) {
-    return undefined;
-  }
-  const substitutions = getSourceCallTypeParameterSubstitutions(
-    callNode,
-    call,
-    sourceReference.declaration,
-    sourceFile,
-    input,
-    getCsharpTypeForNode,
-  );
-  if (substitutions.size === 0) {
-    return undefined;
-  }
-  const declarationSourceFile = input.ast.getSourceFile(declarationType) ?? sourceReference.sourceFile;
-  return substituteCsharpTypeNode(
-    getCsharpTypeForNode(declarationType, declarationSourceFile, input),
-    substitutions,
-  );
-}
-
-function getSourceCallTargetTypeParameterSubstitutions(
-  callNode: Node,
-  call: NonNullable<ReturnType<typeof AsCallExpression>>,
-  selectedDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): ReadonlyMap<string, TargetTypeRef> {
-  const substitutions = new Map<string, TargetTypeRef>();
-  const callee = AsPropertyAccessExpression(call.Expression);
-  const receiver = callee?.Expression;
-  if (receiver !== undefined) {
-    const receiverType = getTargetTypeRefForNode(input, receiver, sourceFile);
-    addTargetTypeParameterSubstitutions(input, substitutions, input.ast.parent(selectedDeclaration), getTargetTypeArguments(receiverType));
-  }
-  const explicitTypeArguments = input.ast.typeArguments(callNode)
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile))
-    .filter((argument): argument is TargetTypeRef => argument !== undefined);
-  if (explicitTypeArguments.length > 0) {
-    addTargetTypeParameterSubstitutions(input, substitutions, selectedDeclaration, explicitTypeArguments);
-  }
-  addInferredTargetTypeParameterSubstitutions(callNode, call, selectedDeclaration, sourceFile, input, substitutions);
-  return substitutions;
-}
-
-function addInferredTargetTypeParameterSubstitutions(
-  callNode: Node,
-  call: NonNullable<ReturnType<typeof AsCallExpression>>,
-  selectedDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  substitutions: Map<string, TargetTypeRef>,
-): void {
-  const parameterCarriers = input.targetFacts.resolveCallParameterRuntimeCarriers(callNode, { sourceFile });
-  const argumentsNodes = call.Arguments?.Nodes ?? [];
-  if (parameterCarriers.kind === "resolved-parameters") {
-    for (let index = 0; index < parameterCarriers.parameters.length; index += 1) {
-      const expected = probeCarrierFromResolution(parameterCarriers.parameters[index]);
-      const argument = argumentsNodes[index];
-      const actual = argument === undefined ? undefined : getTargetTypeRefForNode(input, argument, sourceFile);
-      if (expected !== undefined && actual !== undefined) {
-        inferSelectedTargetTypeParameters(expected, actual, substitutions);
-      }
-    }
-  }
-  const declarationSourceFile = input.ast.getSourceFile(selectedDeclaration) ?? sourceFile;
-  const declarationReturn = probeCarrierFromResolution(input.targetFacts.resolveDeclarationReturnCarrier(selectedDeclaration, { sourceFile: declarationSourceFile }));
-  const callReturn = probeCarrierFromResolution(input.targetFacts.resolveCallReturnRuntimeCarrier(callNode, { sourceFile }));
-  if (declarationReturn !== undefined && callReturn !== undefined) {
-    inferSelectedTargetTypeParameters(declarationReturn, callReturn, substitutions);
-  }
-}
-
-function addTargetTypeParameterSubstitutions(
-  input: TargetCompileInput,
-  substitutions: Map<string, TargetTypeRef>,
-  declaration: Node | undefined,
-  typeArguments: readonly TargetTypeRef[],
-): void {
-  if (declaration === undefined || typeArguments.length === 0) {
-    return;
-  }
-  const typeParameters = input.ast.typeParameters(declaration);
-  for (let index = 0; index < typeParameters.length; index += 1) {
-    const name = input.ast.text(input.ast.name(typeParameters[index]));
-    const typeArgument = typeArguments[index];
-    if (name.length > 0 && typeArgument !== undefined) {
-      substitutions.set(name, typeArgument);
-    }
-  }
-}
-
-function getTargetTypeArguments(type: TargetTypeRef | undefined): readonly TargetTypeRef[] {
-  return type?.kind === "target-named" ? type.typeArguments ?? [] : [];
-}
-
-function getNodeType(node: Node | undefined): Node | undefined {
-  return (node as { readonly Type?: Node } | undefined)?.Type;
 }

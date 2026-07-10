@@ -31,9 +31,6 @@ import type {
 import {
   isClosedCompatRuntimeOperationFact,
 } from "./closed-compat.js";
-import {
-  getUnsupportedStandardLibraryCompatOperation,
-} from "./standard-library-exceptions.js";
 
 export function getUnsupportedCompatRuntimeOperation(
   node: Node,
@@ -197,10 +194,6 @@ export function getUnsupportedSourceCompatRuntimeOperation(
       "C# emission cannot support object-literal __proto__ prototype mutation.",
       "An object-literal __proto__ member changes the created object's prototype; Tsonic has no closed target object-shape mutation carrier for this operation.",
     );
-  }
-  const libraryOperation = getUnsupportedStandardLibraryCompatOperation(node, lifecycleContext);
-  if (libraryOperation !== undefined) {
-    return libraryOperation;
   }
   return undefined;
 }

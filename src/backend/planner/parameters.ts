@@ -53,7 +53,7 @@ export function planParametersWithPrelude(
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(parameterNode)!;
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
+    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, parameterNode!, "parameter declaration", diagnostics);
     if (HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getArrayBoundaryParameterType(parameterNode, parameter.name, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??

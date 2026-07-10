@@ -12,8 +12,6 @@ import {
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 
-const symbolFlagsAlias = 1 << 21;
-
 export function getDeclarationTypeNode(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
@@ -96,6 +94,7 @@ function isTypeOnlySymbolLookupPosition(
 }
 
 export function getAliasedSymbolIfAvailable(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"],
   symbol: ExtensionFactSubject | undefined,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
@@ -103,10 +102,29 @@ export function getAliasedSymbolIfAvailable(
   if (!isTstsSymbolSubject(symbol)) {
     return undefined;
   }
-  if ((symbol.Flags & symbolFlagsAlias) === 0) {
+  if (!checker.getSymbolDeclarations(symbol).some((declaration) => isAliasDeclaration(ast, declaration))) {
     return undefined;
   }
   return checker.getAliasedSymbol(symbol, { sourceFile });
+}
+
+function isAliasDeclaration(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  declaration: Node | undefined,
+): boolean {
+  let current = declaration;
+  for (let depth = 0; current !== undefined && depth < 3; depth += 1) {
+    if (
+      ast.is.IsImportClause(current) ||
+      ast.is.IsImportSpecifier(current) ||
+      ast.is.IsNamespaceImport(current) ||
+      ast.is.IsExportSpecifier(current)
+    ) {
+      return true;
+    }
+    current = ast.parent(current);
+  }
+  return false;
 }
 
 export function getSymbolDeclarations(

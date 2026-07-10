@@ -477,6 +477,7 @@ declare var console: Console;
 
 interface ProxyConstructor {
   new <T extends object>(target: T, handler: object): T;
+  revocable<T extends object>(target: T, handler: object): { proxy: T; revoke: () => void };
 }
 declare var Proxy: ProxyConstructor;
 

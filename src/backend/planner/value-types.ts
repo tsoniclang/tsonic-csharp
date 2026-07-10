@@ -108,9 +108,9 @@ function diagnoseUnprovenValueTypeFields(
     if (
       input.facts.getFieldFact(property) === undefined &&
       input.facts.getFieldFact(assignment.Initializer) === undefined &&
-      input.facts.getFieldFact(Node_Name(property)) === undefined
+      input.facts.getFieldFact(Node_Name(input.ast, property)) === undefined
     ) {
-      const name = Node_Text(Node_Name(property));
+      const name = Node_Text(input.ast, Node_Name(input.ast, property));
       diagnostics.push(unsupportedNodeDiagnostic(property, `Value-type member '${name}' requires a finalized field fact before C# struct emission.`));
     }
   }

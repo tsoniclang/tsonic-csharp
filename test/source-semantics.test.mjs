@@ -229,6 +229,7 @@ test("source-semantics keeps any declarations opaque while strict-native rejects
       ["/src/index.ts", sourceText],
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,
@@ -285,6 +286,7 @@ test("source-semantics rejects strict-native opaque any operator facts", () => {
       ["/src/index.ts", sourceText],
     ]),
     compilerOptions: {
+      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,

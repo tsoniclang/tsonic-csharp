@@ -6,8 +6,6 @@ import {
   isDeclarationOrVirtualSourceFile,
 } from "./ast-utils.js";
 
-const nodeFlagsAmbient = 8388608;
-
 export function isAmbientOrExternalDeclaration(
   declaration: Node | undefined,
   context: Pick<ExtensionObservationContext, "compiler">,
@@ -18,10 +16,5 @@ export function isAmbientOrExternalDeclaration(
   }
   const sourceFile = compiler.ast.getSourceFile(declaration);
   return isDeclarationOrVirtualSourceFile(sourceFile, compiler.ast) ||
-    hasAmbientNodeFlag(declaration);
-}
-
-function hasAmbientNodeFlag(node: Node): boolean {
-  const flags = (node as { readonly Flags?: unknown }).Flags;
-  return typeof flags === "number" && (flags & nodeFlagsAmbient) !== 0;
+    compiler.ast.hasModifierKind(declaration, "ambient");
 }

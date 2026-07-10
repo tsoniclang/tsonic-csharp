@@ -1,7 +1,6 @@
 import {
   AsCallExpression,
   AsNewExpression,
-  AsPropertyAccessExpression,
   KindCallExpression,
   KindNewExpression,
 } from "../source-ast.js";
@@ -136,56 +135,6 @@ export function getCsharpTypeFromSourceNewExpression(
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("source construction type argument"), diagnostics));
   return withCsharpTypeArguments(baseType, typeArguments);
-}
-
-export function getSourceCallTypeParameterSubstitutions(
-  node: Node,
-  call: NonNullable<ReturnType<typeof AsCallExpression>>,
-  selectedDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  resolveCsharpType: CsharpTypeResolver,
-  diagnostics?: TargetDiagnostic[],
-): ReadonlyMap<string, CsharpTypeNode> {
-  const substitutions = new Map<string, CsharpTypeNode>();
-  const callee = AsPropertyAccessExpression(call.Expression);
-  const receiver = callee?.Expression;
-  if (receiver !== undefined) {
-    const receiverType = resolveCsharpType(receiver, sourceFile, input, invalidCsharpType("source call receiver type"), diagnostics);
-    addCsharpTypeParameterSubstitutions(input, substitutions, input.ast.parent(selectedDeclaration), getCsharpTypeArguments(receiverType));
-  }
-  const explicitTypeArguments = input.ast.typeArguments(node)
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("source call type argument"), diagnostics));
-  if (explicitTypeArguments.length > 0) {
-    addCsharpTypeParameterSubstitutions(input, substitutions, selectedDeclaration, explicitTypeArguments);
-  }
-  return substitutions;
-}
-
-function addCsharpTypeParameterSubstitutions(
-  input: TargetCompileInput,
-  substitutions: Map<string, CsharpTypeNode>,
-  declaration: Node | undefined,
-  typeArguments: readonly CsharpTypeNode[],
-): void {
-  if (declaration === undefined || typeArguments.length === 0) {
-    return;
-  }
-  const typeParameters = input.ast.typeParameters(declaration);
-  for (let index = 0; index < typeParameters.length; index += 1) {
-    const name = input.ast.text(input.ast.name(typeParameters[index]));
-    const typeArgument = typeArguments[index];
-    if (name.length > 0 && typeArgument !== undefined) {
-      substitutions.set(name, typeArgument);
-    }
-  }
-}
-
-function getCsharpTypeArguments(type: CsharpTypeNode): readonly CsharpTypeNode[] {
-  return type.kind === "IdentifierName" || type.kind === "QualifiedName"
-    ? type.typeArguments ?? []
-    : [];
 }
 
 function withCsharpTypeArguments(

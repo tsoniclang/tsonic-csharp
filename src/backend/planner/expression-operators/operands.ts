@@ -48,7 +48,7 @@ function isNullishEqualityOperand(
   if (kind === KindNullKeyword || kind === KindVoidExpression) {
     return true;
   }
-  if (kind !== KindIdentifier || Node_Text(AsIdentifier(operand)) !== "undefined") {
+  if (kind !== KindIdentifier || Node_Text(input.ast, AsIdentifier(operand)) !== "undefined") {
     return false;
   }
   const type = input.analysis.getTypeAtLocation(operand, { sourceFile });

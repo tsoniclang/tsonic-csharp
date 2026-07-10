@@ -159,7 +159,7 @@ function planRecordDictionaryInitializer(
         return undefined;
       }
       const key = planRecordDictionaryKey(property, keyType, input, diagnostics);
-      const nameNode = Node_Name(property);
+      const nameNode = Node_Name(input.ast, property);
       if (key === undefined || nameNode === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary shorthand must carry a finalized source name and value carrier before C# emission."));
         return undefined;
@@ -207,8 +207,8 @@ function planRecordDictionaryKey(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const nameNode = input.ast.name(property) ?? Node_Name(property);
-  const sourceName = nameNode === undefined ? "" : Node_Text(nameNode);
+  const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
+  const sourceName = nameNode === undefined ? "" : Node_Text(input.ast, nameNode);
   if (nameNode !== undefined && isCsharpStringType(keyType) && isStringKeyNameNode(nameNode, input)) {
     return { kind: "LiteralExpression", value: sourceName };
   }

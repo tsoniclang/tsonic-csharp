@@ -2,7 +2,6 @@ import {
   AsForInOrOfStatement,
   AsIdentifier,
   AsVariableDeclaration,
-  AsVariableDeclarationList,
   HasSourceKind,
   KindArrayBindingPattern,
   KindArrayLiteralExpression,
@@ -149,9 +148,10 @@ function planForOfBinding(
     return undefined;
   }
   if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
-    const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
-    const first = declarations.find((declaration): declaration is Node => declaration !== undefined);
-    if (first === undefined || declarations.filter((declaration) => declaration !== undefined).length !== 1) {
+    const declarations = input.ast.children(initializer)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+    const first = declarations[0];
+    if (first === undefined || declarations.length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
       return undefined;
     }
@@ -206,7 +206,7 @@ function planForOfBinding(
   if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
     const identifier = AsIdentifier(initializer)!;
     return {
-      name: requireCsharpIdentifier(Node_Text(identifier), diagnostics, "For-of assignment target"),
+      name: requireCsharpIdentifier(Node_Text(input.ast, identifier), diagnostics, "For-of assignment target"),
       kind: "VariableDeclarator",
       type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
       prelude: [],

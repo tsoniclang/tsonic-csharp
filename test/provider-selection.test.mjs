@@ -1,5 +1,16 @@
 import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 
+function exactProviderSourceSelection(signatureId) {
+  return {
+    sourceSelectionProven: true,
+    selectedProviderDeclaration: {
+      moduleSpecifier: "@example/native.js",
+      exportName: "Target",
+      signatureId,
+    },
+  };
+}
+
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -23,7 +34,6 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [literalArgument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -55,6 +65,72 @@ test("target member selection does not treat System.Object as an implicit wildca
     undefined,
   );
 });
+test("target member selection accepts source-checked object parameters only from exact checked signatures", () => {
+  const argument = {};
+  const member = {
+    ...method("Example.Target.m(System.Object)", { kind: "target-named", id: "System.Object" }),
+    parameters: [{
+      name: "value",
+      type: { kind: "target-named", id: "System.Object" },
+      passingMode: "by-value",
+      csharpAcceptsCheckedSourceArgument: true,
+    }],
+  };
+  const context = {};
+  const resolveTargetTypeRef = () => undefined;
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      context,
+      resolveTargetTypeRef,
+    )?.id,
+    member.id,
+  );
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument] },
+      context,
+      resolveTargetTypeRef,
+    ),
+    undefined,
+  );
+});
+test("target member selection lets exact checked signatures prove source-projected callback parameters over target-resolved arguments", () => {
+  const argument = {};
+  const member = {
+    ...method("Example.Task.ContinueWith``1(System.Func`3,System.Object)", { kind: "target-named", id: "System.Func`3" }),
+    parameters: [{
+      name: "continuation",
+      type: { kind: "target-named", id: "System.Func`3" },
+      passingMode: "by-value",
+      csharpAcceptsCheckedSourceArgument: true,
+    }],
+  };
+  const context = {};
+  const resolveTargetTypeRef = () => ({ kind: "target-named", id: "Tsonic.Generated.Callback" });
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      context,
+      resolveTargetTypeRef,
+    )?.id,
+    member.id,
+  );
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument] },
+      context,
+      resolveTargetTypeRef,
+    ),
+    undefined,
+  );
+});
 test("target member selection accepts source-primitive parameters only from exact checked source signatures", () => {
   const argument = {};
   const member = method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" });
@@ -64,7 +140,32 @@ test("target member selection accepts source-primitive parameters only from exac
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument], sourceSelectedSignature: { signatureId: member.id } },
+      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      context,
+      resolveTargetTypeRef,
+    )?.id,
+    member.id,
+  );
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument] },
+      context,
+      resolveTargetTypeRef,
+    ),
+    undefined,
+  );
+});
+test("target member selection lets exact checked source signatures prove source-primitive parameters over target-resolved arguments", () => {
+  const argument = {};
+  const member = method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" });
+  const context = {};
+  const resolveTargetTypeRef = () => ({ kind: "target-named", id: "System.Int32" });
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
       context,
       resolveTargetTypeRef,
     )?.id,
@@ -240,7 +341,6 @@ test("C# parameter-passing validation rejects selected byref members without sou
     callee: {},
     calleePropertyName: "tryGetValue",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [{ kind: "target-named", id: "System.String" }, argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -295,7 +395,6 @@ test("C# provider does not refine exact selected byref call signatures to by-val
     callee: {},
     calleePropertyName: "update",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -377,7 +476,6 @@ test("C# provider rejects missing or mutated target parameter-mode facts before 
       callee: {},
       calleePropertyName: scenario.member.sourceName,
       sourceSelectedDeclaration: selectedDeclaration,
-      sourceSelectedContainerSymbol: containerSymbol,
       arguments: scenario.arguments,
     }, fakeObservationContext({
       ...scenario.context,
@@ -644,7 +742,6 @@ test("C# provider selects from a proven provider binding using checked source me
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,

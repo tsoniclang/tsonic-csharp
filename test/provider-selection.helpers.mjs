@@ -121,6 +121,7 @@ export function getNativeSemanticProvider(options = {}) {
   const bindings = new Map((options.bindings ?? []).map((binding) => [binding.id, binding]));
   const metadataBindings = new Map(options.metadataBindings ?? []);
   const baseTypes = new Map(options.baseTypes ?? []);
+  const assignableTypes = new Map(options.assignableTypes ?? []);
   const resolveSubjectFactTarget = (subject, context, resolutionOptions = {}) =>
     resolveTargetTypeRefFromSubjectFacts(subject, context, resolutionOptions, resolveSubjectFactTarget);
   return createCsharpNativeOperationsProvider({
@@ -139,7 +140,10 @@ export function getNativeSemanticProvider(options = {}) {
     getBaseTargetTypeRef(type) {
       return type.kind === "target-named" ? baseTypes.get(type.id) : undefined;
     },
-    getCsharpObjectShapeFactForSubject: () => undefined,
+    getAssignableTargetTypeRefs(type) {
+      return type.kind === "target-named" ? assignableTypes.get(type.id) ?? [] : [];
+    },
+    getCsharpObjectShapeFactForSubject: (subject) => options.objectShapesBySubject?.get(subject),
     mapRuntimeCarrier() {
       return deferObservation;
     },

@@ -55,7 +55,11 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): CsharpObjectShapeMemberFact | undefined {
-  const sourceName = getNodeNameText(member);
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const sourceName = getNodeNameText(ast, member);
   if (sourceName.length === 0) {
     return undefined;
   }
@@ -69,6 +73,7 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   const optional = getNodeField(member, "QuestionToken") !== undefined;
   return {
     sourceName,
+    sourceSubjects: [member],
     targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
     type: optional ? csharpNullableTargetType(type) : type,

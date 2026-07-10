@@ -34,11 +34,6 @@ import {
   findUnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
 import {
-  isAttributeBuilderMemberAccess,
-  isAttributeSelectorApplicationTarget,
-  isAttributeSelectorBodyExpression,
-} from "../source-marker-selectors.js";
-import {
   asNodeSubject,
   getNodeField,
 } from "../ast-utils.js";
@@ -112,21 +107,6 @@ export function mapCsharpCheckedPropertyAccess(
   if (sourceOwnedMethodGroup !== undefined) {
     return sourceOwnedMethodGroup;
   }
-  if (isAttributeSelectorApplicationTarget(request.expression, context)) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("source-semantics.attribute-selector.target", "property", "__tsonic_erased_source_marker"),
-    }, [{ message: "C# attribute selector target member access was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  if (isAttributeSelectorBodyExpression(request.expression, context)) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("source-semantics.attribute-selector.body", "property", "__tsonic_erased_source_marker"),
-    }, [{ message: "C# attribute selector body member access was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  if (isAttributeBuilderMemberAccess(request.expression, context)) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("source-semantics.attribute-builder.member", "property", "__tsonic_erased_source_marker"),
-    }, [{ message: "C# attribute builder member access was checked by TSTS and marked for fact-driven erasure." }]);
-  }
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
@@ -134,14 +114,10 @@ export function mapCsharpCheckedPropertyAccess(
   ]);
   const binding = findTargetBinding(context, [
     requestContext.sourceSelectedSymbol,
-    requestContext.sourceSelectedContainerSymbol,
     requestContext.sourceSelectedDeclarationContainer,
     requestContext.sourceSelectedDeclaration,
     requestContext.receiverTypeSymbol,
     requestContext.receiverType,
-    requestContext.receiverAliasedSymbol,
-    requestContext.receiverResolvedSymbol,
-    requestContext.receiverSymbol,
     request.receiver,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
@@ -161,7 +137,7 @@ export function mapCsharpCheckedPropertyAccess(
       mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host) ??
       rejectPropertyAccessNotMapped(extensionId, request.propertyName);
   }
-  if (binding.id === dotnetNativeArrayTypeId && request.propertyName === "Length") {
+  if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
@@ -191,7 +167,11 @@ export function mapCsharpCheckedPropertyAccess(
     }, [{ message: "C# provider method-group property access accepted from checked TSTS call callee; call emission uses the finalized selected call fact." }]);
   }
   const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
-  const csharpMember = instantiateClosedSelectedTargetMember(member, host, declaringTargetType);
+  const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
+  const csharpMember = instantiateClosedSelectedTargetMember(member, host, {
+    ...(declaringTargetType === undefined ? {} : { declaringTargetType }),
+    ...(selectedResultType === undefined ? {} : { selectedResultType }),
+  });
   if (csharpMember === undefined) {
     return rejectTargetPropertyNotRenderable(extensionId, member.id);
   }
@@ -208,7 +188,7 @@ function mapCsharpSourceProfilePropertyAccess(
   const identity = getCsharpSourceProfileMemberIdentity(
     getSourceSelectedPropertyDeclaration(request, context),
     context,
-  ) ?? getSourceSelectedPropertyIdentity(request, context);
+  );
   const member = csharpSourceProfilePropertyMember(identity);
   if (member === undefined) {
     return undefined;
@@ -277,14 +257,6 @@ function getSourceSelectedPropertyDeclaration(
   _context: CheckedPropertyAccessContext,
 ): ExtensionFactSubject | undefined {
   return asNodeSubject(request.sourceSelectedDeclaration);
-}
-
-function getSourceSelectedPropertyIdentity(
-  request: CheckedPropertyAccessMappingRequest,
-  context: CheckedPropertyAccessContext,
-): ReturnType<typeof getCsharpSourceProfileMemberIdentity> {
-  const identity = getCsharpSourceProfileMemberIdentity(request.sourceSelectedDeclaration, context);
-  return identity?.memberName === request.propertyName ? identity : undefined;
 }
 
 function isDeclarationOnlyPropertyAccess(

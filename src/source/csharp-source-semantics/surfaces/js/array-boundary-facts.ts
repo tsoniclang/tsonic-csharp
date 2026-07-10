@@ -48,7 +48,7 @@ export function getCsharpArrayBoundaryCoreCarrierForReference(
   }
   const symbols = [
     compiler.checker.getSymbolAtLocation(subjectNode, { sourceFile: subjectSourceFile }),
-    safeGetResolvedSymbol(subjectNode, subjectSourceFile, context),
+    getResolvedSymbol(subjectNode, subjectSourceFile, context),
   ];
   for (const symbol of symbols) {
     const symbolCarrier = getCsharpArrayBoundaryCoreCarrier(symbol, context);
@@ -110,7 +110,7 @@ function getInitializerRuntimeCarrier(
       context.factResolver.resolve(initializer, runtimeCarrierFactKey))?.carrier;
 }
 
-function safeGetResolvedSymbol(
+function getResolvedSymbol(
   node: Node,
   sourceFile: SourceFile,
   context: ExtensionObservationContext,

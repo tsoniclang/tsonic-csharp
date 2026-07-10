@@ -1,6 +1,7 @@
 import { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy, createCsharpJsSurfaceOperationsProvider, arrayLengthRequest, arrayLengthDeclaration, arrayMemberDeclaration, arrayConstructorDeclaration, sourceLibraryMemberDeclaration, namespaceImportSourceFile, fakeNamespaceImportContext, sourceLibraryPropertyRequest, fakeNodeSubject, fakeHost, fakeContext, fakeAstIs, createCsharpSession, sourceProfileFiles, declarationFiles, fakeTargetPack, collectNodesByKind, collectFactValues, collectAllNodes, jsCallRequest, jsCallRequestWithoutSignature, fakeCallCallee, selectedSourceLibrarySignature, nodejsCallRequest, nodejsCallRequestWithoutSignature, nodejsPropertyRequest, nodejsVirtualDeclaration, nodejsVirtualMemberDeclaration, int32Type, float64Type, boolType, nullishType, stringType, regexpType, dateType, jsObjectType, tsValueType, jsArrayType, jsMapType, jsSetType, int32ArrayType, int32EnumerableType, int32ReadOnlyListType, genericSystemCollectionType, recordDictionaryType, surfaceObjectShapeFact, dictionaryBinding, actionOfInt32Type, funcInt32ToStringType, TestFactStore } from "./surface-boundary.helpers.mjs";
+import { mapCsharpJsArrayMutationOperator } from "../dist/source/csharp-source-semantics/surfaces/js/array-mutations.js";
 
-test("JS surface maps JSON.parse from selected standard-library declaration and closed string facts", () => {
+test("JS surface maps JSON.parse from selected Tsonic JS source-profile declaration and closed string facts", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -187,6 +188,63 @@ test("selected JS surface finalizes Array length assignment as value-producing s
   assert.equal(operation?.resultType?.name, "int32");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
+test("JS array length mutation maps only from selected property evidence on the checked operator request", () => {
+  const receiver = fakeNodeSubject({});
+  const left = fakeNodeSubject({ Expression: receiver }, "PropertyAccessExpression");
+  const right = fakeNodeSubject({}, "NumericLiteral");
+  const expression = fakeNodeSubject({}, "BinaryExpression");
+  const carrier = jsArrayType();
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier });
+  facts.set(left, targetOperationFactKey, {
+    operationId: "tsonic.csharp.js.Array.length",
+    operationKind: "property",
+    targetOperation: "Count",
+  });
+  const host = {
+    ...fakeHost(undefined, new Map([[right, int32Type()]])),
+    targetId: "csharp",
+    isIntegralTargetTypeRef: (type) => type?.kind === "source-primitive" && type.name === "int32",
+    isLiteralRepresentableAsTargetType: () => false,
+  };
+
+  const mapped = mapCsharpJsArrayMutationOperator({
+    target: "csharp",
+    expression,
+    operator: "=",
+    left,
+    right,
+  }, fakeContext(facts), host);
+
+  assert.equal(mapped?.kind, "accept");
+  assert.equal(mapped?.value.operation.operationId, "tsonic.csharp.js.array.setLength");
+  assert.equal(facts.get(expression, csharpTargetMutationOperationFactKey)?.operationId, "tsonic.csharp.js.array.setLength");
+});
+test("JS array length mutation refuses same-shaped syntax without selected property evidence", () => {
+  const receiver = fakeNodeSubject({});
+  const left = fakeNodeSubject({ Expression: receiver }, "PropertyAccessExpression");
+  const right = fakeNodeSubject({}, "NumericLiteral");
+  const expression = fakeNodeSubject({}, "BinaryExpression");
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: jsArrayType() });
+  const host = {
+    ...fakeHost(undefined, new Map([[right, int32Type()]])),
+    targetId: "csharp",
+    isIntegralTargetTypeRef: () => true,
+    isLiteralRepresentableAsTargetType: () => false,
+  };
+
+  const mapped = mapCsharpJsArrayMutationOperator({
+    target: "csharp",
+    expression,
+    operator: "=",
+    left,
+    right,
+  }, fakeContext(facts), host);
+
+  assert.equal(mapped, undefined);
+  assert.equal(facts.get(expression, csharpTargetMutationOperationFactKey), undefined);
+});
 test("selected JS surface records inferred source-owned array return carriers on declarations", () => {
   const session = createCsharpSession(`
     import type { int32 } from "@tsonic/core/types.js";
@@ -285,12 +343,20 @@ test("C# source semantics finalizes prefix bitwise operator facts from proven op
   const prefix = collectNodesByKind(sourceFile, session.ast, "KindPrefixUnaryExpression")[0];
 
   assert.ok(prefix);
-  assert.deepEqual(extensionHost.facts.get(prefix, targetOperationFactKey), {
+  const selectedOperation = extensionHost.facts.get(prefix, targetOperationFactKey);
+  assert.deepEqual({
+    operationId: selectedOperation?.operationId,
+    operationKind: selectedOperation?.operationKind,
+    targetOperation: selectedOperation?.targetOperation,
+    resultType: selectedOperation?.resultType,
+  }, {
     operationId: "tsonic.csharp.operator.~",
     operationKind: "operator",
     targetOperation: "~",
     resultType: { kind: "source-primitive", name: "int32" },
   });
+  assert.equal(selectedOperation?.provenance?.sourceExpression, prefix);
+  assert.deepEqual(Object.keys(selectedOperation?.provenance ?? {}).sort(), ["sourceExpression"]);
   assert.deepEqual(extensionHost.facts.get(prefix, csharpTargetOperationFactKey), {
     kind: "operator-token",
     operationId: "tsonic.csharp.operator.~",
@@ -336,7 +402,7 @@ test("JS surface accepts method-valued console property access without C# operat
   assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Console.log.callee");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
-test("JS surface maps console.log calls from selected standard-library declaration identity", () => {
+test("JS surface maps console.log calls from selected Tsonic JS source-profile declaration identity", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -468,7 +534,7 @@ test("JS surface rejects console.log without closed argument target facts", () =
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
   assert.match(result.diagnostic.message, /argument 1/);
 });
-test("JS surface maps Object.keys from selected standard-library declaration and closed JSObject carrier", () => {
+test("JS surface maps Object.keys from selected Tsonic JS source-profile declaration and closed JSObject carrier", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -487,7 +553,7 @@ test("JS surface maps Object.keys from selected standard-library declaration and
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
 });
-test("JS surface maps Object.values from selected standard-library declaration and closed JSObject carrier", () => {
+test("JS surface maps Object.values from selected Tsonic JS source-profile declaration and closed JSObject carrier", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -506,7 +572,7 @@ test("JS surface maps Object.values from selected standard-library declaration a
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.Object");
 });
-test("JS surface maps Object.entries from selected standard-library declaration and closed JSObject carrier", () => {
+test("JS surface maps Object.entries from selected Tsonic JS source-profile declaration and closed JSObject carrier", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();

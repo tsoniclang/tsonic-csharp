@@ -2,7 +2,6 @@ import {
   acceptObservation,
   contextualTargetTypeFactKey,
   deferObservation,
-  providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
   targetConversionFactKey,
@@ -44,24 +43,17 @@ import {
   mapCsharpIterationOperationRows,
 } from "./operation-selection/iteration.js";
 import {
-  asType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
-import {
-  targetTypeMatchesExpected,
-} from "./target-member-arguments/type-matching.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 import {
   asNodeSubject,
 } from "./ast-utils.js";
-import {
-  isAttributeSelectorCallbackExpression,
-} from "./source-marker-selectors.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 const expressionEvidenceQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
@@ -101,7 +93,6 @@ export function mapCsharpNativeCheckedIteration(
 export function mapCsharpContextualTargetType(
   request: ContextualTargetTypeRequest,
   context: ExtensionObservationContext<"type.recordContextualTargetType">,
-  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<ContextualTargetTypeResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
@@ -119,36 +110,9 @@ export function mapCsharpContextualTargetType(
       [{ message: "C# acknowledged TSTS contextual type for source-core struct schema payload without target metadata; schema payload is source metadata, not emitted code." }],
     );
   }
-  if (isAttributeSelectorCallbackExpression(request.expression, context)) {
-    return deferObservation;
-  }
-  if (contextualTypeIsProviderVirtualDeclaration(request, context)) {
-    return acceptObservation<ContextualTargetTypeResult>({
-      type: request.context,
-    }, [{ message: "C# acknowledged provider virtual contextual type without re-entering target type resolution during TSTS contextual checking." }]);
-  }
-  const targetType = host.getTargetTypeRefForSubject(request.context, context);
-  if (targetType === undefined) {
-    return acceptObservation<ContextualTargetTypeResult>({
-      type: request.context,
-    }, [{ message: "C# acknowledged TSTS contextual type without target metadata; no deterministic C# target type was available." }]);
-  }
   return acceptObservation<ContextualTargetTypeResult>({
     type: request.context,
-    targetType,
-  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type and deterministic C# target type." }]);
-}
-
-function contextualTypeIsProviderVirtualDeclaration(
-  request: ContextualTargetTypeRequest,
-  context: ExtensionObservationContext<"type.recordContextualTargetType">,
-): boolean {
-  const type = asType(request.context);
-  const symbol = type === undefined
-    ? undefined
-    : context.compiler?.checker.getTypeSymbol(type);
-  return context.facts.get(request.context, providerVirtualDeclarationFactKey) !== undefined ||
-    context.facts.get(symbol, providerVirtualDeclarationFactKey) !== undefined;
+  }, [{ message: "C# retained the TSTS-selected contextual source type without re-entering target type resolution during source checking; post-check target facts and backend planning map the recorded source type." }]);
 }
 
 export function mapCsharpCheckedConversion(
@@ -189,10 +153,18 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
-  if (source !== undefined && sourceFunctionExpressionMatchesTargetDelegate(request.source, source, target, context)) {
+  if (source === undefined && sourceFunctionExpressionHasSelectedTargetDelegate(request.source, target, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# function expression is contextually convertible to the selected delegate target type." }]);
+  }
+  const delegateMatch = source === undefined
+    ? undefined
+    : sourceDelegateMatch(source, target);
+  if (delegateMatch?.matches === true) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# delegate value is contextually convertible to the selected delegate target type through a closed wrapper." }]);
   }
   if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
@@ -225,6 +197,10 @@ export function mapCsharpCheckedConversion(
           message: "Target C# target type",
           details: target,
         },
+        ...(delegateMatch === undefined ? [] : [{
+          message: "Delegate conversion shape",
+          details: delegateMatch,
+        }]),
       ],
       identity: `csharp-provider-checked-conversion-unsupported:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
     });
@@ -235,31 +211,53 @@ export function mapCsharpCheckedConversion(
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
 }
 
-function sourceFunctionExpressionMatchesTargetDelegate(
+function sourceFunctionExpressionHasSelectedTargetDelegate(
   subject: CheckedConversionMappingRequest["source"],
+  target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+): boolean {
+  return sourceSubjectIsFunctionExpression(subject, context) && getCsharpDelegateSignature(target) !== undefined;
+}
+
+function sourceDelegateMatch(
   source: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
   target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+): { readonly matches: boolean; readonly reason?: string; readonly parameterIndex?: number } {
+  const sourceDelegate = getCsharpDelegateSignature(source);
+  const targetDelegate = getCsharpDelegateSignature(target);
+  if (sourceDelegate === undefined || targetDelegate === undefined || sourceDelegate.parameters.length !== targetDelegate.parameters.length) {
+    return {
+      matches: false,
+      reason: sourceDelegate === undefined
+        ? "source-not-delegate"
+        : targetDelegate === undefined
+          ? "target-not-delegate"
+          : "parameter-count",
+    };
+  }
+  for (let index = 0; index < targetDelegate.parameters.length; index += 1) {
+    const expected = targetDelegate.parameters[index];
+    const actual = sourceDelegate.parameters[index];
+    if (expected === undefined || actual === undefined || !targetTypeRefEquals(expected, actual)) {
+      return {
+        matches: false,
+        reason: "parameter-type",
+        parameterIndex: index,
+      };
+    }
+  }
+  return targetTypeRefEquals(targetDelegate.returnType, sourceDelegate.returnType)
+    ? { matches: true }
+    : { matches: false, reason: "return-type" };
+}
+
+function sourceSubjectIsFunctionExpression(
+  subject: CheckedConversionMappingRequest["source"],
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
 ): boolean {
   const node = asNodeSubject(subject);
   const ast = context.compiler?.ast;
-  if (node === undefined || ast === undefined || (!ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node))) {
-    return false;
-  }
-  const sourceDelegate = getCsharpDelegateSignature(source);
-  const targetDelegate = getCsharpDelegateSignature(target);
-  if (sourceDelegate === undefined || targetDelegate === undefined || sourceDelegate.parameters.length !== targetDelegate.parameters.length) {
-    return false;
-  }
-  const typeParameterBindings = new Map();
-  for (let index = 0; index < targetDelegate.parameters.length; index += 1) {
-    const expected = targetDelegate.parameters[index];
-    const actual = sourceDelegate.parameters[index];
-    if (expected === undefined || actual === undefined || !targetTypeMatchesExpected(expected, actual, typeParameterBindings, {})) {
-      return false;
-    }
-  }
-  return targetTypeMatchesExpected(targetDelegate.returnType, sourceDelegate.returnType, typeParameterBindings, {});
+  return node !== undefined && ast !== undefined && (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node));
 }
 
 function subjectIdentity(subject: unknown): string {

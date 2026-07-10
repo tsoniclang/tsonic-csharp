@@ -388,12 +388,31 @@ export function runtimeCarrierResolution(options, subject) {
     : resolvedCarrierResolution(fact.carrier);
 }
 
+const asKind = (kind) => (node) => node?.Kind === kind ? node : undefined;
+
 export const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
-  kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  text: (node) => String(node?.Text ?? ""),
   parent: (node) => node?.Parent,
   name: (node) => node?.name,
+  hasModifier: (node, flag) => ((node?.ModifierFlags ?? 0) & flag) !== 0,
   getSourceFile: () => undefined,
+  as: {
+    AsPropertyAccessExpression: asKind(KindPropertyAccessExpression),
+    AsElementAccessExpression: asKind("KindElementAccessExpression"),
+    AsCallExpression: asKind("KindCallExpression"),
+    AsNewExpression: asKind("KindNewExpression"),
+    AsParenthesizedExpression: asKind("KindParenthesizedExpression"),
+    AsTypeAssertion: asKind("KindTypeAssertionExpression"),
+    AsAsExpression: asKind("KindAsExpression"),
+    AsSatisfiesExpression: asKind("KindSatisfiesExpression"),
+    AsNonNullExpression: asKind("KindNonNullExpression"),
+    AsSpreadElement: asKind("KindSpreadElement"),
+    AsDeleteExpression: asKind("KindDeleteExpression"),
+    AsTypeOfExpression: asKind("KindTypeOfExpression"),
+    AsVoidExpression: asKind("KindVoidExpression"),
+    AsAwaitExpression: asKind(KindAwaitExpression),
+  },
   is: {
     IsKeywordTypeNode: () => false,
     IsTypeReferenceNode: () => false,

@@ -1,6 +1,5 @@
 export {
   mapCsharpJsArrayElementAccess,
-  recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./arrays/element-access.js";
 export {
   arrayTargetMembersForSelectedIdentity,

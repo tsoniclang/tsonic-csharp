@@ -446,6 +446,91 @@ test("source-owned checked calls use TSTS semantic return annotation when direct
   assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
 });
 
+test("source-owned checked calls record parameter and method type arguments from TSTS-selected evidence", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const parameterName = node("KindIdentifier", sourceFile, { Text: "value" });
+  const parameter = node("KindParameterDeclaration", sourceFile, { name: parameterName });
+  const declaration = node("KindFunctionDeclaration", sourceFile, {
+    Parameters: { Nodes: [parameter] },
+  });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const selectedType = { kind: "semantic-string" };
+  const openParameterType = { kind: "type-parameter", name: "T" };
+  const stringType = { kind: "source-primitive", name: "string" };
+
+  const result = sourceOwnedProvider(new Map([
+    [parameter, openParameterType],
+    [selectedType, stringType],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceSelectedDeclaration: declaration,
+    sourceSelectedMethodTypeArguments: [{
+      typeParameterName: "T",
+      selectedType,
+    }],
+    arguments: [node("KindStringLiteral", sourceFile, { Text: "ok" })],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.selectedSignature.targetTypeArguments, [stringType]);
+  assert.deepEqual(result.value.selectedSignature.member.parameters, [{
+    name: "value",
+    type: stringType,
+    passingMode: "by-value",
+  }]);
+});
+
+test("source-owned checked calls fail closed when TSTS-selected method type arguments lack target facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const declaration = node("KindFunctionDeclaration", sourceFile);
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const selectedType = { kind: "semantic-unresolved" };
+
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceSelectedDeclaration: declaration,
+    sourceSelectedMethodTypeArguments: [{
+      typeParameterName: "T",
+      selectedType,
+    }],
+    arguments: [],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_METHOD_TYPE_ARGUMENT_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
+});
+
+test("source-owned checked calls fail closed when selected parameter target facts are missing", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const parameter = node("KindParameterDeclaration", sourceFile, {
+    name: node("KindIdentifier", sourceFile, { Text: "value" }),
+  });
+  const declaration = node("KindFunctionDeclaration", sourceFile, {
+    Parameters: { Nodes: [parameter] },
+  });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceSelectedDeclaration: declaration,
+    arguments: [node("KindNumericLiteral", sourceFile, { Text: "1" })],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
+});
+
 
 function sourceOwnedProvider(targetTypes) {
   return createCsharpNativeOperationsProvider({
@@ -488,6 +573,8 @@ function fakeObservationContext(options = {}) {
         parent: (subject) => subject?.Parent,
         name: (subject) => subject?.name,
         text: (subject) => subject?.Text ?? "",
+        hasModifierKind: () => false,
+        parameters: (subject) => subject?.Parameters?.Nodes ?? [],
         typeArguments: (subject) => subject?.TypeArguments?.Nodes ?? [],
         typeParameters: (subject) => subject?.TypeParameters?.Nodes ?? [],
         is: new Proxy({

@@ -100,7 +100,7 @@ function planObjectLiteralMethodAsLambda(
   }
   return {
     kind: "LambdaExpression",
-    ...(isAsyncExpression(methodNode) ? { async: true } : {}),
+    ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
     parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, targetContext),
     body,
   };

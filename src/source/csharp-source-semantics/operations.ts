@@ -4,7 +4,6 @@ import type {
   ExtensionFactSubject,
   ExtensionFactWriteResult,
   ExtensionObservationContext,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -80,11 +79,15 @@ export function sourceOwnedPropertyOperation(propertyName: string): CheckedOpera
   return targetOperation(`${csharpSourceOwnedPropertyOperationPrefix}${propertyName}`, "property", propertyName);
 }
 
-export function targetOperationFromMember(member: TargetMember): CheckedOperationMappingResult["operation"] {
+export function targetOperationFromMember(member: CsharpTargetMember): CheckedOperationMappingResult["operation"] {
+  const resultType = member.kind === "constructor"
+    ? member.declaringType
+    : member.returnType;
   return {
     operationId: member.id,
     operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
     targetOperation: member.targetName,
+    ...(resultType === undefined ? {} : { resultType }),
   };
 }
 

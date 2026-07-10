@@ -39,7 +39,7 @@ export function planEnumDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumDeclaration {
   const declaration = AsEnumDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "enum declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "enum declaration", diagnostics);
   return {
     kind: "EnumDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousEnum", input, diagnostics, "Enum name"),
@@ -77,7 +77,7 @@ function planEnumMember(
   }
   return {
     kind: "EnumMemberDeclaration",
-    name: planIdentifierName(member.name ?? Node_Name(node), "AnonymousMember", input, diagnostics, "Enum member name"),
+    name: planIdentifierName(member.name ?? Node_Name(input.ast, node), "AnonymousMember", input, diagnostics, "Enum member name"),
     ...(member.Initializer === undefined
       ? {}
       : enumExpressionValue !== undefined

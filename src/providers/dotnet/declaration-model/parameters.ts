@@ -3,7 +3,7 @@ import type { DotnetParameterDeclaration } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 
 export function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaration): ProviderParameterDeclaration | undefined {
-  const type = tryDotnetTypeRefToProviderType(parameter.type);
+  const type = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type);
   if (type === undefined) {
     return undefined;
   }

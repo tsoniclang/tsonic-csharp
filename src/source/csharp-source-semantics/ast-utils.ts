@@ -14,7 +14,6 @@ export {
   getNodeParent,
   nodeHasModifierKind,
   getPropertyAccessName,
-  getStructuralChildNodes,
 } from "./ast-utils/node-access.js";
 export {
   isCsharpUserSourceFile,
@@ -23,7 +22,6 @@ export {
 export {
   getAstReaderChildNodes,
   visitAstReaderNodes,
-  visitStructuralNodes,
 } from "./ast-utils/traversal.js";
 export {
   isTypeLiteralLikeNode,

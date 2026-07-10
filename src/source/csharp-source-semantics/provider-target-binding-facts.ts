@@ -98,8 +98,8 @@ function getProviderTargetBindingSubjectsForTypeName(
     }
     const symbol = checker.getSymbolAtLocation(subject, { sourceFile });
     const resolvedSymbol = checker.getResolvedSymbolOrNil(subject, { sourceFile }) ?? undefined;
-    const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
-    const aliasedResolvedSymbol = getAliasedSymbolIfAvailable(checker, resolvedSymbol, sourceFile);
+    const aliasedSymbol = getAliasedSymbolIfAvailable(lifecycleContext.compiler.ast, checker, symbol, sourceFile);
+    const aliasedResolvedSymbol = getAliasedSymbolIfAvailable(lifecycleContext.compiler.ast, checker, resolvedSymbol, sourceFile);
     pushFactSubject(subjects, symbol);
     pushFactSubject(subjects, aliasedSymbol);
     pushFactSubject(subjects, resolvedSymbol);

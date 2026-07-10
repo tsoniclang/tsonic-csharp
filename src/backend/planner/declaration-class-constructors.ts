@@ -67,7 +67,7 @@ export function planConstructorDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsConstructorDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "constructor declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "constructor declaration", diagnostics);
   const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.ast);

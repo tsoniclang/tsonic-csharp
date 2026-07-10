@@ -55,6 +55,30 @@ export function resolveCsharpObjectShapeMemberByFinalizedSourceName(
   );
 }
 
+export function resolveCsharpObjectShapeMemberBySelectedSubject(
+  objectShape: CsharpObjectShapeFact,
+  selectedSubjects: readonly unknown[],
+): CsharpObjectShapeMemberLookupResult {
+  const presentSubjects = selectedSubjects.filter((subject) => subject !== undefined);
+  const matches = objectShape.members.filter((member) =>
+    member.sourceSubjects?.some((subject) => presentSubjects.includes(subject)) === true);
+  if (matches.length === 1) {
+    return {
+      kind: "resolved",
+      member: matches[0]!,
+      evidence: [
+        "Object-shape member resolved from exact TSTS-selected source declaration/symbol identity and finalized object-shape facts.",
+        "Lookup provenance: checked-property-access.",
+      ],
+    };
+  }
+  return missingCsharpObjectShapeMember(
+    "<selected-subject>",
+    "checked-property-access",
+    matches.length === 0 ? "not-in-finalized-shape" : "ambiguous-finalized-shape-member",
+  );
+}
+
 export function csharpObjectShapeMemberLookupFailureMessage(
   result: Extract<CsharpObjectShapeMemberLookupResult, { readonly kind: "missing" }>,
   operation: string,

@@ -22,8 +22,10 @@ import {
 } from "./target-types.js";
 
 export interface CsharpSourceProfileMemberIdentity {
+  readonly kind: "named" | "indexer";
+  readonly ownerId: typeof csharpSourceProfileOwnerId | typeof csharpJsSourceProfileOwnerId;
   readonly declaringName: "String" | "Array" | "ReadonlyArray";
-  readonly memberName: string;
+  readonly memberName?: string;
 }
 
 interface CsharpSourceProfileMethodRow {
@@ -80,11 +82,19 @@ export function getCsharpSourceProfileMemberIdentity(
   const ast = compiler.ast;
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
-  if (
-    !isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId) &&
-    !isTsonicSourceProfileDeclarationPath(fileName, csharpJsSourceProfileOwnerId)
-  ) {
+  const ownerId = isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId)
+    ? csharpSourceProfileOwnerId
+    : isTsonicSourceProfileDeclarationPath(fileName, csharpJsSourceProfileOwnerId)
+      ? csharpJsSourceProfileOwnerId
+      : undefined;
+  if (ownerId === undefined) {
     return undefined;
+  }
+  if (ast.kindName(declaration) === "KindIndexSignature") {
+    const declaringName = ast.text(ast.name(ast.parent(declaration)));
+    return declaringName === "Array" || declaringName === "ReadonlyArray"
+      ? { kind: "indexer", ownerId, declaringName }
+      : undefined;
   }
   const memberNode = ast.text(ast.name(declaration)) === ""
     ? asNodeSubject(ast.parent(declaration))
@@ -97,13 +107,13 @@ export function getCsharpSourceProfileMemberIdentity(
   if (!isCsharpSourceProfileDeclaringName(declaringName) || memberName === "") {
     return undefined;
   }
-  return { declaringName, memberName };
+  return { kind: "named", ownerId, declaringName, memberName };
 }
 
 export function csharpSourceProfileCallMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity === undefined) {
+  if (identity === undefined || identity.kind !== "named" || identity.memberName === undefined) {
     return undefined;
   }
   const row = sourceProfileMethodRows.find((candidate) =>
@@ -116,7 +126,7 @@ export function csharpSourceProfileCallMember(
 export function csharpSourceProfilePropertyMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity === undefined) {
+  if (identity === undefined || identity.kind !== "named" || identity.memberName === undefined) {
     return undefined;
   }
   const row = sourceProfilePropertyRows.find((candidate) =>
@@ -128,13 +138,39 @@ export function csharpSourceProfilePropertyMember(
   }
   return {
     id: csharpSourceProfileMemberId(identity),
-    sourceName: identity.memberName,
-    targetName: identity.memberName,
+    sourceName: row.memberName,
+    targetName: row.memberName,
     kind: "property",
     static: false,
     parameters: [],
     ...(identity.declaringName === "String" ? { declaringType: csharpStringTargetType() } : {}),
     returnType: row.returnType,
+  };
+}
+
+export function csharpSourceProfileIndexerMember(
+  identity: CsharpSourceProfileMemberIdentity | undefined,
+  resultType: TargetTypeRef,
+): CsharpTargetMember | undefined {
+  if (
+    identity?.kind !== "indexer" ||
+    identity.ownerId !== csharpSourceProfileOwnerId ||
+    (identity.declaringName !== "Array" && identity.declaringName !== "ReadonlyArray")
+  ) {
+    return undefined;
+  }
+  return {
+    id: `tsonic.csharp.source-profile.${identity.declaringName}.indexer`,
+    sourceName: "Item",
+    targetName: "Item",
+    kind: "indexer",
+    static: false,
+    parameters: [{
+      name: "index",
+      type: csharpSourcePrimitiveTargetType("int32"),
+      passingMode: "by-value",
+    }],
+    returnType: resultType,
   };
 }
 
@@ -144,8 +180,8 @@ function csharpSourceProfileMethod(
 ): CsharpTargetMember {
   return {
     id: csharpSourceProfileMemberId(identity),
-    sourceName: identity.memberName,
-    targetName: identity.memberName,
+    sourceName: row.memberName,
+    targetName: row.memberName,
     kind: "method",
     static: false,
     declaringType: csharpStringTargetType(),
@@ -159,7 +195,7 @@ function csharpSourceProfileMethod(
 }
 
 function csharpSourceProfileMemberId(identity: CsharpSourceProfileMemberIdentity): string {
-  return `tsonic.csharp.source-profile.${identity.declaringName}.${identity.memberName}`;
+  return `tsonic.csharp.source-profile.${identity.declaringName}.${identity.memberName ?? "indexer"}`;
 }
 
 function isCsharpSourceProfileDeclaringName(name: string): name is CsharpSourceProfileMemberIdentity["declaringName"] {

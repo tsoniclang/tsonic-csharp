@@ -1,6 +1,10 @@
 import {
   attributeFactKey,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
+import {
+  tsonicAttributeBuilderMemberIds,
+} from "@tsonic/source-core";
 import type {
   AttributeFact,
   ExtensionFactSubject,
@@ -85,8 +89,11 @@ function deriveAttributeApplicationFact(
   if (callee === undefined || !lifecycleContext.compiler.ast.is.IsPropertyAccessExpression(callee)) {
     return undefined;
   }
-  const memberName = lifecycleContext.compiler.ast.text(lifecycleContext.compiler.ast.name(callee));
-  if (memberName !== "add") {
+  const selectedMemberId = selectedCallMemberId(addCall, lifecycleContext);
+  if (
+    selectedMemberId !== tsonicAttributeBuilderMemberIds.add &&
+    selectedMemberId !== tsonicAttributeBuilderMemberIds.memberAdd
+  ) {
     return undefined;
   }
   const receiver = asNodeSubject(getNodeField(callee, "Expression"));
@@ -129,18 +136,19 @@ function deriveAttributeApplicationState(
     return undefined;
   }
   const receiver = asNodeSubject(getNodeField(callee, "Expression"));
-  const methodName = lifecycleContext.compiler.ast.text(lifecycleContext.compiler.ast.name(callee));
-  switch (methodName) {
-    case "property":
-    case "method": {
+  const selectedMemberId = selectedCallMemberId(expression, lifecycleContext);
+  switch (selectedMemberId) {
+    case tsonicAttributeBuilderMemberIds.property:
+    case tsonicAttributeBuilderMemberIds.method: {
       const selectorTarget = selectorApplicationTarget(lifecycleContext, expression);
       if (selectorTarget === undefined) {
         return {
           kind: "diagnostic",
           diagnostic: attributeBuilderDiagnostic(
+            lifecycleContext,
             "SOURCE_SEMANTICS_ATTRIBUTE_SELECTOR_TARGET_NOT_PROVEN",
             9100168,
-            `C# attribute ${methodName} selector must return a checked source member expression before the attribute can be emitted.`,
+            `C# attribute ${selectedMemberId === tsonicAttributeBuilderMemberIds.property ? "property" : "method"} selector must return a checked source member expression before the attribute can be emitted.`,
             expression,
           ),
         };
@@ -153,7 +161,7 @@ function deriveAttributeApplicationState(
         },
       };
     }
-    case "constructor":
+    case tsonicAttributeBuilderMemberIds.constructor:
       {
         const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
         if (previous === undefined || previous.kind === "diagnostic") {
@@ -167,7 +175,7 @@ function deriveAttributeApplicationState(
           },
         };
       }
-    case "parameter": {
+    case tsonicAttributeBuilderMemberIds.parameter: {
       const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
       if (previous === undefined || previous.kind === "diagnostic") {
         return previous;
@@ -177,6 +185,7 @@ function deriveAttributeApplicationState(
         return {
           kind: "diagnostic",
           diagnostic: attributeBuilderDiagnostic(
+            lifecycleContext,
             "SOURCE_SEMANTICS_ATTRIBUTE_PARAMETER_NAME_NOT_PROVEN",
             9100169,
             "C# attribute parameter selector must use a statically proven string-literal parameter name.",
@@ -192,7 +201,7 @@ function deriveAttributeApplicationState(
         },
       };
     }
-    case "target": {
+    case tsonicAttributeBuilderMemberIds.target: {
       const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
       if (previous === undefined || previous.kind === "diagnostic") {
         return previous;
@@ -202,6 +211,7 @@ function deriveAttributeApplicationState(
         return {
           kind: "diagnostic",
           diagnostic: attributeBuilderDiagnostic(
+            lifecycleContext,
             "SOURCE_SEMANTICS_ATTRIBUTE_TARGET_SPECIFIER_NOT_PROVEN",
             9100170,
             "C# attribute target selector must use a statically proven string-literal target specifier.",
@@ -218,11 +228,12 @@ function deriveAttributeApplicationState(
       };
     }
     default:
-      return deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
+      return undefined;
   }
 }
 
 function attributeBuilderDiagnostic(
+  lifecycleContext: ExtensionLifecycleContext,
   extensionCode: string,
   numericCode: number,
   message: string,
@@ -237,7 +248,7 @@ function attributeBuilderDiagnostic(
       [{ message: "C# attribute builder chain must be fully proven by finalized source-core facts before emission." }],
     ),
     nodeOrSpan: node,
-    identity: `${extensionCode}:${String((node as { readonly id?: unknown }).id ?? "unknown")}`,
+    identity: `${extensionCode}:${lifecycleContext.compiler.ast.getFileName(lifecycleContext.compiler.ast.getSourceFile(node))}:${lifecycleContext.compiler.ast.pos(node)}:${lifecycleContext.compiler.ast.end(node)}`,
   };
 }
 
@@ -245,11 +256,11 @@ function selectorApplicationTarget(
   lifecycleContext: ExtensionLifecycleContext,
   selectorCall: Node,
 ): ExtensionFactSubject | undefined {
-  const argument = callArgument(selectorCall, 0);
+  const argument = callArgument(lifecycleContext, selectorCall, 0);
   if (argument === undefined || !lifecycleContext.compiler.ast.is.IsArrowFunction(argument)) {
     return undefined;
   }
-  const body = asNodeSubject(getNodeField(argument, "Body"));
+  const body = asNodeSubject(lifecycleContext.compiler.ast.body(argument));
   return body !== undefined && lifecycleContext.compiler.ast.is.IsPropertyAccessExpression(body)
     ? body
     : undefined;
@@ -260,7 +271,7 @@ function stringArgument(
   call: Node,
   index: number,
 ): string | undefined {
-  const argument = callArgument(call, index);
+  const argument = callArgument(lifecycleContext, call, index);
   if (argument === undefined) {
     return undefined;
   }
@@ -273,9 +284,18 @@ function stringArgument(
 }
 
 function callArgument(
+  lifecycleContext: ExtensionLifecycleContext,
   call: Node,
   index: number,
 ): Node | undefined {
-  const args = (getNodeField(call, "Arguments") as { readonly Nodes?: readonly unknown[] } | undefined)?.Nodes ?? [];
-  return asNodeSubject(args[index]);
+  return asNodeSubject(lifecycleContext.compiler.ast.arguments(call)[index]);
+}
+
+function selectedCallMemberId(
+  call: Node,
+  lifecycleContext: ExtensionLifecycleContext,
+): string | undefined {
+  const selected = lifecycleContext.host.facts.get(call, selectedTargetSignatureFactKey) ??
+    lifecycleContext.host.factResolver.resolve(call, selectedTargetSignatureFactKey);
+  return selected?.member.id;
 }

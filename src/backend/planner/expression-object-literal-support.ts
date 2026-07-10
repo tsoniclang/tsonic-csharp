@@ -74,10 +74,10 @@ export function getObjectLiteralPropertySourceName(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const nameNode = input.ast.name(property) ?? Node_Name(property);
+  const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
   if (nameNode === undefined || (!HasSourceKind(input.ast, nameNode, KindIdentifier) && !HasSourceKind(input.ast, nameNode, KindStringLiteral))) {
     diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Object-shape object initializers require identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(nameNode);
+  return Node_Text(input.ast, nameNode);
 }

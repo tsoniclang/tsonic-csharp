@@ -222,6 +222,17 @@ export function primitiveSummary(fact) {
       };
 }
 
+export function assertNoExtensionDiagnostics(extensionHost) {
+  const diagnostics = extensionHost.diagnostics.all();
+  assert.equal(extensionDiagnosticSummary(diagnostics), "");
+}
+
+function extensionDiagnosticSummary(diagnostics) {
+  return diagnostics.map((diagnostic) =>
+    `${diagnostic.extensionCode ?? "UNKNOWN"}: ${diagnostic.message}`,
+  ).join("\n");
+}
+
 export function packageJson(name, exports) {
   return JSON.stringify({
     name,

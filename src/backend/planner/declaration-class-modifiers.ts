@@ -17,7 +17,7 @@ import {
 
 export function planClassMemberModifiers(node: Node, name: Node | undefined, input: TargetCompileInput): readonly ("public" | "private" | "static")[] {
   const access = HasSourceKind(input.ast, name, KindPrivateIdentifier) ? "private" : "public";
-  return HasSyntacticModifier(node, ModifierFlagsStatic)
+  return HasSyntacticModifier(input.ast, node, ModifierFlagsStatic)
     ? [access, "static"]
     : [access];
 }
@@ -25,7 +25,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
 export function planMethodModifiers(node: Node, name: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
   addDispatchModifiers(modifiers, input.analysis.getProjectSourceMemberDispatch(node, { sourceFile }));
-  if (isAsyncNode(node)) {
+  if (isAsyncNode(input.ast, node)) {
     modifiers.push("async");
   }
   return modifiers;

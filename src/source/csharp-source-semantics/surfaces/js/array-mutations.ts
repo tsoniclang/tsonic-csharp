@@ -1,42 +1,37 @@
 import {
+  acceptObservation,
   runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
+  CheckedOperationMappingResult,
+  CheckedOperatorMappingRequest,
+  ExtensionObservation,
   ExtensionObservationContext,
   Node,
-  SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  CsharpJsSurfaceHost,
-} from "./source-library.js";
-import {
-  csharpSourcePrimitiveTargetType,
-  csharpTargetMemberOperation,
-  recordCsharpTargetMutationOperation,
-} from "./source-library.js";
-import {
-  asNodeSubject,
-  getNodeField,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
-} from "../../ast-utils.js";
-import {
-  getBinaryOperatorText,
-} from "../../operator-syntax.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../runtime-carriers.js";
-import {
-  isCsharpJsArrayCarrierTargetType,
-} from "./array-carriers.js";
 import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
+  csharpSourcePrimitiveTargetType,
+  csharpTargetMemberOperation,
+  recordCsharpTargetMutationOperation,
+  targetOperation,
+} from "./source-library.js";
+import type {
+  CsharpJsSurfaceHost,
+} from "./source-library.js";
+import {
+  asNodeSubject,
+} from "../../ast-utils.js";
+import {
   getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./array-boundary-facts.js";
+import {
+  isCsharpJsArrayCarrierTargetType,
+} from "./array-carriers.js";
 
 export const csharpJsArrayDeleteAtOperationId = "tsonic.csharp.js.array.deleteAt";
 export const csharpJsArraySetLengthOperationId = "tsonic.csharp.js.array.setLength";
@@ -45,56 +40,87 @@ export const csharpJsArrayLengthPropertyOperationIds = new Set([
   "tsonic.csharp.js.ReadonlyArray.length",
 ]);
 
-type LifecycleContext = {
-  readonly host: ExtensionObservationContext["host"];
-  readonly compiler?: ExtensionObservationContext["compiler"];
-};
+const csharpJsArrayElementOperationId = "tsonic.csharp.js.array.indexer";
 
-export function recordCsharpJsArrayMutationFactsBeforeFinalization(
-  lifecycleContext: LifecycleContext,
+export function mapCsharpJsArrayMutationOperator(
+  request: CheckedOperatorMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  if (request.target !== undefined && request.target !== host.targetId) {
+    return undefined;
   }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordDeleteElementFact(node, sourceFile, context, host);
-      recordLengthMutationFact(node, sourceFile, context, host);
-    });
+  if (request.operator === "=") {
+    return mapSelectedArrayLengthAssignment(request, context, host);
   }
+  if (request.operator === "delete") {
+    return mapSelectedArrayElementDelete(request, context, host);
+  }
+  return undefined;
 }
 
-function recordDeleteElementFact(
-  node: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
+function mapSelectedArrayLengthAssignment(
+  request: CheckedOperatorMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpJsSurfaceHost,
-): void {
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const compiler = context.compiler;
-  if (compiler === undefined || !compiler.ast.is.IsDeleteExpression(node)) {
-    return;
+  const left = asNodeSubject(request.left);
+  const right = asNodeSubject(request.right);
+  if (compiler === undefined || left === undefined || right === undefined || !compiler.ast.is.IsPropertyAccessExpression(left)) {
+    return undefined;
   }
-  const operand = asNodeSubject(getNodeField(node, "Expression"));
-  if (operand === undefined || !compiler.ast.is.IsElementAccessExpression(operand)) {
-    return;
+  const selectedProperty = context.factResolver.resolve(left, targetOperationFactKey);
+  if (
+    selectedProperty?.operationKind !== "property" ||
+    !csharpJsArrayLengthPropertyOperationIds.has(selectedProperty.operationId)
+  ) {
+    return undefined;
   }
-  const receiver = asNodeSubject(getNodeField(operand, "Expression"));
-  const argument = asNodeSubject(getNodeField(operand, "ArgumentExpression"));
-  if (receiver === undefined || argument === undefined) {
-    return;
+  const receiver = compiler.ast.as.AsPropertyAccessExpression(left)?.Expression;
+  const receiverCarrier = getSelectedArrayReceiverCarrier(receiver, context, host);
+  if (receiverCarrier === undefined || !hasIntegralTargetEvidence(right, context, host)) {
+    return undefined;
   }
-  const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
-  if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    return;
+  const resultType = csharpSourcePrimitiveTargetType("int32");
+  const operation = csharpTargetMemberOperation(csharpJsArraySetLengthOperationId, "method", "setLength", {
+    declaringType: receiverCarrier,
+    resultType,
+    argumentProjection: [{ kind: "source-argument", index: 0 }],
+  });
+  recordCsharpTargetMutationOperation(context, request.expression, operation, [{
+    message: "C# JS array length mutation selected from the checked assignment request, selected Array.length operation fact, and finalized JSArray carrier.",
+  }]);
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(csharpJsArraySetLengthOperationId, "method", "setLength", { resultType }),
+  }, [{ message: "C# JS array length mutation mapped from selected operation evidence without lifecycle reconstruction." }]);
+}
+
+function mapSelectedArrayElementDelete(
+  request: CheckedOperatorMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedOperator">,
+  host: CsharpJsSurfaceHost,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const compiler = context.compiler;
+  const operand = asNodeSubject(request.left);
+  if (compiler === undefined || operand === undefined || !compiler.ast.is.IsElementAccessExpression(operand)) {
+    return undefined;
   }
-  if (!hasIntegralIndex(argument, context, host)) {
-    return;
+  const selectedElement = context.factResolver.resolve(operand, targetOperationFactKey);
+  const selectedCsharpElement = context.factResolver.resolve(operand, csharpTargetOperationFactKey);
+  if (
+    selectedElement?.operationId !== csharpJsArrayElementOperationId ||
+    selectedElement.operationKind !== "indexer" ||
+    selectedCsharpElement?.kind !== "member" ||
+    selectedCsharpElement.operationKind !== "indexer"
+  ) {
+    return undefined;
+  }
+  const elementAccess = compiler.ast.as.AsElementAccessExpression(operand);
+  const receiverCarrier = getSelectedArrayReceiverCarrier(elementAccess?.Expression, context, host);
+  const argument = elementAccess?.ArgumentExpression;
+  if (receiverCarrier === undefined || argument === undefined || !hasIntegralTargetEvidence(argument, context, host)) {
+    return undefined;
   }
   const resultType = csharpSourcePrimitiveTargetType("bool");
   const operation = csharpTargetMemberOperation(csharpJsArrayDeleteAtOperationId, "method", "deleteAt", {
@@ -102,90 +128,40 @@ function recordDeleteElementFact(
     resultType,
     argumentProjection: [{ kind: "source-argument", index: 0 }],
   });
-  recordCsharpTargetMutationOperation(context, node, operation, [{ message: "C# JS surface array delete mutation operation recorded from checked TypeScript delete element expression and finalized JSArray carrier." }]);
+  recordCsharpTargetMutationOperation(context, request.expression, operation, [{
+    message: "C# JS array delete mutation selected from the checked delete request, selected array-indexer operation fact, and finalized JSArray carrier.",
+  }]);
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(csharpJsArrayDeleteAtOperationId, "method", "deleteAt", { resultType }),
+  }, [{ message: "C# JS array delete mutation mapped from selected operation evidence without lifecycle reconstruction." }]);
 }
 
-function recordLengthMutationFact(
-  node: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = context.compiler;
-  if (compiler === undefined || !compiler.ast.is.IsBinaryExpression(node) || getBinaryOperatorText(compiler.ast, node) !== "=") {
-    return;
-  }
-  const left = asNodeSubject(getNodeField(node, "Left"));
-  const right = asNodeSubject(getNodeField(node, "Right"));
-  if (left === undefined || right === undefined || !compiler.ast.is.IsPropertyAccessExpression(left)) {
-    return;
-  }
-  if (!hasSelectedJsArrayLengthPropertyFact(left, context)) {
-    return;
-  }
-  const receiver = asNodeSubject(getNodeField(left, "Expression"));
-  if (receiver === undefined) {
-    return;
-  }
-  const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
-  if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    return;
-  }
-  if (!hasIntegralIndex(right, context, host)) {
-    return;
-  }
-  const operation = csharpTargetMemberOperation(csharpJsArraySetLengthOperationId, "method", "setLength", {
-    declaringType: receiverCarrier,
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-    argumentProjection: [{ kind: "source-argument", index: 0 }],
-  });
-  recordCsharpTargetMutationOperation(context, node, operation, [{ message: "C# JS surface Array.length mutation operation recorded from checked TypeScript assignment and finalized JSArray carrier." }]);
-  void sourceFile;
-}
-
-function hasSelectedJsArrayLengthPropertyFact(
-  propertyAccess: Node,
-  context: ExtensionObservationContext,
-): boolean {
-  const selected = context.factResolver.resolve(propertyAccess, targetOperationFactKey);
-  const csharpOperation = context.factResolver.resolve(propertyAccess, csharpTargetOperationFactKey);
-  return selected !== undefined &&
-    csharpJsArrayLengthPropertyOperationIds.has(selected.operationId) &&
-    selected.operationKind === "property" &&
-    (
-      csharpOperation === undefined ||
-      (csharpOperation.kind === "member" && csharpOperation.operationKind === "property")
-    );
-}
-
-function getJsArrayCarrierForReceiver(
-  receiver: Node,
-  sourceFile: SourceFile,
+function getSelectedArrayReceiverCarrier(
+  receiver: Node | undefined,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  const type = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
-  const candidates = [
-    getCsharpArrayBoundaryCoreCarrierForReference(receiver, context, sourceFile),
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier,
-    host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }),
-    host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile }),
-  ];
-  return candidates.find(isCsharpJsArrayCarrierTargetType) ??
-    candidates.find((candidate) => candidate !== undefined);
+  if (receiver === undefined) {
+    return undefined;
+  }
+  const carrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context) ??
+    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+    host.getTargetTypeRefForSubject(receiver, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: false,
+    });
+  return isCsharpJsArrayCarrierTargetType(carrier) ? carrier : undefined;
 }
 
-function hasIntegralIndex(
+function hasIntegralTargetEvidence(
   node: Node,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  const sourceFile = context.compiler?.ast.getSourceFile(node);
-  const semanticType = sourceFile === undefined
-    ? undefined
-    : context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
-  const indexType = host.getTargetTypeRefForSubject(node, context, { allowSemanticTypeQuery: true, sourceFile }) ??
-    host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true, sourceFile });
-  return host.isIntegralTargetTypeRef(indexType) ||
+  const targetType = host.getTargetTypeRefForSubject(node, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  });
+  return host.isIntegralTargetTypeRef(targetType) ||
     host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context);
 }

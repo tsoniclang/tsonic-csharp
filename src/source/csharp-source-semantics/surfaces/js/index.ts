@@ -6,6 +6,7 @@ import type {
   CheckedCallMappingResult,
   CheckedElementAccessMappingRequest,
   CheckedOperationMappingResult,
+  CheckedOperatorMappingRequest,
   CheckedIterationMappingRequest,
   CheckedPropertyAccessMappingRequest,
   ExtensionObservation,
@@ -43,6 +44,9 @@ import {
 import {
   mapCsharpDirectSourceLibraryCheckedPropertyAccess,
 } from "./properties.js";
+import {
+  mapCsharpJsArrayMutationOperator,
+} from "./array-mutations.js";
 
 export interface CsharpJsSurfaceMappers {
   readonly mapRuntimeCarrier: (
@@ -60,6 +64,10 @@ export interface CsharpJsSurfaceMappers {
   readonly mapCheckedElementAccess: (
     request: CheckedElementAccessMappingRequest,
     context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+  ) => ExtensionObservation<CheckedOperationMappingResult>;
+  readonly mapCheckedOperator: (
+    request: CheckedOperatorMappingRequest,
+    context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   ) => ExtensionObservation<CheckedOperationMappingResult>;
   readonly mapCheckedIteration: (
     request: CheckedIterationMappingRequest,
@@ -107,6 +115,12 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
         return deferObservation;
       }
       return mapCsharpSourceLibraryCheckedElementAccess(request, context, host) ?? deferObservation;
+    },
+    mapCheckedOperator(request, context) {
+      if (request.target !== undefined && request.target !== host.targetId) {
+        return deferObservation;
+      }
+      return mapCsharpJsArrayMutationOperator(request, context, host) ?? deferObservation;
     },
     mapCheckedIteration(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

@@ -173,6 +173,7 @@ export function planExpressionWithExpectedTypeCore(
       diagnostics,
       expectedType,
       expectedTypeSubject,
+      effectiveExpectedTargetType,
       planners.planExpression,
       planners.planExpressionWithExpectedType,
     );
@@ -302,7 +303,7 @@ function isGlobalUndefinedLiteral(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  if (SourceKind(input.ast, node) !== KindIdentifier || Node_Text(node) !== "undefined") {
+  if (SourceKind(input.ast, node) !== KindIdentifier || Node_Text(input.ast, node) !== "undefined") {
     return false;
   }
   if (
@@ -321,7 +322,7 @@ function planExpectedTypeLiteral(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (isCsharpFloatLiteralType(expectedType) && HasSourceKind(input.ast, node, KindNumericLiteral)) {
-      const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+      const value = parseFiniteNumberLiteral(Node_Text(input.ast, AsNumericLiteral(node)));
     if (value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
       return undefined;
@@ -349,9 +350,9 @@ function planExpectedTypeLiteral(
 function getStringLiteralText(node: Node, input: TargetCompileInput): string | undefined {
   switch (SourceKind(input.ast, node)) {
     case KindStringLiteral:
-      return Node_Text(AsStringLiteral(node));
+      return Node_Text(input.ast, AsStringLiteral(node));
     case KindNoSubstitutionTemplateLiteral:
-      return Node_Text(AsNoSubstitutionTemplateLiteral(node));
+      return Node_Text(input.ast, AsNoSubstitutionTemplateLiteral(node));
     default:
       return undefined;
   }

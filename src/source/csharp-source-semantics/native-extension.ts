@@ -43,14 +43,7 @@ import {
 } from "./object-shape-facts.js";
 import {
   recordCsharpObjectRestBindingFactsBeforeFinalization,
-  recordCsharpObjectShapePropertyAccessFactsBeforeFinalization,
 } from "./object-shape-lifecycle.js";
-import {
-  recordCsharpCheckedOperatorFactsBeforeFinalization,
-} from "./checked-operator-lifecycle.js";
-import {
-  recordCsharpNativeArrayFactsBeforeFinalization,
-} from "./native-array-lifecycle.js";
 import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
   recordCsharpSelectedPropertyOperationFactsBeforeFinalization,
@@ -66,9 +59,6 @@ import {
   diagnoseOpaqueAnyOperationsBeforeFinalization,
 } from "./opaque-any-diagnostics.js";
 import {
-  recordCsharpCompatRuntimeOperationFactsBeforeFinalization,
-} from "./compat-runtime-operation-facts.js";
-import {
   recordCsharpTargetNameFactsBeforeFinalization,
 } from "./target-name-facts.js";
 import {
@@ -81,13 +71,9 @@ import {
   recordCsharpAttributeApplicationFactsBeforeFinalization,
 } from "./attribute-application-facts.js";
 import {
-  recordCsharpAssertionConversionFactsBeforeFinalization,
-} from "./source-assertion-conversions.js";
-import {
   getCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
 import {
-  recordCsharpJsSurfaceOperationFactsBeforeFinalization,
   recordCsharpJsSurfaceSeedFactsBeforeFinalization,
 } from "./surface-extensions.js";
 
@@ -129,27 +115,14 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
           runBeforeFinalizedStage("js-surface-seed-facts", () => recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts));
         }
         runBeforeFinalizedStage("runtime-carrier-facts-initial", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
-        runBeforeFinalizedStage("assertion-conversion-facts", () => recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("object-shape-facts", () => recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("type-parameter-constraint-facts", () => recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("runtime-carrier-facts-after-shapes", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
-        runBeforeFinalizedStage("object-shape-property-access-facts", () => recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
-        runBeforeFinalizedStage("compat-runtime-operation-facts", () => recordCsharpCompatRuntimeOperationFactsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("selected-property-operation-facts", () => recordCsharpSelectedPropertyOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
-        runBeforeFinalizedStage("checked-operator-facts", () => recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost));
         runBeforeFinalizedStage("target-constraint-validation", () => validateCsharpTargetConstraintFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
-        if (jsSurfaceSelected) {
-          runBeforeFinalizedStage("js-surface-operation-facts-suppress", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "suppress" }));
-          runBeforeFinalizedStage("runtime-carrier-facts-after-js-surface", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
-        }
         runBeforeFinalizedStage("selected-call-operation-facts", () => recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("runtime-carrier-facts-after-selected-calls", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
-        runBeforeFinalizedStage("native-array-facts", () => recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
-        if (jsSurfaceSelected) {
-          runBeforeFinalizedStage("js-surface-operation-facts-append", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" }));
-          runBeforeFinalizedStage("runtime-carrier-facts-after-js-operations", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
-        }
         runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost, hosts.typescriptCompatibilityMode));
       });

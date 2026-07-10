@@ -232,5 +232,5 @@ function getDeclarationNameText(
   declaration: Node,
 ): string {
   const name = asNodeSubject(getNodeField(declaration, "name")) ?? ast.name(declaration);
-  return name === undefined ? getNodeNameText(declaration) : ast.text(name);
+  return name === undefined ? getNodeNameText(ast, declaration) : ast.text(name);
 }

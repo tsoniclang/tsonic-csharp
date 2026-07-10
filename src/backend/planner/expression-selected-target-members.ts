@@ -68,7 +68,7 @@ export function planSelectedTargetCallArguments(
     const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
     const arrayLiteralElementType = argumentArrayLiteralElementTypes?.[index + parameterOffset];
     const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(argument, renderTargetType, input, arrayLiteralElementType);
-    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType, parameter?.passingMode ?? "by-value");
+    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, renderTargetType ?? parameterTargetType, parameter?.passingMode ?? "by-value");
     if (planned === undefined) {
       return undefined;
     }
@@ -85,7 +85,7 @@ export function planSelectedTargetReceiverExpression(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   if (HasSourceKind(input.ast, receiver, KindIdentifier)) {
-    const sourceName = Node_Text(AsIdentifier(receiver));
+    const sourceName = Node_Text(input.ast, AsIdentifier(receiver));
     if (isExternalDeclarationReference(input.analysis.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
       diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
       return undefined;

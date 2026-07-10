@@ -23,9 +23,6 @@ import {
   getCsharpTargetTypeFromBinding,
 } from "../target-enrichment.js";
 import {
-  findTargetBinding,
-} from "../provider-bindings.js";
-import {
   findTargetMemberForCall,
   selectTargetMember,
 } from "../target-member-selection.js";
@@ -37,6 +34,7 @@ import {
   unsupportedProviderTargetMemberEvidence,
 } from "../provider-unsupported-members.js";
 import {
+  checkedCallIsConstruction,
   getCsharpCheckedCallRequestContext,
 } from "../checked-call-request-context.js";
 import type {
@@ -201,18 +199,9 @@ function getSelectedConstructedProviderType(
 }
 
 export function isProviderStaticContainerReceiver(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  targetBinding: TargetBindingFact,
+  declaration: ProviderVirtualDeclarationFact | undefined,
 ): boolean {
-  const requestContext = getCsharpCheckedCallRequestContext(request, context);
-  const receiverBinding = findTargetBinding(context, [
-    requestContext.calleeReceiver,
-    requestContext.calleeReceiverAliasedSymbol,
-    requestContext.calleeReceiverResolvedSymbol,
-    requestContext.calleeReceiverSymbol,
-  ]);
-  return receiverBinding?.target === targetBinding.target && receiverBinding.id === targetBinding.id;
+  return declaration?.memberStatic === true;
 }
 
 function findConstructorTargetMemberForProviderType(
@@ -224,7 +213,7 @@ function findConstructorTargetMemberForProviderType(
   options: TargetMemberSelectionOptions,
 ): CsharpTargetMember | undefined {
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
-  if (declaration?.memberId !== undefined || declaration?.signatureId !== undefined || requestContext.calleePropertyName !== undefined) {
+  if (declaration?.memberId !== undefined || declaration?.signatureId !== undefined || !checkedCallIsConstruction(request, context)) {
     return undefined;
   }
   return selectTargetMember(

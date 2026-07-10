@@ -49,7 +49,7 @@ function getSemanticTypeParameterSubstitutions(
   }
   const names = getSymbolDeclarations(compiler.checker.getTypeSymbol(ownerType), compiler.checker)
     .flatMap((declaration) => getNodeList(getNodeField(declaration, "TypeParameters")))
-    .map(getNodeNameText)
+    .map((declaration) => getNodeNameText(ast, declaration))
     .filter((name) => name.length > 0);
   if (names.length !== ownerTargetType.typeArguments.length) {
     return new Map();

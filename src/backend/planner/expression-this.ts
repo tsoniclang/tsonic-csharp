@@ -70,7 +70,7 @@ function classifyThisBinding(node: Node, input: TargetCompileInput): ThisBinding
       if (!isClassInstanceMember(current, input)) {
         return unsupportedThis("object-literal or non-class method receiver");
       }
-      return HasSyntacticModifier(current, ModifierFlagsStatic)
+      return HasSyntacticModifier(input.ast, current, ModifierFlagsStatic)
         ? unsupportedThis("static class member receiver")
         : { kind: "instance" };
     }

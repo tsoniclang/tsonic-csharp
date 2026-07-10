@@ -1,4 +1,4 @@
-import { test, assert, TstsProviderContractVersion, argumentPassingFactKey, attributeFactKey, createCompilerSessionFromFiles, defaultValueFactKey, fieldFactKey, flowStateFactKey, functionPointerFactKey, formatDiagnostics, pointerFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetConversionFactKey, targetOperationFactKey, createCsharpTargetSemanticsExtension, createCsharpSourceSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, createTsonicCoreSourceExtension, providerExportDeclarationsForSourceModule, tsonicCoreSourceSemanticsModules, csharpArrayBoundaryFactKey, csharpObjectShapeFactKey, csharpAttributeApplicationFactKey, csharpTargetOperationFactKey, csharpTargetConversionOperationFactKey, csharpSourceSemanticsModules, createCsharpSourceVirtualModulesProvider, collectFacts, collectFactsForKey, collectIdentifiersByText, collectNodesByKind, collectCallsByCalleeText, collectCallsByCalleeExpressionText, collectTypeReferencesByText, typeAliasTypeNode, calleeText, expressionText, typeReferenceText, argumentPassingFactForCall, primitiveSummary, packageJson, csharpTestExtensions, csharpProviderContext, csharpSourceProfileFiles, csharpJsSourceProfileFiles, createAttributeProviderExtension } from "./source-semantics.helpers.mjs";
+import { test, assert, TstsProviderContractVersion, argumentPassingFactKey, attributeFactKey, createCompilerSessionFromFiles, defaultValueFactKey, fieldFactKey, flowStateFactKey, functionPointerFactKey, formatDiagnostics, pointerFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetConversionFactKey, targetOperationFactKey, createCsharpTargetSemanticsExtension, createCsharpSourceSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, createTsonicCoreSourceExtension, providerExportDeclarationsForSourceModule, tsonicCoreSourceSemanticsModules, csharpArrayBoundaryFactKey, csharpObjectShapeFactKey, csharpAttributeApplicationFactKey, csharpTargetOperationFactKey, csharpTargetConversionOperationFactKey, csharpSourceSemanticsModules, createCsharpSourceVirtualModulesProvider, collectFacts, collectFactsForKey, collectIdentifiersByText, collectNodesByKind, collectCallsByCalleeText, collectCallsByCalleeExpressionText, collectTypeReferencesByText, typeAliasTypeNode, calleeText, expressionText, typeReferenceText, argumentPassingFactForCall, primitiveSummary, packageJson, csharpTestExtensions, csharpProviderContext, csharpSourceProfileFiles, csharpJsSourceProfileFiles, createAttributeProviderExtension, assertNoExtensionDiagnostics } from "./source-semantics.helpers.mjs";
 
 test("source-semantics closes generic structural object-literal carriers over type parameters", () => {
   const sourceText = `
@@ -32,19 +32,22 @@ test("source-semantics closes generic structural object-literal carriers over ty
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
   const fact = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+  const sourceMember = collectNodesByKind(sourceFile, session.ast, "KindShorthandPropertyAssignment")[0];
+  const { sourceSubjects, ...memberShape } = fact.members[0];
 
   assert.match(fact?.targetType.id, /^__TsonicShape_/u);
   assert.deepEqual(fact.targetType.typeArguments, [{ kind: "type-parameter", name: "T" }]);
-  assert.deepEqual(fact.members, [{
+  assert.deepEqual(memberShape, {
     sourceName: "value",
     targetName: "value",
     memberKind: "property",
     type: { kind: "type-parameter", name: "T" },
-  }]);
+  });
+  assert.equal(sourceSubjects?.includes(sourceMember), true);
   assert.deepEqual(extensionHost.facts.get(objectLiteral, runtimeCarrierFactKey)?.carrier, fact.targetType);
 });
 test("source-semantics reuses utility-projected object shape identity inside Parameters tuple carriers", () => {
@@ -81,7 +84,7 @@ test("source-semantics reuses utility-projected object shape identity inside Par
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const typeLiteral = collectNodesByKind(sourceFile, session.ast, "KindTypeLiteral")[0];
   const argsReference = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
@@ -129,7 +132,7 @@ test("source-semantics records tuple member operation facts from TSTS numeric li
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
   const operation = extensionHost.facts.get(elementAccess, targetOperationFactKey);
@@ -176,7 +179,7 @@ test("source-semantics records generic and C# operation facts for optional sourc
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
   const operation = extensionHost.facts.get(elementAccess, targetOperationFactKey);
@@ -220,7 +223,7 @@ test("source-semantics records inline object parameter shapes for checked member
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const typeLiteral = collectNodesByKind(sourceFile, session.ast, "KindTypeLiteral")[0];
   const propertyAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
@@ -266,7 +269,7 @@ test("source-semantics records structural type-literal methods with contextual d
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 
   const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
   const fact = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
@@ -370,7 +373,7 @@ test("C# source semantics does not map shadowed source-core marker names", () =>
   assert.equal(extensionHost.facts.get(calls[0], selectedTargetSignatureFactKey), undefined);
   assert.equal(extensionHost.facts.get(calls[0], targetOperationFactKey), undefined);
   assert.equal(extensionHost.facts.get(calls[0], csharpTargetOperationFactKey), undefined);
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 });
 test("C# source semantics rejects unsupported local barrels for C# lang aliases", () => {
   const sourceText = `
@@ -676,5 +679,5 @@ test("source-semantics ignores local names that are not configured source-core i
   assert.equal(extensionHost.facts.get(localPointerAlias, pointerFactKey), undefined);
   assert.equal(extensionHost.facts.get(outCall, argumentPassingFactKey), undefined);
   assert.equal(extensionHost.facts.get(borrowCall, flowStateFactKey), undefined);
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assertNoExtensionDiagnostics(extensionHost);
 });

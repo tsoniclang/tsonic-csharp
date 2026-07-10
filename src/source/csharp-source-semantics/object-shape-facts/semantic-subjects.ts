@@ -36,7 +36,7 @@ export function getSemanticSubjects(
   const symbol = node === undefined || sourceFile === undefined
     || isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
     ? undefined
-    : getSafeObjectShapeSymbol(node, sourceFile, context);
+    : getObjectShapeSymbolForQueryableNode(node, sourceFile, context);
   if (symbol !== undefined) {
     subjects.push(symbol);
   }
@@ -51,7 +51,7 @@ export function getSemanticSubjects(
   return subjects;
 }
 
-export function getSafeObjectShapeSymbol(
+export function getObjectShapeSymbolForQueryableNode(
   node: Node,
   sourceFile: SourceFile,
   context: ExtensionObservationContext,

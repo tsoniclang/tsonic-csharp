@@ -88,7 +88,7 @@ export function getCsharpTypeFromProjectSourceReference(
   ) {
     return undefined;
   }
-  const nameNode = Node_Name(reference.declaration);
+  const nameNode = Node_Name(input.ast, reference.declaration);
   if (nameNode === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
     return invalidCsharpType("project source type reference");

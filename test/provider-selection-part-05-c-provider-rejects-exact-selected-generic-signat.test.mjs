@@ -34,7 +34,6 @@ test("C# provider rejects exact selected generic signatures with contradictory t
     callee: {},
     calleePropertyName: "pair",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [int32, string],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -79,7 +78,6 @@ test("C# provider resolves overloaded member selections from provider member ide
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -129,7 +127,6 @@ test("C# provider preserves exact selected call signatures instead of refining t
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -180,7 +177,6 @@ test("C# provider selects within a proven overload group from target argument fa
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -280,7 +276,6 @@ test("C# provider rejects exact selected signatures when target facts contradict
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -334,7 +329,6 @@ test("C# provider selects within provider source-projection signature groups usi
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -378,7 +372,6 @@ test("C# provider does not refine selected signatures outside the proven overloa
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -428,7 +421,6 @@ test("C# provider accepts literal arguments for exact selected target signatures
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [literalArgument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -472,7 +464,6 @@ test("C# provider does not search target members outside the selected provider o
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -522,7 +513,6 @@ test("C# provider rejects same-spelling call members without selected provider i
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -614,7 +604,6 @@ test("C# provider maps property access from selected provider member identity in
     expression,
     receiver,
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -648,7 +637,6 @@ test("C# provider maps field access from selected provider member identity", () 
     expression,
     receiver,
     sourceSelectedSymbol: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,

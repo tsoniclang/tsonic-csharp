@@ -1,6 +1,7 @@
 import type {
   ExtensionFactSubject,
   SelectedTargetSignatureFact,
+  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -13,13 +14,16 @@ export function csharpSourceOwnedSelectedSignatureFact(
   options: {
     readonly sourceSignature?: ExtensionFactSubject;
     readonly sourceDeclaration?: ExtensionFactSubject;
+    readonly parameters?: readonly TargetParameter[];
+    readonly targetTypeArguments?: readonly TargetTypeRef[];
     readonly returnType?: TargetTypeRef;
   },
 ): SelectedTargetSignatureFact {
   return {
-    member: csharpSourceOwnedCallMember(options.returnType),
+    member: csharpSourceOwnedCallMember(options.parameters ?? [], options.returnType),
     ...(options.sourceSignature === undefined ? {} : { sourceSignature: options.sourceSignature }),
     ...(options.sourceDeclaration === undefined ? {} : { sourceDeclaration: options.sourceDeclaration }),
+    ...(options.targetTypeArguments === undefined ? {} : { targetTypeArguments: options.targetTypeArguments }),
   };
 }
 
@@ -38,14 +42,17 @@ export function csharpSourceOwnedSelectedMember(
     : undefined;
 }
 
-function csharpSourceOwnedCallMember(returnType: TargetTypeRef | undefined): CsharpTargetMember {
+function csharpSourceOwnedCallMember(
+  parameters: readonly TargetParameter[],
+  returnType: TargetTypeRef | undefined,
+): CsharpTargetMember {
   return {
     id: csharpSourceOwnedCallMemberId,
     sourceName: "<source-owned-call>",
     targetName: "<source-owned-call>",
     kind: "method",
     static: false,
-    parameters: [],
+    parameters,
     ...(returnType === undefined ? {} : { returnType }),
     csharpSourceOwnedCall: true,
   };

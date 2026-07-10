@@ -1,7 +1,6 @@
 import {
   AsForStatement,
   AsVariableDeclaration,
-  AsVariableDeclarationList,
   HasSourceKind,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
@@ -101,8 +100,8 @@ function planForInitializer(
   state: DestructuringPlannerState,
 ): PlannedForInitializer {
   if (HasSourceKind(input.ast, node, KindVariableDeclarationList)) {
-    const declarations = AsVariableDeclarationList(node)!.Declarations?.Nodes ?? [];
-    const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
+    const concreteDeclarations = input.ast.children(node)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
     if (concreteDeclarations.some((declaration) => {
       const variable = AsVariableDeclaration(declaration)!;
       return HasSourceKind(input.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.ast, variable.name, KindArrayBindingPattern);
@@ -112,8 +111,7 @@ function planForInitializer(
           planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
       };
     }
-    const locals = declarations
-      .filter((declaration): declaration is Node => declaration !== undefined)
+    const locals = concreteDeclarations
       .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics, state));
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {

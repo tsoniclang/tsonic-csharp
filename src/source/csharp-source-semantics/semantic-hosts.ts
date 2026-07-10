@@ -3,6 +3,8 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  TargetBindingFact,
+  TargetConstraint,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -51,9 +53,6 @@ import type {
   CsharpObjectShapeLifecycleHost,
 } from "./object-shape-lifecycle.js";
 import type {
-  CsharpCheckedOperatorLifecycleHost,
-} from "./checked-operator-lifecycle.js";
-import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "./runtime-carriers.js";
 import {
@@ -65,6 +64,9 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  substituteTargetTypeRef,
+} from "./target-member-arguments/type-substitution.js";
 
 export interface CsharpExtensionSemanticHosts {
   readonly typescriptCompatibilityMode: TargetTypescriptCompatibilityMode;
@@ -74,7 +76,6 @@ export interface CsharpExtensionSemanticHosts {
   readonly targetTypeResolutionHost: CsharpTargetTypeResolutionHost;
   readonly objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   readonly objectShapeLifecycleHost: CsharpObjectShapeLifecycleHost;
-  readonly checkedOperatorLifecycleHost: CsharpCheckedOperatorLifecycleHost;
   readonly runtimeCarrierHost: CsharpRuntimeCarrierSemanticsHost;
   readonly operationsProviderHost: CsharpOperationsProviderHost & CsharpTargetTypeResolutionHost & {
     readonly getTargetTypeRefForType: (
@@ -106,23 +107,35 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     targetFramework: dotnetTargetFramework,
   });
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
+  const getBaseTargetTypeRef = (type: TargetTypeRef): TargetTypeRef | undefined => {
+    if (type.kind !== "target-named") {
+      return undefined;
+    }
+    const sourceBaseType = (type as { readonly csharpBaseType?: TargetTypeRef }).csharpBaseType;
+    if (sourceBaseType !== undefined) {
+      return sourceBaseType;
+    }
+    const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
+    return binding === undefined
+      ? undefined
+      : csharpBaseTargetTypeFromBinding(binding, type.typeArguments ?? []);
+  };
+  const getAssignableTargetTypeRefs = (type: TargetTypeRef): readonly TargetTypeRef[] => {
+    if (type.kind !== "target-named") {
+      return [];
+    }
+    const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
+    return [
+      ...optionalTargetTypeRef(getBaseTargetTypeRef(type)),
+      ...implementedContractTargetTypes(binding, type.typeArguments ?? []),
+    ];
+  };
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
     getCsharpTargetBindingByMetadataName: (metadataName: string) => dotnetProvider.findTargetBindingByMetadataName(metadataName),
     getCatchVariableTargetTypeRef: () => typescriptCompatibilityMode === "compat" ? csharpTsValueTargetType() : csharpExceptionTargetType(),
-    getBaseTargetTypeRef: (type: TargetTypeRef) => {
-      if (type.kind !== "target-named") {
-        return undefined;
-      }
-      const sourceBaseType = (type as { readonly csharpBaseType?: TargetTypeRef }).csharpBaseType;
-      if (sourceBaseType !== undefined) {
-        return sourceBaseType;
-      }
-      const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
-      return binding === undefined
-        ? undefined
-        : csharpBaseTargetTypeFromBinding(binding, type.typeArguments ?? []);
-    },
+    getBaseTargetTypeRef,
+    getAssignableTargetTypeRefs,
     getCsharpObjectShapeFactForSubject,
     getSemanticTypeDeclarationShape,
   } satisfies CsharpTargetTypeResolutionHost;
@@ -177,10 +190,6 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     getCsharpObjectShapeFactForSubject,
     getRecordedCsharpObjectShapeFactForSubject,
   } satisfies CsharpObjectShapeLifecycleHost;
-  const checkedOperatorLifecycleHost = {
-    getTargetTypeRefForSubject,
-    getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
-  } satisfies CsharpCheckedOperatorLifecycleHost;
   const runtimeCarrierHost = {
     getTargetTypeRefForSubject,
     getTargetTypeRefForType,
@@ -193,6 +202,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
     getCsharpTargetBindingByMetadataName: targetTypeResolutionHost.getCsharpTargetBindingByMetadataName,
     getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
+    getAssignableTargetTypeRefs: targetTypeResolutionHost.getAssignableTargetTypeRefs,
     getSemanticTypeDeclarationShape: targetTypeResolutionHost.getSemanticTypeDeclarationShape,
     getTargetTypeRefForSubject,
     getTargetTypeRefForType,
@@ -208,8 +218,50 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     targetTypeResolutionHost,
     objectShapeSemanticsHost,
     objectShapeLifecycleHost,
-    checkedOperatorLifecycleHost,
     runtimeCarrierHost,
     operationsProviderHost,
   };
+}
+
+function optionalTargetTypeRef(type: TargetTypeRef | undefined): readonly TargetTypeRef[] {
+  return type === undefined ? [] : [type];
+}
+
+function implementedContractTargetTypes(
+  binding: TargetBindingFact | undefined,
+  typeArguments: readonly TargetTypeRef[],
+): readonly TargetTypeRef[] {
+  if (binding === undefined) {
+    return [];
+  }
+  const substitutions = targetTypeParameterSubstitutions(binding, typeArguments);
+  return ((binding as { readonly implementedContracts?: readonly TargetConstraint[] }).implementedContracts ?? [])
+    .flatMap((constraint) => constraint.kind === "implements"
+      ? [implementedConstraintTargetType(constraint, substitutions)]
+      : []);
+}
+
+function implementedConstraintTargetType(
+  constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  return {
+    kind: "target-named",
+    id: constraint.contract,
+    ...(constraint.typeArguments !== undefined && constraint.typeArguments.length > 0
+      ? { typeArguments: constraint.typeArguments.map((argument) => substituteTargetTypeRef(argument, substitutions)) }
+      : {}),
+  };
+}
+
+function targetTypeParameterSubstitutions(
+  binding: TargetBindingFact,
+  typeArguments: readonly TargetTypeRef[],
+): ReadonlyMap<string, TargetTypeRef> {
+  return new Map((binding.typeParameters ?? [])
+    .map((parameter, index) => {
+      const argument = typeArguments[index];
+      return argument === undefined ? undefined : [parameter.name, argument] as const;
+    })
+    .filter((entry): entry is readonly [string, TargetTypeRef] => entry !== undefined));
 }

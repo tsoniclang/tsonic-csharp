@@ -144,7 +144,6 @@ test("C# provider rejects provider virtual declarations without member or signat
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -194,7 +193,6 @@ test("C# provider rejects checked provider calls without selected provider signa
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -280,7 +278,6 @@ test("C# provider includes virtual declaration signature id as candidate evidenc
     callee: {},
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -488,7 +485,6 @@ test("C# provider maps calls from the exact selected signature identity before d
     calleePropertyName: "m",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -536,7 +532,6 @@ test("C# provider preserves exact selected constructor signatures instead of ref
     call,
     callee: {},
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -618,7 +613,6 @@ test("C# provider selects constructor overloads only within the proven provider 
     call: { Kind: "KindNewExpression" },
     callee: {},
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,

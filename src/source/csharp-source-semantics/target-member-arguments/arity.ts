@@ -93,8 +93,8 @@ function omittedTargetArgumentsAreRenderable(parameters: readonly CsharpTargetPa
 }
 
 function hasSupportedTargetDefaultValue(parameter: CsharpTargetParameter): boolean {
-  return parameter.unsupportedDefaultValue === undefined &&
-    (parameter.defaultValue !== undefined || targetParameterIsOmittableWithoutDefault(parameter));
+  return targetParameterIsOmittableWithoutDefault(parameter) ||
+    (parameter.unsupportedDefaultValue === undefined && parameter.defaultValue !== undefined);
 }
 
 function targetParameterIsOmittableWithoutDefault(parameter: CsharpTargetParameter): boolean {

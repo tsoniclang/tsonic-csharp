@@ -54,7 +54,6 @@ export function mapCsharpSourceLibraryCheckedCall(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const signatureDeclaration = request.sourceSelectedDeclaration;
   const sourceMember = resolveCheckedCallSourceLibraryMember(request, context);
   if (sourceMember === undefined) {
     return undefined;
@@ -62,7 +61,21 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (request.sourceSelectedSignature === undefined) {
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
-  if (signatureDeclaration !== undefined && !selectedSignatureMatchesSourceDeclaration(request.sourceSelectedSignature, signatureDeclaration)) {
+  const calleeMember = resolveSelectedSourceLibraryMemberIdentity(
+    request.sourceCalleeDeclaration,
+    request.sourceCalleeSymbol,
+    context,
+  );
+  const signatureMember = resolveSelectedSourceLibraryMemberIdentity(
+    request.sourceSelectedDeclaration,
+    undefined,
+    context,
+  );
+  if (
+    calleeMember !== undefined &&
+    signatureMember !== undefined &&
+    sourceLibraryMemberIdentity(calleeMember) !== sourceLibraryMemberIdentity(signatureMember)
+  ) {
     return rejectSourceLibraryCallSignatureDeclarationMismatch(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(
@@ -80,7 +93,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
   }
-  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, request.sourceSelectedSignature, sourceLibraryMemberIdentity(sourceMember));
+  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, true, sourceLibraryMemberIdentity(sourceMember));
   const closedFactsStatus = operationRow === undefined
     ? { kind: "satisfied" } as const
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
@@ -135,16 +148,8 @@ export function resolveCheckedCallSourceLibraryMember(
   request: Pick<CheckedCallMappingRequest, "sourceCalleeDeclaration" | "sourceCalleeSymbol" | "sourceSelectedDeclaration">,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ) {
-  return resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context) ??
-    resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context);
-}
-
-function selectedSignatureMatchesSourceDeclaration(
-  sourceSelectedSignature: unknown,
-  sourceSelectedDeclaration: unknown,
-): boolean {
-  const declaration = (sourceSelectedSignature as { readonly declaration?: unknown } | undefined)?.declaration;
-  return declaration === undefined || declaration === sourceSelectedDeclaration;
+  return resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) ??
+    resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context);
 }
 
 function targetMemberSelectionRequiresReceiverFacts(

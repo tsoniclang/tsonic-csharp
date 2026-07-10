@@ -12,6 +12,10 @@ import {
   subjectHasSourceDeclaredStructRuntimeCarrier,
 } from "../object-shape-recorded-facts.js";
 import {
+  asNodeSubject,
+  isTypeSyntaxNode,
+} from "../ast-utils.js";
+import {
   getSemanticSubjects,
 } from "./semantic-subjects.js";
 
@@ -28,6 +32,9 @@ export function recordCsharpObjectShapeFactForSubject(
     context.facts.set(subject, csharpObjectShapeFactKey, fact, evidence);
   }
   context.facts.set(fact.targetType, csharpObjectShapeFactKey, fact, evidence);
+  if (subjectIsTypeSyntax(subject, context)) {
+    return;
+  }
   for (const semanticSubject of getSemanticSubjects(subject, context)) {
     if (subjectHasSourceDeclaredStructRuntimeCarrier(semanticSubject, context) && !isSourceDeclaredStructObjectShapeFact(fact)) {
       continue;
@@ -39,4 +46,13 @@ export function recordCsharpObjectShapeFactForSubject(
 function isSourceDeclaredStructObjectShapeFact(fact: CsharpObjectShapeFact): boolean {
   return fact.targetType.kind === "target-named" &&
     (fact.targetType as { readonly csharpSourceDeclarationKind?: string }).csharpSourceDeclarationKind === "struct";
+}
+
+function subjectIsTypeSyntax(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const compiler = context.compiler;
+  const node = asNodeSubject(subject);
+  return compiler !== undefined && node !== undefined && isTypeSyntaxNode(compiler.ast, node);
 }

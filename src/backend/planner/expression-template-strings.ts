@@ -28,7 +28,7 @@ export function planTemplateExpression(
   }
   const expression = AsTemplateExpression(node)!;
   const parts: CsharpInterpolatedStringPart[] = [
-    { kind: "InterpolatedStringText", text: Node_Text(expression.Head) },
+    { kind: "InterpolatedStringText", text: Node_Text(input.ast, expression.Head) },
   ];
   for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
     if (spanNode === undefined) {
@@ -43,7 +43,7 @@ export function planTemplateExpression(
       kind: "Interpolation",
       expression,
     });
-    parts.push({ kind: "InterpolatedStringText", text: Node_Text(span.Literal) });
+    parts.push({ kind: "InterpolatedStringText", text: Node_Text(input.ast, span.Literal) });
   }
   return { kind: "InterpolatedStringExpression", parts };
 }

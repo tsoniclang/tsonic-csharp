@@ -5,6 +5,7 @@ import {
   SourceKind,
 } from "../source-ast.js";
 import type {
+  TargetTypeRef,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
@@ -41,6 +42,9 @@ import {
   sameCsharpType,
 } from "../csharp-types.js";
 import {
+  sourcePrimitiveImplicitlyConverts,
+} from "../../../source/csharp-source-semantics/target-member-arguments/source-primitive-conversions.js";
+import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
@@ -57,6 +61,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
+  expectedTargetType: TargetTypeRef | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
@@ -73,7 +78,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Nullish coalescing expected-type emission requires both operands before C# emission."));
     return undefined;
   }
-  const expectedResultType = getFinalizedNullishResultType(node, left, right, sourceFile, input, diagnostics, expectedType);
+  const expectedResultType = getFinalizedNullishResultType(node, left, right, sourceFile, input, diagnostics, expectedType, expectedTargetType);
   if (expectedResultType === undefined) {
     return undefined;
   }
@@ -98,6 +103,7 @@ function getFinalizedNullishResultType(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
+  expectedTargetType: TargetTypeRef | undefined,
 ): CsharpTypeNode | undefined {
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
   if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
@@ -137,6 +143,9 @@ function getFinalizedNullishResultType(
     const leftCompatibleResultType = getNullishOperandExpectedCompatibleType(left, sourceFile, input);
     if (leftCompatibleResultType !== undefined && sameCsharpType(leftCompatibleResultType, expectedType)) {
       return expectedType;
+    }
+    if (expectedTargetType !== undefined && sourcePrimitiveImplicitlyConverts(expectedTargetType, csharpOperator.resultType)) {
+      return resultType;
     }
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result target type to match the enclosing expected target type."));
     return undefined;

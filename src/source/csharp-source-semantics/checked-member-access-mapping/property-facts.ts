@@ -12,11 +12,10 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
-  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+  resolveCsharpObjectShapeMemberBySelectedSubject,
 } from "../../csharp-facts.js";
 import {
   asNodeSubject,
-  visitAstReaderNodes,
 } from "../ast-utils.js";
 import {
   getCsharpCheckedPropertyAccessRequestContext,
@@ -42,18 +41,15 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  if (isNamespaceImportReceiver(request.receiver, context)) {
-    return undefined;
-  }
   const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context) ??
-    host.getCsharpObjectShapeFactForSubject(requestContext.receiverType, context) ??
-    host.getCsharpObjectShapeFactForSubject(requestContext.receiverSymbol, context) ??
-    host.getCsharpObjectShapeFactForSubject(requestContext.receiverResolvedSymbol, context) ??
-    host.getCsharpObjectShapeFactForSubject(requestContext.receiverAliasedSymbol, context);
+    host.getCsharpObjectShapeFactForSubject(requestContext.receiverType, context);
   if (objectShape === undefined) {
     return undefined;
   }
-  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, request.propertyName, "checked-property-access");
+  const memberLookup = resolveCsharpObjectShapeMemberBySelectedSubject(objectShape, [
+    request.sourceSelectedDeclaration,
+    request.sourceSelectedSymbol,
+  ]);
   if (memberLookup.kind !== "resolved") {
     return undefined;
   }
@@ -145,38 +141,4 @@ function sourceDeclarationIsGenericNominalType(
   const kind = ast.kindName(declaration);
   return (kind === "KindClassDeclaration" || kind === "KindInterfaceDeclaration") &&
     ast.typeParameters(declaration).length > 0;
-}
-
-function isNamespaceImportReceiver(
-  receiver: unknown,
-  context: ExtensionObservationContext,
-): boolean {
-  const ast = context.compiler?.ast;
-  const receiverNode = asNodeSubject(receiver);
-  if (ast === undefined || receiverNode === undefined || !ast.is.IsIdentifier(receiverNode)) {
-    return false;
-  }
-  const sourceFile = ast.getSourceFile(receiverNode);
-  const receiverName = ast.text(receiverNode);
-  if (sourceFile === undefined) {
-    return false;
-  }
-  let matched = false;
-  visitAstReaderNodes(ast, sourceFile, (node) => {
-    if (matched || !ast.is.IsImportDeclaration(node)) {
-      return;
-    }
-    const importDeclaration = ast.as.AsImportDeclaration(node);
-    const rawImportClause = asNodeSubject(importDeclaration?.ImportClause);
-    const importClause = rawImportClause === undefined
-      ? undefined
-      : ast.as.AsImportClause(rawImportClause);
-    const namedBindings = importClause?.NamedBindings;
-    if (namedBindings === undefined || ast.as.AsNamespaceImport(namedBindings) === undefined) {
-      return;
-    }
-    const name = ast.name(namedBindings);
-    matched = name !== undefined && ast.text(name) === receiverName;
-  });
-  return matched;
 }

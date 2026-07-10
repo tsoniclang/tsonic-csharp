@@ -98,6 +98,7 @@ const supportedDotnetTypeRefKinds = new Set([
   "void",
   "any",
   "unknown",
+  "undefined",
   "object",
   "string",
   "literal",
@@ -126,6 +127,7 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["void", new Set(["kind"])],
   ["any", new Set(["kind"])],
   ["unknown", new Set(["kind"])],
+  ["undefined", new Set(["kind"])],
   ["object", new Set(["kind"])],
   ["string", new Set(["kind"])],
   ["literal", new Set(["kind", "value"])],
@@ -414,8 +416,8 @@ function validateSourceVisibleCallableMemberClrShapes(
     const signaturePath = `${path}.signatures[${signatureIndex}]`;
     for (const [parameterIndex, parameter] of signature.parameters.slice(member.sourceParameterOffset ?? 0).entries()) {
       validateNoUnsupportedClrSourceTypeRef(
-        parameter.type,
-        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].type`,
+        parameter.sourceType ?? parameter.type,
+        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
         collector,
         `Source-visible ${member.kind} parameter '${parameter.name}' type`,
       );
@@ -471,6 +473,7 @@ function validateDotnetParameters(
     const parameterPath = `${path}[${index}]`;
     requireNonEmptyString(parameter.name, `${parameterPath}.name`, collector);
     validateDotnetTypeRef(parameter.type, `${parameterPath}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    validateOptionalDotnetTypeRef(parameter.sourceType, `${parameterPath}.sourceType`, collector, { allowLiteral: true, allowProviderRef: true });
     if (!supportedPassingModes.has(parameter.passingMode)) {
       collector.add(`${parameterPath}.passingMode`, "Parameter passingMode is not a supported provider contract value.", parameter.passingMode);
     }
@@ -686,7 +689,12 @@ function validateNoUnsupportedClrSourceTypeRef(
       return;
     case "function":
       for (const [index, parameter] of type.parameters.entries()) {
-        validateNoUnsupportedClrSourceTypeRef(parameter.type, `${path}.parameters[${index}].type`, collector, context);
+        validateNoUnsupportedClrSourceTypeRef(
+          parameter.sourceType ?? parameter.type,
+          `${path}.parameters[${index}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
+          collector,
+          context,
+        );
       }
       validateNoUnsupportedClrSourceTypeRef(type.returnType, `${path}.returnType`, collector, context);
       return;
@@ -706,6 +714,7 @@ function validateNoUnsupportedClrSourceTypeRef(
     case "object":
     case "string":
     case "literal":
+    case "undefined":
     case "boolean":
     case "number":
     case "bigint":
@@ -744,8 +753,9 @@ function validateDotnetTypeRef(
   validateDotnetTypeRefFields(type, path, collector);
   switch (type.kind) {
     case "literal":
+    case "undefined":
       if (!options.allowLiteral) {
-        collector.add(path, "Literal type refs are source declaration shapes only and are not valid target metadata refs.", type);
+        collector.add(path, `${type.kind === "literal" ? "Literal" : "Undefined"} type refs are source declaration shapes only and are not valid target metadata refs.`, type);
       }
       return;
     case "provider-ref":
@@ -801,6 +811,7 @@ function validateDotnetTypeRef(
     case "void":
     case "any":
     case "unknown":
+    case "undefined":
     case "object":
     case "string":
     case "boolean":
@@ -1047,6 +1058,7 @@ function validateProviderTypeExpression(
     case "any":
     case "unknown":
     case "void":
+    case "undefined":
     case "never":
     case "boolean":
     case "string":

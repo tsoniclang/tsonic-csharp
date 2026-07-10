@@ -63,7 +63,7 @@ export function getCsharpObjectShapeFactForSubject(
   if (recorded !== undefined) {
     return recorded;
   }
-  const derived = safeDeriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
+  const derived = deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
   if (derived === undefined) {
     return undefined;
   }
@@ -93,7 +93,9 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      getCsharpObjectShapeFactForSubject(node, context, host);
+      if (isObjectShapeFactRecordingCandidate(compiler.ast, node)) {
+        getCsharpObjectShapeFactForSubject(node, context, host);
+      }
     });
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       recordObjectBindingMemberRuntimeCarriers(lifecycleContext, sourceFile, node, context, host, getCsharpObjectShapeFactForSubject);
@@ -101,12 +103,13 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
   }
 }
 
-function safeDeriveCsharpObjectShapeFactForCanonicalSubject(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-  host: CsharpObjectShapeSemanticsHost,
-): CsharpObjectShapeFact | undefined {
-  return deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
+function isObjectShapeFactRecordingCandidate(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: NonNullable<ReturnType<typeof asNodeSubject>>,
+): boolean {
+  const kind = ast.kindName(node);
+  return kind === "KindObjectLiteralExpression" ||
+    kind === "KindTypeLiteral";
 }
 
 function deriveCsharpObjectShapeFactForCanonicalSubject(

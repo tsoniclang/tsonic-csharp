@@ -34,7 +34,7 @@ export function planInterfaceDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(node, sourceFile, input, diagnostics);
   return {
     kind: "InterfaceDeclaration",
@@ -69,7 +69,7 @@ function planInterfaceMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceMethodDeclaration {
   const declaration = AsMethodSignatureDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface method declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface method declaration", diagnostics);
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
@@ -87,7 +87,7 @@ function planInterfacePropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
   const declaration = AsPropertySignatureDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface property declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface property declaration", diagnostics);
   if (declaration.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
@@ -106,7 +106,7 @@ function planInterfaceIndexerDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
   const declaration = AsIndexSignatureDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface index signature", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface index signature", diagnostics);
   const parameterNodes = declaration.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes.find((item): item is Node => item !== undefined);
   if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {

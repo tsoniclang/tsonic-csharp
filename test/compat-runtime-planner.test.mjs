@@ -540,5 +540,23 @@ function numeric(text) {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => String(kind),
+  text: (node) => node?.Text ?? "",
+  hasModifier: () => false,
   typeArguments: () => [],
+  as: {
+    AsPropertyAccessExpression: (node) => node?.Kind === "KindPropertyAccessExpression" ? node : undefined,
+    AsElementAccessExpression: (node) => node?.Kind === "KindElementAccessExpression" ? node : undefined,
+    AsCallExpression: (node) => node?.Kind === "KindCallExpression" ? node : undefined,
+    AsNewExpression: (node) => node?.Kind === "KindNewExpression" ? node : undefined,
+    AsParenthesizedExpression: (node) => node?.Kind === "KindParenthesizedExpression" ? node : undefined,
+    AsTypeAssertion: (node) => node?.Kind === "KindTypeAssertionExpression" ? node : undefined,
+    AsAsExpression: (node) => node?.Kind === "KindAsExpression" ? node : undefined,
+    AsSatisfiesExpression: (node) => node?.Kind === "KindSatisfiesExpression" ? node : undefined,
+    AsNonNullExpression: (node) => node?.Kind === "KindNonNullExpression" ? node : undefined,
+    AsSpreadElement: (node) => node?.Kind === "KindSpreadElement" ? node : undefined,
+    AsDeleteExpression: (node) => node?.Kind === "KindDeleteExpression" ? node : undefined,
+    AsTypeOfExpression: (node) => node?.Kind === "KindTypeOfExpression" ? node : undefined,
+    AsVoidExpression: (node) => node?.Kind === "KindVoidExpression" ? node : undefined,
+    AsAwaitExpression: (node) => node?.Kind === "KindAwaitExpression" ? node : undefined,
+  },
 };

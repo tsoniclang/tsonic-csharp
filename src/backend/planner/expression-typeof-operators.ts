@@ -58,7 +58,7 @@ export function planTypeofExpression(
 ): CsharpExpression | undefined {
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
   if (selectedOperator === undefined) {
-    const operand = Node_Expression(node);
+    const operand = Node_Expression(input.ast, node);
     const ownership = getProviderOperationOwnership(operand, sourceFile, input);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
     return undefined;
@@ -68,7 +68,7 @@ export function planTypeofExpression(
     return undefined;
   }
   const compatDiagnosticsStart = diagnostics.length;
-  const compatRuntimeTypeof = tryPlanCompatRuntimeUnaryOperator(node, Node_Expression(node), sourceFile, input, diagnostics, planExpression);
+  const compatRuntimeTypeof = tryPlanCompatRuntimeUnaryOperator(node, Node_Expression(input.ast, node), sourceFile, input, diagnostics, planExpression);
   if (compatRuntimeTypeof !== undefined) {
     return compatRuntimeTypeof;
   }
@@ -77,7 +77,7 @@ export function planTypeofExpression(
   }
   const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
   if (operation === undefined || operation.operationId !== selectedOperator.operationId || operation.kind !== "typeof-runtime") {
-    const operand = Node_Expression(node);
+    const operand = Node_Expression(input.ast, node);
     const ownership = getProviderOperationOwnership(operand, sourceFile, input);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
     return undefined;
@@ -183,10 +183,10 @@ function getTypeofComparisonOperand(
   const left = getBinaryLeft(expression);
   const right = getBinaryRight(expression);
   if (HasSourceKind(input.ast, left, KindTypeOfExpression)) {
-    return Node_Expression(left);
+    return Node_Expression(input.ast, left);
   }
   if (HasSourceKind(input.ast, right, KindTypeOfExpression)) {
-    return Node_Expression(right);
+    return Node_Expression(input.ast, right);
   }
   return undefined;
 }

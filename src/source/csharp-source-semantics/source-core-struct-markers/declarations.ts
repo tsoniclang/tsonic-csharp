@@ -49,7 +49,7 @@ export function getSourceCoreStructMarkerDeclarationFromSubject(
   const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, referenceName, sourceFile);
   const aliasedSymbol = sourceFile === undefined
     ? undefined
-    : getAliasedSymbolIfAvailable(compiler.checker, symbol, sourceFile);
+    : getAliasedSymbolIfAvailable(compiler.ast, compiler.checker, symbol, sourceFile);
   return getSourceCoreStructMarkerDeclarationFromSymbol(aliasedSymbol ?? symbol, context);
 }
 

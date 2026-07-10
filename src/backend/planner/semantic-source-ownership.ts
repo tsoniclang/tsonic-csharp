@@ -68,7 +68,7 @@ export function isSourceDeclaredCallableReference(
 ): boolean {
   return reference !== undefined &&
     isSourceOwnedProjectReference(reference, input) &&
-    !hasProviderOnlySymbolName(reference.symbol) &&
+    !hasProviderOnlySymbolName(reference.symbol, input) &&
     isSourceCallableDeclaration(reference.declaration, input);
 }
 
@@ -110,8 +110,11 @@ function isSourceOwnedCallableBindingReference(
     SourceKind(input.ast, reference?.declaration) === KindBindingElement;
 }
 
-function hasProviderOnlySymbolName(symbol: ReturnType<TargetCompileInput["analysis"]["getResolvedSymbol"]> | undefined): boolean {
-  return symbol?.Name === undefined || symbol.Name.length === 0;
+function hasProviderOnlySymbolName(
+  symbol: ReturnType<TargetCompileInput["analysis"]["getResolvedSymbol"]> | undefined,
+  input: TargetCompileInput,
+): boolean {
+  return input.analysis.getSymbolName(symbol)?.length === 0;
 }
 
 function isDirectSourceCallableSyntax(node: Node | undefined, input: TargetCompileInput): boolean {

@@ -81,11 +81,7 @@ export function isNewExpression(
     return false;
   }
   const ast = context.compiler?.ast;
-  if (ast?.is?.IsNewExpression(node) === true) {
-    return true;
-  }
-  return ast?.kindName(node) === "KindNewExpression" ||
-    (node as { readonly Kind?: unknown }).Kind === "KindNewExpression";
+  return ast?.is.IsNewExpression(node) === true;
 }
 
 export function getSourceLibraryCallReceiverElementType(
@@ -106,9 +102,6 @@ export function getSourceLibraryCallReceiverTargetTypes(
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const candidates = [
     requestContext.calleeReceiver,
-    requestContext.calleeReceiverSymbol,
-    requestContext.calleeReceiverResolvedSymbol,
-    requestContext.calleeReceiverAliasedSymbol,
     requestContext.calleeReceiverType,
     requestContext.calleeReceiverTypeSymbol,
   ];

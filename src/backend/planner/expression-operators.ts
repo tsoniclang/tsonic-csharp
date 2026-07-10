@@ -186,7 +186,7 @@ function getCompatRuntimePropertySetReceiver(
   input: TargetCompileInput,
 ): Node | undefined {
   return HasSourceKind(input.ast, node, KindPropertyAccessExpression)
-    ? Node_Expression(node)
+    ? Node_Expression(input.ast, node)
     : undefined;
 }
 

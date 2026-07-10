@@ -160,6 +160,86 @@ test("checked provider conversions fail closed without selected provider convers
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
+test("checked conversions accept unresolved function expressions for selected delegate targets", () => {
+  const source = { id: "source-lambda", Kind: "KindArrowFunction" };
+  const target = { id: "target-delegate" };
+  const delegateType = csharpTargetNamedType("System.Func`2", [
+    sourceDogType,
+    doubleType,
+  ], csharpQualifiedTypeRenderShape("System", "Func"), {
+    delegateSignature: {
+      parameters: [sourceDogType],
+      returnType: doubleType,
+    },
+  });
+  const { context, writes } = fakeContext();
+  context.compiler = {
+    ast: {
+      is: {
+        IsArrowFunction: (node) => node === source,
+        IsFunctionExpression: () => false,
+      },
+    },
+  };
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([{
+    id: delegateType.id,
+    target: "csharp",
+    kind: "delegate",
+    sourceName: "Func",
+    targetName: "System.Func",
+  }], new Map([
+    [target, delegateType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.convertedType, delegateType);
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
+test("checked conversions accept same-shape delegate values without provider conversion metadata", () => {
+  const source = { id: "source-handler" };
+  const target = { id: "target-handler" };
+  const httpContext = csharpTargetNamedType("Microsoft.AspNetCore.Http.HttpContext");
+  const task = csharpTargetNamedType("System.Threading.Tasks.Task");
+  const sourceDelegate = csharpTargetNamedType("System.Func`2", [
+    httpContext,
+    task,
+  ], csharpQualifiedTypeRenderShape("System", "Func"), {
+    delegateSignature: {
+      parameters: [httpContext],
+      returnType: task,
+    },
+  });
+  const targetDelegate = csharpTargetNamedType("Microsoft.AspNetCore.Http.RequestDelegate", undefined, csharpQualifiedTypeRenderShape("Microsoft.AspNetCore.Http", "RequestDelegate"), {
+    delegateSignature: {
+      parameters: [httpContext],
+      returnType: task,
+    },
+  });
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [source, sourceDelegate],
+    [target, targetDelegate],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.convertedType, targetDelegate);
+  assert.equal(result.value.operation, undefined);
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
 test("checked provider conversions reject missing reflected conversion evidence", () => {
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };

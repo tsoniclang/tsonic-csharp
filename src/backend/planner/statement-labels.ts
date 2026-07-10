@@ -33,7 +33,7 @@ export function planLabeledStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
-  const sourceName = requireCsharpIdentifier(Node_Text(statement.Label!), diagnostics, "Statement label");
+  const sourceName = requireCsharpIdentifier(Node_Text(input.ast, statement.Label!), diagnostics, "Statement label");
   const target = {
     sourceName,
     breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),

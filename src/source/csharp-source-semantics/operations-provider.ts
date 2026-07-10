@@ -116,6 +116,7 @@ export interface CsharpOperationsProviderHost {
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
+  readonly getAssignableTargetTypeRefs?: (type: TargetTypeRef) => readonly TargetTypeRef[];
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
@@ -241,6 +242,10 @@ export function createCsharpTargetOperationsProvider(
       if (isDeclarationOrVirtualRequestSubject(request.expression, context)) {
         return acceptDeclarationOnlyOperation("operator");
       }
+      const jsObservation = jsSurface?.mapCheckedOperator(request, context) ?? deferObservation;
+      if (jsObservation.kind !== "defer") {
+        return jsObservation;
+      }
       return mapCsharpCheckedOperator(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
     observePostCheckAssignability(request, context) {
@@ -259,7 +264,7 @@ export function createCsharpTargetOperationsProvider(
       );
     },
     recordContextualTargetType(request, context) {
-      return mapCsharpContextualTargetType(request, context, surfaceAwareHost);
+      return mapCsharpContextualTargetType(request, context);
     },
     mapCheckedConversion(request, context) {
       return mapCsharpCheckedConversion(request, context, surfaceAwareHost);
@@ -311,7 +316,7 @@ export function createCsharpJsSurfaceHost(
         readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
         readonly receiver?: ExtensionFactSubject;
         readonly receiverTargetType?: TargetTypeRef;
-        readonly sourceSelectedSignature?: unknown;
+        readonly sourceSelectionProven?: true;
         readonly sourceSelectedIdentity?: string;
       },
       context: ExtensionObservationContext,

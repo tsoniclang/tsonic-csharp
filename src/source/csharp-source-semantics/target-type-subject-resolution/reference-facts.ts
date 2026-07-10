@@ -58,10 +58,11 @@ function getAliasedSymbolForReference(
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): ExtensionFactSubject | undefined {
   const checker = context.compiler?.checker;
-  if (checker === undefined) {
+  const ast = context.compiler?.ast;
+  if (checker === undefined || ast === undefined) {
     return undefined;
   }
-  return getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
+  return getAliasedSymbolIfAvailable(ast, checker, symbol, sourceFile);
 }
 
 function uniqueReferenceSubjects(subjects: readonly (ExtensionFactSubject | undefined)[]): readonly ExtensionFactSubject[] {

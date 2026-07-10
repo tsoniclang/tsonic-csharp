@@ -130,8 +130,9 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     name: parameter.name,
     type: dotnetTypeRefToTargetTypeRef(parameter.type),
     passingMode: parameter.passingMode,
-    ...(dotnetParameterTypeHasSourceProjection(parameter.type) ? { csharpAcceptsCheckedSourceArgument: true as const } : {}),
+    ...(dotnetParameterTypeHasSourceProjection(parameter.sourceType ?? parameter.type) ? { csharpAcceptsCheckedSourceArgument: true as const } : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
+    ...(parameter.optional === true ? { csharpOmittableOptionalArgument: true as const } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
     ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
@@ -158,12 +159,14 @@ function dotnetParameterTypeHasSourceProjection(type: DotnetTypeRef): boolean {
     case "union":
       return type.types.some(dotnetParameterTypeHasSourceProjection);
     case "function":
-      return type.parameters.some((parameter) => dotnetParameterTypeHasSourceProjection(parameter.type)) ||
+      return type.parameters.some((parameter) => dotnetParameterTypeHasSourceProjection(parameter.sourceType ?? parameter.type)) ||
         dotnetParameterTypeHasSourceProjection(type.returnType);
+    case "object":
+      return true;
     case "void":
     case "any":
     case "unknown":
-    case "object":
+    case "undefined":
     case "string":
     case "literal":
     case "boolean":

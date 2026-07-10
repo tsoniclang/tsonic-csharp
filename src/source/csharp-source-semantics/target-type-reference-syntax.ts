@@ -85,7 +85,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   }
   const sourceFile = ast.getSourceFile(node);
   const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
-  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
+  const aliasedSymbol = getAliasedSymbolIfAvailable(ast, checker, symbol, sourceFile);
   const type = asType(checker.getTypeFromTypeNode(node, { sourceFile }));
   const typeAliasSymbol = type === undefined ? undefined : context.compiler?.checker.getTypeAliasSymbol(type);
   const typeSymbol = type === undefined ? undefined : context.compiler?.checker.getTypeSymbol(type);
@@ -118,7 +118,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     if (enrichedAliasedType === undefined) {
       return undefined;
     }
-    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(enrichedAliasedType)
+    return typeSyntaxContainsSourcePrimitiveEvidence(node, context) && !targetTypeRefContainsSourcePrimitive(enrichedAliasedType)
       ? undefined
       : enrichedAliasedType;
   }
@@ -194,8 +194,7 @@ function getRecordDictionaryTypeRefFromTypeReference(
   const ast = context.compiler?.ast;
   if (
     ast === undefined ||
-    (!subjects.some((subject) => isRecordDeclarationSubject(subject, context)) &&
-      !isRecordTypeReferenceName(currentNode, ast))
+    !subjects.some((subject) => isRecordDeclarationSubject(subject, context))
   ) {
     return undefined;
   }
@@ -204,14 +203,6 @@ function getRecordDictionaryTypeRefFromTypeReference(
     return undefined;
   }
   return getCsharpRecordDictionaryTargetType(typeArguments[0]!, typeArguments[1]!, host);
-}
-
-function isRecordTypeReferenceName(
-  node: Node,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-): boolean {
-  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
-  return typeName !== undefined && (getNodeNameText(typeName) === "Record" || ast.text(typeName) === "Record");
 }
 
 function isRecordDeclarationSubject(
@@ -275,7 +266,7 @@ function getTargetTypeRefFromSourceDeclarationReference(
         continue;
       }
       const recordedTarget = context.factResolver.resolve(declaration, runtimeCarrierFactKey)?.carrier;
-      const targetType = recordedTarget ?? sourceDeclarationTargetType(getNodeNameText(declaration), kind);
+      const targetType = recordedTarget ?? sourceDeclarationTargetType(getNodeNameText(ast, declaration), kind);
       if (targetType === undefined) {
         continue;
       }

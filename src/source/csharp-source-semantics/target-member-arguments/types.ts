@@ -13,13 +13,14 @@ import type {
 export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
-  readonly sourceSelectedSignature?: unknown;
+  readonly sourceSelectionProven?: true;
   readonly sourceSelectedIdentity?: string;
   readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
 }
 
 export interface TargetMemberSelectionOptions {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
+  readonly getAssignableTargetTypeRefs?: (type: TargetTypeRef) => readonly TargetTypeRef[];
   readonly declaringTargetType?: TargetTypeRef;
   readonly declaringTypeParameters?: readonly CsharpTargetTypeParameter[];
   readonly methodTargetTypeArguments?: readonly TargetTypeRef[];

@@ -27,6 +27,8 @@ import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
 import {
+  targetTypeRefEquals,
+  targetTypeRefIsClosed,
   targetMemberIsClosed,
 } from "../target-ref-utils.js";
 import {
@@ -86,6 +88,7 @@ export function selectCheckedElementTargetMember(
       host.getTargetTypeRefForSubject,
       {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+        getAssignableTargetTypeRefs: host.getAssignableTargetTypeRefs,
         ...(declaringTargetType !== undefined ? { declaringTargetType } : {}),
         ...(binding.typeParameters !== undefined ? { declaringTypeParameters: binding.typeParameters } : {}),
       },
@@ -121,10 +124,32 @@ export function getDeclaringTargetType(
 export function instantiateClosedSelectedTargetMember(
   member: CsharpTargetMember,
   host: CsharpOperationsProviderHost,
-  declaringTargetType: TargetTypeRef | undefined,
+  options: {
+    readonly declaringTargetType?: TargetTypeRef;
+    readonly selectedResultType?: TargetTypeRef;
+  },
 ): CsharpTargetMember | undefined {
-  const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
-  return csharpMember === undefined || !targetMemberIsClosed(csharpMember)
+  const instantiated = instantiateSelectedTargetMember({ member }, host, {
+    declaringTargetType: options.declaringTargetType,
+  });
+  if (instantiated === undefined) {
+    return undefined;
+  }
+  const existingReturnType = instantiated.returnType;
+  if (
+    options.selectedResultType !== undefined &&
+    existingReturnType !== undefined &&
+    targetTypeRefIsClosed(existingReturnType) &&
+    !targetTypeRefEquals(existingReturnType, options.selectedResultType)
+  ) {
+    return undefined;
+  }
+  const csharpMember = options.selectedResultType !== undefined &&
+    existingReturnType !== undefined &&
+    !targetTypeRefIsClosed(existingReturnType)
+    ? { ...instantiated, returnType: options.selectedResultType }
+    : instantiated;
+  return !targetMemberIsClosed(csharpMember)
     ? undefined
     : csharpMember as CsharpTargetMember;
 }

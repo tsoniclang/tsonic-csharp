@@ -85,7 +85,7 @@ function appendPropertyAccessReceiverFactReasons(
   if (!HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     return;
   }
-  const receiver = Node_Expression(callee);
+  const receiver = Node_Expression(input.ast, callee);
   if (receiver === undefined) {
     return;
   }
@@ -102,7 +102,7 @@ function propertyAccessReceiverRequiresSelectedTargetFact(
   if (!HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     return false;
   }
-  const receiver = Node_Expression(callee);
+  const receiver = Node_Expression(input.ast, callee);
   return receiver !== undefined &&
     (hasSelectedTargetFactEvidence(input, receiver) ||
       hasSelectedTargetFactEvidence(input, getQueryableSymbol(receiver, sourceFile, input)) ||

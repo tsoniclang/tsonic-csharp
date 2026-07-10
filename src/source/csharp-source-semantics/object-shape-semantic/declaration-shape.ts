@@ -40,7 +40,7 @@ export function getSemanticTypeDeclarationShape(
     if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
       continue;
     }
-    const name = getNodeNameText(declaration);
+    const name = getNodeNameText(ast, declaration);
     if (name.length === 0) {
       continue;
     }

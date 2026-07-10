@@ -1,11 +1,9 @@
 import {
   AsVariableDeclaration,
-  AsVariableDeclarationList,
   AsVariableStatement,
   HasSourceKind,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
-  NodeFlagsConst,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -33,17 +31,16 @@ export function planTopLevelVariableStatement(
   _executableTopLevelSourceFile: boolean,
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
-  const variableDeclarationList = AsVariableDeclarationList(declarationList)!;
-  const declarations = variableDeclarationList.Declarations?.Nodes ?? [];
-  const isConst = (variableDeclarationList.Flags & NodeFlagsConst) !== 0;
+  const declarations = declarationList === undefined
+    ? []
+    : input.ast.children(declarationList)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+  const isConst = declarationList !== undefined && input.ast.hasModifierKind(declarationList, "const");
   if (declarations.length === 0) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }
   for (const declaration of declarations) {
-    if (declaration === undefined) {
-      continue;
-    }
     const valueType = input.facts.getStructFact(declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));

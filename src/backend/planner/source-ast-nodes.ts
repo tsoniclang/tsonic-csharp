@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import {
   isNodeSubject,
 } from "../../source/fact-subjects.js";
@@ -17,26 +17,36 @@ export const ModifierFlagsAsync = 1 << 10;
 export const ModifierFlagsConst = 1 << 12;
 export const NodeFlagsConst = 1 << 1;
 
-export function HasSyntacticModifier(node: Node, flag: number): boolean {
-  const modifierFlags = Number(
-    (node as { readonly ModifierFlags?: unknown }).ModifierFlags ??
-      (node as { readonly modifiers?: { readonly ModifierFlags?: unknown } }).modifiers?.ModifierFlags ??
-      0,
-  );
-  return (modifierFlags & flag) !== 0;
+export function HasSyntacticModifier(ast: AstReader, node: Node, flag: number): boolean {
+  return ast.hasModifier(node, flag);
 }
 
-export function Node_Text(node: Node | undefined): string {
-  const text = (node as { readonly Text?: unknown } | undefined)?.Text;
-  return typeof text === "function" ? "" : String(text ?? "");
+export function Node_Text(ast: AstReader, node: Node | undefined): string {
+  return node === undefined ? "" : ast.text(node);
 }
 
-export function Node_Name(node: Node | undefined): Node | undefined {
-  return nodeField(node, "name");
+export function Node_Name(ast: AstReader, node: Node | undefined): Node | undefined {
+  return node === undefined ? undefined : ast.name(node);
 }
 
-export function Node_Expression(node: Node | undefined): Node | undefined {
-  return nodeField(node, "Expression");
+export function Node_Expression(ast: AstReader, node: Node | undefined): Node | undefined {
+  if (node === undefined) {
+    return undefined;
+  }
+  return ast.as.AsPropertyAccessExpression(node)?.Expression ??
+    ast.as.AsElementAccessExpression(node)?.Expression ??
+    ast.as.AsCallExpression(node)?.Expression ??
+    ast.as.AsNewExpression(node)?.Expression ??
+    ast.as.AsParenthesizedExpression(node)?.Expression ??
+    ast.as.AsTypeAssertion(node)?.Expression ??
+    ast.as.AsAsExpression(node)?.Expression ??
+    ast.as.AsSatisfiesExpression(node)?.Expression ??
+    ast.as.AsNonNullExpression(node)?.Expression ??
+    ast.as.AsSpreadElement(node)?.Expression ??
+    ast.as.AsDeleteExpression(node)?.Expression ??
+    ast.as.AsTypeOfExpression(node)?.Expression ??
+    ast.as.AsVoidExpression(node)?.Expression ??
+    ast.as.AsAwaitExpression(node)?.Expression;
 }
 
 export function SourceFile_FileName(sourceFile: SourceFile): string {
@@ -46,9 +56,4 @@ export function SourceFile_FileName(sourceFile: SourceFile): string {
 
 export function isAstNode(value: unknown): value is Node {
   return isNodeSubject(value);
-}
-
-function nodeField(node: Node | undefined, field: string): Node | undefined {
-  const value = (node as Record<string, unknown> | undefined)?.[field];
-  return isAstNode(value) ? value : undefined;
 }

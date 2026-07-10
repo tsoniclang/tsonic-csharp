@@ -88,7 +88,10 @@ export function dotnetMemberToProviderMember(
     return undefined;
   }
   const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
-  const sourceParameterOptions = { sourceParameterOffset: member.sourceParameterOffset };
+  const sourceParameterOptions = {
+    sourceParameterOffset: member.sourceParameterOffset,
+    parentTypeParameterNames: declaringType.typeParameters?.map((parameter) => parameter.name) ?? [],
+  };
   const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName, sourceParameterOptions);
   const signatures = member.signatures
     ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id), sourceParameterOptions))
@@ -134,8 +137,8 @@ function mergeProviderMemberWithLocalBase(
     return [{
       ...member,
       signatures: mergeProviderSignatures([
-        ...matchingBaseMembers.flatMap((baseMember) => baseMember.signatures ?? []),
         ...(member.signatures ?? []),
+        ...matchingBaseMembers.flatMap((baseMember) => baseMember.signatures ?? []),
       ]),
     }];
   }
@@ -184,7 +187,8 @@ function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolea
   if (signature === undefined || signature.parameters.length !== 1 || signature.returnType === undefined) {
     return false;
   }
-  const parameterType = tryDotnetTypeRefToProviderType(signature.parameters[0]!.type);
+  const parameter = signature.parameters[0]!;
+  const parameterType = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type);
   return parameterType !== undefined && isProviderTsCompatibleIndexType(parameterType);
 }
 

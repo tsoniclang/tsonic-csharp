@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   buildSelectedEvidenceAuditRows,
   collectSelectedEvidenceFindings,
@@ -39,3 +41,96 @@ test("selected-evidence audit classifies only files that still contain risk-patt
     .sort();
   assert.deepEqual(stale, []);
 });
+
+test("selected-evidence audit rejects silent semantic recovery mechanisms", () => {
+  const forbiddenRuleIds = new Set([
+    "safe-helper",
+    "source-usage-channel",
+    "checker-forcing-operation-lifecycle",
+    "raw-TypeArguments",
+    "raw-Text",
+    "target-analysis-selected-call-query",
+    "local-method-type-argument-reconstruction",
+    "source-marker-name-reconstruction",
+    "contextual-target-type-requery",
+    "single-target-member-inference",
+  ]);
+  const forbidden = buildSelectedEvidenceAuditRows(repoRoot)
+    .filter((row) =>
+      forbiddenRuleIds.has(row.ruleId) ||
+      (row.ruleId === "broad-catch-return" && (
+        row.file.startsWith("src/source/csharp-source-semantics/") ||
+        row.file.startsWith("src/backend/")
+      )))
+    .map((row) => `${row.file}:${row.line}: ${row.ruleId}: ${row.snippet}`);
+  assert.deepEqual(forbidden, []);
+});
+
+test("semantic product paths do not catch checker failures and continue", () => {
+  const roots = [
+    join(repoRoot, "src/source/csharp-source-semantics"),
+    join(repoRoot, "src/backend"),
+  ];
+  const forbidden = roots.flatMap(sourceFiles).flatMap((file) => {
+    const text = readFileSync(file, "utf8");
+    return catchBlocks(text).flatMap(({ block, line }) => {
+      const catchesCheckerFailure = /\b(?:checker|typeShape)\.[A-Za-z_$][A-Za-z0-9_$]*\s*\(/u.test(block);
+      const continuesWithMissingEvidence = /\breturn\s+(?:undefined|false|null)\b/u.test(block);
+      return catchesCheckerFailure || continuesWithMissingEvidence
+        ? [`${relative(repoRoot, file).split(sep).join("/")}:${line}`]
+        : [];
+    });
+  });
+  assert.deepEqual(forbidden, []);
+});
+
+test("selected-evidence audit has no unresolved local abstraction or lifecycle classifications", () => {
+  const unresolved = buildSelectedEvidenceAuditRows(repoRoot)
+    .filter((row) => row.classification === "wrong-abstraction-reworked" || row.classification === "lifecycle-ordering-bug")
+    .map((row) => `${row.file}:${row.line}: ${row.classification}: ${row.symbol}`);
+  assert.deepEqual(unresolved, []);
+});
+
+test("selected-evidence fixtures do not fabricate non-contract request fields", () => {
+  const forbidden = "sourceSelectedContainerSymbol";
+  const scannerFile = new URL(import.meta.url).pathname;
+  const hits = sourceFiles(join(repoRoot, "test"))
+    .filter((file) => file !== scannerFile)
+    .filter((file) => readFileSync(file, "utf8").includes(forbidden))
+    .map((file) => relative(repoRoot, file).split(sep).join("/"));
+  assert.deepEqual(hits, []);
+});
+
+function sourceFiles(directory) {
+  return readdirSync(directory).flatMap((entryName) => {
+    const path = join(directory, entryName);
+    return statSync(path).isDirectory()
+      ? sourceFiles(path)
+      : path.endsWith(".mjs") || path.endsWith(".ts")
+        ? [path]
+        : [];
+  });
+}
+
+function catchBlocks(text) {
+  const blocks = [];
+  const pattern = /\bcatch\s*(?:\([^)]*\))?\s*\{/gu;
+  for (const match of text.matchAll(pattern)) {
+    const open = (match.index ?? 0) + match[0].lastIndexOf("{");
+    let depth = 1;
+    let index = open + 1;
+    while (index < text.length && depth > 0) {
+      if (text[index] === "{") {
+        depth += 1;
+      } else if (text[index] === "}") {
+        depth -= 1;
+      }
+      index += 1;
+    }
+    blocks.push({
+      block: text.slice(open + 1, Math.max(open + 1, index - 1)),
+      line: text.slice(0, open).split("\n").length,
+    });
+  }
+  return blocks;
+}

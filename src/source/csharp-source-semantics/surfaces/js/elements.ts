@@ -3,13 +3,11 @@ import type {
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   acceptObservation,
   runtimeCarrierFactKey,
-  targetOperationFactKey,
 } from "@tsonic/tsts";
 import {
   mapCsharpJsArrayElementAccess,
@@ -29,21 +27,6 @@ import {
 import {
   targetOperation,
 } from "./source-library.js";
-import {
-  asNodeSubject,
-  getNodeField,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
-} from "../../ast-utils.js";
-import {
-  csharpTargetOperationFactKey,
-} from "../../../csharp-facts.js";
-import {
-  csharpTargetId,
-} from "../../identity.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../runtime-carriers.js";
 import {
   getSelectedSourceLibraryDeclarationName,
 } from "../../source-library.js";
@@ -82,64 +65,6 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
     }, [{ message: "C# JS surface Record indexer accepted from TSTS-selected source-profile element access; concrete C# operation finalization requires later Record dictionary carrier facts." }]);
   }
   return undefined;
-}
-
-export function recordCsharpSourceLibraryElementAccessFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (!compiler.ast.is.IsElementAccessExpression(node)) {
-        return;
-      }
-      recordCsharpSourceLibraryElementAccessFact(node, context, host);
-    });
-  }
-}
-
-function recordCsharpSourceLibraryElementAccessFact(
-  node: Node,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): void {
-  if (
-    context.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
-  ) {
-    return;
-  }
-  const selectedOperation = context.facts.get(node, targetOperationFactKey) ??
-    context.factResolver.resolve(node, targetOperationFactKey);
-  const selectedDeclaration = selectedOperation?.provenance?.sourceSelectedDeclaration;
-  const selectedSymbol = selectedOperation?.provenance?.sourceSelectedSymbol;
-  if (selectedDeclaration === undefined && selectedSymbol === undefined) {
-    return;
-  }
-  const receiver = asNodeSubject(getNodeField(node, "Expression"));
-  const argument = asNodeSubject(getNodeField(node, "ArgumentExpression"));
-  if (receiver === undefined || argument === undefined) {
-    return;
-  }
-  const mapped = mapCsharpSourceLibraryCheckedElementAccess({
-    expression: node,
-    receiver,
-    argument,
-    target: csharpTargetId,
-    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
-    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
-  }, context as ExtensionObservationContext<"operation.mapCheckedElementAccess">, host);
-  if (mapped?.kind === "reject") {
-    context.diagnostics.append(mapped.diagnostic);
-  }
 }
 
 function getFinalizedReceiverCarrier(

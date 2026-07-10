@@ -63,6 +63,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
     "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)",
   );
   assert.equal(targetOptional.parameters[1].optional, true);
+  assert.equal(targetOptional.parameters[1].csharpOmittableOptionalArgument, true);
 
   const targetParams = targetMember(
     provider,
@@ -175,6 +176,7 @@ test(".NET provider records unsupported default parameter values without exposin
     signatureId,
   );
   assert.deepEqual(targetSignatureWithUnsupportedDefault.parameters[0].unsupportedDefaultValue, rawParameter.unsupportedDefaultValue);
+  assert.equal(targetSignatureWithUnsupportedDefault.parameters[0].csharpOmittableOptionalArgument, true);
 });
 
 test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
@@ -215,6 +217,22 @@ test(".NET selected target-member identity enforces optional and params-array ar
   ]);
   assert.equal(selectBySignature(unsupportedDefaultMember, 1), undefined);
   assert.equal(selectBySignature(unsupportedDefaultMember, 2)?.id, unsupportedDefaultMember.id);
+
+  const omittableUnsupportedDefaultMember = method("Example.Target.OmittableUnsupportedDefault(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), {
+      optional: true,
+      csharpOmittableOptionalArgument: true,
+      unsupportedDefaultValue: {
+        kind: "unsupported-default-value",
+        id: "Example.Target.OmittableUnsupportedDefault:parameter:name:default",
+        parameterName: "name",
+        reason: "Default is target-owned metadata.",
+      },
+    }),
+  ]);
+  assert.equal(selectBySignature(omittableUnsupportedDefaultMember, 1)?.id, omittableUnsupportedDefaultMember.id);
+  assert.equal(selectBySignature(omittableUnsupportedDefaultMember, 2)?.id, omittableUnsupportedDefaultMember.id);
 
   const paramsMember = method("Example.Target.Params(System.String,System.String[])", [
     parameter("format", stringType()),

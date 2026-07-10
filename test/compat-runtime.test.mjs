@@ -49,7 +49,7 @@ test("compat mode records closed carrier operation facts for opaque any operatio
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(anyOperationDiagnostics(extensionHost), []);
+  assert.deepEqual(diagnosticSummaries(anyOperationDiagnostics(extensionHost)), []);
   const operationNodes = [
     ...collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression"),
     ...collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression"),
@@ -90,7 +90,7 @@ test("compat mode records closed carrier facts for exported any parameter operat
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
+  assert.deepEqual(diagnosticSummaries(extensionHost.diagnostics.all()), []);
   const propertyAccesses = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression");
   const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
   const call = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
@@ -203,23 +203,30 @@ test("compat runtime hard rejects resolved standard-library eval, Function, Prox
     Object.create(null);
   `, { typescriptCompatibility: "compat" }, [], { sourceProfile: "js" });
   const sourceFile = session.getSourceFile("/src/index.ts");
-  session.ensureChecked(sourceFile);
+  const checkedDiagnostics = session.ensureChecked(sourceFile);
+  assert.equal(checkedDiagnostics.length, 7);
+  assert.ok(checkedDiagnostics.every((diagnostic) => diagnostic.code === 9100130));
 
   const extensionHost = session.finalizeExtensions();
-  const diagnostics = compatRuntimeDiagnostics(extensionHost);
+  const diagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED"
+  );
 
-  assert.deepEqual(new Set(diagnostics.map((diagnostic) => diagnostic.message)), new Set([
-    "C# emission cannot support JavaScript eval.",
-    "C# emission cannot support JavaScript dynamic Function construction.",
-    "C# emission cannot support JavaScript Proxy.",
-    "C# emission cannot support JavaScript Object.setPrototypeOf prototype semantics.",
-    "C# emission cannot support JavaScript Object.getPrototypeOf prototype semantics.",
-    "C# emission cannot support JavaScript Object.create prototype semantics.",
+  assert.deepEqual(new Set(diagnostics.map((diagnostic) => diagnostic.evidence?.[0]?.details?.sourceIdentity)), new Set([
+    "Global.eval",
+    "Function.constructor",
+    "Proxy.constructor",
+    "Proxy.revocable",
+    "Object.setPrototypeOf",
+    "Object.getPrototypeOf",
+    "Object.create",
   ]));
-  assert.ok(diagnostics.every((diagnostic) =>
-    JSON.stringify(diagnostic.evidence).includes("hard-reject") &&
-    JSON.stringify(diagnostic.evidence).includes("source-name guessing")
-  ));
+  assert.ok(diagnostics.every((diagnostic) => {
+    const details = diagnostic.evidence?.[0]?.details;
+    return typeof details?.sourceIdentity === "string" &&
+      Array.isArray(details.requiredFacts) &&
+      details.requiredFacts.some((fact) => /selected .*source declaration\/signature identity/u.test(fact));
+  }));
 });
 test("with statements remain hard-rejected as dynamic scope even when TSTS already rejects them", () => {
   const session = createNativeSession(`
@@ -493,3 +500,10 @@ test("unknown and object remain non-dynamic and are rejected by TSTS source chec
   assert.deepEqual(objectCarriers, []);
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
+
+function diagnosticSummaries(diagnostics) {
+  return diagnostics.map((diagnostic) => ({
+    extensionCode: diagnostic.extensionCode,
+    message: diagnostic.message,
+  }));
+}

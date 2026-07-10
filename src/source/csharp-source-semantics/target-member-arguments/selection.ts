@@ -94,7 +94,7 @@ export function selectExactTargetMember(
       resolveTargetTypeRef,
     );
     if (
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
@@ -103,7 +103,7 @@ export function selectExactTargetMember(
     if (
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
@@ -115,9 +115,12 @@ export function selectExactTargetMember(
         argumentType,
         sourceSelectionProvesExactTargetMember(request, member),
       ) &&
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member)
     ) {
+      continue;
+    }
+    if (argumentType === undefined && sourceSelectionProvesConcreteTargetMemberId(request, member) && !targetParameterTypeIsSourcePrimitiveCarrier(parameter.type)) {
       continue;
     }
     if (targetTypeArgumentMatchScore(
@@ -177,7 +180,7 @@ function targetMemberMatch(
       resolveTargetTypeRef,
     );
     if (
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member) &&
       targetParameterAcceptsTstsCheckedSourceGenericArgument(parameter, typeParameterBindings, selectedTypeParameterBindings)
     ) {
@@ -194,7 +197,7 @@ function targetMemberMatch(
     if (
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member) &&
       targetTypeRefIsClosed(argumentType)
     ) {
@@ -214,7 +217,7 @@ function targetMemberMatch(
         argumentType,
         sourceSelectionProvesExactTargetMember(request, member),
       ) &&
-      request.sourceSelectedSignature !== undefined &&
+      request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member)
     ) {
       argumentScore += targetTypeArgumentMatchScore(
@@ -225,6 +228,10 @@ function targetMemberMatch(
         typeParameterBindings,
         options,
       ) ?? 20;
+      continue;
+    }
+    if (argumentType === undefined && sourceSelectionProvesConcreteTargetMemberId(request, member) && !targetParameterTypeIsSourcePrimitiveCarrier(parameter.type)) {
+      argumentScore += 20;
       continue;
     }
     const matchScore = targetTypeArgumentMatchScore(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options);
@@ -279,10 +286,22 @@ function targetParameterAcceptsCheckedSourceArgument(
   argumentType: TargetTypeRef | undefined,
   exactSourceSelection: boolean,
 ): boolean {
+  if (exactSourceSelection && parameter.csharpAcceptsCheckedSourceArgument === true) {
+    return true;
+  }
+  if (
+    exactSourceSelection &&
+    parameter.type.kind === "source-primitive" &&
+    parameter.passingMode === "by-value" &&
+    argumentType?.kind !== "source-primitive"
+  ) {
+    return true;
+  }
   if (argumentType === undefined) {
-    return parameter.csharpAcceptsCheckedSourceArgument === true ||
-      (exactSourceSelection && parameter.type.kind === "source-primitive" && parameter.passingMode === "by-value") ||
-      (exactSourceSelection && parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
+    if (exactSourceSelection && parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type)) {
+      return true;
+    }
+    return parameter.csharpAcceptsCheckedSourceArgument === true;
   }
   return (parameter.type.kind === "source-primitive" &&
       argumentType.kind === "source-primitive" &&
@@ -305,12 +324,18 @@ function sourceSelectionProvesExactTargetMember(
   request: TargetMemberSelectionRequest,
   member: CsharpTargetMember,
 ): boolean {
-  const sourceSelectedSignature = request.sourceSelectedSignature;
-  const signatureId = (sourceSelectedSignature as { readonly signatureId?: unknown } | undefined)?.signatureId;
-  return (
-    typeof signatureId === "string" &&
-    (signatureId === member.id || signatureId === member.providerSourceSignatureId)
-  );
+  const signatureId = request.selectedProviderDeclaration?.signatureId;
+  return request.sourceSelectionProven === true &&
+    signatureId !== undefined &&
+    (signatureId === member.id || signatureId === member.providerSourceSignatureId);
+}
+
+function sourceSelectionProvesConcreteTargetMemberId(
+  request: TargetMemberSelectionRequest,
+  member: CsharpTargetMember,
+): boolean {
+  return request.sourceSelectionProven === true &&
+    request.selectedProviderDeclaration?.signatureId === member.id;
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {

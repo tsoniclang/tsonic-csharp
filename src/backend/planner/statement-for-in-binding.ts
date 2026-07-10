@@ -1,7 +1,6 @@
 import {
   AsIdentifier,
   AsVariableDeclaration,
-  AsVariableDeclarationList,
   HasSourceKind,
   KindIdentifier,
   KindVariableDeclarationList,
@@ -69,8 +68,8 @@ export function planForInBinding(
     return undefined;
   }
   if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
-    const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
-    const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
+    const concreteDeclarations = input.ast.children(initializer)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
     const first = concreteDeclarations[0];
     if (first === undefined || concreteDeclarations.length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in variable declaration must contain exactly one binding."));
@@ -87,7 +86,7 @@ export function planForInBinding(
     }
     return {
       kind: "LocalDeclarationStatement",
-      name: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "For-in key binding"),
+      name: requireCsharpIdentifier(Node_Text(input.ast, variable.name), diagnostics, "For-in key binding"),
       node: first,
       currentType: variable.Type === undefined
         ? undefined
@@ -98,7 +97,7 @@ export function planForInBinding(
     const identifier = AsIdentifier(initializer)!;
     return {
       kind: "assignment",
-      name: requireCsharpIdentifier(Node_Text(identifier), diagnostics, "For-in assignment target"),
+      name: requireCsharpIdentifier(Node_Text(input.ast, identifier), diagnostics, "For-in assignment target"),
       node: initializer,
       currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
     };

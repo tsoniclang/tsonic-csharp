@@ -129,6 +129,73 @@ test("C# provider call selection uses provider signature identity when TSTS sign
   assert.equal(selected?.id, signatureId);
   assert.deepEqual(selected?.parameters[0]?.type, { kind: "target-named", id: "ErrorResponse" });
 });
+
+test("C# provider call selection prefers provider virtual signature identity over source-selected signature ids", () => {
+  const argument = {};
+  const signatureId = "Example.Target.write(Example.Response,System.String,Example.CancellationToken)";
+  const binding = {
+    target: "csharp",
+    id: "Example.Target",
+    kind: "class",
+    members: [{
+      id: signatureId,
+      providerSourceSignatureId: signatureId,
+      sourceName: "write",
+      targetName: "Write",
+      kind: "method",
+      static: true,
+      receiverPassing: "first-argument",
+      parameters: [
+        {
+          name: "response",
+          type: { kind: "target-named", id: "Example.Response" },
+          passingMode: "by-value",
+          csharpAcceptsCheckedSourceArgument: true,
+        },
+        {
+          name: "text",
+          type: csharpStringType(),
+          passingMode: "by-value",
+        },
+        {
+          name: "cancellationToken",
+          type: { kind: "target-named", id: "Example.CancellationToken" },
+          passingMode: "by-value",
+          optional: true,
+          csharpOmittableOptionalArgument: true,
+        },
+      ],
+      returnType: { kind: "target-named", id: "Example.Task" },
+      overloadGroup: "Example.Target.write",
+    }],
+  };
+  const declaration = {
+    moduleSpecifier: "@example/http.js",
+    exportName: "Target",
+    memberId: "Example.Target.write#static",
+    memberName: "write",
+    signatureId,
+  };
+  const selected = findTargetMemberForCall(
+    binding,
+    declaration,
+    {
+      target: "csharp",
+      call: {},
+      callee: {},
+      arguments: [argument, { kind: "target-named", id: "System.String", csharpSpecialType: "string" }],
+      sourceSelectedSignature: { signatureId: "source-profile:write(response,text)" },
+    },
+    fakeObservationContext({}),
+    (subject) => subject.kind === "target-named" ? subject : undefined,
+    {
+      firstArgumentReceiver: false,
+      declaringTargetType: { kind: "target-named", id: "Example.Target" },
+    },
+  );
+
+  assert.equal(selected?.id, signatureId);
+});
 test("target member selection does not prepend provider static container for explicit extension calls", () => {
   const staticContainer = {};
   const value = {};
@@ -179,6 +246,82 @@ test("target member selection does not prepend provider static container for exp
     member,
   );
 });
+
+test("C# provider maps explicit static-container extension calls without prepending receiver", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const staticContainer = { Kind: "KindIdentifier", Text: "ResponseWritingExtensions" };
+  const call = {};
+  const response = { kind: "target-named", id: "Example.Http.Response", csharpRender: { kind: "named", namespace: ["Example", "Http"], name: "Response" } };
+  const cancellationToken = { kind: "target-named", id: "Example.Threading.CancellationToken", csharpRender: { kind: "named", namespace: ["Example", "Threading"], name: "CancellationToken" } };
+  const task = { kind: "target-named", id: "Example.Threading.Task", csharpRender: { kind: "named", namespace: ["Example", "Threading"], name: "Task" } };
+  const body = csharpStringType();
+  const signatureId = "Example.Http.ResponseWritingExtensions.WriteAsync(Example.Http.Response,System.String,Example.CancellationToken)";
+  const recordedFacts = [];
+  const staticContainerDeclaration = virtualMember(
+    "Example.Http.ResponseWritingExtensions",
+    "ResponseWritingExtensions",
+    "Example.Http.ResponseWritingExtensions",
+  );
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: propertyAccessCallee(staticContainer, "WriteAsync"),
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [response, body],
+  }, fakeObservationContext({
+    targetBindingSubject: staticContainer,
+    targetBinding: {
+      id: "Example.Http.ResponseWritingExtensions",
+      sourceName: "ResponseWritingExtensions",
+      targetName: "Example.Http.ResponseWritingExtensions",
+      target: "csharp",
+      kind: "class",
+      members: [
+        {
+          id: signatureId,
+          sourceName: "WriteAsync",
+          targetName: "WriteAsync",
+          kind: "method",
+          static: true,
+          receiverPassing: "first-argument",
+          parameters: [
+            targetParameter("response", response),
+            targetParameter("text", body),
+            {
+              ...targetParameter("cancellationToken", cancellationToken),
+              optional: true,
+              csharpOmittableOptionalArgument: true,
+            },
+          ],
+          returnType: task,
+          overloadGroup: "Example.Http.ResponseWritingExtensions.WriteAsync",
+        },
+      ],
+    },
+    factsBySubject: new Map([
+      [staticContainer, new Map([[providerVirtualDeclarationFactKey, staticContainerDeclaration]])],
+    ]),
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Http.ResponseWritingExtensions.WriteAsync#static", "WriteAsync", "Example.Http.ResponseWritingExtensions"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? JSON.stringify(result.diagnostic, null, 2) : undefined);
+  assert.equal(result.value.selectedSignature.member.id, signatureId);
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.parameters.length, 3);
+  assert.equal(result.value.selectedSignature.argumentConversions.length, 2);
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, signatureId);
+  assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
+});
+
 test("C# provider maps extension receiver calls from selected provider signature identity", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -193,7 +336,6 @@ test("C# provider maps extension receiver calls from selected provider signature
     call,
     callee: propertyAccessCallee(receiver, "asSpan"),
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [start],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -236,6 +378,69 @@ test("C# provider maps extension receiver calls from selected provider signature
   assert.equal(operation?.operationId, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
 });
+test("C# provider maps projected extension receiver calls when receiver shares the projected binding", () => {
+  const selectedDeclaration = {};
+  const call = {};
+  const webApplicationType = { kind: "target-named", id: "Microsoft.AspNetCore.Builder.WebApplication", csharpRender: { kind: "named", namespace: ["Microsoft", "AspNetCore", "Builder"], name: "WebApplication" } };
+  const endpointRouteBuilderType = { kind: "target-named", id: "Microsoft.AspNetCore.Routing.IEndpointRouteBuilder", csharpRender: { kind: "named", namespace: ["Microsoft", "AspNetCore", "Routing"], name: "IEndpointRouteBuilder" } };
+  const delegateType = { kind: "target-named", id: "System.Delegate", csharpRender: { kind: "named", namespace: ["System"], name: "Delegate" } };
+  const provider = getNativeSemanticProvider({
+    assignableTypes: [[webApplicationType.id, [endpointRouteBuilderType]]],
+  });
+  const receiver = { Kind: "KindIdentifier", Text: "app", ...webApplicationType };
+  const pattern = { Kind: "KindStringLiteral", Text: "/todos", ...csharpStringType() };
+  const handler = { Kind: "KindIdentifier", Text: "handler", ...delegateType };
+  const signatureId = "Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,System.String,System.Delegate)";
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: propertyAccessCallee(receiver, "MapGet"),
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [pattern, handler],
+  }, fakeObservationContext({
+    targetBindingSubject: receiver,
+    targetBinding: {
+      id: "Microsoft.AspNetCore.Builder.WebApplication",
+      sourceName: "WebApplication",
+      targetName: "Microsoft.AspNetCore.Builder.WebApplication",
+      target: "csharp",
+      kind: "class",
+      members: [
+        {
+          id: signatureId,
+          sourceName: "MapGet",
+          targetName: "MapGet",
+          kind: "method",
+          static: true,
+          receiverPassing: "first-argument",
+          parameters: [
+            targetParameter("endpoints", endpointRouteBuilderType),
+            targetParameter("pattern", csharpStringType()),
+            targetParameter("handler", delegateType),
+          ],
+          returnType: { kind: "target-named", id: "Microsoft.AspNetCore.Builder.RouteHandlerBuilder", csharpRender: { kind: "named", namespace: ["Microsoft", "AspNetCore", "Builder"], name: "RouteHandlerBuilder" } },
+          overloadGroup: "Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet",
+        },
+      ],
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet#static", "MapGet", "Microsoft.AspNetCore.Builder.WebApplication"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? JSON.stringify(result.diagnostic, null, 2) : undefined);
+  assert.equal(result.value.selectedSignature.member.id, signatureId);
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, signatureId);
+  assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
+});
 test("C# provider maps LINQ ExtensionMethods receiver calls from selected signature identity", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -250,7 +455,6 @@ test("C# provider maps LINQ ExtensionMethods receiver calls from selected signat
     call,
     callee: propertyAccessCallee(receiver, "average"),
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -312,7 +516,6 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     call,
     callee: propertyAccessCallee(receiver, "overlaps"),
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [other, outCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -369,7 +572,6 @@ test("C# provider rejects receiver calls when static target metadata omits recei
     call: {},
     callee: propertyAccessCallee(receiver, "current"),
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,

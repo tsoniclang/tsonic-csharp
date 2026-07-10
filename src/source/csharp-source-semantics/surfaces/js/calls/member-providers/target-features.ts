@@ -98,8 +98,7 @@ const targetFeaturePredicates: Record<JsSurfaceTargetFeature, TargetFeaturePredi
       const requestContext = getCsharpCheckedCallRequestContext(request, context);
       return isCsharpJsRegExpRuntimeCarrier(receiverType) ||
         getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiver, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverSymbol, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverResolvedSymbol, context) !== undefined;
+        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverType, context) !== undefined;
     },
   },
   date: {

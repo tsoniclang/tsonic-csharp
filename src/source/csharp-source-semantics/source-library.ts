@@ -22,9 +22,9 @@ export interface SourceLibraryMember {
   readonly name: string;
 }
 
-export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Generator" | "AsyncGenerator" | "Iterator" | "AsyncIterator" | "Iterable" | "AsyncIterable" | "IterableIterator" | "AsyncIterableIterator" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
+export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Generator" | "AsyncGenerator" | "Iterator" | "AsyncIterator" | "Iterable" | "AsyncIterable" | "IterableIterator" | "AsyncIterableIterator" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet" | "Function" | "Proxy" | "Global";
 
-export type SourceLibraryTypeName = SourceLibraryDeclaringKey | "Record";
+export type SourceLibraryTypeName = Exclude<SourceLibraryDeclaringKey, "Global"> | "Record";
 
 export type SourceLibraryMemberKey = `${SourceLibraryDeclaringKey}.${string}`;
 export type SourceLibraryMemberKeyPrefix = `${SourceLibraryDeclaringKey}.`;
@@ -89,8 +89,11 @@ export function resolveSourceLibraryMemberIdentity(
   if (!isTsonicJsSurfaceSourceProfileFile(fileName)) {
     return undefined;
   }
-  const containerName = ast.text(ast.name(ast.parent(declaration)));
-  const declaringName = sourceLibraryDeclaringName(containerName);
+  const parent = ast.parent(declaration);
+  const containerName = ast.text(ast.name(parent));
+  const declaringName = ast.is.IsSourceFile(parent)
+    ? "Global"
+    : sourceLibraryDeclaringName(containerName);
   const memberName = ast.text(ast.name(declaration)) || sourceLibraryConstructorMemberName(containerName);
   return memberName === undefined || memberName === "" || declaringName === undefined
     ? undefined
@@ -131,7 +134,7 @@ function resolveSourceLibraryMemberIdentityFromDeclaration(
   return resolveSourceLibraryMemberIdentity(context.compiler?.ast.parent(declaration), context);
 }
 
-export function isBundledStandardLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
+export function isTsonicSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
   const compiler = context.compiler;
   const ast = compiler?.ast;
   const types = compiler?.typeShape;
@@ -166,7 +169,8 @@ export function getSourceLibraryDeclarationName(
   if (isSourceLibraryTypeName(name)) {
     return name;
   }
-  return sourceLibraryDeclaringName(name);
+  const declaringName = sourceLibraryDeclaringName(name);
+  return declaringName === "Global" ? undefined : declaringName;
 }
 
 export function getSelectedSourceLibraryDeclarationName(
@@ -175,7 +179,7 @@ export function getSelectedSourceLibraryDeclarationName(
   context: ExtensionObservationContext,
 ): SourceLibraryTypeName | undefined {
   const sourceMember = resolveSelectedSourceLibraryMemberIdentity(declarationSubject, symbolSubject, context);
-  if (sourceMember !== undefined) {
+  if (sourceMember !== undefined && sourceMember.declaringName !== "Global") {
     return sourceMember.declaringName;
   }
   const direct = getSourceLibraryDeclarationNameForDeclaration(declarationSubject, context);
@@ -264,6 +268,9 @@ const sourceLibraryDeclaringNames: ReadonlySet<SourceLibraryDeclaringKey> = new 
   "ReadonlyMap",
   "Set",
   "ReadonlySet",
+  "Function",
+  "Proxy",
+  "Global",
 ]);
 
 const sourceLibraryConstructorDeclaringNames: ReadonlySet<string> = new Set([
@@ -275,4 +282,6 @@ const sourceLibraryConstructorDeclaringNames: ReadonlySet<string> = new Set([
   "DateConstructor",
   "MapConstructor",
   "SetConstructor",
+  "FunctionConstructor",
+  "ProxyConstructor",
 ]);

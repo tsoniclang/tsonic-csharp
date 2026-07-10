@@ -83,7 +83,7 @@ export function planPropertyAccessExpression(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
-  const sourceName = Node_Text(expression.name!);
+  const sourceName = Node_Text(input.ast, expression.name!);
   const sourceModuleStaticMemberReference = tryPlanProjectSourceModuleStaticMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleStaticMemberReference !== undefined) {
     return sourceModuleStaticMemberReference;

@@ -371,6 +371,33 @@ test("nullish coalescing expected-type emission consumes finalized operator resu
   assert.deepEqual(diagnostics, []);
   assert.equal(printCsharpExpression(output), "maybeValue ?? fallbackValue");
 });
+test("nullish coalescing expected-type emission accepts fact-backed implicit source primitive conversion", () => {
+  const left = identifier("maybeLength");
+  const right = identifier("fallbackLength");
+  const expression = binary(left, right, "KindQuestionQuestionToken");
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const doubleType = csharpSourcePrimitiveTargetType("float64");
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.??",
+      operationKind: "operator",
+      targetOperation: "??",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.??",
+      operator: "??",
+      resultType: intType,
+    },
+  }), diagnostics, { kind: "PredefinedType", name: "double" }, undefined, undefined, doubleType);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "maybeLength ?? fallbackLength");
+});
 test("nullish coalescing expected-type emission fails closed without finalized result type", () => {
   const left = identifier("maybeValue");
   const right = identifier("fallbackValue");

@@ -194,6 +194,7 @@ export interface DotnetConversionOperatorDeclaration {
 export interface DotnetParameterDeclaration {
   readonly name: string;
   readonly type: DotnetTypeRef;
+  readonly sourceType?: DotnetTypeRef;
   readonly passingMode: ArgumentPassingMode;
   readonly optional?: boolean;
   readonly rest?: boolean;
@@ -284,6 +285,7 @@ export type DotnetTypeRef =
   | { readonly kind: "void" }
   | { readonly kind: "any" }
   | { readonly kind: "unknown" }
+  | { readonly kind: "undefined" }
   | { readonly kind: "object" }
   | { readonly kind: "string" }
   | { readonly kind: "literal"; readonly value: string | number | boolean | null }

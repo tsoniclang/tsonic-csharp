@@ -181,6 +181,7 @@ const nonSourceClosureMetadataKeys = new Set([
   "assembly",
   "attributes",
   "evidence",
+  "implementedContracts",
   "targetIdentity",
   "unsupportedAttributes",
   "unsupportedImplementedContracts",

@@ -65,6 +65,9 @@ export function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  if (request.sourceSelectedSymbol === undefined && request.sourceSelectedDeclaration === undefined) {
+    return rejectElementAccessNotMapped(extensionId);
+  }
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
@@ -75,9 +78,6 @@ export function mapCsharpCheckedElementAccess(
     requestContext.sourceSelectedDeclaration,
     requestContext.receiverTypeSymbol,
     requestContext.receiverType,
-    requestContext.receiverAliasedSymbol,
-    requestContext.receiverResolvedSymbol,
-    requestContext.receiverSymbol,
     request.receiver,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
@@ -116,7 +116,11 @@ export function mapCsharpCheckedElementAccess(
   if (member.kind !== "indexer") {
     return rejectNonIndexerSelectedForElementAccess(extensionId, member.id, targetBinding.id);
   }
-  const csharpMember = instantiateClosedSelectedTargetMember(member, host, declaringTargetType);
+  const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
+  const csharpMember = instantiateClosedSelectedTargetMember(member, host, {
+    ...(declaringTargetType === undefined ? {} : { declaringTargetType }),
+    ...(selectedResultType === undefined ? {} : { selectedResultType }),
+  });
   if (csharpMember === undefined) {
     return rejectTargetIndexerNotRenderable(extensionId, member.id);
   }

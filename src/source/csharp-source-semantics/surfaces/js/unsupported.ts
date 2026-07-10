@@ -40,7 +40,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryCall(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100130,
-    `C# JS surface hard-rejected selected TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}': ${unsupportedOperation?.reason ?? "no closed operation facts exist for the selected JS surface operation."}`,
+    `C# JS surface hard-rejected selected Tsonic JS source-profile call '${sourceLibraryMemberIdentity(sourceMember)}': ${unsupportedOperation?.reason ?? "no closed operation facts exist for the selected JS surface operation."}`,
     unsupportedSurfaceOperationEvidence(sourceMember, unsupportedOperation),
     nodeOrSpan,
   ));
@@ -55,7 +55,7 @@ export function rejectUnmappedCsharpJsSourceLibraryCall(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
-    `C# JS surface has no target mapping for checked TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    `C# JS surface has no target mapping for checked Tsonic JS source-profile call '${sourceLibraryMemberIdentity(sourceMember)}'.`,
     unsupportedSurfaceOperationEvidence(sourceMember, {
       reason: "The selected JS surface call did not produce a unique target operation from finalized provider/runtime facts.",
       requiredFacts: [
@@ -81,7 +81,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED",
     9100130,
-    `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    `C# JS surface has no closed operation facts for checked Tsonic JS source-profile property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
     unsupportedSurfaceOperationEvidence(sourceMember, undefined),
     nodeOrSpan,
   ));
@@ -96,7 +96,7 @@ export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
-    `C# JS surface has no target mapping for checked TypeScript standard-library property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    `C# JS surface has no target mapping for checked Tsonic JS source-profile property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
     unsupportedSurfaceOperationEvidence(sourceMember, {
       reason: "The selected JS surface property did not produce a closed target operation from finalized provider/runtime facts.",
       requiredFacts: [

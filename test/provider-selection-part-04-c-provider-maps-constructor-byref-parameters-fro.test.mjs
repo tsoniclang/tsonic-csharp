@@ -28,7 +28,6 @@ test("C# provider maps constructor byref parameters from source marker target ex
     call: { Kind: "KindNewExpression" },
     callee: {},
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [outCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -98,7 +97,6 @@ test("C# provider closes ref out and in parameter modes from selected provider m
     callee: {},
     calleePropertyName: "update",
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [refCall, outCall, inCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -202,7 +200,6 @@ test("C# provider does not refine exact selected constructor signatures from byr
     call,
     callee: {},
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [refCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -268,7 +265,6 @@ test("C# provider rejects argument-passing facts tied to another selected provid
     callee: {},
     calleePropertyName: "update",
     sourceSelectedSignature: selectedSignature,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [outCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -318,7 +314,6 @@ test("C# provider rejects constructor byref parameters without source marker fac
     call: { Kind: "KindNewExpression" },
     callee: {},
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -383,7 +378,6 @@ test("C# provider prefers selected generic signatures when target argument facts
     callee: {},
     calleePropertyName: "identity",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -466,7 +460,6 @@ test("C# provider keeps inferred generic method arguments after selected binding
     callee: propertyAccessCallee(receiver, "copy"),
     calleePropertyName: "copy",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     arguments: [markedType],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -548,7 +541,6 @@ test("C# provider keeps explicit generic method target arguments for selected pr
     callee: {},
     calleePropertyName: "Read",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     sourceSelectedMethodTypeArguments: [{
       typeParameterName: "T",
       selectedType: selectedDtoType,
@@ -641,7 +633,6 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
     callee: {},
     calleePropertyName: "Write",
     sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedContainerSymbol: containerSymbol,
     sourceSelectedMethodTypeArguments: [{
       typeParameterName: "T",
       selectedType: selectedDtoType,

@@ -30,7 +30,7 @@ export function planIdentifierName(
     return errorName;
   }
   if (HasSourceKind(input.ast, node, KindIdentifier)) {
-    return requireCsharpIdentifier(Node_Text(AsIdentifier(node)), diagnostics, description);
+    return requireCsharpIdentifier(Node_Text(input.ast, AsIdentifier(node)), diagnostics, description);
   }
   if (HasSourceKind(input.ast, node, KindPrivateIdentifier)) {
     const targetName = getFinalizedTargetName(node, input);

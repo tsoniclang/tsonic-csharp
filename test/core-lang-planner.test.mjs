@@ -326,7 +326,6 @@ function fakeInput(sourceFile, options = {}) {
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
-      getResolvedCallReturnType: () => undefined,
     },
     targetFacts: {
       getTargetBinding: () => undefined,

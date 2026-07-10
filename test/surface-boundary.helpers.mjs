@@ -229,6 +229,12 @@ export function fakeNamespaceImportContext(facts, sourceFile) {
         }),
         kindName: (node) => typeof node?.Kind === "string" ? node.Kind : "",
         as: {
+          AsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression" ? node : undefined,
+          AsElementAccessExpression: (node) => node?.Kind === "ElementAccessExpression" ? node : undefined,
+          AsCallExpression: (node) => node?.Kind === "CallExpression" ? node : undefined,
+          AsNewExpression: (node) => node?.Kind === "NewExpression" ? node : undefined,
+        },
+        as: {
           AsImportDeclaration: (node) => node?.Kind === "ImportDeclaration" ? node : undefined,
           AsImportClause: (node) => node?.Kind === "ImportClause" ? node : undefined,
           AsNamespaceImport: (node) => node?.Kind === "NamespaceImport" ? node : undefined,
@@ -317,6 +323,8 @@ export function fakeContext(facts) {
           IsPrivateIdentifier: (node) => node?.Kind === "PrivateIdentifier",
           IsQualifiedName: (node) => node?.Kind === "QualifiedName",
           IsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression",
+          IsCallExpression: (node) => node?.Kind === "CallExpression",
+          IsNewExpression: (node) => node?.Kind === "NewExpression" || node?.Kind === "KindNewExpression",
           IsVariableDeclaration: (node) => node?.Kind === "VariableDeclaration",
           IsParameterDeclaration: (node) => node?.Kind === "ParameterDeclaration",
           IsBindingElement: (node) => node?.Kind === "BindingElement",
@@ -331,6 +339,12 @@ export function fakeContext(facts) {
           IsImportTypeNode: (node) => node?.Kind === "ImportTypeNode",
         }),
         kindName: (node) => typeof node?.Kind === "string" ? node.Kind : "",
+        as: {
+          AsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression" ? node : undefined,
+          AsElementAccessExpression: (node) => node?.Kind === "ElementAccessExpression" ? node : undefined,
+          AsCallExpression: (node) => node?.Kind === "CallExpression" ? node : undefined,
+          AsNewExpression: (node) => node?.Kind === "NewExpression" ? node : undefined,
+        },
         getSourceFile: (node) => node?.SourceFile,
         getFileName: (sourceFile) => sourceFile?.FileName ?? "",
         parent: (node) => node?.Parent,
@@ -480,6 +494,8 @@ export function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
     sourceSelectedDeclaration,
     sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
+    ...(options.sourceCalleeDeclaration === undefined ? {} : { sourceCalleeDeclaration: options.sourceCalleeDeclaration }),
+    ...(options.sourceCalleeSymbol === undefined ? {} : { sourceCalleeSymbol: options.sourceCalleeSymbol }),
   };
 }
 

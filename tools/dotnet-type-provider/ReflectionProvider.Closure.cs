@@ -8,7 +8,7 @@ sealed partial class ReflectionProvider
 {
     readonly record struct SourceDependency(Type Type, bool IncludeMembers, bool ExpandMethodReturnTypes);
     readonly record struct SourceClosureType(Type Type, bool IncludeMembers);
-    readonly record struct PendingClosureType(Type Type, bool ExpandMethodReturnTypes);
+    readonly record struct PendingClosureType(Type Type, bool ExpandMethodReturnTypes, bool IncludeDependencyMembers);
 
     SourceClosureType[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
     {
@@ -17,16 +17,34 @@ sealed partial class ReflectionProvider
             return [];
         }
         var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
+        var sourceFamilyTypesByExportName = allTypes
+            .Select(type => new
+            {
+                Type = type,
+                Family = ProviderSourceTypeFamily(type),
+            })
+            .Where(entry => entry.Family is not null)
+            .GroupBy(entry => entry.Family!.Value.ExportName, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(entry => entry.Type)
+                    .OrderBy(TargetId, StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal);
         var exportedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTargetIds = new SortedSet<string>(StringComparer.Ordinal);
         var sourceVisibleTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        var pendingTypes = new Queue<PendingClosureType>(exportedTypes.Select(type => new PendingClosureType(type, false)));
+        var pendingTypes = new Queue<PendingClosureType>(exportedTypes.Select(type => new PendingClosureType(type, false, true)));
         var expandedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         while (pendingTypes.Count > 0)
         {
             var pending = pendingTypes.Dequeue();
-            foreach (var dependency in DirectSourceDependencies(pending.Type, pending.ExpandMethodReturnTypes))
+            foreach (var discoveredDependency in DirectSourceDependencies(pending.Type, pending.ExpandMethodReturnTypes))
             {
+                var dependency = pending.IncludeDependencyMembers
+                    ? discoveredDependency
+                    : discoveredDependency with { IncludeMembers = false, ExpandMethodReturnTypes = false };
                 var normalized = NormalizeClosureType(dependency.Type);
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
@@ -36,17 +54,32 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                var targetId = TargetId(normalized);
-                closureTargetIds.Add(targetId);
-                var shouldIncludeMembers = dependency.IncludeMembers || normalized.IsNested;
-                if (shouldIncludeMembers)
+                foreach (var closureType in SourceClosureFamilyTypes(normalized, sourceFamilyTypesByExportName, sourceExportableTargetIds))
                 {
-                    sourceVisibleTargetIds.Add(targetId);
-                }
-                var shouldExpand = (dependency.ExpandMethodReturnTypes || normalized.IsNested) && expandedTargetIds.Add(targetId);
-                if (shouldExpand)
-                {
-                    pendingTypes.Enqueue(new PendingClosureType(normalized, dependency.ExpandMethodReturnTypes || normalized.IsNested));
+                    var targetId = TargetId(closureType);
+                    if (exportedTargetIds.Contains(targetId) ||
+                        !sourceExportableTargetIds.Contains(targetId) ||
+                        !allTypesByTargetId.ContainsKey(targetId))
+                    {
+                        continue;
+                    }
+                    closureTargetIds.Add(targetId);
+                    var shouldIncludeMembers = dependency.IncludeMembers || closureType.IsNested;
+                    if (shouldIncludeMembers)
+                    {
+                        sourceVisibleTargetIds.Add(targetId);
+                    }
+                    var shouldExpand = (dependency.ExpandMethodReturnTypes || closureType.IsNested) && expandedTargetIds.Add(targetId);
+                    if (shouldExpand)
+                    {
+                        pendingTypes.Enqueue(new PendingClosureType(closureType, dependency.ExpandMethodReturnTypes || closureType.IsNested, true));
+                        continue;
+                    }
+                    var shouldCollectDirectDependencyRefs = dependency.IncludeMembers && expandedTargetIds.Add(targetId);
+                    if (shouldCollectDirectDependencyRefs)
+                    {
+                        pendingTypes.Enqueue(new PendingClosureType(closureType, false, false));
+                    }
                 }
             }
         }
@@ -72,6 +105,7 @@ sealed partial class ReflectionProvider
             kind = "type",
             typeKind = TypeKind(type),
             sourceName = ProviderSourceTypeName(type),
+            sourceTypeFamily = ProviderSourceTypeFamilyObject(type),
             namespaceName = activeNamespaceName,
             targetId = TargetId(type),
             metadataName = MetadataName(type),
@@ -147,7 +181,7 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(method.ReturnType))
             {
-                yield return new SourceDependency(dependency, expandMethodReturnTypes, expandMethodReturnTypes);
+                yield return new SourceDependency(dependency, true, expandMethodReturnTypes);
             }
             foreach (var parameter in method.GetParameters())
             {
@@ -235,5 +269,21 @@ sealed partial class ReflectionProvider
         return type.IsGenericType && !type.IsGenericTypeDefinition
             ? type.GetGenericTypeDefinition()
             : type;
+    }
+
+    Type[] SourceClosureFamilyTypes(
+        Type type,
+        IReadOnlyDictionary<string, Type[]> sourceFamilyTypesByExportName,
+        ISet<string> sourceExportableTargetIds)
+    {
+        var family = ProviderSourceTypeFamily(type);
+        if (family is null ||
+            !sourceFamilyTypesByExportName.TryGetValue(family.Value.ExportName, out var familyTypes))
+        {
+            return new[] { type };
+        }
+        return familyTypes
+            .Where(candidate => sourceExportableTargetIds.Contains(TargetId(candidate)))
+            .ToArray();
     }
 }

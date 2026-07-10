@@ -20,6 +20,7 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
     case "void":
     case "any":
     case "unknown":
+    case "undefined":
     case "object":
     case "string":
     case "boolean":
@@ -140,7 +141,7 @@ function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {
 function tryDotnetParameterToProviderParameter(
   parameter: Extract<DotnetTypeRef, { readonly kind: "function" }>["parameters"][number],
 ): ProviderParameterDeclaration | undefined {
-  const type = tryDotnetTypeRefToProviderType(parameter.type);
+  const type = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type);
   return type === undefined
     ? undefined
     : {

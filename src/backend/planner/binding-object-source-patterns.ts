@@ -92,7 +92,7 @@ function getDirectSourcePropertyName(
   }
   if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
     if (HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
-      const text = AsStringLiteral(propertyName)?.Text;
+      const text = Node_Text(input.ast, AsStringLiteral(propertyName));
       if (text !== undefined && tryCsharpIdentifier(text) === text) {
         return text;
       }
@@ -100,5 +100,5 @@ function getDirectSourcePropertyName(
     diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names."));
     return undefined;
   }
-  return requireCsharpIdentifier(Node_Text(propertyName), diagnostics, "Object destructuring source property");
+  return requireCsharpIdentifier(Node_Text(input.ast, propertyName), diagnostics, "Object destructuring source property");
 }

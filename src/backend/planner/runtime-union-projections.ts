@@ -140,7 +140,7 @@ function storageCarrierSubjects(
   const subjects: ExtensionFactSubject[] = [];
   const reference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile });
   pushSubject(subjects, reference?.declaration);
-  pushSubject(subjects, reference?.declaration === undefined ? undefined : Node_Name(reference.declaration));
+  pushSubject(subjects, reference?.declaration === undefined ? undefined : Node_Name(input.ast, reference.declaration));
   for (const symbol of [
     input.analysis.getSymbolAtLocation(node, { sourceFile }),
     input.analysis.getResolvedSymbol(node, { sourceFile }),
@@ -148,7 +148,7 @@ function storageCarrierSubjects(
     pushSubject(subjects, symbol);
     for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
       pushSubject(subjects, declaration);
-      pushSubject(subjects, Node_Name(declaration));
+      pushSubject(subjects, Node_Name(input.ast, declaration));
     }
   }
   return subjects;

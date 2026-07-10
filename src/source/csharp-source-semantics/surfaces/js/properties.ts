@@ -1,8 +1,6 @@
 import {
-  ExtensionObservationPoint,
   acceptObservation,
   runtimeCarrierFactKey,
-  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperationMappingResult,
@@ -26,10 +24,8 @@ import {
   targetOperationFromMember,
 } from "./source-library.js";
 import {
-  csharpTargetOperationFactKey,
-} from "../../../csharp-facts.js";
-import {
   csharpJsSourceLibraryMemberHasCallableProvider,
+  getCsharpJsSourceLibraryOperationRow,
 } from "./calls/member-providers/index.js";
 import {
   csharpJsSourceLibraryPropertyAllowsCallableValue,
@@ -47,13 +43,7 @@ import {
 } from "./unsupported.js";
 import {
   asNodeSubject,
-  getNodeField,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
 } from "../../ast-utils.js";
-import {
-  createCsharpLifecycleObservationContext,
-} from "../../runtime-carriers.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
@@ -68,109 +58,9 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
-  options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const sourceMember = resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context);
-  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host, options);
-}
-
-export function recordCsharpSourceLibraryPropertyFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedPropertyAccess);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordCsharpSourceLibraryPropertyFact(node, context, host);
-    });
-  }
-}
-
-function recordCsharpSourceLibraryPropertyFact(
-  node: Node,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = context.compiler;
-  if (compiler === undefined || !compiler.ast.is.IsPropertyAccessExpression(node)) {
-    return;
-  }
-  if (isCallCalleePropertyAccess(node, compiler.ast)) {
-    return;
-  }
-  const receiver = asNodeSubject(getNodeField(node, "Expression"));
-  const name = asNodeSubject(getNodeField(node, "name"));
-  if (receiver === undefined || name === undefined) {
-    return;
-  }
-  const propertyName = compiler.ast.text(name);
-  const selectedOperation = context.host.facts.get(node, targetOperationFactKey) ??
-    context.factResolver.resolve(node, targetOperationFactKey);
-  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
-    selectedOperation?.provenance?.sourceSelectedDeclaration,
-    selectedOperation?.provenance?.sourceSelectedSymbol,
-    context,
-  );
-  if (sourceMember === undefined) {
-    return;
-  }
-  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
-  if (
-    hasRecordedCsharpPropertyOperation(context, node) &&
-    hasRecordedGenericPropertyOperation(context, node) &&
-    !sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)
-  ) {
-    return;
-  }
-  const mapped = mapCsharpSourceLibraryPropertyOperation({
-    expression: node,
-    receiver,
-    propertyName,
-    ...(selectedOperation?.provenance?.sourceSelectedSymbol !== undefined ? { sourceSelectedSymbol: selectedOperation.provenance.sourceSelectedSymbol } : {}),
-    ...(selectedOperation?.provenance?.sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedOperation.provenance.sourceSelectedDeclaration } : {}),
-    target: host.targetId,
-  }, context, sourceMember, host, { phase: "finalization" });
-  if (mapped?.kind === "reject") {
-    context.diagnostics.append(mapped.diagnostic);
-    return;
-  }
-  if (mapped?.kind !== "accept") {
-    return;
-  }
-  if (
-    context.facts.get(node, targetOperationFactKey) === undefined &&
-    context.factResolver.resolve(node, targetOperationFactKey) === undefined
-  ) {
-    context.facts.set(
-      node,
-      targetOperationFactKey,
-      mapped.value.operation,
-      mapped.evidence ?? [{ message: "C# JS surface property operation selected from checked TypeScript library property before finalization." }],
-    );
-  }
-}
-
-function hasRecordedCsharpPropertyOperation(
-  context: ExtensionObservationContext,
-  node: Node,
-): boolean {
-  return context.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined;
-}
-
-function hasRecordedGenericPropertyOperation(
-  context: ExtensionObservationContext,
-  node: Node,
-): boolean {
-  return context.facts.get(node, targetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, targetOperationFactKey) !== undefined;
+  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 
 function isCallCalleePropertyAccess(
@@ -183,7 +73,7 @@ function isCallCalleePropertyAccess(
   const parent = ast.parent(node);
   return parent !== undefined &&
     ast.is.IsCallExpression(parent) &&
-    asNodeSubject(getNodeField(parent, "Expression")) === node;
+    ast.as.AsCallExpression(parent)?.Expression === node;
 }
 
 function mapCsharpSourceLibraryPropertyOperation(
@@ -191,7 +81,6 @@ function mapCsharpSourceLibraryPropertyOperation(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   sourceMember: SourceLibraryMember | undefined,
   host: CsharpJsSurfaceHost,
-  options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (sourceMember === undefined) {
     return undefined;
@@ -228,7 +117,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity) && options.phase !== "finalization") {
+  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)) {
     const deferredOperation = csharpJsSourceLibraryPropertyDeferredOperation(selectedIdentity);
     if (deferredOperation === undefined) {
       return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
@@ -330,6 +219,9 @@ function sourceLibrarySelectedDeclarationHasCallTarget(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
   if (csharpJsSourceLibraryPropertyAllowsCallableValue(jsSurfaceSelectedSourceIdentityForMember(sourceMember))) {
+    return true;
+  }
+  if (isCallCallee && getCsharpJsSourceLibraryOperationRow(sourceMember) !== undefined) {
     return true;
   }
   return (isCallCallee || sourceDeclarationIsCallable(sourceSelectedDeclaration, context)) &&

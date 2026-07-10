@@ -1,7 +1,6 @@
 import {
   acceptObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -9,7 +8,6 @@ import type {
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpJsSurfaceHost } from "../source-library.js";
@@ -26,18 +24,6 @@ import {
 import {
   getCsharpArrayLikeElementType,
 } from "../array-carriers.js";
-import {
-  asNodeSubject,
-  getNodeField,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
-} from "../../../ast-utils.js";
-import {
-  csharpTargetId,
-} from "../../../identity.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../../runtime-carriers.js";
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
@@ -93,93 +79,4 @@ export function mapCsharpJsArrayElementAccess(
   }, [{ message: receiverCarrier === undefined
     ? "C# JS surface array indexer selected from checked TypeScript array semantics; C# operation finalization still requires receiver carrier facts."
     : "C# JS surface array indexer selected from finalized array receiver carrier facts." }]);
-}
-
-export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (
-        !compiler.ast.is.IsElementAccessExpression(node) ||
-        context.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-        context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
-      ) {
-        return;
-      }
-      recordCsharpJsArrayElementAccessFact(node, context, host);
-    });
-  }
-}
-
-function recordCsharpJsArrayElementAccessFact(
-  node: Node,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const receiver = asNodeSubject(getNodeField(node, "Expression"));
-  const argument = asNodeSubject(getNodeField(node, "ArgumentExpression"));
-  const sourceFile = compiler.ast.getSourceFile(node);
-  if (receiver === undefined || argument === undefined || sourceFile === undefined) {
-    return;
-  }
-  const receiverCarrier = getFinalizedArrayElementReceiverCarrier(receiver, context, host);
-  const request = {
-    expression: node,
-    receiver,
-    argument,
-    target: csharpTargetId,
-  } satisfies CheckedElementAccessMappingRequest;
-  const mapped = mapCsharpJsArrayElementAccess(
-    request,
-    context as ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-    receiverCarrier,
-    receiverCarrier,
-    host,
-  );
-  if (mapped?.kind === "reject") {
-    context.diagnostics.append(mapped.diagnostic);
-    return;
-  }
-  if (mapped?.kind !== "accept") {
-    return;
-  }
-  const existingOperation = context.facts.get(node, targetOperationFactKey) ??
-    context.factResolver.resolve(node, targetOperationFactKey);
-  if (existingOperation !== undefined) {
-    return;
-  }
-  const csharpOperation = context.facts.get(node, csharpTargetOperationFactKey);
-  context.facts.set(node, targetOperationFactKey, csharpOperation?.kind === "member" && csharpOperation.operationKind === "indexer"
-    ? targetOperation(csharpOperation.operationId, "indexer", "System.Array.Item", {
-        ...(csharpOperation.resultType !== undefined ? { resultType: csharpOperation.resultType } : {}),
-      })
-    : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
-}
-
-function getFinalizedArrayElementReceiverCarrier(
-  receiver: Node,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): TargetTypeRef | undefined {
-  return host.unwrapNullableTargetType(
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
-      host.getTargetTypeRefForSubject(receiver, context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: false,
-      }),
-  );
 }

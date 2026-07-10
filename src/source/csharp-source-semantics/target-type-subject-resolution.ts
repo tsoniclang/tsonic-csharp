@@ -58,9 +58,6 @@ import {
   resolveTargetTypeRefFromSubjectFacts,
 } from "./target-type-subject-facts.js";
 import {
-  resolveSourceMemberTypeParameterFromReceiver,
-} from "./target-type-subject-resolution/source-member-type-parameters.js";
-import {
   typeSyntaxContainsSourcePrimitiveEvidence,
 } from "./source-primitive-evidence.js";
 
@@ -152,7 +149,6 @@ export function resolveTargetTypeRefForSubjectCore(
       context,
       options,
       host,
-      recursiveTargetTypeResolver,
       resolveTargetTypeRefForType,
     );
     if (checkedExpressionType !== undefined) {
@@ -232,34 +228,11 @@ export function resolveTargetTypeRefForSubjectCore(
     ast !== undefined &&
     checker !== undefined &&
     isTypeSyntaxNode(ast, node) &&
-    typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node) ?? options.sourceFile)
+    typeSyntaxContainsSourcePrimitiveEvidence(node, context)
   ) {
     return undefined;
   }
-  const substitutedSemanticResult = semanticResult?.kind === "type-parameter" &&
-    node !== undefined &&
-    ast !== undefined &&
-    checker !== undefined &&
-    options.allowSemanticTypeQuery !== false &&
-    isSemanticTypeQueryableValueExpressionNode(ast, node)
-    ? resolveSourceMemberTypeParameterFromReceiver(
-        semanticResult,
-        node,
-        context,
-        options,
-        host,
-        (substitutionSubject, substitutionContext, substitutionOptions, substitutionHost) =>
-          resolveTargetTypeRefForSubjectCore(
-            substitutionSubject,
-            substitutionContext,
-            substitutionOptions,
-            substitutionHost,
-            recursiveTargetTypeResolver,
-            resolveTargetTypeRefForType,
-          ),
-      )
-    : undefined;
-  return substitutedSemanticResult ?? semanticResult;
+  return semanticResult;
 }
 
 function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(
@@ -270,7 +243,6 @@ function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
-  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
   resolveTargetTypeRefForType: CsharpTargetTypeResolver,
 ): TargetTypeRef | undefined {
   if (
@@ -282,25 +254,6 @@ function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(
     !isSemanticTypeQueryableValueExpressionNode(ast, node)
   ) {
     return undefined;
-  }
-  const sourceMemberSubstitution = resolveSourceMemberTypeParameterFromReceiver(
-    preferredFact,
-    node,
-    context,
-    options,
-    host,
-    (subject, subjectContext, subjectOptions, subjectHost) =>
-      resolveTargetTypeRefForSubjectCore(
-        subject,
-        subjectContext,
-        subjectOptions,
-        subjectHost,
-        recursiveTargetTypeResolver,
-        resolveTargetTypeRefForType,
-      ),
-  );
-  if (sourceMemberSubstitution !== undefined) {
-    return sourceMemberSubstitution;
   }
   const sourceFile = ast.getSourceFile(node);
   const checkedType = asType(checker.getTypeAtLocation(node, { sourceFile }));

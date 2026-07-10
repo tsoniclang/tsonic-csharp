@@ -113,10 +113,14 @@ export function targetTypeMatchScore(
   if (expected.kind === "target-named" && actual.kind === "target-named") {
     const actualKey = targetTypeRefKey(actual);
     if (!seenActualTypes.has(actualKey)) {
-      const baseType = options.getBaseTargetTypeRef?.(actual);
-      if (baseType !== undefined) {
-        const baseScore = targetTypeMatchScore(expected, baseType, typeParameterBindings, options, new Set([...seenActualTypes, actualKey]));
-        return baseScore === undefined ? undefined : baseScore + 2;
+      const nextSeen = new Set([...seenActualTypes, actualKey]);
+      const assignableTypes = options.getAssignableTargetTypeRefs?.(actual) ??
+        (options.getBaseTargetTypeRef?.(actual) === undefined ? [] : [options.getBaseTargetTypeRef(actual)!]);
+      const assignableScores = assignableTypes
+        .map((assignableType) => targetTypeMatchScore(expected, assignableType, typeParameterBindings, options, nextSeen))
+        .filter((score): score is number => score !== undefined);
+      if (assignableScores.length > 0) {
+        return Math.min(...assignableScores) + 2;
       }
     }
   }

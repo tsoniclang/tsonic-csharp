@@ -139,6 +139,9 @@ export function assertRawSignatureInvariant(signature, path) {
   for (const [index, parameter] of signature.parameters.entries()) {
     assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${path}.parameters[${index}].passingMode`);
     walkDotnetTypeRef(parameter.type, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].type.${typePath}`));
+    if (parameter.sourceType !== undefined) {
+      walkDotnetTypeRef(parameter.sourceType, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].sourceType.${typePath}`));
+    }
     if (parameter.rest === true) {
       assert.equal(index, signature.parameters.length - 1, `${path}.parameters[${index}].rest`);
       assert.equal(parameter.passingMode, "by-value", `${path}.parameters[${index}].rest.passingMode`);
@@ -259,6 +262,9 @@ export function walkDotnetTypeDeclarationRefs(declaration, visit) {
     for (const signature of member.signatures ?? []) {
       for (const parameter of signature.parameters) {
         walkDotnetTypeRef(parameter.type, visit);
+        if (parameter.sourceType !== undefined) {
+          walkDotnetTypeRef(parameter.sourceType, visit);
+        }
       }
       if (signature.returnType !== undefined) {
         walkDotnetTypeRef(signature.returnType, visit);
@@ -305,6 +311,9 @@ export function walkDotnetTypeRef(type, visit, path = "$") {
     case "function":
       for (const [index, parameter] of type.parameters.entries()) {
         walkDotnetTypeRef(parameter.type, visit, `${path}.parameters[${index}].type`);
+        if (parameter.sourceType !== undefined) {
+          walkDotnetTypeRef(parameter.sourceType, visit, `${path}.parameters[${index}].sourceType`);
+        }
       }
       walkDotnetTypeRef(type.returnType, visit, `${path}.returnType`);
       return;

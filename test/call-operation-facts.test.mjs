@@ -1,4 +1,4 @@
-import { test, assert, csharpTargetOperationFactKey, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature, selectedMember, closedIdentityMember, csharpStringType, extensionMember, callableInvokeMember, callableByrefInvokeMember, fakeInput, fakeArgumentInput, fakeSelectedInput, identifier, identifierExpressionPlanner, expectedIdentifierExpressionPlanner, expectedTypeKindExpressionPlanner, sourceFile, sourceFileWithText, sourceLocatedIdentifier } from "./call-operation-facts.helpers.mjs";
+import { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature, selectedMember, closedIdentityMember, csharpStringType, extensionMember, callableInvokeMember, callableByrefInvokeMember, fakeInput, fakeArgumentInput, fakeSelectedInput, identifier, identifierExpressionPlanner, expectedIdentifierExpressionPlanner, expectedTypeKindExpressionPlanner, sourceFile, sourceFileWithText, sourceLocatedIdentifier } from "./call-operation-facts.helpers.mjs";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -249,6 +249,50 @@ test("call emission accepts finalized callable Invoke facts with default and par
   assert.deepEqual(diagnostics, []);
   assert.equal(operation?.selectedMember?.parameters[1]?.defaultValue.value, "proved");
   assert.equal(operation?.selectedMember?.parameters[2]?.paramsArray, true);
+});
+test("selected params-array arguments receive the element target type as contextual type", () => {
+  const actionType = csharpDelegateTargetType("System.Action", []);
+  const member = {
+    id: "System.Threading.Tasks.Parallel.Invoke(System.Action[])",
+    sourceName: "Invoke",
+    targetName: "Invoke",
+    kind: "method",
+    parameters: [{
+      name: "actions",
+      type: { kind: "array", element: actionType },
+      passingMode: "by-value",
+      paramsArray: true,
+    }],
+    returnType: { kind: "void" },
+    static: true,
+  };
+  const first = identifier("first");
+  const second = identifier("second");
+  const observedExpectedTargets = [];
+  const diagnostics = [];
+  const planned = planSelectedTargetCallArguments(
+    undefined,
+    { Arguments: { Nodes: [first, second] } },
+    member,
+    undefined,
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    (node, _sourceFile, _input, _diagnostics, _expectedType, _expectedTypeSubject, expectedTargetType) => {
+      observedExpectedTargets.push(expectedTargetType);
+      return {
+        kind: "Argument",
+        expression: { kind: "IdentifierName", name: node.Text },
+      };
+    },
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(observedExpectedTargets, [actionType, actionType]);
+  assert.deepEqual(planned, [
+    { kind: "Argument", expression: { kind: "IdentifierName", name: "first" } },
+    { kind: "Argument", expression: { kind: "IdentifierName", name: "second" } },
+  ]);
 });
 test("call emission accepts finalized callable Invoke facts with byref parameter modes", () => {
   const call = { Kind: 1 };
@@ -567,6 +611,97 @@ test("call argument emission permits array render carriers for selected collecti
     kind: "Argument",
     expression: { kind: "IdentifierName", name: "items_as_ArrayType" },
   });
+});
+test("call argument emission wraps source-owned callable references for selected delegate conversions", () => {
+  const argument = identifier("handleIndex");
+  const httpContext = { kind: "target-named", id: "Microsoft.AspNetCore.Http.HttpContext" };
+  const task = { kind: "target-named", id: "System.Threading.Tasks.Task" };
+  const sourceDelegate = csharpDelegateTargetType("System.Func", [httpContext], task);
+  const targetDelegate = {
+    kind: "target-named",
+    id: "Microsoft.AspNetCore.Http.RequestDelegate",
+    csharpDelegateSignature: {
+      parameters: [httpContext],
+      returnType: task,
+    },
+  };
+  const declaration = { Kind: "KindVariableDeclaration", Initializer: { Kind: "KindArrowFunction" } };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: targetDelegate,
+      },
+      runtimeCarriers: new Map([[argument, sourceDelegate]]),
+      sourceReferences: new Map([[argument, {
+        sourceFile,
+        declaration,
+        symbol: { Name: "handleIndex" },
+      }]]),
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "IdentifierName", name: "RequestDelegate" },
+    undefined,
+    targetDelegate,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: {
+      kind: "LambdaExpression",
+      parameters: [{ kind: "Parameter", name: "__tsonic_arg0" }],
+      body: {
+        kind: "InvocationExpression",
+        callee: { kind: "IdentifierName", name: "handleIndex" },
+        arguments: [{
+          kind: "Argument",
+          expression: { kind: "IdentifierName", name: "__tsonic_arg0" },
+        }],
+      },
+    },
+  });
+});
+test("call argument emission rejects delegate conversions for non-source-owned callable references", () => {
+  const argument = identifier("externalHandler");
+  const httpContext = { kind: "target-named", id: "Microsoft.AspNetCore.Http.HttpContext" };
+  const task = { kind: "target-named", id: "System.Threading.Tasks.Task" };
+  const sourceDelegate = csharpDelegateTargetType("System.Func", [httpContext], task);
+  const targetDelegate = {
+    kind: "target-named",
+    id: "Microsoft.AspNetCore.Http.RequestDelegate",
+    csharpDelegateSignature: {
+      parameters: [httpContext],
+      returnType: task,
+    },
+  };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: targetDelegate,
+      },
+      runtimeCarriers: new Map([[argument, sourceDelegate]]),
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "IdentifierName", name: "RequestDelegate" },
+    undefined,
+    targetDelegate,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /source-owned callable reference/);
 });
 test("call argument emission rejects unsupported finalized argument-passing modes", () => {
   const argument = identifier("borrow");

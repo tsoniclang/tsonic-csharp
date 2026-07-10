@@ -13,26 +13,32 @@ export function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
   signatureId: string = signature.id,
-  options: { readonly sourceParameterOffset?: number } = {},
+  options: {
+    readonly sourceParameterOffset?: number;
+    readonly parentTypeParameterNames?: readonly string[];
+  } = {},
 ): ProviderSignatureDeclaration | undefined {
   const parameters = signature.parameters.slice(options.sourceParameterOffset ?? 0).map(dotnetParameterToProviderParameter);
   const returnType = signature.returnType === undefined ? undefined : tryDotnetTypeRefToProviderType(signature.returnType);
   if (parameters.some((parameter) => parameter === undefined) || (signature.returnType !== undefined && returnType === undefined)) {
     return undefined;
   }
-  return {
+  return normalizeProviderSignatureTypeParameterScope({
     id: signatureId,
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
     parameters: parameters as ProviderParameterDeclaration[],
     ...(returnType !== undefined ? { returnType } : {}),
     ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
-  };
+  }, options.parentTypeParameterNames ?? []);
 }
 
 export function dotnetProviderSignatureIdsForMember(
   member: DotnetMemberDeclaration,
   memberTargetName?: string,
-  options: { readonly sourceParameterOffset?: number } = {},
+  options: {
+    readonly sourceParameterOffset?: number;
+    readonly parentTypeParameterNames?: readonly string[];
+  } = {},
 ): ReadonlyMap<string, string> {
   const shapeEntries = (member.signatures ?? [])
     .map((signature) => {
@@ -55,7 +61,10 @@ export function dotnetProviderSignatureIdsForMember(
 export function dotnetProviderSignatureShapeKey(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
-  options: { readonly sourceParameterOffset?: number } = {},
+  options: {
+    readonly sourceParameterOffset?: number;
+    readonly parentTypeParameterNames?: readonly string[];
+  } = {},
 ): string | undefined {
   const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName, signature.id, options);
   return providerSignature === undefined ? undefined : providerSignatureShapeKey(providerSignature);
@@ -67,6 +76,120 @@ export function mergeProviderSignatures(signatures: readonly ProviderSignatureDe
     byId.set(providerSignatureShapeKey(signature), signature);
   }
   return sortProviderSignaturesBySourceSpecificity([...byId.values()]);
+}
+
+export function normalizeProviderSignatureTypeParameterScope(
+  signature: ProviderSignatureDeclaration,
+  parentTypeParameterNames: readonly string[],
+): ProviderSignatureDeclaration {
+  if (parentTypeParameterNames.length === 0 || signature.typeParameters === undefined || signature.typeParameters.length === 0) {
+    return signature;
+  }
+  const usedNames = new Set(parentTypeParameterNames);
+  const renames = new Map<string, string>();
+  const typeParameters = signature.typeParameters.map((parameter) => {
+    const scopedName = usedNames.has(parameter.name)
+      ? uniqueProviderTypeParameterName(parameter.name, usedNames)
+      : parameter.name;
+    usedNames.add(scopedName);
+    if (scopedName !== parameter.name) {
+      renames.set(parameter.name, scopedName);
+    }
+    return scopedName === parameter.name
+      ? parameter
+      : {
+          ...parameter,
+          name: scopedName,
+        };
+  });
+  if (renames.size === 0) {
+    return signature;
+  }
+  return {
+    ...signature,
+    typeParameters: typeParameters.map((parameter) => renameProviderTypeParameter(parameter, renames)),
+    parameters: signature.parameters.map((parameter) => renameProviderParameterTypeParameters(parameter, renames)),
+    ...(signature.returnType === undefined ? {} : { returnType: renameProviderTypeExpressionTypeParameters(signature.returnType, renames) }),
+  };
+}
+
+function uniqueProviderTypeParameterName(baseName: string, usedNames: Set<string>): string {
+  let candidate = `${baseName}Method`;
+  if (!usedNames.has(candidate)) {
+    return candidate;
+  }
+  for (let index = 2; ; index++) {
+    candidate = `${baseName}Method${index}`;
+    if (!usedNames.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+function renameProviderTypeParameter(
+  parameter: NonNullable<ProviderSignatureDeclaration["typeParameters"]>[number],
+  renames: ReadonlyMap<string, string>,
+): NonNullable<ProviderSignatureDeclaration["typeParameters"]>[number] {
+  return {
+    ...parameter,
+    ...(parameter.constraints === undefined ? {} : { constraints: parameter.constraints.map((constraint) => renameProviderTypeExpressionTypeParameters(constraint, renames)) }),
+    ...(parameter.defaultType === undefined ? {} : { defaultType: renameProviderTypeExpressionTypeParameters(parameter.defaultType, renames) }),
+  };
+}
+
+function renameProviderParameterTypeParameters(
+  parameter: ProviderParameterDeclaration,
+  renames: ReadonlyMap<string, string>,
+): ProviderParameterDeclaration {
+  return {
+    ...parameter,
+    type: renameProviderTypeExpressionTypeParameters(parameter.type, renames),
+  };
+}
+
+function renameProviderTypeExpressionTypeParameters(
+  type: import("@tsonic/tsts").ProviderTypeExpression,
+  renames: ReadonlyMap<string, string>,
+): import("@tsonic/tsts").ProviderTypeExpression {
+  switch (type.kind) {
+    case "type-parameter":
+      return renames.has(type.name) ? { ...type, name: renames.get(type.name)! } : type;
+    case "provider-ref":
+      return type.typeArguments === undefined
+        ? type
+        : { ...type, typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) };
+    case "target-named":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) }),
+        ...(type.sourceShape === undefined ? {} : { sourceShape: renameProviderTypeExpressionTypeParameters(type.sourceShape, renames) }),
+      };
+    case "array":
+      return { ...type, elementType: renameProviderTypeExpressionTypeParameters(type.elementType, renames) };
+    case "tuple":
+      return { ...type, elementTypes: type.elementTypes.map((elementType) => renameProviderTypeExpressionTypeParameters(elementType, renames)) };
+    case "union":
+    case "intersection":
+      return { ...type, types: type.types.map((nestedType) => renameProviderTypeExpressionTypeParameters(nestedType, renames)) };
+    case "function": {
+      const nestedRenames = new Map(renames);
+      for (const parameter of type.typeParameters ?? []) {
+        nestedRenames.delete(parameter.name);
+      }
+      return {
+        ...type,
+        parameters: type.parameters.map((parameter) => renameProviderParameterTypeParameters(parameter, nestedRenames)),
+        returnType: renameProviderTypeExpressionTypeParameters(type.returnType, nestedRenames),
+      };
+    }
+    case "opaque":
+      return type.sourceShape === undefined
+        ? type
+        : { ...type, sourceShape: renameProviderTypeExpressionTypeParameters(type.sourceShape, renames) };
+    case "undefined":
+    default:
+      return type;
+  }
 }
 
 function sortProviderSignaturesBySourceSpecificity(
@@ -111,6 +234,7 @@ function providerTypeExpressionSourceShapeKey(type: import("@tsonic/tsts").Provi
     case "number":
     case "bigint":
     case "object":
+    case "undefined":
       return { kind: type.kind };
     case "literal":
       return { kind: "literal", value: type.value };
@@ -168,6 +292,7 @@ function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts
     case "object":
     case "void":
     case "never":
+    case "undefined":
       return 0;
     case "any":
     case "unknown":
@@ -181,7 +306,7 @@ function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts
     case "function":
       return 1 +
         sumProviderTypeExpressionScores(type.parameters.map((parameter) => parameter.type)) +
-        providerTypeExpressionSourceSpecificityScore(type.returnType);
+        providerFunctionReturnSourceSpecificityScore(type.returnType);
     case "union":
     case "intersection":
       return 2 + sumProviderTypeExpressionScores(type.types);
@@ -189,12 +314,25 @@ function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts
     case "opaque":
       return 4 + (type.sourceShape === undefined ? 12 : providerTypeExpressionSourceSpecificityScore(type.sourceShape));
     case "provider-ref":
-      return 8 + sumProviderTypeExpressionScores(type.typeArguments ?? []);
+      return providerRefSourceSpecificityScore(type);
   }
+}
+
+function providerFunctionReturnSourceSpecificityScore(type: import("@tsonic/tsts").ProviderTypeExpression): number {
+  return type.kind === "void"
+    ? 16
+    : providerTypeExpressionSourceSpecificityScore(type);
 }
 
 function sumProviderTypeExpressionScores(types: readonly import("@tsonic/tsts").ProviderTypeExpression[]): number {
   return types.reduce((score, type) => score + providerTypeExpressionSourceSpecificityScore(type), 0);
+}
+
+function providerRefSourceSpecificityScore(type: Extract<import("@tsonic/tsts").ProviderTypeExpression, { readonly kind: "provider-ref" }>): number {
+  const typeArguments = type.typeArguments ?? [];
+  return 8 +
+    sumProviderTypeExpressionScores(typeArguments) -
+    (typeArguments.length * 4);
 }
 
 function sourcePrimitiveSourceRuntimeKind(name: string): "boolean" | "string" | "number" {
