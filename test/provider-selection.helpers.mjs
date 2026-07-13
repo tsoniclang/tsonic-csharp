@@ -528,6 +528,7 @@ export function fakeObservationContext(options) {
           IsBindingElement: () => false,
           IsFunctionDeclaration: () => false,
           IsCallExpression: (node) => node?.Kind === "KindCallExpression",
+          IsNewExpression: (node) => node?.Kind === "KindNewExpression",
           IsClassDeclaration: () => false,
           IsMethodDeclaration: () => false,
           IsPropertyDeclaration: () => false,

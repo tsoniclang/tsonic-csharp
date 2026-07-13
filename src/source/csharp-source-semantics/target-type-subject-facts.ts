@@ -49,6 +49,19 @@ export function resolveTargetTypeRefFromSubjectFacts(
   options: TargetTypeRefResolutionOptions,
   resolveSubject: SubjectTargetTypeResolver,
 ): TargetTypeRef | undefined {
+  const direct = resolveDirectTargetTypeRefFromSubjectFacts(subject, context, options, resolveSubject);
+  if (direct !== undefined) {
+    return direct;
+  }
+  return resolveDeclarationInitializerTargetType(subject, context, options, resolveSubject);
+}
+
+export function resolveDirectTargetTypeRefFromSubjectFacts(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  resolveSubject: SubjectTargetTypeResolver,
+): TargetTypeRef | undefined {
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
   if (primitive !== undefined) {
     return csharpSourcePrimitiveTargetType(primitive.kind);
@@ -66,10 +79,6 @@ export function resolveTargetTypeRefFromSubjectFacts(
   const operationResult = targetOperationResultType(subject, context);
   if (operationResult !== undefined && operationResult !== subject) {
     return resolveSubject(operationResult, context, options);
-  }
-  const initializerResult = resolveDeclarationInitializerTargetType(subject, context, options, resolveSubject);
-  if (initializerResult !== undefined) {
-    return initializerResult;
   }
   if (options.allowRuntimeCarrier !== false) {
     const direct = resolveRuntimeCarrier(subject, context) ??

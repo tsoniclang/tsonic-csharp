@@ -185,9 +185,9 @@ test("source-semantics records generic and C# operation facts for optional sourc
   const operation = extensionHost.facts.get(elementAccess, targetOperationFactKey);
   const csharpOperation = extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey);
 
-  assert.equal(operation.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
+  assert.equal(operation.operationId, "tsonic.csharp.source-profile.Array.indexer");
   assert.equal(operation.operationKind, "indexer");
-  assert.equal(operation.targetOperation, "System.Array.Item");
+  assert.equal(operation.targetOperation, "Item");
   assert.deepEqual(operation.resultType, { kind: "source-primitive", name: "float64" });
   assert.equal(csharpOperation.operationId, operation.operationId);
   assert.equal(csharpOperation.operationKind, "indexer");

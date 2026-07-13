@@ -250,8 +250,11 @@ test("target member selection does not prepend provider static container for exp
 test("C# provider maps explicit static-container extension calls without prepending receiver", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
+  const selectedSignature = {};
   const staticContainer = { Kind: "KindIdentifier", Text: "ResponseWritingExtensions" };
   const call = {};
+  const responseArgument = {};
+  const bodyArgument = {};
   const response = { kind: "target-named", id: "Example.Http.Response", csharpRender: { kind: "named", namespace: ["Example", "Http"], name: "Response" } };
   const cancellationToken = { kind: "target-named", id: "Example.Threading.CancellationToken", csharpRender: { kind: "named", namespace: ["Example", "Threading"], name: "CancellationToken" } };
   const task = { kind: "target-named", id: "Example.Threading.Task", csharpRender: { kind: "named", namespace: ["Example", "Threading"], name: "Task" } };
@@ -269,7 +272,8 @@ test("C# provider maps explicit static-container extension calls without prepend
     call,
     callee: propertyAccessCallee(staticContainer, "WriteAsync"),
     sourceSelectedDeclaration: selectedDeclaration,
-    arguments: [response, body],
+    sourceSelectedSignature: selectedSignature,
+    arguments: [responseArgument, bodyArgument],
   }, fakeObservationContext({
     targetBindingSubject: staticContainer,
     targetBinding: {
@@ -306,8 +310,19 @@ test("C# provider maps explicit static-container extension calls without prepend
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: {
       ...virtualMember("Example.Http.ResponseWritingExtensions.WriteAsync#static", "WriteAsync", "Example.Http.ResponseWritingExtensions"),
+      memberStatic: true,
       signatureId,
     },
+    virtualSignatureSubject: selectedSignature,
+    virtualSignatureDeclaration: {
+      ...virtualMember("Example.Http.ResponseWritingExtensions.WriteAsync#static", "WriteAsync", "Example.Http.ResponseWritingExtensions"),
+      memberStatic: true,
+      signatureId,
+    },
+    targetTypesBySubject: new Map([
+      [responseArgument, response],
+      [bodyArgument, body],
+    ]),
     recordedFacts,
   }));
 

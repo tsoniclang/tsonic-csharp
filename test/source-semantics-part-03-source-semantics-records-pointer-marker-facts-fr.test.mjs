@@ -172,7 +172,10 @@ test("source-semantics rejects any assertion conversions without explicit target
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
   const diagnostics = session.ensureChecked(sourceFile);
-  assert.equal(formatDiagnostics(diagnostics), "");
+  assert.equal(
+    formatDiagnostics(diagnostics),
+    "/src/index.ts(5,14): error TS9100122: [TSEXT9100122] C# assertion conversion cannot cross a TypeScript any boundary without finalized target conversion facts.\n",
+  );
 
   const extensionHost = session.finalizeExtensions();
   const assertion = collectNodesByKind(sourceFile, session.ast, "KindAsExpression")[0];

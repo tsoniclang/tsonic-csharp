@@ -40,6 +40,7 @@ export const selectedEvidenceRiskRules = Object.freeze([
   { id: "opaque-selected-signature-field-probe", pattern: /\bsourceSelectedSignature\s+as\b/g },
   { id: "lifecycle-source-walk", pattern: /visitAstReaderNodes\s*\(/g },
   { id: "checker-forcing-operation-lifecycle", pattern: /\b(?:recordCsharpCheckedOperationFactsBeforeFinalization|recordCsharpCheckedOperatorFactsBeforeFinalization|recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization)\b/g },
+  { id: "operation-result-extension-subject", pattern: /\bresultType\??[^\n;]*\bExtensionFactSubject\b/g },
 ]);
 
 export const selectedEvidenceFileClassifications = Object.freeze(new Map([
@@ -56,7 +57,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/backend/planner/expression-expected-types.ts",
       "src/backend/planner/expression-operators/operands.ts",
       "src/backend/planner/expression-source-references.ts",
-      "src/backend/planner/expression-target-members/element-access.ts",
       "src/backend/planner/expression-target-members/source-owned-call.ts",
       "src/backend/planner/locals.ts",
       "src/backend/planner/names.ts",
@@ -98,7 +98,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/target-member-arguments/selection.ts",
       "src/source/csharp-source-semantics/target-name-facts.ts",
       "src/source/csharp-source-semantics/target-type-resolution-facts.ts",
-      "src/source/csharp-source-semantics/tuple-element-index.ts",
     ],
     {
       symbol: "selected/finalized target fact helpers",
@@ -135,8 +134,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
     [
       "src/source/csharp-source-semantics/checked-call-mapping/index.ts",
       "src/source/csharp-source-semantics/checked-call-request-context.ts",
-      "src/source/csharp-source-semantics/checked-member-access-mapping/element-indexer-facts.ts",
-      "src/source/csharp-source-semantics/checked-member-access-request-context.ts",
       "src/source/csharp-source-semantics/checked-native-mapping.ts",
       "src/source/csharp-source-semantics/checked-operator-mapping/operands.ts",
       "src/source/csharp-source-semantics/checked-operator-mapping/operator-rules.ts",
@@ -262,7 +259,6 @@ const rawAstReaderContractGapFiles = Object.freeze([
   "src/source/csharp-source-semantics/target-type-subject-facts.ts",
   "src/source/csharp-source-semantics/target-type-syntax-resolution.ts",
   "src/source/csharp-source-semantics/target-type-union-syntax.ts",
-  "src/source/csharp-source-semantics/tuple-element-index.ts",
 ]);
 
 const rawCompilerNodeKindGapFiles = Object.freeze([

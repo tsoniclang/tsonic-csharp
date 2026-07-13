@@ -33,9 +33,6 @@ import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
 import {
-  asTargetTypeRef,
-} from "../../source/fact-subjects.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 
@@ -92,7 +89,7 @@ function getClosedInitializerInferredType(
   ) {
     return undefined;
   }
-  const resultType = asTargetTypeRef(csharpOperation?.resultType ?? targetOperation?.resultType);
+  const resultType = csharpOperation?.resultType ?? targetOperation?.resultType;
   return (resultType === undefined ? undefined : csharpTypeFromTargetTypeRef(resultType)) ??
     { kind: "IdentifierName", name: "var" };
 }

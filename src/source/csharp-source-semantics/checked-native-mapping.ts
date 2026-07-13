@@ -3,9 +3,13 @@ import {
   contextualTargetTypeFactKey,
   deferObservation,
   rejectObservation,
+  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
+import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
 import type {
   CheckedConversionMappingRequest,
   CheckedConversionMappingResult,
@@ -30,12 +34,21 @@ import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
 import {
+  csharpTargetCastOperation,
+  targetOperation,
+} from "./operations.js";
+import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
   getCsharpCollectionElementTargetType,
   getCsharpDelegateSignature,
+  isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
+import {
+  getCompatAnyTypedBoundaryConversion,
+  getCompatAnyTypedBoundaryEvidence,
+} from "./compat-any-typed-boundary-conversions.js";
 import {
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
@@ -43,6 +56,7 @@ import {
   mapCsharpIterationOperationRows,
 } from "./operation-selection/iteration.js";
 import {
+  asType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
@@ -52,11 +66,11 @@ import {
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 import {
-  getTargetArgumentConversionType,
-} from "./target-member-arguments/argument-conversions.js";
-import {
   asNodeSubject,
 } from "./ast-utils.js";
+import {
+  resolveCsharpCheckedConversionEvidence,
+} from "./checked-conversion-evidence.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 const expressionEvidenceQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
@@ -122,27 +136,62 @@ export function mapCsharpCheckedConversion(
   request: CheckedConversionMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
   host: CsharpOperationsProviderHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode = "strict-native",
 ): ExtensionObservation<CheckedConversionMappingResult> {
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
   }
-  const source = host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery);
-  const conversionTarget = request.targetParameter === undefined
-    ? request.target
-    : getTargetArgumentConversionType(request.targetParameter);
-  const target = host.getTargetTypeRefForSubject(conversionTarget, context);
+  const conversionEvidence = resolveCsharpCheckedConversionEvidence(request, context, host);
+  if (conversionEvidence.kind === "unreconciled") {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_ASSERTION_SELECTED_TYPE_EVIDENCE_UNRECONCILED",
+        9100184,
+        "C# cannot reconcile the TSTS-selected assertion type with its supplied source/provider provenance.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [
+        {
+          message: "Unreconciled assertion " + conversionEvidence.side + " evidence",
+          details: {
+            reason: conversionEvidence.reason,
+            semantic: conversionEvidence.semantic ?? "unresolved",
+            authored: conversionEvidence.authored,
+            ...(conversionEvidence.authoredCandidates === undefined
+              ? {}
+              : { authoredCandidates: conversionEvidence.authoredCandidates }),
+          },
+        },
+      ],
+      identity: "csharp-assertion-selected-type-evidence-unreconciled:" +
+        conversionEvidence.side +
+        ":" +
+        subjectIdentity(request.expression),
+    });
+  }
+  const source = conversionEvidence.source;
+  const target = conversionEvidence.target;
   if (target === undefined) {
     return deferObservation;
   }
-  const existingConversion = context.facts.get(request.source, targetConversionFactKey) ??
-    context.factResolver.resolve(request.source, targetConversionFactKey);
+  const existingConversion = context.facts.get(request.expression, targetConversionFactKey) ??
+    context.factResolver.resolve(request.expression, targetConversionFactKey);
   if (existingConversion?.convertedType !== undefined && targetTypeRefEquals(existingConversion.convertedType, target)) {
     return acceptObservation<CheckedConversionMappingResult>(
       existingConversion,
       [{ message: "C# reused existing checked target conversion fact for repeated TSTS conversion observation." }],
     );
   }
-  const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
+  const assertionAnyConversion = request.conversionKind === "assertion"
+    ? mapCsharpAnyAssertionConversion(request, source, target, context, compatibilityMode)
+    : undefined;
+  if (assertionAnyConversion !== undefined) {
+    return assertionAnyConversion;
+  }
+  const selectedSignatureReturn = request.conversionKind === "call-argument"
+    ? context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType
+    : undefined;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
@@ -159,7 +208,11 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
-  if (source === undefined && sourceFunctionExpressionHasSelectedTargetDelegate(request.source, target, context)) {
+  if (
+    request.conversionKind === "call-argument" &&
+    source === undefined &&
+    sourceFunctionExpressionHasSelectedTargetDelegate(request.source, target, context)
+  ) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# function expression is contextually convertible to the selected delegate target type." }]);
@@ -172,14 +225,18 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# delegate value is contextually convertible to the selected delegate target type through a closed wrapper." }]);
   }
-  if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
+  const sourceExpression = request.conversionKind === "assertion"
+    ? request.sourceExpression
+    : request.source;
+  if (isLiteralRepresentableAsTargetType(target, sourceExpression, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
-  const operation = getCsharpConversionOperation(source, target);
+  const operation = getCsharpConversionOperation(source, target) ??
+    getCsharpSourceDeclaredAssertionCast(request, source, target);
   if (operation !== undefined) {
-    context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+    context.facts.set(request.expression, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion operation recorded from TSTS-selected conversion evidence." }]);
   }
   if (operation === undefined && requiresCsharpProviderConversionEvidence(source, target, host)) {
     return rejectObservation({
@@ -214,7 +271,97 @@ export function mapCsharpCheckedConversion(
   return acceptObservation<CheckedConversionMappingResult>({
     convertedType: target,
     ...(operation !== undefined ? { operation: operation.operation } : {}),
-  }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
+  }, [{ message: request.conversionKind === "assertion"
+    ? `C# target conversion recorded from checked ${request.assertionKind} assertion source and target evidence.`
+    : "C# target conversion recorded from checked call argument and selected target parameter." }]);
+}
+
+function mapCsharpAnyAssertionConversion(
+  request: Extract<CheckedConversionMappingRequest, { readonly conversionKind: "assertion" }>,
+  source: ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>,
+  target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
+): ExtensionObservation<CheckedConversionMappingResult> | undefined {
+  const sourceRuntimeCarrier = context.facts.get(request.source, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.source, runtimeCarrierFactKey)?.carrier;
+  const targetRuntimeCarrier = context.facts.get(request.target, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.target, runtimeCarrierFactKey)?.carrier;
+  const sourceHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(source) ||
+    isCsharpAnyRuntimeCarrier(sourceRuntimeCarrier) ||
+    selectedSourceTypeIsAny(request.source, context);
+  const targetHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(target) ||
+    isCsharpAnyRuntimeCarrier(targetRuntimeCarrier) ||
+    selectedSourceTypeIsAny(request.target, context);
+  if (!sourceHasOpaqueAnyCarrier && !targetHasOpaqueAnyCarrier) {
+    return undefined;
+  }
+  const compatConversion = compatibilityMode === "compat"
+    ? getCompatAnyTypedBoundaryConversion(source, target, sourceHasOpaqueAnyCarrier)
+    : undefined;
+  if (compatConversion?.kind === "identity") {
+    return acceptObservation<CheckedConversionMappingResult>({}, [{ message: "C# compat assertion preserves the existing closed any carrier without a target conversion." }]);
+  }
+  if (compatConversion !== undefined) {
+    const evidence = getCompatAnyTypedBoundaryEvidence(compatConversion.kind);
+    context.facts.set(request.expression, csharpTargetConversionOperationFactKey, compatConversion.csharpOperation, evidence);
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: compatConversion.convertedType,
+      operation: compatConversion.operation,
+    }, evidence);
+  }
+  return rejectObservation({
+    ...csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_ANY_ASSERTION_CONVERSION_UNSUPPORTED",
+      9100122,
+      "C# assertion conversion cannot cross a TypeScript any boundary without finalized target conversion facts.",
+    ),
+    nodeOrSpan: request.expression,
+    evidence: [
+      {
+        message: "C# dynamic assertion boundary rejected",
+        details: "TSTS accepted the assertion through any, but strict-native C# has no finalized closed-carrier conversion for the selected source and target types.",
+      },
+    ],
+    identity: `csharp-any-assertion:${subjectIdentity(request.expression)}`,
+  });
+}
+
+function selectedSourceTypeIsAny(
+  subject: CheckedConversionMappingRequest["source"],
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+): boolean {
+  const type = asType(subject);
+  return type !== undefined && context.compiler?.typeShape.isAny(type) === true;
+}
+
+function getCsharpSourceDeclaredAssertionCast(
+  request: CheckedConversionMappingRequest,
+  source: ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>,
+  target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
+): {
+  readonly operation: NonNullable<CheckedConversionMappingResult["operation"]>;
+  readonly csharpOperation: ReturnType<typeof csharpTargetCastOperation>;
+} | undefined {
+  if (
+    request.conversionKind !== "assertion" ||
+    source === undefined ||
+    (!isSourceDeclaredTargetType(source) && !isSourceDeclaredTargetType(target))
+  ) {
+    return undefined;
+  }
+  const operationId = `tsonic.csharp.cast:${targetTypeRefKey(target)}`;
+  return {
+    operation: targetOperation(operationId, "operator", "cast", { resultType: target }),
+    csharpOperation: csharpTargetCastOperation(operationId, target),
+  };
+}
+
+function isSourceDeclaredTargetType(type: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>): boolean {
+  return type.kind === "target-named" &&
+    "csharpSourceDeclarationKind" in type &&
+    type.csharpSourceDeclarationKind !== undefined;
 }
 
 function sourceFunctionExpressionHasSelectedTargetDelegate(

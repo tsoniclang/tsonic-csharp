@@ -225,7 +225,7 @@ test("provider-owned element access rejects generic selected indexer without C# 
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
-test("tuple element access emits Roslyn member access only from proven tuple indexes", () => {
+test("tuple element access rejects factless backend emission even for literal indexes", () => {
   const receiver = identifier("pair");
   const index = numericLiteral("1");
   const access = elementAccess(receiver, index);
@@ -248,12 +248,9 @@ test("tuple element access emits Roslyn member access only from proven tuple ind
     planExpression,
   );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(planned, {
-    kind: "SimpleMemberAccessExpression",
-    receiver: { kind: "IdentifierName", name: "pair" },
-    name: "Item2",
-  });
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized TSTS-selected target element operation/);
 });
 test("tuple element access consumes finalized selected tuple member operation facts", () => {
   const receiver = identifier("pair");
@@ -306,7 +303,7 @@ test("tuple element access fails closed instead of reading semantic type strings
   const planned = planElementAccessExpression(access, {}, input, diagnostics, planExpression);
 
   assert.equal(planned, undefined);
-  assert.match(diagnostics[0].message, /TSTS literal or constant facts/);
+  assert.match(diagnostics[0].message, /finalized TSTS-selected target element operation/);
 });
 test("object-shape method storage names require exact member identity", () => {
   const member = {

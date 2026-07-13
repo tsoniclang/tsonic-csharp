@@ -40,9 +40,7 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context) ??
-    host.getCsharpObjectShapeFactForSubject(requestContext.receiverType, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context);
   if (objectShape === undefined) {
     return undefined;
   }
@@ -104,7 +102,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
   if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
     return undefined;
   }
-  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

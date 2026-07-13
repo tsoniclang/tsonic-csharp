@@ -76,8 +76,6 @@ export function mapCsharpCheckedElementAccess(
   const binding = findTargetBinding(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
-    requestContext.receiverTypeSymbol,
-    requestContext.receiverType,
     request.receiver,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
@@ -85,7 +83,7 @@ export function mapCsharpCheckedElementAccess(
     host.getCsharpTargetBindingByMetadataName,
   ) ?? findTargetBindingFromResolvedTargetType(
     context,
-    [request.receiver, requestContext.receiverType],
+    [request.receiver],
     host.getTargetTypeRefForSubject,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
@@ -103,7 +101,7 @@ export function mapCsharpCheckedElementAccess(
   const targetBinding = binding.target === csharpTargetId
     ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, selectedDeclaration) ?? binding
     : binding;
-  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
+  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver }, context, host);
   const selected = selectCheckedElementTargetMember(targetBinding, request, context, host, declaringTargetType);
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, selected.selectedDeclaration);
   if (unsupportedSelectedMember !== undefined) {

@@ -5,13 +5,18 @@ import type {
   ExtensionDiagnostic,
   ProviderDeclarationModel,
   ProviderIdentity,
+  ProviderImportDeclaration,
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
   TargetBindingProvider,
 } from "@tsonic/tsts";
+import {
+  tsonicCoreLangModule,
+} from "@tsonic/source-core";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
 import {
+  csharpLangModule,
   csharpProviderVersion,
   csharpTargetId,
 } from "./identity.js";
@@ -58,6 +63,7 @@ export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvide
       return {
         moduleSpecifier: resolution.moduleSpecifier,
         providerModuleId: resolution.providerModuleId,
+        ...(resolution.moduleSpecifier === csharpLangModule ? { imports: csharpLangProviderImports() } : {}),
         exports: providerExportDeclarationsForCsharpSourceModule(module),
         evidence: [{ message: "Declaration model is generated from C# source alias semantics." }],
       };
@@ -66,6 +72,23 @@ export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvide
       return undefined;
     },
   };
+}
+
+function csharpLangProviderImports(): readonly ProviderImportDeclaration[] {
+  return [{
+    moduleSpecifier: tsonicCoreLangModule,
+    typeOnly: true,
+    namedImports: [
+      {
+        exportedName: "__TsonicAttributeBuilder",
+        kind: "type",
+      },
+      {
+        exportedName: "__TsonicAttributeMemberBuilder",
+        kind: "type",
+      },
+    ],
+  }];
 }
 
 function csharpSourceVirtualDeclarationFileName(specifier: string): string {

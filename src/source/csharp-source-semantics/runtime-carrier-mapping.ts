@@ -76,8 +76,14 @@ export function mapRuntimeCarrier(
       carrier: csharpAnyRuntimeCarrier(),
     }, [{ message: "C# opaque any runtime carrier recorded from explicit TypeScript any boundary; dynamic behavior requires separate finalized target facts." }]);
   }
-  const primitive = context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
-  if (primitive !== undefined) {
+  const primitiveSubject = [
+    request.sourceTypeReference,
+    request.sourceSymbol,
+    request.type,
+  ].find((subject) =>
+    subject !== undefined && context.factResolver.resolve(subject, sourcePrimitiveFactKey) !== undefined
+  );
+  if (primitiveSubject !== undefined) {
     return deferObservation;
   }
   const syntaxCarrier = requestType === undefined

@@ -61,6 +61,7 @@ export function getCsharpObjectShapeFactForSubject(
   }
   const recorded = getRecordedCsharpObjectShapeFactForSubject(subject, context);
   if (recorded !== undefined) {
+    recordCsharpObjectShapeFactForSubject(subject, context, recorded);
     return recorded;
   }
   const derived = deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);

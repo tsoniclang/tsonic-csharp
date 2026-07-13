@@ -31,11 +31,18 @@ export function planTopLevelVariableStatement(
   _executableTopLevelSourceFile: boolean,
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
-  const declarations = declarationList === undefined
-    ? []
-    : input.ast.children(declarationList)
-      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
-  const isConst = declarationList !== undefined && input.ast.hasModifierKind(declarationList, "const");
+  if (declarationList === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires a TSTS variable declaration list."));
+    return;
+  }
+  const declarationKind = input.ast.variableDeclarationKind(declarationList);
+  if (declarationKind === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires an exact TSTS variable declaration kind."));
+    return;
+  }
+  const declarations = input.ast.children(declarationList)
+    .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+  const isConst = declarationKind === "const";
   if (declarations.length === 0) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;

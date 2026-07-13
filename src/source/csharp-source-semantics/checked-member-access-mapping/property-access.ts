@@ -116,8 +116,6 @@ export function mapCsharpCheckedPropertyAccess(
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclarationContainer,
     requestContext.sourceSelectedDeclaration,
-    requestContext.receiverTypeSymbol,
-    requestContext.receiverType,
     request.receiver,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
@@ -125,7 +123,7 @@ export function mapCsharpCheckedPropertyAccess(
     host.getCsharpTargetBindingByMetadataName,
   ) ?? findTargetBindingFromResolvedTargetType(
     context,
-    [request.receiver, requestContext.receiverType],
+    [request.receiver],
     host.getTargetTypeRefForSubject,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
@@ -166,7 +164,7 @@ export function mapCsharpCheckedPropertyAccess(
       operation: targetOperationFromMember(member),
     }, [{ message: "C# provider method-group property access accepted from checked TSTS call callee; call emission uses the finalized selected call fact." }]);
   }
-  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
+  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver }, context, host);
   const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
   const csharpMember = instantiateClosedSelectedTargetMember(member, host, {
     ...(declaringTargetType === undefined ? {} : { declaringTargetType }),

@@ -20,7 +20,7 @@ import {
 } from "../../../source/csharp-source-semantics/target-ref-utils.js";
 import {
   csharpTupleElementMemberName,
-} from "../../../source/csharp-source-semantics/tuple-element-index.js";
+} from "../../../source/csharp-source-semantics/tuple-element-members.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

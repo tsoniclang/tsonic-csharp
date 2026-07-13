@@ -28,10 +28,22 @@ export function getTypeSyntaxCarrierFromFinalizedTypeFacts(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): RuntimeCarrierFactResult["carrier"] | undefined {
   const ast = context.compiler?.ast;
-  const node = asNodeSubject(request.type);
-  return ast !== undefined && node !== undefined && isTypeSyntaxNode(ast, node)
-    ? host.getTargetTypeRefForSubject(node, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false })
-    : undefined;
+  if (ast === undefined) {
+    return undefined;
+  }
+  for (const subject of [request.sourceTypeReference, request.sourceSymbol, request.type]) {
+    const node = asNodeSubject(subject);
+    if (node !== undefined && isTypeSyntaxNode(ast, node)) {
+      const carrier = host.getTargetTypeRefForSubject(node, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      });
+      if (carrier !== undefined) {
+        return carrier;
+      }
+    }
+  }
+  return undefined;
 }
 
 export function isCallableTypeWithoutCarrierEvidence(

@@ -36,15 +36,8 @@ import {
   getRuntimeCarrierForExpression,
 } from "../runtime-carriers.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "../target-types.js";
-import {
   tryPlanCompatRuntimeElementGet,
 } from "../compat-runtime-operations.js";
-import {
-  csharpTupleElementMemberName,
-  getTstsTupleElementIndex,
-} from "../../../source/csharp-source-semantics/tuple-element-index.js";
 
 export function planElementAccessExpression(
   elementAccess: Node,
@@ -55,7 +48,7 @@ export function planElementAccessExpression(
 ): CsharpExpression | undefined {
   const expression = AsElementAccessExpression(elementAccess)!;
   const tupleDiagnosticsStart = diagnostics.length;
-  const tupleElementAccess = planTupleElementAccessExpression(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
+  const tupleElementAccess = planTupleElementAccessExpression(elementAccess, expression.Expression, sourceFile, input, diagnostics);
   if (tupleElementAccess !== undefined) {
     return tupleElementAccess;
   }
@@ -147,12 +140,9 @@ export function planElementAccessExpression(
 function planTupleElementAccessExpression(
   elementAccess: Node,
   receiverNode: Node | undefined,
-  argumentNode: Node | undefined,
-  optional: boolean,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const receiverCarrier = getRuntimeCarrierForExpression(input, receiverNode, sourceFile);
   if (receiverCarrier?.kind !== "tuple") {
@@ -161,52 +151,8 @@ function planTupleElementAccessExpression(
   if (input.facts.getSelectedTargetElementAccess(elementAccess) !== undefined) {
     return undefined;
   }
-  if (optional) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Optional tuple element access requires finalized nullable tuple carrier facts before C# emission."));
-    return undefined;
-  }
-  if (receiverNode === undefined || argumentNode === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires finalized receiver and argument facts before C# emission."));
-    return undefined;
-  }
-  const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
-  if (index === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a statically proven non-negative integer index from TSTS literal or constant facts; unproven tuple indexing needs finalized target element-access facts before C# emission."));
-    return undefined;
-  }
-  const elementCarrier = receiverCarrier.elements[index];
-  if (elementCarrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a finalized tuple element carrier before C# emission.`));
-    return undefined;
-  }
-  if (csharpTypeFromTargetTypeRef(elementCarrier) === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a renderable tuple element carrier type before C# emission.`));
-    return undefined;
-  }
-  const receiver = planExpression(receiverNode, sourceFile, input, diagnostics);
-  if (receiver === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver,
-    name: csharpTupleElementMemberName(index),
-  };
-}
-
-function getFinalizedTupleElementIndex(
-  argumentNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): number | undefined {
-  return getTstsTupleElementIndex(argumentNode, sourceFile, input.types === undefined ? undefined : {
-    kindName: (node) => input.ast.kindName(node),
-    text: (node) => input.ast.text(node),
-    getConstantValue: (node, options) => input.types!.getConstantValue(node, options),
-    getSymbolAtLocation: (node, options) => input.analysis.getSymbolAtLocation(node, { sourceFile: options.sourceFile ?? sourceFile }),
-    getResolvedSymbol: (node, options) => input.analysis.getResolvedSymbol(node, { sourceFile: options.sourceFile ?? sourceFile }),
-    getSymbolDeclarations: (symbol) => input.analysis.getSymbolDeclarations(symbol),
-  });
+  diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a finalized TSTS-selected target element operation before C# emission."));
+  return undefined;
 }
 
 function planCsharpTargetOperationArguments(

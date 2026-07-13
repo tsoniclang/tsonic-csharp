@@ -15,7 +15,7 @@ import {
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import {
-  extensionFactSubjectTypeRefEquals,
+  targetTypeRefEquals,
 } from "../csharp-facts/equality.js";
 import {
   getCsharpArrayLiteralElementTargetType,
@@ -36,7 +36,7 @@ export function targetOperation(
   operationId: string,
   operationKind: "property" | "method" | "indexer" | "operator" | "constructor" | "iteration",
   targetOperation: string,
-  options: { readonly resultType?: ExtensionFactSubject } = {},
+  options: { readonly resultType?: TargetTypeRef } = {},
 ): CheckedOperationMappingResult["operation"] {
   return {
     operationId,
@@ -72,7 +72,7 @@ export function targetOperationFactsAreStructurallyIdentical(
   return left.operationId === right.operationId &&
     left.operationKind === right.operationKind &&
     left.targetOperation === right.targetOperation &&
-    extensionFactSubjectTypeRefEquals(left.resultType, right.resultType);
+    targetTypeRefEquals(left.resultType, right.resultType);
 }
 
 export function sourceOwnedPropertyOperation(propertyName: string): CheckedOperationMappingResult["operation"] {

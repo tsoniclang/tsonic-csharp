@@ -595,8 +595,10 @@ function getSourceOwnedCallParameters(
     if (parameter === undefined) {
       return undefined;
     }
+    const parameterTypeNode = asNodeSubject(getNodeField(parameter, "Type")) ??
+      asNodeSubject(getNodeField(parameter, "type"));
     const targetType = substituteSourceOwnedCallableTypeParameters(
-      host.getTargetTypeRefForSubject(parameter, context),
+      host.getTargetTypeRefForSubject(parameterTypeNode, context),
       request,
       declaration,
       context,
@@ -948,18 +950,7 @@ function getSourceOwnedCallableReturnTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const direct = host.getTargetTypeRefForSubject(returnTypeNode, context);
-  if (direct !== undefined || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
-    return direct;
-  }
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  const sourceFile = compiler.ast.getSourceFile(returnTypeNode);
-  const semanticType = compiler.checker.getTypeFromTypeNode(returnTypeNode, { sourceFile });
-  const semantic = host.getTargetTypeRefForType(semanticType, context, { sourceFile });
-  return isFinalizedSourceOwnedReturnCarrier(semantic, returnTypeNode, context) ? semantic : undefined;
+  return host.getTargetTypeRefForSubject(returnTypeNode, context);
 }
 
 function isFinalizedSourceOwnedReturnCarrier(

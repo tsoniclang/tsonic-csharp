@@ -26,9 +26,6 @@ import {
   targetOperationFromMember,
 } from "../operations.js";
 import {
-  asNodeSubject,
-} from "../ast-utils.js";
-import {
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -74,8 +71,7 @@ import type {
 } from "./types.js";
 import {
   csharpTupleElementMemberName,
-  getTstsTupleElementIndex,
-} from "../tuple-element-index.js";
+} from "../tuple-element-members.js";
 import {
   csharpSourceProfileIndexerMember,
   getCsharpSourceProfileMemberIdentity,
@@ -91,7 +87,7 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(requestContext.receiverType, request.receiver, context, host);
+  const receiverType = getNativeArrayReceiverType(undefined, request.receiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -106,8 +102,6 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclarationContainer,
     requestContext.sourceSelectedDeclaration,
-    requestContext.receiverTypeSymbol,
-    requestContext.receiverType,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName, true);
@@ -137,7 +131,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(requestContext.receiverType, request.receiver, context, host);
+  const receiverType = getNativeArrayReceiverType(undefined, request.receiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -168,8 +162,6 @@ export function mapCsharpNativeArrayCheckedElementAccess(
     }, [{ message: "C# array element access reused finalized provider/surface target operation facts." }]);
   }
   const binding = findTargetBinding(context, [
-    requestContext.receiverTypeSymbol,
-    requestContext.receiverType,
     request.receiver,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
@@ -234,10 +226,8 @@ export function mapCsharpSourceArrayCheckedElementAccess(
       operation: existingOperation,
     }, [{ message: "C# source array element access reused existing finalized target operation for repeated checked-element observation." }]);
   }
-  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const receiverType = asNativeArrayTargetType(unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(requestContext.receiverType, context, { allowRuntimeCarrier: true }) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
+    host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
   ));
   if (receiverType?.kind !== "array") {
     return undefined;
@@ -266,21 +256,11 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
-  const argumentNode = asNodeSubject(request.argument);
-  const sourceFile = argumentNode === undefined ? undefined : context.compiler?.ast.getSourceFile(argumentNode);
-  const index = getTstsTupleElementIndex(argumentNode, sourceFile, context.compiler === undefined ? undefined : {
-    kindName: (node) => context.compiler!.ast.kindName(node),
-    text: (node) => context.compiler!.ast.text(node),
-    getConstantValue: (node, options) => context.compiler!.typeShape.getConstantValue(node, options),
-    getSymbolAtLocation: (node, options) => context.compiler!.checker.getSymbolAtLocation(node, options),
-    getResolvedSymbol: (node, options) => context.compiler!.checker.getResolvedSymbolOrNil(node, options) ?? undefined,
-    getSymbolDeclarations: (symbol) => context.compiler!.checker.getSymbolDeclarations(symbol),
-  });
+  const index = request.sourceSelectedElementIndex;
   if (index === undefined) {
     return rejectTupleElementIndexNotProven(extensionId);
   }
@@ -307,7 +287,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

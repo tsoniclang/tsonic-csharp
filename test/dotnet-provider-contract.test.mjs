@@ -513,11 +513,33 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   const sourceWriteLine = sourceMember(sourceConsole, "WriteLine");
   const sourceStringWriteLineSignatures = (sourceWriteLine.signatures ?? []).filter((signature) =>
     signature.parameters.length === 1 &&
-    signature.parameters[0]?.type.kind === "string"
+    JSON.stringify(signature.parameters[0]?.type) === JSON.stringify({
+      kind: "union",
+      types: [{ kind: "string" }, { kind: "undefined" }],
+    })
   );
   assert.equal(sourceStringWriteLineSignatures.length, 1);
-  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawWriteLineString.signatures[0].id);
-  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawWriteLineChar.signatures[0].id);
+  assert.deepEqual(sourceStringWriteLineSignatures[0]?.parameters[0]?.type, {
+    kind: "union",
+    types: [{ kind: "string" }, { kind: "undefined" }],
+  });
+  const rawStringSignature = rawWriteLineString.signatures.find((signature) =>
+    idHasShape(signature.id, "System.Console.WriteLine(System.String)"));
+  const rawCharSignature = rawWriteLineChar.signatures.find((signature) =>
+    idHasShape(signature.id, "System.Console.WriteLine(System.Char)"));
+  assert.ok(rawStringSignature);
+  assert.ok(rawCharSignature);
+  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawStringSignature.id);
+  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawCharSignature.id);
+  assert.equal(new Set(sourceWriteLine.signatures?.map((signature) => signature.id)).size, sourceWriteLine.signatures?.length);
+  const consoleBinding = provider.findTargetBindingByTargetId(console.targetId);
+  assert.ok(consoleBinding);
+  const targetStringWriteLine = consoleBinding.members?.find((member) => member.id === rawStringSignature.id);
+  const targetCharWriteLine = consoleBinding.members?.find((member) => member.id === rawCharSignature.id);
+  assert.ok(targetStringWriteLine);
+  assert.ok(targetCharWriteLine);
+  assert.equal(targetStringWriteLine.providerSourceSignatureId, sourceStringWriteLineSignatures[0]?.id);
+  assert.equal(targetCharWriteLine.providerSourceSignatureId, sourceStringWriteLineSignatures[0]?.id);
 
   const clsCompliantAttribute = rawType(systemModule, "CLSCompliantAttribute");
   assert.deepEqual(clsCompliantAttribute.baseType.sourceShape, {

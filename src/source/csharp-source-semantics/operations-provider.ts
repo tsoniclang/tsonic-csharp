@@ -267,7 +267,7 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpContextualTargetType(request, context);
     },
     mapCheckedConversion(request, context) {
-      return mapCsharpCheckedConversion(request, context, surfaceAwareHost);
+      return mapCsharpCheckedConversion(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
   };
 }

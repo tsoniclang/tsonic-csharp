@@ -487,7 +487,10 @@ test(".NET provider source declarations keep extension-method signature identiti
   );
   assert.equal(signature.name, "AsSpan");
   assert.deepEqual(signature.parameters.map((parameter) => parameter.name), ["text", "start"]);
-  assert.deepEqual(signature.parameters[0].type, { kind: "string" });
+  assert.deepEqual(signature.parameters[0].type, {
+    kind: "union",
+    types: [{ kind: "string" }, { kind: "undefined" }],
+  });
   assert.deepEqual(signature.parameters[1].type, { kind: "source-primitive", name: "int32" });
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.MemoryExtensions");

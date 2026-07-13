@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  pointerFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
 
@@ -11,6 +12,9 @@ import {
 import {
   mapCsharpCheckedConversion,
 } from "../dist/source/csharp-source-semantics/checked-native-mapping.js";
+import {
+  resolveCsharpCheckedConversionEvidence,
+} from "../dist/source/csharp-source-semantics/checked-conversion-evidence.js";
 import {
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
@@ -144,12 +148,12 @@ test("checked provider conversions fail closed without selected provider convers
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };
   const { context, writes } = fakeContext();
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([meterBinding], new Map([
+  }), context, hostForConversion([meterBinding], new Map([
     [source, doubleType],
     [target, meterType],
   ])));
@@ -182,12 +186,12 @@ test("checked conversions accept unresolved function expressions for selected de
     },
   };
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([{
+  }), context, hostForConversion([{
     id: delegateType.id,
     target: "csharp",
     kind: "delegate",
@@ -224,12 +228,12 @@ test("checked conversions accept same-shape delegate values without provider con
   });
   const { context, writes } = fakeContext();
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([], new Map([
+  }), context, hostForConversion([], new Map([
     [source, sourceDelegate],
     [target, targetDelegate],
   ])));
@@ -244,12 +248,12 @@ test("checked provider conversions reject missing reflected conversion evidence"
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };
   const { context, writes } = fakeContext();
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([{ ...meterBinding, conversionOperators: [] }], new Map([
+  }), context, hostForConversion([{ ...meterBinding, conversionOperators: [] }], new Map([
     [source, doubleType],
     [target, meterType],
   ])));
@@ -264,12 +268,12 @@ test("checked provider conversions do not inspect ambiguous type-pair candidates
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };
   const { context, writes } = fakeContext();
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([{
+  }), context, hostForConversion([{
     ...meterBinding,
     conversionOperators: [
       ...meterBinding.conversionOperators,
@@ -304,12 +308,12 @@ test("checked conversions reuse existing conversion facts instead of conflicting
   const { context, writes, entries } = fakeContext();
   entries.set(factEntryKey(source, targetConversionFactKey), existing);
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([], new Map([
+  }), context, hostForConversion([], new Map([
     [source, intType],
     [target, intType],
   ])));
@@ -326,12 +330,12 @@ test("checked conversions reject real double generic targets without selected co
   const targetType = spanType({ kind: "source-primitive", name: "float64" });
   const { context, writes } = fakeContext();
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([spanBinding()], new Map([
+  }), context, hostForConversion([spanBinding()], new Map([
     [source, sourceType],
     [target, targetType],
   ])));
@@ -347,12 +351,12 @@ test("checked conversions accept source primitive widening only through explicit
   const intType = { kind: "source-primitive", name: "int32" };
   const { context, writes } = fakeContext();
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target,
     targetPlatform: "csharp",
-  }, context, hostForConversion([], new Map([
+  }), context, hostForConversion([], new Map([
     [source, intType],
     [target, doubleType],
   ])));
@@ -374,14 +378,14 @@ test("checked params-array argument conversions use the selected parameter eleme
   };
   const { context } = fakeContext();
 
-  const result = mapCsharpCheckedConversion({
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
     expression: source,
     source,
     target: paramsArrayType,
     targetParameter,
     parameterIndex: 0,
     targetPlatform: "csharp",
-  }, context, hostForConversion([], new Map([
+  }), context, hostForConversion([], new Map([
     [source, meterType],
     [paramsArrayType, paramsArrayType],
     [meterType, meterType],
@@ -390,6 +394,79 @@ test("checked params-array argument conversions use the selected parameter eleme
   assert.equal(result.kind, "accept");
   assert.deepEqual(result.value.convertedType, meterType);
 });
+
+test("assertion declaration provenance cannot override an incompatible flow-selected semantic type", () => {
+  const expression = { id: "assertion", Kind: "KindAsExpression" };
+  const sourceExpression = { id: "source-expression", Kind: "KindIdentifier" };
+  const sourceSemanticType = { flags: 1 };
+  const targetSemanticType = { flags: 2 };
+  const declarationType = { id: "source-declaration-type", Kind: "KindTypeReference" };
+  const explicitTargetType = { id: "explicit-target-type", Kind: "KindStringKeyword" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const stringType = csharpTargetNamedType("System.String");
+  const { context, entries } = fakeContext();
+  entries.set(factEntryKey(declarationType, pointerFactKey), {
+    pointee: intType,
+    mutability: "target-defined",
+    unsafeRequired: true,
+  });
+
+  const result = resolveCsharpCheckedConversionEvidence({
+    conversionKind: "assertion",
+    assertionKind: "as",
+    expression,
+    source: sourceSemanticType,
+    target: targetSemanticType,
+    sourceExpression,
+    sourceSelectedDeclarationTypeNode: declarationType,
+    explicitTargetTypeNode: explicitTargetType,
+    targetPlatform: "csharp",
+  }, context, hostForConversion([], new Map([
+    [sourceSemanticType, stringType],
+    [targetSemanticType, stringType],
+    [intType, intType],
+  ])));
+
+  assert.equal(result.kind, "unreconciled");
+  assert.equal(result.side, "source");
+  assert.deepEqual(result.semantic, stringType);
+  assert.deepEqual(result.authored, {
+    kind: "pointer",
+    pointee: intType,
+    mutability: "target-defined",
+  });
+  assert.match(result.reason, /conflicts with the checker-selected semantic target type/u);
+});
+
+function callArgumentConversionRequest(options) {
+  const targetParameter = options.targetParameter ?? {
+    name: "value",
+    type: options.target,
+    passingMode: "by-value",
+  };
+  const call = { id: "checked-conversion-call" };
+  return {
+    conversionKind: "call-argument",
+    expression: options.expression,
+    source: options.source,
+    target: options.target,
+    targetPlatform: options.targetPlatform,
+    call,
+    parameterIndex: options.parameterIndex ?? 0,
+    targetParameter,
+    selectedSignature: {
+      member: {
+        id: "test.checked-conversion",
+        kind: "method",
+        sourceName: "convert",
+        targetName: "Convert",
+        static: true,
+        parameters: [targetParameter],
+        returnType: targetParameter.type,
+      },
+    },
+  };
+}
 
 function hostForBindings(bindings) {
   const byId = new Map(bindings.map((binding) => [binding.id, binding]));
