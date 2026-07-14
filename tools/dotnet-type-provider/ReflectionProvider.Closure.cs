@@ -6,11 +6,7 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    readonly record struct SourceDependency(Type Type, bool IncludeMembers, bool ExpandMethodReturnTypes);
-    readonly record struct SourceClosureType(Type Type, bool IncludeMembers);
-    readonly record struct PendingClosureType(Type Type, bool ExpandMethodReturnTypes, bool IncludeDependencyMembers);
-
-    SourceClosureType[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
+    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
     {
         if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
@@ -34,18 +30,18 @@ sealed partial class ReflectionProvider
                 StringComparer.Ordinal);
         var exportedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        var sourceVisibleTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        var pendingTypes = new Queue<PendingClosureType>(exportedTypes.Select(type => new PendingClosureType(type, false, true)));
-        var expandedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
+        var pendingTypes = new Queue<Type>(exportedTypes);
+        var expandedTargetIds = new HashSet<string>(StringComparer.Ordinal);
         while (pendingTypes.Count > 0)
         {
             var pending = pendingTypes.Dequeue();
-            foreach (var discoveredDependency in DirectSourceDependencies(pending.Type, pending.ExpandMethodReturnTypes))
+            if (!expandedTargetIds.Add(TargetId(pending)))
             {
-                var dependency = pending.IncludeDependencyMembers
-                    ? discoveredDependency
-                    : discoveredDependency with { IncludeMembers = false, ExpandMethodReturnTypes = false };
-                var normalized = NormalizeClosureType(dependency.Type);
+                continue;
+            }
+            foreach (var dependency in DirectSourceDependencies(pending))
+            {
+                var normalized = NormalizeClosureType(dependency);
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
                     exportedTargetIds.Contains(TargetId(normalized)) ||
@@ -64,21 +60,9 @@ sealed partial class ReflectionProvider
                         continue;
                     }
                     closureTargetIds.Add(targetId);
-                    var shouldIncludeMembers = dependency.IncludeMembers || closureType.IsNested;
-                    if (shouldIncludeMembers)
+                    if (!expandedTargetIds.Contains(targetId))
                     {
-                        sourceVisibleTargetIds.Add(targetId);
-                    }
-                    var shouldExpand = (dependency.ExpandMethodReturnTypes || closureType.IsNested) && expandedTargetIds.Add(targetId);
-                    if (shouldExpand)
-                    {
-                        pendingTypes.Enqueue(new PendingClosureType(closureType, dependency.ExpandMethodReturnTypes || closureType.IsNested, true));
-                        continue;
-                    }
-                    var shouldCollectDirectDependencyRefs = dependency.IncludeMembers && expandedTargetIds.Add(targetId);
-                    if (shouldCollectDirectDependencyRefs)
-                    {
-                        pendingTypes.Enqueue(new PendingClosureType(closureType, false, false));
+                        pendingTypes.Enqueue(closureType);
                     }
                 }
             }
@@ -86,54 +70,23 @@ sealed partial class ReflectionProvider
         return closureTargetIds
             .Select(targetId => allTypesByTargetId[targetId])
             .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
-            .Select(type => new SourceClosureType(type, sourceVisibleTargetIds.Contains(TargetId(type))))
             .ToArray();
     }
 
-    object? ToClosureTypeExport(SourceClosureType closure)
-    {
-        return closure.IncludeMembers ? ToTypeExport(closure.Type) : ToShallowTypeExport(closure.Type);
-    }
-
-    object ToShallowTypeExport(Type type)
-    {
-        var typeParameters = TypeParameters(type);
-        var sourceShape = ExportSourceShape(type);
-        var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
-        return new
-        {
-            kind = "type",
-            typeKind = TypeKind(type),
-            sourceName = ProviderSourceTypeName(type),
-            sourceTypeFamily = ProviderSourceTypeFamilyObject(type),
-            namespaceName = activeNamespaceName,
-            targetId = TargetId(type),
-            metadataName = MetadataName(type),
-            assembly = AssemblyReference(type.Assembly),
-            displayName = DisplayName(type),
-            renderShape = RenderShape(type),
-            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
-            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
-            typeParameters = typeParameters.Length == 0 ? null : typeParameters,
-            sourceShape,
-            throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
-        };
-    }
-
-    IEnumerable<SourceDependency> DirectSourceDependencies(Type type, bool expandMethodReturnTypes)
+    IEnumerable<Type> DirectSourceDependencies(Type type)
     {
         if (type.BaseType is not null && type.BaseType != typeof(object))
         {
             foreach (var dependency in SourceDependencyTypes(type.BaseType))
             {
-                yield return new SourceDependency(dependency, true, true);
+                yield return dependency;
             }
         }
         foreach (var contract in type.GetInterfaces())
         {
             foreach (var dependency in SourceDependencyTypes(contract))
             {
-                yield return new SourceDependency(dependency, true, true);
+                yield return dependency;
             }
         }
         foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
@@ -142,7 +95,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false, false);
+                    yield return dependency;
                 }
             }
         }
@@ -150,13 +103,13 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(property.PropertyType))
             {
-                yield return new SourceDependency(dependency, true, true);
+                yield return dependency;
             }
             foreach (var parameter in property.GetIndexParameters())
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false, false);
+                    yield return dependency;
                 }
             }
         }
@@ -164,7 +117,7 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(field.FieldType))
             {
-                yield return new SourceDependency(dependency, true, false);
+                yield return dependency;
             }
         }
         foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
@@ -173,7 +126,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(eventInfo.EventHandlerType))
                 {
-                    yield return new SourceDependency(dependency, true, false);
+                    yield return dependency;
                 }
             }
         }
@@ -181,13 +134,13 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(method.ReturnType))
             {
-                yield return new SourceDependency(dependency, true, expandMethodReturnTypes);
+                yield return dependency;
             }
             foreach (var parameter in method.GetParameters())
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false, false);
+                    yield return dependency;
                 }
             }
             foreach (var methodParameter in method.GetGenericArguments())
@@ -196,7 +149,7 @@ sealed partial class ReflectionProvider
                 {
                     foreach (var dependency in SourceDependencyTypes(constraint))
                     {
-                        yield return new SourceDependency(dependency, false, false);
+                        yield return dependency;
                     }
                 }
             }
@@ -207,7 +160,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(constraint))
                 {
-                    yield return new SourceDependency(dependency, false, false);
+                    yield return dependency;
                 }
             }
         }

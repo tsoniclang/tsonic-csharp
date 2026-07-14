@@ -80,6 +80,7 @@ sealed partial class ReflectionProvider
             requestedTargetIds is not null ||
             requestedMetadataNames is not null;
         var sourceGroups = allTypes
+            .Where(type => !HasProviderOwnedSourceProjection(type))
             .GroupBy(ProviderSourceExportName, StringComparer.Ordinal)
             .Select(group => new
             {
@@ -136,7 +137,7 @@ sealed partial class ReflectionProvider
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes.Select(ToClosureTypeExport).Where(export => export is not null).Cast<object>())
+            .Concat(closureTypes.Select(ToTypeExport).Where(export => export is not null).Cast<object>())
             .ToArray();
 
         return new

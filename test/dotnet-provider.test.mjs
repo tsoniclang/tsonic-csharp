@@ -118,23 +118,50 @@ test(".NET reflection provider returns requested export declaration closures ins
 
   const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
   assert.deepEqual(exportNames, [
+    "ArraySegment",
+    "ArraySegment_Enumerator",
+    "AsyncCallback",
     "Base64FormattingOptions",
     "Boolean",
     "Byte",
     "Char",
     "CharEnumerator",
+    "Comparison",
     "Convert",
     "DateOnly",
     "DateTime",
     "DateTimeKind",
+    "DateTimeOffset",
     "DayOfWeek",
     "Decimal",
+    "Delegate",
     "Double",
     "Enum",
+    "Func_1",
+    "Func_10",
+    "Func_11",
+    "Func_12",
+    "Func_13",
+    "Func_14",
+    "Func_15",
+    "Func_16",
+    "Func_17",
+    "Func_2",
+    "Func_3",
+    "Func_4",
+    "Func_5",
+    "Func_6",
+    "Func_7",
+    "Func_8",
+    "Func_9",
+    "Guid",
+    "Half",
+    "IAsyncResult",
     "ICloneable",
     "IComparable",
     "IComparable_1",
     "IConvertible",
+    "IDisposable",
     "IEquatable",
     "IFormatProvider",
     "IFormattable",
@@ -143,27 +170,45 @@ test(".NET reflection provider returns requested export declaration closures ins
     "ISpanParsable",
     "IUtf8SpanFormattable",
     "IUtf8SpanParsable",
+    "Index",
     "Int128",
     "Int16",
     "Int32",
     "Int64",
+    "IntPtr",
+    "InvocationListEnumerator",
+    "Memory",
+    "MemoryExtensions",
     "MidpointRounding",
+    "ModuleHandle",
+    "MulticastDelegate",
     "Object",
+    "Range",
+    "ReadOnlyMemory",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "SByte",
     "Single",
     "Span",
+    "SpanSplitEnumerator",
+    "Span_Enumerator",
     "String",
     "StringComparison",
+    "StringNormalizationExtensions",
     "StringSplitOptions",
     "TimeOnly",
     "TimeSpan",
+    "TryWriteInterpolatedStringHandler",
     "Type",
     "TypeCode",
     "UInt128",
     "UInt16",
     "UInt32",
     "UInt64",
+    "UIntPtr",
     "ValueTuple",
     "ValueTuple_1",
     "ValueTuple_2",
@@ -182,7 +227,10 @@ test(".NET reflection provider returns requested export declaration closures ins
 
   const formatProvider = module.exports.find((declaration) => declaration.sourceName === "IFormatProvider");
   assert.ok(formatProvider);
-  assert.equal(formatProvider.members, undefined);
+  assert.deepEqual(
+    formatProvider.members?.map((member) => `${member.kind}:${member.sourceName}`).sort(),
+    ["method:GetFormat"],
+  );
 });
 test(".NET provider preserves exact CLR source-visible member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -573,7 +621,7 @@ test(".NET reflection provider reloads requested export slices from persistent c
   assert.equal(snapshot.toolInvocations, 0);
   assert.equal(snapshot.diskCacheHits, cachedRecords.length);
   assert.equal(snapshot.diskCacheMisses, 0);
-  assert.equal(snapshot.memoryCacheMisses, 1);
+  assert.equal(snapshot.memoryCacheMisses, cachedRecords.length);
   assert.equal(snapshot.modelBytes, cachedModelBytes);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
@@ -599,9 +647,9 @@ test(".NET reflection provider keeps requested-export memory slices isolated fro
   assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Console"), false);
 
   const snapshot = provider.getTelemetrySnapshot();
-  assert.equal(snapshot.toolInvocations, 2);
-  assert.equal(snapshot.memoryCacheMisses, 2);
-  assert.equal(snapshot.memoryCacheHits, 1);
+  assert.equal(snapshot.toolInvocations, 3);
+  assert.equal(snapshot.memoryCacheMisses, 3);
+  assert.equal(snapshot.memoryCacheHits, 2);
 });
 test(".NET reflection provider target-binding cache preserves member-complete bindings after virtual declaration slicing", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });

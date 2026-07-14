@@ -171,7 +171,7 @@ export function mapCsharpCheckedPropertyAccess(
     ...(selectedResultType === undefined ? {} : { selectedResultType }),
   });
   if (csharpMember === undefined) {
-    return rejectTargetPropertyNotRenderable(extensionId, member.id);
+    return rejectTargetPropertyNotRenderable(extensionId, member, declaringTargetType, selectedResultType);
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target member property operation recorded from checked TSTS provider declaration and provider target identity." }]);
   return acceptObservation<CheckedOperationMappingResult>({

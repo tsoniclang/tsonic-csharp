@@ -5,10 +5,14 @@ import type {
   CheckedOperationMappingResult,
   ExtensionObservation,
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
+import type {
+  CsharpTargetMember,
+} from "../target-types.js";
 import type {
   UnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
@@ -73,9 +77,25 @@ export function rejectTargetEventUnsupported(
 
 export function rejectTargetPropertyNotRenderable(
   extensionId: string,
-  memberId: string,
+  member: CsharpTargetMember,
+  declaringTargetType: TargetTypeRef | undefined,
+  selectedResultType: TargetTypeRef | undefined,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE", 9100105, `C# provider selected property '${memberId}', but no closed renderable C# target member fact could be produced from provider target identity.`));
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE",
+    9100105,
+    `C# provider selected property '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`,
+    [{
+      message: "Selected provider property target-type closure",
+      details: {
+        declaringTargetType,
+        memberDeclaringType: member.declaringType,
+        memberReturnType: member.returnType,
+        selectedResultType,
+      },
+    }],
+  ));
 }
 
 export function rejectElementAccessNotMapped(

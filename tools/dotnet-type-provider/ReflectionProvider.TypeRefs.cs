@@ -300,7 +300,8 @@ sealed partial class ReflectionProvider
     Dictionary<string, SourceReference> SourceReferencesByTargetId(IEnumerable<Type> loadedTypes)
     {
         var candidates = SourceReferenceCandidates(loadedTypes
-            .Where(type => type.Namespace is not null))
+            .Where(type => type.Namespace is not null)
+            .Where(type => !HasProviderOwnedSourceProjection(type)))
             .ToArray();
         var references = candidates
             .Where(candidate => !IsDelegate(candidate.Type))
@@ -327,6 +328,11 @@ sealed partial class ReflectionProvider
             }
         }
         return references;
+    }
+
+    static bool HasProviderOwnedSourceProjection(Type type)
+    {
+        return type == typeof(Array);
     }
 
     IEnumerable<SourceReferenceCandidate> SourceReferenceCandidates(IEnumerable<Type> types)

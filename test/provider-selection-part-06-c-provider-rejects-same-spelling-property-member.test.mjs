@@ -81,7 +81,7 @@ test("C# provider closes selected generic property results only from TSTS source
   assert.equal(missingEvidence.kind, "reject");
   assert.equal(missingEvidence.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE");
 });
-test("C# provider rejects contradictory TSTS sourceResultType evidence for a selected property", () => {
+test("C# provider preserves an exact closed target result across lossy source-result projection", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const binding = {
@@ -97,12 +97,53 @@ test("C# provider rejects contradictory TSTS sourceResultType evidence for a sel
     expression: {},
     receiver: {},
     sourceSelectedSymbol: selectedDeclaration,
-    sourceResultType: csharpStringType(),
+    sourceResultType: { kind: "source-primitive", name: "float64" },
     propertyName: "Value",
   }, fakeObservationContext({
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.Value", "Value"),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.operation.resultType, { kind: "source-primitive", name: "int32" });
+});
+test("C# provider rejects selected source-result evidence with the wrong open target shape", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const binding = {
+    id: "Example.Box",
+    sourceName: "Box",
+    targetName: "Box",
+    target: "csharp",
+    kind: "class",
+    typeParameters: [{ name: "T" }],
+    members: [{
+      id: "Example.Box.Value",
+      sourceName: "Value",
+      targetName: "Value",
+      kind: "property",
+      parameters: [],
+      returnType: {
+        kind: "tuple",
+        elements: [{ kind: "type-parameter", name: "T" }],
+      },
+    }],
+  };
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    sourceSelectedSymbol: selectedDeclaration,
+    sourceResultType: {
+      kind: "array",
+      element: csharpStringType(),
+    },
+    propertyName: "Value",
+  }, fakeObservationContext({
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Box.Value", "Value"),
   }));
 
   assert.equal(result.kind, "reject");

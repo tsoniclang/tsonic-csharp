@@ -378,7 +378,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
   const firstModule = firstProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in firstModule, true, JSON.stringify(firstModule));
   assert.equal(firstModule.exports.some((declaration) => declaration.sourceName === "Convert"), true);
-  assert.equal(firstProvider.getTelemetrySnapshot().toolInvocations, 1);
+  assert.equal(firstProvider.getTelemetrySnapshot().toolInvocations, 2);
 
   const secondTelemetry = createDotnetProviderTelemetry();
   const secondProvider = createDotnetReflectionTypeDataProvider({
@@ -392,7 +392,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
 
   const secondSnapshot = secondProvider.getTelemetrySnapshot();
   assert.equal(secondSnapshot.toolInvocations, 0);
-  assert.equal(secondSnapshot.memoryCacheHits, 1);
+  assert.equal(secondSnapshot.memoryCacheHits, 2);
   assert.equal(secondSnapshot.memoryCacheMisses, 0);
   assert.equal(secondSnapshot.diskCacheHits, 0);
   assert.equal(secondSnapshot.diskCacheMisses, 0);
@@ -434,14 +434,36 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
     "Convert",
+    "MemoryExtensions",
+    "Range",
+    "SpanSplitEnumerator",
+    "StringNormalizationExtensions",
+    "TryWriteInterpolatedStringHandler",
+    "ArraySegment",
+    "ArraySegment_Enumerator",
     "Base64FormattingOptions",
     "DateOnly",
     "DateTime",
     "DateTimeKind",
+    "DateTimeOffset",
     "DayOfWeek",
+    "Guid",
+    "IComparable_1",
+    "IEquatable",
     "IFormatProvider",
+    "Index",
+    "Memory",
+    "ModuleHandle",
+    "ReadOnlyMemory",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "Span",
+    "Span_Enumerator",
+    "StringComparison",
+    "StringSplitOptions",
     "TimeOnly",
     "TimeSpan",
     "Type",
@@ -464,8 +486,8 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
 
   const snapshot = provider.getTelemetrySnapshot();
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests >= 1, true);
-  assert.equal(snapshot.moduleRequestedExports >= 1, true);
+  assert.equal(snapshot.moduleSlicedRequests, 4);
+  assert.equal(snapshot.moduleRequestedExports, 20);
 });
 
 test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
@@ -488,6 +510,9 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
   assert.deepEqual(metadataSourceNames, [
     "Convert",
+    "ArraySegment",
+    "ArraySegment_Enumerator",
+    "AsyncCallback",
     "Base64FormattingOptions",
     "Boolean",
     "Byte",
@@ -496,14 +521,38 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "DateOnly",
     "DateTime",
     "DateTimeKind",
+    "DateTimeOffset",
     "DayOfWeek",
     "Decimal",
+    "Delegate",
+    "InvocationListEnumerator",
     "Double",
     "Enum",
+    "Func_1",
+    "Func_10",
+    "Func_11",
+    "Func_12",
+    "Func_13",
+    "Func_14",
+    "Func_15",
+    "Func_16",
+    "Func_17",
+    "Func_2",
+    "Func_3",
+    "Func_4",
+    "Func_5",
+    "Func_6",
+    "Func_7",
+    "Func_8",
+    "Func_9",
+    "Guid",
+    "Half",
+    "IAsyncResult",
     "ICloneable",
     "IComparable",
     "IComparable_1",
     "IConvertible",
+    "IDisposable",
     "IEquatable",
     "IFormatProvider",
     "IFormattable",
@@ -516,12 +565,20 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "Int16",
     "Int32",
     "Int64",
+    "IntPtr",
     "MidpointRounding",
+    "ModuleHandle",
+    "MulticastDelegate",
     "Object",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "SByte",
     "Single",
     "Span",
+    "Span_Enumerator",
     "String",
     "StringComparison",
     "StringSplitOptions",
@@ -533,6 +590,7 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "UInt16",
     "UInt32",
     "UInt64",
+    "UIntPtr",
     "ValueTuple",
     "ValueTuple_1",
     "ValueTuple_2",
