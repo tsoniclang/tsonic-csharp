@@ -17,7 +17,7 @@ export function dotnetProviderResolutionContext(context: ProviderModuleContext |
     if (slice === undefined) {
       return undefined;
     }
-    if (slice.broadImport === true || slice.kind === "bare" || slice.kind === "namespace" || slice.kind === "mixed" || slice.kind === "reexport" || slice.kind === "dynamic" || slice.kind === "synthetic" || slice.kind === "unknown") {
+    if (slice.broadImport === true || slice.kind === "bare" || slice.kind === "namespace" || slice.kind === "mixed" || slice.kind === "reexport" || slice.kind === "dynamic" || slice.kind === "unknown") {
       return { broadImport: true };
     }
     const requestedExports = sortedNonEmpty(slice.requestedExports?.map((request) => request.exportedName));

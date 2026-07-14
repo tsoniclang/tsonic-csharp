@@ -101,33 +101,57 @@ export function providerImportsForExternalRefs(
   declarations: readonly ProviderExportDeclaration[],
   currentModuleSpecifier: string,
 ): readonly ProviderImportDeclaration[] {
-  const importsByModule = new Map<string, Map<string, string | undefined>>();
+  const importsByModule = new Map<string, Map<string, CollectedProviderImport>>();
   for (const declaration of declarations) {
     collectProviderImportsFromExport(declaration, currentModuleSpecifier, importsByModule);
   }
   return [...importsByModule.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([moduleSpecifier, imports]) => ({
-      moduleSpecifier,
-      typeOnly: true,
-      namedImports: [...imports.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([exportedName, localName]) => ({
-          exportedName,
-          ...(localName === undefined || localName === exportedName ? {} : { localName }),
-          kind: "type" as const,
-        })),
-    }));
+    .flatMap(([moduleSpecifier, imports]) => {
+      const sortedImports = [...imports.entries()].sort(([left], [right]) => left.localeCompare(right));
+      const valueImports = sortedImports.filter(([, collected]) => collected.kind === "value");
+      const typeImports = sortedImports.filter(([, collected]) => collected.kind === "type");
+      return [
+        ...(valueImports.length === 0 ? [] : [providerImportDeclaration(moduleSpecifier, valueImports, "value")]),
+        ...(typeImports.length === 0 ? [] : [providerImportDeclaration(moduleSpecifier, typeImports, "type")]),
+      ];
+    });
+}
+
+interface CollectedProviderImport {
+  readonly localName?: string;
+  readonly kind: "type" | "value";
+}
+
+function providerImportDeclaration(
+  moduleSpecifier: string,
+  imports: readonly (readonly [string, CollectedProviderImport])[],
+  kind: "type" | "value",
+): ProviderImportDeclaration {
+  return {
+    moduleSpecifier,
+    typeOnly: kind === "type",
+    namedImports: imports.map(([exportedName, collected]) => ({
+      exportedName,
+      ...(collected.localName === undefined || collected.localName === exportedName ? {} : { localName: collected.localName }),
+      kind,
+    })),
+  };
 }
 
 function collectProviderImportsFromExport(
   declaration: ProviderExportDeclaration,
   currentModuleSpecifier: string,
-  importsByModule: Map<string, Map<string, string | undefined>>,
+  importsByModule: Map<string, Map<string, CollectedProviderImport>>,
 ): void {
   collectProviderImportsFromType(declaration.type, currentModuleSpecifier, importsByModule);
   for (const heritage of declaration.heritage ?? []) {
-    collectProviderImportsFromType(heritage.type, currentModuleSpecifier, importsByModule);
+    collectProviderImportsFromType(
+      heritage.type,
+      currentModuleSpecifier,
+      importsByModule,
+      declaration.kind === "class" && heritage.kind === "extends" ? "value" : "type",
+    );
   }
   for (const signature of declaration.signatures ?? []) {
     collectProviderImportsFromSignature(signature, currentModuleSpecifier, importsByModule);
@@ -143,7 +167,7 @@ function collectProviderImportsFromExport(
 function collectProviderImportsFromSignature(
   signature: ProviderSignatureDeclaration,
   currentModuleSpecifier: string,
-  importsByModule: Map<string, Map<string, string | undefined>>,
+  importsByModule: Map<string, Map<string, CollectedProviderImport>>,
 ): void {
   for (const parameter of signature.parameters) {
     collectProviderImportsFromType(parameter.type, currentModuleSpecifier, importsByModule);
@@ -160,7 +184,8 @@ function collectProviderImportsFromSignature(
 function collectProviderImportsFromType(
   type: ProviderTypeExpression | undefined,
   currentModuleSpecifier: string,
-  importsByModule: Map<string, Map<string, string | undefined>>,
+  importsByModule: Map<string, Map<string, CollectedProviderImport>>,
+  position: "type" | "value" = "type",
 ): void {
   if (type === undefined) {
     return;
@@ -168,8 +193,12 @@ function collectProviderImportsFromType(
   switch (type.kind) {
     case "provider-ref":
       if (type.moduleSpecifier !== currentModuleSpecifier) {
-        const imports = importsByModule.get(type.moduleSpecifier) ?? new Map<string, string | undefined>();
-        imports.set(type.exportName, type.localName);
+        const imports = importsByModule.get(type.moduleSpecifier) ?? new Map<string, CollectedProviderImport>();
+        const existing = imports.get(type.exportName);
+        imports.set(type.exportName, {
+          ...(type.localName === undefined ? {} : { localName: type.localName }),
+          kind: existing?.kind === "value" || position === "value" ? "value" : "type",
+        });
         importsByModule.set(type.moduleSpecifier, imports);
       }
       for (const argument of type.typeArguments ?? []) {
@@ -180,7 +209,7 @@ function collectProviderImportsFromType(
       for (const argument of type.typeArguments ?? []) {
         collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
       }
-      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule);
+      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule, position);
       return;
     case "array":
       collectProviderImportsFromType(type.elementType, currentModuleSpecifier, importsByModule);
@@ -209,7 +238,7 @@ function collectProviderImportsFromType(
       }
       return;
     case "opaque":
-      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule);
+      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule, position);
       return;
     default:
       return;
