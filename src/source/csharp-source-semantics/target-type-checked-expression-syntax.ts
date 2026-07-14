@@ -24,6 +24,9 @@ import {
   unwrapNullableTargetType,
 } from "./target-rules.js";
 import {
+  targetTypeRefEquals,
+} from "./target-ref-utils.js";
+import {
   csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -56,6 +59,19 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
       ...options,
       allowSemanticTypeQuery: false,
     }, host);
+  }
+  if (ast.is.IsConditionalExpression(node)) {
+    const whenTrue = resolver.resolveSubject(asNodeSubject(getNodeField(node, "WhenTrue")), context, {
+      ...options,
+      allowSemanticTypeQuery: false,
+    }, host);
+    const whenFalse = resolver.resolveSubject(asNodeSubject(getNodeField(node, "WhenFalse")), context, {
+      ...options,
+      allowSemanticTypeQuery: false,
+    }, host);
+    return whenTrue !== undefined && whenFalse !== undefined && targetTypeRefEquals(whenTrue, whenFalse)
+      ? whenTrue
+      : undefined;
   }
   if (ast.kindName(node) === "KindPrefixUnaryExpression") {
     const operator = getPrefixUnaryOperatorText(ast, node);

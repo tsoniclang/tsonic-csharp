@@ -131,13 +131,20 @@ function resolveDeclarationInitializerTargetType(
       return selectedReturn;
     }
     const operationResult = targetOperationResultType(initializer, context);
-    if (operationResult !== undefined && operationResult !== initializer) {
-      return resolveSubject(operationResult, context, options);
+    if (operationResult !== undefined) {
+      return operationResult;
     }
     const initializerCarrier = resolveRuntimeCarrier(initializer, context) ??
       context.facts.get(initializer, runtimeCarrierFactKey)?.carrier;
     if (initializerCarrier !== undefined) {
       return initializerCarrier;
+    }
+    const initializerTarget = resolveSubject(initializer, context, {
+      ...options,
+      allowSemanticTypeQuery: false,
+    });
+    if (initializerTarget !== undefined) {
+      return initializerTarget;
     }
   }
   return undefined;
@@ -154,7 +161,7 @@ function selectedTargetSignatureReturnType(
 function targetOperationResultType(
   subject: ExtensionFactSubject,
   context: ExtensionObservationContext,
-): ExtensionFactSubject | undefined {
+): TargetTypeRef | undefined {
   return context.factResolver.resolve(subject, targetOperationFactKey)?.resultType ??
     context.facts.get(subject, targetOperationFactKey)?.resultType ??
     context.factResolver.resolve(subject, csharpTargetOperationFactKey)?.resultType ??

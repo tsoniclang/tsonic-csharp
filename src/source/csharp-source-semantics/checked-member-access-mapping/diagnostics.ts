@@ -181,6 +181,22 @@ export function rejectTupleElementCarrierMissing(
 
 export function rejectSourceIndexerResultTypeNotProven(
   extensionId: string,
+  receiverTargetType: TargetTypeRef | undefined,
+  selectedResultTargetType: TargetTypeRef | undefined,
+  sourceResultEvidenceAvailable: boolean,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_SOURCE_INDEXER_RESULT_TYPE_NOT_PROVEN", 9100148, "C# source-owned index signature element access requires a TSTS-proven index result target carrier before emission."));
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_SOURCE_INDEXER_RESULT_TYPE_NOT_PROVEN",
+    9100148,
+    "C# source-owned index signature element access requires a TSTS-proven index result target carrier before emission.",
+    [{
+      message: "Selected source indexer target-type evidence",
+      details: {
+        receiverTargetType,
+        selectedResultTargetType,
+        sourceResultEvidenceAvailable,
+      },
+    }],
+  ));
 }

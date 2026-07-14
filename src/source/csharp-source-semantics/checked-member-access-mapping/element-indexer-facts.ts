@@ -77,8 +77,8 @@ import {
   getCsharpSourceProfileMemberIdentity,
 } from "../source-profile-operations.js";
 import {
-  targetTypeRefEquals,
-} from "../target-ref-utils.js";
+  closeSelectedTargetResultType,
+} from "./selected-result-type.js";
 
 export function mapCsharpNativeArrayCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -135,14 +135,21 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
-  const sourceProfileMember = csharpSourceProfileIndexerMember(
-    getCsharpSourceProfileMemberIdentity(request.sourceSelectedDeclaration, context),
-    receiverType.element,
-  );
-  if (sourceProfileMember !== undefined) {
+  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(request.sourceSelectedDeclaration, context);
+  if (sourceProfileIdentity !== undefined) {
     const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
-    if (selectedResultType !== undefined && !targetTypeRefEquals(selectedResultType, receiverType.element)) {
-      return rejectSourceIndexerResultTypeNotProven(extensionId);
+    const resultType = closeSelectedTargetResultType(receiverType.element, selectedResultType);
+    if (resultType === undefined) {
+      return rejectSourceIndexerResultTypeNotProven(
+        extensionId,
+        receiverType,
+        selectedResultType,
+        request.sourceResultType !== undefined,
+      );
+    }
+    const sourceProfileMember = csharpSourceProfileIndexerMember(sourceProfileIdentity, resultType);
+    if (sourceProfileMember === undefined) {
+      return undefined;
     }
     const indexType = host.getTargetTypeRefForSubject(request.argument, context);
     if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
@@ -299,7 +306,12 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   }
   const resultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
   if (resultType === undefined) {
-    return rejectSourceIndexerResultTypeNotProven(extensionId);
+    return rejectSourceIndexerResultTypeNotProven(
+      extensionId,
+      receiverType,
+      resultType,
+      request.sourceResultType !== undefined,
+    );
   }
   const operationId = "tsonic.csharp.source.indexer";
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item", { resultType }), [{ message: "C# source-owned indexer operation recorded from TSTS-selected source index-signature declaration and source result type evidence." }]);
