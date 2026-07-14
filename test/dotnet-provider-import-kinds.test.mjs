@@ -50,7 +50,6 @@ test(".NET provider preserves exact synthetic export slices used by provider her
     moduleSpecifier: "@tsonic/dotnet/Acme.js",
     virtualFileName: "tsts-provider://acme.dotnet.synthetic-slice/%40tsonic%2Fdotnet%2FAcme.js.d.ts",
     providerModuleId: "@tsonic/dotnet/Acme.js",
-    requestedExports: ["Base"],
     packageName: "@tsonic/dotnet",
     evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
   });
@@ -65,6 +64,54 @@ test(".NET provider preserves exact synthetic export slices used by provider her
     { phase: "ownership", broadImport: undefined, requestedExports: ["Base"] },
     { phase: "declaration", broadImport: undefined, requestedExports: ["Base"] },
   ]);
+});
+
+test(".NET provider rejects overlapping declaration transactions instead of replacing requested slices", () => {
+  const provider = {
+    identity: {
+      id: "acme.dotnet.transactional-slices",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "Transactional slice fixture",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule(specifier, context) {
+      return {
+        moduleSpecifier: specifier,
+        namespaceName: "Acme",
+        exports: (context.requestedExports ?? []).map((sourceName) => ({
+          kind: "type",
+          typeKind: "class",
+          sourceName,
+          namespaceName: "Acme",
+          targetId: testTargetId(`Acme.${sourceName}`),
+          metadataName: `Acme.${sourceName}`,
+        })),
+      };
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const request = (exportedName) => bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", {
+    importSlice: {
+      moduleSpecifier: "@tsonic/dotnet/Acme.js",
+      kind: "named",
+      requestedExports: [{ exportedName, kind: "value" }],
+    },
+  });
+
+  const first = request("First");
+  assert.equal(first.kind, "virtual");
+  const overlap = request("Second");
+  assert.equal(overlap.extensionCode, "DOTNET_PROVIDER_RESOLUTION_OVERLAP");
+
+  const firstModel = bindingProvider.getDeclarationModel(first);
+  assert.deepEqual(firstModel.exports.map((declaration) => declaration.name), ["First"]);
+  const second = request("Second");
+  assert.equal(second.kind, "virtual");
+  const secondModel = bindingProvider.getDeclarationModel(second);
+  assert.deepEqual(secondModel.exports.map((declaration) => declaration.name), ["Second"]);
 });
 
 test(".NET provider imports external class heritage as values without widening type-only refs", () => {

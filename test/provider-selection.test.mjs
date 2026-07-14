@@ -701,7 +701,7 @@ test("C# target constraint lifecycle skips provider virtual declaration files", 
               providerVersion: "1",
               providerModuleId: "@provider/module",
               moduleSpecifier: "@provider/module",
-              virtualFileName: "tsts-provider://provider/module.d.ts",
+              artifactFileName: "tsts-provider://provider/module.d.ts",
             }
           : undefined,
       },

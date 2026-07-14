@@ -68,9 +68,6 @@ export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvide
         evidence: [{ message: "Declaration model is generated from C# source alias semantics." }],
       };
     },
-    getTargetIdentity() {
-      return undefined;
-    },
   };
 }
 

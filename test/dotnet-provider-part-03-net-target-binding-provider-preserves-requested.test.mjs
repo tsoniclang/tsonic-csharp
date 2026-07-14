@@ -36,8 +36,8 @@ test(".NET target binding provider preserves requested-export slices through dec
     requestedExports: ["Convert"],
   });
   assert.equal(resolution.kind, "virtual");
-  assert.deepEqual(resolution.requestedExports, ["Convert"]);
-  assert.equal(resolution.broadImport, undefined);
+  assert.equal("requestedExports" in resolution, false);
+  assert.equal("broadImport" in resolution, false);
   assert.match(
     resolution.virtualFileName,
     /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\.d\.ts$/u,
@@ -77,6 +77,7 @@ test(".NET target binding provider expands requested slices for same-module prov
   assert.equal(exportNames.has("Range"), true);
   assert.equal(exportNames.has("SpanSplitEnumerator"), true);
   assert.equal(exportNames.has("TryWriteInterpolatedStringHandler"), true);
+  assert.equal(exportNames.has("MemoryExtensions"), false);
 });
 test(".NET provider source declarations preserve inherited overload signatures on derived members", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });

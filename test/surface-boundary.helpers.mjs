@@ -565,7 +565,7 @@ export function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureI
     providerVersion: "0.0.1",
     providerModuleId: moduleSpecifier,
     moduleSpecifier,
-    virtualFileName: `tsts-provider://csharp-nodejs/${encodeURIComponent(moduleSpecifier)}.d.ts`,
+    artifactFileName: `tsts-provider://csharp-nodejs/${encodeURIComponent(moduleSpecifier)}.d.ts`,
     exportName,
     ...(signatureId !== undefined ? { signatureId } : {}),
   };

@@ -11,9 +11,7 @@ import type {
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
-  ProviderSymbolIdentity,
   TargetBindingProvider,
-  TargetIdentity,
 } from "@tsonic/tsts";
 import { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
 import {
@@ -36,6 +34,7 @@ import {
   dotnetProviderDiagnosticToExtensionDiagnostic,
   dotnetProviderRequestedExportMissingDiagnostic,
   dotnetProviderRequestedExportUnsupportedDiagnostic,
+  dotnetProviderResolutionOverlapDiagnostic,
   dotnetProviderRequestSliceRequiredDiagnostic,
   isDotnetProviderDiagnostic,
 } from "./provider-diagnostics.js";
@@ -56,7 +55,6 @@ export interface DotnetTypeDataProvider {
   readonly identity: DotnetProviderIdentity;
   ownsModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderOwnership;
   getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult;
-  getTargetIdentity?(symbol: ProviderSymbolIdentity): TargetIdentity | undefined;
   recordVirtualDeclarationModel?(model: ProviderDeclarationModel, elapsedMs: number): void;
 }
 
@@ -91,12 +89,8 @@ export interface DotnetBindingProviderOptions {
   readonly references?: readonly string[];
 }
 
-interface DotnetProviderModuleResolution extends ProviderModuleResolution {
-  readonly broadImport?: true;
-  readonly requestedExports?: readonly string[];
-}
-
 export function createDotnetTargetBindingProvider(options: DotnetBindingProviderOptions): TargetBindingProvider {
+  const pendingResolutionContexts = new Map<string, DotnetProviderResolutionContext>();
   const identity: ProviderIdentity = {
     id: options.provider.identity.id,
     version: options.provider.identity.version,
@@ -130,14 +124,17 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (ownership.kind !== "owned") {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_UNOWNED", 9200002, `.NET provider does not own '${specifier}'.`);
       }
+      const pendingContext = pendingResolutionContexts.get(specifier);
+      if (pendingContext !== undefined && !dotnetProviderResolutionContextsEqual(pendingContext, resolutionContext)) {
+        return dotnetProviderResolutionOverlapDiagnostic(identity.id, specifier);
+      }
+      pendingResolutionContexts.set(specifier, resolutionContext);
       const virtualFileName = providerVirtualDeclarationFileName(identity.id, specifier);
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
         virtualFileName,
         providerModuleId: module.moduleSpecifier,
-        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
-        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         ...(module.internal === true ? {} : { packageName: dotnetPackageName }),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
@@ -147,10 +144,11 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
-      const resolutionContext = dotnetProviderResolutionContextFromResolution(resolution);
+      const resolutionContext = pendingResolutionContexts.get(resolution.moduleSpecifier);
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
+      pendingResolutionContexts.delete(resolution.moduleSpecifier);
       const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options, resolution.virtualFileName, module));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
@@ -178,9 +176,6 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       }
       options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
       return model;
-    },
-    getTargetIdentity(symbol) {
-      return options.provider.getTargetIdentity?.(symbol);
     },
   };
 }
@@ -355,17 +350,17 @@ function sortedUnique(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort();
 }
 
-function dotnetProviderResolutionContextFromResolution(
-  resolution: ProviderModuleResolution,
-): DotnetProviderResolutionContext | undefined {
-  const dotnetResolution = resolution as DotnetProviderModuleResolution;
-  if (dotnetResolution.broadImport === true) {
-    return { broadImport: true };
+function dotnetProviderResolutionContextsEqual(
+  left: DotnetProviderResolutionContext,
+  right: DotnetProviderResolutionContext,
+): boolean {
+  if (left.broadImport !== right.broadImport) {
+    return false;
   }
-  if (dotnetResolution.requestedExports !== undefined) {
-    return { requestedExports: dotnetResolution.requestedExports };
-  }
-  return undefined;
+  const leftExports = left.requestedExports ?? [];
+  const rightExports = right.requestedExports ?? [];
+  return leftExports.length === rightExports.length &&
+    leftExports.every((exportName, index) => exportName === rightExports[index]);
 }
 
 function requestedUnsupportedExports(

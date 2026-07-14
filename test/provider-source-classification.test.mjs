@@ -44,7 +44,7 @@ function fakeInput(options = {}) {
               providerVersion: "1.0.0",
               providerModuleId: "test-provider/module",
               moduleSpecifier: "@provider/module",
-              virtualFileName: "/virtual/provider.ts",
+              artifactFileName: "/virtual/provider.ts",
             }
           : undefined,
     },

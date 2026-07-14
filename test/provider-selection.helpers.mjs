@@ -379,7 +379,7 @@ export function coreLangMarker(exportName) {
     providerVersion: "0",
     providerModuleId: "@tsonic/core/lang.js",
     moduleSpecifier: "@tsonic/core/lang.js",
-    virtualFileName: "tsts-provider://@tsonic/core/lang.js",
+    artifactFileName: "tsts-provider://@tsonic/core/lang.js",
     exportName,
     memberId: `@tsonic/core/lang.js::${exportName}`,
   };
@@ -391,7 +391,7 @@ export function virtualMember(memberId, memberName = "m", targetId = targetIdFro
     providerVersion: "0",
     providerModuleId: "test",
     moduleSpecifier: "test",
-    virtualFileName: "tsts-provider://test",
+    artifactFileName: "tsts-provider://test",
     memberName,
     memberId,
     targetIdentity: { kind: "target-named", id: targetId },

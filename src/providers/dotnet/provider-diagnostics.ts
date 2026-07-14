@@ -44,6 +44,16 @@ export function dotnetProviderRequestSliceRequiredDiagnostic(extensionId: string
   );
 }
 
+export function dotnetProviderResolutionOverlapDiagnostic(extensionId: string, specifier: string): ExtensionDiagnostic {
+  return dotnetExtensionDiagnostic(
+    extensionId,
+    "DOTNET_PROVIDER_RESOLUTION_OVERLAP",
+    9200008,
+    `.NET provider module '${specifier}' received another resolution request before its declaration transaction completed.`,
+    [{ specifier }],
+  );
+}
+
 export function dotnetProviderRequestedExportMissingDiagnostic(
   extensionId: string,
   specifier: string,

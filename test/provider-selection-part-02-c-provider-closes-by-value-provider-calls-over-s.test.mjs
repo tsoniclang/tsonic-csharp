@@ -188,7 +188,7 @@ test("C# erased source marker rejects missing provider member identity", () => {
       providerVersion: "0",
       providerModuleId: "test",
       moduleSpecifier: "@tsonic/core/lang.js",
-      virtualFileName: "tsts-provider://test",
+      artifactFileName: "tsts-provider://test",
       exportName: "out",
     },
   }));
@@ -215,7 +215,7 @@ test("C# source marker mapping ignores same-spelling non-core virtual declaratio
       providerVersion: "0",
       providerModuleId: "./local.js",
       moduleSpecifier: "./local.js",
-      virtualFileName: "tsts-provider://local",
+      artifactFileName: "tsts-provider://local",
       exportName: "out",
       memberId: "./local.js::out",
     },

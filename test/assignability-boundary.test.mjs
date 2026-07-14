@@ -654,15 +654,6 @@ function createProviderBackedSearchValuesExtension() {
             }],
           };
         },
-        getTargetIdentity(symbol) {
-          return symbol.moduleSpecifier === searchValuesModule && symbol.exportName === "SearchValues"
-            ? {
-                target: "csharp",
-                id: "System.Collections.Generic.List`1",
-                displayName: "System.Collections.Generic.List<T>",
-              }
-            : undefined;
-        },
       });
     },
   };

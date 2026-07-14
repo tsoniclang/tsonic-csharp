@@ -340,15 +340,6 @@ export function createAttributeProviderExtension() {
             })),
           };
         },
-        getTargetIdentity(symbol) {
-          return symbol.moduleSpecifier === moduleSpecifier && attributeNames.includes(symbol.exportName)
-            ? {
-                target: "csharp",
-                id: `System.${symbol.exportName}`,
-                displayName: `System.${symbol.exportName}`,
-              }
-            : undefined;
-        },
       });
     },
   };

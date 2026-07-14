@@ -126,13 +126,25 @@ function providerDeclarationIdentitiesMatch(
     expected.providerVersion === actual.providerVersion &&
     expected.providerModuleId === actual.providerModuleId &&
     expected.moduleSpecifier === actual.moduleSpecifier &&
-    expected.virtualFileName === actual.virtualFileName &&
+    expected.artifactFileName === actual.artifactFileName &&
     expected.exportName === actual.exportName &&
     expected.exportId === actual.exportId &&
     expected.memberName === actual.memberName &&
+    optionalProviderMemberKeyEquals(expected.memberKey, actual.memberKey) &&
     expected.memberId === actual.memberId &&
+    expected.memberStatic === actual.memberStatic &&
     expected.signatureId === actual.signatureId &&
     optionalTargetTypeRefEquals(expected.targetIdentity, actual.targetIdentity);
+}
+
+function optionalProviderMemberKeyEquals(
+  expected: ProviderDeclarationIdentity["memberKey"],
+  actual: ProviderDeclarationIdentity["memberKey"],
+): boolean {
+  if (expected === undefined || actual === undefined) {
+    return expected === actual;
+  }
+  return expected.kind === actual.kind && expected.name === actual.name;
 }
 
 function targetParameterFactsMatch(expected: TargetParameter, actual: TargetParameter): boolean {
