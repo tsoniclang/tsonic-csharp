@@ -214,9 +214,7 @@ sealed partial class ReflectionProvider
             {
                 kind = "provider-ref",
                 moduleSpecifier = sourceReference.ModuleSpecifier,
-                exportName = sourceReference.ModuleSpecifier == activeModuleSpecifier
-                    ? sourceReference.Name
-                    : sourceReference.TypeFamilyExportName ?? sourceReference.Name,
+                exportName = sourceReference.TypeFamilyExportName ?? sourceReference.Name,
                 typeArguments = args.Length == 0 ? null : args,
             };
         }

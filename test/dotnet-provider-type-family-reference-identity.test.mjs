@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../dist/providers/dotnet/index.js";
+
+test(".NET provider source refs use public type-family exports for every concrete arity", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const modules = [
+    requireModule(provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Int32"] })),
+    requireModule(provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", { requestedExports: ["TaskFactory"] })),
+  ];
+
+  const observedPublicFamilies = new Set();
+  for (const module of modules) {
+    const concreteVariantNames = new Map(module.exports
+      .filter((declaration) =>
+        declaration.kind === "type" &&
+        declaration.sourceTypeFamily !== undefined &&
+        declaration.sourceName !== declaration.sourceTypeFamily.exportName)
+      .map((declaration) => [declaration.sourceName, declaration.sourceTypeFamily.exportName]));
+    const providerRefs = collectProviderRefs(module);
+    const illegalConcreteRefs = providerRefs
+      .filter((reference) => reference.moduleSpecifier === module.moduleSpecifier && concreteVariantNames.has(reference.exportName))
+      .map((reference) => ({
+        exportName: reference.exportName,
+        expectedPublicExport: concreteVariantNames.get(reference.exportName),
+      }));
+    assert.deepEqual(illegalConcreteRefs, []);
+    for (const reference of providerRefs) {
+      if (reference.moduleSpecifier !== module.moduleSpecifier) continue;
+      if ([...concreteVariantNames.values()].includes(reference.exportName)) {
+        observedPublicFamilies.add(reference.exportName);
+      }
+    }
+  }
+
+  assert.equal(observedPublicFamilies.has("IComparable"), true);
+  assert.equal(observedPublicFamilies.has("Task"), true);
+  const taskModule = modules[1];
+  const taskVariants = taskModule.exports.filter((declaration) =>
+    declaration.kind === "type" && declaration.sourceTypeFamily?.exportName === "Task");
+  assert.deepEqual(taskVariants.map((declaration) => declaration.sourceTypeFamily.typeArgumentCount).sort(), [0, 1]);
+  assert.equal(new Set(taskVariants.map((declaration) => declaration.targetId)).size, 2);
+});
+
+function requireModule(result) {
+  assert.equal("exports" in result, true, JSON.stringify(result));
+  return result;
+}
+
+function collectProviderRefs(value, refs = [], visited = new WeakSet()) {
+  if (value === null || typeof value !== "object" || visited.has(value)) return refs;
+  visited.add(value);
+  if (value.kind === "provider-ref") refs.push(value);
+  if (Array.isArray(value)) {
+    for (const item of value) collectProviderRefs(item, refs, visited);
+    return refs;
+  }
+  for (const nested of Object.values(value)) collectProviderRefs(nested, refs, visited);
+  return refs;
+}
