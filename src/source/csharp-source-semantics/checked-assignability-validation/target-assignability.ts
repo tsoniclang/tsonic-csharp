@@ -244,6 +244,7 @@ function substituteTargetTypeParameters(
   switch (type.kind) {
     case "type-parameter":
       return substitutions.get(type.name) ?? type;
+    case "source-global":
     case "target-named":
       return {
         ...type,

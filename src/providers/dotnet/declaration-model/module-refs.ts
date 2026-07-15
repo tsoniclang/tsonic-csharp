@@ -69,6 +69,11 @@ function qualifyProviderTypeModuleRefs(
           ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
         };
       }
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
+      };
     case "target-named":
       return {
         ...type,
@@ -92,7 +97,19 @@ function qualifyProviderTypeModuleRefs(
       return type.sourceShape === undefined
         ? type
         : { ...type, sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, context) };
-    default:
+    case "any":
+    case "unknown":
+    case "void":
+    case "never":
+    case "undefined":
+    case "boolean":
+    case "string":
+    case "number":
+    case "bigint":
+    case "object":
+    case "literal":
+    case "source-primitive":
+    case "type-parameter":
       return type;
   }
 }
@@ -205,6 +222,11 @@ function collectProviderImportsFromType(
         collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
       }
       return;
+    case "source-global":
+      for (const argument of type.typeArguments ?? []) {
+        collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
+      }
+      return;
     case "target-named":
       for (const argument of type.typeArguments ?? []) {
         collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
@@ -240,7 +262,19 @@ function collectProviderImportsFromType(
     case "opaque":
       collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule, position);
       return;
-    default:
+    case "any":
+    case "unknown":
+    case "void":
+    case "never":
+    case "undefined":
+    case "boolean":
+    case "string":
+    case "number":
+    case "bigint":
+    case "object":
+    case "literal":
+    case "source-primitive":
+    case "type-parameter":
       return;
   }
 }

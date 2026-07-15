@@ -55,6 +55,7 @@ function registerObjectShapeDeclarationsForTargetType(
   }
 
   switch (type.kind) {
+    case "source-global":
     case "target-named":
       for (const typeArgument of type.typeArguments ?? []) {
         registerObjectShapeDeclarationsForTargetType(input, typeArgument, diagnostics, diagnosticSubject, visited);
@@ -77,7 +78,14 @@ function registerObjectShapeDeclarationsForTargetType(
       }
       registerObjectShapeDeclarationsForTargetType(input, type.result, diagnostics, diagnosticSubject, visited);
       return;
-    default:
+    case "associated-type":
+      registerObjectShapeDeclarationsForTargetType(input, type.owner, diagnostics, diagnosticSubject, visited);
+      return;
+    case "source-primitive":
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
       return;
   }
 }

@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { csharpTypeFromTargetTypeRef } from "../dist/backend/planner/target-types.js";
+import {
+  csharpTypeFromTargetTypeRef,
+  targetTypeRefsMatch,
+} from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
 import {
   printCsharpCompilationUnit,
@@ -155,6 +158,36 @@ test("target type rendering requires explicit C# render shape for non-predefined
 
   assert.ok(rendered);
   assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
+});
+
+test("source-global target refs remain source evidence until wrapped by a C# target carrier", () => {
+  const promiseOfString = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.String" }],
+  };
+  const promiseOfNumber = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.Double" }],
+  };
+
+  assert.equal(csharpTypeFromTargetTypeRef(promiseOfString), undefined);
+  assert.equal(targetTypeRefsMatch(promiseOfString, { ...promiseOfString }), true);
+  assert.equal(targetTypeRefsMatch(promiseOfString, promiseOfNumber), false);
+
+  const rendered = csharpTypeFromTargetTypeRef({
+    kind: "target-named",
+    id: "System.Threading.Tasks.Task`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Threading", "Tasks"],
+      name: "Task",
+    },
+  });
+  assert.ok(rendered);
+  assert.equal(printCsharpType(rendered), "System.Threading.Tasks.Task<int>");
 });
 
 test("target bindings require explicit C# render shape", () => {

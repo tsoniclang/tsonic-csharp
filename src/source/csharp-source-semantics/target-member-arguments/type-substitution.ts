@@ -67,6 +67,13 @@ export function substituteTargetTypeRef(type: TargetTypeRef, typeParameterBindin
   switch (type.kind) {
     case "type-parameter":
       return typeParameterBindings.get(type.name) ?? type;
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeParameterBindings)) }),
+      };
     case "target-named":
       return {
         ...type,

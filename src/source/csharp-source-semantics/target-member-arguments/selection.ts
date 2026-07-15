@@ -359,6 +359,7 @@ function targetTypeRefHasSelectedBoundTypeParameter(
   switch (type.kind) {
     case "type-parameter":
       return typeParameterBindings.has(type.name) && selectedTypeParameterBindings.has(type.name);
+    case "source-global":
     case "target-named":
       return (type.typeArguments ?? []).some((argument) => targetTypeRefHasSelectedBoundTypeParameter(argument, typeParameterBindings, selectedTypeParameterBindings));
     case "array":
@@ -388,7 +389,15 @@ function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter
       return targetParameterTypeIsSourcePrimitiveCarrier(type.element);
     case "tuple":
       return type.elements.every(targetParameterTypeIsSourcePrimitiveCarrier);
-    default:
+    case "source-global":
+    case "target-named":
+    case "type-parameter":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
       return false;
   }
 }

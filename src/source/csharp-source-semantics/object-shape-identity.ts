@@ -70,6 +70,7 @@ function collectTargetTypeParameters(
     case "type-parameter":
       typeParameters.set(type.name, type);
       return;
+    case "source-global":
     case "target-named":
       for (const typeArgument of type.typeArguments ?? []) {
         collectTargetTypeParameters(typeArgument, typeParameters);

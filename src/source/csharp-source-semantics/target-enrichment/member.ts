@@ -158,6 +158,13 @@ function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyM
   switch (type.kind) {
     case "type-parameter":
       return typeArgumentMap.get(type.name) ?? type;
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }),
+      };
     case "target-named":
       const csharpType = type as CsharpTargetNamedTypeRef;
       return {

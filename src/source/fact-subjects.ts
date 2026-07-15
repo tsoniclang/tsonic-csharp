@@ -31,6 +31,7 @@ export function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
   const kind = (subject as { readonly kind?: unknown }).kind;
   switch (kind) {
     case "source-primitive":
+    case "source-global":
     case "target-named":
     case "type-parameter":
     case "array":

@@ -1016,6 +1016,12 @@ function validateProviderTypeExpression(
         validateProviderTypeExpression(argument, `${path}.typeArguments[${index}]`, collector);
       }
       return;
+    case "source-global":
+      requireNonEmptyString(type.name, `${path}.name`, collector);
+      for (const [index, argument] of (type.typeArguments ?? []).entries()) {
+        validateProviderTypeExpression(argument, `${path}.typeArguments[${index}]`, collector);
+      }
+      return;
     case "target-named":
       requireNonEmptyString(type.target, `${path}.target`, collector);
       requireNonEmptyString(type.id, `${path}.id`, collector);

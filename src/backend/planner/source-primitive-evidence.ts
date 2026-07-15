@@ -81,6 +81,7 @@ function collectTargetTypeSourcePrimitives(type: TargetTypeRef): ReadonlySet<str
       case "tuple":
         current.elements.forEach(visit);
         return;
+      case "source-global":
       case "target-named":
         current.typeArguments?.forEach(visit);
         return;

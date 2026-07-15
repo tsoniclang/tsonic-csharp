@@ -126,7 +126,6 @@ test(".NET reflection provider returns requested export declaration closures ins
     "Byte",
     "Char",
     "CharEnumerator",
-    "Comparison",
     "Convert",
     "DateOnly",
     "DateTime",
@@ -177,14 +176,11 @@ test(".NET reflection provider returns requested export declaration closures ins
     "Int64",
     "IntPtr",
     "InvocationListEnumerator",
-    "Memory",
-    "MemoryExtensions",
     "MidpointRounding",
     "ModuleHandle",
     "MulticastDelegate",
     "Object",
     "Range",
-    "ReadOnlyMemory",
     "ReadOnlySpan",
     "ReadOnlySpan_Enumerator",
     "RuntimeFieldHandle",
@@ -197,7 +193,6 @@ test(".NET reflection provider returns requested export declaration closures ins
     "Span_Enumerator",
     "String",
     "StringComparison",
-    "StringNormalizationExtensions",
     "StringSplitOptions",
     "TimeOnly",
     "TimeSpan",
@@ -538,7 +533,6 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
   assert.equal("exports" in model, true, JSON.stringify(model));
   const exportNames = model.exports.map((declaration) => declaration.name);
   assert.deepEqual(exportNames, [
-    "CollectionExtensions",
     "Dictionary",
     "List",
     "Dictionary_AlternateLookup_1",
@@ -551,7 +545,6 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
     "IDictionary",
     "IEqualityComparer",
     "IReadOnlyDictionary",
-    "ISet",
     "List_Enumerator",
   ]);
 

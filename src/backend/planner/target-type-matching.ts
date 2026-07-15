@@ -13,6 +13,10 @@ export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): 
   switch (left.kind) {
     case "source-primitive":
       return right.kind === "source-primitive" && left.name === right.name;
+    case "source-global":
+      return right.kind === "source-global" &&
+        left.name === right.name &&
+        targetTypeRefListsMatch(left.typeArguments ?? [], right.typeArguments ?? []);
     case "target-named":
       return right.kind === "target-named" &&
         left.id === right.id &&
@@ -47,8 +51,6 @@ export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): 
         left.target === right.target &&
         left.name === right.name &&
         Object.is(left.value, right.value);
-    default:
-      return false;
   }
 }
 

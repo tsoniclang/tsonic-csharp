@@ -87,6 +87,11 @@ function substituteProviderTypeExpression(
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteProviderTypeExpression(argument, substitutions)) }),
       };
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteProviderTypeExpression(argument, substitutions)) }),
+      };
     case "target-named":
       return {
         ...type,
@@ -112,7 +117,18 @@ function substituteProviderTypeExpression(
       return type.sourceShape === undefined
         ? type
         : { ...type, sourceShape: substituteProviderTypeExpression(type.sourceShape, substitutions) };
-    default:
+    case "any":
+    case "unknown":
+    case "void":
+    case "never":
+    case "undefined":
+    case "boolean":
+    case "string":
+    case "number":
+    case "bigint":
+    case "object":
+    case "literal":
+    case "source-primitive":
       return type;
   }
 }

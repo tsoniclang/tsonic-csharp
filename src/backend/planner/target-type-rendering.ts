@@ -24,6 +24,8 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
   switch (type.kind) {
     case "source-primitive":
       return csharpTypeFromSourcePrimitiveKind(type.name);
+    case "source-global":
+      return undefined;
     case "target-named":
       return csharpTypeFromTargetNamedType(type);
     case "type-parameter":
@@ -54,8 +56,9 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
         : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
     }
     case "target-specific":
-      return undefined;
-    default:
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
       return undefined;
   }
 }

@@ -55,6 +55,13 @@ export function csharpApplyExternAliasToTargetType(
   specifier: CsharpExternAliasSpecifier,
 ): TargetTypeRef {
   switch (type.kind) {
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map((argument) => csharpApplyExternAliasToTargetType(argument, specifier)) }),
+      };
     case "target-named":
       return csharpApplyExternAliasToNamedTargetType(type, specifier);
     case "array":
@@ -83,7 +90,11 @@ export function csharpApplyExternAliasToTargetType(
         ...type,
         owner: csharpApplyExternAliasToTargetType(type.owner, specifier),
       };
-    default:
+    case "source-primitive":
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
       return type;
   }
 }

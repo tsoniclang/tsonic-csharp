@@ -53,6 +53,20 @@ function closeTargetTypeRef(
         ? undefined
         : { ...openTargetType, typeArguments };
     }
+    case "source-global": {
+      if (selectedSourceResultType.kind !== "source-global" ||
+          selectedSourceResultType.name !== openTargetType.name) {
+        return undefined;
+      }
+      const typeArguments = closeTargetTypeRefs(
+        openTargetType.typeArguments ?? [],
+        selectedSourceResultType.typeArguments ?? [],
+        substitutions,
+      );
+      return typeArguments === undefined
+        ? undefined
+        : { ...openTargetType, typeArguments };
+    }
     case "array": {
       if (selectedSourceResultType.kind !== "array" ||
           (selectedSourceResultType.rank ?? 1) !== (openTargetType.rank ?? 1)) {

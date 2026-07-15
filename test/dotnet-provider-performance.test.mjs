@@ -434,13 +434,9 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
     "Convert",
-    "MemoryExtensions",
     "Range",
     "SpanSplitEnumerator",
-    "StringNormalizationExtensions",
     "TryWriteInterpolatedStringHandler",
-    "ArraySegment",
-    "ArraySegment_Enumerator",
     "Base64FormattingOptions",
     "DateOnly",
     "DateTime",
@@ -448,13 +444,12 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
     "DateTimeOffset",
     "DayOfWeek",
     "Guid",
+    "IComparable",
     "IComparable_1",
     "IEquatable",
     "IFormatProvider",
     "Index",
-    "Memory",
     "ModuleHandle",
-    "ReadOnlyMemory",
     "ReadOnlySpan",
     "ReadOnlySpan_Enumerator",
     "RuntimeFieldHandle",
@@ -487,7 +482,7 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   const snapshot = provider.getTelemetrySnapshot();
   assert.equal(snapshot.moduleBroadRequests, 0);
   assert.equal(snapshot.moduleSlicedRequests, 4);
-  assert.equal(snapshot.moduleRequestedExports, 20);
+  assert.equal(snapshot.moduleRequestedExports, 8);
 });
 
 test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {

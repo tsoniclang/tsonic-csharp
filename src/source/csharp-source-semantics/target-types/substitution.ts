@@ -17,6 +17,13 @@ export function substituteTargetTypeParameters(
   switch (type.kind) {
     case "type-parameter":
       return substitutions.get(type.name) ?? type;
+    case "source-global":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
+      };
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;

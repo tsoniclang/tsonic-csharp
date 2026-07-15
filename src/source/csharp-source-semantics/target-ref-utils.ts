@@ -45,6 +45,10 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
   switch (left.kind) {
     case "source-primitive":
       return right.kind === "source-primitive" && left.name === right.name;
+    case "source-global":
+      return right.kind === "source-global" &&
+        left.name === right.name &&
+        targetTypeRefListEquals(left.typeArguments ?? [], right.typeArguments ?? []);
     case "target-named":
       return right.kind === "target-named" &&
         left.id === right.id &&
@@ -90,6 +94,7 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
       return true;
     case "type-parameter":
       return false;
+    case "source-global":
     case "target-named":
       return (type.typeArguments ?? []).every(targetTypeRefIsClosed);
     case "array":
@@ -118,6 +123,7 @@ export function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boole
     case "function-pointer":
       return targetTypeRefContainsSourcePrimitive(type.result) ||
         type.args.some(targetTypeRefContainsSourcePrimitive);
+    case "source-global":
     case "target-named":
       return (type.typeArguments ?? []).some(targetTypeRefContainsSourcePrimitive);
     case "associated-type":
@@ -147,6 +153,8 @@ export function targetTypeRefKey(type: TargetTypeRef): string {
   switch (type.kind) {
     case "source-primitive":
       return `${nullablePrefix}source:${type.name}`;
+    case "source-global":
+      return `${nullablePrefix}source-global:${type.name}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
     case "target-named":
       return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
     case "type-parameter":

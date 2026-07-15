@@ -37,6 +37,15 @@ export function enrichCsharpTargetTypeRef(
     case "lifetime":
     case "target-specific":
       return type;
+    case "source-global": {
+      const typeArguments = enrichCsharpTargetTypeRefs(type.typeArguments ?? [], host);
+      return typeArguments === undefined
+        ? undefined
+        : {
+            ...type,
+            ...(type.typeArguments === undefined ? {} : { typeArguments }),
+          };
+    }
     case "target-named": {
       const typeArguments = enrichCsharpTargetTypeRefs(type.typeArguments ?? [], host);
       if (typeArguments === undefined) {

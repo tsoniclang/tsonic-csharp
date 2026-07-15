@@ -219,6 +219,8 @@ function targetTypeRefKey(type: TargetTypeRef): string {
       return `target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
     case "source-primitive":
       return `source-primitive:${type.name}`;
+    case "source-global":
+      return `source-global:${type.name}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
     case "type-parameter":
       return `type-parameter:${type.name}`;
     case "array":

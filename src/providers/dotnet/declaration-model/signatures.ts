@@ -193,6 +193,13 @@ function providerTypeExpressionSourceProjection(
   switch (type.kind) {
     case "source-primitive":
       return [{ kind: sourcePrimitiveSourceRuntimeKind(type.name) }];
+    case "source-global":
+      return [{
+        ...type,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map((argument) => mergeProviderSourceSelectionTypes([argument])) }),
+      }];
     case "target-named":
     case "opaque":
       return type.sourceShape === undefined
@@ -234,7 +241,18 @@ function providerTypeExpressionSourceProjection(
           ? {}
           : { typeArguments: type.typeArguments.map((argument) => mergeProviderSourceSelectionTypes([argument])) }),
       }];
-    default:
+    case "any":
+    case "unknown":
+    case "void":
+    case "never":
+    case "undefined":
+    case "boolean":
+    case "string":
+    case "number":
+    case "bigint":
+    case "object":
+    case "literal":
+    case "type-parameter":
       return [type];
   }
 }
@@ -319,6 +337,10 @@ function renameProviderTypeExpressionTypeParameters(
       return type.typeArguments === undefined
         ? type
         : { ...type, typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) };
+    case "source-global":
+      return type.typeArguments === undefined
+        ? type
+        : { ...type, typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) };
     case "target-named":
       return {
         ...type,
@@ -347,8 +369,18 @@ function renameProviderTypeExpressionTypeParameters(
       return type.sourceShape === undefined
         ? type
         : { ...type, sourceShape: renameProviderTypeExpressionTypeParameters(type.sourceShape, renames) };
+    case "any":
+    case "unknown":
+    case "void":
+    case "never":
     case "undefined":
-    default:
+    case "boolean":
+    case "string":
+    case "number":
+    case "bigint":
+    case "object":
+    case "literal":
+    case "source-primitive":
       return type;
   }
 }
@@ -415,6 +447,12 @@ function providerTypeExpressionSourceShapeKey(
       return { kind: "literal", value: type.value };
     case "source-primitive":
       return { kind: sourcePrimitiveSourceRuntimeKind(type.name) };
+    case "source-global":
+      return {
+        kind: "source-global",
+        name: type.name,
+        typeArguments: type.typeArguments?.map((argument) => providerTypeExpressionSourceShapeKey(argument, mode)),
+      };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
     case "target-named":
@@ -481,6 +519,12 @@ function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts
       return 1;
     case "type-parameter":
       return 2;
+    case "source-global": {
+      const typeArguments = type.typeArguments ?? [];
+      return 8 +
+        sumProviderTypeExpressionScores(typeArguments) -
+        (typeArguments.length * 4);
+    }
     case "array":
       return 1 + providerTypeExpressionSourceSpecificityScore(type.elementType);
     case "tuple":
