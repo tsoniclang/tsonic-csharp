@@ -253,6 +253,22 @@ test("target enrichment preserves and substitutes selected use-site delegate evi
   });
 });
 
+test("target substitution preserves provider-proven nullable reference modifiers on generic results", () => {
+  const nullableResult = {
+    kind: "type-parameter",
+    name: "TResult",
+    csharpNullableReference: true,
+  };
+
+  assert.deepEqual(
+    substituteTargetTypeParameters(nullableResult, new Map([["TResult", sourceDogType]])),
+    {
+      ...sourceDogType,
+      csharpNullableReference: true,
+    },
+  );
+});
+
 test("checked conversions accept same-shape delegate values without provider conversion metadata", () => {
   const source = { id: "source-handler" };
   const target = { id: "target-handler" };

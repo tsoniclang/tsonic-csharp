@@ -114,4 +114,4 @@ export interface CsharpAttribute {
 
 export type CsharpAttributeTargetSpecifier = "field" | "property" | "param" | "return";
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "virtual" | "override" | "async" | "unsafe";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "required" | "virtual" | "override" | "async" | "unsafe";

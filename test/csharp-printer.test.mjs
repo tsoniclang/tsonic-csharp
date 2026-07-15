@@ -240,6 +240,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const members = renderObjectShapeMembers(metadataBackedShape, false, undefined, undefined);
   assert.ok(members);
   assert.equal(members.length, 2);
+  assert.deepEqual(members[0].modifiers, ["public", "required"]);
   assert.equal(members[1].kind, "MethodDeclaration");
   assert.equal(members[1].parameters[0].name, "arg0");
   assert.deepEqual(members[1].parameters[0].type, { kind: "PredefinedType", name: "int" });
@@ -261,4 +262,38 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const diagnostics = [];
   assert.equal(renderObjectShapeMembers(missingReturnFactShape, false, diagnostics, { Kind: "KindTypeLiteral" }), undefined);
   assert.match(diagnostics[0].message, /explicit return facts/);
+});
+
+test("object shape declarations enforce required members while leaving optional members optional", () => {
+  const shape = {
+    targetType: { kind: "target-named", id: "__Shape" },
+    members: [{
+      sourceName: "requiredValue",
+      targetName: "requiredValue",
+      memberKind: "property",
+      type: { kind: "target-named", id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
+    }, {
+      sourceName: "optionalValue",
+      targetName: "optionalValue",
+      memberKind: "property",
+      type: {
+        kind: "target-named",
+        id: "System.String",
+        csharpRender: { kind: "predefined", name: "string" },
+        csharpNullableReference: true,
+      },
+      optional: true,
+    }],
+  };
+
+  const fields = renderObjectShapeMembers(shape, false, undefined, undefined);
+  assert.deepEqual(fields?.map((member) => member.modifiers), [
+    ["public", "required"],
+    ["public"],
+  ]);
+  const properties = renderObjectShapeMembers(shape, true, undefined, undefined);
+  assert.deepEqual(properties?.map((member) => member.modifiers), [
+    ["public", "required"],
+    ["public"],
+  ]);
 });

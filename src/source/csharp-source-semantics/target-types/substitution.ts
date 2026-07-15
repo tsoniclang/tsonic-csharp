@@ -9,6 +9,10 @@ import type {
   CsharpTargetNamedTypeRef,
   CsharpTaskTargetTypeRef,
 } from "./definitions.js";
+import {
+  csharpNullableTargetType,
+  isCsharpNullableReferenceTargetType,
+} from "./nullable.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
@@ -16,7 +20,13 @@ export function substituteTargetTypeParameters(
 ): TargetTypeRef {
   switch (type.kind) {
     case "type-parameter":
-      return substitutions.get(type.name) ?? type;
+      const substitution = substitutions.get(type.name);
+      if (substitution === undefined) {
+        return type;
+      }
+      return isCsharpNullableReferenceTargetType(type)
+        ? csharpNullableTargetType(substitution)
+        : substitution;
     case "source-global":
       return {
         ...type,

@@ -384,7 +384,7 @@ test("generated structural carriers close over finalized type-parameter target a
     }],
   });
   assert.match(printed, /public class __TsonicShape_Generic<T>/);
-  assert.match(printed, /public T value;/);
+  assert.match(printed, /public required T value;/);
 });
 test("generated structural carriers reuse declarations only when implemented-interface facts match", () => {
   const sourceExample = `
@@ -432,7 +432,7 @@ test("generated structural carriers reuse declarations only when implemented-int
   assert.deepEqual(diagnostics, []);
   assert.equal(declarations.length, 1);
   assert.match(printed, /public class __TsonicShape_InterfaceBox : Contracts\.IHasValue/);
-  assert.match(printed, /public int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
+  assert.match(printed, /public required int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
 });
 test("generated structural carriers emit once across source files", () => {
   const sourceExample = `

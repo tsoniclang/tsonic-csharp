@@ -48,7 +48,9 @@ export function renderObjectShapeMembers(
       return [{
         kind: "PropertyDeclaration" as const,
         name: member.targetName,
-        modifiers: ["public"] as const,
+        modifiers: member.optional === true
+          ? ["public"] as const
+          : ["public", "required"] as const,
         type,
         autoGetter: true,
         autoSetter: true,
@@ -57,7 +59,9 @@ export function renderObjectShapeMembers(
     return [{
       kind: "FieldDeclaration" as const,
       name: member.targetName,
-      modifiers: ["public"] as const,
+      modifiers: member.optional === true
+        ? ["public"] as const
+        : ["public", "required"] as const,
       type,
     }];
   });
@@ -102,7 +106,7 @@ function renderObjectShapeMethodMember(
   return [{
     kind: "FieldDeclaration",
     name: backingName,
-    modifiers: ["public"],
+    modifiers: member.optional === true ? ["public"] : ["public", "required"],
     type: delegateType,
   }, {
     kind: "MethodDeclaration",
