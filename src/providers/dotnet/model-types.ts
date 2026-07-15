@@ -297,6 +297,7 @@ export type DotnetTypeRef =
   | { readonly kind: "provider-ref"; readonly moduleSpecifier: string; readonly exportName: string; readonly typeArguments?: readonly DotnetTypeRef[] }
   | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
+  | { readonly kind: "nullable-reference"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }

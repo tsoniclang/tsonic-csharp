@@ -110,6 +110,7 @@ const supportedDotnetTypeRefKinds = new Set([
   "provider-ref",
   "named",
   "nullable",
+  "nullable-reference",
   "array",
   "tuple",
   "union",
@@ -139,6 +140,7 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["provider-ref", new Set(["kind", "moduleSpecifier", "exportName", "typeArguments"])],
   ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape"])],
   ["nullable", new Set(["kind", "elementType"])],
+  ["nullable-reference", new Set(["kind", "elementType"])],
   ["array", new Set(["kind", "elementType", "rank"])],
   ["tuple", new Set(["kind", "elements"])],
   ["union", new Set(["kind", "types"])],
@@ -484,7 +486,7 @@ function validateDotnetParameters(
       if (parameter.passingMode !== "by-value") {
         collector.add(`${parameterPath}.passingMode`, "Params-array/rest parameters must be passed by value.", parameter.passingMode);
       }
-      if (parameter.type.kind !== "array") {
+      if (dotnetParamsArrayTargetType(parameter.type).kind !== "array") {
         collector.add(`${parameterPath}.type`, "Params-array/rest parameters must carry an array target type.", parameter.type);
       }
     }
@@ -500,6 +502,12 @@ function validateDotnetParameters(
     validateOptionalDotnetParameterDefaultValue(parameter.defaultValue, `${parameterPath}.defaultValue`, collector);
     validateOptionalDotnetUnsupportedDefaultValue(parameter.unsupportedDefaultValue, `${parameterPath}.unsupportedDefaultValue`, collector);
   }
+}
+
+function dotnetParamsArrayTargetType(type: DotnetTypeRef): DotnetTypeRef {
+  return type.kind === "nullable-reference"
+    ? type.elementType
+    : type;
 }
 
 function validateDotnetTypeParameters(
@@ -679,6 +687,7 @@ function validateNoUnsupportedClrSourceTypeRef(
       validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
       return;
     case "nullable":
+    case "nullable-reference":
       validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
       return;
     case "tuple":
@@ -778,6 +787,7 @@ function validateDotnetTypeRef(
       validateDotnetTypeRef(type.elementType, `${path}.elementType`, collector, options);
       return;
     case "nullable":
+    case "nullable-reference":
       validateDotnetTypeRef(type.elementType, `${path}.elementType`, collector, options);
       return;
     case "tuple":

@@ -13,6 +13,7 @@ import {
   type CsharpDelegateSignatureShape,
   csharpQualifiedTypeRenderShape,
   csharpNullableValueTargetType,
+  csharpNullableTargetType,
   type CsharpTargetTypeRenderShape,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -62,6 +63,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       };
     case "nullable":
       return csharpNullableValueTargetType(dotnetTypeRefToTargetTypeRef(type.elementType));
+    case "nullable-reference":
+      return csharpNullableTargetType(dotnetTypeRefToTargetTypeRef(type.elementType));
     case "tuple":
       return { kind: "tuple", elements: type.elements.map(dotnetTypeRefToTargetTypeRef) };
     case "union":

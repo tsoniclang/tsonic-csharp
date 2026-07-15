@@ -10,6 +10,7 @@ import type {
 import {
   getCsharpNullableElementTargetType,
   isCsharpAnyRuntimeCarrier,
+  substituteTargetTypeParameters,
 } from "../target-types.js";
 import {
   targetTypeRefEquals,
@@ -235,43 +236,6 @@ function targetTypeParameterSubstitutions(
       return argument === undefined ? undefined : [parameter.name, argument] as const;
     })
     .filter((entry): entry is readonly [string, TargetTypeRef] => entry !== undefined));
-}
-
-function substituteTargetTypeParameters(
-  type: TargetTypeRef,
-  substitutions: ReadonlyMap<string, TargetTypeRef>,
-): TargetTypeRef {
-  switch (type.kind) {
-    case "type-parameter":
-      return substitutions.get(type.name) ?? type;
-    case "source-global":
-    case "target-named":
-      return {
-        ...type,
-        ...(type.typeArguments !== undefined
-          ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }
-          : {}),
-      };
-    case "array":
-      return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
-    case "tuple":
-      return { ...type, elements: type.elements.map((element) => substituteTargetTypeParameters(element, substitutions)) };
-    case "pointer":
-      return { ...type, pointee: substituteTargetTypeParameters(type.pointee, substitutions) };
-    case "function-pointer":
-      return {
-        ...type,
-        args: type.args.map((argument) => substituteTargetTypeParameters(argument, substitutions)),
-        result: substituteTargetTypeParameters(type.result, substitutions),
-      };
-    case "associated-type":
-      return { ...type, owner: substituteTargetTypeParameters(type.owner, substitutions) };
-    case "source-primitive":
-    case "opaque":
-    case "lifetime":
-    case "target-specific":
-      return type;
-  }
 }
 
 function invalidNamedAssignability(

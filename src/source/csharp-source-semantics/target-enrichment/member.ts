@@ -3,13 +3,13 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
-  CsharpTargetNamedTypeRef,
   CsharpTargetBindingFact,
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "../target-types.js";
 import {
   csharpTargetBindingFact,
+  substituteTargetTypeParameters as substituteTargetTypeRef,
 } from "../target-types.js";
 import type {
   CsharpTargetEnrichmentHost,
@@ -152,68 +152,4 @@ function substituteTargetMemberTypeParameters(
     })),
     ...(returnType !== undefined ? { returnType } : {}),
   };
-}
-
-function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyMap<string, TargetTypeRef>): TargetTypeRef {
-  switch (type.kind) {
-    case "type-parameter":
-      return typeArgumentMap.get(type.name) ?? type;
-    case "source-global":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined
-          ? {}
-          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }),
-      };
-    case "target-named":
-      const csharpType = type as CsharpTargetNamedTypeRef;
-      return {
-        ...type,
-        ...(type.typeArguments !== undefined
-          ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }
-          : {}),
-        ...(csharpType.csharpArrayLiteralElementType === undefined
-          ? {}
-          : { csharpArrayLiteralElementType: substituteTargetTypeRef(csharpType.csharpArrayLiteralElementType, typeArgumentMap) }),
-        ...(csharpType.csharpArrayLiteralConstructionType === undefined
-          ? {}
-          : { csharpArrayLiteralConstructionType: substituteTargetTypeRef(csharpType.csharpArrayLiteralConstructionType, typeArgumentMap) }),
-        ...(csharpType.csharpEnumerableElementType === undefined
-          ? {}
-          : { csharpEnumerableElementType: substituteTargetTypeRef(csharpType.csharpEnumerableElementType, typeArgumentMap) }),
-        ...(csharpType.csharpReadOnlyIndexableElementType === undefined
-          ? {}
-          : { csharpReadOnlyIndexableElementType: substituteTargetTypeRef(csharpType.csharpReadOnlyIndexableElementType, typeArgumentMap) }),
-        ...(csharpType.csharpDenseMutableElementType === undefined
-          ? {}
-          : { csharpDenseMutableElementType: substituteTargetTypeRef(csharpType.csharpDenseMutableElementType, typeArgumentMap) }),
-        ...(csharpType.csharpDelegateSignature === undefined
-          ? {}
-          : {
-              csharpDelegateSignature: {
-                parameters: csharpType.csharpDelegateSignature.parameters.map((parameter) => substituteTargetTypeRef(parameter, typeArgumentMap)),
-                returnType: substituteTargetTypeRef(csharpType.csharpDelegateSignature.returnType, typeArgumentMap),
-              },
-            }),
-      };
-    case "array":
-      return { ...type, element: substituteTargetTypeRef(type.element, typeArgumentMap) };
-    case "tuple":
-      return { ...type, elements: type.elements.map((element) => substituteTargetTypeRef(element, typeArgumentMap)) };
-    case "pointer":
-      return { ...type, pointee: substituteTargetTypeRef(type.pointee, typeArgumentMap) };
-    case "function-pointer":
-      return {
-        ...type,
-        args: type.args.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)),
-        result: substituteTargetTypeRef(type.result, typeArgumentMap),
-      };
-    case "associated-type":
-      return { ...type, owner: substituteTargetTypeRef(type.owner, typeArgumentMap) };
-    case "source-primitive":
-    case "opaque":
-    case "lifetime":
-    case "target-specific":
-      return type;
-  }
 }

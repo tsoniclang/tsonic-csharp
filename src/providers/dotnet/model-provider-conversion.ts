@@ -81,6 +81,8 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
         ? undefined
         : { kind: "union", types: [elementType, { kind: "literal", value: null }] };
     }
+    case "nullable-reference":
+      return tryDotnetTypeRefToProviderType(type.elementType);
     case "tuple": {
       const elementTypes = mapDotnetProviderTypes(type.elements);
       return elementTypes === undefined ? undefined : { kind: "tuple", elementTypes };

@@ -10,6 +10,8 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
       return `${dotnetTypeRefKey(type.elementType)}[${",".repeat((type.rank ?? 1) - 1)}]`;
     case "nullable":
       return `${dotnetTypeRefKey(type.elementType)}?`;
+    case "nullable-reference":
+      return `nullable-reference(${dotnetTypeRefKey(type.elementType)})`;
     case "tuple":
       return `[${type.elements.map(dotnetTypeRefKey).join(",")}]`;
     case "union":

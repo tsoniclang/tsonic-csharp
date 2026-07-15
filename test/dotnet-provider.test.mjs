@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { instantiateSelectedTargetMember } from "../dist/source/csharp-source-semantics/selected-target-member-instantiation.js";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -300,7 +301,10 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
     signature.parameters.length === 2
   );
   assert.ok(rawFuncStateContinueWith);
-  assert.deepEqual(rawFuncStateContinueWith.parameters[1].type, { kind: "object" });
+  assert.deepEqual(rawFuncStateContinueWith.parameters[1].type, {
+    kind: "nullable-reference",
+    elementType: { kind: "object" },
+  });
   assert.deepEqual(rawFuncStateContinueWith.parameters[1].sourceType, {
     kind: "union",
     types: [{ kind: "object" }, { kind: "undefined" }],
@@ -316,8 +320,37 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
     kind: "target-named",
     id: "System.Object",
     csharpRender: { kind: "predefined", name: "object" },
+    csharpNullableReference: true,
   });
   assert.equal(targetContinueWithState.parameters[1].csharpAcceptsCheckedSourceArgument, true);
+  const stringTargetType = {
+    kind: "target-named",
+    id: "System.String",
+    csharpRender: { kind: "predefined", name: "string" },
+  };
+  const closedContinueWithState = instantiateSelectedTargetMember(
+    { member: targetContinueWithState, targetTypeArguments: [stringTargetType] },
+    {
+      getCsharpTargetBindingByTargetId: (targetId) => provider.findTargetBindingByTargetId(targetId),
+      getCsharpTargetBindingByMetadataName: (metadataName) => provider.findTargetBindingByMetadataName(metadataName),
+    },
+    {
+      declaringTargetType: {
+        ...targetTaskOfT.csharpType,
+        typeArguments: [stringTargetType],
+      },
+    },
+  );
+  assert.ok(closedContinueWithState);
+  assert.deepEqual(closedContinueWithState.parameters[0].type.csharpDelegateSignature?.returnType, stringTargetType);
+  assert.deepEqual(
+    closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[0].typeArguments,
+    [stringTargetType],
+  );
+  assert.equal(
+    closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[1].csharpNullableReference,
+    true,
+  );
 
   const model = dotnetModuleToProviderDeclarationModel(module);
   const sourceTask = model.exports.find((declaration) =>
@@ -367,6 +400,19 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.ok(actionStateContinueWith);
   assert.ok(funcStateContinueWith);
   assert.deepEqual(funcStateContinueWith.parameters[1].type, {
+    kind: "union",
+    types: [{ kind: "object" }, { kind: "undefined" }],
+  });
+  const callbackSourceShape = funcStateContinueWith.parameters[0].type.sourceShape;
+  assert.equal(callbackSourceShape?.kind, "function");
+  assert.equal(callbackSourceShape.parameters[0].type.kind, "target-named");
+  assert.deepEqual(callbackSourceShape.parameters[0].type.sourceShape, {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/dotnet/System.Threading.Tasks.js",
+    exportName: "Task",
+    typeArguments: [{ kind: "type-parameter", name: "TResult" }],
+  });
+  assert.deepEqual(callbackSourceShape.parameters[1].type, {
     kind: "union",
     types: [{ kind: "object" }, { kind: "undefined" }],
   });

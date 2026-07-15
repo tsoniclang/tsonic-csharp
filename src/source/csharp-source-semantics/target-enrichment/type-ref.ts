@@ -2,7 +2,12 @@ import type {
   TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpObjectShapeFact,
+} from "../../csharp-facts.js";
 import {
+  type CsharpRuntimeUnionTargetTypeRef,
+  type CsharpTaskTargetTypeRef,
   type CsharpTargetNamedTypeRef,
   csharpRenderShapeForTargetNamedType,
   csharpTargetNamedType,
@@ -125,38 +130,118 @@ function preserveCsharpTargetNamedMetadata(
   if (enriched?.kind !== "target-named") {
     return enriched;
   }
-  const originalCsharp = original as CsharpTargetNamedTypeRef;
-  let preserved: CsharpTargetNamedTypeRef = {
+  type EnrichableCsharpTargetNamedTypeRef = CsharpTargetNamedTypeRef &
+    Partial<CsharpTaskTargetTypeRef> &
+    Partial<CsharpRuntimeUnionTargetTypeRef>;
+  const originalCsharp = original as EnrichableCsharpTargetNamedTypeRef;
+  const enrichedCsharp = enriched as EnrichableCsharpTargetNamedTypeRef;
+  const combined: EnrichableCsharpTargetNamedTypeRef = {
     ...enriched,
-    ...(originalCsharp.csharpRender !== undefined ? { csharpRender: originalCsharp.csharpRender } : {}),
-    ...(originalCsharp.csharpSpecialType !== undefined ? { csharpSpecialType: originalCsharp.csharpSpecialType } : {}),
-    ...(originalCsharp.csharpTypeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: originalCsharp.csharpTypeofRuntimeKind } : {}),
-    ...(originalCsharp.csharpThrowable === true ? { csharpThrowable: true as const } : {}),
-    ...(originalCsharp.csharpValueType === true ? { csharpValueType: true as const } : {}),
-    ...(originalCsharp.csharpSourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: originalCsharp.csharpSourceDeclarationKind } : {}),
+    ...originalCsharp,
+    ...(enrichedCsharp.typeArguments === undefined ? {} : { typeArguments: enrichedCsharp.typeArguments }),
   };
-  const arrayLiteralElementType = (original as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
-  const arrayLiteralConstructionType = (original as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
-  const enumerableElementType = (original as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
-  const readOnlyIndexableElementType = (original as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
-  const denseMutableElementType = (original as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
-  const baseType = (original as CsharpTargetNamedTypeRef).csharpBaseType;
+  const arrayLiteralElementType = combined.csharpArrayLiteralElementType;
+  const arrayLiteralConstructionType = combined.csharpArrayLiteralConstructionType;
+  const enumerableElementType = combined.csharpEnumerableElementType;
+  const readOnlyIndexableElementType = combined.csharpReadOnlyIndexableElementType;
+  const denseMutableElementType = combined.csharpDenseMutableElementType;
+  const baseType = combined.csharpBaseType;
+  const taskResultType = combined.csharpTaskResultType;
+  const runtimeUnionArms = combined.csharpRuntimeUnionArms;
+  const runtimeUnionObjectShapes = combined.csharpRuntimeUnionObjectShapes;
+  const delegateSignature = combined.csharpDelegateSignature;
   const enrichedArrayLiteralElementType = enrichOptionalCsharpTargetTypeRef(arrayLiteralElementType, host);
   const enrichedArrayLiteralConstructionType = enrichOptionalCsharpTargetTypeRef(arrayLiteralConstructionType, host);
   const enrichedEnumerableElementType = enrichOptionalCsharpTargetTypeRef(enumerableElementType, host);
   const enrichedReadOnlyIndexableElementType = enrichOptionalCsharpTargetTypeRef(readOnlyIndexableElementType, host);
   const enrichedDenseMutableElementType = enrichOptionalCsharpTargetTypeRef(denseMutableElementType, host);
   const enrichedBaseType = enrichOptionalCsharpTargetTypeRef(baseType, host);
-  preserved = {
-    ...preserved,
+  const enrichedTaskResultType = enrichOptionalCsharpTargetTypeRef(taskResultType, host);
+  const enrichedRuntimeUnionArms = runtimeUnionArms === undefined
+    ? undefined
+    : enrichCsharpTargetTypeRefs(runtimeUnionArms, host);
+  const enrichedRuntimeUnionObjectShapes = runtimeUnionObjectShapes === undefined
+    ? undefined
+    : enrichCsharpObjectShapeFacts(runtimeUnionObjectShapes, host);
+  const enrichedDelegateParameters = delegateSignature === undefined
+    ? undefined
+    : enrichCsharpTargetTypeRefs(delegateSignature.parameters, host);
+  const enrichedDelegateReturnType = delegateSignature === undefined
+    ? undefined
+    : enrichCsharpTargetTypeRef(delegateSignature.returnType, host);
+  if (
+    (arrayLiteralElementType !== undefined && enrichedArrayLiteralElementType === undefined) ||
+    (arrayLiteralConstructionType !== undefined && enrichedArrayLiteralConstructionType === undefined) ||
+    (enumerableElementType !== undefined && enrichedEnumerableElementType === undefined) ||
+    (readOnlyIndexableElementType !== undefined && enrichedReadOnlyIndexableElementType === undefined) ||
+    (denseMutableElementType !== undefined && enrichedDenseMutableElementType === undefined) ||
+    (baseType !== undefined && enrichedBaseType === undefined) ||
+    (taskResultType !== undefined && enrichedTaskResultType === undefined) ||
+    (runtimeUnionArms !== undefined && enrichedRuntimeUnionArms === undefined) ||
+    (runtimeUnionObjectShapes !== undefined && enrichedRuntimeUnionObjectShapes === undefined) ||
+    (delegateSignature !== undefined && (enrichedDelegateParameters === undefined || enrichedDelegateReturnType === undefined))
+  ) {
+    return undefined;
+  }
+  return {
+    ...combined,
     ...(enrichedArrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: enrichedArrayLiteralElementType } : {}),
     ...(enrichedArrayLiteralConstructionType !== undefined ? { csharpArrayLiteralConstructionType: enrichedArrayLiteralConstructionType } : {}),
     ...(enrichedEnumerableElementType !== undefined ? { csharpEnumerableElementType: enrichedEnumerableElementType } : {}),
     ...(enrichedReadOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: enrichedReadOnlyIndexableElementType } : {}),
     ...(enrichedDenseMutableElementType !== undefined ? { csharpDenseMutableElementType: enrichedDenseMutableElementType } : {}),
     ...(enrichedBaseType !== undefined ? { csharpBaseType: enrichedBaseType } : {}),
+    ...(enrichedTaskResultType !== undefined ? { csharpTaskResultType: enrichedTaskResultType } : {}),
+    ...(enrichedRuntimeUnionArms !== undefined ? { csharpRuntimeUnionArms: enrichedRuntimeUnionArms } : {}),
+    ...(enrichedRuntimeUnionObjectShapes !== undefined ? { csharpRuntimeUnionObjectShapes: enrichedRuntimeUnionObjectShapes } : {}),
+    ...(delegateSignature === undefined
+      ? {}
+      : {
+          csharpDelegateSignature: {
+            parameters: enrichedDelegateParameters!,
+            returnType: enrichedDelegateReturnType!,
+          },
+        }),
   };
-  return preserved;
+}
+
+function enrichCsharpObjectShapeFacts(
+  objectShapes: readonly (CsharpObjectShapeFact | undefined)[],
+  host: CsharpTargetEnrichmentHost,
+): readonly (CsharpObjectShapeFact | undefined)[] | undefined {
+  const enriched = objectShapes.map((objectShape) =>
+    objectShape === undefined ? undefined : enrichCsharpObjectShapeFact(objectShape, host)
+  );
+  return enriched.some((objectShape, index) => objectShapes[index] !== undefined && objectShape === undefined)
+    ? undefined
+    : enriched;
+}
+
+function enrichCsharpObjectShapeFact(
+  objectShape: CsharpObjectShapeFact,
+  host: CsharpTargetEnrichmentHost,
+): CsharpObjectShapeFact | undefined {
+  const targetType = enrichCsharpTargetTypeRef(objectShape.targetType, host);
+  const members = objectShape.members.map((member) => {
+    const type = enrichCsharpTargetTypeRef(member.type, host);
+    return type === undefined ? undefined : { ...member, type };
+  });
+  const implementedTypes = objectShape.implements === undefined
+    ? undefined
+    : enrichCsharpTargetTypeRefs(objectShape.implements, host);
+  if (
+    targetType === undefined ||
+    members.some((member) => member === undefined) ||
+    (objectShape.implements !== undefined && implementedTypes === undefined)
+  ) {
+    return undefined;
+  }
+  return {
+    ...objectShape,
+    targetType,
+    members: members as CsharpObjectShapeFact["members"],
+    ...(implementedTypes === undefined ? {} : { implements: implementedTypes }),
+  };
 }
 
 function enrichOptionalCsharpTargetTypeRef(

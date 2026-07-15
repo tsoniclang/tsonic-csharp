@@ -88,8 +88,12 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var sourceType = TypeRef(UnwrapByRef(parameters[0].ParameterType));
-            var targetType = TypeRef(method.ReturnType);
+            var sourceType = TypeRef(
+                UnwrapByRef(parameters[0].ParameterType),
+                typeNullability: nullability.Create(parameters[0]));
+            var targetType = TypeRef(
+                method.ReturnType,
+                typeNullability: nullability.Create(method.ReturnParameter));
             if (sourceType is null || targetType is null)
             {
                 continue;
@@ -187,7 +191,7 @@ sealed partial class ReflectionProvider
                 var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
                 var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
                 var parameters = Parameters(indexParameters, targetId);
-                var returnType = TypeRef(property.PropertyType);
+                var returnType = TypeRef(property.PropertyType, typeNullability: nullability.Create(property));
                 if (parameters is null || returnType is null)
                 {
                     continue;
@@ -218,7 +222,7 @@ sealed partial class ReflectionProvider
                 continue;
             }
 
-            var typeRef = TypeRef(property.PropertyType);
+            var typeRef = TypeRef(property.PropertyType, typeNullability: nullability.Create(property));
             if (typeRef is null)
             {
                 continue;
@@ -297,12 +301,12 @@ sealed partial class ReflectionProvider
             {
                 return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
-            if (TypeRef(property.PropertyType) is null)
+            if (TypeRef(property.PropertyType, typeNullability: nullability.Create(property)) is null)
             {
                 return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
             }
         }
-        if (TypeRef(property.PropertyType) is null)
+        if (TypeRef(property.PropertyType, typeNullability: nullability.Create(property)) is null)
         {
             return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
@@ -330,7 +334,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(field.FieldType);
+            var typeRef = TypeRef(field.FieldType, typeNullability: nullability.Create(field));
             if (typeRef is null)
             {
                 continue;
@@ -383,7 +387,7 @@ sealed partial class ReflectionProvider
         {
             return "Special-name fields are target-only CLR implementation details and are not exposed as source declarations.";
         }
-        if (TypeRef(field.FieldType) is null)
+        if (TypeRef(field.FieldType, typeNullability: nullability.Create(field)) is null)
         {
             return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
@@ -407,7 +411,10 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(eventHandlerType, requireDelegateSourceShape: false);
+            var typeRef = TypeRef(
+                eventHandlerType,
+                requireDelegateSourceShape: false,
+                typeNullability: nullability.Create(eventInfo));
             if (typeRef is null)
             {
                 continue;
@@ -466,7 +473,10 @@ sealed partial class ReflectionProvider
         {
             return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
         }
-        if (TypeRef(eventHandlerType, requireDelegateSourceShape: false) is null)
+        if (TypeRef(
+            eventHandlerType,
+            requireDelegateSourceShape: false,
+            typeNullability: nullability.Create(eventInfo)) is null)
         {
             return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }
@@ -614,7 +624,7 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
-        return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
+        return UnsupportedReturnTypeReason(method, "Method return type");
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)
@@ -654,16 +664,17 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Operator signature")!;
         }
-        return UnsupportedReturnTypeReason(method.ReturnType, "Operator return type");
+        return UnsupportedReturnTypeReason(method, "Operator return type");
     }
 
-    string? UnsupportedReturnTypeReason(Type returnType, string context)
+    string? UnsupportedReturnTypeReason(MethodInfo method, string context)
     {
+        var returnType = method.ReturnType;
         if (returnType.IsByRef)
         {
             return $"{context} returns '{TypeMetadataName(returnType)}' by reference; by-reference returns require an explicit provider ref-return declaration model before they can be exposed safely.";
         }
-        return TypeRef(returnType) is null
+        return TypeRef(returnType, typeNullability: nullability.Create(method.ReturnParameter)) is null
             ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
             : null;
     }
@@ -701,7 +712,7 @@ sealed partial class ReflectionProvider
         foreach (var parameter in parameters)
         {
             var parameterType = UnwrapByRef(parameter.ParameterType);
-            if (TypeRef(parameterType) is null)
+            if (TypeRef(parameterType, typeNullability: nullability.Create(parameter)) is null)
             {
                 return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
             }
@@ -722,7 +733,10 @@ sealed partial class ReflectionProvider
             ? OperatorId(method)
             : MethodId(method);
         var parameters = Parameters(method.GetParameters(), id, genericParameters);
-        var returnType = TypeRef(method.ReturnType, genericParameters: genericParameters);
+        var returnType = TypeRef(
+            method.ReturnType,
+            genericParameters: genericParameters,
+            typeNullability: nullability.Create(method.ReturnParameter));
         if (parameters is null || returnType is null)
         {
             return null;
@@ -781,21 +795,37 @@ sealed partial class ReflectionProvider
         };
     }
 
-    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null, GenericParameterContext? genericParameters = null)
+    object[]? Parameters(
+        ParameterInfo[] parameters,
+        string? ownerId = null,
+        GenericParameterContext? genericParameters = null,
+        GenericNullabilityContext? genericNullability = null)
     {
         genericParameters ??= GenericParameterContext.Empty;
+        genericNullability ??= GenericNullabilityContext.Empty;
         var result = new List<object>();
         for (var index = 0; index < parameters.Length; index++)
         {
             var parameter = parameters[index];
             var parameterType = UnwrapByRef(parameter.ParameterType);
-            var type = TypeRef(parameterType, genericParameters: genericParameters);
+            var parameterNullability = genericNullability.Resolve(parameterType, nullability.Create(parameter))
+                ?? throw new InvalidOperationException($"Parameter '{parameter.Name ?? index.ToString()}' has no nullability information.");
+            var type = TypeRef(
+                parameterType,
+                genericParameters: genericParameters,
+                typeNullability: parameterNullability,
+                genericNullability: genericNullability);
             if (type is null)
             {
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
-            var sourceType = NullableParameterSourceTypeRef(parameter, parameterType, isParamsArray, genericParameters);
+            var sourceType = NullableParameterSourceTypeRef(
+                parameterType,
+                isParamsArray,
+                parameterNullability,
+                genericParameters,
+                genericNullability);
             var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, index, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null

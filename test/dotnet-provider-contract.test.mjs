@@ -125,6 +125,15 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
                     },
                     passingMode: "by-value",
                   },
+                  {
+                    name: "nullable",
+                    type: {
+                      kind: "nullable-reference",
+                      elementType: { kind: "string" },
+                      sourceShape: { kind: "string" },
+                    },
+                    passingMode: "by-value",
+                  },
                 ],
                 returnType: { kind: "void", targetId: "System.Void" },
               },
@@ -139,7 +148,62 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].type.sourceShape"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.sourceShape"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].type.elementType.width"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[2].type.sourceShape"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].returnType.targetId"), true);
+});
+test(".NET provider model contract accepts nullable CLR params-array targets without weakening rest shape validation", () => {
+  const model = {
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "ParamsTarget",
+        namespaceName: "ProviderContractFixtures",
+        targetId: testTargetId("ProviderContractFixtures.ParamsTarget"),
+        metadataName: "ProviderContractFixtures.ParamsTarget",
+        members: [
+          {
+            kind: "method",
+            sourceName: "Values",
+            targetName: "Values",
+            targetId: testTargetId("ProviderContractFixtures.ParamsTarget.Values"),
+            metadataName: "ProviderContractFixtures.ParamsTarget.Values(System.Object[])",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.ParamsTarget.Values(System.Object[])"),
+                parameters: [
+                  {
+                    name: "values",
+                    type: {
+                      kind: "nullable-reference",
+                      elementType: {
+                        kind: "array",
+                        elementType: { kind: "object" },
+                      },
+                    },
+                    passingMode: "by-value",
+                    rest: true,
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.equal(validateDotnetModuleModelContract(model), undefined);
+  model.exports[0].members[0].signatures[0].parameters[0].type = {
+    kind: "nullable-reference",
+    elementType: { kind: "object" },
+  };
+  const diagnostic = validateDotnetModuleModelContract(model);
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].type"), true);
 });
 test(".NET provider model contract rejects metadata-name fallback identities and unsupported evidence holes", () => {
   const diagnostic = validateDotnetModuleModelContract({

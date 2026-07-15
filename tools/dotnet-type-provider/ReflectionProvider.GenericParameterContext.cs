@@ -52,6 +52,36 @@ sealed partial class ReflectionProvider
             return sourceNames.TryGetValue(parameter, out var name) ? name : parameter.Name;
         }
 
+        public GenericParameterContext WithConstructedTypeArguments(Type genericTypeDefinition, Type constructedType)
+        {
+            if (!genericTypeDefinition.IsGenericTypeDefinition || !constructedType.IsGenericType)
+            {
+                throw new InvalidOperationException("Delegate type substitution requires a generic type definition and a constructed generic type.");
+            }
+            if (constructedType.GetGenericTypeDefinition() != genericTypeDefinition)
+            {
+                throw new InvalidOperationException($"Delegate type '{constructedType}' does not close '{genericTypeDefinition}'.");
+            }
+            var parameters = genericTypeDefinition.GetGenericArguments();
+            var arguments = constructedType.GetGenericArguments();
+            if (parameters.Length != arguments.Length)
+            {
+                throw new InvalidOperationException($"Delegate generic type '{constructedType}' has an inconsistent generic arity.");
+            }
+
+            var nextSubstitutions = new Dictionary<Type, Type>(substitutions);
+            var nextOmitted = new HashSet<Type>(omittedMethodParameters);
+            for (var index = 0; index < parameters.Length; index++)
+            {
+                nextSubstitutions[parameters[index]] = arguments[index];
+                nextOmitted.Add(parameters[index]);
+            }
+            return new GenericParameterContext(
+                nextSubstitutions,
+                new Dictionary<Type, string>(sourceNames),
+                nextOmitted);
+        }
+
         static GenericParameterContext Create(
             MethodInfo method,
             Type sourceOwnerType,

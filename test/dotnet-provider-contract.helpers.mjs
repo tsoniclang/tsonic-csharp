@@ -145,7 +145,10 @@ export function assertRawSignatureInvariant(signature, path) {
     if (parameter.rest === true) {
       assert.equal(index, signature.parameters.length - 1, `${path}.parameters[${index}].rest`);
       assert.equal(parameter.passingMode, "by-value", `${path}.parameters[${index}].rest.passingMode`);
-      assert.equal(parameter.type.kind, "array", `${path}.parameters[${index}].rest.type`);
+      const targetType = parameter.type.kind === "nullable-reference"
+        ? parameter.type.elementType
+        : parameter.type;
+      assert.equal(targetType.kind, "array", `${path}.parameters[${index}].rest.type`);
     }
     if (parameter.defaultValue !== undefined || parameter.unsupportedDefaultValue !== undefined) {
       assert.equal(parameter.optional, true, `${path}.parameters[${index}].default.optional`);

@@ -2,9 +2,11 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
-  CsharpTargetNamedTypeRef,
   CsharpTargetMember,
 } from "../target-types.js";
+import {
+  substituteTargetTypeParameters as substituteTargetTypeRef,
+} from "../target-types/substitution.js";
 import {
   targetTypeRefEquals,
 } from "../target-ref-utils.js";
@@ -63,48 +65,4 @@ export function substituteTargetMemberTypeParameters(
   };
 }
 
-export function substituteTargetTypeRef(type: TargetTypeRef, typeParameterBindings: ReadonlyMap<string, TargetTypeRef>): TargetTypeRef {
-  switch (type.kind) {
-    case "type-parameter":
-      return typeParameterBindings.get(type.name) ?? type;
-    case "source-global":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined
-          ? {}
-          : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeParameterBindings)) }),
-      };
-    case "target-named":
-      return {
-        ...type,
-        ...(type.typeArguments !== undefined
-          ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeParameterBindings)) }
-          : {}),
-        ...((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType === undefined
-          ? {}
-          : { csharpArrayLiteralElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType!, typeParameterBindings) }),
-        ...((type as CsharpTargetNamedTypeRef).csharpEnumerableElementType === undefined
-          ? {}
-          : { csharpEnumerableElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpEnumerableElementType!, typeParameterBindings) }),
-      };
-    case "array":
-      return { ...type, element: substituteTargetTypeRef(type.element, typeParameterBindings) };
-    case "tuple":
-      return { ...type, elements: type.elements.map((element) => substituteTargetTypeRef(element, typeParameterBindings)) };
-    case "pointer":
-      return { ...type, pointee: substituteTargetTypeRef(type.pointee, typeParameterBindings) };
-    case "function-pointer":
-      return {
-        ...type,
-        args: type.args.map((argument) => substituteTargetTypeRef(argument, typeParameterBindings)),
-        result: substituteTargetTypeRef(type.result, typeParameterBindings),
-      };
-    case "associated-type":
-      return { ...type, owner: substituteTargetTypeRef(type.owner, typeParameterBindings) };
-    case "source-primitive":
-    case "opaque":
-    case "lifetime":
-    case "target-specific":
-      return type;
-  }
-}
+export { substituteTargetTypeRef };

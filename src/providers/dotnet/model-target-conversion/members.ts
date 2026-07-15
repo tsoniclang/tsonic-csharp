@@ -151,6 +151,7 @@ function dotnetParameterTypeHasSourceProjection(type: DotnetTypeRef): boolean {
     case "opaque":
       return type.sourceShape !== undefined;
     case "nullable":
+    case "nullable-reference":
       return dotnetParameterTypeHasSourceProjection(type.elementType);
     case "array":
       return dotnetParameterTypeHasSourceProjection(type.elementType);

@@ -30,6 +30,7 @@ export function substituteTargetTypeParameters(
       const enumerableElementType = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
       const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
+      const baseType = (type as CsharpTargetNamedTypeRef).csharpBaseType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
@@ -52,6 +53,9 @@ export function substituteTargetTypeParameters(
         ...(denseMutableElementType === undefined
           ? {}
           : { csharpDenseMutableElementType: substituteTargetTypeParameters(denseMutableElementType, substitutions) }),
+        ...(baseType === undefined
+          ? {}
+          : { csharpBaseType: substituteTargetTypeParameters(baseType, substitutions) }),
         ...(taskResultType === undefined
           ? {}
           : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),

@@ -74,7 +74,7 @@ sealed partial class ReflectionProvider
         {
             return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
         }
-        var returnReason = UnsupportedReturnTypeReason(invoke.ReturnType, "Delegate invoke return type");
+        var returnReason = UnsupportedReturnTypeReason(invoke, "Delegate invoke return type");
         return returnReason is null
             ? null
             : $"{returnReason}; the type is retained as target-only .NET data.";

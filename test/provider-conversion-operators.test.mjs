@@ -16,11 +16,15 @@ import {
   resolveCsharpCheckedConversionEvidence,
 } from "../dist/source/csharp-source-semantics/checked-conversion-evidence.js";
 import {
+  enrichCsharpTargetTypeRef,
+} from "../dist/source/csharp-source-semantics/target-enrichment.js";
+import {
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
+  substituteTargetTypeParameters,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
 const doubleType = { kind: "source-primitive", name: "float64" };
@@ -204,6 +208,49 @@ test("checked conversions accept unresolved function expressions for selected de
   assert.equal(result.kind, "accept");
   assert.deepEqual(result.value.convertedType, delegateType);
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
+test("target enrichment preserves and substitutes selected use-site delegate evidence", () => {
+  const inputType = { kind: "type-parameter", name: "TInput" };
+  const resultType = { kind: "type-parameter", name: "TResult" };
+  const openDelegate = csharpTargetNamedType(
+    "System.Func`2",
+    [inputType, resultType],
+    csharpQualifiedTypeRenderShape("System", "Func"),
+    {
+      delegateSignature: {
+        parameters: [inputType],
+        returnType: resultType,
+      },
+    },
+  );
+  const closedDelegate = substituteTargetTypeParameters(openDelegate, new Map([
+    ["TInput", sourceDogType],
+    ["TResult", doubleType],
+  ]));
+  const metadataOnlyBinding = {
+    id: "System.Func`2",
+    target: "csharp",
+    kind: "delegate",
+    sourceName: "Func",
+    targetName: "System.Func",
+    csharpType: csharpTargetNamedType(
+      "System.Func`2",
+      [inputType, resultType],
+      csharpQualifiedTypeRenderShape("System", "Func"),
+    ),
+    typeParameters: [{ name: "TInput" }, { name: "TResult" }],
+  };
+
+  const enriched = enrichCsharpTargetTypeRef(closedDelegate, {
+    getCsharpTargetBindingByTargetId: (id) => id === metadataOnlyBinding.id ? metadataOnlyBinding : undefined,
+    getCsharpTargetBindingByMetadataName: () => undefined,
+  });
+
+  assert.deepEqual(enriched?.csharpDelegateSignature, {
+    parameters: [sourceDogType],
+    returnType: doubleType,
+  });
 });
 
 test("checked conversions accept same-shape delegate values without provider conversion metadata", () => {
