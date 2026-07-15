@@ -182,8 +182,8 @@ test("architecture validator rejects central NodeJS provider-package branches", 
     findingIds(
       "src/source/csharp-source-semantics/provider-packages/index.ts",
       `
-        return context.selectedPackages.flatMap((providerPackage) => {
-          return providerPackage.createOperationMappers?.(context) ?? [];
+        return context.selectedCapabilities.flatMap((capability) => {
+          return capability.createTargetContributions?.(context) ?? [];
         });
       `,
     ),

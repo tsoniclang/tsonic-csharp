@@ -32,10 +32,10 @@ export * from "./source/csharp-source-semantics/target-types.js";
 export * from "./source/csharp-source-semantics/surfaces/js/source-library.js";
 export * from "./source/csharp-source-semantics/surfaces/js/date/index.js";
 export {
-  csharpProviderPackageOperationsMapperKind,
+  csharpProviderOperationsContributionKind,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
-  CsharpProviderPackageOperationsMapper,
+  CsharpProviderOperationsContribution,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
   CsharpArgument,

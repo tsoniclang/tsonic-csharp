@@ -58,7 +58,7 @@ import {
   mapCsharpCheckedCall,
 } from "./checked-call-mapping/index.js";
 import type {
-  CsharpProviderPackageOperationsMapper,
+  CsharpProviderOperationsContribution,
 } from "./provider-packages/index.js";
 import {
   mapCsharpCompatRuntimeCheckedCall,
@@ -133,7 +133,7 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
 
 export interface CsharpTargetOperationsProviderOptions {
   readonly jsSurface?: boolean;
-  readonly providerPackageMappers?: readonly CsharpProviderPackageOperationsMapper[];
+  readonly providerOperationContributions?: readonly CsharpProviderOperationsContribution[];
   readonly typescriptCompatibilityMode?: TargetTypescriptCompatibilityMode;
 }
 
@@ -152,7 +152,7 @@ export function createCsharpTargetOperationsProvider(
   const jsSurface = options.jsSurface === true
     ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, host))
     : undefined;
-  const providerPackageMappers = options.providerPackageMappers ?? [];
+  const providerOperationContributions = options.providerOperationContributions ?? [];
   const typescriptCompatibilityMode = options.typescriptCompatibilityMode ?? "strict-native";
   const surfaceAwareHost: CsharpOperationsProviderHost = {
     ...host,
@@ -172,8 +172,8 @@ export function createCsharpTargetOperationsProvider(
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
-      for (const providerPackageMapper of providerPackageMappers) {
-        const providerPackageObservation = providerPackageMapper.mapCheckedCall?.(request, context) ?? deferObservation;
+      for (const contribution of providerOperationContributions) {
+        const providerPackageObservation = contribution.mapCheckedCall?.(request, context) ?? deferObservation;
         if (providerPackageObservation.kind !== "defer") {
           return providerPackageObservation;
         }
@@ -201,8 +201,8 @@ export function createCsharpTargetOperationsProvider(
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
       }
-      for (const providerPackageMapper of providerPackageMappers) {
-        const providerPackageObservation = providerPackageMapper.mapCheckedPropertyAccess?.(request, context) ?? deferObservation;
+      for (const contribution of providerOperationContributions) {
+        const providerPackageObservation = contribution.mapCheckedPropertyAccess?.(request, context) ?? deferObservation;
         if (providerPackageObservation.kind !== "defer") {
           return providerPackageObservation;
         }
@@ -223,8 +223,8 @@ export function createCsharpTargetOperationsProvider(
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
-      for (const providerPackageMapper of providerPackageMappers) {
-        const providerPackageObservation = providerPackageMapper.mapCheckedElementAccess?.(request, context) ?? deferObservation;
+      for (const contribution of providerOperationContributions) {
+        const providerPackageObservation = contribution.mapCheckedElementAccess?.(request, context) ?? deferObservation;
         if (providerPackageObservation.kind !== "defer") {
           return providerPackageObservation;
         }

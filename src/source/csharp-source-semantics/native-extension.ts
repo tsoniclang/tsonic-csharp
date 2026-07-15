@@ -32,7 +32,7 @@ import {
   createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
-  createCsharpProviderPackageOperationsMappers,
+  createCsharpProviderOperationsContributions,
 } from "./provider-packages/index.js";
 import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -102,7 +102,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       }));
       extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
         jsSurface: jsSurfaceSelected,
-        providerPackageMappers: createCsharpProviderPackageOperationsMappers(context),
+        providerOperationContributions: createCsharpProviderOperationsContributions(context),
         typescriptCompatibilityMode: hosts.typescriptCompatibilityMode,
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
