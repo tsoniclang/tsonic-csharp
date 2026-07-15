@@ -10,7 +10,7 @@ import type {
   CsharpTaskTargetTypeRef,
 } from "./definitions.js";
 import {
-  csharpNullableTargetType,
+  csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,
 } from "./nullable.js";
 
@@ -25,7 +25,7 @@ export function substituteTargetTypeParameters(
         return type;
       }
       return isCsharpNullableReferenceTargetType(type)
-        ? csharpNullableTargetType(substitution)
+        ? csharpNullableReferenceTargetType(substitution)
         : substitution;
     case "source-global":
       return {

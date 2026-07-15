@@ -267,6 +267,10 @@ test("target substitution preserves provider-proven nullable reference modifiers
       csharpNullableReference: true,
     },
   );
+  assert.deepEqual(
+    substituteTargetTypeParameters(nullableResult, new Map([["TResult", doubleType]])),
+    doubleType,
+  );
 });
 
 test("checked conversions accept same-shape delegate values without provider conversion metadata", () => {

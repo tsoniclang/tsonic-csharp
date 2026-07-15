@@ -345,7 +345,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.deepEqual(closedContinueWithState.parameters[0].type.csharpDelegateSignature?.returnType, stringTargetType);
   assert.deepEqual(
     closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[0].typeArguments,
-    [stringTargetType],
+    [{ ...stringTargetType, csharpNullableReference: true }],
   );
   assert.equal(
     closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[1].csharpNullableReference,

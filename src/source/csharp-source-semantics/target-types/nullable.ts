@@ -37,6 +37,13 @@ export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
   if (isCsharpValueTypeTargetType(type)) {
     return csharpNullableValueTargetType(type);
   }
+  return csharpNullableReferenceTargetType(type);
+}
+
+export function csharpNullableReferenceTargetType(type: TargetTypeRef): TargetTypeRef {
+  if (isCsharpNullableReferenceTargetType(type) || isCsharpValueTypeTargetType(type)) {
+    return type;
+  }
   const nullableReference: CsharpNullableReferenceTargetTypeRef = {
     ...type,
     csharpNullableReference: true,
