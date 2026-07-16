@@ -7,8 +7,17 @@ import type {
   DotnetModuleModel,
 } from "../model.js";
 import {
+  dotnetModuleSpecifierPolicy,
+  normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
+import type {
+  DotnetAssemblySourcePackage,
+  DotnetModuleSpecifierPolicy,
+} from "../module-specifier.js";
+import type {
+  DotnetProviderIdentity,
+} from "../model.js";
 import {
   validateDotnetModuleModelContract,
 } from "../model-contract.js";
@@ -77,6 +86,9 @@ import {
 } from "./provider-identity.js";
 
 export interface DotnetReflectionTypeDataProviderOptions {
+  readonly providerIdentity?: DotnetProviderIdentity;
+  readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
+  readonly assemblySourcePackages?: readonly DotnetAssemblySourcePackage[];
   readonly toolProjectPath?: string;
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
@@ -97,6 +109,15 @@ export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider
 export function createDotnetReflectionTypeDataProvider(
   options: DotnetReflectionTypeDataProviderOptions = {},
 ): DotnetReflectionTypeDataProvider {
+  const providerIdentity = options.providerIdentity ?? dotnetReflectionProviderIdentity;
+  const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
+  const assemblySourcePackages = normalizeDotnetAssemblySourcePackages(options.assemblySourcePackages);
+  const reflectionOptions = {
+    ...options,
+    providerIdentity,
+    moduleSpecifierPolicy,
+    assemblySourcePackages,
+  };
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
   const targetBindingIndex = createDotnetTargetBindingIndex();
@@ -117,7 +138,7 @@ export function createDotnetReflectionTypeDataProvider(
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
     telemetry.request("module");
     telemetry.moduleRequest(context);
-    const parsed = parseDotnetModuleSpecifier(specifier);
+    const parsed = parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy);
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
     }
@@ -195,7 +216,7 @@ export function createDotnetReflectionTypeDataProvider(
     cacheRequest: DotnetProviderCacheRequest,
     context: DotnetProviderModuleContext,
   ): DotnetProviderModuleResult {
-    const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, options);
+    const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, reflectionOptions);
     if (targetFrameworkDiagnostic !== undefined) {
       return targetFrameworkDiagnostic;
     }
@@ -235,7 +256,7 @@ export function createDotnetReflectionTypeDataProvider(
         args.push("--metadata-name", metadataName);
       }
     }
-    pushDotnetReflectionReferenceArgs(args, context, options);
+    pushDotnetReflectionReferenceArgs(args, context, reflectionOptions);
     const result = toolRunner.run(args);
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
@@ -285,7 +306,7 @@ export function createDotnetReflectionTypeDataProvider(
       specifier,
       namespaceName,
       context,
-      options,
+      options: reflectionOptions,
       toolIdentity: toolRunner.identity,
     });
   }
@@ -295,9 +316,9 @@ export function createDotnetReflectionTypeDataProvider(
   }
 
   return {
-    identity: dotnetReflectionProviderIdentity,
+    identity: providerIdentity,
     ownsModule(specifier: string): DotnetProviderOwnership {
-      return parseDotnetModuleSpecifier(specifier) === undefined ? { kind: "unowned" } : { kind: "owned" };
+      return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },
     getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
       return loadModule(specifier, context);
@@ -319,7 +340,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      const moduleSpecifier = dotnetModuleSpecifierForTargetId(targetId);
+      const moduleSpecifier = dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy);
       if (moduleSpecifier === undefined) {
         return undefined;
       }
@@ -335,7 +356,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName);
+      const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy);
       if (moduleSpecifier === undefined) {
         return undefined;
       }

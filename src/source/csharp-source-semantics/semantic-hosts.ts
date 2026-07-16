@@ -12,11 +12,17 @@ import type {
   TargetTypescriptCompatibilityMode,
   TargetProviderContext,
 } from "@tsonic/target-api";
+import { fileURLToPath } from "node:url";
 import type {
   CsharpObjectShapeFact,
 } from "../csharp-facts.js";
 import {
+  dotnetModuleSpecifierPolicy,
   createDotnetReflectionTypeDataProvider,
+} from "../../providers/dotnet/index.js";
+import type {
+  DotnetModuleSpecifierPolicy,
+  DotnetReflectionTypeDataProvider,
 } from "../../providers/dotnet/index.js";
 import {
   readCsharpTypescriptCompatibilityMode,
@@ -67,12 +73,26 @@ import type {
 import {
   substituteTargetTypeRef,
 } from "./target-member-arguments/type-substitution.js";
+import {
+  createCsharpTargetCapabilityContributions,
+} from "./provider-packages/index.js";
+import type {
+  CsharpProviderOperationsContribution,
+} from "./provider-packages/index.js";
+
+export interface CsharpDotnetProviderHost {
+  readonly provider: DotnetReflectionTypeDataProvider;
+  readonly moduleSpecifierPolicy: DotnetModuleSpecifierPolicy;
+  readonly references: readonly string[];
+  readonly targetFramework: string | undefined;
+}
 
 export interface CsharpExtensionSemanticHosts {
   readonly typescriptCompatibilityMode: TargetTypescriptCompatibilityMode;
   readonly dotnetReflectionReferences: readonly string[];
   readonly dotnetTargetFramework: string | undefined;
-  readonly dotnetProvider: ReturnType<typeof createDotnetReflectionTypeDataProvider>;
+  readonly dotnetProviders: readonly CsharpDotnetProviderHost[];
+  readonly providerOperationContributions: readonly CsharpProviderOperationsContribution[];
   readonly targetTypeResolutionHost: CsharpTargetTypeResolutionHost;
   readonly objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   readonly objectShapeLifecycleHost: CsharpObjectShapeLifecycleHost;
@@ -88,7 +108,7 @@ export interface CsharpExtensionSemanticHosts {
 
 const csharpExtensionSemanticHostsByTarget = new WeakMap<TargetProviderContext["target"], CsharpExtensionSemanticHosts>();
 
-export function getCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target" | "selectedSurfaces">): CsharpExtensionSemanticHosts {
+export function getCsharpExtensionSemanticHosts(context: TargetProviderContext): CsharpExtensionSemanticHosts {
   const existing = csharpExtensionSemanticHostsByTarget.get(context.target);
   if (existing !== undefined) {
     return existing;
@@ -98,14 +118,43 @@ export function getCsharpExtensionSemanticHosts(context: Pick<TargetProviderCont
   return created;
 }
 
-export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target" | "selectedSurfaces">): CsharpExtensionSemanticHosts {
+export function createCsharpExtensionSemanticHosts(context: TargetProviderContext): CsharpExtensionSemanticHosts {
   const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
   const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
   const dotnetTargetFramework = readCsharpTargetFramework(context.target);
-  const dotnetProvider = createDotnetReflectionTypeDataProvider({
+  const nativeDotnetProvider = createDotnetReflectionTypeDataProvider({
     references: dotnetReflectionReferences,
     targetFramework: dotnetTargetFramework,
   });
+  const capabilityContributions = createCsharpTargetCapabilityContributions(context);
+  const dotnetProviders: readonly CsharpDotnetProviderHost[] = Object.freeze([
+    Object.freeze({
+      provider: nativeDotnetProvider,
+      moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
+      references: dotnetReflectionReferences,
+      targetFramework: dotnetTargetFramework,
+    }),
+    ...capabilityContributions.dotnetProviders.map((contribution) => Object.freeze({
+      provider: createDotnetReflectionTypeDataProvider({
+        providerIdentity: contribution.providerIdentity,
+        moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
+        referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
+        assemblySourcePackages: contribution.assemblySourcePackages,
+        targetFramework: contribution.targetFramework,
+      }),
+      moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
+      references: [],
+      targetFramework: contribution.targetFramework,
+    })),
+  ]);
+  const getBindingByTargetId = (targetId: string): TargetBindingFact | undefined => uniqueProviderBinding(
+    `target id '${targetId}'`,
+    dotnetProviders.map((entry) => entry.provider.findTargetBindingByTargetId(targetId)),
+  );
+  const getBindingByMetadataName = (metadataName: string): TargetBindingFact | undefined => uniqueProviderBinding(
+    `metadata name '${metadataName}'`,
+    dotnetProviders.map((entry) => entry.provider.findTargetBindingByMetadataName(metadataName)),
+  );
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   const getBaseTargetTypeRef = (type: TargetTypeRef): TargetTypeRef | undefined => {
     if (type.kind !== "target-named") {
@@ -115,7 +164,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     if (sourceBaseType !== undefined) {
       return sourceBaseType;
     }
-    const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
+    const binding = getBindingByTargetId(type.id);
     return binding === undefined
       ? undefined
       : csharpBaseTargetTypeFromBinding(binding, type.typeArguments ?? []);
@@ -124,15 +173,15 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     if (type.kind !== "target-named") {
       return [];
     }
-    const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
+    const binding = getBindingByTargetId(type.id);
     return [
       ...optionalTargetTypeRef(getBaseTargetTypeRef(type)),
       ...implementedContractTargetTypes(binding, type.typeArguments ?? []),
     ];
   };
   const targetTypeResolutionHost = {
-    getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
-    getCsharpTargetBindingByMetadataName: (metadataName: string) => dotnetProvider.findTargetBindingByMetadataName(metadataName),
+    getCsharpTargetBindingByTargetId: getBindingByTargetId,
+    getCsharpTargetBindingByMetadataName: getBindingByMetadataName,
     getCatchVariableTargetTypeRef: () => typescriptCompatibilityMode === "compat" ? csharpTsValueTargetType() : csharpExceptionTargetType(),
     getBaseTargetTypeRef,
     getAssignableTargetTypeRefs,
@@ -214,13 +263,25 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     typescriptCompatibilityMode,
     dotnetReflectionReferences,
     dotnetTargetFramework,
-    dotnetProvider,
+    dotnetProviders,
+    providerOperationContributions: capabilityContributions.providerOperations,
     targetTypeResolutionHost,
     objectShapeSemanticsHost,
     objectShapeLifecycleHost,
     runtimeCarrierHost,
     operationsProviderHost,
   };
+}
+
+function uniqueProviderBinding(
+  description: string,
+  candidates: readonly (TargetBindingFact | undefined)[],
+): TargetBindingFact | undefined {
+  const bindings = candidates.filter((candidate): candidate is TargetBindingFact => candidate !== undefined);
+  if (bindings.length <= 1) {
+    return bindings[0];
+  }
+  throw new Error(`C# .NET provider target binding conflict for ${description}.`);
 }
 
 function optionalTargetTypeRef(type: TargetTypeRef | undefined): readonly TargetTypeRef[] {

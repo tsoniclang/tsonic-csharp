@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   csharpApplyExternAliasToTargetBinding,
+  createDotnetModuleSpecifierPolicy,
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
   parseDotnetModuleSpecifier,
@@ -57,6 +58,43 @@ test(".NET reflection provider records assembly reference facts on supported mod
   assertAssemblyReference(widget.assembly, "Acme.Contracts");
   assert.equal(widget.assembly.path.endsWith("Acme.Contracts.dll"), true);
   assert.equal(module.unsupportedExports, undefined);
+});
+
+test("installed .NET provider packages separate same-namespace same-name types by explicit assembly ownership", () => {
+  const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
+  const sourcePackages = [
+    { assemblyName: "Acme.Contracts", packageName: "@acme/native" },
+    { assemblyName: "Contoso.Contracts", packageName: "@contoso/native" },
+  ];
+  const acmePolicy = createDotnetModuleSpecifierPolicy("@acme/native");
+  const contosoPolicy = createDotnetModuleSpecifierPolicy("@contoso/native");
+  const acmeProvider = createDotnetReflectionTypeDataProvider({
+    providerIdentity: providerIdentity("acme"),
+    moduleSpecifierPolicy: acmePolicy,
+    assemblySourcePackages: sourcePackages,
+    references: [acmeDll, contosoDll],
+    disablePersistentCache: true,
+  });
+  const contosoProvider = createDotnetReflectionTypeDataProvider({
+    providerIdentity: providerIdentity("contoso"),
+    moduleSpecifierPolicy: contosoPolicy,
+    assemblySourcePackages: sourcePackages,
+    references: [acmeDll, contosoDll],
+    disablePersistentCache: true,
+  });
+
+  const acmeModule = acmeProvider.getModule("@acme/native/Shared.js", { requestedExports: ["Widget"] });
+  const contosoModule = contosoProvider.getModule("@contoso/native/Shared.js", { requestedExports: ["Widget"] });
+  assert.equal("exports" in acmeModule, true, JSON.stringify(acmeModule));
+  assert.equal("exports" in contosoModule, true, JSON.stringify(contosoModule));
+  assert.deepEqual(acmeModule.exports.filter(isSharedWidgetDeclaration).map((declaration) => assemblySimpleNameFromTargetId(declaration.targetId)), ["Acme.Contracts"]);
+  assert.deepEqual(contosoModule.exports.filter(isSharedWidgetDeclaration).map((declaration) => assemblySimpleNameFromTargetId(declaration.targetId)), ["Contoso.Contracts"]);
+
+  const acmeBindingProvider = createDotnetTargetBindingProvider({ provider: acmeProvider, moduleSpecifierPolicy: acmePolicy });
+  const acmeResolution = acmeBindingProvider.resolveModule("@acme/native/Shared.js", { requestedExports: ["Widget"] });
+  assert.equal(acmeResolution.kind, "virtual", JSON.stringify(acmeResolution));
+  assert.equal(acmeResolution.packageName, "@acme/native");
+  assert.equal(acmeBindingProvider.ownsModule("@contoso/native/Shared.js", {}).kind, "unowned");
 });
 
 test(".NET target binding provider reports assembly-qualified unsupported export diagnostics", () => {
@@ -139,6 +177,15 @@ function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&
     declaration.namespaceName === "Shared";
+}
+
+function providerIdentity(id) {
+  return {
+    id: `acme.${id}.reflection-provider`,
+    version: "1.0.0",
+    target: "csharp",
+    displayName: `${id} reflection provider`,
+  };
 }
 
 function assertAssemblyReference(reference, name) {

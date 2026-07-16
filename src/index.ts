@@ -32,9 +32,11 @@ export * from "./source/csharp-source-semantics/target-types.js";
 export * from "./source/csharp-source-semantics/surfaces/js/source-library.js";
 export * from "./source/csharp-source-semantics/surfaces/js/date/index.js";
 export {
+  csharpDotnetProviderContributionKind,
   csharpProviderOperationsContributionKind,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
+  CsharpDotnetProviderContribution,
   CsharpProviderOperationsContribution,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
@@ -73,10 +75,13 @@ export type {
   DotnetConstraint,
   DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
+  DotnetAssemblySourcePackage,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,
   DotnetMemberKind,
   DotnetModuleModel,
+  DotnetModuleSpecifier,
+  DotnetModuleSpecifierPolicy,
   DotnetNamespaceDeclaration,
   DotnetParameterDeclaration,
   DotnetParameterDefaultValue,
@@ -102,6 +107,7 @@ export type {
   DotnetValueDeclaration,
 } from "./providers/dotnet/index.js";
 export {
+  createDotnetModuleSpecifierPolicy,
   createDotnetModuleSpecifier,
   createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
@@ -116,9 +122,11 @@ export {
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
   dotnetPackageName,
+  dotnetModuleSpecifierPolicy,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
   isDotnetNativeArrayCreateMemberId,
+  normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,

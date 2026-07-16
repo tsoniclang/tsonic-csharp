@@ -69,11 +69,19 @@ export {
   formatDotnetProviderTelemetrySnapshot,
 } from "./reflection/telemetry.js";
 export {
+  createDotnetModuleSpecifierPolicy,
   createDotnetModuleSpecifier,
   dotnetModuleExtension,
   dotnetModulePrefix,
   dotnetPackageName,
+  dotnetModuleSpecifierPolicy,
+  normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
+} from "./module-specifier.js";
+export type {
+  DotnetAssemblySourcePackage,
+  DotnetModuleSpecifier,
+  DotnetModuleSpecifierPolicy,
 } from "./module-specifier.js";
 export {
   augmentDotnetModuleWithNativeArray,

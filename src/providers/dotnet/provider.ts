@@ -26,7 +26,10 @@ import {
   augmentDotnetModuleWithNativeArray,
 } from "./native-array.js";
 import {
-  dotnetPackageName,
+  dotnetModuleSpecifierPolicy,
+} from "./module-specifier.js";
+import type {
+  DotnetModuleSpecifierPolicy,
 } from "./module-specifier.js";
 import {
   dotnetExtensionDiagnostic,
@@ -85,11 +88,13 @@ export interface DotnetProviderDiagnostic {
 
 export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
+  readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
   readonly targetFramework?: string;
   readonly references?: readonly string[];
 }
 
 export function createDotnetTargetBindingProvider(options: DotnetBindingProviderOptions): TargetBindingProvider {
+  const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
   const pendingResolutionContexts = new Map<string, DotnetProviderResolutionContext>();
   const identity: ProviderIdentity = {
     id: options.provider.identity.id,
@@ -102,14 +107,14 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
   return {
     identity,
     ownsModule(specifier: string, context: ProviderModuleContext): ProviderOwnership {
-      const module = dotnetProviderModuleRequest(specifier);
+      const module = dotnetProviderModuleRequest(specifier, moduleSpecifierPolicy);
       if (module === undefined) {
         return { kind: "unowned" };
       }
       return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module) ?? { broadImport: true }, options, context.containingFile, module)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
-      const module = dotnetProviderModuleRequest(specifier);
+      const module = dotnetProviderModuleRequest(specifier, moduleSpecifierPolicy);
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${specifier}'.`);
       }
@@ -135,12 +140,12 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         moduleSpecifier: specifier,
         virtualFileName,
         providerModuleId: module.moduleSpecifier,
-        ...(module.internal === true ? {} : { packageName: dotnetPackageName }),
+        ...(module.internal === true ? {} : { packageName: moduleSpecifierPolicy.packageName }),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
     getDeclarationModel(resolution) {
-      const module = dotnetProviderModuleRequest(resolution.moduleSpecifier);
+      const module = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
@@ -166,7 +171,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         return dotnetProviderRequestedExportMissingDiagnostic(identity.id, module.moduleSpecifier, missingRequestedExports);
       }
       const startedAt = performance.now();
-      const model = buildClosedProviderDeclarationModel(resolution, resolutionContext, augmentedModule, options, identity.id, module.moduleSpecifier);
+      const model = buildClosedProviderDeclarationModel(resolution, resolutionContext, augmentedModule, options, identity.id, module.moduleSpecifier, moduleSpecifierPolicy);
       if ("extensionId" in model) {
         return model;
       }
@@ -187,6 +192,7 @@ function buildClosedProviderDeclarationModel(
   options: DotnetBindingProviderOptions,
   extensionId: string,
   providerModuleSpecifier: string,
+  moduleSpecifierPolicy: DotnetModuleSpecifierPolicy,
 ): ProviderDeclarationModel | ExtensionDiagnostic {
   let currentContext = resolutionContext;
   let currentModule = initialModule;
@@ -207,7 +213,7 @@ function buildClosedProviderDeclarationModel(
       return dotnetProviderRequestedExportMissingDiagnostic(extensionId, providerModuleSpecifier, missingProviderRefs);
     }
     currentContext = { requestedExports };
-    const moduleRequest = dotnetProviderModuleRequest(resolution.moduleSpecifier);
+    const moduleRequest = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
     if (moduleRequest === undefined) {
       return dotnetExtensionDiagnostic(extensionId, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
     }

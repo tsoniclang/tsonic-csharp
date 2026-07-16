@@ -26,6 +26,7 @@ export type {
 } from "./tool/types.js";
 
 export {
+  referenceDirectoryIdentities,
   referenceIdentities,
 } from "./tool/reference-identities.js";
 

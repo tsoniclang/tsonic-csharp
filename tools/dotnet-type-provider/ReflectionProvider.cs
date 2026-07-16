@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 sealed partial class ReflectionProvider
 {
     readonly Request request;
+    readonly IReadOnlyDictionary<string, string> sourcePackageByAssemblyName;
     readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
     readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
@@ -20,6 +21,21 @@ sealed partial class ReflectionProvider
     public ReflectionProvider(Request request)
     {
         this.request = request;
+        ValidateSourcePackageName(request.SourcePackage);
+        var sourcePackages = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var sourcePackage in request.AssemblySourcePackages)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePackage.AssemblyName))
+            {
+                throw new InvalidOperationException("Assembly source package assembly name must not be empty.");
+            }
+            ValidateSourcePackageName(sourcePackage.PackageName);
+            if (!sourcePackages.TryAdd(sourcePackage.AssemblyName, sourcePackage.PackageName))
+            {
+                throw new InvalidOperationException($"Duplicate assembly source package mapping for '{sourcePackage.AssemblyName}'.");
+            }
+        }
+        sourcePackageByAssemblyName = sourcePackages;
         activeNamespaceName = request.NamespaceName;
         activeModuleSpecifier = request.ModuleSpecifier;
     }
@@ -38,6 +54,7 @@ sealed partial class ReflectionProvider
         moduleSpecifierPrefix = request.ModuleSpecifierPrefix;
         providerSourceReferencesByTargetId = SourceReferencesByTargetId(loadedTypes);
         return loadedTypes
+            .Where(IsTypeOwnedByActiveSourcePackage)
             .Where(type => type.Namespace is not null)
             .Select(type => type.Namespace!)
             .Distinct(StringComparer.Ordinal)
@@ -64,6 +81,7 @@ sealed partial class ReflectionProvider
         activeModuleSpecifier = moduleSpecifier;
         var allTypes = loadedTypes
             .Where(type => type.Namespace == activeNamespaceName)
+            .Where(IsTypeOwnedByActiveSourcePackage)
             .ToArray();
         activeModuleTypes = allTypes;
         var assembly = ModuleAssemblyReference(allTypes);
@@ -149,6 +167,19 @@ sealed partial class ReflectionProvider
             targetOnlyTypes = targetOnlyTypes.Length == 0 ? null : targetOnlyTypes,
             unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
         };
+    }
+
+    static void ValidateSourcePackageName(string packageName)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(packageName, "^(?:@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+        {
+            throw new InvalidOperationException($"Invalid provider source package '{packageName}'.");
+        }
+    }
+
+    bool IsTypeOwnedByActiveSourcePackage(Type type)
+    {
+        return StringComparer.Ordinal.Equals(SourcePackageForType(type), request.SourcePackage);
     }
 
     bool IncludesRequestedType(

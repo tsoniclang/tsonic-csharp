@@ -29,7 +29,9 @@ export interface DotnetProviderCacheRequest {
   readonly broadImport: boolean | undefined;
   readonly assemblyName: string | undefined;
   readonly referenceDirectory: string | undefined;
+  readonly referenceDirectoryIdentities: readonly Readonly<Record<string, unknown>>[];
   readonly referenceIdentities: readonly Readonly<Record<string, unknown>>[];
+  readonly assemblySourcePackages: readonly Readonly<{ readonly assemblyName: string; readonly packageName: string }>[];
   readonly toolIdentity: DotnetProviderToolIdentity;
 }
 

@@ -398,6 +398,7 @@ sealed partial class ReflectionProvider
     {
         var candidates = SourceReferenceCandidates(loadedTypes
             .Where(type => type.Namespace is not null)
+            .Where(type => SourcePackageForType(type) is not null)
             .Where(type => !HasProviderOwnedSourceProjection(type)))
             .ToArray();
         var references = candidates
@@ -434,7 +435,7 @@ sealed partial class ReflectionProvider
 
     IEnumerable<SourceReferenceCandidate> SourceReferenceCandidates(IEnumerable<Type> types)
     {
-        foreach (var namespaceGroup in types.GroupBy(type => $"{type.Namespace}\0{SourceTypeBaseName(type)}", StringComparer.Ordinal))
+        foreach (var namespaceGroup in types.GroupBy(type => $"{ModuleSpecifierForTypeNamespace(type)}\0{SourceTypeBaseName(type)}", StringComparer.Ordinal))
         {
             var groupTypes = namespaceGroup.ToArray();
             var familyExportName = SourceTypeBaseName(groupTypes[0]);
@@ -445,7 +446,7 @@ sealed partial class ReflectionProvider
                     type,
                     new SourceReference(
                         SourceTypeName(type, disambiguateByArity),
-                        ModuleSpecifierForNamespace(type.Namespace!),
+                        ModuleSpecifierForTypeNamespace(type)!,
                         useTypeFamily ? familyExportName : null,
                         useTypeFamily ? GenericTypeNameArity(type) : null)))
                 .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
@@ -540,6 +541,35 @@ sealed partial class ReflectionProvider
     string ModuleSpecifierForNamespace(string namespaceName)
     {
         return $"{moduleSpecifierPrefix}{namespaceName}.js";
+    }
+
+    string? ModuleSpecifierForTypeNamespace(Type type)
+    {
+        var sourcePackage = SourcePackageForType(type);
+        if (sourcePackage is null || type.Namespace is null)
+        {
+            return null;
+        }
+        var prefix = StringComparer.Ordinal.Equals(sourcePackage, request.SourcePackage)
+            ? moduleSpecifierPrefix
+            : $"{sourcePackage}/";
+        return $"{prefix}{type.Namespace}.js";
+    }
+
+    string? SourcePackageForType(Type type)
+    {
+        var location = type.Assembly.Location;
+        var runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location);
+        if (!string.IsNullOrEmpty(location) && runtimeDirectory is not null && StringComparer.Ordinal.Equals(Path.GetDirectoryName(Path.GetFullPath(location)), Path.GetFullPath(runtimeDirectory)))
+        {
+            return "@tsonic/dotnet";
+        }
+        var assemblyName = type.Assembly.GetName().Name;
+        if (assemblyName is not null && sourcePackageByAssemblyName.TryGetValue(assemblyName, out var sourcePackage))
+        {
+            return sourcePackage;
+        }
+        return sourcePackageByAssemblyName.Count == 0 ? request.SourcePackage : null;
     }
 
     string GetModuleSpecifierPrefix()

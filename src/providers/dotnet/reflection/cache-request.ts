@@ -3,12 +3,23 @@ import type {
   DotnetProviderDiagnostic,
 } from "../provider.js";
 import type {
+  DotnetAssemblySourcePackage,
+  DotnetModuleSpecifierPolicy,
+} from "../module-specifier.js";
+import {
+  normalizeDotnetAssemblySourcePackages,
+} from "../module-specifier.js";
+import type {
+  DotnetProviderIdentity,
+} from "../model.js";
+import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";
 import type {
   DotnetProviderToolIdentity,
 } from "./tool.js";
 import {
+  referenceDirectoryIdentities,
   referenceIdentities,
 } from "./tool.js";
 import {
@@ -21,6 +32,9 @@ import {
 } from "./provider-identity.js";
 
 export interface DotnetReflectionCacheRequestOptions {
+  readonly providerIdentity?: DotnetProviderIdentity;
+  readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
+  readonly assemblySourcePackages?: readonly DotnetAssemblySourcePackage[];
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
   readonly targetFramework?: string;
@@ -38,8 +52,8 @@ export function createDotnetReflectionCacheRequest(
   input: CreateDotnetReflectionCacheRequestInput,
 ): DotnetProviderCacheRequest {
   return {
-    providerId: dotnetReflectionProviderIdentity.id,
-    providerVersion: dotnetReflectionProviderIdentity.version,
+    providerId: input.options.providerIdentity?.id ?? dotnetReflectionProviderIdentity.id,
+    providerVersion: input.options.providerIdentity?.version ?? dotnetReflectionProviderIdentity.version,
     providerCacheAbiVersion: dotnetReflectionProviderCacheAbiVersion,
     targetFramework: input.context.targetFramework ?? input.options.targetFramework ?? dotnetReflectionSupportedTargetFramework,
     moduleSpecifier: input.specifier,
@@ -50,7 +64,9 @@ export function createDotnetReflectionCacheRequest(
     broadImport: input.context.broadImport,
     assemblyName: input.context.assemblyName,
     referenceDirectory: input.options.referenceDirectory,
+    referenceDirectoryIdentities: referenceDirectoryIdentities(input.options.referenceDirectory),
     referenceIdentities: referenceIdentities([...(input.context.references ?? []), ...(input.options.references ?? [])]),
+    assemblySourcePackages: normalizeDotnetAssemblySourcePackages(input.options.assemblySourcePackages),
     toolIdentity: input.toolIdentity,
   };
 }
@@ -74,6 +90,12 @@ export function pushDotnetReflectionReferenceArgs(
   context: DotnetProviderModuleContext,
   options: DotnetReflectionCacheRequestOptions,
 ): void {
+  if (options.moduleSpecifierPolicy !== undefined) {
+    args.push("--source-package", options.moduleSpecifierPolicy.packageName);
+  }
+  for (const sourcePackage of normalizeDotnetAssemblySourcePackages(options.assemblySourcePackages)) {
+    args.push("--assembly-source-package", `${sourcePackage.assemblyName}=${sourcePackage.packageName}`);
+  }
   if (options.referenceDirectory !== undefined) {
     args.push("--reference-dir", options.referenceDirectory);
   }

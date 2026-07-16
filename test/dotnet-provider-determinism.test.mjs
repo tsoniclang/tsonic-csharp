@@ -8,6 +8,10 @@ import {
   createDotnetReflectionTypeDataProvider,
 } from "../dist/providers/dotnet/reflection/provider.js";
 import {
+  referenceDirectoryIdentities,
+  referenceIdentities,
+} from "../dist/providers/dotnet/reflection/tool.js";
+import {
   readCsharpReferences,
   readCsharpReflectionReferencePaths,
 } from "../dist/options/csharp-target-options.js";
@@ -57,6 +61,24 @@ test("C# provider references are reflection-only provider inputs", () => {
   assert.deepEqual(readCsharpReferences(target), [
     { kind: "assembly", include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" },
   ]);
+});
+
+test(".NET provider cache fingerprints reference contents rather than mutable path metadata", () => {
+  const referenceDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/cache-content-identity");
+  mkdirSync(referenceDirectory, { recursive: true });
+  const reference = join(referenceDirectory, "Mutable.dll");
+  writeFileSync(reference, "AAAA");
+  const firstFileIdentity = referenceIdentities([reference]);
+  const firstDirectoryIdentity = referenceDirectoryIdentities(referenceDirectory);
+
+  writeFileSync(reference, "BBBB");
+  const secondFileIdentity = referenceIdentities([reference]);
+  const secondDirectoryIdentity = referenceDirectoryIdentities(referenceDirectory);
+
+  assert.notDeepEqual(secondFileIdentity, firstFileIdentity);
+  assert.notDeepEqual(secondDirectoryIdentity, firstDirectoryIdentity);
+  assert.equal(firstFileIdentity[0].size, secondFileIdentity[0].size);
+  assert.notEqual(firstFileIdentity[0].sha256, secondFileIdentity[0].sha256);
 });
 
 test("C# reflection framework policy has no installed-runtime version selector", () => {

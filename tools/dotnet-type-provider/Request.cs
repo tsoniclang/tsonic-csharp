@@ -4,13 +4,15 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
 {
     public static Request Parse(string[] args)
     {
         var namespaceName = "";
         var moduleSpecifier = "";
         var moduleSpecifierPrefix = "";
+        var sourcePackage = "@tsonic/dotnet";
+        var assemblySourcePackages = new List<AssemblySourcePackage>();
         var allModules = false;
         var exports = new List<string>();
         var targetIds = new List<string>();
@@ -31,6 +33,12 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     break;
                 case "--module-specifier-prefix":
                     moduleSpecifierPrefix = RequiredValue(args, ref index, arg);
+                    break;
+                case "--source-package":
+                    sourcePackage = RequiredValue(args, ref index, arg);
+                    break;
+                case "--assembly-source-package":
+                    assemblySourcePackages.Add(ParseAssemblySourcePackage(RequiredValue(args, ref index, arg)));
                     break;
                 case "--all-modules":
                     allModules = true;
@@ -57,7 +65,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, targetIds, metadataNames, referenceDirectory, references, assemblyName);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, referenceDirectory, references, assemblyName);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)
@@ -69,4 +77,16 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         index++;
         return args[index];
     }
+
+    static AssemblySourcePackage ParseAssemblySourcePackage(string value)
+    {
+        var separator = value.IndexOf('=');
+        if (separator <= 0 || separator == value.Length - 1 || value.IndexOf('=', separator + 1) >= 0)
+        {
+            throw new InvalidOperationException($"Invalid assembly source package '{value}'. Expected '<assembly-name>=<package-name>'.");
+        }
+        return new AssemblySourcePackage(value[..separator], value[(separator + 1)..]);
+    }
 }
+
+sealed record AssemblySourcePackage(string AssemblyName, string PackageName);

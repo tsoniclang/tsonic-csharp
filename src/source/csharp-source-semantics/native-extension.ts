@@ -32,9 +32,6 @@ import {
   createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
-  createCsharpProviderOperationsContributions,
-} from "./provider-packages/index.js";
-import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
 } from "./runtime-carriers.js";
 import {
@@ -95,14 +92,17 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       runsAfter: [tsonicCoreSourceExtensionId, csharpSourceSemanticsExtensionId],
     },
     initialize(extensionContext): void {
-      extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
-        provider: hosts.dotnetProvider,
-        references: hosts.dotnetReflectionReferences,
-        targetFramework: hosts.dotnetTargetFramework,
-      }));
+      for (const dotnetProvider of hosts.dotnetProviders) {
+        extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
+          provider: dotnetProvider.provider,
+          moduleSpecifierPolicy: dotnetProvider.moduleSpecifierPolicy,
+          references: dotnetProvider.references,
+          targetFramework: dotnetProvider.targetFramework,
+        }));
+      }
       extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
         jsSurface: jsSurfaceSelected,
-        providerOperationContributions: createCsharpProviderOperationsContributions(context),
+        providerOperationContributions: hosts.providerOperationContributions,
         typescriptCompatibilityMode: hosts.typescriptCompatibilityMode,
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {

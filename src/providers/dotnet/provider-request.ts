@@ -8,7 +8,11 @@ import {
   dotnetProviderResolutionContext,
 } from "./provider-slices.js";
 import {
+  dotnetModuleSpecifierPolicy,
   parseDotnetModuleSpecifier,
+} from "./module-specifier.js";
+import type {
+  DotnetModuleSpecifierPolicy,
 } from "./module-specifier.js";
 
 export interface DotnetProviderModuleRequest {
@@ -21,8 +25,9 @@ export interface DotnetProviderModuleRequest {
 
 export function dotnetProviderModuleRequest(
   specifier: string,
+  policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
 ): DotnetProviderModuleRequest | undefined {
-  const parsed = parseDotnetModuleSpecifier(specifier);
+  const parsed = parseDotnetModuleSpecifier(specifier, policy);
   return parsed === undefined
     ? undefined
     : {

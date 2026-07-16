@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  createCsharpProviderOperationsContributions,
+  createCsharpTargetCapabilityContributions,
   csharpProviderOperationsContributionKind,
 } from "../dist/source/csharp-source-semantics/provider-packages/index.js";
 
@@ -27,7 +27,7 @@ test("C# consumes only its target-owned contributions from the standard capabili
     },
   };
 
-  const contributions = createCsharpProviderOperationsContributions({
+  const contributions = createCsharpTargetCapabilityContributions({
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
     target: { id: "csharp" },
     targetPack: { id: "csharp", displayName: "C#" },
@@ -35,5 +35,6 @@ test("C# consumes only its target-owned contributions from the standard capabili
     selectedSurfaces: [],
   });
 
-  assert.deepEqual(contributions, [csharpContribution]);
+  assert.deepEqual(contributions.providerOperations, [csharpContribution]);
+  assert.deepEqual(contributions.dotnetProviders, []);
 });
