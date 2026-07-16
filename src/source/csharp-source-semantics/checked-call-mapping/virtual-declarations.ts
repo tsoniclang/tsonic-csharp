@@ -19,8 +19,8 @@ export function getSelectedCallProviderVirtualDeclaration(
   return getProviderVirtualDeclaration(context, [
     request.sourceSelectedDeclaration,
     request.sourceSelectedSignature,
-    request.sourceCalleeDeclaration,
-    request.sourceCalleeSymbol,
+    request.sourceSelectedCalleeDeclaration,
+    request.sourceSelectedCalleeSymbol,
     requestContext?.calleeSelectedPropertyDeclaration,
     requestContext?.calleeSelectedPropertySymbol,
     requestContext?.calleeSelectedPropertyDeclarationContainer,

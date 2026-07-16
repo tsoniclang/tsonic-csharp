@@ -31,11 +31,11 @@ export function getCsharpCheckedCallRequestContext(
   const callee = asNodeSubject(request.callee);
   if (compiler === undefined || callee === undefined) {
     return {
-      ...(request.sourceCalleeSymbol !== undefined ? { calleeSelectedPropertySymbol: request.sourceCalleeSymbol } : {}),
-      ...(request.sourceCalleeDeclaration !== undefined ? { calleeSelectedPropertyDeclaration: request.sourceCalleeDeclaration } : {}),
+      ...(request.sourceSelectedCalleeSymbol !== undefined ? { calleeSelectedPropertySymbol: request.sourceSelectedCalleeSymbol } : {}),
+      ...(request.sourceSelectedCalleeDeclaration !== undefined ? { calleeSelectedPropertyDeclaration: request.sourceSelectedCalleeDeclaration } : {}),
     };
   }
-  const calleeSymbol = request.sourceCalleeSymbol;
+  const calleeSymbol = request.sourceSelectedCalleeSymbol;
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
     ? asNodeSubject(getNodeField(callee, "Expression"))
     : undefined;
@@ -47,8 +47,8 @@ export function getCsharpCheckedCallRequestContext(
     ? undefined
     : getTypeSymbol(compiler, calleeReceiverType as Type);
   const calleePropertyName = getPropertyAccessName(callee, compiler.ast);
-  const calleeSelectedPropertySymbol = request.sourceCalleeSymbol;
-  const calleeSelectedPropertyDeclaration = asNodeSubject(request.sourceCalleeDeclaration);
+  const calleeSelectedPropertySymbol = request.sourceSelectedCalleeSymbol;
+  const calleeSelectedPropertyDeclaration = asNodeSubject(request.sourceSelectedCalleeDeclaration);
   const calleeSelectedPropertyDeclarationContainer = getNodeParent(compiler.ast, calleeSelectedPropertyDeclaration);
   const sourceSelectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   const sourceSelectedDeclarationContainer = getNodeParent(compiler.ast, sourceSelectedDeclaration);

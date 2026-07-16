@@ -297,7 +297,12 @@ function getSourceReturnCarrierForSelectedSignature(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   selectedSignature: SelectedTargetSignatureFact,
 ): TargetTypeRef | undefined {
-  for (const subject of [selectedSignature.sourceDeclaration, selectedSignature.sourceSignature]) {
+  for (const subject of [
+    selectedSignature.sourceDeclaration,
+    selectedSignature.sourceSignature,
+    selectedSignature.sourceSelectedCalleeDeclaration,
+    selectedSignature.sourceSelectedCalleeSymbol,
+  ]) {
     if (subject === undefined) {
       continue;
     }

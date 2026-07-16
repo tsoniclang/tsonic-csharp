@@ -346,7 +346,7 @@ function jsSurfaceOwnsCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
-  return resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context) !== undefined ||
+  return resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedCalleeDeclaration, request.sourceSelectedCalleeSymbol, context) !== undefined ||
     resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) !== undefined;
 }
 

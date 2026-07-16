@@ -1,7 +1,7 @@
 import type {
-  ExtensionFactSubject,
   SelectedTargetSignatureFact,
   TargetParameter,
+  TargetSignatureSelection,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -10,19 +10,15 @@ import type {
 
 const csharpSourceOwnedCallMemberId = "tsonic.csharp.source-owned-call";
 
-export function csharpSourceOwnedSelectedSignatureFact(
+export function csharpSourceOwnedTargetSignatureSelection(
   options: {
-    readonly sourceSignature?: ExtensionFactSubject;
-    readonly sourceDeclaration?: ExtensionFactSubject;
     readonly parameters?: readonly TargetParameter[];
     readonly targetTypeArguments?: readonly TargetTypeRef[];
     readonly returnType?: TargetTypeRef;
   },
-): SelectedTargetSignatureFact {
+): TargetSignatureSelection {
   return {
     member: csharpSourceOwnedCallMember(options.parameters ?? [], options.returnType),
-    ...(options.sourceSignature === undefined ? {} : { sourceSignature: options.sourceSignature }),
-    ...(options.sourceDeclaration === undefined ? {} : { sourceDeclaration: options.sourceDeclaration }),
     ...(options.targetTypeArguments === undefined ? {} : { targetTypeArguments: options.targetTypeArguments }),
   };
 }

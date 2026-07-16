@@ -39,9 +39,9 @@ test("source-owned checked calls close over destructured binding carrier facts",
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
-    sourceCalleeDeclaration: bindingElement,
+    sourceSelectedCalleeDeclaration: bindingElement,
     sourceReturnType,
     arguments: [],
   }, context);
@@ -69,9 +69,9 @@ test("source-owned checked calls close over implicit source class constructor sy
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
-    sourceCalleeDeclaration: classDeclaration,
+    sourceSelectedCalleeDeclaration: classDeclaration,
     arguments: [],
   }, fakeObservationContext({
     declarationsBySymbol: new Map([[symbol, [classDeclaration]]]),
@@ -97,7 +97,7 @@ test("source-owned checked calls derive generic class constructor returns from s
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: classDeclaration,
     arguments: [],
@@ -126,7 +126,7 @@ test("source-owned checked calls derive generic explicit-constructor returns fro
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: constructorDeclaration,
     arguments: [],
@@ -157,7 +157,7 @@ test("source-owned checked calls close over selected declaration return annotati
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: functionDeclaration,
     arguments: [],
@@ -187,7 +187,7 @@ test("source-owned checked calls do not close raw TypeScript array annotations a
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: functionDeclaration,
     arguments: [],
@@ -219,7 +219,7 @@ test("source-owned checked calls close over callable type return annotations", (
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: variableDeclaration,
     arguments: [],
@@ -260,7 +260,7 @@ test("source-owned checked calls keep function-declaration callable returns as d
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: functionDeclaration,
     arguments: [],
@@ -305,7 +305,7 @@ test("source-owned checked calls do not query the call expression for TSTS-insta
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: methodDeclaration,
     arguments: [],
@@ -351,7 +351,7 @@ test("source-owned checked calls close over TSTS-selected semantic return types"
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: methodDeclaration,
     sourceReturnType,
@@ -413,7 +413,7 @@ test("source-owned checked calls prefer receiver type-argument facts over numeri
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: methodDeclaration,
     sourceReturnType,
@@ -446,7 +446,7 @@ test("source-owned checked calls use TSTS semantic return annotation when direct
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceCalleeSymbol: symbol,
     sourceSelectedDeclaration: functionDeclaration,
     arguments: [],
@@ -461,7 +461,9 @@ test("source-owned checked calls use TSTS semantic return annotation when direct
 test("source-owned checked calls record parameter and method type arguments from TSTS-selected evidence", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const parameterName = node("KindIdentifier", sourceFile, { Text: "value" });
-  const parameter = node("KindParameterDeclaration", sourceFile, { name: parameterName });
+  const parameterTypeNode = node("KindTypeReference", sourceFile, { Text: "T" });
+  const parameter = node("KindParameterDeclaration", sourceFile, { name: parameterName, Type: parameterTypeNode });
+  const parameterSymbol = { kind: "parameter-symbol" };
   const declaration = node("KindFunctionDeclaration", sourceFile, {
     Parameters: { Nodes: [parameter] },
   });
@@ -472,13 +474,20 @@ test("source-owned checked calls record parameter and method type arguments from
   const stringType = { kind: "source-primitive", name: "string" };
 
   const result = sourceOwnedProvider(new Map([
-    [parameter, openParameterType],
+    [parameterTypeNode, openParameterType],
     [selectedType, stringType],
   ])).mapCheckedCall({
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature([parameter]),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "value",
+      parameterSymbol,
+      parameterDeclaration: parameter,
+      selectedType,
+      authoredTypeNode: parameterTypeNode,
+    })]),
     sourceSelectedDeclaration: declaration,
     sourceSelectedMethodTypeArguments: [{
       typeParameterName: "T",
@@ -496,12 +505,15 @@ test("source-owned checked calls record parameter and method type arguments from
   }]);
 });
 
-test("source-owned checked calls resolve selected signature parameter facts through exact declarations", () => {
+test("source-owned checked calls map TSTS-selected parameter type evidence without checker re-entry", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
+  const optionsTypeNode = node("KindTypeReference", sourceFile, { Text: "Options" });
   const parameterDeclaration = node("KindParameter", sourceFile, {
     name: node("KindIdentifier", sourceFile, { Text: "options" }),
+    Type: optionsTypeNode,
   });
-  const parameterSymbol = { Flags: 0, Name: "options" };
+  const parameterSymbol = { kind: "parameter-symbol" };
+  const selectedType = { kind: "semantic-options" };
   const declaration = node("KindConstructor", sourceFile);
   const call = node("KindNewExpression", sourceFile);
   const optionsType = {
@@ -511,17 +523,22 @@ test("source-owned checked calls resolve selected signature parameter facts thro
   };
 
   const result = sourceOwnedProvider(new Map([
-    [parameterDeclaration, optionsType],
+    [optionsTypeNode, optionsType],
   ])).mapCheckedCall({
     target: "csharp",
     call,
     callee: node("KindIdentifier", sourceFile),
-    sourceSelectedSignature: selectedSignature([parameterSymbol]),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "options",
+      parameterSymbol,
+      parameterDeclaration,
+      selectedType,
+      authoredTypeNode: optionsTypeNode,
+    })]),
     sourceSelectedDeclaration: declaration,
     arguments: [node("KindIdentifier", sourceFile)],
-  }, fakeObservationContext({
-    declarationsBySymbol: new Map([[parameterSymbol, [parameterDeclaration]]]),
-  }));
+  }, fakeObservationContext());
 
   assert.equal(result.kind, "accept");
   assert.deepEqual(result.value.selectedSignature.member.parameters, [{
@@ -542,7 +559,7 @@ test("source-owned checked calls fail closed when TSTS-selected method type argu
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature(),
+    ...resolvedSignatureEvidence(),
     sourceSelectedDeclaration: declaration,
     sourceSelectedMethodTypeArguments: [{
       typeParameterName: "T",
@@ -566,14 +583,41 @@ test("source-owned checked calls fail closed when selected parameter target fact
   });
   const callee = node("KindIdentifier", sourceFile);
   const call = node("KindCallExpression", sourceFile);
+  const selectedType = { kind: "semantic-unresolved-parameter" };
 
   const result = sourceOwnedProvider(new Map()).mapCheckedCall({
     target: "csharp",
     call,
     callee,
-    sourceSelectedSignature: selectedSignature([parameter]),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "value",
+      parameterSymbol: { kind: "parameter-symbol" },
+      parameterDeclaration: parameter,
+      selectedType,
+    })]),
     sourceSelectedDeclaration: declaration,
     arguments: [node("KindNumericLiteral", sourceFile, { Text: "1" })],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
+});
+
+test("source-owned checked calls reject absent selected parameter evidence instead of treating it as an implicit zero-parameter signature", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const declaration = node("KindFunctionDeclaration", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: node("KindIdentifier", sourceFile),
+    sourceSelectedSignature: {},
+    sourceSelectedSignatureKind: "resolved",
+    sourceSelectedDeclaration: declaration,
+    arguments: [],
   }, fakeObservationContext());
 
   assert.equal(result.kind, "reject");
@@ -641,8 +685,6 @@ function fakeObservationContext(options = {}) {
         }, { get: (target, property) => target[property] ?? (() => false) }),
       },
       checker: {
-        getSignatureParameters: (signature) => signature?.Parameters ?? [],
-        getSymbolName: (symbol) => symbol?.Name ?? symbol?.Text ?? symbol?.name?.Text ?? "",
         getSymbolAtLocation: () => undefined,
         getResolvedSymbol: () => undefined,
         getResolvedSymbolOrNil: () => undefined,
@@ -650,14 +692,31 @@ function fakeObservationContext(options = {}) {
         getTypeAtLocation: () => undefined,
         getTypeFromTypeNode: (node) => options.semanticTypesByTypeNode?.get(node),
         getTypeSymbol: () => undefined,
-        getSymbolDeclarations: (symbol) => options.declarationsBySymbol?.get(symbol) ?? [],
+        getSymbolDeclarations: () => [],
       },
     },
   };
 }
 
-function selectedSignature(parameters = []) {
-  return { Parameters: parameters };
+function resolvedSignatureEvidence(parameters = []) {
+  return {
+    sourceSelectedSignature: {},
+    sourceSelectedSignatureKind: "resolved",
+    sourceSelectedSignatureParameters: parameters,
+  };
+}
+
+function selectedParameterEvidence(options) {
+  return {
+    parameterIndex: options.parameterIndex,
+    parameterName: options.parameterName,
+    parameterSymbol: options.parameterSymbol,
+    ...(options.parameterDeclaration === undefined ? {} : { parameterDeclaration: options.parameterDeclaration }),
+    selectedType: options.selectedType,
+    ...(options.authoredTypeNode === undefined ? {} : { authoredTypeNode: options.authoredTypeNode }),
+    acceptsOmission: options.acceptsOmission ?? false,
+    rest: options.rest ?? false,
+  };
 }
 
 function sourceFileNode(fileName) {

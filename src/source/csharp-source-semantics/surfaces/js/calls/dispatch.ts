@@ -127,11 +127,11 @@ export function mapCsharpSourceLibraryCheckedCall(
 }
 
 export function resolveCheckedCallSourceLibraryMember(
-  request: Pick<CheckedCallMappingRequest, "sourceCalleeDeclaration" | "sourceCalleeSymbol" | "sourceSelectedDeclaration">,
+  request: Pick<CheckedCallMappingRequest, "sourceSelectedCalleeDeclaration" | "sourceSelectedCalleeSymbol" | "sourceSelectedDeclaration">,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ) {
   return resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) ??
-    resolveSelectedSourceLibraryMemberIdentity(request.sourceCalleeDeclaration, request.sourceCalleeSymbol, context);
+    resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedCalleeDeclaration, request.sourceSelectedCalleeSymbol, context);
 }
 
 function targetMemberSelectionRequiresReceiverFacts(
