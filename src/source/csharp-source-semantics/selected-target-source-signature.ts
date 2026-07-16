@@ -98,7 +98,8 @@ function optionalTargetTypeEquals(
 }
 
 function targetParameterMetadataEquals(left: CsharpTargetParameter, right: CsharpTargetParameter): boolean {
-  return left.csharpOmittableOptionalArgument === right.csharpOmittableOptionalArgument &&
+  return left.csharpOutputMayBeNull === right.csharpOutputMayBeNull &&
+    left.csharpOmittableOptionalArgument === right.csharpOmittableOptionalArgument &&
     targetMetadataValueEquals(left.defaultValue, right.defaultValue) &&
     targetMetadataValueEquals(left.unsupportedDefaultValue, right.unsupportedDefaultValue);
 }

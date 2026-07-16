@@ -28,6 +28,7 @@ test("planner emits default expressions only from finalized defaultof facts", ()
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(planned, {
     kind: "DefaultExpression",
+    nullForgiving: true,
     type: { kind: "PredefinedType", name: "int" },
   });
 });

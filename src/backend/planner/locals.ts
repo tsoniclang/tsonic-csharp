@@ -13,6 +13,7 @@ import {
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
@@ -30,11 +31,19 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import {
+  csharpByrefStorageFactKey,
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  targetTypeRefEquals,
+  targetTypeRefKey,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -56,7 +65,9 @@ export function planLocalDeclaration(
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
     : undefined;
-  const type = inferredLambdaType ??
+  const byrefStorageTargetType = getByrefStorageTargetType(variable.name, sourceFile, input, diagnostics);
+  const type = (byrefStorageTargetType === undefined ? undefined : csharpTypeFromTargetTypeRef(byrefStorageTargetType)) ??
+    inferredLambdaType ??
     explicitType ??
     constAssertionType ??
     getClosedInitializerInferredType(variable.Initializer, input) ??
@@ -70,6 +81,41 @@ export function planLocalDeclaration(
       ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state, expectedTargetType) }
       : {}),
   };
+}
+
+function getByrefStorageTargetType(
+  variableName: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): TargetTypeRef | undefined {
+  if (variableName === undefined) {
+    return undefined;
+  }
+  const symbol = input.analysis.getSymbolAtLocation(variableName, { sourceFile });
+  if (symbol === undefined) {
+    return undefined;
+  }
+  let storageType: TargetTypeRef | undefined;
+  for (const reference of input.analysis.lazy.referencesOf(symbol)) {
+    const candidate = input.facts.getFact(reference.node, csharpByrefStorageFactKey)?.targetType;
+    if (candidate === undefined) {
+      continue;
+    }
+    if (storageType === undefined) {
+      storageType = candidate;
+      continue;
+    }
+    if (!targetTypeRefEquals(storageType, candidate)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        variableName,
+        `Local storage is used by incompatible finalized byref target parameter types '${targetTypeRefKey(storageType)}' and '${targetTypeRefKey(candidate)}'.`,
+        { sourceFile },
+      ));
+      return undefined;
+    }
+  }
+  return storageType;
 }
 
 function getClosedInitializerInferredType(

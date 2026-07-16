@@ -1,4 +1,5 @@
 import {
+  argumentPassingFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   targetOperationFactKey,
@@ -10,6 +11,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpByrefStorageFactKey,
   csharpSelectedCallTargetFactKey,
   csharpSelectedPropertyTargetFactKey,
   csharpSourceReturnCarrierFactKey,
@@ -24,6 +26,7 @@ import {
   csharpTargetOperationFromMember,
 } from "./operations.js";
 import {
+  csharpNullableReferenceTargetType,
   csharpTargetMemberFact,
   csharpTargetBindingFact,
 } from "./target-types.js";
@@ -167,9 +170,6 @@ function walkSelectedCallOperationFacts(
   for (const child of getCsharpOperationChildNodes(compiler.ast, node)) {
     walkSelectedCallOperationFacts(lifecycleContext, child, host);
   }
-  if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
-    return;
-  }
   const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey) ??
     lifecycleContext.host.factResolver.resolve(node, selectedTargetSignatureFactKey);
   if (selectedSignature === undefined) {
@@ -177,6 +177,10 @@ function walkSelectedCallOperationFacts(
   }
   if (isCsharpSourceOwnedSelectedSignature(selectedSignature)) {
     recordSourceOwnedCallReturnCarrierFact(lifecycleContext, node, selectedSignature);
+    return;
+  }
+  recordSelectedCallByrefStorageFacts(lifecycleContext, node, csharpTargetMemberFact(selectedSignature.member));
+  if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
     return;
   }
   const selectedCallTarget = lifecycleContext.host.facts.get(node, csharpSelectedCallTargetFactKey) ??
@@ -207,6 +211,45 @@ function walkSelectedCallOperationFacts(
     }),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
+}
+
+function recordSelectedCallByrefStorageFacts(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  selectedSourceMember: ReturnType<typeof csharpTargetMemberFact>,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || selectedSourceMember === undefined || !compiler.ast.is.IsCallExpression(node)) {
+    return;
+  }
+  const arguments_ = compiler.ast.arguments(node);
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = asNodeSubject(arguments_[index]);
+    const parameter = selectedSourceMember.parameters[index];
+    if (argument === undefined || parameter === undefined || parameter.passingMode === "by-value") {
+      continue;
+    }
+    const passing = lifecycleContext.host.facts.get(argument, argumentPassingFactKey) ??
+      lifecycleContext.host.factResolver.resolve(argument, argumentPassingFactKey);
+    const targetExpression = asNodeSubject(passing?.targetExpression);
+    if (
+      passing === undefined ||
+      targetExpression === undefined ||
+      passing.mode !== parameter.passingMode ||
+      (passing.parameterIndex !== undefined && passing.parameterIndex !== index)
+    ) {
+      continue;
+    }
+    const targetType = parameter.csharpOutputMayBeNull === true
+      ? csharpNullableReferenceTargetType(parameter.type)
+      : parameter.type;
+    lifecycleContext.host.facts.set(
+      targetExpression,
+      csharpByrefStorageFactKey,
+      { targetType },
+      [{ message: "C# byref storage type finalized from the exact TSTS-selected target parameter and argument-passing facts." }],
+    );
+  }
 }
 
 function selectedFirstArgumentReceiverIsClosed(

@@ -15,6 +15,7 @@ import type {
   CsharpArrayBoundaryFact,
   CsharpArrayCarrierFact,
   CsharpAttributeApplicationFact,
+  CsharpByrefStorageFact,
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
   CsharpRegularExpressionLiteralFact,
@@ -149,4 +150,10 @@ export const csharpSourceReturnCarrierFactKey = defineExtensionFactKey<CsharpSou
   extensionId: "tsonic.csharp",
   name: "sourceReturnCarrier",
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
+});
+
+export const csharpByrefStorageFactKey = defineExtensionFactKey<CsharpByrefStorageFact>({
+  extensionId: "tsonic.csharp",
+  name: "byrefStorage",
+  equals: (left, right) => targetTypeRefEquals(left.targetType, right.targetType),
 });

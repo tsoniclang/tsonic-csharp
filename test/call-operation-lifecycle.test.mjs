@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
-import { csharpSelectedCallTargetFactKey, csharpSelectedPropertyTargetFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { argumentPassingFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
+import { csharpByrefStorageFactKey, csharpSelectedCallTargetFactKey, csharpSelectedPropertyTargetFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { recordCsharpSelectedCallOperationFactsBeforeFinalization, recordCsharpSelectedPropertyOperationFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/csharp-operation-lifecycle.js";
 
 test("selected call lifecycle records closed C# operation facts from selected type arguments", () => {
@@ -164,6 +164,83 @@ test("selected call lifecycle preserves real double provider members against rec
   assert.deepEqual(operation.selectedMember.parameters[0].type, spanType(csharpFloat64TargetType()));
 });
 
+test("selected call lifecycle records exact C# byref storage type from selected parameter facts", () => {
+  const storage = { Kind: "identifier" };
+  const argument = { Kind: "call" };
+  const call = { Kind: "call", Arguments: { Nodes: [argument] } };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const todoType = {
+    kind: "target-named",
+    id: "Example.Todo",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Todo" },
+  };
+  const parameter = {
+    name: "value",
+    type: todoType,
+    passingMode: "byref-writeonly-must-init",
+    csharpOutputMayBeNull: true,
+  };
+  const member = {
+    id: "Example.Store.TryRead(Example.Todo)",
+    sourceName: "TryRead",
+    targetName: "TryRead",
+    kind: "method",
+    parameters: [parameter],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, { member });
+  facts.set(call, csharpTargetOperationFactKey, csharpTargetOperationFromSelectedMember(member));
+  facts.set(argument, argumentPassingFactKey, {
+    mode: "byref-writeonly-must-init",
+    targetExpression: storage,
+    parameterIndex: 0,
+    targetParameter: parameter,
+  });
+
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host: fakeObservationHost(facts),
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.deepEqual(facts.get(storage, csharpByrefStorageFactKey), {
+    targetType: { ...todoType, csharpNullableReference: true },
+  });
+});
+
+test("selected call lifecycle does not fabricate byref storage facts from mismatched passing evidence", () => {
+  const storage = { Kind: "identifier" };
+  const argument = { Kind: "call" };
+  const call = { Kind: "call", Arguments: { Nodes: [argument] } };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const member = {
+    id: "Example.Store.TryRead(System.String)",
+    sourceName: "TryRead",
+    targetName: "TryRead",
+    kind: "method",
+    parameters: [{
+      name: "value",
+      type: csharpStringTargetType(),
+      passingMode: "byref-writeonly-must-init",
+    }],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, { member });
+  facts.set(argument, argumentPassingFactKey, {
+    mode: "byref-readwrite",
+    targetExpression: storage,
+    parameterIndex: 0,
+  });
+
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host: fakeObservationHost(facts),
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.equal(facts.get(storage, csharpByrefStorageFactKey), undefined);
+});
+
 test("selected property lifecycle closes JS property operations from exact selected identity and receiver carrier facts", () => {
   const receiver = { Kind: "identifier" };
   const property = { Kind: "property", Expression: receiver };
@@ -248,6 +325,17 @@ function copyToMember(span) {
   };
 }
 
+function csharpTargetOperationFromSelectedMember(member) {
+  return {
+    kind: "member",
+    operationId: member.id,
+    operationKind: member.kind,
+    memberName: member.targetName,
+    resultType: member.returnType,
+    selectedMember: member,
+  };
+}
+
 function spanBinding() {
   const typeParameter = { kind: "type-parameter", name: "T" };
   return {
@@ -327,7 +415,7 @@ function fakeCompiler(sourceFiles) {
       members: () => [],
       elements: () => [],
       properties: () => [],
-      arguments: () => [],
+      arguments: (node) => node?.Arguments?.Nodes ?? [],
       is: {
         IsNewExpression: () => false,
         IsCallExpression: (node) => node?.Kind === "call",

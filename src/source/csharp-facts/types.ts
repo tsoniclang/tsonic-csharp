@@ -166,6 +166,10 @@ export interface CsharpSourceReturnCarrierFact {
   readonly carrier: TargetTypeRef;
 }
 
+export interface CsharpByrefStorageFact {
+  readonly targetType: TargetTypeRef;
+}
+
 export interface CsharpSelectedCallTargetFact {
   readonly member: CsharpTargetMember;
 }

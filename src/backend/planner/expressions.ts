@@ -97,6 +97,7 @@ function planExpressionCore(
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
+      nullForgiving: true,
       type: isAstNode(defaultValue.type)
         ? getCsharpTypeForNode(defaultValue.type, sourceFile, input, undefined, diagnostics)
         : unsupportedFactExpressionType(node, diagnostics),

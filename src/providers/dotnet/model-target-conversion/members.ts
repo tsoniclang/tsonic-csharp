@@ -136,6 +136,7 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.optional === true ? { csharpOmittableOptionalArgument: true as const } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
+    ...(dotnetParameterOutputMayBeNull(parameter) ? { csharpOutputMayBeNull: true as const } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
     ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
     ...(parameter.attributes !== undefined && parameter.attributes.length > 0
@@ -145,6 +146,22 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
       ? { unsupportedAttributes: parameter.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
       : {}),
   };
+}
+
+function dotnetParameterOutputMayBeNull(parameter: DotnetParameterDeclaration): boolean {
+  if (
+    parameter.passingMode !== "byref-writeonly-must-init" &&
+    parameter.passingMode !== "byref-readwrite"
+  ) {
+    return false;
+  }
+  return (parameter.attributes ?? []).some((attribute) =>
+    attribute.attributeType.kind === "named" &&
+    (
+      attribute.attributeType.metadataName === "System.Diagnostics.CodeAnalysis.MaybeNullAttribute" ||
+      attribute.attributeType.metadataName === "System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute"
+    )
+  );
 }
 
 function dotnetParameterTypeHasSourceProjection(type: DotnetTypeRef): boolean {

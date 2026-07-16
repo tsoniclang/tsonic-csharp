@@ -24,7 +24,7 @@ export type CsharpExpression =
   | { readonly kind: "ConditionalExpression"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "ArrayCreationExpression"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode; readonly size?: CsharpExpression }
   | { readonly kind: "TupleExpression"; readonly elements: readonly CsharpExpression[] }
-  | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode }
+  | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode; readonly nullForgiving?: boolean }
   | { readonly kind: "LambdaExpression"; readonly async?: boolean; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
 
 export type CsharpBinaryOperatorToken =

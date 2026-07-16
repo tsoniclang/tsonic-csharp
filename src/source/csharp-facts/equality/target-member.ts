@@ -52,7 +52,7 @@ function targetParameterArrayEquals(left: readonly CsharpTargetParameter[] | und
 }
 
 function targetOwnedParameterMetadataEquals(left: CsharpTargetParameter, right: CsharpTargetParameter): boolean {
-  return simpleMetadataEquals(
+  return left.csharpOutputMayBeNull === right.csharpOutputMayBeNull && simpleMetadataEquals(
     (left as { readonly defaultValue?: unknown }).defaultValue,
     (right as { readonly defaultValue?: unknown }).defaultValue,
   );

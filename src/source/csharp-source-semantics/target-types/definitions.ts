@@ -90,6 +90,7 @@ export interface CsharpTargetParameter extends TargetParameter {
   readonly unsupportedDefaultValue?: CsharpTargetUnsupportedDefaultValueFact;
   readonly attributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly csharpOutputMayBeNull?: true;
   readonly csharpAcceptsCheckedSourceArgument?: true;
   readonly csharpAcceptsClosedSourceArgument?: true;
   readonly csharpOmittableOptionalArgument?: true;

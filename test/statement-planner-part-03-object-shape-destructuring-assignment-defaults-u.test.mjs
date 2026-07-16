@@ -136,6 +136,8 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
   const diagnostics = [];
   const thrown = identifier("error");
   const catchName = identifier("caught");
+  const catchSymbol = {};
+  const catchReference = identifier("caught");
   const customException = csharpTargetNamedType(
     "Example.Errors.CustomException",
     undefined,
@@ -157,6 +159,8 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
       [thrown, { carrier: customException }],
       [catchName, { carrier: customException }],
     ]),
+    symbols: new Map([[catchName, catchSymbol]]),
+    references: new Map([[catchSymbol, [{ node: catchName }, { node: catchReference }]]]),
   }), diagnostics, createDestructuringPlannerState());
 
   assert.deepEqual(diagnostics, []);
@@ -185,6 +189,90 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
     },
     finallyBody: { kind: "Block", statements: [] },
   }]);
+});
+test("unused catch bindings emit catch-all clauses without warning-producing C# variables", () => {
+  const diagnostics = [];
+  const catchName = identifier("unused");
+  const catchSymbol = {};
+  const customException = csharpTargetNamedType(
+    "Example.Errors.CustomException",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example.Errors", "CustomException"),
+    { throwable: true },
+  );
+  const statement = tryStatement(
+    block([]),
+    catchClause({ Kind: KindVariableDeclaration, name: catchName }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([[catchName, { carrier: customException }]]),
+    symbols: new Map([[catchName, catchSymbol]]),
+    references: new Map([[catchSymbol, [{ node: catchName }]]]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+});
+test("local storage consumes exact finalized byref target nullability", () => {
+  const diagnostics = [];
+  const name = identifier("value");
+  const reference = identifier("value");
+  const initializer = identifier("initialValue");
+  const declaration = {
+    Kind: KindVariableDeclaration,
+    name,
+    Initializer: initializer,
+  };
+  const symbol = {};
+  const todoType = csharpTargetNamedType(
+    "Example.Todo",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example", "Todo"),
+  );
+
+  const output = planLocalDeclaration(declaration, sourceFile, fakeInput({
+    symbols: new Map([[name, symbol]]),
+    references: new Map([[symbol, [{ node: name, sourceFile }, { node: reference, sourceFile }]]]),
+    csharpByrefStorageFacts: new Map([[reference, {
+      targetType: { ...todoType, csharpNullableReference: true },
+    }]]),
+    resolvedRuntimeCarrierFacts: new Map([[initializer, { carrier: todoType }]]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpType(output.type), "Example.Todo?");
+});
+test("local storage rejects incompatible finalized byref target types", () => {
+  const diagnostics = [];
+  const name = identifier("value");
+  const firstReference = identifier("value");
+  const secondReference = identifier("value");
+  const initializer = identifier("initialValue");
+  const declaration = { Kind: KindVariableDeclaration, name, Initializer: initializer };
+  const symbol = {};
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const string = csharpStringTargetType();
+
+  planLocalDeclaration(declaration, sourceFile, fakeInput({
+    symbols: new Map([[name, symbol]]),
+    references: new Map([[symbol, [
+      { node: firstReference, sourceFile },
+      { node: secondReference, sourceFile },
+    ]]]),
+    csharpByrefStorageFacts: new Map([
+      [firstReference, { targetType: int32 }],
+      [secondReference, { targetType: string }],
+    ]),
+    resolvedRuntimeCarrierFacts: new Map([[initializer, { carrier: int32 }]]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /incompatible finalized byref target parameter types/);
 });
 test("compat catch variables materialize closed TsValue carriers from caught exceptions", () => {
   const diagnostics = [];

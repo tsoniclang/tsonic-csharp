@@ -46,6 +46,7 @@ import {
   KindWhileStatement,
 } from "../dist/backend/planner/source-ast.js";
 import {
+  csharpByrefStorageFactKey,
   csharpObjectShapeFactKey,
   csharpTargetOperationFactKey,
   csharpTargetIterationFactKey,
@@ -65,7 +66,7 @@ import {
 import {
   csharpJsArrayCarrierTargetType,
 } from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
-export { test, assert, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, createDestructuringPlannerState, planStatements, planLocalDeclaration, printCsharpType, KindBlock, KindBreakStatement, KindContinueStatement, KindDefaultClause, KindDoStatement, KindArrayLiteralExpression, KindAwaitExpression, KindBinaryExpression, KindEqualsToken, KindExpressionStatement, KindForStatement, KindForInStatement, KindForOfStatement, KindIdentifier, KindLabeledStatement, KindNumericLiteral, KindObjectBindingPattern, KindObjectLiteralExpression, KindSpreadElement, KindStringLiteral, KindSwitchStatement, KindTryStatement, KindTrueKeyword, KindVariableDeclaration, KindVariableDeclarationList, KindWhileStatement, csharpObjectShapeFactKey, csharpTargetOperationFactKey, csharpTargetIterationFactKey, csharpExceptionTargetType, csharpListTargetType, csharpNullableValueTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpTaskTargetType, csharpVoidTargetType, csharpTsValueTargetType, csharpJsArrayCarrierTargetType };
+export { test, assert, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, createDestructuringPlannerState, planStatements, planLocalDeclaration, printCsharpType, KindBlock, KindBreakStatement, KindContinueStatement, KindDefaultClause, KindDoStatement, KindArrayLiteralExpression, KindAwaitExpression, KindBinaryExpression, KindEqualsToken, KindExpressionStatement, KindForStatement, KindForInStatement, KindForOfStatement, KindIdentifier, KindLabeledStatement, KindNumericLiteral, KindObjectBindingPattern, KindObjectLiteralExpression, KindSpreadElement, KindStringLiteral, KindSwitchStatement, KindTryStatement, KindTrueKeyword, KindVariableDeclaration, KindVariableDeclarationList, KindWhileStatement, csharpByrefStorageFactKey, csharpObjectShapeFactKey, csharpTargetOperationFactKey, csharpTargetIterationFactKey, csharpExceptionTargetType, csharpListTargetType, csharpNullableValueTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpTaskTargetType, csharpVoidTargetType, csharpTsValueTargetType, csharpJsArrayCarrierTargetType };
 
 
 
@@ -310,7 +311,7 @@ export function fakeInput(options = {}) {
     target: options.target ?? { id: "csharp", options: { typescriptCompatibility: "strict-native" } },
     facts: {
       getDefaultValueFact: () => undefined,
-      getArgumentPassingFact: () => undefined,
+      getArgumentPassingFact: (subject) => options.argumentPassingFacts?.get(subject),
       getTargetConversionFact: () => undefined,
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
@@ -339,10 +340,29 @@ export function fakeInput(options = {}) {
         if (key === csharpTargetOperationFactKey) {
           return options.csharpOperationFacts?.get(subject);
         }
+        if (key === csharpByrefStorageFactKey) {
+          return options.csharpByrefStorageFacts?.get(subject);
+        }
         return undefined;
       },
     },
     analysis: {
+      lazy: {
+        referencesOf: (symbol) => options.references?.get(symbol) ?? [],
+        usesOf: () => [],
+        readsOf: () => [],
+        writesOf: () => [],
+        mutationsOf: () => [],
+        propertyReadsOn: () => [],
+        propertyWritesOn: () => [],
+        elementReadsOn: () => [],
+        elementWritesOn: () => [],
+        callsitesOf: () => [],
+        constructSitesOf: () => [],
+        awaitsOf: () => [],
+        forInSitesOf: () => [],
+        bindingUsesOf: () => [],
+      },
       getSymbolName: () => undefined,
       getSymbolDeclarations: () => [],
       getTypeSymbol: () => undefined,
@@ -350,7 +370,7 @@ export function fakeInput(options = {}) {
       getProjectSourceReferenceForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
-      getSymbolAtLocation: () => undefined,
+      getSymbolAtLocation: (subject) => options.symbols?.get(subject),
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
       describeTypeAtLocation: () => undefined,
@@ -418,6 +438,7 @@ export const fakeAst = {
   hasModifier: () => false,
   hasModifierKind: (node, kind) => kind === "const" && (Number(node?.Flags ?? 0) & 2) !== 0,
   getSourceFile: () => sourceFile,
+  parent: (node) => node?.Parent,
   as: {
     AsPropertyAccessExpression: (node) => node?.Kind === "KindPropertyAccessExpression" ? node : undefined,
     AsElementAccessExpression: (node) => node?.Kind === "KindElementAccessExpression" ? node : undefined,

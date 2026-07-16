@@ -92,7 +92,7 @@ export function printCsharpExpression(
     case "TupleExpression":
       return `(${expression.elements.map(context.printExpression).join(", ")})`;
     case "DefaultExpression":
-      return `default(${context.printType(expression.type)})`;
+      return `default(${context.printType(expression.type)})${expression.nullForgiving === true ? "!" : ""}`;
     case "LambdaExpression":
       return printCsharpLambda(expression, context);
   }

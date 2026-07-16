@@ -133,6 +133,15 @@ function planCatchClause(
         },
       };
     }
+    if (!catchVariableHasReferences(variable.name, sourceFile, input)) {
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
     if (isCsharpTsValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
       const catchExceptionName = allocateCatchValue(state);
@@ -184,4 +193,16 @@ function planCatchClause(
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
   };
+}
+
+function catchVariableHasReferences(
+  variableName: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const symbol = input.analysis.getSymbolAtLocation(variableName, { sourceFile });
+  if (symbol === undefined) {
+    return true;
+  }
+  return input.analysis.lazy.referencesOf(symbol).some((reference) => reference.node !== variableName);
 }
