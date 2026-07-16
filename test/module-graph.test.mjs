@@ -77,6 +77,41 @@ test("C# build emits re-exported default classes as original project-source clas
   assert.match(main, /return new Box\(\);/);
 });
 
+test("C# build emits cross-file source getter access as an instance member", () => {
+  const result = compileCsharpModuleGraph(new Map([
+    ["/src/context.ts", `
+      export class Context {
+        get value(): number { return 1; }
+      }
+    `],
+    ["/src/main.ts", `
+      import { Context } from "./context.js";
+      export function read(context: Context): number {
+        return context.value;
+      }
+    `],
+  ]));
+
+  assert.deepEqual(result.diagnostics, []);
+  assert.match(sourceArtifact(result, "src/Context.cs"), /public double value/);
+  assert.match(sourceArtifact(result, "src/Main.cs"), /return context\.value;/);
+});
+
+test("C# build propagates explicit lambda return types to expression and block object literals", () => {
+  const result = compileCsharpModuleGraph(new Map([
+    ["/src/main.ts", `
+      interface Shape { value: number; }
+      export const expression = (value: number): Shape => ({ value });
+      export const block = (value: number): Shape => { return { value }; };
+    `],
+  ]));
+
+  assert.deepEqual(result.diagnostics, []);
+  const main = sourceArtifact(result, "src/Main.cs");
+  assert.match(main, /new __TsonicShape_/);
+  assert.match(main, /value = value/);
+});
+
 function compileCsharpModuleGraph(files) {
   const target = { id: "csharp", options: {} };
   const project = { entryPoint: "main.ts", targets: [target] };

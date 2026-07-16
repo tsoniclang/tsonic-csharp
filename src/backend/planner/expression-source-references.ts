@@ -7,10 +7,12 @@ import {
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionDeclaration,
+  KindGetAccessor,
   KindInterfaceDeclaration,
   KindMethodDeclaration,
   KindPropertyAccessExpression,
   KindPropertyDeclaration,
+  KindSetAccessor,
   KindVariableDeclaration,
   Node_Name,
   Node_Text,
@@ -257,8 +259,10 @@ function tryPlanProjectSourceTypeMemberReference(
 
 function isProjectSourceTypeMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
   return HasSourceKind(input.ast, declaration, KindEnumMember) ||
+    HasSourceKind(input.ast, declaration, KindGetAccessor) ||
     HasSourceKind(input.ast, declaration, KindMethodDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindPropertyDeclaration);
+    HasSourceKind(input.ast, declaration, KindPropertyDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindSetAccessor);
 }
 
 function isNestedProjectSourceMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
