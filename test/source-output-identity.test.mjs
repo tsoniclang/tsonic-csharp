@@ -40,6 +40,17 @@ test("source output identity rejects files outside the project root", () => {
   assert.deepEqual(result.artifacts, []);
 });
 
+test("source output identity emits installed source-package files through stable node_modules paths", () => {
+  const result = planCsharpArtifacts(fakeInput({
+    sourceFiles: [sourceFile("/workspace/node_modules/@demo/domain/src/index.ts")],
+  }));
+
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(sourceArtifactPaths(result), [
+    "src/node_modules/@demo/domain/src/Node_modules_Demo_domain_src_index.cs",
+  ]);
+});
+
 test("source output identity rejects deterministic class and artifact collisions", () => {
   const result = planCsharpArtifacts(fakeInput({
     sourceFiles: [
@@ -116,6 +127,7 @@ const fakeAst = {
   getFileName: (sourceFile) => sourceFile?.FileName ?? "",
   getSourceFile: () => undefined,
   forEachChild: () => undefined,
+  text: (node) => node?.Text ?? "",
   typeArguments: () => [],
   is: {
     IsKeywordTypeNode: () => false,

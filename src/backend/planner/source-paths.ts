@@ -111,15 +111,29 @@ function projectRelativeSourcePath(
   const absoluteFileName = normalizePath(resolve(fileName));
   const relativeName = normalizePath(relative(projectRoot, absoluteFileName));
   if (relativeName.length === 0 || relativeName === "." || relativeName.startsWith("../") || relativeName === "..") {
+    const installedSourcePath = installedSourcePackageRelativePath(absoluteFileName);
+    if (installedSourcePath !== undefined) {
+      return installedSourcePath;
+    }
     diagnostics.push({
       code: "CSHARP_SOURCE_OUTSIDE_PROJECT_ROOT",
       category: "error",
       source: "tsonic-csharp",
-      message: `Source file '${fileName}' is outside project root '${input.paths.projectRoot}'. C# output-plan identity must be rooted in the TSTS project source graph.`,
+      message: `Source file '${fileName}' is outside project root '${input.paths.projectRoot}' and is not an installed source-package file. C# output-plan identity must be rooted in the TSTS project source graph.`,
     });
     return undefined;
   }
   return relativeName;
+}
+
+function installedSourcePackageRelativePath(absoluteFileName: string): string | undefined {
+  const marker = "/node_modules/";
+  const markerIndex = absoluteFileName.indexOf(marker);
+  if (markerIndex < 0) {
+    return undefined;
+  }
+  const packageRelativePath = absoluteFileName.slice(markerIndex + marker.length);
+  return packageRelativePath.length === 0 ? undefined : `node_modules/${packageRelativePath}`;
 }
 
 function normalizePath(value: string): string {
