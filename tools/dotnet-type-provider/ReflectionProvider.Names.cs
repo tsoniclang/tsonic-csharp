@@ -29,30 +29,30 @@ sealed partial class ReflectionProvider
 
     static string? SourcePrimitiveName(Type type)
     {
-        if (type == typeof(bool)) return "bool";
-        if (type == typeof(char)) return "char";
-        if (type == typeof(sbyte)) return "int8";
-        if (type == typeof(byte)) return "uint8";
-        if (type == typeof(short)) return "int16";
-        if (type == typeof(ushort)) return "uint16";
-        if (type == typeof(int)) return "int32";
-        if (type == typeof(uint)) return "uint32";
-        if (type == typeof(long)) return "int64";
-        if (type == typeof(ulong)) return "uint64";
-        if (type == typeof(IntPtr)) return "native-int";
-        if (type == typeof(UIntPtr)) return "native-uint";
-        if (type == typeof(Half)) return "float16";
-        if (type == typeof(float)) return "float32";
-        if (type == typeof(double)) return "float64";
-        if (type == typeof(decimal)) return "decimal";
-        if (type.FullName == "System.Int128") return "int128";
-        if (type.FullName == "System.UInt128") return "uint128";
+        if (IsRuntimeType(type, typeof(bool))) return "bool";
+        if (IsRuntimeType(type, typeof(char))) return "char";
+        if (IsRuntimeType(type, typeof(sbyte))) return "int8";
+        if (IsRuntimeType(type, typeof(byte))) return "uint8";
+        if (IsRuntimeType(type, typeof(short))) return "int16";
+        if (IsRuntimeType(type, typeof(ushort))) return "uint16";
+        if (IsRuntimeType(type, typeof(int))) return "int32";
+        if (IsRuntimeType(type, typeof(uint))) return "uint32";
+        if (IsRuntimeType(type, typeof(long))) return "int64";
+        if (IsRuntimeType(type, typeof(ulong))) return "uint64";
+        if (IsRuntimeType(type, typeof(IntPtr))) return "native-int";
+        if (IsRuntimeType(type, typeof(UIntPtr))) return "native-uint";
+        if (IsRuntimeType(type, typeof(Half))) return "float16";
+        if (IsRuntimeType(type, typeof(float))) return "float32";
+        if (IsRuntimeType(type, typeof(double))) return "float64";
+        if (IsRuntimeType(type, typeof(decimal))) return "decimal";
+        if (IsRuntimeType(type, typeof(Int128))) return "int128";
+        if (IsRuntimeType(type, typeof(UInt128))) return "uint128";
         return null;
     }
 
     static bool IsDelegate(Type type)
     {
-        return type.BaseType is not null && typeof(MulticastDelegate).IsAssignableFrom(type.BaseType);
+        return type.BaseType is not null && IsAssignableToRuntimeType(type.BaseType, typeof(MulticastDelegate));
     }
 
     static bool UsesDeclaringTypeParameter(MethodInfo method, Type declaringType)
@@ -129,7 +129,7 @@ sealed partial class ReflectionProvider
         {
             return $"out {typeName}";
         }
-        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+        return HasRuntimeAttribute(parameter, typeof(System.Runtime.InteropServices.InAttribute))
             ? $"in {typeName}"
             : $"ref {typeName}";
     }
@@ -145,7 +145,7 @@ sealed partial class ReflectionProvider
         {
             return $"out {typeName}";
         }
-        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+        return HasRuntimeAttribute(parameter, typeof(System.Runtime.InteropServices.InAttribute))
             ? $"in {typeName}"
             : $"ref {typeName}";
     }

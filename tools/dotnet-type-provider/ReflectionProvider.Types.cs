@@ -36,7 +36,7 @@ sealed partial class ReflectionProvider
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             unsupportedImplementedContracts = unsupportedImplementedContracts.Length == 0 ? null : unsupportedImplementedContracts,
             sourceShape,
-            throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
+            throwable = IsAssignableToRuntimeType(type, typeof(Exception)) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
             conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,
@@ -86,7 +86,7 @@ sealed partial class ReflectionProvider
 
     object? BaseType(Type type)
     {
-        if (!type.IsClass || IsDelegate(type) || type.BaseType is null || type.BaseType == typeof(object))
+        if (!type.IsClass || IsDelegate(type) || type.BaseType is null || IsRuntimeType(type.BaseType, typeof(object)))
         {
             return null;
         }

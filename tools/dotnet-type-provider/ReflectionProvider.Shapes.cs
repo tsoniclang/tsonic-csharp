@@ -9,16 +9,16 @@ sealed partial class ReflectionProvider
     static bool IsEnumerableShape(Type type, out Type element)
     {
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        if (definition == typeof(IEnumerable<>) ||
-            definition == typeof(IReadOnlyCollection<>) ||
-            definition == typeof(IReadOnlyList<>) ||
-            definition == typeof(ICollection<>) ||
-            definition == typeof(IList<>))
+        if (IsRuntimeType(definition, typeof(IEnumerable<>)) ||
+            IsRuntimeType(definition, typeof(IReadOnlyCollection<>)) ||
+            IsRuntimeType(definition, typeof(IReadOnlyList<>)) ||
+            IsRuntimeType(definition, typeof(ICollection<>)) ||
+            IsRuntimeType(definition, typeof(IList<>)))
         {
             element = type.GetGenericArguments()[0];
             return true;
         }
-        element = typeof(object);
+        element = null!;
         return false;
     }
 
@@ -30,7 +30,7 @@ sealed partial class ReflectionProvider
             element = type.GetGenericArguments()[0];
             return true;
         }
-        element = typeof(object);
+        element = null!;
         return false;
     }
 
@@ -44,8 +44,8 @@ sealed partial class ReflectionProvider
             valueType = args[1];
             return true;
         }
-        keyType = typeof(object);
-        valueType = typeof(object);
+        keyType = null!;
+        valueType = null!;
         return false;
     }
 

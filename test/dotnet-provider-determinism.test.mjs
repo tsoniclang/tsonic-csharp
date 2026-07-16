@@ -44,6 +44,30 @@ test("C# framework references resolve through active SDK targeting packs", () =>
   assert.ok(frameworkReferences.every((reference) => !reference.includes("/shared/Microsoft.AspNetCore.App/")));
 });
 
+test(".NET reflection provider reads active SDK targeting-pack assemblies as metadata", () => {
+  const references = readCsharpReflectionReferencePaths({
+    id: "csharp",
+    options: {
+      references: {
+        frameworks: ["Microsoft.AspNetCore.App"],
+      },
+    },
+  }, repoRoot);
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references,
+  });
+  const module = provider.getModule("@tsonic/dotnet/Microsoft.AspNetCore.Http.js", {
+    requestedExports: ["HttpContext"],
+  });
+
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  const httpContext = module.exports.find((declaration) => declaration.sourceName === "HttpContext");
+  assert.equal(httpContext?.targetId.includes("::Microsoft.AspNetCore.Http.HttpContext"), true);
+  assert.match(httpContext?.assembly.path ?? "", /\/packs\/Microsoft\.AspNetCore\.App\.Ref\//u);
+  assert.equal(httpContext?.members?.some((member) => member.sourceName === "Response"), true);
+});
+
 test(".NET targeting-pack selection follows the exact active SDK without version sorting", () => {
   const calls = [];
   const host = {

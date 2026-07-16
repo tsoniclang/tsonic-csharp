@@ -6,7 +6,7 @@ sealed partial class ReflectionProvider : IDisposable
 {
     readonly Request request;
     readonly IReadOnlyDictionary<string, string> sourcePackageByAssemblyName;
-    RequestAssemblyLoadContext? requestLoadContext;
+    RequestMetadataLoadContext? requestLoadContext;
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
     readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
@@ -63,7 +63,7 @@ sealed partial class ReflectionProvider : IDisposable
 
     public void Dispose()
     {
-        requestLoadContext?.Unload();
+        requestLoadContext?.Dispose();
         requestLoadContext = null;
     }
 

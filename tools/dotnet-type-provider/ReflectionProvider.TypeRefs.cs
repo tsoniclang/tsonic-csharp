@@ -24,7 +24,7 @@ sealed partial class ReflectionProvider
         {
             return null;
         }
-        if (type == typeof(void))
+        if (IsRuntimeType(type, typeof(void)))
         {
             return new { kind = "void" };
         }
@@ -33,11 +33,11 @@ sealed partial class ReflectionProvider
         {
             return new { kind = "source-primitive", name = primitive };
         }
-        if (type == typeof(string))
+        if (IsRuntimeType(type, typeof(string)))
         {
             return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, new { kind = "string" }, includeTopLevelReferenceNullability);
         }
-        if (type == typeof(object))
+        if (IsRuntimeType(type, typeof(object)))
         {
             return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, new { kind = "object" }, includeTopLevelReferenceNullability);
         }
@@ -198,11 +198,11 @@ sealed partial class ReflectionProvider
                 return delegateShape;
             }
         }
-        if (type == typeof(string))
+        if (IsRuntimeType(type, typeof(string)))
         {
             return new { kind = "string" };
         }
-        if (type == typeof(object))
+        if (IsRuntimeType(type, typeof(object)))
         {
             return new { kind = "object" };
         }
@@ -331,7 +331,7 @@ sealed partial class ReflectionProvider
                 genericNullability);
         }
         if (
-            UnwrapByRef(parameterType) == typeof(object) &&
+            IsRuntimeType(UnwrapByRef(parameterType), typeof(object)) &&
             ParameterAllowsSourceUndefined(parameterType, parameterNullability, parameterNullabilityMetadata)
         )
         {
@@ -369,7 +369,7 @@ sealed partial class ReflectionProvider
         {
             return null;
         }
-        if (elementType == typeof(object))
+        if (IsRuntimeType(elementType, typeof(object)))
         {
             return new { kind = "array", elementType = new { kind = "unknown" } };
         }
@@ -474,7 +474,7 @@ sealed partial class ReflectionProvider
 
     static bool HasProviderOwnedSourceProjection(Type type)
     {
-        return type == typeof(Array);
+        return IsRuntimeType(type, typeof(Array));
     }
 
     IEnumerable<SourceReferenceCandidate> SourceReferenceCandidates(IEnumerable<Type> types)

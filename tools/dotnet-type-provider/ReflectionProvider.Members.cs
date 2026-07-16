@@ -767,7 +767,7 @@ sealed partial class ReflectionProvider
     static bool IsExtensionMethod(MethodInfo method)
     {
         return method.IsStatic &&
-            method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), inherit: false);
+            HasRuntimeAttribute(method, typeof(System.Runtime.CompilerServices.ExtensionAttribute));
     }
 
     object? MethodSignature(MethodInfo method, GenericParameterContext? genericParameters = null)
@@ -811,7 +811,7 @@ sealed partial class ReflectionProvider
         {
             return null;
         }
-        var baseDefinition = method.GetBaseDefinition();
+        var baseDefinition = MetadataBaseDefinition(method);
         if (baseDefinition == method ||
             baseDefinition.DeclaringType == method.DeclaringType ||
             !baseDefinition.IsPublic)
@@ -820,6 +820,59 @@ sealed partial class ReflectionProvider
         }
         var sourceId = MethodId(baseDefinition);
         return sourceId == id ? null : sourceId;
+    }
+
+    static MethodInfo MetadataBaseDefinition(MethodInfo method)
+    {
+        if ((method.Attributes & MethodAttributes.NewSlot) != 0)
+        {
+            return method;
+        }
+        var definition = method;
+        for (var baseType = method.DeclaringType?.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            var matches = baseType
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(candidate => candidate.IsVirtual && MethodSlotKey(candidate) == MethodSlotKey(method))
+                .ToArray();
+            if (matches.Length > 1)
+            {
+                throw new InvalidOperationException($"Virtual method '{MethodId(method)}' has more than one metadata base-slot candidate on '{TypeMetadataName(baseType)}'.");
+            }
+            if (matches.Length == 1)
+            {
+                definition = matches[0];
+            }
+        }
+        return definition;
+    }
+
+    static string MethodSlotKey(MethodInfo method)
+    {
+        return $"{method.Name}`{method.GetGenericArguments().Length}({string.Join(",", method.GetParameters().Select(parameter => $"{PassingMode(parameter)}:{TypeSlotKey(UnwrapByRef(parameter.ParameterType))}"))})";
+    }
+
+    static string TypeSlotKey(Type type)
+    {
+        if (type.IsGenericParameter)
+        {
+            return type.DeclaringMethod is null
+                ? $"!{type.GenericParameterPosition}"
+                : $"!!{type.GenericParameterPosition}";
+        }
+        if (type.IsArray)
+        {
+            return $"{TypeSlotKey(type.GetElementType()!)}{ArrayRankSuffix(type)}";
+        }
+        if (type.IsPointer)
+        {
+            return $"{TypeSlotKey(type.GetElementType()!)}*";
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeSlotKey))}>";
+        }
+        return TargetId(type);
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)
@@ -869,7 +922,7 @@ sealed partial class ReflectionProvider
             {
                 return null;
             }
-            var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
+            var isParamsArray = HasRuntimeAttribute(parameter, typeof(ParamArrayAttribute)) && parameterType.IsArray;
             var sourceType = NullableParameterSourceTypeRef(
                 parameterType,
                 isParamsArray,
@@ -914,7 +967,7 @@ sealed partial class ReflectionProvider
             return new { kind = "null" };
         }
 
-        parameterType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+        parameterType = IsNullableShape(parameterType, out var nullableElement) ? nullableElement : parameterType;
         if (parameterType.IsEnum)
         {
             var enumDefaultValue = EnumParameterDefaultValue(parameterType, value);
@@ -929,11 +982,11 @@ sealed partial class ReflectionProvider
             }
             return enumDefaultValue;
         }
-        if (parameterType == typeof(string) && value is string stringValue)
+        if (IsRuntimeType(parameterType, typeof(string)) && value is string stringValue)
         {
             return new { kind = "string", value = stringValue };
         }
-        if (parameterType == typeof(string))
+        if (IsRuntimeType(parameterType, typeof(string)))
         {
             unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                 parameter,
@@ -1016,53 +1069,51 @@ sealed partial class ReflectionProvider
 
     static object? EnumParameterDefaultValue(Type enumType, object value)
     {
-        var underlyingType = Enum.GetUnderlyingType(enumType);
-        var underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+        var underlyingType = EnumUnderlyingType(enumType);
+        var underlyingValue = SourcePrimitiveDefaultValue(underlyingType, value);
         if (underlyingValue is null)
         {
             return null;
         }
-        var enumValue = Enum.ToObject(enumType, underlyingValue);
-        var fieldName = Enum.GetName(enumType, enumValue);
         return new
         {
             kind = "enum",
             value = Convert.ToString(underlyingValue, CultureInfo.InvariantCulture),
-            fieldName,
+            fieldName = EnumFieldName(enumType, underlyingType, value),
         };
     }
 
     static object? SourcePrimitiveDefaultValue(Type primitiveType, object value)
     {
-        if (primitiveType == typeof(bool) && value is bool boolValue)
+        if (IsRuntimeType(primitiveType, typeof(bool)) && value is bool boolValue)
         {
             return boolValue;
         }
-        if (primitiveType == typeof(char) && value is char charValue)
+        if (IsRuntimeType(primitiveType, typeof(char)) && value is char charValue)
         {
             return charValue.ToString();
         }
-        if (primitiveType == typeof(float))
+        if (IsRuntimeType(primitiveType, typeof(float)))
         {
             return Convert.ToSingle(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(double))
+        if (IsRuntimeType(primitiveType, typeof(double)))
         {
             return Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(decimal))
+        if (IsRuntimeType(primitiveType, typeof(decimal)))
         {
             return Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(Half))
+        if (IsRuntimeType(primitiveType, typeof(Half)))
         {
             return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(nint))
+        if (IsRuntimeType(primitiveType, typeof(nint)))
         {
             return Convert.ToInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(nuint))
+        if (IsRuntimeType(primitiveType, typeof(nuint)))
         {
             return Convert.ToUInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
@@ -1080,16 +1131,16 @@ sealed partial class ReflectionProvider
 
     static bool IsIntegerPrimitive(Type type)
     {
-        return type == typeof(sbyte) ||
-            type == typeof(byte) ||
-            type == typeof(short) ||
-            type == typeof(ushort) ||
-            type == typeof(int) ||
-            type == typeof(uint) ||
-            type == typeof(long) ||
-            type == typeof(ulong) ||
-            type.FullName == "System.Int128" ||
-            type.FullName == "System.UInt128";
+        return IsRuntimeType(type, typeof(sbyte)) ||
+            IsRuntimeType(type, typeof(byte)) ||
+            IsRuntimeType(type, typeof(short)) ||
+            IsRuntimeType(type, typeof(ushort)) ||
+            IsRuntimeType(type, typeof(int)) ||
+            IsRuntimeType(type, typeof(uint)) ||
+            IsRuntimeType(type, typeof(long)) ||
+            IsRuntimeType(type, typeof(ulong)) ||
+            IsRuntimeType(type, typeof(Int128)) ||
+            IsRuntimeType(type, typeof(UInt128));
     }
 
     static string PassingMode(ParameterInfo parameter)
@@ -1102,7 +1153,7 @@ sealed partial class ReflectionProvider
         {
             return "byref-writeonly-must-init";
         }
-        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+        return HasRuntimeAttribute(parameter, typeof(System.Runtime.InteropServices.InAttribute))
             ? "byref-readonly"
             : "byref-readwrite";
     }

@@ -75,7 +75,7 @@ sealed partial class ReflectionProvider
 
     IEnumerable<Type> DirectSourceDependencies(Type type)
     {
-        if (type.BaseType is not null && type.BaseType != typeof(object))
+        if (type.BaseType is not null && !IsRuntimeType(type.BaseType, typeof(object)))
         {
             foreach (var dependency in SourceDependencyTypes(type.BaseType))
             {
@@ -169,7 +169,7 @@ sealed partial class ReflectionProvider
     static IEnumerable<Type> SourceDependencyTypes(Type type)
     {
         type = UnwrapByRef(type);
-        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        if (type.IsPointer || type.IsGenericParameter || IsRuntimeType(type, typeof(void)))
         {
             yield break;
         }
@@ -207,7 +207,7 @@ sealed partial class ReflectionProvider
     static Type? NormalizeClosureType(Type type)
     {
         type = UnwrapByRef(type);
-        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        if (type.IsPointer || type.IsGenericParameter || IsRuntimeType(type, typeof(void)))
         {
             return null;
         }

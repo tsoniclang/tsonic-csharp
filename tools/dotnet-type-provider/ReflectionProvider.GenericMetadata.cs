@@ -72,7 +72,7 @@ sealed partial class ReflectionProvider
         var unsupportedConstraints = new List<object>();
         foreach (var constraint in parameter.GetGenericParameterConstraints())
         {
-            if (constraint == typeof(ValueType))
+            if (IsRuntimeType(constraint, typeof(ValueType)))
             {
                 continue;
             }
