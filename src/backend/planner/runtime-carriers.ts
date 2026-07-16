@@ -46,9 +46,9 @@ export function getTargetTypeRefForNode(
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
     return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
-      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
       getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      typeReferenceFact;
+      typeReferenceFact ??
+      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   }
   const resolvedCarrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   return typeReferenceFact ??

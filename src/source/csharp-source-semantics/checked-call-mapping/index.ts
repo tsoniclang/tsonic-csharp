@@ -234,7 +234,23 @@ export function mapCsharpCheckedCall(
     if (sourceOwnedCall !== undefined) {
       return sourceOwnedCall;
     }
-    return deferObservation;
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN",
+      9100185,
+      "C# checked call has TSTS-selected source evidence, but no provider, source-profile, or project-source target call contract owns it.",
+      [{
+        message: "Selected checked call has no finalized C# target binding",
+        details: {
+          hasSourceSelectedSignature: request.sourceSelectedSignature !== undefined,
+          hasSourceSelectedDeclaration: request.sourceSelectedDeclaration !== undefined,
+          hasSourceCalleeSymbol: request.sourceCalleeSymbol !== undefined,
+          hasSourceCalleeDeclaration: request.sourceCalleeDeclaration !== undefined,
+          ...selectedCallDeclarationEvidence(request, context),
+        },
+      }],
+      request.call,
+    ));
   }
   const targetBinding = binding.target === csharpTargetId
     ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, virtualDeclaration) ?? binding
@@ -353,6 +369,32 @@ export function mapCsharpCheckedCall(
       ...(virtualDeclaration?.signatureId === undefined ? {} : { providerDeclaration: virtualDeclaration }),
     },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function selectedCallDeclarationEvidence(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Record<string, unknown> {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return {};
+  }
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
+  const calleeDeclaration = asNodeSubject(request.sourceCalleeDeclaration);
+  return {
+    ...(selectedDeclaration === undefined
+      ? {}
+      : {
+          sourceSelectedDeclarationKind: ast.kindName(selectedDeclaration),
+          sourceSelectedDeclarationFile: ast.getFileName(ast.getSourceFile(selectedDeclaration)),
+        }),
+    ...(calleeDeclaration === undefined
+      ? {}
+      : {
+          sourceCalleeDeclarationKind: ast.kindName(calleeDeclaration),
+          sourceCalleeDeclarationFile: ast.getFileName(ast.getSourceFile(calleeDeclaration)),
+        }),
+  };
 }
 
 function selectedProviderDeclarationBelongsToTargetBinding(
@@ -584,21 +626,22 @@ function getSourceOwnedCallParameters(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): readonly TargetParameter[] | undefined {
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const selectedSignature = request.sourceSelectedSignature;
+  if (compiler === undefined || selectedSignature === undefined) {
     return undefined;
   }
-  const parameters = ast.parameters(declaration);
+  const parameters = compiler.checker.getSignatureParameters(
+    selectedSignature as Parameters<typeof compiler.checker.getSignatureParameters>[0],
+  );
   const mapped: TargetParameter[] = [];
   for (let index = 0; index < parameters.length; index += 1) {
     const parameter = parameters[index];
     if (parameter === undefined) {
       return undefined;
     }
-    const parameterTypeNode = asNodeSubject(getNodeField(parameter, "Type")) ??
-      asNodeSubject(getNodeField(parameter, "type"));
     const targetType = substituteSourceOwnedCallableTypeParameters(
-      host.getTargetTypeRefForSubject(parameterTypeNode, context),
+      getSelectedSourceParameterTargetType(parameter, context, host),
       request,
       declaration,
       context,
@@ -607,7 +650,7 @@ function getSourceOwnedCallParameters(
     if (targetType === undefined) {
       return undefined;
     }
-    const sourceName = ast.text(ast.name(parameter));
+    const sourceName = compiler.checker.getSymbolName(parameter);
     mapped.push({
       name: sourceName.length === 0 ? `arg${index}` : sourceName,
       type: targetType,
@@ -615,6 +658,28 @@ function getSourceOwnedCallParameters(
     });
   }
   return mapped;
+}
+
+function getSelectedSourceParameterTargetType(
+  parameter: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getSymbolDeclarations"]>[0],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  const direct = host.getTargetTypeRefForSubject(parameter, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const checker = context.compiler?.checker;
+  if (checker === undefined) {
+    return undefined;
+  }
+  for (const declaration of checker.getSymbolDeclarations(parameter)) {
+    const declarationType = host.getTargetTypeRefForSubject(declaration, context);
+    if (declarationType !== undefined) {
+      return declarationType;
+    }
+  }
+  return undefined;
 }
 
 function recordSourceOwnedCallRuntimeCarrierIfResolved(

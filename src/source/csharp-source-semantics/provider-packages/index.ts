@@ -125,15 +125,11 @@ function validateCsharpDotnetProviderContribution(
 }
 
 function isFileDirectoryUrl(value: unknown): value is string {
-  if (typeof value !== "string") {
+  if (typeof value !== "string" || !URL.canParse(value)) {
     return false;
   }
-  try {
-    const url = new URL(value);
-    return url.protocol === "file:" && url.pathname.endsWith("/");
-  } catch {
-    return false;
-  }
+  const url = new URL(value);
+  return url.protocol === "file:" && url.pathname.endsWith("/");
 }
 
 function isDotnetProviderIdentity(value: unknown): value is DotnetProviderIdentity {

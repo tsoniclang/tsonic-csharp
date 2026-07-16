@@ -67,6 +67,7 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/backend/planner/semantic-general-ownership.ts",
       "src/backend/planner/semantic-queryable-symbols.ts",
       "src/backend/planner/source-primitive-evidence.ts",
+      "src/backend/planner/statement-try.ts",
     ],
     {
       symbol: "backend planner semantic fact consumption",

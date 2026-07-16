@@ -311,6 +311,37 @@ test("provider-owned generic target type references require finalized target arg
   assert.match(missingDiagnostics[0].message, /requires target type facts for every type argument/);
 });
 
+test("provider generic arguments preserve finalized target-owned source declaration facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const entityNode = typeReferenceNode("Entity");
+  const reference = typeReferenceNode("IQueryable", [entityNode]);
+  const queryableBinding = {
+    id: "System.Linq.IQueryable`1",
+    target: "csharp",
+    kind: "interface",
+    sourceName: "IQueryable",
+    targetName: "System.Linq.IQueryable",
+    csharpRender: csharpQualifiedTypeRenderShape("System.Linq", "IQueryable"),
+    typeParameters: [{ name: "T" }],
+  };
+  const sourceDeclarationCarrier = csharpTargetNamedType(
+    "Entity",
+    undefined,
+    { kind: "named", name: "Entity" },
+    { sourceDeclarationKind: "class" },
+  );
+  const diagnostics = [];
+
+  const rendered = getCsharpTypeForNode(reference, sourceFile, fakeTypeInput(sourceFile, {
+    targetBindings: new Map([[reference, queryableBinding]]),
+    directRuntimeCarriers: new Map([[entityNode, sourceDeclarationCarrier]]),
+    resolvedRuntimeCarriers: new Map([[entityNode, { kind: "target-named", id: "Entity" }]]),
+  }), undefined, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpType(rendered), "System.Linq.IQueryable<Entity>");
+});
+
 test("ptr and fnptr type references render only from finalized source-core type facts", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const intType = typeReferenceNode("int32");
@@ -551,6 +582,7 @@ function fakeInput(options) {
     ast: {
       kindName: (node) => String(node?.Kind),
       kindNameFromKind: (kind) => String(kind),
+      text: (node) => String(node?.Text ?? ""),
     },
     facts: {
       getFact: (subject, key) =>
@@ -603,7 +635,7 @@ function fakeTypeInput(sourceFile, options = {}) {
       getSelectedTargetCall: () => undefined,
       getContextualTargetTypeFact: () => undefined,
       getRuntimeCarrierFact: (subject) => {
-        const carrier = options.runtimeCarriers?.get(subject);
+        const carrier = (options.directRuntimeCarriers ?? options.runtimeCarriers)?.get(subject);
         return carrier === undefined ? undefined : { carrier };
       },
       getObjectShapeFact: () => undefined,
@@ -637,8 +669,8 @@ function fakeTypeInput(sourceFile, options = {}) {
       getProjectSourceReferenceForSymbol: () => undefined,
     },
     targetFacts: {
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution((options.resolvedRuntimeCarriers ?? options.runtimeCarriers)?.get(subject)),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution((options.resolvedRuntimeCarriers ?? options.runtimeCarriers)?.get(subject)),
       getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => options.declarationReturnCarrierResolution ?? missingCarrierResolution(),

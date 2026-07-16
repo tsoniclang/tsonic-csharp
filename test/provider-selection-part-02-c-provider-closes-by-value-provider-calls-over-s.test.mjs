@@ -123,14 +123,15 @@ test("C# provider preserves optional defaults and params-array conversion closur
     first,
   ]);
 });
-test("C# provider defers when no provider target binding proves ownership", () => {
+test("C# provider rejects selected calls when no target binding proves ownership", () => {
   const provider = getNativeSemanticProvider();
   const calleeSymbol = {};
   const argument = {};
+  const call = {};
 
   const result = provider.mapCheckedCall({
     target: "csharp",
-    call: {},
+    call,
     callee: {},
     calleePropertyName: "m",
     sourceCalleeSymbol: calleeSymbol,
@@ -145,7 +146,9 @@ test("C# provider defers when no provider target binding proves ownership", () =
     },
   }));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
 });
 test("C# provider rejects checked calls without selected source evidence", () => {
   const provider = getNativeSemanticProvider();
@@ -197,7 +200,7 @@ test("C# erased source marker rejects missing provider member identity", () => {
   assert.equal(result.diagnostic.extensionCode, "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN");
   assert.equal("value" in result, false);
 });
-test("C# source marker mapping ignores same-spelling non-core virtual declarations", () => {
+test("C# source marker mapping rejects unowned same-spelling non-core virtual declarations", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
 
@@ -221,7 +224,8 @@ test("C# source marker mapping ignores same-spelling non-core virtual declaratio
     },
   }));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN");
 });
 test("C# erased source marker rejects missing finalized source facts", () => {
   const provider = getNativeSemanticProvider();
