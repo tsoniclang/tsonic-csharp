@@ -135,6 +135,9 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
     targetFramework: dotnetTargetFramework,
   });
   const capabilityContributions = createCsharpTargetCapabilityContributions(context);
+  const capabilityTargetBindingsById = new Map(
+    capabilityContributions.targetBindings.map((binding) => [binding.id, binding] as const),
+  );
   const dotnetProviders: readonly CsharpDotnetProviderHost[] = Object.freeze([
     Object.freeze({
       provider: nativeDotnetProvider,
@@ -157,7 +160,10 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
   ]);
   const getBindingByTargetId = (targetId: string): TargetBindingFact | undefined => uniqueProviderBinding(
     `target id '${targetId}'`,
-    dotnetProviders.map((entry) => entry.provider.findTargetBindingByTargetId(targetId)),
+    [
+      ...dotnetProviders.map((entry) => entry.provider.findTargetBindingByTargetId(targetId)),
+      capabilityTargetBindingsById.get(targetId),
+    ],
   );
   const getBindingByMetadataName = (metadataName: string): TargetBindingFact | undefined => uniqueProviderBinding(
     `metadata name '${metadataName}'`,
@@ -296,7 +302,7 @@ function uniqueProviderBinding(
   if (bindings.length <= 1) {
     return bindings[0];
   }
-  throw new Error(`C# .NET provider target binding conflict for ${description}.`);
+  throw new Error(`C# provider target binding conflict for ${description}.`);
 }
 
 function optionalTargetTypeRef(type: TargetTypeRef | undefined): readonly TargetTypeRef[] {

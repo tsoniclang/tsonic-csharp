@@ -34,10 +34,13 @@ export * from "./source/csharp-source-semantics/surfaces/js/date/index.js";
 export {
   csharpDotnetProviderContributionKind,
   csharpProviderOperationsContributionKind,
+  csharpTargetBindingsContributionKind,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
   CsharpDotnetProviderContribution,
+  CsharpCapabilityTargetBinding,
   CsharpProviderOperationsContribution,
+  CsharpTargetBindingsContribution,
 } from "./source/csharp-source-semantics/provider-packages/index.js";
 export type {
   CsharpArgument,
