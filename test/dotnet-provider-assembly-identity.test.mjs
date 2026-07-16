@@ -173,6 +173,34 @@ test(".NET alias facts render C# extern-alias qualified target types", () => {
   }), "acme::Shared.Widget");
 });
 
+test(".NET reflection requests isolate equal assembly identities with different artifacts", () => {
+  const { firstDll, secondDll } = buildLoadContextFixtures();
+  const firstProvider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
+  const secondProvider = createDotnetReflectionTypeDataProvider({ references: [secondDll], disablePersistentCache: true });
+
+  const first = firstProvider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
+  const second = secondProvider.getModule("@tsonic/dotnet/Acme.Second.js", { requestedExports: ["Two"] });
+
+  assert.equal("exports" in first, true, JSON.stringify(first));
+  assert.equal("exports" in second, true, JSON.stringify(second));
+  assert.deepEqual(first.exports.map((entry) => entry.sourceName), ["One"]);
+  assert.deepEqual(second.exports.map((entry) => entry.sourceName), ["Two"]);
+});
+
+test(".NET reflection request rejects different artifacts for one exact assembly identity", () => {
+  const { firstDll, secondDll } = buildLoadContextFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({
+    references: [firstDll, secondDll],
+    disablePersistentCache: true,
+  });
+
+  const result = provider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
+
+  assert.equal("code" in result, true, JSON.stringify(result));
+  assert.equal(result.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
+  assert.match(JSON.stringify(result.evidence), /resolves to multiple different explicit artifacts/u);
+});
+
 function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&
@@ -256,6 +284,24 @@ function buildAssemblyIdentityFixtures() {
     acmeDll: buildAssemblyIdentityFixture("Acme.Contracts", "acme"),
     contosoDll: buildAssemblyIdentityFixture("Contoso.Contracts", "contoso"),
   };
+}
+
+function buildLoadContextFixtures() {
+  return {
+    firstDll: buildLoadContextFixture("First", "first"),
+    secondDll: buildLoadContextFixture("Second", "second"),
+  };
+}
+
+function buildLoadContextFixture(projectName, outputName) {
+  const projectDirectory = join(repoRoot, "test/fixtures/dotnet-provider/load-context", projectName);
+  return buildDotnetFixture({
+    project: join(projectDirectory, `${projectName}.csproj`),
+    outputDirectory: join(repoRoot, ".temp/dotnet-provider-fixtures/load-context", outputName),
+    intermediateDirectory: join(repoRoot, ".temp/dotnet-provider-fixtures/load-context", `${outputName}-obj/`),
+    outputAssemblyName: "Acme.Shared.Provider.dll",
+    projectDirectory,
+  });
 }
 
 function buildAssemblyIdentityFixture(projectName, outputName) {

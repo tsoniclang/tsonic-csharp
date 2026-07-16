@@ -1,14 +1,12 @@
-using System.Collections.Concurrent;
 using System.Reflection;
-using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed partial class ReflectionProvider
+sealed partial class ReflectionProvider : IDisposable
 {
     readonly Request request;
     readonly IReadOnlyDictionary<string, string> sourcePackageByAssemblyName;
-    readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
+    RequestAssemblyLoadContext? requestLoadContext;
     Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
     readonly HashSet<string> delegateSourceShapeInProgress = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> delegateSourceShapeUnsupportedReasons = new(StringComparer.Ordinal);
@@ -61,6 +59,12 @@ sealed partial class ReflectionProvider
             .OrderBy(namespaceName => namespaceName, StringComparer.Ordinal)
             .Select(namespaceName => BuildModule(loadedTypes, namespaceName, ModuleSpecifierForNamespace(namespaceName)))
             .ToArray();
+    }
+
+    public void Dispose()
+    {
+        requestLoadContext?.Unload();
+        requestLoadContext = null;
     }
 
     Type[] LoadPublicTypes()

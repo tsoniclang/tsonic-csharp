@@ -23,7 +23,7 @@ static int RunProvider(string[] args, TextWriter stdout, TextWriter stderr)
             WriteUsage(stderr);
             return 2;
         }
-        var provider = new ReflectionProvider(request);
+        using var provider = new ReflectionProvider(request);
         var output = request.AllModules ? provider.GetModules() : provider.GetModule();
         stdout.WriteLine(JsonSerializer.Serialize(output, ProviderJsonOptions()));
         return 0;

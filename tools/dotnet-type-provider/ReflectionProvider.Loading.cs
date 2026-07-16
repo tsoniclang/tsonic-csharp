@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 
 sealed partial class ReflectionProvider
 {
@@ -13,66 +11,18 @@ sealed partial class ReflectionProvider
         var referencePaths = ReferenceDirectoryAssemblyPaths()
             .Concat(ExplicitReferenceAssemblyPaths())
             .ToHashSet(StringComparer.Ordinal);
-        var currentRequestPaths = runtimePaths
-            .Concat(referencePaths)
-            .ToHashSet(StringComparer.Ordinal);
-        var resolver = new RequestAssemblyResolver(currentRequestPaths, assembliesByPath);
-        AssemblyLoadContext.Default.Resolving += resolver.Resolve;
-        try
+        requestLoadContext ??= new RequestAssemblyLoadContext(
+            runtimePaths,
+            referencePaths,
+            sourcePackageByAssemblyName.Keys);
+
+        foreach (var entry in requestLoadContext.LoadRootAssemblies())
         {
-            var loadedPaths = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var type in ExportedTypes(entry.Assembly, entry.Path, entry.IsExplicitReference))
             {
-                if (string.IsNullOrEmpty(assembly.Location))
-                {
-                    continue;
-                }
-                var path = Path.GetFullPath(assembly.Location);
-                if (!currentRequestPaths.Contains(path))
-                {
-                    continue;
-                }
-                loadedPaths.Add(path);
-                foreach (var type in ExportedTypes(assembly, path, referencePaths.Contains(path)))
-                {
-                    yield return type;
-                }
-            }
-            foreach (var path in currentRequestPaths.OrderBy(path => path, StringComparer.Ordinal))
-            {
-                if (loadedPaths.Contains(path))
-                {
-                    continue;
-                }
-                foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: referencePaths.Contains(path)))
-                {
-                    yield return type;
-                }
+                yield return type;
             }
         }
-        finally
-        {
-            AssemblyLoadContext.Default.Resolving -= resolver.Resolve;
-        }
-    }
-
-    IEnumerable<Type> LoadTypesFromAssemblyPath(string path, bool failOnError)
-    {
-        Assembly assembly;
-        try
-        {
-            assembly = assembliesByPath.GetOrAdd(path, static candidate => AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate));
-        }
-        catch (Exception) when (!failOnError)
-        {
-            return Array.Empty<Type>();
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidOperationException($"Unable to load explicit .NET reference assembly '{path}': {exception.Message}", exception);
-        }
-
-        return ExportedTypes(assembly, path, failOnError);
     }
 
     static void RuntimeAssemblyRoots()
@@ -87,7 +37,7 @@ sealed partial class ReflectionProvider
         _ = typeof(Enumerable);
     }
 
-    static IEnumerable<Type> ExportedTypes(Assembly assembly, string? path = null, bool failOnError = false)
+    static IEnumerable<Type> ExportedTypes(Assembly assembly, string path, bool failOnError)
     {
         try
         {
@@ -100,7 +50,7 @@ sealed partial class ReflectionProvider
         catch (ReflectionTypeLoadException exception)
         {
             var loaderDetails = LoaderExceptionDetails(exception);
-            throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path ?? assembly.FullName}': {exception.Message}{loaderDetails}", exception);
+            throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path}': {exception.Message}{loaderDetails}", exception);
         }
         catch (Exception) when (!failOnError)
         {
@@ -108,7 +58,7 @@ sealed partial class ReflectionProvider
         }
         catch (Exception exception)
         {
-            throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path ?? assembly.FullName}': {exception.Message}", exception);
+            throw new InvalidOperationException($"Unable to read exported types from explicit .NET reference assembly '{path}': {exception.Message}", exception);
         }
     }
 
@@ -171,28 +121,130 @@ sealed partial class ReflectionProvider
         return paths;
     }
 
-    sealed class RequestAssemblyResolver
+    sealed class RequestAssemblyLoadContext : AssemblyLoadContext
     {
-        readonly ConcurrentDictionary<string, Assembly> assembliesByPath;
-        readonly Dictionary<string, string> pathsBySimpleName;
+        readonly IReadOnlyDictionary<string, AssemblyCandidate> candidatesByIdentity;
+        readonly IReadOnlyDictionary<string, AssemblyCandidate> candidatesBySimpleName;
+        readonly IReadOnlyList<AssemblyCandidate> rootCandidates;
 
-        public RequestAssemblyResolver(IEnumerable<string> paths, ConcurrentDictionary<string, Assembly> assembliesByPath)
+        public RequestAssemblyLoadContext(
+            IReadOnlyCollection<string> runtimePaths,
+            IReadOnlyCollection<string> referencePaths,
+            IEnumerable<string> sourceAssemblyNames)
+            : base($"tsonic-dotnet-provider-{Guid.NewGuid():N}", isCollectible: true)
         {
-            this.assembliesByPath = assembliesByPath;
-            pathsBySimpleName = paths
-                .Where(path => string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .GroupBy(path => Path.GetFileNameWithoutExtension(path), StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var sourceNames = sourceAssemblyNames.ToHashSet(StringComparer.Ordinal);
+            var candidates = runtimePaths
+                .Select(path => ReadCandidate(path, false))
+                .Where(candidate => candidate is not null)
+                .Cast<AssemblyCandidate>()
+                .Concat(referencePaths.Select(path => ReadCandidate(path, true) ?? throw new InvalidOperationException($"Explicit .NET reference assembly '{path}' is not a managed assembly.")))
+                .ToArray();
+            candidatesByIdentity = candidates
+                .GroupBy(candidate => candidate.Identity, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => SelectCanonicalCandidate(group, sourceNames),
+                    StringComparer.Ordinal);
+            candidatesBySimpleName = candidatesByIdentity.Values
+                .GroupBy(candidate => candidate.Name, StringComparer.Ordinal)
+                .Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
+            rootCandidates = candidatesByIdentity.Values
+                .OrderBy(candidate => candidate.Identity, StringComparer.Ordinal)
+                .ToArray();
         }
 
-        public Assembly? Resolve(AssemblyLoadContext context, AssemblyName assemblyName)
+        public IEnumerable<LoadedAssembly> LoadRootAssemblies()
         {
-            if (assemblyName.Name is null || !pathsBySimpleName.TryGetValue(assemblyName.Name, out var path))
+            foreach (var candidate in rootCandidates)
+            {
+                var assembly = LoadCandidate(candidate);
+                yield return new LoadedAssembly(assembly, candidate.Path, candidate.IsExplicitReference);
+            }
+        }
+
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            var identity = assemblyName.FullName;
+            if (identity is not null && candidatesByIdentity.TryGetValue(identity, out var exact))
+            {
+                return LoadCandidate(exact);
+            }
+            return assemblyName.Name is not null && candidatesBySimpleName.TryGetValue(assemblyName.Name, out var candidate)
+                ? LoadCandidate(candidate)
+                : null;
+        }
+
+        Assembly LoadCandidate(AssemblyCandidate candidate)
+        {
+            if (!candidate.IsExplicitReference)
+            {
+                var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+                    StringComparer.Ordinal.Equals(assembly.FullName, candidate.Identity));
+                if (loaded is not null)
+                {
+                    return loaded;
+                }
+            }
+            return LoadFromAssemblyPath(candidate.Path);
+        }
+
+        static AssemblyCandidate SelectCanonicalCandidate(
+            IEnumerable<AssemblyCandidate> values,
+            IReadOnlySet<string> sourceAssemblyNames)
+        {
+            var candidates = values.OrderBy(candidate => candidate.Path, StringComparer.Ordinal).ToArray();
+            var sourceOwned = sourceAssemblyNames.Contains(candidates[0].Name);
+            var preferred = sourceOwned
+                ? candidates.Where(candidate => candidate.IsExplicitReference).ToArray()
+                : candidates.Where(candidate => !candidate.IsExplicitReference).ToArray();
+            var eligible = preferred.Length > 0 ? preferred : candidates;
+            var hashes = eligible.Select(candidate => candidate.ContentHash).Distinct(StringComparer.Ordinal).ToArray();
+            if (hashes.Length > 1)
+            {
+                throw new InvalidOperationException(
+                    $".NET provider assembly identity '{candidates[0].Identity}' resolves to multiple different explicit artifacts: {string.Join(", ", eligible.Select(candidate => candidate.Path))}.");
+            }
+            return eligible[0];
+        }
+
+        static AssemblyCandidate? ReadCandidate(string path, bool explicitReference)
+        {
+            AssemblyName assemblyName;
+            try
+            {
+                assemblyName = AssemblyName.GetAssemblyName(path);
+            }
+            catch (BadImageFormatException) when (!explicitReference)
             {
                 return null;
             }
-            return assembliesByPath.GetOrAdd(path, static candidate => AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate));
+            catch (Exception exception)
+            {
+                throw new InvalidOperationException($"Unable to read .NET assembly identity for '{path}': {exception.Message}", exception);
+            }
+            if (assemblyName.Name is null || assemblyName.FullName is null)
+            {
+                throw new InvalidOperationException($".NET assembly '{path}' has no complete assembly identity.");
+            }
+            using var stream = File.OpenRead(path);
+            var contentHash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+            return new AssemblyCandidate(
+                Path.GetFullPath(path),
+                assemblyName.Name,
+                assemblyName.FullName,
+                contentHash,
+                explicitReference);
         }
     }
+
+    sealed record AssemblyCandidate(
+        string Path,
+        string Name,
+        string Identity,
+        string ContentHash,
+        bool IsExplicitReference);
+
+    sealed record LoadedAssembly(Assembly Assembly, string Path, bool IsExplicitReference);
 }
