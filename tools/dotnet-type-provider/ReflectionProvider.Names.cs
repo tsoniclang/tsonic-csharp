@@ -309,7 +309,7 @@ sealed partial class ReflectionProvider
 
     static string SourceTypeBaseName(Type type)
     {
-        return Identifier(StripGenericArity(type.Name));
+        return StripGenericArity(type.Name);
     }
 
     static string QualifiedNestedSourceTypeBaseName(Type type)
@@ -319,7 +319,7 @@ sealed partial class ReflectionProvider
         {
             parts.Push(StripGenericArity(current.Name));
         }
-        return Identifier(string.Join("_", parts));
+        return string.Join("_", parts);
     }
 
     static int GenericTypeNameArity(Type type)
@@ -332,7 +332,26 @@ sealed partial class ReflectionProvider
 
     static string SourceMemberName(string name)
     {
-        return Identifier(StripGenericArity(name));
+        return StripGenericArity(name);
+    }
+
+    static bool IsSourceIdentifier(string value)
+    {
+        if (value.Length == 0 || !IsSourceIdentifierStart(value[0]))
+        {
+            return false;
+        }
+        return value.Skip(1).All(IsSourceIdentifierPart);
+    }
+
+    static bool IsSourceIdentifierStart(char character)
+    {
+        return character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_' or '$';
+    }
+
+    static bool IsSourceIdentifierPart(char character)
+    {
+        return IsSourceIdentifierStart(character) || character is >= '0' and <= '9';
     }
 
     static string Identifier(string value)

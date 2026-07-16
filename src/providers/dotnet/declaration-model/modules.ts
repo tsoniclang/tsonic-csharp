@@ -20,6 +20,7 @@ import { dotnetExportToNamespaceMember } from "./namespace-members.js";
 import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 import { dotnetSignatureToProviderSignature } from "./signatures.js";
 import { dotnetTypeToProviderExport } from "./types.js";
+import { normalizeProviderTypeFamilyParameters } from "./type-families.js";
 
 export function dotnetModuleToProviderDeclarationModel(
   module: DotnetModuleModel,
@@ -35,12 +36,13 @@ export function dotnetModuleToProviderDeclarationModel(
         : qualifyProviderExportModuleRefs(providerExport, context);
     })
     .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined);
-  const imports = providerImportsForExternalRefs(exports, qualifiedModule.moduleSpecifier);
+  const normalizedExports = normalizeProviderTypeFamilyParameters(exports);
+  const imports = providerImportsForExternalRefs(normalizedExports, qualifiedModule.moduleSpecifier);
   return {
     moduleSpecifier: qualifiedModule.moduleSpecifier,
     providerModuleId: options.providerModuleId ?? qualifiedModule.moduleSpecifier,
     ...(imports.length === 0 ? {} : { imports }),
-    exports,
+    exports: normalizedExports,
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
   };
 }

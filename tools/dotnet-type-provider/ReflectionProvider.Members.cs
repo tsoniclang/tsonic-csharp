@@ -281,6 +281,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedPropertyReason(Type type, PropertyInfo property)
     {
+        if (!IsSourceIdentifier(SourceMemberName(property.Name)))
+        {
+            return $"CLR property name '{property.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         var accessors = property.GetAccessors(false);
         if (accessors.Length == 0)
         {
@@ -383,6 +387,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedFieldReason(Type type, FieldInfo field)
     {
+        if (!IsSourceIdentifier(SourceMemberName(field.Name)))
+        {
+            return $"CLR field name '{field.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         if (field.IsSpecialName)
         {
             return "Special-name fields are target-only CLR implementation details and are not exposed as source declarations.";
@@ -468,6 +476,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedSourceEventReason(EventInfo eventInfo)
     {
+        if (!IsSourceIdentifier(SourceMemberName(eventInfo.Name)))
+        {
+            return $"CLR event name '{eventInfo.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         var eventHandlerType = eventInfo.EventHandlerType;
         if (eventHandlerType is null)
         {
@@ -612,6 +624,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedMethodReason(Type type, MethodInfo method)
     {
+        if (!IsSourceIdentifier(SourceMemberName(method.Name)))
+        {
+            return $"CLR method name '{method.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         if (type.IsInterface && method.IsStatic)
         {
             return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";

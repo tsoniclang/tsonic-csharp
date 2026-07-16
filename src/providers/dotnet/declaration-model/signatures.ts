@@ -305,7 +305,7 @@ function uniqueProviderTypeParameterName(baseName: string, usedNames: Set<string
   }
 }
 
-function renameProviderTypeParameter(
+export function renameProviderTypeParameter(
   parameter: NonNullable<ProviderSignatureDeclaration["typeParameters"]>[number],
   renames: ReadonlyMap<string, string>,
 ): NonNullable<ProviderSignatureDeclaration["typeParameters"]>[number] {
@@ -316,17 +316,18 @@ function renameProviderTypeParameter(
   };
 }
 
-function renameProviderParameterTypeParameters(
+export function renameProviderParameterTypeParameters(
   parameter: ProviderParameterDeclaration,
   renames: ReadonlyMap<string, string>,
 ): ProviderParameterDeclaration {
   return {
     ...parameter,
     type: renameProviderTypeExpressionTypeParameters(parameter.type, renames),
+    ...(parameter.defaultType === undefined ? {} : { defaultType: renameProviderTypeExpressionTypeParameters(parameter.defaultType, renames) }),
   };
 }
 
-function renameProviderTypeExpressionTypeParameters(
+export function renameProviderTypeExpressionTypeParameters(
   type: import("@tsonic/tsts").ProviderTypeExpression,
   renames: ReadonlyMap<string, string>,
 ): import("@tsonic/tsts").ProviderTypeExpression {
@@ -361,6 +362,9 @@ function renameProviderTypeExpressionTypeParameters(
       }
       return {
         ...type,
+        ...(type.typeParameters === undefined
+          ? {}
+          : { typeParameters: type.typeParameters.map((parameter) => renameProviderTypeParameter(parameter, nestedRenames)) }),
         parameters: type.parameters.map((parameter) => renameProviderParameterTypeParameters(parameter, nestedRenames)),
         returnType: renameProviderTypeExpressionTypeParameters(type.returnType, nestedRenames),
       };

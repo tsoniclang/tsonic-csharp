@@ -45,6 +45,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedSourceExportReason(Type type)
     {
+        if (!IsSourceIdentifier(ProviderSourceTypeName(type)))
+        {
+            return $"CLR type name '{MetadataName(type)}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         return IsDelegate(type) ? UnsupportedDelegateSourceShapeReason(type) : null;
     }
 

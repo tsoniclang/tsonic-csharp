@@ -201,6 +201,81 @@ test(".NET reflection request rejects different artifacts for one exact assembly
   assert.match(JSON.stringify(result.evidence), /resolves to multiple different explicit artifacts/u);
 });
 
+test(".NET reflection provider never synthesizes source aliases for invalid CLR member names", () => {
+  const { firstDll } = buildLoadContextFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["RecordValue"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const record = module.exports.find((entry) => entry.kind === "type" && entry.sourceName === "RecordValue");
+  assert.ok(record, JSON.stringify(module));
+  assert.equal(record.members?.some((member) => member.sourceName === "_Clone_$"), false);
+  assert.deepEqual(
+    record.unsupportedMembers?.filter((member) => member.targetName === "<Clone>$").map((member) => ({
+      sourceName: member.sourceName,
+      reason: member.reason,
+    })),
+    [{
+      sourceName: "<Clone>$",
+      reason: "CLR method name '<Clone>$' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.",
+    }],
+  );
+
+  const binding = createDotnetTargetBindingProvider({ provider });
+  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
+    containingFile: "record.ts",
+    requestedExports: ["RecordValue"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+  const declarationModel = binding.getDeclarationModel(resolution);
+  assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
+  const declaration = declarationModel.exports.find((entry) => entry.name === "RecordValue");
+  assert.ok(declaration, JSON.stringify(declarationModel));
+  assert.deepEqual(declaration.members?.map((member) => member.name), [
+    "constructor",
+    "Value",
+    "Deconstruct",
+    "Equals",
+    "GetHashCode",
+    "ToString",
+  ]);
+});
+
+test(".NET provider type families normalize positional type-parameter identity across CLR arities", () => {
+  const { firstDll } = buildLoadContextFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
+  const binding = createDotnetTargetBindingProvider({ provider });
+  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
+    containingFile: "family.ts",
+    requestedExports: ["Family"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = binding.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const family = model.exports
+    .filter((entry) => entry.sourceTypeFamily?.exportName === "Family")
+    .sort((left, right) => left.sourceTypeFamily.typeArgumentCount - right.sourceTypeFamily.typeArgumentCount);
+  assert.deepEqual(family.map((entry) => ({
+    arity: entry.sourceTypeFamily.typeArgumentCount,
+    parameters: entry.typeParameters?.map((parameter) => parameter.name) ?? [],
+  })), [
+    { arity: 0, parameters: [] },
+    { arity: 1, parameters: ["TFirst"] },
+    { arity: 2, parameters: ["TFirst", "TSecond"] },
+  ]);
+
+  const echo = family[1].members.find((member) => member.name === "Echo");
+  assert.ok(echo);
+  assert.deepEqual(echo.signatures.map((signature) => ({
+    parameters: signature.parameters.map((parameter) => parameter.type),
+    returnType: signature.returnType,
+  })), [{
+    parameters: [{ kind: "type-parameter", name: "TFirst" }],
+    returnType: { kind: "type-parameter", name: "TFirst" },
+  }]);
+});
+
 function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&
