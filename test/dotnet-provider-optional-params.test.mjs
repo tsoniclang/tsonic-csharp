@@ -36,7 +36,20 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   );
   assert.equal(rawParams.parameters[0].rest, undefined);
   assert.equal(rawParams.parameters[1].name, "arg");
-  assert.equal(rawParams.parameters[1].type.kind, "array");
+  assert.deepEqual(rawParams.parameters[1].type, {
+    kind: "nullable-reference",
+    elementType: {
+      kind: "array",
+      elementType: {
+        kind: "nullable-reference",
+        elementType: { kind: "object" },
+      },
+    },
+  });
+  assert.deepEqual(rawParams.parameters[1].sourceType, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
   assert.equal(rawParams.parameters[1].rest, true);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
@@ -55,6 +68,10 @@ test(".NET provider preserves optional and params-array facts from reflected mem
     "System.Console.WriteLine(System.String,System.Object[])",
   );
   assert.equal(sourceParams.parameters[1].rest, true);
+  assert.deepEqual(sourceParams.parameters[1].type, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
 
   const targetOptional = targetMember(
     provider,

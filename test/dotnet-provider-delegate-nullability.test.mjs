@@ -55,7 +55,7 @@ test(".NET provider projects closed delegate nullability from the member use sit
   assertCallbackNullability(create.signatures[0].returnType, false, true);
 });
 
-test(".NET provider preserves authored type parameters on open generic delegate declarations", () => {
+test(".NET provider preserves authored non-null type parameters on open generic delegate declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
   const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
     requestedExports: ["HeaderSelector"],
@@ -68,9 +68,138 @@ test(".NET provider preserves authored type parameters on open generic delegate 
   assert.equal(selector.kind, "class");
   assert.deepEqual(selector.typeParameters?.map((parameter) => parameter.name), ["TContext"]);
   assert.equal(selector.type?.kind, "function");
-  assert.equal(selector.type.parameters[1].type.kind, "union");
-  assert.deepEqual(selector.type.parameters[1].type.types.map((type) => type.kind), ["type-parameter", "undefined"]);
-  assert.equal(selector.type.parameters[1].type.types[0].name, "TContext");
+  assert.deepEqual(selector.type.parameters[1].type, {
+    kind: "type-parameter",
+    name: "TContext",
+  });
+});
+
+test(".NET provider distinguishes authored T from T? inside generic delegate use sites", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+    requestedExports: ["GenericCallbackHost"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const rawHost = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "GenericCallbackHost"
+  );
+  assert.ok(rawHost);
+  const rawPlain = requireRawMethod(rawHost, "Plain").signatures[0];
+  const rawNullable = requireRawMethod(rawHost, "Nullable").signatures[0];
+  assert.deepEqual(rawPlain.typeParameters?.map((parameter) => parameter.name), ["T"]);
+  assert.deepEqual(rawNullable.typeParameters?.map((parameter) => parameter.name), ["T"]);
+  assertGenericDelegateArgumentNullability(rawPlain.parameters[0].type, false, "named");
+  assertGenericDelegateArgumentNullability(rawNullable.parameters[0].type, true, "named");
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const host = declarationModel.exports.find((declaration) => declaration.name === "GenericCallbackHost");
+  assert.ok(host);
+  const plain = requireMethod(host, "Plain").signatures[0];
+  const nullable = requireMethod(host, "Nullable").signatures[0];
+  assertGenericDelegateArgumentNullability(plain.parameters[0].type, false, "target-named");
+  assertGenericDelegateArgumentNullability(nullable.parameters[0].type, true, "target-named");
+});
+
+test(".NET provider preserves non-null generic callback parameters in Queryable signatures", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {
+    requestedExports: ["Queryable"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const rawQueryable = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Queryable"
+  );
+  assert.ok(rawQueryable);
+  const rawOrderByDescending = requireRawMethod(rawQueryable, "OrderByDescending").signatures.find((signature) =>
+    signature.parameters.length === 2
+  );
+  assert.ok(rawOrderByDescending);
+  assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.typeArguments[0].sourceShape);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const queryable = declarationModel.exports.find((declaration) => declaration.name === "Queryable");
+  assert.ok(queryable);
+  const orderByDescending = requireMethod(queryable, "OrderByDescending").signatures.find((signature) =>
+    signature.parameters.length === 2
+  );
+  assert.ok(orderByDescending);
+  assert.equal(orderByDescending.parameters[1].type.kind, "target-named");
+  assert.equal(orderByDescending.parameters[1].type.sourceShape?.kind, "provider-ref");
+  assertGenericSelectorShape(orderByDescending.parameters[1].type.sourceShape.typeArguments[0]);
+});
+
+test(".NET provider separates nullable object inputs from non-null object inputs", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+    requestedExports: ["ObjectInputHost"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  const rawHost = module.exports.find((declaration) => declaration.sourceName === "ObjectInputHost");
+  assert.ok(rawHost);
+
+  const nonNullable = requireRawMethod(rawHost, "NonNullableObject").signatures[0].parameters[0];
+  assert.deepEqual(nonNullable.type, { kind: "object" });
+  assert.equal(nonNullable.sourceType, undefined);
+
+  const nullable = requireRawMethod(rawHost, "NullableObject").signatures[0].parameters[0];
+  assert.deepEqual(nullable.type, {
+    kind: "nullable-reference",
+    elementType: { kind: "object" },
+  });
+  assert.deepEqual(nullable.sourceType, { kind: "unknown" });
+
+  const nonNullableRest = requireRawMethod(rawHost, "NonNullableObjects").signatures[0].parameters[0];
+  assert.deepEqual(nonNullableRest.type, {
+    kind: "array",
+    elementType: { kind: "object" },
+  });
+  assert.equal(nonNullableRest.sourceType, undefined);
+  assert.equal(nonNullableRest.rest, true);
+
+  const nullableRest = requireRawMethod(rawHost, "NullableObjects").signatures[0].parameters[0];
+  assert.deepEqual(nullableRest.type, {
+    kind: "nullable-reference",
+    elementType: {
+      kind: "array",
+      elementType: {
+        kind: "nullable-reference",
+        elementType: { kind: "object" },
+      },
+    },
+  });
+  assert.deepEqual(nullableRest.sourceType, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
+  assert.equal(nullableRest.rest, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const host = declarationModel.exports.find((declaration) => declaration.name === "ObjectInputHost");
+  assert.ok(host);
+  assert.deepEqual(requireMethod(host, "NonNullableObject").signatures[0].parameters[0].type, { kind: "object" });
+  assert.deepEqual(requireMethod(host, "NullableObject").signatures[0].parameters[0].type, { kind: "unknown" });
+  assert.deepEqual(requireMethod(host, "NonNullableObjects").signatures[0].parameters[0].type, {
+    kind: "array",
+    elementType: { kind: "object" },
+  });
+  assert.deepEqual(requireMethod(host, "NullableObjects").signatures[0].parameters[0].type, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
+
+  const binding = provider.findTargetBindingByMetadataName(
+    "ProviderDelegateNullabilityFixtures.ObjectInputHost",
+  );
+  assert.ok(binding);
+  for (const member of binding.members) {
+    assert.equal(member.parameters[0].csharpAcceptsCheckedSourceArgument, true);
+  }
+  const nullableTarget = binding.members.find((member) => member.sourceName === "NullableObject");
+  assert.equal(nullableTarget.parameters[0].type.csharpNullableReference, true);
+  const nonNullableTarget = binding.members.find((member) => member.sourceName === "NonNullableObject");
+  assert.equal(nonNullableTarget.parameters[0].type.csharpNullableReference, undefined);
 });
 
 function requireMethod(declaration, name) {
@@ -105,6 +234,33 @@ function assertCallbackNullability(type, firstAllowsUndefined, secondAllowsUndef
   assert.equal(parameters.length, 2);
   assert.equal(allowsUndefined(parameters[0].type), firstAllowsUndefined);
   assert.equal(allowsUndefined(parameters[1].type), secondAllowsUndefined);
+}
+
+function assertGenericDelegateArgumentNullability(type, expectedNullable, expectedKind) {
+  assert.equal(type.kind, expectedKind);
+  assert.equal(type.sourceShape?.kind, "function");
+  const argumentType = type.typeArguments[0];
+  if (expectedKind === "named") {
+    assert.equal(argumentType.kind === "nullable-reference", expectedNullable);
+  }
+  const sourceArgumentType = type.sourceShape.parameters[0].sourceType ??
+    type.sourceShape.parameters[0].type;
+  assert.equal(allowsUndefined(sourceArgumentType), expectedNullable);
+  const authoredType = argumentType.kind === "nullable-reference" ? argumentType.elementType : argumentType;
+  assert.deepEqual(authoredType, { kind: "type-parameter", name: "T" });
+}
+
+function assertGenericSelectorShape(type) {
+  assert.equal(type.kind, "function");
+  assert.deepEqual(type.parameters[0].type, {
+    kind: "type-parameter",
+    name: "TSource",
+  });
+  assert.deepEqual(type.returnType, {
+    kind: "type-parameter",
+    name: "TKey",
+  });
+  assert.equal(type.parameters[0].sourceType, undefined);
 }
 
 function allowsUndefined(type) {

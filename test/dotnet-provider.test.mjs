@@ -306,8 +306,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
     elementType: { kind: "object" },
   });
   assert.deepEqual(rawFuncStateContinueWith.parameters[1].sourceType, {
-    kind: "union",
-    types: [{ kind: "object" }, { kind: "undefined" }],
+    kind: "unknown",
   });
   const targetTaskOfT = dotnetExportToTargetBinding(taskOfT);
   const targetContinueWithState = targetTaskOfT.members.find((member) =>
@@ -345,7 +344,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.deepEqual(closedContinueWithState.parameters[0].type.csharpDelegateSignature?.returnType, stringTargetType);
   assert.deepEqual(
     closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[0].typeArguments,
-    [{ ...stringTargetType, csharpNullableReference: true }],
+    [stringTargetType],
   );
   assert.equal(
     closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[1].csharpNullableReference,
@@ -400,8 +399,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.ok(actionStateContinueWith);
   assert.ok(funcStateContinueWith);
   assert.deepEqual(funcStateContinueWith.parameters[1].type, {
-    kind: "union",
-    types: [{ kind: "object" }, { kind: "undefined" }],
+    kind: "unknown",
   });
   const callbackSourceShape = funcStateContinueWith.parameters[0].type.sourceShape;
   assert.equal(callbackSourceShape?.kind, "function");

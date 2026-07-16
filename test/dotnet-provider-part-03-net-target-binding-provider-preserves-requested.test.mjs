@@ -331,9 +331,9 @@ test(".NET reflection provider records unsupported source events without droppin
     member.targetName === "PointerEvent"
   );
   assert.ok(rawPointerEvent);
-  assert.equal(rawPointerEvent.type.kind, "named");
-  assert.equal(rawPointerEvent.type.metadataName, "ProviderEventFixtures.PointerEventHandler");
-  assert.equal(rawPointerEvent.type.sourceShape, undefined);
+  assert.equal(rawPointerEvent.type.kind, "nullable-reference");
+  assert.equal(rawPointerEvent.type.elementType.metadataName, "ProviderEventFixtures.PointerEventHandler");
+  assert.equal(rawPointerEvent.type.elementType.sourceShape, undefined);
 
   const unsupportedPointerEvent = rawEventSource.unsupportedMembers?.find((member) =>
     member.kind === "unsupported-member" &&

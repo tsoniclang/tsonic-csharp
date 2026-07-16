@@ -23,3 +23,33 @@ public sealed class CallbackHost
         return (_, _) => "value";
     }
 }
+
+public static class GenericCallbackHost
+{
+    public static void Plain<T>(Func<T, string> callback)
+    {
+    }
+
+    public static void Nullable<T>(Func<T?, string> callback)
+    {
+    }
+}
+
+public static class ObjectInputHost
+{
+    public static void NonNullableObject(object value)
+    {
+    }
+
+    public static void NullableObject(object? value)
+    {
+    }
+
+    public static void NonNullableObjects(params object[] values)
+    {
+    }
+
+    public static void NullableObjects(params object?[]? values)
+    {
+    }
+}

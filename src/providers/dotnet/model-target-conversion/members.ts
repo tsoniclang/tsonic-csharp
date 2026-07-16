@@ -130,7 +130,9 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     name: parameter.name,
     type: dotnetTypeRefToTargetTypeRef(parameter.type),
     passingMode: parameter.passingMode,
-    ...(dotnetParameterTypeHasSourceProjection(parameter.sourceType ?? parameter.type) ? { csharpAcceptsCheckedSourceArgument: true as const } : {}),
+    ...(parameter.sourceType !== undefined || dotnetParameterTypeHasSourceProjection(parameter.type)
+      ? { csharpAcceptsCheckedSourceArgument: true as const }
+      : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.optional === true ? { csharpOmittableOptionalArgument: true as const } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),

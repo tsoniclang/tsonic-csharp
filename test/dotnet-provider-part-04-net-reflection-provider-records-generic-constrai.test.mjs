@@ -329,13 +329,7 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(predicate.type?.kind, "function");
   assert.deepEqual(predicate.type?.kind === "function"
     ? predicate.type.parameters.map((parameter) => [parameter.name, parameter.type])
-    : [], [["obj", {
-      kind: "union",
-      types: [
-        { kind: "type-parameter", name: "T" },
-        { kind: "undefined" },
-      ],
-    }]]);
+    : [], [["obj", { kind: "type-parameter", name: "T" }]]);
   assert.deepEqual(predicate.type?.kind === "function" ? predicate.type.returnType : undefined, {
     kind: "source-primitive",
     name: "bool",
@@ -422,6 +416,10 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
   const rawByRefModes = methodSignature(rawTarget, "ByRefModes", byRefModesId);
 
   assert.equal(stripAssemblyQualifiers(rawOptionalDefaults.id), optionalDefaultsId);
+  assert.deepEqual(rawOptionalDefaults.parameters[3].type, {
+    kind: "nullable-reference",
+    elementType: { kind: "string" },
+  });
   assert.deepEqual(parameterFacts(rawOptionalDefaults.parameters), [
     { name: "required", type: { kind: "string" }, passingMode: "by-value" },
     {
@@ -440,7 +438,7 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     },
     {
       name: "label",
-      type: { kind: "string" },
+      type: { kind: "nullable-reference" },
       passingMode: "by-value",
       optional: true,
       defaultValue: { kind: "null" },
