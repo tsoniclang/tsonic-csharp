@@ -110,7 +110,9 @@ function isObjectShapeFactRecordingCandidate(
 ): boolean {
   const kind = ast.kindName(node);
   return kind === "KindObjectLiteralExpression" ||
-    kind === "KindTypeLiteral";
+    kind === "KindTypeLiteral" ||
+    kind === "KindInterfaceDeclaration" ||
+    kind === "KindTypeAliasDeclaration";
 }
 
 function deriveCsharpObjectShapeFactForCanonicalSubject(

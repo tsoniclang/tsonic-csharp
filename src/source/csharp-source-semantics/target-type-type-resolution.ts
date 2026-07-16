@@ -136,6 +136,10 @@ export function resolveTargetTypeRefForTypeCore(
   if (declaredShape !== undefined) {
     return declaredShape.targetType;
   }
+  const objectShape = host.getCsharpObjectShapeFactForSubject(type, context);
+  if (objectShape !== undefined) {
+    return objectShape.targetType;
+  }
   const tuple = getTupleTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (tuple !== undefined) {
     return tuple;

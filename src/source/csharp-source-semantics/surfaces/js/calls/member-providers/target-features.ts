@@ -54,6 +54,8 @@ export interface ReceiverFeaturePredicateRequest {
 
 export interface ArgumentFeaturePredicateRequest {
   readonly argumentType: TargetTypeRef | undefined;
+  readonly argument?: CheckedCallMappingRequest["arguments"][number];
+  readonly context?: ExtensionObservationContext<"operation.mapCheckedCall">;
   readonly host: CsharpJsSurfaceHost;
 }
 
@@ -118,7 +120,7 @@ const targetFeaturePredicates: Record<JsSurfaceTargetFeature, TargetFeaturePredi
     },
   },
   "json-value": {
-    argument: ({ argumentType, host }) => isSupportedJsonValueTargetType(argumentType, host),
+    argument: ({ argument, argumentType, context, host }) => isSupportedJsonValueTargetType(argument, argumentType, context, host),
   },
   "object-helper": {
     argument: ({ argumentType, host }) => isSupportedObjectHelperSourceTargetType(argumentType, host),

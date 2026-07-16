@@ -212,6 +212,7 @@ export function csharpTargetTypeofComparisonOperation(
   runtimeKind: CsharpTypeofRuntimeKind,
   targetType: TargetTypeRef,
   negated: boolean,
+  compatRuntimeOperation: CsharpTargetMemberOperationFact,
   resultType?: TargetTypeRef,
 ): CsharpTargetOperationFact {
   return {
@@ -220,6 +221,7 @@ export function csharpTargetTypeofComparisonOperation(
     runtimeKind,
     targetType,
     negated,
+    compatRuntimeOperation,
     ...(resultType !== undefined ? { resultType } : {}),
   };
 }

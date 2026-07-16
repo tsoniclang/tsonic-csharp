@@ -26,10 +26,22 @@ export function targetMemberEquals(left: CsharpTargetMember | undefined, right: 
     && left.static === right.static
     && left.receiverPassing === right.receiverPassing
     && left.overloadGroup === right.overloadGroup
+    && left.csharpCallFinalization?.kind === right.csharpCallFinalization?.kind
+    && left.csharpCallFinalization?.argumentIndex === right.csharpCallFinalization?.argumentIndex
+    && left.csharpDeferredTargetSelection?.familyId === right.csharpDeferredTargetSelection?.familyId
+    && left.csharpDeferredTargetSelection?.variant === right.csharpDeferredTargetSelection?.variant
+    && stringArrayEquals(left.sourceIdentityKeys, right.sourceIdentityKeys)
     && targetTypeRefEquals(left.declaringType, right.declaringType)
     && targetTypeRefEquals(left.returnType, right.returnType)
     && targetParameterArrayEquals(left.parameters, right.parameters)
     && targetTypeParameterArrayEquals(left.typeParameters, right.typeParameters);
+}
+
+function stringArrayEquals(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  return left !== undefined && right !== undefined && left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function targetParameterArrayEquals(left: readonly CsharpTargetParameter[] | undefined, right: readonly CsharpTargetParameter[] | undefined): boolean {

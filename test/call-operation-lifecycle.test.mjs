@@ -88,6 +88,81 @@ test("selected call lifecycle records first-argument receiver operations from ex
   assert.equal(operation.selectedMember.receiverPassing, "first-argument");
 });
 
+test("selected call lifecycle closes a deferred target family to the native carrier implementation", () => {
+  const receiver = { Kind: "identifier" };
+  const call = { Kind: "call", Expression: { Kind: "property", Expression: receiver } };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const family = arraySliceTargetFamily();
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: csharpListTargetType() });
+  facts.set(call, selectedTargetSignatureFactKey, { member: family.canonical });
+  facts.set(call, csharpSelectedCallTargetFactKey, {
+    member: family.canonical,
+    selectionFamily: family.selection,
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.operationId, family.implementation.id);
+  assert.deepEqual(operation.selectedMember.parameters[0].type, csharpReadOnlyListTargetType());
+  assert.deepEqual(operation.resultType, csharpListTargetType());
+  assert.deepEqual(host.diagnostics.all(), []);
+});
+
+test("selected call lifecycle preserves the canonical target-family member for its exact carrier", () => {
+  const receiver = { Kind: "identifier" };
+  const call = { Kind: "call", Expression: { Kind: "property", Expression: receiver } };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const family = arraySliceTargetFamily();
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: csharpJsArrayTargetType() });
+  facts.set(call, selectedTargetSignatureFactKey, { member: family.canonical });
+  facts.set(call, csharpSelectedCallTargetFactKey, {
+    member: family.canonical,
+    selectionFamily: family.selection,
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.operationId, family.canonical.id);
+  assert.deepEqual(operation.resultType, csharpJsArrayTargetType());
+  assert.deepEqual(host.diagnostics.all(), []);
+});
+
+test("selected call lifecycle fails closed when a deferred target family has no finalized carrier", () => {
+  const receiver = { Kind: "identifier" };
+  const call = { Kind: "call", Expression: { Kind: "property", Expression: receiver } };
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [call] } };
+  const family = arraySliceTargetFamily();
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, { member: family.canonical });
+  facts.set(call, csharpSelectedCallTargetFactKey, {
+    member: family.canonical,
+    selectionFamily: family.selection,
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+  assert.deepEqual(host.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+    "CSHARP_SELECTED_CALL_TARGET_FAMILY_NOT_CLOSED",
+  ]);
+});
+
 test("selected call lifecycle rejects mismatched selected type argument facts", () => {
   const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
   const call = { Kind: 1 };
@@ -255,7 +330,10 @@ test("selected property lifecycle closes JS property operations from exact selec
     targetOperation: "length",
   });
   facts.set(property, csharpSelectedPropertyTargetFactKey, {
-    operationId: "tsonic.csharp.js.Array.length",
+    selection: {
+      kind: "deferred-target-operation",
+      operationId: "tsonic.csharp.js.Array.length",
+    },
   });
 
   const host = fakeObservationHost(facts);
@@ -377,6 +455,80 @@ function csharpStringTargetType() {
   };
 }
 
+function arraySliceTargetFamily() {
+  const familyId = "test.array.slice-family";
+  const implementation = {
+    id: "Test.Array.slice:native",
+    sourceName: "slice",
+    targetName: "slice",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    sourceIdentityKeys: ["Array.slice"],
+    parameters: [{ name: "array", type: csharpReadOnlyListTargetType(), passingMode: "by-value" }],
+    returnType: csharpListTargetType(),
+    csharpDeferredTargetSelection: { familyId, variant: "implementation" },
+  };
+  const canonical = {
+    ...implementation,
+    id: "Test.Array.slice:canonical",
+    parameters: [{ name: "array", type: csharpJsArrayTargetType(), passingMode: "by-value" }],
+    returnType: csharpJsArrayTargetType(),
+    csharpDeferredTargetSelection: { familyId, variant: "canonical" },
+  };
+  return {
+    implementation,
+    canonical,
+    selection: {
+      familyId,
+      sourceIdentity: "Array.slice",
+      members: [implementation, canonical],
+    },
+  };
+}
+
+function csharpListTargetType() {
+  const element = csharpInt32TargetType();
+  const type = {
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "List" },
+    csharpArrayLiteralElementType: element,
+    csharpEnumerableElementType: element,
+    csharpReadOnlyIndexableElementType: element,
+    csharpDenseMutableElementType: element,
+  };
+  return { ...type, csharpArrayLiteralConstructionType: type };
+}
+
+function csharpReadOnlyListTargetType() {
+  const element = csharpInt32TargetType();
+  return {
+    kind: "target-named",
+    id: "System.Collections.Generic.IReadOnlyList`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "IReadOnlyList" },
+    csharpArrayLiteralElementType: element,
+    csharpArrayLiteralConstructionType: csharpListTargetType(),
+    csharpEnumerableElementType: element,
+    csharpReadOnlyIndexableElementType: element,
+  };
+}
+
+function csharpJsArrayTargetType() {
+  const element = csharpInt32TargetType();
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.JSArray`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSArray" },
+    csharpArrayLiteralElementType: element,
+    csharpEnumerableElementType: element,
+    csharpReadOnlyIndexableElementType: element,
+  };
+}
+
 function firstArgumentReceiverMember() {
   const spanType = {
     kind: "target-named",
@@ -407,6 +559,7 @@ function fakeCompiler(sourceFiles) {
   return {
     getSourceFiles: () => sourceFiles,
     ast: {
+      getSourceFile: () => sourceFiles[0],
       children: (node) => node?.Statements?.Nodes ??
         (node?.Expression === undefined ? [] : [node.Expression]),
       typeArguments: () => [],
@@ -426,8 +579,17 @@ function fakeCompiler(sourceFiles) {
 }
 
 function fakeObservationHost(facts) {
+  const diagnostics = [];
   return {
     facts,
+    diagnostics: {
+      append(diagnostic) {
+        diagnostics.push(diagnostic);
+      },
+      all() {
+        return diagnostics;
+      },
+    },
     factResolver: {
       resolve(subject, key) {
         return facts.get(subject, key);

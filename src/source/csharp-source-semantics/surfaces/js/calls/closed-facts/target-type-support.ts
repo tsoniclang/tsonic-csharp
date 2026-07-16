@@ -1,4 +1,6 @@
 import type {
+  ExtensionFactSubject,
+  ExtensionObservationContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -17,9 +19,14 @@ import {
   isNumericSourcePrimitive,
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
+import {
+  jsonTargetTypeHasClosedObjectShape,
+} from "../../json-shape-serialization.js";
 
 export function isSupportedJsonValueTargetType(
+  subject: ExtensionFactSubject | undefined,
   type: TargetTypeRef | undefined,
+  context: ExtensionObservationContext | undefined,
   host: CsharpJsSurfaceHost,
 ): boolean {
   return type !== undefined &&
@@ -28,9 +35,9 @@ export function isSupportedJsonValueTargetType(
       isNumericSourcePrimitive(type) ||
       (type.kind === "source-primitive" && type.name === "bool") ||
       isCsharpJsObjectCarrierTargetType(type) ||
-      isCsharpJsArrayCarrierTargetType(type) ||
       isCsharpJsJsonValueTargetType(type) ||
-      isStringKeyedRecordDictionaryTargetType(type, host)
+      isStringKeyedRecordDictionaryTargetType(type, host) ||
+      (context !== undefined && jsonTargetTypeHasClosedObjectShape(subject, type, context, host))
     );
 }
 

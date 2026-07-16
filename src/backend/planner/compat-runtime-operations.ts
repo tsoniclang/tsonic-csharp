@@ -25,6 +25,7 @@ import {
   getRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
+  csharpTypeArgumentsFromTargetOperation,
   csharpStaticMemberExpression,
 } from "./csharp-target-operations.js";
 import type {
@@ -40,7 +41,10 @@ export function tryPlanCompatRuntimePropertyGet(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!isOpaqueAnyReceiver(receiverNode, sourceFile, input)) {
+  if (
+    !isCompatRuntimeReceiver(receiverNode, sourceFile, input) ||
+    !hasClosedCompatRuntimeMemberOperation(operationNode, input)
+  ) {
     return undefined;
   }
   return planCompatRuntimeReceiverOperation(operationNode, receiverNode, optional, [], "C# compat-runtime any property get", sourceFile, input, diagnostics, planExpression);
@@ -195,6 +199,27 @@ function planCompatRuntimeStaticOperation(
   if (operation === undefined) {
     return undefined;
   }
+  return planClosedCompatRuntimeStaticOperation(operationNode, operation, argumentNodes, purpose, sourceFile, input, diagnostics, planExpression);
+}
+
+export function planClosedCompatRuntimeStaticOperation(
+  operationNode: Node,
+  operation: CsharpTargetMemberOperationFact,
+  argumentNodes: readonly (Node | undefined)[],
+  purpose: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (readCsharpTypescriptCompatibilityMode(input.target) !== "compat") {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `${purpose} is only valid when the C# target selects typescriptCompatibility: "compat".`));
+    return undefined;
+  }
+  if (!isClosedCompatRuntimeOperation(operation)) {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `${purpose} requires a closed TsValue/TsObject/TsArray/TsFunction carrier in the finalized C# operation fact.`));
+    return undefined;
+  }
   if (operation.operationKind !== "method") {
     diagnostics.push(unsupportedNodeDiagnostic(operationNode, `${purpose} requires a finalized static method operation fact, but provider recorded '${operation.operationKind}'.`));
     return undefined;
@@ -267,12 +292,17 @@ function planCompatRuntimeMethodInvocation(
   if (arguments_ === undefined) {
     return undefined;
   }
+  const typeArguments = csharpTypeArgumentsFromTargetOperation(operation, diagnostics, operationNode, purpose);
+  if (typeArguments === undefined) {
+    return undefined;
+  }
   return {
     kind: "InvocationExpression",
     callee: {
       kind: optional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
       receiver,
       name: requireCsharpIdentifier(operation.memberName, diagnostics, `${purpose} method member`),
+      ...(typeArguments.length === 0 ? {} : { typeArguments }),
     },
     arguments: arguments_,
   };
@@ -368,6 +398,15 @@ function isOpaqueAnyReceiver(
   input: TargetCompileInput,
 ): boolean {
   return isCsharpAnyRuntimeCarrier(getRuntimeCarrierForExpression(input, receiverNode, sourceFile));
+}
+
+function isCompatRuntimeReceiver(
+  receiverNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const carrier = getRuntimeCarrierForExpression(input, receiverNode, sourceFile);
+  return isCsharpAnyRuntimeCarrier(carrier) || isCsharpClosedCompatRuntimeCarrier(carrier);
 }
 
 function isCompatRuntimeCallableReceiver(

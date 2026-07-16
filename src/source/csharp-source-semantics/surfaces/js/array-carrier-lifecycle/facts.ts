@@ -142,6 +142,7 @@ function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly Extensio
     parameter.name,
     parameter.typeNode,
     parameter.symbol,
+    ...parameter.sourceUses.map((use) => use.node),
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
@@ -150,6 +151,7 @@ function arrayRuntimeCarrierSubjects(parameter: ArrayParameterAnalysis): readonl
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     parameter.name,
     parameter.symbol,
+    ...parameter.sourceUses.map((use) => use.node),
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
@@ -161,6 +163,7 @@ function arrayLocalFactSubjects(local: ArrayLocalAnalysis, lifecycleContext: Lif
     arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
+    ...local.sourceUses.map((use) => use.node),
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
@@ -172,6 +175,7 @@ function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleCo
     arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
+    ...local.sourceUses.map((use) => use.node),
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }

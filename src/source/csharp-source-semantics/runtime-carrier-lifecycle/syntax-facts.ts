@@ -1,6 +1,7 @@
 import {
   selectedTargetSignatureFactKey,
   runtimeCarrierFactKey,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
@@ -9,6 +10,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpTargetOperationFactKey,
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import {
@@ -124,6 +126,11 @@ function getClosedSyntaxRuntimeCarrier(
   node: Node,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
+  const finalizedOperationCarrier = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey)?.resultType ??
+    lifecycleContext.host.factResolver.resolve(node, csharpTargetOperationFactKey)?.resultType;
+  if (finalizedOperationCarrier !== undefined && targetTypeRefIsClosed(finalizedOperationCarrier)) {
+    return finalizedOperationCarrier;
+  }
   const carrier = host.getTargetTypeRefForSubject(
     node,
     createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
@@ -132,9 +139,14 @@ function getClosedSyntaxRuntimeCarrier(
       allowSemanticTypeQuery: false,
     },
   );
-  return carrier === undefined || !targetTypeRefIsClosed(carrier)
+  if (carrier !== undefined && targetTypeRefIsClosed(carrier)) {
+    return carrier;
+  }
+  const convertedCarrier = lifecycleContext.host.facts.get(node, targetConversionFactKey)?.convertedType ??
+    lifecycleContext.host.factResolver.resolve(node, targetConversionFactKey)?.convertedType;
+  return convertedCarrier === undefined || !targetTypeRefIsClosed(convertedCarrier)
     ? undefined
-    : carrier;
+    : convertedCarrier;
 }
 
 function isObjectShapeRuntimeCarrierSyntaxNode(

@@ -53,6 +53,31 @@ test("inferred local declarations use finalized initializer carrier resolution",
   assert.equal(output.name, "values");
   assert.equal(printCsharpType(output.type), "System.Collections.Generic.List<int>");
 });
+test("asserted local declarations use finalized physical conversion carriers instead of structural source syntax", () => {
+  const diagnostics = [];
+  const sourceValue = identifier("parsed");
+  const assertedType = { Kind: "KindTypeLiteral", Members: { Nodes: [] } };
+  const initializer = {
+    Kind: "KindAsExpression",
+    Expression: sourceValue,
+    Type: assertedType,
+  };
+  const declaration = {
+    Kind: KindVariableDeclaration,
+    name: identifier("value"),
+    Initializer: initializer,
+  };
+  const carrier = csharpTsValueTargetType();
+
+  const output = planLocalDeclaration(declaration, sourceFile, fakeInput({
+    targetConversionFacts: new Map([[initializer, { convertedType: carrier }]]),
+    runtimeCarrierFacts: new Map([[initializer, { carrier }]]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.name, "value");
+  assert.equal(printCsharpType(output.type), "Tsonic.CSharp.Js.TsValue");
+});
 test("switch statements diagnose non-constant labels instead of inventing C# lowering", () => {
   const diagnostics = [];
   const statement = switchStatement(identifier("value"), [

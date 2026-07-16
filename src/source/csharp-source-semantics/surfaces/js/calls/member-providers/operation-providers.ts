@@ -30,8 +30,13 @@ import {
   collectionTargetTypeForSelectedIdentity,
 } from "../../collections.js";
 import {
+  deferredJsonObjectShapeStringifyTargetMembers,
+  jsonObjectShapeStringifyTargetMembers,
   jsonRecordDictionaryStringifyTargetMembers,
 } from "../../json.js";
+import {
+  jsonSerializableObjectShapeForSubject,
+} from "../../json-shape-serialization.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../../../dictionaries.js";
@@ -50,8 +55,8 @@ import {
 } from "../../selected-target-member-metadata.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
+  getSourceLibraryCallReceiverClosedTargetTypes,
   getSourceLibraryCallReceiverElementType,
-  getSourceLibraryCallReceiverTargetTypes,
   getSourceLibraryCallResultTargetType,
   isStringKeyedRecordDictionaryTargetType,
   isNewExpression,
@@ -190,13 +195,13 @@ function targetMembersFromSelectedMetadata(
         return [];
       }
       return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
-        contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
+        contextualDeclaringType: getSourceLibraryCallReceiverClosedTargetTypes(request.request, request.context)[0],
         contextualElementType,
       });
     }
     case "closed-keyed-collection":
       return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
-        contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
+        contextualDeclaringType: getSourceLibraryCallReceiverClosedTargetTypes(request.request, request.context)[0],
         contextualResultType: selection.useResultCarrier
           ? getExplicitCollectionConstructorResultType(request) ??
             getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
@@ -255,6 +260,8 @@ function targetMembersFromRuntimeHelperSelection(
       return getObjectRecordDictionaryAssignMembers(request.request, request.context, request.host);
     case "record-dictionary-json-stringify":
       return getJsonRecordDictionaryStringifyCallMembers(request);
+    case "object-shape-json-stringify":
+      return getJsonObjectShapeStringifyCallMembers(request);
   }
 }
 
@@ -267,6 +274,34 @@ function getJsonRecordDictionaryStringifyCallMembers(
   return dictionaryType === undefined
     ? []
     : jsonRecordDictionaryStringifyTargetMembers(dictionaryType);
+}
+
+function getJsonObjectShapeStringifyCallMembers(
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly CsharpTargetMember[] {
+  const argument = request.request.arguments[0];
+  const argumentType = getSourceLibraryCallArgumentTargetTypes(request.request, request.context, request.host)[0];
+  const objectShape = jsonSerializableObjectShapeForSubject(argument, argumentType, request.context, request.host);
+  if (objectShape !== undefined) {
+    return jsonObjectShapeStringifyTargetMembers(objectShape.targetType);
+  }
+  if (argumentType === undefined) {
+    return deferredJsonObjectShapeStringifyTargetMembers();
+  }
+  return argumentType?.kind === "target-named" && argumentTypeMayAcquireObjectShape(argumentType, request)
+    ? jsonObjectShapeStringifyTargetMembers(argumentType)
+    : [];
+}
+
+function argumentTypeMayAcquireObjectShape(
+  argumentType: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+  request: JsSurfaceCallTargetProviderRequest,
+): boolean {
+  return !request.host.isCsharpStringType(argumentType) &&
+    argumentType.id !== "Tsonic.CSharp.Js.JSObject" &&
+    argumentType.id !== "Tsonic.CSharp.Js.TsValue" &&
+    argumentType.id !== "Tsonic.CSharp.Js.JSArray`1" &&
+    !isStringKeyedRecordDictionaryTargetType(argumentType, request.host);
 }
 
 function targetMembersFromSemanticException(

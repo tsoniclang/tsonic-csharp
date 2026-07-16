@@ -30,6 +30,21 @@ export function compatAnyPropertyReadOperation(propertyName: string): CsharpTarg
   ]);
 }
 
+export function compatStructuralPropertyReadOperation(
+  operationId: string,
+  propertyName: string,
+  resultType: TargetTypeRef,
+): CsharpTargetMemberOperationFact {
+  if (resultType.kind === "target-named" && resultType.id === "Tsonic.CSharp.Js.TsValue") {
+    return compatRuntimeMethodOperation(operationId, "ReadCompatSlot", [
+      { kind: "literal", value: propertyName },
+    ]);
+  }
+  return compatRuntimeMethodOperation(operationId, "ReadCompatSlotAs", [
+    { kind: "literal", value: propertyName },
+  ], resultType, [resultType]);
+}
+
 export function compatAnyPropertyWriteOperation(propertyName: string): CsharpTargetMemberOperationFact {
   return compatRuntimeMethodOperation(`tsonic.csharp.compat.any.property-write:${propertyName}`, "WriteCompatSlot", [
     { kind: "literal", value: propertyName },
@@ -74,6 +89,9 @@ export function compatAnyBinaryOperatorOperation(operator: string): CsharpTarget
 }
 
 export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetMemberOperationFact | undefined {
+  if (operator === "typeof") {
+    return compatRuntimeTypeofOperation();
+  }
   const memberName = compatUnaryOperatorRuntimeMember(operator);
   if (memberName === undefined) {
     return undefined;
@@ -83,6 +101,12 @@ export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetM
     { kind: "source-argument", index: 0 },
     ...(compatUnaryOperatorRuntimeMemberRequiresOperatorLiteral(memberName) ? [{ kind: "literal" as const, value: operator }] : []),
   ], resultType);
+}
+
+export function compatRuntimeTypeofOperation(): CsharpTargetMemberOperationFact {
+  return compatRuntimeStaticMethodOperation("tsonic.csharp.compat.operator:typeof", "ApplyCompatTypeof", [
+    { kind: "source-argument", index: 0 },
+  ], csharpStringTargetType());
 }
 
 export function compatAnyTypedBoundaryCastOperation(targetType: TargetTypeRef): CsharpTargetMemberOperationFact {
@@ -207,6 +231,8 @@ function compatRuntimeMethodOperation(
   operationId: string,
   memberName: string,
   argumentProjection: readonly CsharpTargetOperationArgument[],
+  resultType: TargetTypeRef = tsValueType,
+  typeArguments: readonly TargetTypeRef[] = [],
 ): CsharpTargetMemberOperationFact {
   return {
     kind: "member",
@@ -214,7 +240,8 @@ function compatRuntimeMethodOperation(
     operationKind: "method",
     memberName,
     declaringType: tsValueType,
-    resultType: tsValueType,
+    resultType,
+    ...(typeArguments.length === 0 ? {} : { typeArguments }),
     argumentProjection,
   };
 }

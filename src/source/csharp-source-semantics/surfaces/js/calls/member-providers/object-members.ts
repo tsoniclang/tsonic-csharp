@@ -31,7 +31,7 @@ import type {
 } from "../../../../dictionaries.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
-  getSourceLibraryCallReceiverTargetTypes,
+  getSourceLibraryCallReceiverClosedTargetTypes,
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
 import type {
@@ -68,7 +68,7 @@ export function getObjectPrimitiveReceiverCallMembers(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
+  const receiverTypes = getSourceLibraryCallReceiverClosedTargetTypes(request, context);
   const row = objectPrimitiveReceiverToStringRows.find((candidate) =>
     receiverTypes.some((receiverType) => jsSurfaceReceiverMatchesTargetFeature(candidate.receiverFeature, {
       receiverType,

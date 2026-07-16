@@ -5,6 +5,7 @@ import type {
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -84,8 +85,23 @@ interface JsonStaticMethodMetadataRow {
   readonly targetName: string;
   readonly parameters: readonly ReturnType<typeof targetParameter>[];
   readonly returnType: TargetTypeRef;
+  readonly typeParameters?: readonly TargetTypeParameter[];
   readonly semanticException?: JsonSemanticExceptionMetadata;
+  readonly csharpCallFinalization?: JsSurfaceTargetMemberMetadata["csharpCallFinalization"];
+  readonly csharpDeferredTargetSelection?: JsSurfaceTargetMemberMetadata["csharpDeferredTargetSelection"];
 }
+
+const jsonObjectShapeStringifySelectionFamilyId = "tsonic.csharp.js.json.stringify.closed-object-shape";
+
+const closedJsonValueFinalization = {
+  kind: "closed-json-value",
+  argumentIndex: 0,
+} as const;
+
+const closedJsonObjectShapeFinalization = {
+  kind: "closed-json-object-shape",
+  argumentIndex: 0,
+} as const;
 
 export function csharpJsJsonValueTargetType(): TargetTypeRef {
   return jsonValueTargetType;
@@ -104,11 +120,62 @@ export function jsonRecordDictionaryStringifyTargetMembers(
     targetName: "stringify",
     parameters: [targetParameter("value", dictionaryType)],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
     semanticException: {
       reason: "JSON.stringify accepts closed string-keyed Record dictionary carriers through the JSON runtime shim.",
       provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized string-keyed Record dictionary carrier facts.",
       capabilityId: "surface.js.math-json-regexp",
       requiredFacts: ["selected JSON.stringify source signature", "closed string-keyed Record dictionary argument carrier", "JSON.stringify dictionary runtime metadata row"],
+    },
+  })].map(jsSurfaceTargetMemberFromMetadata);
+}
+
+export function jsonObjectShapeStringifyTargetMembers(
+  objectShapeTargetType: TargetTypeRef,
+): readonly ReturnType<typeof jsSurfaceTargetMemberFromMetadata>[] {
+  const identity = objectShapeTargetType.kind === "target-named"
+    ? objectShapeTargetType.id
+    : JSON.stringify(objectShapeTargetType);
+  return [jsonStaticMethodMetadata({
+    id: `Tsonic.CSharp.Js.JSON.stringify:object-shape:${identity}`,
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", objectShapeTargetType, {
+      csharpAcceptsClosedSourceArgument: true,
+    })],
+    returnType: stringTargetType,
+    csharpCallFinalization: closedJsonObjectShapeFinalization,
+    csharpDeferredTargetSelection: {
+      familyId: jsonObjectShapeStringifySelectionFamilyId,
+      variant: "implementation",
+    },
+    semanticException: {
+      reason: "JSON.stringify accepts a compiler-proven closed object shape through generated no-reflection JSON writer code.",
+      provenance: "Selected Tsonic JS source-profile JSON.stringify declaration with finalized object-shape members and target carriers.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.stringify source signature", "closed object-shape argument fact", "generated JSON writer contract"],
+    },
+  })].map(jsSurfaceTargetMemberFromMetadata);
+}
+
+export function deferredJsonObjectShapeStringifyTargetMembers(): readonly ReturnType<typeof jsSurfaceTargetMemberFromMetadata>[] {
+  const deferredType: TargetTypeRef = {
+    kind: "type-parameter",
+    name: "TJsonObjectShape",
+  };
+  return [jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:deferred-object-shape",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", deferredType, {
+      csharpAcceptsCheckedSourceArgument: true,
+    })],
+    returnType: stringTargetType,
+    typeParameters: [{ name: "TJsonObjectShape" }],
+    csharpCallFinalization: closedJsonObjectShapeFinalization,
+    csharpDeferredTargetSelection: {
+      familyId: jsonObjectShapeStringifySelectionFamilyId,
+      variant: "canonical",
     },
   })].map(jsSurfaceTargetMemberFromMetadata);
 }
@@ -168,6 +235,7 @@ function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetM
     returnType: row.returnType,
     declaringType: jsonRuntimeType,
     static: true,
+    ...(row.typeParameters === undefined ? {} : { typeParameters: row.typeParameters }),
     capabilityId: "surface.js.math-json-regexp",
     requiredFacts: [
       "selected source declaration/signature identity",
@@ -176,6 +244,8 @@ function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetM
     ],
     semanticEquivalence: "Selected Tsonic.CSharp.Js.JSON runtime member preserves ECMAScript JSON operation semantics for closed JSON carriers.",
     ...(row.semanticException === undefined ? {} : { semanticException: row.semanticException }),
+    ...(row.csharpCallFinalization === undefined ? {} : { csharpCallFinalization: row.csharpCallFinalization }),
+    ...(row.csharpDeferredTargetSelection === undefined ? {} : { csharpDeferredTargetSelection: row.csharpDeferredTargetSelection }),
   };
 }
 
@@ -199,6 +269,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", stringTargetType)],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
   }),
   jsonStaticMethodMetadata({
     id: "Tsonic.CSharp.Js.JSON.stringify:number",
@@ -206,6 +277,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", numberTargetType)],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
   }),
   jsonStaticMethodMetadata({
     id: "Tsonic.CSharp.Js.JSON.stringify:bool",
@@ -213,6 +285,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", boolTargetType)],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
   }),
   jsonStaticMethodMetadata({
     id: "Tsonic.CSharp.Js.JSON.stringify:object",
@@ -220,6 +293,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", csharpJsObjectCarrierTargetType())],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
     semanticException: {
       reason: "JSON.stringify accepts the closed JSObject carrier through the JSON runtime shim.",
       provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized JSObject carrier facts.",
@@ -233,6 +307,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType))],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
     semanticException: {
       reason: "JSON.stringify accepts the closed JSArray carrier through the JSON runtime shim.",
       provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized JSArray carrier facts.",
@@ -246,6 +321,7 @@ const jsonTargetMemberMetadata = [
     targetName: "stringify",
     parameters: [targetParameter("value", jsonValueTargetType)],
     returnType: stringTargetType,
+    csharpCallFinalization: closedJsonValueFinalization,
     semanticException: {
       reason: "JSON.stringify preserves the closed TsValue carrier produced by JSON.parse.",
       provenance: "Selected Tsonic JS source-profile JSON.stringify overload with finalized TsValue carrier facts.",

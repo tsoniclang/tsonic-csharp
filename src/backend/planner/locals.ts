@@ -1,5 +1,6 @@
 import {
   AsAsExpression,
+  AsTypeReferenceNode,
   AsTypeAssertion,
   AsVariableDeclaration,
   HasSourceKind,
@@ -8,6 +9,7 @@ import {
   KindBinaryExpression,
   KindFunctionExpression,
   KindNewExpression,
+  KindTypeReference,
 } from "./source-ast.js";
 import {
   targetOperationFactKey,
@@ -171,8 +173,17 @@ function getInitializerTypeSubject(
   }
   const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
   const assertedTarget = assertion?.Type;
+  if (assertedTarget !== undefined && isConstAssertionType(assertedTarget, input)) {
+    return assertion?.Expression;
+  }
+  if (
+    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
+    input.facts.getFact(initializer, csharpTargetOperationFactKey)?.resultType !== undefined
+  ) {
+    return initializer;
+  }
   if (assertedTarget !== undefined) {
-    return isConstAssertionType(assertedTarget, input) ? assertion?.Expression : assertedTarget;
+    return assertedTarget;
   }
   if (HasSourceKind(input.ast, initializer, KindArrowFunction) || HasSourceKind(input.ast, initializer, KindFunctionExpression)) {
     return initializer;
@@ -192,7 +203,11 @@ function isConstAssertionType(
   node: Node,
   input: TargetCompileInput,
 ): boolean {
-  const name = input.ast.name(node) ?? getTypeReferenceName(node);
+  const name = input.ast.name(node) ?? (
+    HasSourceKind(input.ast, node, KindTypeReference)
+      ? AsTypeReferenceNode(node)?.TypeName
+      : undefined
+  );
   return name !== undefined && input.ast.text(name) === "const";
 }
 
@@ -206,9 +221,4 @@ function getConstAssertionInitializerType(
     return undefined;
   }
   return getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(assertion.Expression, { sourceFile }), sourceFile, input);
-}
-
-function getTypeReferenceName(node: Node): Node | undefined {
-  const value = Object.getOwnPropertyDescriptor(node, "TypeName")?.value;
-  return typeof value === "object" && value !== null ? value as Node : undefined;
 }

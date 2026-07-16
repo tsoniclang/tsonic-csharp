@@ -18,13 +18,21 @@ export function getSemanticTypeForObjectShapeSubject(
   if (compiler === undefined || node === undefined) {
     return undefined;
   }
-  if (isControlFlowLabelIdentifier(compiler.ast, node)) {
+  const kind = compiler.ast.kindName(node);
+  const declarationName = kind === "KindInterfaceDeclaration" || kind === "KindTypeAliasDeclaration"
+    ? asNodeSubject(compiler.ast.name(node))
+    : undefined;
+  if (declarationName !== undefined) {
+    return compiler.checker.getTypeAtLocation(declarationName, { sourceFile });
+  }
+  const queryNode = node;
+  if (queryNode === undefined || isControlFlowLabelIdentifier(compiler.ast, queryNode)) {
     return undefined;
   }
-  if (isTypeSyntaxNode(compiler.ast, node)) {
-    return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+  if (isTypeSyntaxNode(compiler.ast, queryNode)) {
+    return compiler.checker.getTypeFromTypeNode(queryNode, { sourceFile });
   }
-  return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
-    ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+  return isSemanticTypeQueryableValueExpressionNode(compiler.ast, queryNode)
+    ? compiler.checker.getTypeAtLocation(queryNode, { sourceFile })
     : undefined;
 }

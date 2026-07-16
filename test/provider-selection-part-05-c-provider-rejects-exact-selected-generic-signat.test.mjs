@@ -441,6 +441,48 @@ test("C# provider accepts literal arguments for exact selected target signatures
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
+test("C# provider accepts representable literals for exact nullable target parameters", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const literalArgument = { Kind: 1, Text: "1" };
+  const nullableInt32 = csharpNullableValueTargetType({ kind: "source-primitive", name: "int32" });
+  const signatureId = "Example.Target.m(System.Nullable<System.Int32>)";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [method(signatureId, nullableInt32)],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [literalArgument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      artifactFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId,
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, signatureId);
+});
 test("C# provider does not search target members outside the selected provider overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};

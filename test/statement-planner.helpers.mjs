@@ -312,7 +312,7 @@ export function fakeInput(options = {}) {
     facts: {
       getDefaultValueFact: () => undefined,
       getArgumentPassingFact: (subject) => options.argumentPassingFacts?.get(subject),
-      getTargetConversionFact: () => undefined,
+      getTargetConversionFact: (subject) => options.targetConversionFacts?.get(subject),
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
       getSelectedTargetCall: () => undefined,
@@ -433,6 +433,7 @@ export function providerReadOnlyIndexableTargetType(elementType) {
 export const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  name: (node) => node?.name ?? node?.Name,
   text: (node) => String(node?.Text ?? ""),
   children: (node) => node?.Declarations?.Nodes ?? [],
   hasModifier: () => false,

@@ -96,6 +96,21 @@ export interface CsharpTargetParameter extends TargetParameter {
   readonly csharpOmittableOptionalArgument?: true;
 }
 
+export type CsharpCallFinalizationRequirement =
+  | {
+      readonly kind: "closed-json-value";
+      readonly argumentIndex: number;
+    }
+  | {
+      readonly kind: "closed-json-object-shape";
+      readonly argumentIndex: number;
+    };
+
+export interface CsharpDeferredTargetSelection {
+  readonly familyId: string;
+  readonly variant: "canonical" | "implementation";
+}
+
 export interface CsharpTargetTypeParameter extends TargetTypeParameter {
   readonly unsupportedConstraints?: readonly unknown[];
 }
@@ -113,6 +128,8 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly providerSourceSignatureId?: string;
   readonly sourceIdentityKeys?: readonly string[];
+  readonly csharpCallFinalization?: CsharpCallFinalizationRequirement;
+  readonly csharpDeferredTargetSelection?: CsharpDeferredTargetSelection;
 }
 
 export interface CsharpTargetConversionOperatorFact {

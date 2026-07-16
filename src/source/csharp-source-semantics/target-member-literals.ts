@@ -21,6 +21,7 @@ import {
 } from "./target-rules.js";
 import {
   getCsharpArrayLiteralElementTargetType,
+  getCsharpNullableElementTargetType,
 } from "./target-types.js";
 
 export function isLiteralRepresentableAsTargetType(
@@ -32,6 +33,10 @@ export function isLiteralRepresentableAsTargetType(
   const node = asNodeSubject(subject);
   if (ast === undefined || node === undefined) {
     return false;
+  }
+  const nullableElement = getCsharpNullableElementTargetType(expected);
+  if (nullableElement !== undefined) {
+    return isLiteralRepresentableAsTargetType(nullableElement, subject, context);
   }
   const kind = ast.kindName(node);
   if (kind === "KindArrayLiteralExpression") {

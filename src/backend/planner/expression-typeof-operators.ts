@@ -46,8 +46,12 @@ import {
   getBinaryRight,
 } from "./expression-binary-operands.js";
 import {
+  planClosedCompatRuntimeStaticOperation,
   tryPlanCompatRuntimeUnaryOperator,
 } from "./compat-runtime-operations.js";
+import {
+  isCsharpClosedCompatRuntimeCarrier,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function planTypeofExpression(
   node: Node,
@@ -155,6 +159,26 @@ export function tryPlanTypeofComparisonExpression(
   );
   if (runtimeUnionTest !== undefined) {
     return runtimeUnionTest;
+  }
+  if (operandCarrier !== undefined && isCsharpClosedCompatRuntimeCarrier(operandCarrier)) {
+    const runtimeTypeof = planClosedCompatRuntimeStaticOperation(
+      expression,
+      comparison.compatRuntimeOperation,
+      [operand],
+      "C# compat-runtime typeof comparison",
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+    );
+    return runtimeTypeof === undefined
+      ? undefined
+      : {
+          kind: "BinaryExpression",
+          left: runtimeTypeof,
+          operatorToken: { kind: comparison.negated ? "ExclamationEqualsToken" : "EqualsEqualsToken" },
+          right: { kind: "LiteralExpression", value: comparison.runtimeKind },
+        };
   }
   return {
     kind: "IsPatternExpression",

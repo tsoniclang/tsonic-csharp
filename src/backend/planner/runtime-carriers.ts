@@ -10,6 +10,9 @@ import {
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
+import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
 import {
@@ -50,8 +53,10 @@ export function getTargetTypeRefForNode(
       typeReferenceFact ??
       probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   }
+  const finalizedOperationResult = input.facts.getFact(sourceNode, csharpTargetOperationFactKey)?.resultType;
   const resolvedCarrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   return typeReferenceFact ??
+    finalizedOperationResult ??
     resolvedCarrier ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??

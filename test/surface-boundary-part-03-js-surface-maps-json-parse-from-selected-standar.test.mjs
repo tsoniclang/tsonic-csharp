@@ -1,5 +1,6 @@
 import { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy, createCsharpJsSurfaceOperationsProvider, arrayLengthRequest, arrayLengthDeclaration, arrayMemberDeclaration, arrayConstructorDeclaration, sourceLibraryMemberDeclaration, namespaceImportSourceFile, fakeNamespaceImportContext, sourceLibraryPropertyRequest, fakeNodeSubject, fakeHost, fakeContext, fakeAstIs, createCsharpSession, sourceProfileFiles, declarationFiles, fakeTargetPack, collectNodesByKind, collectFactValues, collectAllNodes, jsCallRequest, jsCallRequestWithoutSignature, fakeCallCallee, selectedSourceLibrarySignature, nodejsCallRequest, nodejsCallRequestWithoutSignature, nodejsPropertyRequest, nodejsVirtualDeclaration, nodejsVirtualMemberDeclaration, int32Type, float64Type, boolType, nullishType, stringType, regexpType, dateType, jsObjectType, tsValueType, jsArrayType, jsMapType, jsSetType, int32ArrayType, int32EnumerableType, int32ReadOnlyListType, genericSystemCollectionType, recordDictionaryType, surfaceObjectShapeFact, dictionaryBinding, actionOfInt32Type, funcInt32ToStringType, TestFactStore } from "./surface-boundary.helpers.mjs";
 import { mapCsharpJsArrayMutationOperator } from "../dist/source/csharp-source-semantics/surfaces/js/array-mutations.js";
+import { csharpSelectedCallTargetFactKey } from "../dist/source/csharp-facts.js";
 
 test("JS surface maps JSON.parse from selected Tsonic JS source-profile declaration and closed string facts", () => {
   const call = {};
@@ -69,7 +70,12 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
   assert.equal(facts.get(parseCall, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
   assert.equal(stringifyResult.kind, "accept");
   assert.equal(stringifyResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
-  assert.equal(facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  assert.equal(facts.get(stringifyCall, csharpTargetOperationFactKey), undefined);
+  assert.equal(facts.get(stringifyCall, csharpSelectedCallTargetFactKey)?.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  assert.deepEqual(facts.get(stringifyCall, csharpSelectedCallTargetFactKey)?.finalizationRequirement, {
+    kind: "closed-json-value",
+    argumentIndex: 0,
+  });
 });
 test("JS surface defers JSON.stringify without closed JSON value carrier facts until finalization", () => {
   const call = {};

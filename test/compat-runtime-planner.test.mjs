@@ -18,6 +18,7 @@ import {
   KindNewExpression,
   KindNumericLiteral,
   KindPropertyAccessExpression,
+  KindStringLiteral,
   KindTypeOfExpression,
   KindVoidExpression,
 } from "../dist/backend/planner/source-ast.js";
@@ -26,7 +27,7 @@ import {
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
-  csharpSourceOwnedSelectedSignatureFact,
+  csharpSourceOwnedTargetSignatureSelection,
 } from "../dist/source/csharp-source-semantics/source-owned-selected-signature.js";
 
 test("compat any property get renders only from finalized closed carrier operation facts", () => {
@@ -264,6 +265,44 @@ test("compat any operators render static runtime helper calls from finalized ope
   assert.equal(printCsharpExpression(voidOutput), "Tsonic.CSharp.Js.TsValue.ApplyCompatVoid(value)");
 });
 
+test("typeof comparisons over closed TsValue carriers use only the fact-declared compat runtime operation", () => {
+  const value = identifier("value");
+  const typeOf = typeOfExpression(value);
+  const comparison = binary(typeOf, stringLiteral("string"), "KindExclamationEqualsEqualsToken");
+  const operation = {
+    kind: "typeof-comparison",
+    operationId: "tsonic.csharp.typeof.not-string",
+    runtimeKind: "string",
+    targetType: stringCarrier(),
+    negated: true,
+    compatRuntimeOperation: compatRuntimeStaticOperation(
+      "tsonic.csharp.compat.operator:typeof",
+      "ApplyCompatTypeof",
+      [{ kind: "source-argument", index: 0 }],
+      stringCarrier(),
+    ),
+  };
+  const facts = {
+    runtimeCarriers: new Map([[value, { carrier: tsValueCarrier() }]]),
+    selectedOperators: new Map([[comparison, selectedOperator(operation.operationId, "typeof-comparison")]]),
+    operations: new Map([[comparison, operation]]),
+  };
+  const diagnostics = [];
+  const output = planExpression(comparison, {}, fakeInput(facts), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), 'Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(value) != "string"');
+
+  const strictDiagnostics = [];
+  const strictOutput = planExpression(comparison, {}, fakeInput({
+    ...facts,
+    target: { id: "csharp", options: { typescriptCompatibility: "strict-native" } },
+  }), strictDiagnostics);
+  assert.equal(strictOutput, undefined);
+  assert.equal(strictDiagnostics.length, 1);
+  assert.match(strictDiagnostics[0].message, /only valid when the C# target selects typescriptCompatibility: "compat"/u);
+});
+
 test("source-owned selected call facts bypass provider-call ownership gates", () => {
   const handler = identifier("handler");
   const call = callExpression(handler, []);
@@ -279,7 +318,7 @@ test("source-owned selected call facts bypass provider-call ownership gates", ()
         },
       },
     }]]),
-    selectedCalls: new Map([[call, csharpSourceOwnedSelectedSignatureFact({})]]),
+    selectedCalls: new Map([[call, csharpSourceOwnedTargetSignatureSelection({})]]),
   }), diagnostics);
 
   assert.deepEqual(diagnostics, []);
@@ -292,7 +331,7 @@ test("source-owned selected member calls render invocation callees without prope
   const call = callExpression(member, []);
   const diagnostics = [];
   const output = planExpression(call, {}, fakeInput({
-    selectedCalls: new Map([[call, csharpSourceOwnedSelectedSignatureFact({})]]),
+    selectedCalls: new Map([[call, csharpSourceOwnedTargetSignatureSelection({})]]),
   }), diagnostics);
 
   assert.deepEqual(diagnostics, []);
@@ -535,6 +574,10 @@ function voidExpression(expression) {
 
 function numeric(text) {
   return { Kind: KindNumericLiteral, Text: text };
+}
+
+function stringLiteral(text) {
+  return { Kind: KindStringLiteral, Text: text };
 }
 
 const fakeAst = {

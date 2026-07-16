@@ -37,15 +37,19 @@ import {
   acceptSourceLibraryCheckedCall,
 } from "./operations.js";
 import {
+  selectDeferredCanonicalSourceLibraryCallMember,
   selectSourceLibraryCallMember,
 } from "./selection.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
-  getSourceLibraryCallReceiverTargetTypes,
+  getSourceLibraryCallReceiverClosedTargetTypes,
 } from "./helpers.js";
 import {
   getCsharpCheckedCallRequestContext,
 } from "../../../checked-call-request-context.js";
+import {
+  csharpTargetMemberFact,
+} from "../../../target-types.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -81,10 +85,19 @@ export function mapCsharpSourceLibraryCheckedCall(
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
   if (closedFactsStatus.kind !== "satisfied") {
     if (canWaitForFinalizedFacts) {
-      const deferredMember = selectedMember ?? (candidates.length === 1 ? candidates[0] : undefined);
+      const deferredCanonicalMember = selectDeferredCanonicalSourceLibraryCallMember(
+        candidates,
+        request,
+        context,
+        host,
+        sourceLibraryMemberIdentity(sourceMember),
+      );
+      const deferredMember = selectedMember ??
+        deferredCanonicalMember ??
+        (candidates.length === 1 ? candidates[0] : undefined);
       return deferredMember === undefined
         ? rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host)
-        : acceptDeferredSourceLibraryCheckedCall(request, sourceMember, deferredMember, context);
+        : acceptDeferredSourceLibraryCheckedCall(request, sourceMember, deferredMember, candidates, context);
     }
     return closedFactsStatus.kind === "missing" &&
       closedFactsStatus.reason === "argument" &&
@@ -100,7 +113,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   }
   const member = selectedMember;
   if (member === undefined) {
-    if (targetMemberSelectionRequiresReceiverFacts(candidates, request, context, host)) {
+    if (targetMemberSelectionRequiresReceiverFacts(candidates, request, context)) {
       if (canWaitForFinalizedFacts) {
         return undefined;
       }
@@ -123,6 +136,9 @@ export function mapCsharpSourceLibraryCheckedCall(
       argumentTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
     });
   }
+  if (csharpTargetMemberFact(member)?.csharpCallFinalization !== undefined) {
+    return acceptDeferredSourceLibraryCheckedCall(request, sourceMember, member, candidates, context);
+  }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
 }
 
@@ -138,12 +154,11 @@ function targetMemberSelectionRequiresReceiverFacts(
   candidates: readonly ReturnType<typeof getSourceLibraryCallMembers>[number][],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
 ): boolean {
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   return requestContext.calleeReceiver !== undefined &&
     candidates.some((candidate) => candidate.receiverPassing === "first-argument") &&
-    getSourceLibraryCallReceiverTargetTypes(request, context, host).length === 0;
+    getSourceLibraryCallReceiverClosedTargetTypes(request, context).length === 0;
 }
 
 function getSourceLibraryCallMissingArgumentFactIndex(

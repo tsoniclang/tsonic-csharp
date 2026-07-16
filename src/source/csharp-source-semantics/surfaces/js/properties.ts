@@ -126,7 +126,10 @@ function mapCsharpSourceLibraryPropertyOperation(
       return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
     }
     context.facts.set(request.expression, csharpSelectedPropertyTargetFactKey, {
-      operationId: deferredOperation.operationId,
+      selection: {
+        kind: "deferred-target-operation",
+        operationId: deferredOperation.operationId,
+      },
     }, [{ message: `C# retained selected JS property identity '${sourceLibraryMemberIdentity(sourceMember)}' until receiver carrier finalization.` }]);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(

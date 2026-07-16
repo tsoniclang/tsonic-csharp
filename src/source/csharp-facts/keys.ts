@@ -16,6 +16,7 @@ import type {
   CsharpArrayCarrierFact,
   CsharpAttributeApplicationFact,
   CsharpByrefStorageFact,
+  CsharpJsonSerializableShapeFact,
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
   CsharpRegularExpressionLiteralFact,
@@ -36,6 +37,12 @@ export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShape
     && objectShapeMemberArrayEquals(left.members, right.members)
     && targetTypeRefArrayEquals(left.implements, right.implements)
     && left.constructible === right.constructible,
+});
+
+export const csharpJsonSerializableShapeFactKey = defineExtensionFactKey<CsharpJsonSerializableShapeFact>({
+  extensionId: "tsonic.csharp",
+  name: "jsonSerializableShape",
+  equals: (left, right) => left.kind === right.kind,
 });
 
 export const csharpTargetNameFactKey = defineExtensionFactKey<CsharpTargetNameFact>({
@@ -94,13 +101,43 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
 export const csharpSelectedCallTargetFactKey = defineExtensionFactKey<CsharpSelectedCallTargetFact>({
   extensionId: "tsonic.csharp",
   name: "selectedCallTarget",
-  equals: (left, right) => targetMemberEquals(left.member, right.member),
+  equals: (left, right) => targetMemberEquals(left.member, right.member)
+    && left.finalizationRequirement?.kind === right.finalizationRequirement?.kind
+    && left.finalizationRequirement?.argumentIndex === right.finalizationRequirement?.argumentIndex
+    && left.selectionFamily?.familyId === right.selectionFamily?.familyId
+    && left.selectionFamily?.sourceIdentity === right.selectionFamily?.sourceIdentity
+    && targetMemberArrayEquals(left.selectionFamily?.members, right.selectionFamily?.members),
 });
+
+function targetMemberArrayEquals(
+  left: readonly CsharpSelectedCallTargetFact["member"][] | undefined,
+  right: readonly CsharpSelectedCallTargetFact["member"][] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((member, index) => targetMemberEquals(member, right[index]));
+}
 
 export const csharpSelectedPropertyTargetFactKey = defineExtensionFactKey<CsharpSelectedPropertyTargetFact>({
   extensionId: "tsonic.csharp",
   name: "selectedPropertyTarget",
-  equals: (left, right) => left.operationId === right.operationId,
+  equals: (left, right) => {
+    if (left.selection.kind !== right.selection.kind) {
+      return false;
+    }
+    if (left.selection.kind === "deferred-target-operation" && right.selection.kind === "deferred-target-operation") {
+      return left.selection.operationId === right.selection.operationId;
+    }
+    return left.selection.kind === "structural-compat-property" &&
+      right.selection.kind === "structural-compat-property" &&
+      left.selection.propertyName === right.selection.propertyName &&
+      left.selection.sourceSelectedDeclaration === right.selection.sourceSelectedDeclaration &&
+      left.selection.sourceResultType === right.selection.sourceResultType;
+  },
 });
 
 export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({

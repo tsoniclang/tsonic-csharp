@@ -44,6 +44,7 @@ export function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact,
         && left.runtimeKind === right.runtimeKind
         && targetTypeRefEquals(left.targetType, right.targetType)
         && left.negated === right.negated
+        && csharpTargetMemberOperationFactEquals(left.compatRuntimeOperation, right.compatRuntimeOperation)
         && targetTypeRefEquals(left.resultType, right.resultType);
     case "cast":
       return right.kind === "cast"

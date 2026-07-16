@@ -9,6 +9,11 @@ import {
   renderObjectShapeMembers,
   renderObjectShapeTypeParameters,
 } from "./object-shape-declarations.js";
+import {
+  csharpJsonValueInterfaceType,
+  objectShapeRequiresJsonSerialization,
+  renderJsonSerializableObjectShapeMethod,
+} from "./json-object-shapes.js";
 
 export {
   objectShapeStorageMemberName,
@@ -103,8 +108,9 @@ function registerObjectShapeDeclaration(
     return;
   }
   const existing = registry.declarations.get(name);
+  const jsonSerializable = objectShapeRequiresJsonSerialization(input, fact);
   if (existing !== undefined) {
-    if (!objectShapeDeclarationMatches(existing, fact)) {
+    if (!objectShapeDeclarationMatches(existing, fact, jsonSerializable)) {
       const message = `Object-shape carrier '${name}' was requested with incompatible finalized members. Structural carriers must have stable unique target identities.`;
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
@@ -132,8 +138,10 @@ function registerObjectShapeDeclaration(
     name,
     modifiers: ["public"],
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
-    ...(interfaces.length === 0 ? {} : { interfaces }),
-    members,
+    ...(interfaces.length === 0 && !jsonSerializable
+      ? {}
+      : { interfaces: jsonSerializable ? [...interfaces, csharpJsonValueInterfaceType()] : interfaces }),
+    members: jsonSerializable ? [...members, renderJsonSerializableObjectShapeMethod(fact)] : members,
   });
   registry.declarationOwners.set(name, registry.activeOwner);
 }

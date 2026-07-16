@@ -24,6 +24,9 @@ import {
   sourcePrimitiveRuntimeKind,
   unwrapNullableTargetType,
 } from "./target-rules.js";
+import {
+  compatRuntimeTypeofOperation,
+} from "./compat-runtime-operation-model.js";
 
 export function getTypeofComparisonOperation(
   request: CheckedOperatorMappingRequest,
@@ -45,7 +48,7 @@ export function getTypeofComparisonOperation(
   const operationId = `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`;
   return {
     operation: targetOperation(operationId, "operator", "typeof-comparison"),
-    csharpOperation: csharpTargetTypeofComparisonOperation(operationId, rightKind, targetType, negated),
+    csharpOperation: csharpTargetTypeofComparisonOperation(operationId, rightKind, targetType, negated, compatRuntimeTypeofOperation()),
   };
 }
 

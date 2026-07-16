@@ -17,6 +17,9 @@ import {
   csharpSourceReturnCarrierFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
+import type {
+  CsharpSelectedPropertyTargetFact,
+} from "../csharp-facts.js";
 import {
   getAstReaderChildNodes,
   asNodeSubject,
@@ -27,8 +30,10 @@ import {
 } from "./operations.js";
 import {
   csharpNullableReferenceTargetType,
+  csharpTsValueTargetType,
   csharpTargetMemberFact,
   csharpTargetBindingFact,
+  isCsharpClosedCompatRuntimeCarrier,
 } from "./target-types.js";
 import {
   isCsharpSourceOwnedSelectedSignature,
@@ -37,9 +42,12 @@ import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
-  targetTypeRefEquals,
+  asType,
   targetMemberIsClosed,
 } from "./target-ref-utils.js";
+import {
+  targetTypeMatchesExpected,
+} from "./target-member-arguments/type-matching.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
@@ -54,7 +62,14 @@ import {
 } from "./surfaces/js/properties/member-providers/index.js";
 import {
   getCsharpArrayBoundaryCoreCarrier,
+  getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./surfaces/js/array-boundary-facts.js";
+import {
+  finalizeSelectedCallTargetMember,
+} from "./selected-call-finalization.js";
+import {
+  compatStructuralPropertyReadOperation,
+} from "./compat-runtime-operation-model.js";
 
 type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpOperationsProviderHost;
 
@@ -123,8 +138,19 @@ function walkSelectedPropertyOperationFacts(
   const selectedPropertyTarget = lifecycleContext.host.facts.get(node, csharpSelectedPropertyTargetFactKey) ??
     lifecycleContext.host.factResolver.resolve(node, csharpSelectedPropertyTargetFactKey);
   if (selectedPropertyTarget !== undefined) {
+    if (selectedPropertyTarget.selection.kind === "structural-compat-property") {
+      recordSelectedStructuralCompatPropertyOperation(
+        lifecycleContext,
+        node,
+        operation.operationId,
+        receiverTargetType,
+        selectedPropertyTarget.selection,
+        host,
+      );
+      return;
+    }
     const selectedMember = getCsharpJsSourceLibraryDeferredPropertyMemberForOperation(
-      selectedPropertyTarget.operationId,
+      selectedPropertyTarget.selection.operationId,
       receiverTargetType,
     );
     if (selectedMember === undefined || !targetMemberIsClosed(selectedMember)) {
@@ -155,6 +181,37 @@ function walkSelectedPropertyOperationFacts(
     csharpTargetOperationFactKey,
     csharpTargetOperationFromMember(selectedMember),
     [{ message: "C# selected property operation finalized from checked TSTS target operation and finalized receiver carrier facts." }],
+  );
+}
+
+function recordSelectedStructuralCompatPropertyOperation(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  property: Node,
+  operationId: string,
+  receiverTargetType: TargetTypeRef,
+  selection: Extract<CsharpSelectedPropertyTargetFact["selection"], { readonly kind: "structural-compat-property" }>,
+  host: CsharpFinalizedCallOperationHost,
+): void {
+  if (!isCsharpClosedCompatRuntimeCarrier(receiverTargetType)) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const semanticResultType = selection.sourceResultType === undefined
+    ? undefined
+    : host.getTargetTypeRefForSubject(selection.sourceResultType, context, { allowRuntimeCarrier: false });
+  const selectedSourceType = asType(selection.sourceResultType);
+  const resultType = semanticResultType ??
+    (selectedSourceType !== undefined && lifecycleContext.compiler?.typeShape.isUnknown(selectedSourceType) === true
+      ? csharpTsValueTargetType()
+      : undefined);
+  if (resultType === undefined) {
+    return;
+  }
+  lifecycleContext.host.facts.set(
+    property,
+    csharpTargetOperationFactKey,
+    compatStructuralPropertyReadOperation(operationId, selection.propertyName, resultType),
+    [{ message: "C# structural property operation finalized from exact TSTS-selected declaration evidence and the closed compat receiver carrier." }],
   );
 }
 
@@ -192,9 +249,13 @@ function walkSelectedCallOperationFacts(
   if (selectedMember.receiverPassing === "first-argument" && selectedCallTarget === undefined) {
     return;
   }
-  const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
+  const finalizedSelectedMember = finalizeSelectedCallTargetMember(lifecycleContext, node, selectedCallTarget, selectedMember, host);
+  if (finalizedSelectedMember === undefined) {
+    return;
+  }
+  const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, finalizedSelectedMember);
   const member = instantiateSelectedTargetMember({
-    member: selectedMember,
+    member: finalizedSelectedMember,
     ...(selectedSignature.targetTypeArguments === undefined ? {} : { targetTypeArguments: selectedSignature.targetTypeArguments }),
   }, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
@@ -267,13 +328,23 @@ function selectedFirstArgumentReceiverIsClosed(
     return false;
   }
   const receiverCarrier = lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+    getCsharpArrayBoundaryCoreCarrierForReference(
+      receiver,
+      createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    ) ??
     lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier;
   if (receiverCarrier === undefined) {
     return false;
   }
-  return targetTypeRefEquals(receiverCarrier, receiverParameter.type) ||
-    (host.getAssignableTargetTypeRefs?.(receiverCarrier) ?? [])
-      .some((candidate) => targetTypeRefEquals(candidate, receiverParameter.type));
+  return targetTypeMatchesExpected(
+    receiverParameter.type,
+    receiverCarrier,
+    new Map(),
+    {
+      getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+      getAssignableTargetTypeRefs: host.getAssignableTargetTypeRefs,
+    },
+  );
 }
 
 function recordSourceOwnedCallReturnCarrierFact(
@@ -330,7 +401,11 @@ function getSelectedCallDeclaringTargetType(
   if (receiver === undefined) {
     return member.declaringType;
   }
-  return lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
+  return getCsharpArrayBoundaryCoreCarrierForReference(
+    receiver,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+  ) ??
+    lifecycleContext.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
     lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
     member.declaringType;
 }

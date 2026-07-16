@@ -5,6 +5,9 @@ import {
   consoleTargetMembersBySourceIdentity,
 } from "../../console.js";
 import {
+  globalTargetMemberIdentityIndex,
+} from "../../globals.js";
+import {
   jsonTargetMemberIdentityIndex,
 } from "../../json.js";
 import {
@@ -134,6 +137,22 @@ const unsupportedObjectShapeMutationIdentityPolicy = {
 } as const satisfies JsSurfaceSourceIdentitySelector;
 
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
+  operationRowFromMetadataIndex(
+    {
+      ids: [
+        "Global.parseInt",
+        "Global.parseFloat",
+        "Global.isNaN",
+        "Global.isFinite",
+        "Global.setTimeout",
+        "Global.clearTimeout",
+        "Global.setInterval",
+        "Global.clearInterval",
+      ],
+    },
+    globalTargetMemberIdentityIndex,
+    { capabilityId: "surface.js.global-functions", requiredFacts: selectedSignatureProviderFacts },
+  ),
   {
     identity: { ids: ["Global.eval"] },
     policyKind: "unsupported",
@@ -283,6 +302,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     targetProviders: [
       metadataIndexProvider(jsonTargetMemberIdentityIndex),
       runtimeHelperProvider({ kind: "record-dictionary-json-stringify" }),
+      runtimeHelperProvider({ kind: "object-shape-json-stringify" }),
     ],
   },
   {

@@ -41,6 +41,10 @@ export interface CsharpObjectShapeFact {
   readonly constructible?: boolean;
 }
 
+export interface CsharpJsonSerializableShapeFact {
+  readonly kind: "closed-object-shape";
+}
+
 export interface CsharpTargetNameFact {
   readonly name: string;
 }
@@ -172,10 +176,26 @@ export interface CsharpByrefStorageFact {
 
 export interface CsharpSelectedCallTargetFact {
   readonly member: CsharpTargetMember;
+  readonly finalizationRequirement?: CsharpTargetMember["csharpCallFinalization"];
+  readonly selectionFamily?: {
+    readonly familyId: string;
+    readonly sourceIdentity: string;
+    readonly members: readonly CsharpTargetMember[];
+  };
 }
 
 export interface CsharpSelectedPropertyTargetFact {
-  readonly operationId: string;
+  readonly selection:
+    | {
+        readonly kind: "deferred-target-operation";
+        readonly operationId: string;
+      }
+    | {
+        readonly kind: "structural-compat-property";
+        readonly propertyName: string;
+        readonly sourceSelectedDeclaration: ExtensionFactSubject;
+        readonly sourceResultType?: ExtensionFactSubject;
+      };
 }
 
 export type CsharpTargetOperationFact =
@@ -243,6 +263,7 @@ export interface CsharpTargetTypeofComparisonOperationFact {
   readonly runtimeKind: CsharpTypeofRuntimeKind;
   readonly targetType: TargetTypeRef;
   readonly negated: boolean;
+  readonly compatRuntimeOperation: CsharpTargetMemberOperationFact;
   readonly resultType?: TargetTypeRef;
 }
 

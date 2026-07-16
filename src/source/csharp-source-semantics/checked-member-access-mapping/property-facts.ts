@@ -12,6 +12,7 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
+  csharpSelectedPropertyTargetFactKey,
   resolveCsharpObjectShapeMemberBySelectedSubject,
 } from "../../csharp-facts.js";
 import {
@@ -87,10 +88,35 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
     return undefined;
   }
   const operation = sourceOwnedPropertyOperation(request.propertyName);
+  if (selectedPropertyBelongsToStructuralSourceType(asNodeSubject(requestContext.sourceSelectedDeclarationContainer), context)) {
+    context.facts.set(request.expression, csharpSelectedPropertyTargetFactKey, {
+      selection: {
+        kind: "structural-compat-property",
+        propertyName: request.propertyName,
+        sourceSelectedDeclaration: selectedDeclaration,
+        ...(request.sourceResultType === undefined ? {} : { sourceResultType: request.sourceResultType }),
+      },
+    }, [{ message: "C# retained the exact TSTS-selected structural property until finalized receiver-carrier selection." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation,
+    }, [{ message: "C# structural source property was accepted from exact TSTS-selected declaration evidence; target dispatch is finalized from the receiver carrier." }]);
+  }
   recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
   }, [{ message: "C# source-owned property access accepted from TSTS-selected project source declaration; backend renders source syntax without provider target-member facts." }]);
+}
+
+function selectedPropertyBelongsToStructuralSourceType(
+  declarationContainer: ReturnType<typeof asNodeSubject> | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (declarationContainer === undefined || ast === undefined) {
+    return false;
+  }
+  const kind = ast.kindName(declarationContainer);
+  return kind === "KindTypeLiteral" || kind === "KindInterfaceDeclaration";
 }
 
 export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(

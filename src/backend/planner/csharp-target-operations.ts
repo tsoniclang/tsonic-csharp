@@ -16,6 +16,7 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
+  csharpSelectedCallTargetFactKey,
   csharpTargetConversionOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
@@ -148,7 +149,8 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a closed selected C# member in the finalized operation fact.`));
     return undefined;
   }
-  if (operation.selectedMember.id !== selectedSignature.member.id) {
+  const selectedFamilyMatches = selectedCallTargetFamilyMatchesOperation(input, subject, selectedSignature, operation);
+  if (operation.selectedMember.id !== selectedSignature.member.id && !selectedFamilyMatches) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
@@ -157,7 +159,7 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a C# selected target member fact for '${selectedSignature.member.id}'.`));
     return undefined;
   }
-  const mismatch = targetMembersHaveCompatibleSourceSelectedSignature(selectedMember, operation.selectedMember)
+  const mismatch = selectedFamilyMatches || targetMembersHaveCompatibleSourceSelectedSignature(selectedMember, operation.selectedMember)
     ? undefined
     : getSelectedMemberEmissionFactMismatch(selectedMember, operation.selectedMember) ?? "signature-shape";
   if (mismatch !== undefined) {
@@ -187,11 +189,40 @@ export function getRequiredCsharpTargetOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# target operation fact; the generic selected target member '${selectedSignature.member.id}' is not enough for C# emission.`));
     return undefined;
   }
-  if (operation.operationId !== selectedSignature.member.id) {
+  if (operation.operationId !== selectedSignature.member.id && !selectedCallTargetFamilyMatchesOperation(input, subject, selectedSignature, operation)) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation facts: generic selected member '${selectedSignature.member.id}', C# '${operation.operationId}'.`));
     return undefined;
   }
   return operation;
+}
+
+function selectedCallTargetFamilyMatchesOperation(
+  input: TargetCompileInput,
+  subject: Node,
+  selectedSignature: SelectedTargetSignatureFact,
+  operation: CsharpTargetOperationFact,
+): boolean {
+  if (operation.kind !== "member" || operation.selectedMember === undefined) {
+    return false;
+  }
+  const selectedCallTarget = input.facts.getFact(subject, csharpSelectedCallTargetFactKey);
+  const family = selectedCallTarget?.selectionFamily;
+  const selectedSourceMember = csharpTargetMemberFact(selectedSignature.member);
+  const operationSelection = operation.selectedMember.csharpDeferredTargetSelection;
+  if (
+    selectedCallTarget === undefined ||
+    family === undefined ||
+    selectedSourceMember === undefined ||
+    operationSelection?.familyId !== family.familyId ||
+    !targetMembersHaveCompatibleSourceSelectedSignature(selectedSourceMember, selectedCallTarget.member) ||
+    operation.selectedMember.sourceIdentityKeys?.includes(family.sourceIdentity) !== true
+  ) {
+    return false;
+  }
+  const knownFamilyMember = family.members.some((candidate) =>
+    candidate.id === operation.selectedMember?.id &&
+    candidate.csharpDeferredTargetSelection?.familyId === family.familyId);
+  return knownFamilyMember || selectedCallTarget.finalizationRequirement !== undefined;
 }
 
 function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, actual: CsharpTargetMember): string | undefined {

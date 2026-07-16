@@ -33,11 +33,24 @@ export {
 import type {
   CsharpTargetNamedTypeRef,
 } from "./target-types.js";
+import {
+  asTargetTypeRef,
+} from "./target-ref-utils.js";
+import {
+  getRecordedCsharpObjectShapeFactByTargetType,
+} from "./object-shape-facts/recording.js";
 
 export function getRecordedCsharpObjectShapeFactForSubject(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): CsharpObjectShapeFact | undefined {
+  const targetType = asTargetTypeRef(subject);
+  if (targetType !== undefined) {
+    const canonicalTargetShape = getRecordedCsharpObjectShapeFactByTargetType(targetType, context);
+    if (canonicalTargetShape !== undefined) {
+      return canonicalTargetShape;
+    }
+  }
   if (subjectIsSourceCoreStructDeclarationPayload(subject, context)) {
     return undefined;
   }

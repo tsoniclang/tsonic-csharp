@@ -475,6 +475,15 @@ interface Console {
 }
 declare var console: Console;
 
+declare function parseInt(value: string, radix?: number): number;
+declare function parseFloat(value: string): number;
+declare function isNaN(value: number): boolean;
+declare function isFinite(value: number): boolean;
+declare function setTimeout(callback: () => void, delay?: number): number;
+declare function clearTimeout(id: number): void;
+declare function setInterval(callback: () => void, delay: number): number;
+declare function clearInterval(id: number): void;
+
 interface ProxyConstructor {
   new <T extends object>(target: T, handler: object): T;
   revocable<T extends object>(target: T, handler: object): { proxy: T; revoke: () => void };

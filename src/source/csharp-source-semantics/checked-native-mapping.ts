@@ -44,6 +44,7 @@ import {
   getCsharpCollectionElementTargetType,
   getCsharpDelegateSignature,
   isCsharpAnyRuntimeCarrier,
+  isCsharpClosedCompatRuntimeCarrier,
 } from "./target-types.js";
 import {
   getCompatAnyTypedBoundaryConversion,
@@ -172,6 +173,12 @@ export function mapCsharpCheckedConversion(
   }
   const source = conversionEvidence.source;
   const target = conversionEvidence.target;
+  const structuralCompatAssertion = request.conversionKind === "assertion"
+    ? mapCsharpClosedCompatStructuralAssertion(request, context, compatibilityMode)
+    : undefined;
+  if (structuralCompatAssertion !== undefined) {
+    return structuralCompatAssertion;
+  }
   if (target === undefined) {
     return deferObservation;
   }
@@ -274,6 +281,38 @@ export function mapCsharpCheckedConversion(
   }, [{ message: request.conversionKind === "assertion"
     ? `C# target conversion recorded from checked ${request.assertionKind} assertion source and target evidence.`
     : "C# target conversion recorded from checked call argument and selected target parameter." }]);
+}
+
+function mapCsharpClosedCompatStructuralAssertion(
+  request: Extract<CheckedConversionMappingRequest, { readonly conversionKind: "assertion" }>,
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
+): ExtensionObservation<CheckedConversionMappingResult> | undefined {
+  const ast = context.compiler?.ast;
+  const explicitTarget = asNodeSubject(request.explicitTargetTypeNode);
+  if (
+    compatibilityMode !== "compat" ||
+    ast === undefined ||
+    explicitTarget === undefined ||
+    !ast.is.IsTypeLiteralNode(explicitTarget)
+  ) {
+    return undefined;
+  }
+  const sourceOperationType = context.facts.get(request.sourceExpression, csharpTargetOperationFactKey)?.resultType ??
+    context.factResolver.resolve(request.sourceExpression, csharpTargetOperationFactKey)?.resultType;
+  const sourceCarrier = context.facts.get(request.sourceExpression, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.sourceExpression, runtimeCarrierFactKey)?.carrier ??
+    sourceOperationType;
+  if (sourceCarrier === undefined || !isCsharpClosedCompatRuntimeCarrier(sourceCarrier)) {
+    return undefined;
+  }
+  const evidence = [{
+    message: "C# compat structural assertion preserves the exact closed runtime carrier selected for the source expression; TSTS-selected structural members remain compile-time evidence.",
+  }];
+  context.facts.set(request.expression, runtimeCarrierFactKey, { carrier: sourceCarrier }, evidence);
+  return acceptObservation<CheckedConversionMappingResult>({
+    convertedType: sourceCarrier,
+  }, evidence);
 }
 
 function mapCsharpAnyAssertionConversion(

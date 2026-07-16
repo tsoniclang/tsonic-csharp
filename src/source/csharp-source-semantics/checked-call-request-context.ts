@@ -7,7 +7,6 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
-  getNodeField,
   getNodeParent,
   getPropertyAccessName,
 } from "./ast-utils.js";
@@ -36,9 +35,7 @@ export function getCsharpCheckedCallRequestContext(
     };
   }
   const calleeSymbol = request.sourceSelectedCalleeSymbol;
-  const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
-    ? asNodeSubject(getNodeField(callee, "Expression"))
-    : undefined;
+  const calleeReceiver = getCsharpCheckedCallCalleeReceiver(request, context);
   const receiverSourceFile = calleeReceiver === undefined ? undefined : compiler.ast.getSourceFile(calleeReceiver as Node);
   const calleeReceiverType = calleeReceiver === undefined
     ? undefined
@@ -63,6 +60,18 @@ export function getCsharpCheckedCallRequestContext(
     ...(calleeSymbol !== undefined ? { calleeSymbol } : {}),
     ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
   };
+}
+
+export function getCsharpCheckedCallCalleeReceiver(
+  request: Pick<CheckedCallMappingRequest, "callee">,
+  context: Pick<ExtensionObservationContext, "compiler">,
+): ExtensionFactSubject | undefined {
+  const compiler = context.compiler;
+  const callee = asNodeSubject(request.callee);
+  if (compiler === undefined || callee === undefined || !compiler.ast.is.IsPropertyAccessExpression(callee)) {
+    return undefined;
+  }
+  return asNodeSubject(compiler.ast.as.AsPropertyAccessExpression(callee)!.Expression);
 }
 
 export function checkedCallIsConstruction(

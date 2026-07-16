@@ -14,6 +14,9 @@ import {
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
@@ -22,6 +25,9 @@ import {
 import {
   targetMemberAsSourceSelectedSignature,
 } from "../../../selected-target-source-signature.js";
+import {
+  csharpTargetMemberFact,
+} from "../../../target-types.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -39,10 +45,27 @@ export function acceptDeferredSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
   sourceMember: SourceLibraryMember,
   member: TargetMember,
+  candidates: readonly TargetMember[],
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
+  const csharpMember = csharpTargetMemberFact(member) as CsharpTargetMember;
+  const deferredSelection = csharpMember.csharpDeferredTargetSelection;
+  const selectionFamilyMembers = deferredSelection === undefined
+    ? []
+    : candidates
+      .map(csharpTargetMemberFact)
+      .filter((candidate): candidate is CsharpTargetMember =>
+        candidate?.csharpDeferredTargetSelection?.familyId === deferredSelection.familyId);
   context.facts.set(request.call, csharpSelectedCallTargetFactKey, {
-    member,
+    member: csharpMember,
+    ...(csharpMember.csharpCallFinalization === undefined ? {} : { finalizationRequirement: csharpMember.csharpCallFinalization }),
+    ...(deferredSelection === undefined ? {} : {
+      selectionFamily: {
+        familyId: deferredSelection.familyId,
+        sourceIdentity: sourceLibraryMemberIdentity(sourceMember),
+        members: selectionFamilyMembers,
+      },
+    }),
   }, [{ message: `C# retained the exact selected target member for checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}' until closed receiver facts are finalized.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },

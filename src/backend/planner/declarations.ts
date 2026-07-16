@@ -28,6 +28,14 @@ import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./d
 import {
   planClassMembers,
 } from "./declaration-class-members.js";
+import {
+  csharpJsonValueInterfaceType,
+  objectShapeRequiresJsonSerialization,
+  renderJsonSerializableObjectShapeMethod,
+} from "./json-object-shapes.js";
+import {
+  getCsharpObjectShapeFactForNode,
+} from "./csharp-fact-queries.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -43,6 +51,9 @@ export function planClassDeclaration(
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
   const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
+  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -50,8 +61,12 @@ export function planClassDeclaration(
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
-    ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
-    members: planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics),
+    ...(heritage.interfaces.length === 0 && !jsonSerializable
+      ? {}
+      : { interfaces: jsonSerializable ? [...heritage.interfaces, csharpJsonValueInterfaceType()] : heritage.interfaces }),
+    members: jsonSerializable && objectShape !== undefined
+      ? [...members, renderJsonSerializableObjectShapeMethod(objectShape)]
+      : members,
   };
 }
 

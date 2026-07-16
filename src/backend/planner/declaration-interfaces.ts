@@ -26,6 +26,13 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters } from "./parameters.js";
 import { planTypeParameters } from "./type-parameters.js";
+import {
+  csharpJsonValueInterfaceType,
+  objectShapeRequiresJsonSerialization,
+} from "./json-object-shapes.js";
+import {
+  getCsharpObjectShapeFactForNode,
+} from "./csharp-fact-queries.js";
 
 export function planInterfaceDeclaration(
   node: Node,
@@ -36,29 +43,34 @@ export function planInterfaceDeclaration(
   const declaration = AsInterfaceDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(node, sourceFile, input, diagnostics);
+  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
+    if (member === undefined) {
+      return [];
+    }
+    switch (input.ast.kindName(member)) {
+      case KindMethodSignature:
+        return [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
+      case KindPropertySignature:
+        return [planInterfacePropertyDeclaration(member, sourceFile, input, diagnostics)];
+      case KindIndexSignature:
+        return [planInterfaceIndexerDeclaration(member, sourceFile, input, diagnostics)];
+      default:
+        diagnostics.push(unsupportedNodeDiagnostic(member, "Interface member is outside the current C# planning surface."));
+        return [];
+    }
+  });
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
-    ...(interfaces.length === 0 ? {} : { interfaces }),
-    members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
-      if (member === undefined) {
-        return [];
-      }
-      switch (input.ast.kindName(member)) {
-        case KindMethodSignature:
-          return [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
-        case KindPropertySignature:
-          return [planInterfacePropertyDeclaration(member, sourceFile, input, diagnostics)];
-        case KindIndexSignature:
-          return [planInterfaceIndexerDeclaration(member, sourceFile, input, diagnostics)];
-        default:
-          diagnostics.push(unsupportedNodeDiagnostic(member, "Interface member is outside the current C# planning surface."));
-          return [];
-      }
-    }),
+    ...(interfaces.length === 0 && !jsonSerializable
+      ? {}
+      : { interfaces: jsonSerializable ? [...interfaces, csharpJsonValueInterfaceType()] : interfaces }),
+    members,
   };
 }
 

@@ -136,6 +136,9 @@ export type JsSurfaceRuntimeHelperSelection =
   }
   | {
     readonly kind: "record-dictionary-json-stringify";
+  }
+  | {
+    readonly kind: "object-shape-json-stringify";
   };
 
 export type JsSurfaceSemanticExceptionSelection =

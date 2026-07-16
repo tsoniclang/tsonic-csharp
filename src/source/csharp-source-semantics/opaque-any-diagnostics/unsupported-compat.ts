@@ -1,4 +1,5 @@
 import {
+  csharpSelectedPropertyTargetFactKey,
   csharpTargetOperationFactKey,
 } from "../../csharp-facts.js";
 import {
@@ -45,7 +46,11 @@ export function getUnsupportedCompatRuntimeOperation(
     return anyDeleteOperation;
   }
   const operation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
-  if (isClosedCompatRuntimeOperationFact(operation) && !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext)) {
+  if (
+    isClosedCompatRuntimeOperationFact(operation) &&
+    !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext) &&
+    !isSelectedStructuralCompatOperation(node, lifecycleContext)
+  ) {
     return hardRejectedCompatOperation(
       "non-any-compat-carrier",
       "C# compat-runtime carrier operation facts can only attach to explicit TypeScript any operations.",
@@ -53,6 +58,15 @@ export function getUnsupportedCompatRuntimeOperation(
     );
   }
   return undefined;
+}
+
+function isSelectedStructuralCompatOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+): boolean {
+  const selectedProperty = lifecycleContext.host.facts.get(node, csharpSelectedPropertyTargetFactKey) ??
+    lifecycleContext.host.factResolver.resolve(node, csharpSelectedPropertyTargetFactKey);
+  return selectedProperty?.selection.kind === "structural-compat-property";
 }
 
 function isExplicitTypeScriptAnyCompatOperation(

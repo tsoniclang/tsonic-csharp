@@ -14,7 +14,7 @@ import {
 } from "../../../../ast-utils.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
-  getSourceLibraryCallReceiverTargetTypes,
+  getSourceLibraryCallReceiverClosedTargetTypes,
 } from "../helpers.js";
 import type {
   JsSurfaceArgumentCondition,
@@ -71,7 +71,7 @@ function closedFactsRequirementStatus(
       return hasMissing ? { kind: "missing", reason: "receiver" } : { kind: "satisfied" };
     }
     case "receiver": {
-      const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
+      const receiverTypes = getSourceLibraryCallReceiverClosedTargetTypes(request, context);
       if (receiverTypes.length === 0) {
         return { kind: "missing", reason: "receiver" };
       }
@@ -109,7 +109,7 @@ function argumentConditionsStatus(
         missingArgumentIndex ??= condition.index;
         continue;
       }
-      if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
+      if (!argumentMatchesTargetCondition(request.arguments[condition.index], argumentType, condition.target, context, host)) {
         return { kind: "conflict" };
       }
       continue;
@@ -123,7 +123,7 @@ function argumentConditionsStatus(
         missingArgumentIndex ??= currentIndex;
         continue;
       }
-      if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
+      if (!argumentMatchesTargetCondition(request.arguments[currentIndex], argumentType, condition.target, context, host)) {
         return { kind: "conflict" };
       }
     }
@@ -151,12 +151,16 @@ function receiverMatchesTargetCondition(
 }
 
 function argumentMatchesTargetCondition(
+  argument: CheckedCallMappingRequest["arguments"][number] | undefined,
   argumentType: TargetTypeRef | undefined,
   condition: JsSurfaceArgumentTargetCondition,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): boolean {
   return jsSurfaceArgumentMatchesTargetFeature(condition, {
+    argument,
     argumentType,
+    context,
     host,
   });
 }

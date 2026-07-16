@@ -30,6 +30,7 @@ import {
   asNodeSubject,
 } from "../../../ast-utils.js";
 import {
+  getCsharpCheckedCallCalleeReceiver,
   getCsharpCheckedCallRequestContext,
 } from "../../../checked-call-request-context.js";
 import {
@@ -38,6 +39,9 @@ import {
 import {
   getReferencedDeclarationTargetTypeRef,
 } from "../../../referenced-declaration-target.js";
+import {
+  targetTypeRefEquals,
+} from "../../../target-ref-utils.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../../dictionaries.js";
@@ -110,6 +114,30 @@ export function getSourceLibraryCallReceiverTargetTypes(
     const targetType = host.unwrapNullableTargetType(getSourceLibraryReceiverTargetTypeForSubject(candidate, context, host));
     if (targetType !== undefined && !result.includes(targetType)) {
       result.push(targetType);
+    }
+  }
+  return result;
+}
+
+export function getSourceLibraryCallReceiverClosedTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): readonly TargetTypeRef[] {
+  const receiver = getCsharpCheckedCallCalleeReceiver(request, context);
+  if (receiver === undefined) {
+    return [];
+  }
+  const candidates = [
+    context.facts.get(receiver, selectedTargetSignatureFactKey)?.member.returnType,
+    context.facts.get(receiver, runtimeCarrierFactKey)?.carrier,
+    context.factResolver.resolve(receiver, selectedTargetSignatureFactKey)?.member.returnType,
+    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier,
+    getResolvedSourcePrimitiveTargetType(receiver, context),
+  ];
+  const result: TargetTypeRef[] = [];
+  for (const candidate of candidates) {
+    if (candidate !== undefined && !result.some((existing) => targetTypeRefEquals(existing, candidate))) {
+      result.push(candidate);
     }
   }
   return result;
@@ -235,4 +263,12 @@ function getTargetTypeRefFromResolvedFacts(
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
   return context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
     (primitive === undefined ? undefined : csharpSourcePrimitiveTargetType(primitive.kind));
+}
+
+function getResolvedSourcePrimitiveTargetType(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+  return primitive === undefined ? undefined : csharpSourcePrimitiveTargetType(primitive.kind);
 }
