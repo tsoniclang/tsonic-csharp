@@ -244,7 +244,9 @@ test("source-semantics keeps any declarations opaque while strict-native rejects
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
   const diagnostics = session.ensureChecked(sourceFile);
-  assert.equal(formatDiagnostics(diagnostics), "");
+  const diagnosticsText = formatDiagnostics(diagnostics);
+  assert.match(diagnosticsText, /C# call emission uses TypeScript any in strict-native mode\./u);
+  assert.doesNotMatch(diagnosticsText, /CHECKED_CALL_TARGET_BINDING_NOT_PROVEN|no provider, source-profile, or project-source target call contract owns it/u);
 
   const extensionHost = session.finalizeExtensions();
   const dynamicCarriers = collectIdentifiersByText(sourceFile, session.ast, "dynamicValue")
@@ -496,6 +498,11 @@ test("source-semantics records source-core marker facts and rejects unproven sto
     { name: "x", typeKind: "KindTypeReference", primitive: "int32" },
     { name: "ok", typeKind: "KindTypeReference", primitive: "bool" },
   ]);
+  const structFieldCalls = collectCallsByCalleeText(sourceFile, session.ast, "field")
+    .filter((call) => extensionHost.facts.get(call, fieldFactKey)?.name !== undefined);
+  assert.equal(structFieldCalls.length, 2);
+  assert.ok(structFieldCalls
+    .every((call) => extensionHost.facts.get(call, runtimeCarrierFactKey) === undefined));
 
   const structCall = collectCallsByCalleeText(sourceFile, session.ast, "struct")[0];
   const structFact = extensionHost.facts.get(structCall, structFactKey);

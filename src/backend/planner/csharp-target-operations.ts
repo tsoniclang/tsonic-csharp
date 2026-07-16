@@ -16,6 +16,9 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
+  targetMemberEquals,
+} from "../../source/csharp-facts/equality.js";
+import {
   csharpSelectedCallTargetFactKey,
   csharpTargetConversionOperationFactKey,
   csharpTargetOperationFactKey,
@@ -220,8 +223,7 @@ function selectedCallTargetFamilyMatchesOperation(
     return false;
   }
   const knownFamilyMember = family.members.some((candidate) =>
-    candidate.id === operation.selectedMember?.id &&
-    candidate.csharpDeferredTargetSelection?.familyId === family.familyId);
+    targetMemberEquals(candidate, operation.selectedMember));
   return knownFamilyMember || selectedCallTarget.finalizationRequirement !== undefined;
 }
 

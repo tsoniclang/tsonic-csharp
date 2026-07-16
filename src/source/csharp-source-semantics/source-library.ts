@@ -135,20 +135,36 @@ function resolveSourceLibraryMemberIdentityFromDeclaration(
 }
 
 export function isTsonicSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
+  return getTsonicSourceLibraryTypeNames(type, context).has(name);
+}
+
+export function getTsonicSourceLibraryTypeNames(
+  type: Type,
+  context: ExtensionObservationContext,
+): ReadonlySet<SourceLibraryTypeName> {
   const compiler = context.compiler;
   const ast = compiler?.ast;
   const types = compiler?.typeShape;
   const checker = compiler?.checker;
   if (ast === undefined || types === undefined || checker === undefined) {
-    return false;
+    return new Set();
   }
   const target = types.isTypeReference(type) ? types.getTypeReferenceTarget(type) : type;
-  const declarations = [
-    ...getSymbolDeclarations(checker.getTypeSymbol(target), checker),
-    ...getSymbolDeclarations(checker.getTypeSymbol(type), checker),
-  ];
-  return declarations.some((declaration) =>
-    getSourceLibraryDeclarationName(declaration, context) === name);
+  const symbols = new Set([
+    checker.getTypeSymbol(target),
+    checker.getTypeSymbol(type),
+  ]);
+  const declarations = new Set(
+    [...symbols].flatMap((symbol) => getSymbolDeclarations(symbol, checker)),
+  );
+  const names = new Set<SourceLibraryTypeName>();
+  for (const declaration of declarations) {
+    const declarationName = getSourceLibraryDeclarationName(declaration, context);
+    if (declarationName !== undefined) {
+      names.add(declarationName);
+    }
+  }
+  return names;
 }
 
 export function getSourceLibraryDeclarationName(

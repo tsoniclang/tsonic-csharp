@@ -14,6 +14,9 @@ import {
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "../object-shape-types.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "../target-type-syntax-types.js";
 import {
   getSymbolDeclarations,
 } from "../symbol-utils.js";
@@ -34,6 +37,7 @@ export function deriveCsharpObjectShapeMembersForSemanticType(
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
   host: CsharpObjectShapeSemanticsHost,
   callableMemberMode: "property" | "callable-property-as-method",
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): readonly CsharpObjectShapeMemberFact[] | undefined {
   const compiler = context.compiler;
   if (compiler === undefined) {
@@ -45,7 +49,7 @@ export function deriveCsharpObjectShapeMembersForSemanticType(
     return undefined;
   }
   const members = properties
-    .map((property) => deriveCsharpObjectShapeMemberFactForSemanticProperty(type, property, context, sourceFile, host, callableMemberMode))
+    .map((property) => deriveCsharpObjectShapeMemberFactForSemanticProperty(type, property, context, sourceFile, host, callableMemberMode, resolver))
     .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
   return members.length === properties.length ? members : undefined;
 }
@@ -57,6 +61,7 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
   host: CsharpObjectShapeSemanticsHost,
   callableMemberMode: "property" | "callable-property-as-method",
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): CsharpObjectShapeMemberFact | undefined {
   const sourceName = context.compiler?.checker.getSymbolName(property) ?? "";
   if (sourceName.length === 0 || context.compiler === undefined) {
@@ -70,10 +75,10 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
     ? "method"
     : "property";
   const type = memberKind === "method"
-    ? getExplicitMethodTargetTypeRef(property, context, host) ??
-      getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host)
-    : getExplicitPropertyTargetTypeRef(property, context, host) ??
-      host.getTargetTypeRefForType(propertyType, context);
+    ? getExplicitMethodTargetTypeRef(property, context, host, resolver) ??
+      getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host, resolver)
+    : getExplicitPropertyTargetTypeRef(property, context, host, resolver) ??
+      host.getTargetTypeRefForType(propertyType, context, {}, resolver);
   if (type === undefined) {
     return undefined;
   }
@@ -118,6 +123,7 @@ function getExplicitMethodTargetTypeRef(
   property: Symbol,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -128,7 +134,7 @@ function getExplicitMethodTargetTypeRef(
     if (kind !== "KindMethodSignature" && kind !== "KindMethodDeclaration") {
       continue;
     }
-    const targetType = host.getFunctionTargetTypeRefFromSignatureLikeSubject(declaration, context, {});
+    const targetType = host.getFunctionTargetTypeRefFromSignatureLikeSubject(declaration, context, {}, resolver);
     if (targetType !== undefined) {
       return targetType;
     }
@@ -140,13 +146,14 @@ function getExplicitPropertyTargetTypeRef(
   property: Symbol,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   for (const declaration of getSymbolDeclarations(property, context.compiler?.checker)) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     if (typeNode === undefined) {
       continue;
     }
-    const targetType = host.getTargetTypeRefForSubject(typeNode, context, {});
+    const targetType = host.getTargetTypeRefForSubject(typeNode, context, {}, resolver);
     if (targetType !== undefined) {
       return targetType;
     }
@@ -173,6 +180,7 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   context: ExtensionObservationContext,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const compiler = context.compiler;
   if (compiler === undefined || signature === undefined) {
@@ -183,12 +191,17 @@ function getFunctionTargetTypeRefFromSemanticSignature(
       const parameterType = getTypeOfSymbol(parameter, context, sourceFile);
       return parameterType === undefined
         ? undefined
-        : host.getTargetTypeRefForType(parameterType, context);
+        : host.getTargetTypeRefForType(parameterType, context, {}, resolver);
     });
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
-  const returnType = host.getTargetTypeRefForType(compiler.typeShape.getReturnTypeOfSignature(signature as Parameters<typeof compiler.typeShape.getReturnTypeOfSignature>[0], { sourceFile }), context);
+  const returnType = host.getTargetTypeRefForType(
+    compiler.typeShape.getReturnTypeOfSignature(signature as Parameters<typeof compiler.typeShape.getReturnTypeOfSignature>[0], { sourceFile }),
+    context,
+    {},
+    resolver,
+  );
   if (returnType === undefined) {
     return undefined;
   }

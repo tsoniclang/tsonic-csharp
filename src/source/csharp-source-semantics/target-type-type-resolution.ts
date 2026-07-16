@@ -132,11 +132,11 @@ export function resolveTargetTypeRefForTypeCore(
     }
     return getHomogeneousPrimitiveUnionTargetTypeRef(type, context);
   }
-  const declaredShape = host.getSemanticTypeDeclarationShape(type, context);
+  const declaredShape = host.getSemanticTypeDeclarationShape(type, context, recursiveTargetTypeResolver);
   if (declaredShape !== undefined) {
     return declaredShape.targetType;
   }
-  const objectShape = host.getCsharpObjectShapeFactForSubject(type, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(type, context, recursiveTargetTypeResolver);
   if (objectShape !== undefined) {
     return objectShape.targetType;
   }

@@ -7,6 +7,10 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  asNodeSubject,
+  getNodeField,
+} from "../ast-utils.js";
+import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../runtime-carrier-context.js";
 import type {
@@ -36,6 +40,20 @@ export function recordCsharpDeclarationReturnRuntimeCarrierFacts(
     }
     const returnType = getDeclarationReturnType(node, sourceFile, lifecycleContext);
     if (returnType === undefined || lifecycleContext.host.facts.get(returnType, runtimeCarrierFactKey) !== undefined) {
+      continue;
+    }
+    const authoredReturnType = asNodeSubject(getNodeField(node, "Type"));
+    const authoredReturnCarrier = authoredReturnType === undefined
+      ? undefined
+      : lifecycleContext.host.facts.get(authoredReturnType, runtimeCarrierFactKey) ??
+        lifecycleContext.host.factResolver.resolve(authoredReturnType, runtimeCarrierFactKey);
+    if (authoredReturnCarrier !== undefined) {
+      setRuntimeCarrierFactIfLocallyAbsent(
+        lifecycleContext,
+        returnType,
+        authoredReturnCarrier,
+        "C# declaration return runtime carrier propagated from the finalized authored return-type fact.",
+      );
       continue;
     }
     const carrier = host.getTargetTypeRefForType(returnType, context, {

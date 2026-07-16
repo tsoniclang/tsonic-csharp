@@ -150,6 +150,24 @@ test("C# provider rejects selected calls when no target binding proves ownership
   assert.equal(result.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN");
   assert.equal(result.diagnostic.nodeOrSpan, call);
 });
+test("C# provider hard-rejects TSTS-selected untyped calls as dynamic any operations", () => {
+  const provider = getNativeSemanticProvider();
+  const call = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    sourceSelectedSignature: {},
+    sourceSelectedSignatureKind: "untyped",
+    arguments: [],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
+  assert.match(result.diagnostic.message, /call emission uses TypeScript any in strict-native mode/u);
+});
 test("C# provider rejects checked calls without selected source evidence", () => {
   const provider = getNativeSemanticProvider();
   const argument = {};

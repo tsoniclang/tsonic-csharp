@@ -139,9 +139,9 @@ function validateCsharpTargetBindingsContribution(
 
 function isCsharpCapabilityTargetBinding(value: unknown): value is CsharpCapabilityTargetBinding {
   if (!isRecord(value) ||
-      typeof value.id !== "string" || value.id.length === 0 ||
-      typeof value.sourceName !== "string" || value.sourceName.length === 0 ||
-      typeof value.targetName !== "string" || value.targetName.length === 0 ||
+      !isNonEmptyString(value.id) ||
+      !isNonEmptyString(value.sourceName) ||
+      !isNonEmptyString(value.targetName) ||
       value.target !== "csharp" ||
       !isTargetBindingKind(value.kind) ||
       !isRecord(value.csharpType) ||
@@ -324,6 +324,10 @@ function isDotnetProviderIdentity(value: unknown): value is DotnetProviderIdenti
 
 function optionalFunction(value: unknown): boolean {
   return value === undefined || typeof value === "function";
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

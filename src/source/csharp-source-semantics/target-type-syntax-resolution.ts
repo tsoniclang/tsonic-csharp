@@ -110,7 +110,7 @@ export function getTargetTypeRefFromSyntax(
     }
   }
   if (ast.is.IsTypeLiteralNode(node)) {
-    return host.getCsharpObjectShapeFactForSubject(node, context)?.targetType;
+    return host.getCsharpObjectShapeFactForSubject(node, context, resolver)?.targetType;
   }
   if (ast.is.IsFunctionTypeNode(node) || ast.is.IsConstructorTypeNode(node)) {
     return resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, host, resolver);

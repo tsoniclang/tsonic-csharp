@@ -49,3 +49,31 @@ test("JSON finalization closes every structurally identical implementation of an
   assert.match(extensionHost.facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId ?? "", /^Tsonic\.CSharp\.Js\.JSON\.stringify:/u);
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
+
+test("generic call argument conversion makes an object literal implement the selected source interface", () => {
+  const session = createCsharpSession(`
+    export interface Payload {
+      value: string;
+    }
+
+    function identity<T>(value: T): T {
+      return value;
+    }
+
+    export function create(): Payload {
+      return identity<Payload>({ value: "closed" });
+    }
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  const shape = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+
+  assert.ok(shape);
+  assert.equal(shape.implements?.length, 1);
+  assert.equal(shape.implements[0]?.kind, "target-named");
+  assert.equal(shape.implements[0]?.id, "Payload");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});

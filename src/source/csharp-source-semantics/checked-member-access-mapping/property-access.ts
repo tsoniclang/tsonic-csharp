@@ -49,6 +49,7 @@ import {
 import {
   mapCsharpObjectShapeCheckedPropertyAccess,
   mapCsharpProjectSourceCheckedPropertyAccess,
+  mapCsharpSourceCoreStructCheckedPropertyAccess,
   mapCsharpSourceDeclaredReceiverCheckedPropertyAccess,
 } from "./property-facts.js";
 import {
@@ -106,6 +107,10 @@ export function mapCsharpCheckedPropertyAccess(
   const sourceOwnedMethodGroup = mapSelectedSourceOwnedMethodGroupPropertyAccess(request, context);
   if (sourceOwnedMethodGroup !== undefined) {
     return sourceOwnedMethodGroup;
+  }
+  const sourceCoreStructProperty = mapCsharpSourceCoreStructCheckedPropertyAccess(request, context);
+  if (sourceCoreStructProperty !== undefined) {
+    return sourceCoreStructProperty;
   }
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [

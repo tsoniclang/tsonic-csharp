@@ -25,11 +25,15 @@ import {
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "./object-shape-types.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "./target-type-syntax-types.js";
 
 export function deriveCsharpObjectShapeFactForSubject(
   node: Node | undefined,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): CsharpObjectShapeFact | undefined {
   if (node === undefined || !isTypeLiteralLikeNode(node)) {
     return undefined;
@@ -39,7 +43,7 @@ export function deriveCsharpObjectShapeFactForSubject(
     return undefined;
   }
   const shapeMembers = members
-    .map((member) => deriveCsharpObjectShapeMemberFactForSubject(member, context, host))
+    .map((member) => deriveCsharpObjectShapeMemberFactForSubject(member, context, host, resolver))
     .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
   if (shapeMembers.length !== members.length) {
     return undefined;
@@ -54,6 +58,7 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   member: Node,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): CsharpObjectShapeMemberFact | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -65,8 +70,8 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   }
   const memberKind = getNodeList(getNodeField(member, "Parameters")).length > 0 ? "method" : "property";
   const type = memberKind === "method"
-    ? host.getFunctionTargetTypeRefFromSignatureLikeSubject(member, context, {})
-    : host.getTargetTypeRefForSubject(asNodeSubject(getNodeField(member, "Type")), context);
+    ? host.getFunctionTargetTypeRefFromSignatureLikeSubject(member, context, {}, resolver)
+    : host.getTargetTypeRefForSubject(asNodeSubject(getNodeField(member, "Type")), context, {}, resolver);
   if (type === undefined) {
     return undefined;
   }

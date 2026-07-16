@@ -11,9 +11,15 @@ import {
 import {
   isCsharpUserSourceFile,
 } from "../ast-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../runtime-carrier-context.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
+import {
+  subjectIsWithinSourceCoreStructMarkerCallExpression,
+} from "../source-core-struct-markers.js";
 import {
   collectRuntimeCarrierNodes,
 } from "./collect-nodes.js";
@@ -56,9 +62,11 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   }
   const sourceFiles = compiler.getSourceFiles()
     .filter((sourceFile): sourceFile is SourceFile => isCsharpUserSourceFile(sourceFile, compiler.ast));
+  const observationContext = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const nodesBySourceFile = sourceFiles.map((sourceFile) => ({
     sourceFile,
-    nodes: collectRuntimeCarrierNodes(compiler.ast, sourceFile),
+    nodes: collectRuntimeCarrierNodes(compiler.ast, sourceFile)
+      .filter((node) => !subjectIsWithinSourceCoreStructMarkerCallExpression(node, observationContext)),
   }));
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     runRuntimeCarrierStage(lifecycleContext, "type-syntax-facts", sourceFile, () => recordRuntimeCarrierTypeSyntaxFacts(lifecycleContext, sourceFile, nodes, targetId, host));

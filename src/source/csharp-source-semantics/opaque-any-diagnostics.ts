@@ -15,11 +15,12 @@ import {
   hasClosedCompatRuntimeOperation,
 } from "./opaque-any-diagnostics/closed-compat.js";
 import {
-  unsupportedAnyOperationCode,
-  unsupportedAnyOperationNumericCode,
   unsupportedCompatRuntimeOperationCode,
   unsupportedCompatRuntimeOperationNumericCode,
 } from "./opaque-any-diagnostics/diagnostic-constants.js";
+import {
+  csharpOpaqueAnyOperationDiagnostic,
+} from "./opaque-any-diagnostics/diagnostic.js";
 import {
   getOpaqueAnyOperation,
 } from "./opaque-any-diagnostics/opaque-operation.js";
@@ -115,37 +116,12 @@ function diagnoseOpaqueAnyOperationsForNode(
   if (compatibilityMode === "compat" && hasClosedCompatRuntimeOperation(node, lifecycleContext)) {
     return;
   }
-  const modeDetails = compatibilityMode === "strict-native"
-    ? {
-        message: `${operation.description} uses TypeScript any in strict-native mode.`,
-        reason: "Strict-native mode hard-rejects dynamic TypeScript any operations even if a compatibility surface has produced target operation facts.",
-        architecture: "Select typescriptCompatibility: \"compat\" and provide closed TsValue/TsObject/TsFunction operation facts to enable dynamic behavior.",
-      }
-    : {
-        message: `${operation.description} uses TypeScript any in compatibility mode without finalized target operation facts.`,
-        reason: "Compatibility mode is selected, but no closed dynamic runtime operation fact exists for this expression.",
-        architecture: "A selected compatibility surface must provide an explicit TsValue/TsObject/TsFunction operation fact; backend emission must not infer dynamic behavior from TypeScript any.",
-      };
-  lifecycleContext.host.diagnostics.append({
-    ...csharpProviderDiagnostic(
-      lifecycleContext.extensionId,
-      unsupportedAnyOperationCode,
-      unsupportedAnyOperationNumericCode,
-      modeDetails.message,
-    ),
-    nodeOrSpan: node,
-    evidence: [
-      {
-        message: "C# dynamic boundary rejected",
-        details: modeDetails.reason,
-      },
-      {
-        message: "Required architecture",
-        details: modeDetails.architecture,
-      },
-    ],
-    identity: `csharp-any-operation:${compatibilityMode}:${operation.kind}:${subjectIdentity(node)}`,
-  });
+  lifecycleContext.host.diagnostics.append(csharpOpaqueAnyOperationDiagnostic(
+    lifecycleContext.extensionId,
+    operation,
+    compatibilityMode,
+    node,
+  ));
 }
 
 function isUnsupportedCompatAnyOperator(

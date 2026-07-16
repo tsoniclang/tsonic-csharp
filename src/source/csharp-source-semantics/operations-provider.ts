@@ -2,6 +2,7 @@ import {
   TstsProviderContractVersion,
   acceptObservation,
   deferObservation,
+  rejectObservation,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
@@ -101,6 +102,12 @@ import {
   asNodeSubject,
   isDeclarationOrVirtualSourceFile,
 } from "./ast-utils.js";
+import {
+  checkedCallIsConstruction,
+} from "./checked-call-request-context.js";
+import {
+  csharpOpaqueAnyOperationDiagnostic,
+} from "./opaque-any-diagnostics/diagnostic.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -171,6 +178,17 @@ export function createCsharpTargetOperationsProvider(
         : deferObservation;
       if (compatObservation.kind !== "defer") {
         return compatObservation;
+      }
+      if (request.sourceSelectedSignatureKind === "untyped") {
+        const construction = checkedCallIsConstruction(request, context);
+        return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
+          identity.id,
+          construction
+            ? { kind: "construct", description: "C# construct emission" }
+            : { kind: "call", description: "C# call emission" },
+          typescriptCompatibilityMode,
+          request.call,
+        ));
       }
       for (const contribution of providerOperationContributions) {
         const providerPackageObservation = contribution.mapCheckedCall?.(request, context) ?? deferObservation;

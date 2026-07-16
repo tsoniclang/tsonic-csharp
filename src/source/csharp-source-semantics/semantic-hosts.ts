@@ -44,6 +44,15 @@ import {
   resolveTargetTypeRefForSubject,
   resolveTargetTypeRefForType,
 } from "./target-type-resolution.js";
+import {
+  resolveFunctionTargetTypeRefFromSignatureLikeSubject as resolveFunctionTargetTypeRefFromSignatureLikeSubjectWithResolver,
+} from "./target-type-function-signatures.js";
+import {
+  resolveTargetTypeArgumentsForTypeWithResolver,
+} from "./target-type-semantic-resolution.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "./target-type-syntax-types.js";
 import type {
   CsharpSemanticTypeDeclarationShape,
   CsharpTargetTypeResolutionHost,
@@ -226,8 +235,9 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
   function getCsharpObjectShapeFactForSubject(
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
+    resolver?: CsharpRecursiveTargetTypeResolver,
   ): CsharpObjectShapeFact | undefined {
-    return resolveCsharpObjectShapeFactForSubject(subject, context, objectShapeSemanticsHost);
+    return resolveCsharpObjectShapeFactForSubject(subject, context, objectShapeSemanticsHost, resolver);
   }
   function getRecordedCsharpObjectShapeFactForSubject(
     subject: ExtensionFactSubject | undefined,
@@ -238,22 +248,33 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
   function getSemanticTypeDeclarationShape(
     type: Type,
     context: ExtensionObservationContext,
+    resolver?: CsharpRecursiveTargetTypeResolver,
   ): CsharpSemanticTypeDeclarationShape | undefined {
-    return resolveSemanticTypeDeclarationShape(type, context, objectShapeSemanticsHost);
+    return resolveSemanticTypeDeclarationShape(type, context, objectShapeSemanticsHost, resolver);
   }
   objectShapeSemanticsHost = {
-    getTargetTypeRefForSubject,
-    getTargetTypeRefForType,
+    getTargetTypeRefForSubject: (subject, observationContext, options = {}, resolver) => resolver === undefined
+      ? getTargetTypeRefForSubject(subject, observationContext, options)
+      : resolver.resolveSubject(subject, observationContext, options, targetTypeResolutionHost),
+    getTargetTypeRefForType: (type, observationContext, options = {}, resolver) => resolver === undefined
+      ? getTargetTypeRefForType(type, observationContext, options)
+      : resolver.resolveType(type, observationContext, options, targetTypeResolutionHost),
     getFunctionTargetTypeRefFromSignatureLikeSubject: (
       node: Node,
       context: ExtensionObservationContext,
       options: TargetTypeRefResolutionOptions,
-    ) => resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, targetTypeResolutionHost),
+      resolver?: CsharpRecursiveTargetTypeResolver,
+    ) => resolver === undefined
+      ? resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, targetTypeResolutionHost)
+      : resolveFunctionTargetTypeRefFromSignatureLikeSubjectWithResolver(node, context, options, targetTypeResolutionHost, resolver),
     getTargetTypeArgumentsForType: (
       type: Type,
       context: ExtensionObservationContext,
       options: TargetTypeRefResolutionOptions,
-    ) => resolveTargetTypeArgumentsForType(type, context, options, targetTypeResolutionHost),
+      resolver?: CsharpRecursiveTargetTypeResolver,
+    ) => resolver === undefined
+      ? resolveTargetTypeArgumentsForType(type, context, options, targetTypeResolutionHost)
+      : resolveTargetTypeArgumentsForTypeWithResolver(type, context, options, targetTypeResolutionHost, resolver),
   };
   const objectShapeLifecycleHost = {
     getCsharpObjectShapeFactForSubject,

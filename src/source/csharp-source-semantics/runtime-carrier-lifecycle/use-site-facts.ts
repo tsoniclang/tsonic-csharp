@@ -27,6 +27,9 @@ export function getUseSiteRuntimeCarrierTargetTypeRef(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
   const referenced = getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node);
+  if (referenced !== undefined && isSourceDeclarationCarrier(referenced)) {
+    return referenced;
+  }
   const checked = getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
   if (referenced === undefined) {
     return checked;

@@ -61,6 +61,7 @@ export function mapCsharpCompatRuntimeCheckedPropertyAccess(
     return deferObservation;
   }
   const operation = compatAnyPropertyReadOperation(request.propertyName);
+  recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
       resultType: operation.resultType,
@@ -76,6 +77,7 @@ export function mapCsharpCompatRuntimeCheckedElementAccess(
     return deferObservation;
   }
   const operation = compatAnyElementReadOperation();
+  recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
       resultType: operation.resultType,

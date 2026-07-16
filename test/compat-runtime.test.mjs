@@ -30,7 +30,11 @@ test("strict-native hard-rejects opaque any operations without carrier operation
     void value;
   `);
   const sourceFile = session.getSourceFile("/src/index.ts");
-  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+  session.ensureChecked(sourceFile);
+  assertAnyDiagnosticMessages(session.extensionHost, [
+    "C# call emission uses TypeScript any in strict-native mode.",
+    "C# construct emission uses TypeScript any in strict-native mode.",
+  ]);
 
   const extensionHost = session.finalizeExtensions();
   assertAnyDiagnosticMessages(extensionHost, expectedOpaqueAnyOperationMessages("strict-native"));
@@ -371,7 +375,11 @@ test("strict-native rejects every opaque any operation even when compatibility f
     createTestDynamicOperationFactExtension("KindBinaryExpression", { skipAssignment: true }),
   ]);
   const sourceFile = session.getSourceFile("/src/index.ts");
-  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+  session.ensureChecked(sourceFile);
+  assertAnyDiagnosticMessages(session.extensionHost, [
+    "C# call emission uses TypeScript any in strict-native mode.",
+    "C# construct emission uses TypeScript any in strict-native mode.",
+  ]);
 
   const extensionHost = session.finalizeExtensions();
   assertAnyDiagnosticMessages(extensionHost, expectedOpaqueAnyOperationMessages("strict-native"));

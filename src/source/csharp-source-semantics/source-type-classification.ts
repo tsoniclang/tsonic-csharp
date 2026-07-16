@@ -10,7 +10,7 @@ import type {
   SourceLibraryTypeName,
 } from "./source-library.js";
 import {
-  isTsonicSourceLibraryType,
+  getTsonicSourceLibraryTypeNames,
 } from "./source-library.js";
 import {
   getSymbolDeclarations,
@@ -42,11 +42,34 @@ export interface SourceStandardLibraryTypeClassification {
   readonly mutability?: "mutable" | "readonly";
 }
 
+const sourceStandardLibraryTypeClassifications = new WeakMap<
+  object,
+  WeakMap<object, SourceStandardLibraryTypeClassification | null>
+>();
+
 export function classifySourceStandardLibraryType(
   type: Type,
   context: ExtensionObservationContext,
 ): SourceStandardLibraryTypeClassification | undefined {
-  return sourceStandardLibraryTypePolicies.find((policy) => isTsonicSourceLibraryType(type, context, policy.name));
+  const compiler = objectKey(context.compiler);
+  const sourceType = objectKey(type);
+  const cached = compiler === undefined || sourceType === undefined
+    ? undefined
+    : sourceStandardLibraryTypeClassifications.get(compiler)?.get(sourceType);
+  if (cached !== undefined) {
+    return cached ?? undefined;
+  }
+  const sourceLibraryTypeNames = getTsonicSourceLibraryTypeNames(type, context);
+  const classification = sourceStandardLibraryTypePolicies.find((policy) => sourceLibraryTypeNames.has(policy.name));
+  if (compiler !== undefined && sourceType !== undefined) {
+    let classificationsByType = sourceStandardLibraryTypeClassifications.get(compiler);
+    if (classificationsByType === undefined) {
+      classificationsByType = new WeakMap();
+      sourceStandardLibraryTypeClassifications.set(compiler, classificationsByType);
+    }
+    classificationsByType.set(sourceType, classification ?? null);
+  }
+  return classification;
 }
 
 export function isSourceStandardLibraryArrayLikeType(
@@ -160,4 +183,10 @@ function isSelectedSourceProfilePromiseType(
       (isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId) ||
         isTsonicSourceProfileDeclarationPath(fileName, csharpJsSourceProfileOwnerId));
   });
+}
+
+function objectKey(value: unknown): object | undefined {
+  return (typeof value === "object" && value !== null) || typeof value === "function"
+    ? value
+    : undefined;
 }

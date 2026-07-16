@@ -117,6 +117,24 @@ export function subjectIsSourceCoreStructDeclarationPayload(
   return false;
 }
 
+export function subjectIsWithinSourceCoreStructMarkerCallExpression(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const compiler = context.compiler;
+  const node = asNodeSubject(subject);
+  if (compiler === undefined || node === undefined) {
+    return false;
+  }
+  for (let current: Node | undefined = node; current !== undefined; current = compiler.ast.parent(current)) {
+    if (compiler.ast.kindName(current) === "KindCallExpression" &&
+      isSourceCoreStructMarkerCallExpression(current, context)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isTypeReferenceNamePosition(
   node: Node,
   context: ExtensionObservationContext,

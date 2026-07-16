@@ -4,5 +4,6 @@ export {
 export {
   getSourceCoreStructMarkerDeclarationFromSubject,
   getSourceCoreStructMarkerDeclarationFromSymbol,
+  subjectIsWithinSourceCoreStructMarkerCallExpression,
   subjectIsSourceCoreStructDeclarationPayload,
 } from "./source-core-struct-markers/declarations.js";

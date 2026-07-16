@@ -20,11 +20,15 @@ import type {
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "../object-shape-types.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "../target-type-syntax-types.js";
 
 export function getSemanticTypeDeclarationShape(
   type: Type,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
+  resolver?: CsharpRecursiveTargetTypeResolver,
 ): CsharpSemanticTypeDeclarationShape | undefined {
   const compiler = context.compiler;
   const ast = compiler?.ast;
@@ -44,7 +48,7 @@ export function getSemanticTypeDeclarationShape(
     if (name.length === 0) {
       continue;
     }
-    const targetTypeArguments = host.getTargetTypeArgumentsForType(type, context, {});
+    const targetTypeArguments = host.getTargetTypeArgumentsForType(type, context, {}, resolver);
     if (targetTypeArguments === undefined) {
       return undefined;
     }

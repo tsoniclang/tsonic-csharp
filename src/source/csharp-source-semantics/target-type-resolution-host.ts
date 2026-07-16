@@ -9,6 +9,9 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../csharp-facts.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "./target-type-syntax-types.js";
 
 export interface CsharpSemanticTypeDeclarationShape {
   readonly kind: "class" | "interface" | "enum";
@@ -29,9 +32,11 @@ export interface CsharpTargetTypeResolutionHost {
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
+    resolver?: CsharpRecursiveTargetTypeResolver,
   ) => CsharpObjectShapeFact | undefined;
   readonly getSemanticTypeDeclarationShape: (
     type: Type,
     context: ExtensionObservationContext,
+    resolver?: CsharpRecursiveTargetTypeResolver,
   ) => CsharpSemanticTypeDeclarationShape | undefined;
 }

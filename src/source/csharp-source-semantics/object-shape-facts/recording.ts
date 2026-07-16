@@ -65,7 +65,7 @@ export function recordCsharpObjectShapeFactForSubject(
     context.facts.set(subject, csharpObjectShapeFactKey, recordedFact, evidence);
   }
   context.facts.set(recordedFact.targetType, csharpObjectShapeFactKey, existingTargetShape ?? recordedFact, evidence);
-  if (subjectIsTypeSyntax(subject, context)) {
+  if (subjectIsTypeSyntax(subject, context) || subjectIsObjectLiteral(subject, context)) {
     return;
   }
   for (const semanticSubject of getSemanticSubjects(subject, context)) {
@@ -74,6 +74,14 @@ export function recordCsharpObjectShapeFactForSubject(
     }
     context.facts.set(semanticSubject, csharpObjectShapeFactKey, recordedFact, evidence);
   }
+}
+
+function subjectIsObjectLiteral(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(subject);
+  return node !== undefined && context.compiler?.ast.is.IsObjectLiteralExpression(node) === true;
 }
 
 function objectShapeCarrierEquals(left: CsharpObjectShapeFact, right: CsharpObjectShapeFact): boolean {

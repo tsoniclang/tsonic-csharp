@@ -172,7 +172,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/initializer-propagation.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/referenced-facts.ts",
       "src/source/csharp-source-semantics/runtime-carrier-lifecycle/return-propagation.ts",
-      "src/source/csharp-source-semantics/surfaces/js/array-boundary-facts.ts",
       "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
       "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
       "src/source/csharp-source-semantics/surfaces/js/json.ts",
@@ -241,7 +240,7 @@ const rawAstReaderContractGapFiles = Object.freeze([
   "src/source/csharp-source-semantics/source-declaration-facts/recording.ts",
   "src/source/csharp-source-semantics/source-declaration-facts/struct-declaration.ts",
   "src/source/csharp-source-semantics/source-declaration-facts/target-type.ts",
-  "src/source/csharp-source-semantics/surfaces/js/array-boundary-facts.ts",
+  "src/source/csharp-source-semantics/selected-call-finalization.ts",
   "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/mutation-classification.ts",
   "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
   "src/source/csharp-source-semantics/surfaces/js/date/runtime-carrier.ts",
@@ -364,16 +363,21 @@ export function collectSelectedEvidenceFindings(repoRoot) {
   return selectedEvidenceSourceFiles(repoRoot).flatMap((filePath) => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
     const text = readFileSync(filePath, "utf8");
-    return selectedEvidenceRiskRules.flatMap((rule) => {
-      rule.pattern.lastIndex = 0;
-      return [...text.matchAll(rule.pattern)].map((match) => ({
-        file,
-        ruleId: rule.id,
-        line: lineNumberAt(text, match.index ?? 0),
-        snippet: lineAt(text, match.index ?? 0).trim(),
-        enclosingSymbol: enclosingSymbolAt(text, match.index ?? 0),
-      }));
-    });
+    return collectSelectedEvidenceFindingsForSource(file, text);
+  });
+}
+
+export function collectSelectedEvidenceFindingsForSource(file, text) {
+  const code = maskNonCode(text);
+  return selectedEvidenceRiskRules.flatMap((rule) => {
+    rule.pattern.lastIndex = 0;
+    return [...code.matchAll(rule.pattern)].map((match) => ({
+      file,
+      ruleId: rule.id,
+      line: lineNumberAt(text, match.index ?? 0),
+      snippet: lineAt(text, match.index ?? 0).trim(),
+      enclosingSymbol: enclosingSymbolAt(text, match.index ?? 0),
+    }));
   });
 }
 
@@ -434,6 +438,93 @@ function lineNumberAt(text, index) {
     }
   }
   return line;
+}
+
+function maskNonCode(text) {
+  const output = text.split("");
+  const stack = [{ kind: "code", templateExpression: false, braceDepth: 0 }];
+  const mask = (index) => {
+    if (output[index] !== "\n" && output[index] !== "\r") {
+      output[index] = " ";
+    }
+  };
+  for (let index = 0; index < text.length; index += 1) {
+    const frame = stack[stack.length - 1];
+    const character = text[index];
+    const next = text[index + 1];
+    if (frame.kind === "line-comment") {
+      if (character === "\n") {
+        stack.pop();
+      } else {
+        mask(index);
+      }
+      continue;
+    }
+    if (frame.kind === "block-comment") {
+      mask(index);
+      if (character === "*" && next === "/") {
+        mask(index + 1);
+        index += 1;
+        stack.pop();
+      }
+      continue;
+    }
+    if (frame.kind === "quote") {
+      mask(index);
+      if (character === "\\") {
+        mask(index + 1);
+        index += 1;
+      } else if (character === frame.delimiter) {
+        stack.pop();
+      }
+      continue;
+    }
+    if (frame.kind === "template") {
+      mask(index);
+      if (character === "\\") {
+        mask(index + 1);
+        index += 1;
+      } else if (character === "`") {
+        stack.pop();
+      } else if (character === "$" && next === "{") {
+        mask(index + 1);
+        index += 1;
+        stack.push({ kind: "code", templateExpression: true, braceDepth: 0 });
+      }
+      continue;
+    }
+    if (frame.templateExpression && character === "}") {
+      if (frame.braceDepth === 0) {
+        mask(index);
+        stack.pop();
+      } else {
+        frame.braceDepth -= 1;
+      }
+      continue;
+    }
+    if (frame.templateExpression && character === "{") {
+      frame.braceDepth += 1;
+      continue;
+    }
+    if (character === "/" && next === "/") {
+      mask(index);
+      mask(index + 1);
+      index += 1;
+      stack.push({ kind: "line-comment" });
+    } else if (character === "/" && next === "*") {
+      mask(index);
+      mask(index + 1);
+      index += 1;
+      stack.push({ kind: "block-comment" });
+    } else if (character === "'" || character === '"') {
+      mask(index);
+      stack.push({ kind: "quote", delimiter: character });
+    } else if (character === "`") {
+      mask(index);
+      stack.push({ kind: "template" });
+    }
+  }
+  return output.join("");
 }
 
 function lineAt(text, index) {

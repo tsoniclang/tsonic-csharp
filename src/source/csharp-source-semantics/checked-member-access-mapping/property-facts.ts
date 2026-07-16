@@ -32,6 +32,9 @@ import {
   selectedDeclarationIsAmbientOrExternal,
   targetTypeRefIsSourceDeclaredReceiver,
 } from "./lifecycle-helpers.js";
+import {
+  subjectIsSourceCoreStructDeclarationPayload,
+} from "../source-core-struct-markers.js";
 import type {
   CheckedPropertyAccessContext,
 } from "./types.js";
@@ -105,6 +108,16 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
   }, [{ message: "C# source-owned property access accepted from TSTS-selected project source declaration; backend renders source syntax without provider target-member facts." }]);
+}
+
+export function mapCsharpSourceCoreStructCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: CheckedPropertyAccessContext,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  return subjectIsSourceCoreStructDeclarationPayload(requestContext.sourceSelectedDeclarationContainer, context)
+    ? mapCsharpProjectSourceCheckedPropertyAccess(request, context)
+    : undefined;
 }
 
 function selectedPropertyBelongsToStructuralSourceType(

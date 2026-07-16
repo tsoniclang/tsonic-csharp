@@ -35,6 +35,17 @@ export type {
 interface TargetTypeResolutionState {
   readonly activeSubjects: WeakSet<object>;
   readonly activeTypes: WeakSet<object>;
+  readonly resolvedSubjects: WeakMap<object, TargetTypeResolutionCacheEntry[]>;
+  readonly resolvedTypes: WeakMap<object, TargetTypeResolutionCacheEntry[]>;
+}
+
+interface TargetTypeResolutionCacheEntry {
+  readonly context: ExtensionObservationContext;
+  readonly host: CsharpTargetTypeResolutionHost;
+  readonly allowRuntimeCarrier: boolean;
+  readonly allowSemanticTypeQuery: boolean;
+  readonly sourceFile: TargetTypeRefResolutionOptions["sourceFile"];
+  readonly resolvedType: TargetTypeRef;
 }
 
 export function resolveTargetTypeRefForSubject(
@@ -63,6 +74,12 @@ function resolveTargetTypeRefForSubjectWithState(
     return undefined;
   }
   const activeKey = objectKey(subject);
+  const cached = activeKey === undefined
+    ? undefined
+    : getCachedTargetTypeRef(state.resolvedSubjects, activeKey, context, options, host);
+  if (cached !== undefined) {
+    return cached;
+  }
   if (activeKey !== undefined && state.activeSubjects.has(activeKey)) {
     return undefined;
   }
@@ -71,7 +88,7 @@ function resolveTargetTypeRefForSubjectWithState(
   }
   const resolver = createRecursiveTargetTypeResolver(state);
   try {
-    return resolveTargetTypeRefForSubjectCore(
+    const result = resolveTargetTypeRefForSubjectCore(
       subject,
       context,
       options,
@@ -79,6 +96,10 @@ function resolveTargetTypeRefForSubjectWithState(
       resolver,
       resolver.resolveType,
     );
+    if (activeKey !== undefined && result !== undefined) {
+      cacheTargetTypeRef(state.resolvedSubjects, activeKey, context, options, host, result);
+    }
+    return result;
   } finally {
     if (activeKey !== undefined) {
       state.activeSubjects.delete(activeKey);
@@ -112,6 +133,12 @@ function resolveTargetTypeRefForTypeWithState(
     return undefined;
   }
   const activeKey = objectKey(type);
+  const cached = activeKey === undefined
+    ? undefined
+    : getCachedTargetTypeRef(state.resolvedTypes, activeKey, context, options, host);
+  if (cached !== undefined) {
+    return cached;
+  }
   if (activeKey !== undefined && state.activeTypes.has(activeKey)) {
     return undefined;
   }
@@ -120,7 +147,7 @@ function resolveTargetTypeRefForTypeWithState(
   }
   const resolver = createRecursiveTargetTypeResolver(state);
   try {
-    return resolveTargetTypeRefForTypeCore(
+    const result = resolveTargetTypeRefForTypeCore(
       type,
       context,
       options,
@@ -135,6 +162,10 @@ function resolveTargetTypeRefForTypeWithState(
           state,
         ),
     );
+    if (activeKey !== undefined && result !== undefined) {
+      cacheTargetTypeRef(state.resolvedTypes, activeKey, context, options, host, result);
+    }
+    return result;
   } finally {
     if (activeKey !== undefined) {
       state.activeTypes.delete(activeKey);
@@ -194,6 +225,8 @@ function createTargetTypeResolutionState(): TargetTypeResolutionState {
   return {
     activeSubjects: new WeakSet<object>(),
     activeTypes: new WeakSet<object>(),
+    resolvedSubjects: new WeakMap<object, TargetTypeResolutionCacheEntry[]>(),
+    resolvedTypes: new WeakMap<object, TargetTypeResolutionCacheEntry[]>(),
   };
 }
 
@@ -212,4 +245,41 @@ function objectKey(value: unknown): object | undefined {
   return (typeof value === "object" && value !== null) || typeof value === "function"
     ? value
     : undefined;
+}
+
+function getCachedTargetTypeRef(
+  cache: WeakMap<object, TargetTypeResolutionCacheEntry[]>,
+  key: object,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+): TargetTypeRef | undefined {
+  return cache.get(key)?.find((entry) =>
+    entry.context === context &&
+    entry.host === host &&
+    entry.allowRuntimeCarrier === (options.allowRuntimeCarrier !== false) &&
+    entry.allowSemanticTypeQuery === (options.allowSemanticTypeQuery !== false) &&
+    entry.sourceFile === options.sourceFile)?.resolvedType;
+}
+
+function cacheTargetTypeRef(
+  cache: WeakMap<object, TargetTypeResolutionCacheEntry[]>,
+  key: object,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolvedType: TargetTypeRef,
+): void {
+  const entries = cache.get(key) ?? [];
+  entries.push({
+    context,
+    host,
+    allowRuntimeCarrier: options.allowRuntimeCarrier !== false,
+    allowSemanticTypeQuery: options.allowSemanticTypeQuery !== false,
+    sourceFile: options.sourceFile,
+    resolvedType,
+  });
+  if (!cache.has(key)) {
+    cache.set(key, entries);
+  }
 }

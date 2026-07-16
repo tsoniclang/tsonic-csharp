@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   buildSelectedEvidenceAuditRows,
+  collectSelectedEvidenceFindingsForSource,
   collectSelectedEvidenceFindings,
   selectedEvidenceAuditedFiles,
   selectedEvidenceClassifications,
@@ -12,6 +13,21 @@ import {
 
 const repoRoot = new URL("..", import.meta.url).pathname;
 const classificationSet = new Set(selectedEvidenceClassifications);
+
+test("selected-evidence scanner distinguishes compiler fields from non-code text", () => {
+  const findings = collectSelectedEvidenceFindingsForSource("src/example.ts", [
+    "",
+    "const raw = node.Text;",
+    'const namespaceName = "System.Text.Json";',
+    "const template = `System.Text.Json ${node.Text}`;",
+    "// ignored.Text",
+    "/* ignored.Text */",
+  ].join("\n"));
+  assert.deepEqual(findings.map(({ ruleId, line }) => ({ ruleId, line })), [
+    { ruleId: "raw-Text", line: 2 },
+    { ruleId: "raw-Text", line: 4 },
+  ]);
+});
 
 test("selected-evidence audit inventory covers every current product risk-pattern file", () => {
   const matchedFiles = [...new Set(collectSelectedEvidenceFindings(repoRoot).map((finding) => finding.file))].sort();
