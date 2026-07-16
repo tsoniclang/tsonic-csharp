@@ -120,7 +120,10 @@ export function getCsharpExtensionSemanticHosts(context: TargetProviderContext):
 
 export function createCsharpExtensionSemanticHosts(context: TargetProviderContext): CsharpExtensionSemanticHosts {
   const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
-  const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
+  const dotnetReflectionReferences = readCsharpReflectionReferencePaths(
+    context.target,
+    context.projectDirectory,
+  );
   const dotnetTargetFramework = readCsharpTargetFramework(context.target);
   const nativeDotnetProvider = createDotnetReflectionTypeDataProvider({
     references: dotnetReflectionReferences,

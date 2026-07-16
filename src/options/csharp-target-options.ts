@@ -12,6 +12,9 @@ import {
   join,
   resolve,
 } from "node:path";
+import {
+  resolveDotnetFrameworkReferenceAssemblies,
+} from "./dotnet-framework-reference-packs.js";
 
 export type CsharpProjectReference =
   | { readonly kind: "project"; readonly include: string }
@@ -91,11 +94,21 @@ export function readCsharpReferences(target: TargetSelection): readonly CsharpPr
   ]);
 }
 
-export function readCsharpReflectionReferencePaths(target: TargetSelection): readonly string[] {
+export function readCsharpReflectionReferencePaths(
+  target: TargetSelection,
+  projectDirectory: string,
+): readonly string[] {
   return rejectDuplicateReflectionReferencePaths([
     ...readCsharpReferences(target)
       .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
       .map((reference) => reference.hintPath ?? reference.include),
+    ...resolveDotnetFrameworkReferenceAssemblies(
+      readCsharpReferences(target)
+        .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "framework" }> => reference.kind === "framework")
+        .map((reference) => reference.include),
+      readCsharpTargetFramework(target),
+      projectDirectory,
+    ),
     ...readCsharpProviderReferencePaths(target),
   ]);
 }

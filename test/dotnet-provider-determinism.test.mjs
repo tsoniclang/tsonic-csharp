@@ -15,11 +15,14 @@ import {
   readCsharpReferences,
   readCsharpReflectionReferencePaths,
 } from "../dist/options/csharp-target-options.js";
+import {
+  resolveDotnetFrameworkReferenceAssemblies,
+} from "../dist/options/dotnet-framework-reference-packs.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
-test("C# framework references do not become reflection reference paths", () => {
+test("C# framework references resolve through active SDK targeting packs", () => {
   const references = readCsharpReflectionReferencePaths({
     id: "csharp",
     options: {
@@ -31,9 +34,107 @@ test("C# framework references do not become reflection reference paths", () => {
         ],
       },
     },
-  });
+  }, repoRoot);
 
-  assert.deepEqual(references, ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
+  assert.deepEqual(references.slice(0, 2), ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
+  const frameworkReferences = references.slice(2);
+  assert.ok(frameworkReferences.length > 0);
+  assert.ok(frameworkReferences.some((reference) => reference.endsWith("/Microsoft.AspNetCore.Http.dll")));
+  assert.ok(frameworkReferences.every((reference) => reference.includes("/packs/Microsoft.AspNetCore.App.Ref/")));
+  assert.ok(frameworkReferences.every((reference) => !reference.includes("/shared/Microsoft.AspNetCore.App/")));
+});
+
+test(".NET targeting-pack selection follows the exact active SDK without version sorting", () => {
+  const calls = [];
+  const host = {
+    runDotnet(args, cwd) {
+      calls.push({ args: [...args], cwd });
+      if (args[0] === "--version") {
+        return { status: 0, stdout: "10.0.100-preview.7.1\n", stderr: "" };
+      }
+      if (args[0] === "--list-sdks") {
+        return {
+          status: 0,
+          stdout: [
+            "10.0.100 [/sdks]",
+            "11.0.100 [/sdks]",
+            "10.0.100-preview.7.1 [/preview-sdks]",
+          ].join("\n"),
+          stderr: "",
+        };
+      }
+      assert.deepEqual(args, [
+        "msbuild",
+        "/preview-sdks/10.0.100-preview.7.1/Microsoft.NETCoreSdk.BundledVersions.props",
+        "-nologo",
+        "-getProperty:NetCoreTargetingPackRoot",
+        "-getItem:KnownFrameworkReference",
+      ]);
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          Properties: { NetCoreTargetingPackRoot: "/packs" },
+          Items: {
+            KnownFrameworkReference: [{
+              Identity: "Acme.Framework",
+              TargetFramework: "net10.0",
+              TargetingPackName: "Acme.Framework.Ref",
+              TargetingPackVersion: "10.0.0-preview.7.1",
+            }],
+          },
+        }),
+        stderr: "",
+      };
+    },
+    isFile(path) {
+      return path === "/preview-sdks/10.0.100-preview.7.1/Microsoft.NETCoreSdk.BundledVersions.props";
+    },
+    readAssemblyDirectory(path) {
+      assert.equal(path, "/packs/Acme.Framework.Ref/10.0.0-preview.7.1/ref/net10.0");
+      return [`${path}/Zeta.dll`, `${path}/Alpha.dll`];
+    },
+  };
+
+  assert.deepEqual(
+    resolveDotnetFrameworkReferenceAssemblies(
+      ["Acme.Framework"],
+      "net10.0",
+      "/project",
+      host,
+    ),
+    [
+      "/packs/Acme.Framework.Ref/10.0.0-preview.7.1/ref/net10.0/Alpha.dll",
+      "/packs/Acme.Framework.Ref/10.0.0-preview.7.1/ref/net10.0/Zeta.dll",
+    ],
+  );
+  assert.equal(calls.length, 3);
+  assert.ok(calls.every((call) => call.cwd === "/project"));
+});
+
+test(".NET targeting-pack selection fails closed for an unsupported target framework", () => {
+  const host = deterministicFrameworkHost({ targetFramework: "net10.0" });
+  assert.throws(
+    () => resolveDotnetFrameworkReferenceAssemblies(
+      ["Acme.Framework"],
+      "netbanana",
+      "/project",
+      host,
+    ),
+    /does not define framework reference 'Acme\.Framework' for target framework 'netbanana'/u,
+  );
+});
+
+test(".NET targeting-pack selection fails closed when the selected reference pack is missing", () => {
+  const host = deterministicFrameworkHost({ targetFramework: "net10.0", missingPack: true });
+  assert.throws(
+    () => resolveDotnetFrameworkReferenceAssemblies(
+      ["Acme.Framework"],
+      "net10.0",
+      "/project",
+      host,
+    ),
+    /targeting pack reference directory.*missing or contains no assemblies/u,
+  );
 });
 
 test("C# provider references are reflection-only provider inputs", () => {
@@ -54,7 +155,7 @@ test("C# provider references are reflection-only provider inputs", () => {
     },
   };
 
-  assert.deepEqual(readCsharpReflectionReferencePaths(target), [
+  assert.deepEqual(readCsharpReflectionReferencePaths(target, repoRoot), [
     "../lib/Project.Assembly.dll",
     providerOnlyAssembly,
   ]);
@@ -62,6 +163,40 @@ test("C# provider references are reflection-only provider inputs", () => {
     { kind: "assembly", include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" },
   ]);
 });
+
+function deterministicFrameworkHost({ targetFramework, missingPack = false }) {
+  return {
+    runDotnet(args) {
+      if (args[0] === "--version") {
+        return { status: 0, stdout: "10.0.100\n", stderr: "" };
+      }
+      if (args[0] === "--list-sdks") {
+        return { status: 0, stdout: "10.0.100 [/sdks]\n", stderr: "" };
+      }
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          Properties: { NetCoreTargetingPackRoot: "/packs" },
+          Items: {
+            KnownFrameworkReference: [{
+              Identity: "Acme.Framework",
+              TargetFramework: targetFramework,
+              TargetingPackName: "Acme.Framework.Ref",
+              TargetingPackVersion: "10.0.0",
+            }],
+          },
+        }),
+        stderr: "",
+      };
+    },
+    isFile(path) {
+      return path === "/sdks/10.0.100/Microsoft.NETCoreSdk.BundledVersions.props";
+    },
+    readAssemblyDirectory(path) {
+      return missingPack ? undefined : [`${path}/Acme.Framework.dll`];
+    },
+  };
+}
 
 test(".NET provider cache fingerprints reference contents rather than mutable path metadata", () => {
   const referenceDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/cache-content-identity");
