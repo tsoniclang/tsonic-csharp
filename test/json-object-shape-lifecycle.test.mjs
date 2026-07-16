@@ -77,3 +77,22 @@ test("generic call argument conversion makes an object literal implement the sel
   assert.equal(shape.implements[0]?.id, "Payload");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
+
+test("repeated semantic object-shape derivation retains stable declaration provenance", () => {
+  const session = createCsharpSession(`
+    export function serializeError(message: string): string {
+      return JSON.stringify({ error: message });
+    }
+  `, { selectedSurfaces: [{ id: "js" }], typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  const propertyDeclaration = collectNodesByKind(sourceFile, session.ast, "KindPropertyAssignment")[0];
+  const extensionHost = session.finalizeExtensions();
+  const shape = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+
+  assert.ok(shape);
+  assert.deepEqual(shape.members[0]?.sourceSubjects, [propertyDeclaration]);
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});

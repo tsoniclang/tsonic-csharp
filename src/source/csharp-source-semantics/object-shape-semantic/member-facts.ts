@@ -84,7 +84,8 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   }
   const optional = propertyHasOptionalDeclaration(property, context) ||
     propertyTypeIncludesNullish(propertyType, context);
-  const sourceSubjects = [property, ...getSymbolDeclarations(property, context.compiler.checker)];
+  const declarations = getSymbolDeclarations(property, context.compiler.checker);
+  const sourceSubjects = declarations.length === 0 ? [property] : declarations;
   return {
     sourceName,
     sourceSubjects,
