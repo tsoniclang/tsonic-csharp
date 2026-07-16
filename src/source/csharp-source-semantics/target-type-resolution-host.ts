@@ -1,6 +1,7 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   TargetBindingFact,
   TargetTypeRef,
   Type,
@@ -21,6 +22,10 @@ export interface CsharpTargetTypeResolutionHost {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly getAssignableTargetTypeRefs?: (type: TargetTypeRef) => readonly TargetTypeRef[];
   readonly getCatchVariableTargetTypeRef?: () => TargetTypeRef | undefined;
+  readonly getNumericLiteralTargetTypeRef: (
+    node: Node,
+    context: ExtensionObservationContext,
+  ) => TargetTypeRef;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,

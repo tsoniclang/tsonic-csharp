@@ -101,7 +101,7 @@ test(".NET provider distinguishes authored T from T? inside generic delegate use
   assertGenericDelegateArgumentNullability(nullable.parameters[0].type, true, "target-named");
 });
 
-test(".NET provider preserves non-null generic callback parameters in Queryable signatures", () => {
+test(".NET provider projects Queryable expression-tree parameters from exact delegate type arguments", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {
     requestedExports: ["Queryable"],
@@ -116,7 +116,7 @@ test(".NET provider preserves non-null generic callback parameters in Queryable 
     signature.parameters.length === 2
   );
   assert.ok(rawOrderByDescending);
-  assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.typeArguments[0].sourceShape);
+  assertGenericSelectorShape(rawOrderByDescending.parameters[1].type.sourceShape);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const queryable = declarationModel.exports.find((declaration) => declaration.name === "Queryable");
@@ -126,8 +126,7 @@ test(".NET provider preserves non-null generic callback parameters in Queryable 
   );
   assert.ok(orderByDescending);
   assert.equal(orderByDescending.parameters[1].type.kind, "target-named");
-  assert.equal(orderByDescending.parameters[1].type.sourceShape?.kind, "provider-ref");
-  assertGenericSelectorShape(orderByDescending.parameters[1].type.sourceShape.typeArguments[0]);
+  assertGenericSelectorShape(orderByDescending.parameters[1].type.sourceShape);
 });
 
 test(".NET provider separates nullable object inputs from non-null object inputs", () => {

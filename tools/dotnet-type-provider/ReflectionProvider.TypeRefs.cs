@@ -198,6 +198,16 @@ sealed partial class ReflectionProvider
                 return delegateShape;
             }
         }
+        var providerProjection = ProviderSourceProjectionShape(
+            type,
+            genericParameters,
+            typeNullability,
+            typeNullabilityMetadata,
+            genericNullability);
+        if (providerProjection is not null)
+        {
+            return providerProjection;
+        }
         if (IsRuntimeType(type, typeof(string)))
         {
             return new { kind = "string" };

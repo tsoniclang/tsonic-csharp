@@ -555,6 +555,9 @@ test("C# provider validates generic constraints only from finalized target facts
   const widget = { kind: "target-named", id: "Example.Widget" };
   const structValue = { kind: "target-named", id: "Example.StructValue" };
   const widgetArray = { kind: "array", element: widget };
+  const sourceClass = { kind: "target-named", id: "SourceClass", csharpSourceDeclarationKind: "class" };
+  const sourceInterface = { kind: "target-named", id: "SourceInterface", csharpSourceDeclarationKind: "interface" };
+  const sourceStruct = { kind: "target-named", id: "SourceStruct", csharpSourceDeclarationKind: "struct" };
 
   assert.equal(provider.validateTargetConstraint({
     target: "csharp",
@@ -566,6 +569,21 @@ test("C# provider validates generic constraints only from finalized target facts
     source: widgetArray,
     constraint: { kind: "reference-type" },
   }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: sourceClass,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: sourceInterface,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: sourceStruct,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "reject");
   assert.equal(provider.validateTargetConstraint({
     target: "csharp",
     source: structValue,

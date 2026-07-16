@@ -194,10 +194,28 @@ sealed partial class ReflectionProvider
                     {
                         continue;
                     }
+                    if (HasDeterministicPlatformAssembly(reference))
+                    {
+                        continue;
+                    }
                     throw new InvalidOperationException(
                         $"Unable to read exported types from explicit .NET reference assembly '{candidate.Path}': referenced assembly '{reference.FullName ?? reference.Name}' is not present in the deterministic reference set.");
                 }
             }
+        }
+
+        bool HasDeterministicPlatformAssembly(AssemblyName reference)
+        {
+            var candidates = rootCandidates
+                .Where(candidate => !candidate.IsExplicitReference && StringComparer.Ordinal.Equals(candidate.Name, reference.Name))
+                .ToArray();
+            if (candidates.Length != 1)
+            {
+                return false;
+            }
+            var candidate = new AssemblyName(candidates[0].Identity);
+            return StringComparer.Ordinal.Equals(candidate.CultureName ?? "", reference.CultureName ?? "") &&
+                (candidate.GetPublicKeyToken() ?? []).SequenceEqual(reference.GetPublicKeyToken() ?? []);
         }
 
         static AssemblyCandidate SelectCanonicalCandidate(

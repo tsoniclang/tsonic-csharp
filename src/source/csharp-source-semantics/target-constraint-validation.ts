@@ -263,6 +263,13 @@ function isCsharpReferenceType(type: TargetTypeRef, host: CsharpOperationsProvid
   if ((type as { readonly csharpSpecialType?: string }).csharpSpecialType === "string") {
     return true;
   }
+  const sourceDeclarationKind = (type as { readonly csharpSourceDeclarationKind?: string }).csharpSourceDeclarationKind;
+  if (sourceDeclarationKind === "class" || sourceDeclarationKind === "interface") {
+    return true;
+  }
+  if (sourceDeclarationKind === "enum" || sourceDeclarationKind === "struct") {
+    return false;
+  }
   const binding = host.getCsharpTargetBindingByTargetId(type.id);
   return binding?.kind === "class" || binding?.kind === "interface" || binding?.kind === "delegate";
 }

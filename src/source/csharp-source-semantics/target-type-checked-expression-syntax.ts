@@ -50,7 +50,7 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
   if (ast === undefined || node === undefined) {
     return undefined;
   }
-  const literal = getTargetTypeRefFromLiteralSyntax(node, context);
+  const literal = getTargetTypeRefFromLiteralSyntax(node, context, host);
   if (literal !== undefined) {
     return literal;
   }
@@ -137,6 +137,7 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
 function getTargetTypeRefFromLiteralSyntax(
   node: Node,
   context: ExtensionObservationContext,
+  host: CsharpTargetTypeResolutionHost,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -147,7 +148,7 @@ function getTargetTypeRefFromLiteralSyntax(
     case "KindFalseKeyword":
       return csharpSourcePrimitiveTargetType("bool");
     case "KindNumericLiteral":
-      return csharpSourcePrimitiveTargetType("float64");
+      return host.getNumericLiteralTargetTypeRef(node, context);
     case "KindBigIntLiteral":
       return csharpBigIntegerTargetType();
     case "KindStringLiteral":

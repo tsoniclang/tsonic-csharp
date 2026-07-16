@@ -32,8 +32,12 @@ import {
 import {
   csharpBaseTargetTypeFromBinding,
   csharpExceptionTargetType,
+  csharpSourcePrimitiveTargetType,
   csharpTsValueTargetType,
 } from "./target-types.js";
+import {
+  isLiteralRepresentableAsTargetType,
+} from "./target-member-literals.js";
 import {
   resolveFunctionTargetTypeRefFromSignatureLikeSubject,
   resolveTargetTypeArgumentsForType,
@@ -120,6 +124,7 @@ export function getCsharpExtensionSemanticHosts(context: TargetProviderContext):
 
 export function createCsharpExtensionSemanticHosts(context: TargetProviderContext): CsharpExtensionSemanticHosts {
   const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
+  const jsSurfaceSelected = context.selectedSurfaces.some((surface) => surface.id === "js");
   const dotnetReflectionReferences = readCsharpReflectionReferencePaths(
     context.target,
     context.projectDirectory,
@@ -186,6 +191,12 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
     getCsharpTargetBindingByTargetId: getBindingByTargetId,
     getCsharpTargetBindingByMetadataName: getBindingByMetadataName,
     getCatchVariableTargetTypeRef: () => typescriptCompatibilityMode === "compat" ? csharpTsValueTargetType() : csharpExceptionTargetType(),
+    getNumericLiteralTargetTypeRef: (node: Node, observationContext: ExtensionObservationContext) => {
+      const int32 = csharpSourcePrimitiveTargetType("int32");
+      return !jsSurfaceSelected && isLiteralRepresentableAsTargetType(int32, node, observationContext)
+        ? int32
+        : csharpSourcePrimitiveTargetType("float64");
+    },
     getBaseTargetTypeRef,
     getAssignableTargetTypeRefs,
     getCsharpObjectShapeFactForSubject,
@@ -255,6 +266,7 @@ export function createCsharpExtensionSemanticHosts(context: TargetProviderContex
     getCsharpTargetBindingByMetadataName: targetTypeResolutionHost.getCsharpTargetBindingByMetadataName,
     getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
     getAssignableTargetTypeRefs: targetTypeResolutionHost.getAssignableTargetTypeRefs,
+    getNumericLiteralTargetTypeRef: targetTypeResolutionHost.getNumericLiteralTargetTypeRef,
     getSemanticTypeDeclarationShape: targetTypeResolutionHost.getSemanticTypeDeclarationShape,
     getTargetTypeRefForSubject,
     getTargetTypeRefForType,
