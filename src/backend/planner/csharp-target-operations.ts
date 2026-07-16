@@ -111,7 +111,7 @@ export function csharpStaticMemberExpression(
   };
 }
 
-function csharpTypeArgumentsFromTargetOperation(
+export function csharpTypeArgumentsFromTargetOperation(
   operation: Extract<CsharpTargetOperationFact, { readonly kind: "member" }>,
   diagnostics: TargetDiagnostic[],
   node: Node,

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import {
@@ -11,11 +11,12 @@ import {
 } from "../dist/backend/planner/expression-selected-target-members.js";
 import {
   KindIdentifier,
+  KindPropertyAccessExpression,
 } from "../dist/backend/planner/source-ast.js";
 import {
   targetMemberAsSourceSelectedSignature,
 } from "../dist/source/csharp-source-semantics/selected-target-source-signature.js";
-export { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature };
+export { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, KindPropertyAccessExpression, targetMemberAsSourceSelectedSignature };
 
 
 
@@ -190,6 +191,7 @@ export function fakeArgumentInput(options = {}) {
     },
     analysis: {
       getProjectSourceReferenceForNode: (node) => options.sourceReferences?.get(node),
+      getSymbolName: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolDeclarations: () => [],
@@ -225,6 +227,7 @@ export function fakeSelectedInput() {
   return {
     ast: {
       kindName: (node) => String(node?.Kind),
+      text: (node) => String(node?.Text ?? ""),
     },
     analysis: {
       getSymbolName: () => undefined,
@@ -239,6 +242,15 @@ export function fakeSelectedInput() {
 
 export function identifier(text) {
   return { Kind: KindIdentifier, Text: text };
+}
+
+export function propertyAccess(receiver, name, optional = false) {
+  return {
+    Kind: KindPropertyAccessExpression,
+    Expression: receiver,
+    Name: identifier(name),
+    ...(optional ? { QuestionDotToken: { Kind: "KindQuestionDotToken" } } : {}),
+  };
 }
 
 export function identifierExpressionPlanner(node) {

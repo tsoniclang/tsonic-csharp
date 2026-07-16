@@ -1,4 +1,4 @@
-import { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature, selectedMember, closedIdentityMember, csharpStringType, extensionMember, callableInvokeMember, callableByrefInvokeMember, fakeInput, fakeArgumentInput, fakeSelectedInput, identifier, identifierExpressionPlanner, expectedIdentifierExpressionPlanner, expectedTypeKindExpressionPlanner, sourceFile, sourceFileWithText, sourceLocatedIdentifier } from "./call-operation-facts.helpers.mjs";
+import { test, assert, csharpTargetOperationFactKey, csharpDelegateTargetType, csharpEnumerableTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType, getRequiredCsharpTargetMemberOperationForSelectedSignature, planCallArgumentCore, planSelectedTargetCallee, planSelectedTargetCallArguments, planSelectedTargetReceiverExpression, KindIdentifier, targetMemberAsSourceSelectedSignature, selectedMember, closedIdentityMember, csharpStringType, extensionMember, callableInvokeMember, callableByrefInvokeMember, fakeInput, fakeArgumentInput, fakeSelectedInput, identifier, propertyAccess, identifierExpressionPlanner, expectedIdentifierExpressionPlanner, expectedTypeKindExpressionPlanner, sourceFile, sourceFileWithText, sourceLocatedIdentifier } from "./call-operation-facts.helpers.mjs";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -786,4 +786,83 @@ test("selected target identifier calls reject instance members without a value r
   assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a value receiver/);
+});
+test("selected target instance calls emit finalized generic target arguments", () => {
+  const callee = propertyAccess(identifier("context"), "set");
+  const entityType = csharpTargetNamedType("Example.Entity", undefined, csharpQualifiedTypeRenderShape("Example", "Entity"));
+  const diagnostics = [];
+  const expression = planSelectedTargetCallee(
+    callee,
+    {
+      kind: "member",
+      operationId: "Example.Context.Set``1()",
+      operationKind: "method",
+      memberName: "Set",
+      static: false,
+      typeArguments: [entityType],
+    },
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    identifierExpressionPlanner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(expression, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "context" },
+    name: "Set",
+    typeArguments: [{ kind: "QualifiedName", left: { kind: "IdentifierName", name: "Example" }, name: "Entity" }],
+  });
+});
+test("selected target optional instance calls preserve finalized generic target arguments", () => {
+  const callee = propertyAccess(identifier("context"), "set", true);
+  const entityType = csharpTargetNamedType("Example.Entity", undefined, csharpQualifiedTypeRenderShape("Example", "Entity"));
+  const diagnostics = [];
+  const expression = planSelectedTargetCallee(
+    callee,
+    {
+      kind: "member",
+      operationId: "Example.Context.Set``1()",
+      operationKind: "method",
+      memberName: "Set",
+      static: false,
+      typeArguments: [entityType],
+    },
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    identifierExpressionPlanner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(expression, {
+    kind: "ConditionalAccessExpression",
+    receiver: { kind: "IdentifierName", name: "context" },
+    name: "Set",
+    typeArguments: [{ kind: "QualifiedName", left: { kind: "IdentifierName", name: "Example" }, name: "Entity" }],
+  });
+});
+test("selected target instance calls fail closed on unrenderable generic target arguments", () => {
+  const callee = propertyAccess(identifier("context"), "set");
+  const diagnostics = [];
+  const expression = planSelectedTargetCallee(
+    callee,
+    {
+      kind: "member",
+      operationId: "Example.Context.Set``1()",
+      operationKind: "method",
+      memberName: "Set",
+      static: false,
+      typeArguments: [{ kind: "source-global", name: "Unrenderable" }],
+    },
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    identifierExpressionPlanner,
+  );
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires renderable generic target argument facts/);
 });

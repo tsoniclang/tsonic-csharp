@@ -40,6 +40,7 @@ import type {
 } from "../../source/csharp-facts.js";
 import {
   csharpStaticMemberExpression,
+  csharpTypeArgumentsFromTargetOperation,
 } from "./csharp-target-operations.js";
 import {
   isExternalDeclarationReference,
@@ -128,10 +129,15 @@ export function planSelectedTargetCallee(
     if (receiver === undefined) {
       return undefined;
     }
+    const typeArguments = csharpTypeArgumentsFromTargetOperation(operation, diagnostics, callee, "Selected instance target call");
+    if (typeArguments === undefined) {
+      return undefined;
+    }
     return {
       kind: property.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
       receiver,
       name: operation.memberName,
+      ...(typeArguments.length === 0 ? {} : { typeArguments }),
     };
   }
   if (callee !== undefined && HasSourceKind(input.ast, callee, KindIdentifier)) {
