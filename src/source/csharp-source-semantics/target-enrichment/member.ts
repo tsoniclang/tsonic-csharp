@@ -39,10 +39,12 @@ export function enrichCsharpTargetMember(
   const effectiveDeclaringType = substitutedMember.declaringType ?? options.declaringTargetType;
   const declaringType = enrichCsharpTargetTypeRef(effectiveDeclaringType, host);
   const returnType = enrichCsharpTargetTypeRef(substitutedMember.returnType, host);
+  const invocationFactoryType = enrichCsharpTargetTypeRef(substitutedMember.csharpInvocation?.factoryType, host);
   const parameters = enrichCsharpTargetParameters(substitutedMember.parameters, host);
   if (
     (effectiveDeclaringType !== undefined && declaringType === undefined) ||
     (substitutedMember.returnType !== undefined && returnType === undefined) ||
+    (substitutedMember.csharpInvocation !== undefined && invocationFactoryType === undefined) ||
     parameters === undefined
   ) {
     return undefined;
@@ -52,6 +54,9 @@ export function enrichCsharpTargetMember(
     ...(declaringType !== undefined ? { declaringType } : {}),
     parameters,
     ...(returnType !== undefined ? { returnType } : {}),
+    ...(substitutedMember.csharpInvocation === undefined || invocationFactoryType === undefined
+      ? {}
+      : { csharpInvocation: { ...substitutedMember.csharpInvocation, factoryType: invocationFactoryType } }),
   };
 }
 
@@ -143,6 +148,9 @@ function substituteTargetMemberTypeParameters(
   const returnType = member.returnType === undefined
     ? undefined
     : substituteTargetTypeRef(member.returnType, typeArgumentMap);
+  const invocationFactoryType = member.csharpInvocation === undefined
+    ? undefined
+    : substituteTargetTypeRef(member.csharpInvocation.factoryType, typeArgumentMap);
   return {
     ...member,
     ...(declaringType !== undefined ? { declaringType } : {}),
@@ -151,5 +159,8 @@ function substituteTargetMemberTypeParameters(
       type: substituteTargetTypeRef(parameter.type, typeArgumentMap),
     })),
     ...(returnType !== undefined ? { returnType } : {}),
+    ...(member.csharpInvocation === undefined || invocationFactoryType === undefined
+      ? {}
+      : { csharpInvocation: { ...member.csharpInvocation, factoryType: invocationFactoryType } }),
   };
 }

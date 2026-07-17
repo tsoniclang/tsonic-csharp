@@ -32,6 +32,7 @@ import {
   planSelectedTargetCallArguments,
 } from "./expression-target-members/index.js";
 import {
+  csharpStaticMemberExpression,
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
 import {
@@ -107,6 +108,16 @@ export function planNewExpression(
     : planSelectedTargetCallArguments(expression.Expression, expression, member, csharpOperation?.argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument);
   if (arguments_ === undefined) {
     return undefined;
+  }
+  if (csharpOperation?.invocationKind === "static-factory-construction") {
+    const callee = csharpStaticMemberExpression(csharpOperation, diagnostics, node, "Static factory construction");
+    return callee === undefined
+      ? undefined
+      : {
+          kind: "InvocationExpression",
+          callee,
+          arguments: arguments_,
+        };
   }
   return {
     kind: "ObjectCreationExpression",

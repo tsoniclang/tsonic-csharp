@@ -300,4 +300,5 @@ const sourceLibraryConstructorDeclaringNames: ReadonlySet<string> = new Set([
   "SetConstructor",
   "FunctionConstructor",
   "ProxyConstructor",
+  "PromiseConstructor",
 ]);

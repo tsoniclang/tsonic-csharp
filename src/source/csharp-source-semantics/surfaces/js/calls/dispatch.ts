@@ -50,6 +50,12 @@ import {
 import {
   csharpTargetMemberFact,
 } from "../../../target-types.js";
+import {
+  asNodeSubject,
+} from "../../../ast-utils.js";
+import {
+  isAmbientOrExternalDeclaration,
+} from "../../../source-declaration-utils.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -146,8 +152,33 @@ export function resolveCheckedCallSourceLibraryMember(
   request: Pick<CheckedCallMappingRequest, "sourceSelectedCalleeDeclaration" | "sourceSelectedCalleeSymbol" | "sourceSelectedDeclaration">,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ) {
+  const selectedCalleeDeclaration = asNodeSubject(request.sourceSelectedCalleeDeclaration);
+  if (
+    selectedCalleeDeclaration !== undefined &&
+    !isAmbientOrExternalDeclaration(selectedCalleeDeclaration, context) &&
+    sourceOwnedCallableValueDeclaration(selectedCalleeDeclaration, context)
+  ) {
+    return undefined;
+  }
   return resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) ??
     resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedCalleeDeclaration, request.sourceSelectedCalleeSymbol, context);
+}
+
+function sourceOwnedCallableValueDeclaration(
+  declaration: NonNullable<ReturnType<typeof asNodeSubject>>,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  switch (context.compiler.ast.kindName(declaration)) {
+    case "KindVariableDeclaration":
+    case "KindParameter":
+    case "KindParameterDeclaration":
+    case "KindBindingElement":
+    case "KindPropertyDeclaration":
+    case "KindPropertySignature":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function targetMemberSelectionRequiresReceiverFacts(

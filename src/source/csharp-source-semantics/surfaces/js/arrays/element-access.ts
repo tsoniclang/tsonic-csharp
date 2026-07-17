@@ -24,6 +24,9 @@ import {
 import {
   getCsharpArrayLikeElementType,
 } from "../array-carriers.js";
+import {
+  targetTypeRefIsClosed,
+} from "../../../target-ref-utils.js";
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
@@ -31,7 +34,12 @@ export function mapCsharpJsArrayElementAccess(
   semanticReceiverType: TargetTypeRef | undefined,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const elementType = getCsharpArrayLikeElementType(receiverCarrier ?? semanticReceiverType);
+  const elementType = getCsharpArrayLikeElementType(receiverCarrier ?? semanticReceiverType) ??
+    host.getTargetTypeRefForSubject(request.sourceResultType, context, {
+      ...csharpJsCheckedTypeQuery,
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: false,
+    });
   if (elementType === undefined) {
     return undefined;
   }
@@ -67,16 +75,18 @@ export function mapCsharpJsArrayElementAccess(
   if (!literalIndex && !host.isIntegralTargetTypeRef(indexType)) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array element access requires an integral provider-backed index type."));
   }
-  if (receiverCarrier !== undefined) {
+  if (targetTypeRefIsClosed(elementType)) {
     recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.array.indexer", "indexer", "Item", {
       resultType: elementType,
-    }), [{ message: "C# JS surface array indexer operation recorded from finalized array receiver carrier facts." }]);
+    }), [{ message: receiverCarrier === undefined
+      ? "C# JS surface array indexer operation recorded from TSTS-selected source result evidence and its finalized target type fact."
+      : "C# JS surface array indexer operation recorded from finalized array receiver carrier facts." }]);
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item", {
       resultType: elementType,
     }),
-  }, [{ message: receiverCarrier === undefined
-    ? "C# JS surface array indexer selected from checked TypeScript array semantics; C# operation finalization still requires receiver carrier facts."
+  }, [{ message: receiverCarrier === undefined && !targetTypeRefIsClosed(elementType)
+    ? "C# JS surface array indexer selected from checked TypeScript array semantics; C# operation finalization still requires closed selected result or receiver carrier facts."
     : "C# JS surface array indexer selected from finalized array receiver carrier facts." }]);
 }

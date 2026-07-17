@@ -130,7 +130,13 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly sourceIdentityKeys?: readonly string[];
   readonly csharpCallFinalization?: CsharpCallFinalizationRequirement;
   readonly csharpDeferredTargetSelection?: CsharpDeferredTargetSelection;
+  readonly csharpInvocation?: CsharpTargetInvocation;
 }
+
+export type CsharpTargetInvocation = {
+  readonly kind: "static-factory-construction";
+  readonly factoryType: TargetTypeRef;
+};
 
 export interface CsharpTargetConversionOperatorFact {
   readonly id: string;

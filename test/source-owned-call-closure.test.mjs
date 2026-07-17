@@ -231,6 +231,31 @@ test("source-owned checked calls close over callable type return annotations", (
   assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
 });
 
+test("source-owned checked calls prefer a local delegate parameter over its external contextual signature", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const declarationFile = {
+    IsDeclarationFile: true,
+    FileName: "/profiles/js-globals.d.ts",
+  };
+  const parameter = node("KindParameter", sourceFile);
+  const externalSignature = node("KindCallSignature", declarationFile);
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    ...resolvedSignatureEvidence(),
+    sourceSelectedDeclaration: externalSignature,
+    sourceSelectedCalleeDeclaration: parameter,
+    arguments: [],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "accept");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.deepEqual(result.value.selectedSignature.member.parameters, []);
+});
+
 test("source-owned checked calls keep function-declaration callable returns as delegate carriers", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const returnType = node("KindNumberKeyword", sourceFile);
@@ -675,6 +700,9 @@ function fakeObservationContext(options = {}) {
         parameters: (subject) => subject?.Parameters?.Nodes ?? [],
         typeArguments: (subject) => subject?.TypeArguments?.Nodes ?? [],
         typeParameters: (subject) => subject?.TypeParameters?.Nodes ?? [],
+        as: {
+          AsPropertyAccessExpression: (subject) => subject?.Kind === "KindPropertyAccessExpression" ? subject : undefined,
+        },
         is: new Proxy({
           IsIdentifier: (subject) => subject?.Kind === "KindIdentifier",
           IsPrivateIdentifier: () => false,

@@ -113,7 +113,7 @@ export function selectExactTargetMember(
       targetParameterAcceptsCheckedSourceArgument(
         parameter,
         argumentType,
-        sourceSelectionProvesExactTargetMember(request, member),
+        sourceSelectionProvesTargetMember(request, member),
       ) &&
       request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member)
@@ -215,7 +215,7 @@ function targetMemberMatch(
       targetParameterAcceptsCheckedSourceArgument(
         parameter,
         argumentType,
-        sourceSelectionProvesExactTargetMember(request, member),
+        sourceSelectionProvesTargetMember(request, member),
       ) &&
       request.sourceSelectionProven === true &&
       sourceSelectionProvesTargetMember(request, member)

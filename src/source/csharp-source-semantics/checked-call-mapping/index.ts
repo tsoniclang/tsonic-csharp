@@ -229,13 +229,13 @@ export function mapCsharpCheckedCall(
     if (unsupportedNativeReceiverCall !== undefined) {
       return unsupportedNativeReceiverCall;
     }
-    const unsupportedExternalCall = rejectUnmappedExternalCall(request, context, extensionId);
-    if (unsupportedExternalCall !== undefined) {
-      return unsupportedExternalCall;
-    }
     const sourceOwnedCall = acceptSourceOwnedCheckedCall(request, context, host);
     if (sourceOwnedCall !== undefined) {
       return sourceOwnedCall;
+    }
+    const unsupportedExternalCall = rejectUnmappedExternalCall(request, context, extensionId);
+    if (unsupportedExternalCall !== undefined) {
+      return unsupportedExternalCall;
     }
     return rejectObservation(csharpProviderDiagnostic(
       extensionId,
@@ -601,7 +601,7 @@ function acceptSourceOwnedCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const declaration = getSourceOwnedCallDeclaration(request, context, host);
+  const declaration = getSourceOwnedCallDeclaration(request, context);
   if (declaration === undefined) {
     return undefined;
   }
@@ -1072,7 +1072,6 @@ function isFinalizedSourceOwnedReturnCarrier(
 function getSourceOwnedCallDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpOperationsProviderHost,
 ): Node | undefined {
   const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   if (sourceDeclarationIsOwnedProjectDeclaration(selectedDeclaration, context)) {
@@ -1081,7 +1080,7 @@ function getSourceOwnedCallDeclaration(
   const symbolDeclaration = asNodeSubject(request.sourceSelectedCalleeDeclaration);
   if (
     sourceDeclarationIsOwnedProjectDeclaration(symbolDeclaration, context) &&
-    isSourceCallableSymbolDeclaration(symbolDeclaration, request, context, host)
+    isSourceCallableSymbolDeclaration(symbolDeclaration, context)
   ) {
     return symbolDeclaration;
   }
@@ -1099,9 +1098,7 @@ function sourceDeclarationIsOwnedProjectDeclaration(
 
 function isSourceCallableSymbolDeclaration(
   declaration: Node,
-  request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpOperationsProviderHost,
 ): boolean {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -1114,41 +1111,16 @@ function isSourceCallableSymbolDeclaration(
     case "KindMethodDeclaration":
     case "KindConstructor":
     case "KindClassDeclaration":
-      return true;
     case "KindVariableDeclaration":
-      return isDirectCallableSyntax(asNodeSubject(getNodeField(declaration, "Initializer")), context);
+    case "KindParameter":
+    case "KindParameterDeclaration":
     case "KindBindingElement":
-      return isCsharpDelegateTargetRef(
-        host.getTargetTypeRefForSubject(request.callee, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }) ??
-          host.getTargetTypeRefForSubject(request.call, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
-      );
-    default:
-      return false;
-  }
-}
-
-function isDirectCallableSyntax(
-  node: Node | undefined,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  const ast = context.compiler?.ast;
-  if (node === undefined || ast === undefined) {
-    return false;
-  }
-  switch (ast.kindName(node)) {
-    case "KindFunctionDeclaration":
-    case "KindFunctionExpression":
-    case "KindArrowFunction":
-    case "KindMethodDeclaration":
-    case "KindConstructor":
+    case "KindPropertyDeclaration":
+    case "KindPropertySignature":
       return true;
     default:
       return false;
   }
-}
-
-function isCsharpDelegateTargetRef(type: ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>): boolean {
-  return typeof (type as { readonly csharpDelegateSignature?: unknown } | undefined)?.csharpDelegateSignature === "object";
 }
 
 function rejectUnmappedExternalCall(

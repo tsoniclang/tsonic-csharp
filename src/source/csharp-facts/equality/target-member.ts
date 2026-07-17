@@ -30,6 +30,8 @@ export function targetMemberEquals(left: CsharpTargetMember | undefined, right: 
     && left.csharpCallFinalization?.argumentIndex === right.csharpCallFinalization?.argumentIndex
     && left.csharpDeferredTargetSelection?.familyId === right.csharpDeferredTargetSelection?.familyId
     && left.csharpDeferredTargetSelection?.variant === right.csharpDeferredTargetSelection?.variant
+    && left.csharpInvocation?.kind === right.csharpInvocation?.kind
+    && targetTypeRefEquals(left.csharpInvocation?.factoryType, right.csharpInvocation?.factoryType)
     && stringArrayEquals(left.sourceIdentityKeys, right.sourceIdentityKeys)
     && targetTypeRefEquals(left.declaringType, right.declaringType)
     && targetTypeRefEquals(left.returnType, right.returnType)

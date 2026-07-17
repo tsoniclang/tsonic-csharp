@@ -70,6 +70,10 @@ import {
   getObjectRecordDictionaryCallMembers,
   getObjectRecordDictionaryHasOwnMembers,
 } from "./object-members.js";
+import {
+  promiseAllTargetMembers,
+  promiseConstructorTargetMembers,
+} from "../../promises.js";
 import type {
   JsSurfaceCallTargetProviderRequest,
   JsSurfaceCallCallableProviderRequest,
@@ -262,6 +266,10 @@ function targetMembersFromRuntimeHelperSelection(
       return getJsonRecordDictionaryStringifyCallMembers(request);
     case "object-shape-json-stringify":
       return getJsonObjectShapeStringifyCallMembers(request);
+    case "promise-constructor":
+      return promiseConstructorTargetMembers(request.request, request.context, request.host);
+    case "promise-all":
+      return promiseAllTargetMembers(request.request, request.context, request.host);
   }
 }
 

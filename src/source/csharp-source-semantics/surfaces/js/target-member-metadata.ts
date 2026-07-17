@@ -33,6 +33,7 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly semanticEquivalence?: string;
   readonly csharpCallFinalization?: CsharpTargetMember["csharpCallFinalization"];
   readonly csharpDeferredTargetSelection?: CsharpTargetMember["csharpDeferredTargetSelection"];
+  readonly csharpInvocation?: CsharpTargetMember["csharpInvocation"];
 }
 
 export type JsSurfaceTargetMemberMetadataWithIdentity =
@@ -146,6 +147,7 @@ export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberM
     ...(record.typeParameters !== undefined ? { typeParameters: record.typeParameters } : {}),
     ...(record.csharpCallFinalization !== undefined ? { csharpCallFinalization: record.csharpCallFinalization } : {}),
     ...(record.csharpDeferredTargetSelection !== undefined ? { csharpDeferredTargetSelection: record.csharpDeferredTargetSelection } : {}),
+    ...(record.csharpInvocation !== undefined ? { csharpInvocation: record.csharpInvocation } : {}),
     ...(sourceIdentityKeys.length === 0 ? {} : { sourceIdentityKeys }),
   };
 }

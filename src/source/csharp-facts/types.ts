@@ -220,6 +220,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly typeArguments?: readonly TargetTypeRef[];
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
+  readonly invocationKind?: "static-factory-construction";
   readonly selectedMember?: CsharpTargetMember;
 }
 

@@ -39,8 +39,9 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
   const sourceContainer = getSelectedSourceLibraryDeclarationName(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context);
   if (sourceContainer === "Array" || sourceContainer === "ReadonlyArray") {
     const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
-    if (receiverCarrier !== undefined) {
-      return mapCsharpJsArrayElementAccess(request, context, receiverCarrier, undefined, host);
+    const mapped = mapCsharpJsArrayElementAccess(request, context, receiverCarrier, undefined, host);
+    if (mapped !== undefined) {
+      return mapped;
     }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item"),

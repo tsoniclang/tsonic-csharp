@@ -131,6 +131,49 @@ test("target member selection lets exact checked signatures prove source-project
     undefined,
   );
 });
+test("target member selection lets exact source-profile identities prove source-projected callback parameters", () => {
+  const argument = {};
+  const sourceIdentity = "Promise.constructor";
+  const member = {
+    ...method("Tsonic.CSharp.Js.PromiseRuntime.Create", { kind: "target-named", id: "Tsonic.CSharp.Js.PromiseExecutor" }),
+    sourceIdentityKeys: [sourceIdentity],
+    parameters: [{
+      name: "executor",
+      type: { kind: "target-named", id: "Tsonic.CSharp.Js.PromiseExecutor" },
+      passingMode: "by-value",
+      csharpAcceptsCheckedSourceArgument: true,
+    }],
+  };
+  const context = {};
+  const resolveTargetTypeRef = () => ({ kind: "target-named", id: "System.Action" });
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      {
+        arguments: [argument],
+        sourceSelectionProven: true,
+        sourceSelectedIdentity: sourceIdentity,
+      },
+      context,
+      resolveTargetTypeRef,
+    )?.id,
+    member.id,
+  );
+  assert.equal(
+    selectTargetMember(
+      [member],
+      {
+        arguments: [argument],
+        sourceSelectionProven: true,
+        sourceSelectedIdentity: "Promise.then",
+      },
+      context,
+      resolveTargetTypeRef,
+    ),
+    undefined,
+  );
+});
 test("target member selection accepts source-primitive parameters only from exact checked source signatures", () => {
   const argument = {};
   const member = method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" });

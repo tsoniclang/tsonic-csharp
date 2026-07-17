@@ -97,7 +97,12 @@ export function csharpTargetOperationFromMember(
     readonly typeArguments?: readonly TargetTypeRef[];
   } = {},
 ): CsharpTargetMemberOperationFact {
-  const resultType = member.kind === "constructor"
+  const factoryConstruction = member.csharpInvocation?.kind === "static-factory-construction"
+    ? member.csharpInvocation
+    : undefined;
+  const resultType = factoryConstruction !== undefined
+    ? member.returnType
+    : member.kind === "constructor"
     ? member.declaringType
     : member.returnType;
   const argumentArrayLiteralElementTypes = getArgumentArrayLiteralElementTypes(member);
@@ -106,8 +111,12 @@ export function csharpTargetOperationFromMember(
     operationId: member.id,
     operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
     memberName: member.targetName,
-    ...(member.static === true ? { static: true } : {}),
-    ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
+    ...(member.static === true || factoryConstruction !== undefined ? { static: true } : {}),
+    ...(factoryConstruction !== undefined
+      ? { declaringType: factoryConstruction.factoryType, invocationKind: factoryConstruction.kind }
+      : member.declaringType !== undefined
+        ? { declaringType: member.declaringType }
+        : {}),
     ...(resultType !== undefined ? { resultType } : {}),
     ...(options.typeArguments !== undefined ? { typeArguments: options.typeArguments } : {}),
     ...(argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes } : {}),

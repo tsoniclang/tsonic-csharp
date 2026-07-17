@@ -188,6 +188,31 @@ test("JS surface maps array element access from selected source evidence", () =>
   assert.equal(result.value.operation.operationId, "tsonic.csharp.js.array.indexer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
 });
+test("JS surface closes array element access from selected result evidence before receiver carrier finalization", () => {
+  const expression = {};
+  const receiver = fakeNodeSubject({});
+  const index = fakeNodeSubject({});
+  const sourceResultType = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [index, int32Type()],
+    [sourceResultType, int32Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    argument: index,
+    sourceResultType,
+    sourceSelectedDeclaration: arrayMemberDeclaration("at"),
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.array.indexer");
+  assert.deepEqual(facts.get(expression, csharpTargetOperationFactKey)?.resultType, int32Type());
+});
 test("JS surface defers element access without selected source evidence even when receiver carrier is finalized", () => {
   const expression = {};
   const receiver = fakeNodeSubject({});

@@ -41,6 +41,9 @@ import {
   selectedMetadataProvider,
   semanticExceptionProvider,
 } from "./operation-providers.js";
+import {
+  promiseRuntimeOperationEvidence,
+} from "../../promises.js";
 import type {
   JsSurfaceOperationRow,
 } from "./operation-types.js";
@@ -421,6 +424,18 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     capabilityId: "surface.js.console",
     requiredFacts: selectedSignatureProviderFacts,
     targetProviders: [metadataIndexProvider(consoleTargetMembersBySourceIdentity)],
+  },
+  {
+    identity: { ids: ["Promise.constructor"] },
+    policyKind: "runtime-helper",
+    targetProviders: [runtimeHelperProvider({ kind: "promise-constructor" })],
+    ...promiseRuntimeOperationEvidence,
+  },
+  {
+    identity: { ids: ["Promise.all"] },
+    policyKind: "runtime-helper",
+    targetProviders: [runtimeHelperProvider({ kind: "promise-all" })],
+    ...promiseRuntimeOperationEvidence,
   },
   {
     identity: { prefixes: ["Promise."] },

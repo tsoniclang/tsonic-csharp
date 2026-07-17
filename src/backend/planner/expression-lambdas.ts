@@ -241,7 +241,7 @@ export function planLambdaParameters(
   expectedContext?: LambdaTargetContext,
 ): readonly CsharpLambdaParameter[] {
   const expectedParameterTypes = expectedContext?.signature.parameters ?? [];
-  return parameterNodes
+  const sourceParameters = parameterNodes
     .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
     .map((parameterNode, index): CsharpLambdaParameter => {
       const parameter = AsParameterDeclaration(parameterNode)!;
@@ -270,6 +270,14 @@ export function planLambdaParameters(
             : { type: expectedParameterType }),
       };
     });
+  const omittedTargetParameters = expectedParameterTypes
+    .slice(sourceParameters.length)
+    .map((type): CsharpLambdaParameter => ({
+      kind: "Parameter",
+      name: "_",
+      type,
+    }));
+  return [...sourceParameters, ...omittedTargetParameters];
 }
 
 export function diagnoseMissingLambdaTargetContext(
