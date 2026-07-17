@@ -43,8 +43,10 @@ import {
 import {
   getCsharpCollectionElementTargetType,
   getCsharpDelegateSignature,
+  getCsharpTaskResultTargetType,
   isCsharpAnyRuntimeCarrier,
   isCsharpClosedCompatRuntimeCarrier,
+  isCsharpRuntimeUnionTargetType,
 } from "./target-types.js";
 import {
   getCompatAnyTypedBoundaryConversion,
@@ -59,6 +61,7 @@ import {
 import {
   asType,
   targetTypeRefEquals,
+  targetTypeRefIsClosed,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
 import {
@@ -242,6 +245,48 @@ export function mapCsharpCheckedConversion(
   }
   const operation = getCsharpConversionOperation(source, target) ??
     getCsharpSourceDeclaredAssertionCast(request, source, target);
+  if (operation === undefined && isCsharpRuntimeUnionTargetType(target) && targetTypeRefIsClosed(target)) {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_RUNTIME_UNION_CONVERSION_NOT_PROVEN",
+        9100187,
+        "C# runtime-union conversion requires the checked source carrier to match one exact finalized union arm.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [{
+        message: "Runtime-union arm conversion not proven",
+        details: {
+          source: source === undefined ? "unresolved" : targetTypeRefKey(source),
+          target: targetTypeRefKey(target),
+        },
+      }],
+      identity: `csharp-runtime-union-conversion-not-proven:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
+    });
+  }
+  if (
+    operation === undefined &&
+    getCsharpTaskResultTargetType(source) !== undefined &&
+    (source === undefined || !targetTypeRefEquals(source, target))
+  ) {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_TASK_CONVERSION_NOT_PROVEN",
+        9100188,
+        "C# Task carrier conversion requires a finalized target operation; Task values cannot be implicitly unwrapped or reinterpreted.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [{
+        message: "Task carrier conversion not proven",
+        details: {
+          source: source === undefined ? "unresolved" : targetTypeRefKey(source),
+          target: targetTypeRefKey(target),
+        },
+      }],
+      identity: `csharp-task-conversion-not-proven:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
+    });
+  }
   if (operation !== undefined) {
     context.facts.set(request.expression, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion operation recorded from TSTS-selected conversion evidence." }]);
   }

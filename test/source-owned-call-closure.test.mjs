@@ -573,6 +573,45 @@ test("source-owned checked calls map TSTS-selected parameter type evidence witho
   }]);
 });
 
+test("source-owned checked calls prefer instantiated selected parameter evidence over authored generic syntax", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const parameterTypeNode = node("KindTypeReference", sourceFile, { Text: "T" });
+  const parameterDeclaration = node("KindParameter", sourceFile, {
+    name: node("KindIdentifier", sourceFile, { Text: "value" }),
+    Type: parameterTypeNode,
+  });
+  const selectedType = { kind: "semantic-instantiated-string" };
+  const declaration = node("KindParameter", sourceFile);
+  const openType = { kind: "type-parameter", name: "T" };
+  const instantiatedType = { kind: "source-primitive", name: "string" };
+
+  const result = sourceOwnedProvider(new Map([
+    [parameterTypeNode, openType],
+    [selectedType, instantiatedType],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call: node("KindCallExpression", sourceFile),
+    callee: node("KindIdentifier", sourceFile),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "value",
+      parameterSymbol: { kind: "parameter-symbol" },
+      parameterDeclaration,
+      selectedType,
+      authoredTypeNode: parameterTypeNode,
+    })]),
+    sourceSelectedCalleeDeclaration: declaration,
+    arguments: [node("KindStringLiteral", sourceFile, { Text: "ok" })],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.selectedSignature.member.parameters, [{
+    name: "value",
+    type: instantiatedType,
+    passingMode: "by-value",
+  }]);
+});
+
 test("source-owned checked calls fail closed when TSTS-selected method type arguments lack target facts", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const declaration = node("KindFunctionDeclaration", sourceFile);
@@ -623,6 +662,65 @@ test("source-owned checked calls fail closed when selected parameter target fact
     })]),
     sourceSelectedDeclaration: declaration,
     arguments: [node("KindNumericLiteral", sourceFile, { Text: "1" })],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
+});
+
+test("source-owned checked calls do not require target facts for TSTS-proven omitted parameters", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const parameter = node("KindParameterDeclaration", sourceFile, {
+    name: node("KindIdentifier", sourceFile, { Text: "value" }),
+  });
+  const declaration = node("KindParameterDeclaration", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const selectedType = { kind: "semantic-unresolved-omitted-parameter" };
+
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: node("KindIdentifier", sourceFile),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "value",
+      parameterSymbol: { kind: "parameter-symbol" },
+      parameterDeclaration: parameter,
+      selectedType,
+      acceptsOmission: true,
+    })]),
+    sourceSelectedCalleeDeclaration: declaration,
+    arguments: [],
+  }, fakeObservationContext());
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.selectedSignature.member.parameters, []);
+});
+
+test("source-owned checked calls still require target facts for supplied optional parameters", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const parameter = node("KindParameterDeclaration", sourceFile, {
+    name: node("KindIdentifier", sourceFile, { Text: "value" }),
+  });
+  const declaration = node("KindParameterDeclaration", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const selectedType = { kind: "semantic-unresolved-supplied-parameter" };
+
+  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: node("KindIdentifier", sourceFile),
+    ...resolvedSignatureEvidence([selectedParameterEvidence({
+      parameterIndex: 0,
+      parameterName: "value",
+      parameterSymbol: { kind: "parameter-symbol" },
+      parameterDeclaration: parameter,
+      selectedType,
+      acceptsOmission: true,
+    })]),
+    sourceSelectedCalleeDeclaration: declaration,
+    arguments: [node("KindIdentifier", sourceFile)],
   }, fakeObservationContext());
 
   assert.equal(result.kind, "reject");

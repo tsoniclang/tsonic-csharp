@@ -123,7 +123,7 @@ export function getSourceStandardLibraryDeclaringNameForType(
     return "Boolean";
   }
   const name = classifySourceStandardLibraryType(type, context)?.name;
-  return name === undefined || name === "Record" ? undefined : name;
+  return name === undefined || name === "PromiseLike" || name === "Record" ? undefined : name;
 }
 
 export function sourceStandardLibraryTypeIsObjectShapeExcluded(
@@ -143,6 +143,7 @@ const sourceStandardLibraryTypePolicies: readonly SourceStandardLibraryTypeClass
   { name: "Date", category: "date" },
   { name: "Math", category: "math" },
   { name: "Promise", category: "promise" },
+  { name: "PromiseLike", category: "promise" },
   { name: "Generator", category: "iterator" },
   { name: "AsyncGenerator", category: "iterator" },
   { name: "Iterator", category: "iterator" },
@@ -179,7 +180,7 @@ function isSelectedSourceProfilePromiseType(
     const sourceFile = compiler.ast.getSourceFile(declaration);
     const fileName = compiler.ast.getFileName(sourceFile);
     const name = compiler.ast.text(compiler.ast.name(declaration));
-    return name === "Promise" &&
+    return (name === "Promise" || name === "PromiseLike") &&
       (isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId) ||
         isTsonicSourceProfileDeclarationPath(fileName, csharpJsSourceProfileOwnerId));
   });

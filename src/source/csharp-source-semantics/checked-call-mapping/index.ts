@@ -679,6 +679,12 @@ function getSourceOwnedCallParameters(
     if (parameter === undefined || parameter.parameterIndex !== index) {
       return undefined;
     }
+    if (index >= request.arguments.length) {
+      if (!parameter.acceptsOmission && !parameter.rest) {
+        return undefined;
+      }
+      continue;
+    }
     const targetType = substituteSourceOwnedCallableTypeParameters(
       getSelectedSourceParameterTargetType(parameter, context, host),
       request,
@@ -705,8 +711,8 @@ function getSelectedSourceParameterTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(parameter.authoredTypeNode, context) ??
-    host.getTargetTypeRefForSubject(parameter.selectedType, context);
+  return host.getTargetTypeRefForSubject(parameter.selectedType, context) ??
+    host.getTargetTypeRefForSubject(parameter.authoredTypeNode, context);
 }
 
 function recordSourceOwnedCallRuntimeCarrierIfResolved(

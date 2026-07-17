@@ -24,7 +24,7 @@ export interface SourceLibraryMember {
 
 export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Generator" | "AsyncGenerator" | "Iterator" | "AsyncIterator" | "Iterable" | "AsyncIterable" | "IterableIterator" | "AsyncIterableIterator" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet" | "Function" | "Proxy" | "Global";
 
-export type SourceLibraryTypeName = Exclude<SourceLibraryDeclaringKey, "Global"> | "Record";
+export type SourceLibraryTypeName = Exclude<SourceLibraryDeclaringKey, "Global"> | "PromiseLike" | "Record";
 
 export type SourceLibraryMemberKey = `${SourceLibraryDeclaringKey}.${string}`;
 export type SourceLibraryMemberKeyPrefix = `${SourceLibraryDeclaringKey}.`;
@@ -243,7 +243,7 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
 }
 
 function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
-  return isSourceLibraryDeclaringName(name) || name === "Record";
+  return isSourceLibraryDeclaringName(name) || name === "PromiseLike" || name === "Record";
 }
 
 export function isTsonicJsSurfaceSourceProfileFile(fileName: string): boolean {

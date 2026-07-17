@@ -77,6 +77,44 @@ test("planner renders generic target conversion method facts as C# AST calls", (
   assert.equal(printCsharpExpression(expression), "Tsonic.CSharp.Js.TsValue.CastCompat<int>(true)");
 });
 
+test("planner renders exact runtime-union arm conversion facts as static factories", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const target = csharpRuntimeUnionTargetType([
+    csharpSourcePrimitiveTargetType("float64"),
+    csharpStringTargetType(),
+  ]);
+  assert.ok(target);
+  const operationId = `${target.id}.From2`;
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: target,
+      operation: {
+        operationId,
+        operationKind: "method",
+        targetOperation: "From2",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId,
+      operationKind: "method",
+      memberName: "From2",
+      static: true,
+      declaringType: target,
+      resultType: target,
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(
+    printCsharpExpression(expression),
+    "Tsonic.CSharp.Runtime.Union<double, string>.From2(true)",
+  );
+});
+
 test("compat any-to-runtime-union conversion facts use TsUnion arm generics", () => {
   const target = csharpRuntimeUnionTargetType([
     csharpSourcePrimitiveTargetType("float64"),

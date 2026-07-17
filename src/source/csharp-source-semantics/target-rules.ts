@@ -12,11 +12,15 @@ import {
 } from "./operations.js";
 import {
   getCsharpNullableElementTargetType,
+  isCsharpRuntimeUnionTargetType,
   isCsharpStringTargetType,
   isCsharpVoidTargetType,
   csharpTargetNamedType,
   csharpQualifiedTypeRenderShape,
 } from "./target-types.js";
+import {
+  targetTypeRefEquals,
+} from "./target-ref-utils.js";
 import type {
   CsharpTargetNamedTypeRef,
 } from "./target-types.js";
@@ -162,6 +166,21 @@ export function isSourceEnumTargetTypeRef(type: TargetTypeRef | undefined): bool
 }
 
 export function getCsharpConversionOperation(source: TargetTypeRef | undefined, target: TargetTypeRef): CsharpConversionOperation | undefined {
+  if (source !== undefined && isCsharpRuntimeUnionTargetType(target)) {
+    const armIndex = target.csharpRuntimeUnionArms.findIndex((arm) => targetTypeRefEquals(source, arm));
+    if (armIndex >= 0) {
+      const memberName = `From${armIndex + 1}`;
+      const operationId = `${target.id}.${memberName}`;
+      return {
+        operation: targetOperation(operationId, "method", memberName, { resultType: target }),
+        csharpOperation: csharpTargetMemberOperation(operationId, "method", memberName, {
+          static: true,
+          declaringType: target,
+          resultType: target,
+        }),
+      };
+    }
+  }
   if (source?.kind === "source-primitive" && target.kind === "source-primitive" && source.name !== target.name) {
     const methodName = sourcePrimitiveConversionMethod(target.name);
     return methodName === undefined

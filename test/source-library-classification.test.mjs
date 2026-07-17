@@ -64,3 +64,33 @@ test("source-library classification traverses selected declarations once", () =>
   assert.equal(declarationQueries, 1);
   assert.equal(sourceFileQueries, 1);
 });
+
+test("source-library classification maps the selected PromiseLike profile declaration to the Promise carrier family", () => {
+  const sourceFile = { Kind: 1, FileName: "/project/.tsonic/source-profiles/js/library.d.ts" };
+  const declarationName = { Kind: 2 };
+  const declaration = { Kind: 3 };
+  const symbol = { Flags: 1, Name: "PromiseLike" };
+  const type = { flags: 1 };
+  const context = {
+    compiler: {
+      ast: {
+        getSourceFile: () => sourceFile,
+        getFileName: () => sourceFile.FileName,
+        name: () => declarationName,
+        text: () => "PromiseLike",
+      },
+      checker: {
+        getTypeSymbol: () => symbol,
+        getSymbolDeclarations: () => [declaration],
+      },
+      typeShape: {
+        isTypeReference: () => false,
+      },
+    },
+  };
+
+  assert.deepEqual(classifySourceStandardLibraryType(type, context), {
+    name: "PromiseLike",
+    category: "promise",
+  });
+});

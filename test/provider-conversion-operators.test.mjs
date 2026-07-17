@@ -23,6 +23,8 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpRuntimeUnionTargetType,
+  csharpTaskTargetType,
   csharpTargetNamedType,
   substituteTargetTypeParameters,
 } from "../dist/source/csharp-source-semantics/target-types.js";
@@ -432,6 +434,86 @@ test("checked conversions accept source primitive widening only through explicit
   assert.deepEqual(result.value.convertedType, doubleType);
   assert.equal(result.value.operation.operationId, "System.Convert.ToDouble");
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), true);
+});
+
+test("checked conversions select one exact closed runtime-union arm", () => {
+  const source = { id: "source-double" };
+  const target = { id: "target-union" };
+  const taskType = csharpTaskTargetType(doubleType);
+  const unionType = csharpRuntimeUnionTargetType([doubleType, taskType]);
+  assert.ok(unionType !== undefined);
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }), context, hostForConversion([], new Map([
+    [source, doubleType],
+    [target, unionType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, `${unionType.id}.From1`);
+  assert.deepEqual(result.value.convertedType, unionType);
+  const operationWrite = writes.find((write) => write.key === csharpTargetConversionOperationFactKey);
+  assert.equal(operationWrite?.value.memberName, "From1");
+  assert.deepEqual(operationWrite?.value.declaringType, unionType);
+});
+
+test("checked conversions reject values outside every closed runtime-union arm", () => {
+  const source = { id: "source-string" };
+  const target = { id: "target-union" };
+  const stringType = { kind: "source-primitive", name: "string" };
+  const unionType = csharpRuntimeUnionTargetType([
+    doubleType,
+    csharpTaskTargetType(doubleType),
+  ]);
+  assert.ok(unionType !== undefined);
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }), context, hostForConversion([], new Map([
+    [source, stringType],
+    [target, unionType],
+  ])));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_RUNTIME_UNION_CONVERSION_NOT_PROVEN");
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
+});
+
+test("checked conversions reject implicit Task unwrapping when the selected target remains open", () => {
+  const source = { id: "source-task" };
+  const target = { id: "target-open-union" };
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const sourceTaskType = csharpTaskTargetType(doubleType);
+  const openUnionType = csharpRuntimeUnionTargetType([
+    typeParameter,
+    csharpTaskTargetType(typeParameter),
+  ]);
+  assert.ok(openUnionType !== undefined);
+  const { context, writes } = fakeContext();
+
+  const result = mapCsharpCheckedConversion(callArgumentConversionRequest({
+    expression: source,
+    source,
+    target,
+    targetPlatform: "csharp",
+  }), context, hostForConversion([], new Map([
+    [source, sourceTaskType],
+    [target, openUnionType],
+  ])));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TASK_CONVERSION_NOT_PROVEN");
+  assert.match(result.diagnostic.message, /cannot be implicitly unwrapped/u);
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
 test("checked params-array argument conversions use the selected parameter element type", () => {
