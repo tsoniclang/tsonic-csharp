@@ -1,6 +1,6 @@
 import { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy, createCsharpJsSurfaceOperationsProvider, arrayLengthRequest, arrayLengthDeclaration, arrayMemberDeclaration, arrayConstructorDeclaration, sourceLibraryMemberDeclaration, namespaceImportSourceFile, fakeNamespaceImportContext, sourceLibraryPropertyRequest, fakeNodeSubject, fakeHost, fakeContext, fakeAstIs, createCsharpSession, sourceProfileFiles, declarationFiles, fakeTargetPack, collectNodesByKind, collectFactValues, collectAllNodes, jsCallRequest, jsCallRequestWithoutSignature, fakeCallCallee, selectedSourceLibrarySignature, nodejsCallRequest, nodejsCallRequestWithoutSignature, nodejsPropertyRequest, nodejsVirtualDeclaration, nodejsVirtualMemberDeclaration, int32Type, float64Type, boolType, nullishType, stringType, regexpType, dateType, jsObjectType, tsValueType, jsArrayType, jsMapType, jsSetType, int32ArrayType, int32EnumerableType, int32ReadOnlyListType, genericSystemCollectionType, recordDictionaryType, surfaceObjectShapeFact, dictionaryBinding, actionOfInt32Type, funcInt32ToStringType, TestFactStore } from "./surface-boundary.helpers.mjs";
 
-test("Array.length is rejected without the JS surface", () => {
+test("native mode fails closed for a JS Array.length selection without a target operation", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -9,7 +9,8 @@ test("Array.length is rejected without the JS surface", () => {
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /must be selected by TSTS\/provider facts before emission/u);
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 test("JS surface maps Array.length only from the selected Tsonic JS source-profile declaration", () => {
@@ -57,7 +58,7 @@ test("JS surface maps property access from sourceSelectedSymbol before declarati
   assert.equal(result.value.operation.operationId, "System.String.Length");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "System.String.Length");
 });
-test("native provider defers unowned JS calls and rejects unmapped JS property operations", () => {
+test("native provider fails closed for selected JS calls and properties without native target contracts", () => {
   const facts = new TestFactStore();
   const provider = createCsharpNativeOperationsProvider(fakeHost(undefined));
   const objectCall = {};
@@ -68,9 +69,12 @@ test("native provider defers unowned JS calls and rejects unmapped JS property o
   const jsonResult = provider.mapCheckedCall(jsCallRequest(jsonCall, sourceLibraryMemberDeclaration("JSON", "parse")), fakeContext(facts));
   const consoleResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(consoleExpression, sourceLibraryMemberDeclaration("Console", "log"), "log"), fakeContext(facts));
 
-  assert.equal(objectResult.kind, "defer");
-  assert.equal(jsonResult.kind, "defer");
+  assert.equal(objectResult.kind, "reject");
+  assert.equal(objectResult.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN");
+  assert.equal(jsonResult.kind, "reject");
+  assert.equal(jsonResult.diagnostic.extensionCode, "CSHARP_CHECKED_CALL_TARGET_BINDING_NOT_PROVEN");
   assert.equal(consoleResult.kind, "reject");
+  assert.equal(consoleResult.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(objectCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, runtimeCarrierFactKey), undefined);
@@ -259,8 +263,8 @@ test("JS surface rejects single-target calls without selected signature identity
   const receiver = {};
   const value = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
-    [receiver, int32ReadOnlyListType()],
     [value, int32Type()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
@@ -280,8 +284,8 @@ test("JS surface uses the TSTS-selected signature declaration instead of reselec
   const selectedDeclaration = arrayMemberDeclaration("includes");
   const mismatchedCalleeDeclaration = arrayMemberDeclaration("join");
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
-    [receiver, int32ReadOnlyListType()],
     [value, int32Type()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
@@ -300,8 +304,8 @@ test("JS surface maps Array.concat from selected declaration and closed array ar
   const receiver = {};
   const values = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32EnumerableType() });
   const targetTypes = new Map([
-    [receiver, int32EnumerableType()],
     [values, int32EnumerableType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
@@ -409,9 +413,8 @@ test("JS surface maps Boolean.toString from selected declaration and closed bool
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, boolType()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: boolType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "toString"), {
     calleeReceiver: receiver,
@@ -426,9 +429,8 @@ test("JS surface maps Boolean.valueOf from selected declaration and closed bool 
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, boolType()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: boolType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "valueOf"), {
     calleeReceiver: receiver,
@@ -504,9 +506,8 @@ test("JS surface maps Object.toString to BooleanOps for closed bool primitive re
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, boolType()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: boolType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
     calleeReceiver: receiver,
@@ -521,9 +522,8 @@ test("JS surface maps Object.toString to String.toString for closed string primi
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, stringType()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: stringType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
     calleeReceiver: receiver,
@@ -537,9 +537,8 @@ test("JS surface maps Object.toString to Number.toString for closed number primi
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
     calleeReceiver: receiver,
@@ -585,9 +584,8 @@ test("JS surface rejects Boolean methods for non-boolean closed receivers", () =
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "valueOf"), {
     calleeReceiver: receiver,
@@ -605,9 +603,9 @@ test("JS surface maps Number.toString from selected declaration and closed numbe
   const primitiveReceiver = {};
   const radix = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  facts.set(primitiveReceiver, runtimeCarrierFactKey, { carrier: int32Type() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
-    [primitiveReceiver, int32Type()],
     [radix, int32Type()],
   ])));
 
@@ -635,8 +633,8 @@ test("JS surface rejects Number.toString(radix) without a closed integral receiv
   const receiver = {};
   const radix = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
     [radix, int32Type()],
   ])));
 
@@ -654,9 +652,8 @@ test("JS surface hard-rejects selected Number locale formatting until Intl facts
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toLocaleString"), {
     calleeReceiver: receiver,
@@ -672,9 +669,8 @@ test("JS surface maps Number.valueOf from selected declaration and closed number
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, float64Type()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "valueOf"), {
     calleeReceiver: receiver,
@@ -705,9 +701,8 @@ test("JS surface rejects Number methods for non-number closed receivers", () => 
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, boolType()],
-  ])));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: boolType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "valueOf"), {
     calleeReceiver: receiver,

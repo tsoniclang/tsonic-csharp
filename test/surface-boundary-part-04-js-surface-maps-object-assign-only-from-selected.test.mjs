@@ -147,8 +147,8 @@ test("JS surface maps RegExp.test from selected declaration and closed RegExp re
   const receiver = {};
   const value = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: regexpType() });
   const targetTypes = new Map([
-    [receiver, regexpType()],
     [value, stringType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
@@ -237,8 +237,8 @@ test("JS surface maps selected string helpers only with closed string receiver f
   const receiver = {};
   const form = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: stringType() });
   const targetTypes = new Map([
-    [receiver, stringType()],
     [form, stringType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));

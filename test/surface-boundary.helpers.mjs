@@ -493,7 +493,9 @@ export function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     callee,
     arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
     sourceSelectedDeclaration,
+    sourceSelectedCalleeDeclaration: options.sourceSelectedCalleeDeclaration ?? sourceSelectedDeclaration,
     sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
+    sourceSelectedSignatureKind: options.sourceSelectedSignatureKind ?? "resolved",
     ...(options.sourceCalleeDeclaration === undefined ? {} : { sourceCalleeDeclaration: options.sourceCalleeDeclaration }),
     ...(options.sourceCalleeSymbol === undefined ? {} : { sourceCalleeSymbol: options.sourceCalleeSymbol }),
   };

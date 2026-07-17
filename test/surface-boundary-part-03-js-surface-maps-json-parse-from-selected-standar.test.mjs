@@ -322,7 +322,8 @@ test("selected JS surface finalizes unchanged chained standard-library TypeScrip
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.String.trim"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.String.toUpperCase"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Array.join"));
-  assert.ok(selectedMemberIds.filter((id) => id === "Tsonic.CSharp.Js.Array.join").length >= 2);
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Array.join:full-js"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Array.join"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Object.keys:jsarray"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.JSON.parse"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.JSON.stringify:tsvalue"));
@@ -654,8 +655,8 @@ test("JS surface maps Object.hasOwnProperty only from selected declaration and c
   const receiver = {};
   const key = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: jsObjectType() });
   const targetTypes = new Map([
-    [receiver, jsObjectType()],
     [key, stringType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));

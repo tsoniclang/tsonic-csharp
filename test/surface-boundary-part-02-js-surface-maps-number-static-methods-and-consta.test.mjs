@@ -95,11 +95,11 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
   const mapType = jsMapType(stringType(), int32Type());
   const setType = jsSetType(int32Type());
   const facts = new TestFactStore();
+  facts.set(mapReceiver, runtimeCarrierFactKey, { carrier: mapType });
+  facts.set(setReceiver, runtimeCarrierFactKey, { carrier: setType });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
     [mapConstruct, mapType],
     [setConstruct, setType],
-    [mapReceiver, mapType],
-    [setReceiver, setType],
     [key, stringType()],
     [value, int32Type()],
     [setValue, int32Type()],
@@ -162,10 +162,10 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
     calleeReceiver: setReceiver,
   }), fakeContext(facts));
   const mapSizeResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(mapSize, sourceLibraryMemberDeclaration("Map", "size"), "size", {
-    receiverType: mapReceiver,
+    receiver: mapReceiver,
   }), fakeContext(facts));
   const setSizeResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(setSize, sourceLibraryMemberDeclaration("Set", "size"), "size", {
-    receiverType: setReceiver,
+    receiver: setReceiver,
   }), fakeContext(facts));
 
   assert.equal(mapConstructResult.kind, "accept");
@@ -372,8 +372,8 @@ test("JS surface maps Array.at and Array.map from selected declarations and clos
   const index = {};
   const callback = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
-    [receiver, int32ReadOnlyListType()],
     [index, int32Type()],
     [callback, funcInt32ToStringType()],
   ]);
@@ -407,8 +407,8 @@ test("JS surface selects closed JSArray carrier members for full array semantics
   const index = {};
   const callback = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: jsArrayType(int32Type()) });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, jsArrayType(int32Type())],
     [value, int32Type()],
     [index, int32Type()],
     [callback, funcInt32ToStringType()],
@@ -448,8 +448,8 @@ test("JS surface maps array iterator and copy methods from selected declarations
   const value = {};
   const index = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
-    [receiver, int32ReadOnlyListType()],
     [value, int32Type()],
     [index, int32Type()],
   ])));
@@ -559,28 +559,28 @@ test("JS surface maps Date call and construction from selected declaration ident
   assert.equal(constructResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date..ctor()");
   assert.equal(constructResult.value.selectedSignature.member.kind, "constructor");
 });
-test("JS surface maps unresolved one-argument Date construction to closed Date value carrier", () => {
+test("JS surface maps one-argument Date construction from a closed source value carrier", () => {
   const construct = { Kind: "KindNewExpression" };
   const value = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [value, stringType()],
+  ])));
 
   const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("DateConstructor", ""), {
     arguments: [value],
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date..ctor(System.Object)");
-  assert.equal(result.value.selectedSignature.member.parameters[0].type.id, "System.Object");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date..ctor(System.String)");
+  assert.equal(result.value.selectedSignature.member.parameters[0].type.id, "System.String");
 });
 test("JS surface maps Date instance methods only with closed Date receiver facts", () => {
   const call = {};
   const receiver = {};
   const facts = new TestFactStore();
-  const targetTypes = new Map([
-    [receiver, dateType()],
-  ]);
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: dateType() });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Date", "toISOString"), {
     calleeReceiver: receiver,
@@ -639,8 +639,8 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   const selectedDeclaration = arrayMemberDeclaration("forEach");
   const selectedSignature = selectedSourceLibrarySignature(selectedDeclaration);
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
-    [receiver, int32ReadOnlyListType()],
     [callback, actionOfInt32Type()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
