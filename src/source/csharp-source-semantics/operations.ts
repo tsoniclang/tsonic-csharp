@@ -20,6 +20,9 @@ import {
 import {
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
+import {
+  targetTypeRefAsSelection,
+} from "./target-selection-contract.js";
 import type {
   CsharpTargetMember,
 } from "./target-types.js";
@@ -42,7 +45,7 @@ export function targetOperation(
     operationId,
     operationKind,
     targetOperation,
-    ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
+    ...(options.resultType !== undefined ? { resultType: targetTypeRefAsSelection(options.resultType) } : {}),
   };
 }
 
@@ -87,7 +90,7 @@ export function targetOperationFromMember(member: CsharpTargetMember): CheckedOp
     operationId: member.id,
     operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
     targetOperation: member.targetName,
-    ...(resultType === undefined ? {} : { resultType }),
+    ...(resultType === undefined ? {} : { resultType: targetTypeRefAsSelection(resultType) }),
   };
 }
 

@@ -1,12 +1,14 @@
 import type {
   SelectedTargetSignatureFact,
+  TargetMember,
   TargetParameter,
   TargetSignatureSelection,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  CsharpTargetMember,
-} from "./target-types.js";
+import {
+  targetMemberAsSelection,
+  targetTypeRefAsSelection,
+} from "./target-selection-contract.js";
 
 const csharpSourceOwnedCallMemberId = "tsonic.csharp.source-owned-call";
 
@@ -18,8 +20,10 @@ export function csharpSourceOwnedTargetSignatureSelection(
   },
 ): TargetSignatureSelection {
   return {
-    member: csharpSourceOwnedCallMember(options.parameters ?? [], options.returnType),
-    ...(options.targetTypeArguments === undefined ? {} : { targetTypeArguments: options.targetTypeArguments }),
+    member: targetMemberAsSelection(csharpSourceOwnedCallMember(options.parameters ?? [], options.returnType)),
+    ...(options.targetTypeArguments === undefined ? {} : {
+      targetTypeArguments: options.targetTypeArguments.map(targetTypeRefAsSelection),
+    }),
   };
 }
 
@@ -31,17 +35,18 @@ export function isCsharpSourceOwnedSelectedSignature(
 
 export function csharpSourceOwnedSelectedMember(
   member: SelectedTargetSignatureFact["member"] | undefined,
-): CsharpTargetMember | undefined {
-  const csharpMember = member as CsharpTargetMember | undefined;
-  return csharpMember?.csharpSourceOwnedCall === true && csharpMember.id === csharpSourceOwnedCallMemberId
-    ? csharpMember
+): TargetMember | undefined {
+  return member?.id === csharpSourceOwnedCallMemberId &&
+    member.sourceName === "<source-owned-call>" &&
+    member.targetName === "<source-owned-call>"
+    ? member
     : undefined;
 }
 
 function csharpSourceOwnedCallMember(
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef | undefined,
-): CsharpTargetMember {
+): TargetMember {
   return {
     id: csharpSourceOwnedCallMemberId,
     sourceName: "<source-owned-call>",
@@ -50,6 +55,5 @@ function csharpSourceOwnedCallMember(
     static: false,
     parameters,
     ...(returnType === undefined ? {} : { returnType }),
-    csharpSourceOwnedCall: true,
   };
 }

@@ -1,14 +1,14 @@
-import {
-  isTsonicSourceProfileDeclarationPath,
-} from "@tsonic/target-api";
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpSourceProfileDeclarationFact,
+} from "../csharp-facts.js";
 import {
-  asNodeSubject,
-} from "./ast-utils.js";
+  csharpSourceProfileDeclarationFactKey,
+} from "../csharp-facts.js";
 import {
   csharpJsSourceProfileOwnerId,
   csharpSourceProfileOwnerId,
@@ -74,46 +74,52 @@ export function getCsharpSourceProfileMemberIdentity(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): CsharpSourceProfileMemberIdentity | undefined {
-  const compiler = context.compiler;
-  const declaration = asNodeSubject(declarationSubject);
-  if (compiler === undefined || declaration === undefined) {
+  if (declarationSubject === undefined) {
     return undefined;
   }
-  const ast = compiler.ast;
-  const sourceFile = ast.getSourceFile(declaration);
-  const fileName = ast.getFileName(sourceFile);
-  const ownerId = isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId)
-    ? csharpSourceProfileOwnerId
-    : isTsonicSourceProfileDeclarationPath(fileName, csharpJsSourceProfileOwnerId)
-      ? csharpJsSourceProfileOwnerId
-      : undefined;
-  if (ownerId === undefined) {
+  const declaration = getCsharpSourceProfileDeclarationFact(declarationSubject, context);
+  if (
+    declaration === undefined ||
+    (declaration.ownerId !== csharpSourceProfileOwnerId && declaration.ownerId !== csharpJsSourceProfileOwnerId) ||
+    !isCsharpSourceProfileDeclaringName(declaration.declaringName)
+  ) {
     return undefined;
   }
-  if (ast.kindName(declaration) === "KindIndexSignature") {
-    const declaringName = ast.text(ast.name(ast.parent(declaration)));
-    return declaringName === "Array" || declaringName === "ReadonlyArray"
-      ? { kind: "indexer", ownerId, declaringName }
+  if (declaration.kind === "indexer") {
+    return declaration.declaringName === "Array" || declaration.declaringName === "ReadonlyArray"
+      ? { kind: "indexer", ownerId: declaration.ownerId, declaringName: declaration.declaringName }
       : undefined;
   }
-  const memberNode = ast.text(ast.name(declaration)) === ""
-    ? asNodeSubject(ast.parent(declaration))
-    : declaration;
-  if (memberNode === undefined) {
+  if (declaration.kind !== "member" || declaration.name === "") {
     return undefined;
   }
-  const memberName = ast.text(ast.name(memberNode));
-  const declaringName = ast.text(ast.name(ast.parent(memberNode)));
-  if (!isCsharpSourceProfileDeclaringName(declaringName) || memberName === "") {
-    return undefined;
-  }
-  return { kind: "named", ownerId, declaringName, memberName };
+  return {
+    kind: "named",
+    ownerId: declaration.ownerId,
+    declaringName: declaration.declaringName,
+    memberName: declaration.name,
+  };
+}
+
+export function getCsharpSourceProfileDeclarationFact(
+  declarationSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): CsharpSourceProfileDeclarationFact | undefined {
+  return declarationSubject === undefined
+    ? undefined
+    : context.factResolver.resolve(declarationSubject, csharpSourceProfileDeclarationFactKey) ??
+      context.facts.get(declarationSubject, csharpSourceProfileDeclarationFactKey);
 }
 
 export function csharpSourceProfileCallMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity === undefined || identity.kind !== "named" || identity.memberName === undefined) {
+  if (
+    identity === undefined ||
+    identity.ownerId !== csharpSourceProfileOwnerId ||
+    identity.kind !== "named" ||
+    identity.memberName === undefined
+  ) {
     return undefined;
   }
   const row = sourceProfileMethodRows.find((candidate) =>
@@ -126,7 +132,12 @@ export function csharpSourceProfileCallMember(
 export function csharpSourceProfilePropertyMember(
   identity: CsharpSourceProfileMemberIdentity | undefined,
 ): CsharpTargetMember | undefined {
-  if (identity === undefined || identity.kind !== "named" || identity.memberName === undefined) {
+  if (
+    identity === undefined ||
+    identity.ownerId !== csharpSourceProfileOwnerId ||
+    identity.kind !== "named" ||
+    identity.memberName === undefined
+  ) {
     return undefined;
   }
   const row = sourceProfilePropertyRows.find((candidate) =>
@@ -198,6 +209,6 @@ function csharpSourceProfileMemberId(identity: CsharpSourceProfileMemberIdentity
   return `tsonic.csharp.source-profile.${identity.declaringName}.${identity.memberName ?? "indexer"}`;
 }
 
-function isCsharpSourceProfileDeclaringName(name: string): name is CsharpSourceProfileMemberIdentity["declaringName"] {
+function isCsharpSourceProfileDeclaringName(name: string | undefined): name is CsharpSourceProfileMemberIdentity["declaringName"] {
   return name === "String" || name === "Array" || name === "ReadonlyArray";
 }

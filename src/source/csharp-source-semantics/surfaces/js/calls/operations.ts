@@ -41,7 +41,8 @@ export function acceptSourceLibraryCheckedCall(
   member: TargetMember,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(member);
+  const argumentConversions = getTargetArgumentConversionSlots(sourceSelectedMember.parameters, {
     argumentCount: request.arguments.length,
     sourceArgumentBindings: request.sourceArgumentBindings,
   });
@@ -51,7 +52,7 @@ export function acceptSourceLibraryCheckedCall(
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
-    selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },
+    selectedSignature: { member: sourceSelectedMember },
     argumentConversions,
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }

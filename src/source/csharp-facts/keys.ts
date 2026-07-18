@@ -20,6 +20,7 @@ import type {
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
   CsharpProjectSourceFact,
+  CsharpSourceProfileDeclarationFact,
   CsharpRegularExpressionLiteralFact,
   CsharpSelectedCallTargetFact,
   CsharpSelectedPropertyTargetFact,
@@ -194,6 +195,16 @@ export const csharpProjectSourceFactKey = defineExtensionFactKey<CsharpProjectSo
   extensionId: "tsonic.csharp",
   name: "projectSource",
   equals: (left, right) => left.kind === right.kind,
+});
+
+export const csharpSourceProfileDeclarationFactKey = defineExtensionFactKey<CsharpSourceProfileDeclarationFact>({
+  extensionId: "tsonic.csharp",
+  name: "sourceProfileDeclaration",
+  equals: (left, right) =>
+    left.ownerId === right.ownerId &&
+    left.kind === right.kind &&
+    left.name === right.name &&
+    left.declaringName === right.declaringName,
 });
 
 export const csharpByrefStorageFactKey = defineExtensionFactKey<CsharpByrefStorageFact>({

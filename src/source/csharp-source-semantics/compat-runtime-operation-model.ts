@@ -16,6 +16,9 @@ import {
 import {
   targetTypeRefKey,
 } from "./target-ref-utils.js";
+import {
+  targetMemberAsSelection,
+} from "./target-selection-contract.js";
 
 export const csharpCompatRuntimeEvidence = Object.freeze([
   { message: "C# compat-runtime operation fact finalized from explicit TypeScript any carrier and compat target mode." },
@@ -142,7 +145,7 @@ export function compatAnyTypedBoundaryBoxOperation(sourceType: TargetTypeRef): C
 }
 
 export function compatAnySelectedTargetMember(operation: CsharpTargetMemberOperationFact): TargetMember {
-  return {
+  return targetMemberAsSelection({
     id: operation.operationId,
     sourceName: operation.memberName,
     targetName: operation.memberName,
@@ -156,7 +159,7 @@ export function compatAnySelectedTargetMember(operation: CsharpTargetMemberOpera
       },
     ],
     returnType: tsValueType,
-  };
+  });
 }
 
 function compatBinaryOperatorRuntimeMember(operator: string): "ApplyCompatBinary" | "ApplyCompatBinaryBoolean" | undefined {

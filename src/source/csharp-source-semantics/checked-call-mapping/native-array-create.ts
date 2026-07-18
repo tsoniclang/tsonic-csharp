@@ -24,6 +24,10 @@ import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
 import {
+  targetMemberAsSelection,
+  targetTypeRefAsSelection,
+} from "../target-selection-contract.js";
+import {
   findTargetMember,
 } from "../target-member-selection.js";
 import {
@@ -95,7 +99,10 @@ export function mapDotnetNativeArrayCreateCall(
   recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
-    selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
+    selectedSignature: {
+      member: targetMemberAsSelection(csharpMember),
+      targetTypeArguments: [targetTypeRefAsSelection(nativeArrayElementType)],
+    },
     argumentConversions,
   }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
 }

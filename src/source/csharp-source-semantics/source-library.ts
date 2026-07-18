@@ -4,15 +4,13 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  isTsonicSourceProfileDeclarationPath,
-} from "@tsonic/target-api";
-import {
-  asNodeSubject,
-} from "../fact-subjects.js";
+  csharpSourceProfileDeclarationFactKey,
+} from "../csharp-facts.js";
 import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import {
+  csharpJsSourceProfileOwnerId,
   csharpSourceProfileOwnerId,
 } from "./source-profile-declarations.js";
 
@@ -79,22 +77,21 @@ export function resolveSourceLibraryMemberIdentity(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryMember | undefined {
-  const ast = context.compiler?.ast;
-  const declaration = asNodeSubject(declarationSubject);
-  if (ast === undefined || declaration === undefined) {
+  if (declarationSubject === undefined) {
     return undefined;
   }
-  const sourceFile = ast.getSourceFile(declaration);
-  const fileName = ast.getFileName(sourceFile);
-  if (!isTsonicJsSurfaceSourceProfileFile(fileName)) {
+  const declaration = context.factResolver.resolve(declarationSubject, csharpSourceProfileDeclarationFactKey) ??
+    context.facts.get(declarationSubject, csharpSourceProfileDeclarationFactKey);
+  if (
+    declaration === undefined ||
+    declaration.ownerId !== csharpJsSourceProfileOwnerId ||
+    declaration.kind !== "member" ||
+    declaration.declaringName === undefined
+  ) {
     return undefined;
   }
-  const parent = ast.parent(declaration);
-  const containerName = ast.text(ast.name(parent));
-  const declaringName = ast.is.IsSourceFile(parent)
-    ? "Global"
-    : sourceLibraryDeclaringName(containerName);
-  const memberName = ast.text(ast.name(declaration)) || sourceLibraryConstructorMemberName(containerName);
+  const declaringName = sourceLibraryDeclaringName(declaration.declaringName);
+  const memberName = declaration.name || sourceLibraryConstructorMemberName(declaration.declaringName);
   return memberName === undefined || memberName === "" || declaringName === undefined
     ? undefined
     : createSourceLibraryMember(declaringName, memberName);
@@ -109,29 +106,14 @@ export function resolveSelectedSourceLibraryMemberIdentity(
   if (direct !== undefined) {
     return direct;
   }
-  const checker = context.compiler?.checker;
-  for (const declaration of getSymbolDeclarations(symbolSubject, checker)) {
-    const sourceMember = resolveSourceLibraryMemberIdentityFromDeclaration(declaration, context);
-    if (sourceMember !== undefined) {
-      return sourceMember;
-    }
-  }
-  return undefined;
+  return resolveSourceLibraryMemberIdentityFromDeclaration(symbolSubject, context);
 }
 
 function resolveSourceLibraryMemberIdentityFromDeclaration(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryMember | undefined {
-  const declaration = asNodeSubject(declarationSubject);
-  if (declaration === undefined) {
-    return undefined;
-  }
-  const direct = resolveSourceLibraryMemberIdentity(declaration, context);
-  if (direct !== undefined) {
-    return direct;
-  }
-  return resolveSourceLibraryMemberIdentity(context.compiler?.ast.parent(declaration), context);
+  return resolveSourceLibraryMemberIdentity(declarationSubject, context);
 }
 
 export function isTsonicSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
@@ -171,17 +153,18 @@ export function getSourceLibraryDeclarationName(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryTypeName | undefined {
-  const ast = context.compiler?.ast;
-  const declaration = asNodeSubject(declarationSubject);
-  if (ast === undefined || declaration === undefined) {
+  if (declarationSubject === undefined) {
     return undefined;
   }
-  const sourceFile = ast.getSourceFile(declaration);
-  const fileName = ast.getFileName(sourceFile);
-  const name = ast.text(ast.name(declaration));
-  if (!isTsonicSourceLibraryProfileFile(fileName)) {
+  const declaration = context.factResolver.resolve(declarationSubject, csharpSourceProfileDeclarationFactKey) ??
+    context.facts.get(declarationSubject, csharpSourceProfileDeclarationFactKey);
+  if (
+    declaration === undefined ||
+    (declaration.ownerId !== csharpJsSourceProfileOwnerId && declaration.ownerId !== csharpSourceProfileOwnerId)
+  ) {
     return undefined;
   }
+  const name = declaration.kind === "type" ? declaration.name : declaration.declaringName ?? "";
   if (isSourceLibraryTypeName(name)) {
     return name;
   }
@@ -202,29 +185,14 @@ export function getSelectedSourceLibraryDeclarationName(
   if (direct !== undefined) {
     return direct;
   }
-  const checker = context.compiler?.checker;
-  for (const declaration of getSymbolDeclarations(symbolSubject, checker)) {
-    const declarationName = getSourceLibraryDeclarationNameForDeclaration(declaration, context);
-    if (declarationName !== undefined) {
-      return declarationName;
-    }
-  }
-  return undefined;
+  return getSourceLibraryDeclarationNameForDeclaration(symbolSubject, context);
 }
 
 function getSourceLibraryDeclarationNameForDeclaration(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryTypeName | undefined {
-  const declaration = asNodeSubject(declarationSubject);
-  if (declaration === undefined) {
-    return undefined;
-  }
-  const direct = getSourceLibraryDeclarationName(declaration, context);
-  if (direct !== undefined) {
-    return direct;
-  }
-  return getSourceLibraryDeclarationName(context.compiler?.ast.parent(declaration), context);
+  return getSourceLibraryDeclarationName(declarationSubject, context);
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringKey | undefined {
@@ -244,15 +212,6 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
 
 function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
   return isSourceLibraryDeclaringName(name) || name === "PromiseLike" || name === "Record";
-}
-
-export function isTsonicJsSurfaceSourceProfileFile(fileName: string): boolean {
-  return isTsonicSourceProfileDeclarationPath(fileName, "js");
-}
-
-function isTsonicSourceLibraryProfileFile(fileName: string): boolean {
-  return isTsonicJsSurfaceSourceProfileFile(fileName) ||
-    isTsonicSourceProfileDeclarationPath(fileName, csharpSourceProfileOwnerId);
 }
 
 function sourceLibraryMemberHasPrefix(sourceMember: SourceLibraryMember, prefix: SourceLibraryMemberKeyPrefix): boolean {

@@ -174,6 +174,13 @@ export interface CsharpProjectSourceFact {
   readonly kind: "project-source";
 }
 
+export interface CsharpSourceProfileDeclarationFact {
+  readonly ownerId: string;
+  readonly kind: "type" | "member" | "indexer";
+  readonly name: string;
+  readonly declaringName?: string;
+}
+
 export interface CsharpByrefStorageFact {
   readonly targetType: TargetTypeRef;
 }

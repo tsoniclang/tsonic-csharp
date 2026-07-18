@@ -1,4 +1,5 @@
 import type {
+  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -8,8 +9,18 @@ import type {
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "./target-types.js";
+import {
+  targetMemberAsSelection,
+} from "./target-selection-contract.js";
 
 export function targetMemberAsSourceSelectedSignature(
+  member: CsharpTargetMember,
+  options: { readonly firstArgumentReceiver?: boolean } = {},
+): TargetMember {
+  return targetMemberAsSelection(csharpTargetMemberAsSourceSelectedSignature(member, options));
+}
+
+function csharpTargetMemberAsSourceSelectedSignature(
   member: CsharpTargetMember,
   options: { readonly firstArgumentReceiver?: boolean } = {},
 ): CsharpTargetMember {
@@ -65,7 +76,7 @@ export function targetMemberAsSourceSelectedSignatureForExpected(
   expected: CsharpTargetMember,
   actual: CsharpTargetMember,
 ): CsharpTargetMember {
-  return targetMemberAsSourceSelectedSignature(actual, {
+  return csharpTargetMemberAsSourceSelectedSignature(actual, {
     firstArgumentReceiver: targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver(expected, actual),
   });
 }

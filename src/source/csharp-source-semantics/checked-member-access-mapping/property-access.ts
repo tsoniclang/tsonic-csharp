@@ -67,8 +67,12 @@ import type {
 import {
   csharpSourceProfileCallMember,
   csharpSourceProfilePropertyMember,
+  getCsharpSourceProfileDeclarationFact,
   getCsharpSourceProfileMemberIdentity,
 } from "../source-profile-operations.js";
+import {
+  csharpSourceProfileOwnerId,
+} from "../source-profile-declarations.js";
 
 export function mapCsharpCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -89,6 +93,16 @@ export function mapCsharpCheckedPropertyAccess(
   const sourceProfileMethodGroup = mapCsharpSourceProfileMethodGroupPropertyAccess(request, context);
   if (sourceProfileMethodGroup !== undefined) {
     return sourceProfileMethodGroup;
+  }
+  const selectedSourceProfileDeclaration = getCsharpSourceProfileDeclarationFact(
+    request.sourceResult.selectedDeclaration,
+    context,
+  );
+  if (
+    selectedSourceProfileDeclaration !== undefined &&
+    selectedSourceProfileDeclaration.ownerId !== csharpSourceProfileOwnerId
+  ) {
+    return deferObservation;
   }
   const providerMethodGroup = mapSelectedProviderMethodGroupPropertyAccess(request, context);
   if (providerMethodGroup !== undefined) {
@@ -126,11 +140,13 @@ export function mapCsharpCheckedPropertyAccess(
     host.getCsharpTargetBindingByMetadataName,
   );
   if (binding === undefined) {
-    return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
+    const mapped = mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??
       mapCsharpProjectSourceCheckedPropertyAccess(request, context, host) ??
-      mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host) ??
-      rejectPropertyAccessNotMapped(extensionId, request.propertyName);
+      mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host);
+    return mapped ?? (context.phase === "checking"
+      ? deferObservation
+      : rejectPropertyAccessNotMapped(extensionId, request.propertyName));
   }
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??

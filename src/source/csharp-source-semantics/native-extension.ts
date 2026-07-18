@@ -73,6 +73,9 @@ import {
 import {
   recordCsharpJsSurfaceSeedFactsBeforeFinalization,
 } from "./surface-extensions.js";
+import {
+  recordCsharpSourceProfileDeclarationFactsBeforeFinalization,
+} from "./source-profile-facts.js";
 
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
   const hosts = getCsharpExtensionSemanticHosts(context);
@@ -106,6 +109,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         typescriptCompatibilityMode: hosts.typescriptCompatibilityMode,
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        runBeforeFinalizedStage("source-profile-declaration-facts", () => recordCsharpSourceProfileDeclarationFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("provider-target-binding-facts", () => recordCsharpProviderTargetBindingFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));

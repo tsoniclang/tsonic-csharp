@@ -52,6 +52,11 @@ import {
   targetMemberAsSourceSelectedSignature,
 } from "../selected-target-source-signature.js";
 import {
+  providerDeclarationAsSelection,
+  targetMemberAsSelection,
+  targetTypeRefAsSelection,
+} from "../target-selection-contract.js";
+import {
   csharpSourceOwnedTargetSignatureSelection,
   isCsharpSourceOwnedSelectedSignature,
 } from "../source-owned-selected-signature.js";
@@ -377,8 +382,12 @@ export function mapCsharpCheckedCall(
     kind: "target",
     selectedSignature: {
       member: sourceSelectedMember,
-      ...(selectedMemberMethodTargetTypeArguments !== undefined ? { targetTypeArguments: selectedMemberMethodTargetTypeArguments } : {}),
-      ...(virtualDeclaration?.signatureId === undefined ? {} : { providerDeclaration: virtualDeclaration }),
+      ...(selectedMemberMethodTargetTypeArguments !== undefined ? {
+        targetTypeArguments: selectedMemberMethodTargetTypeArguments.map(targetTypeRefAsSelection),
+      } : {}),
+      ...(virtualDeclaration?.signatureId === undefined ? {} : {
+        providerDeclaration: providerDeclarationAsSelection(virtualDeclaration),
+      }),
     },
     argumentConversions,
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
@@ -433,7 +442,7 @@ function acceptCsharpSourceProfileCall(
   }
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
-    selectedSignature: { member },
+    selectedSignature: { member: targetMemberAsSelection(member) },
     argumentConversions,
   }, [{ message: "C# source-profile call selected from checked TSTS source declaration identity." }]);
 }

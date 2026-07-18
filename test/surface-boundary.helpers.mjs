@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
   createCsharpSourceSemanticsExtension,
@@ -22,7 +22,9 @@ import {
 import { mapCsharpJsSurfaceCheckedIteration } from "../dist/source/csharp-source-semantics/surfaces/js/iteration.js";
 import { csharpJsMapCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-metadata.js";
 import { csharpJsSetCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/set-metadata.js";
-export { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy };
+export { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy };
+
+const sourceProfileDeclarationFacts = new WeakMap();
 
 export function createCsharpJsSurfaceOperationsProvider(host) {
   return createProductCsharpJsSurfaceOperationsProvider({ operationsProviderHost: host });
@@ -157,21 +159,10 @@ export function createCsharpJsSurfaceOperationsProvider(host) {
 
 
 export function arrayLengthRequest(expression, receiverType, sourceSelectedSymbol, options = {}) {
-  const receiver = fakeNodeSubject(options.receiver ?? {});
-  if (receiverType !== undefined) {
-    receiver.SemanticType = receiverType;
-  }
-  const selectedDeclaration = sourceSelectedSymbol?.Kind !== undefined ? sourceSelectedSymbol : options.sourceSelectedDeclaration;
-  const selectedSymbol = sourceSelectedSymbol?.Kind === undefined ? sourceSelectedSymbol : options.sourceSelectedSymbol;
-  return {
-    target: "csharp",
-    expression,
-    receiver,
+  return sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, "length", {
+    ...options,
     receiverType,
-    propertyName: "length",
-    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
-    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
-  };
+  });
 }
 
 export function arrayLengthDeclaration() {
@@ -188,13 +179,37 @@ export function arrayConstructorDeclaration() {
 
 export function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/src/.tsonic/source-profiles/js/js.d.ts") {
   const sourceFile = { FileName: fileName };
-  const arrayDeclaration = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
-  return {
+  const declaringDeclaration = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
+  const declaration = {
     Kind: 1,
     Name: { Text: memberName },
-    Parent: arrayDeclaration,
+    Parent: declaringDeclaration,
     SourceFile: sourceFile,
   };
+  const ownerId = sourceProfileOwnerIdForFixture(fileName);
+  if (ownerId !== undefined) {
+    sourceProfileDeclarationFacts.set(declaringDeclaration, {
+      ownerId,
+      kind: "type",
+      name: declaringName,
+    });
+    sourceProfileDeclarationFacts.set(declaration, {
+      ownerId,
+      kind: "member",
+      name: memberName,
+      declaringName,
+    });
+  }
+  return declaration;
+}
+
+function sourceProfileOwnerIdForFixture(fileName) {
+  for (const ownerId of [csharpJsSourceProfileOwnerId, csharpSourceProfileOwnerId]) {
+    if (fileName.includes(`/.tsonic/source-profiles/${ownerId}/`)) {
+      return ownerId;
+    }
+  }
+  return undefined;
 }
 
 export function namespaceImportSourceFile(receiver, localName, moduleSpecifier) {
@@ -270,19 +285,23 @@ export function fakeNamespaceImportContext(facts, sourceFile) {
 
 export function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, propertyName, options = {}) {
   const receiver = fakeNodeSubject(options.receiver ?? {});
-  if (options.receiverType !== undefined) {
-    receiver.SemanticType = options.receiverType;
-  }
   const selectedDeclaration = sourceSelectedSymbol?.Kind !== undefined ? sourceSelectedSymbol : options.sourceSelectedDeclaration;
   const selectedSymbol = sourceSelectedSymbol?.Kind === undefined ? sourceSelectedSymbol : options.sourceSelectedSymbol;
+  const receiverType = options.receiverType ?? receiver.SemanticType ?? receiver;
+  const resultType = options.sourceResultType ?? expression;
   return {
     target: "csharp",
     expression,
     receiver,
-    receiverType: options.receiverType ?? {},
     propertyName,
-    ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
-    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
+    accessMode: options.accessMode ?? "read",
+    callCallee: options.callCallee ?? false,
+    sourceReceiver: selectedSourceValueEvidence(receiver, receiverType),
+    sourceResult: selectedSourceValueEvidence(expression, resultType, {
+      selectedDeclaration,
+      selectedSymbol,
+    }),
+    ...(options.optionalChain === undefined ? {} : { optionalChain: options.optionalChain }),
   };
 }
 
@@ -314,64 +333,11 @@ export function fakeContext(facts) {
   return {
     facts,
     factResolver: {
-      resolve: (subject, key) => facts.get(subject, key),
+      resolve: (subject, key) => facts.get(subject, key) ??
+        (key === csharpSourceProfileDeclarationFactKey ? sourceProfileDeclarationFacts.get(subject) : undefined),
     },
-    compiler: {
-      ast: {
-        is: fakeAstIs({
-          IsIdentifier: (node) => node?.Kind === "Identifier",
-          IsPrivateIdentifier: (node) => node?.Kind === "PrivateIdentifier",
-          IsQualifiedName: (node) => node?.Kind === "QualifiedName",
-          IsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression",
-          IsCallExpression: (node) => node?.Kind === "CallExpression",
-          IsNewExpression: (node) => node?.Kind === "NewExpression" || node?.Kind === "KindNewExpression",
-          IsVariableDeclaration: (node) => node?.Kind === "VariableDeclaration",
-          IsParameterDeclaration: (node) => node?.Kind === "ParameterDeclaration",
-          IsBindingElement: (node) => node?.Kind === "BindingElement",
-          IsFunctionDeclaration: (node) => node?.Kind === "FunctionDeclaration",
-          IsClassDeclaration: (node) => node?.Kind === "ClassDeclaration",
-          IsMethodDeclaration: (node) => node?.Kind === "MethodDeclaration",
-          IsPropertyDeclaration: (node) => node?.Kind === "PropertyDeclaration",
-          IsTypeReferenceNode: (node) => node?.Kind === "TypeReferenceNode",
-          IsTypeParameterDeclaration: (node) => node?.Kind === "TypeParameterDeclaration",
-          IsTypeAliasDeclaration: (node) => node?.Kind === "TypeAliasDeclaration",
-          IsInterfaceDeclaration: (node) => node?.Kind === "InterfaceDeclaration",
-          IsImportTypeNode: (node) => node?.Kind === "ImportTypeNode",
-        }),
-        kindName: (node) => typeof node?.Kind === "string" ? node.Kind : "",
-        as: {
-          AsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression" ? node : undefined,
-          AsElementAccessExpression: (node) => node?.Kind === "ElementAccessExpression" ? node : undefined,
-          AsCallExpression: (node) => node?.Kind === "CallExpression" ? node : undefined,
-          AsNewExpression: (node) => node?.Kind === "NewExpression" ? node : undefined,
-        },
-        getSourceFile: (node) => node?.SourceFile,
-        getFileName: (sourceFile) => sourceFile?.FileName ?? "",
-        parent: (node) => node?.Parent,
-        name: (node) => node?.Name,
-        text: (node) => node?.Text ?? "",
-        typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
-      },
-      checker: {
-        getSignatureDeclaration: (signature) => signature?.declaration,
-        getSymbolDeclarations: (symbol) =>
-          symbol?.declarations ??
-          (symbol?.declaration !== undefined
-            ? [symbol.declaration]
-            : symbol?.Kind !== undefined
-            ? [symbol]
-            : []),
-        getTypeAtLocation: (node) => node?.SemanticType,
-        getTypeSymbol: () => undefined,
-        getSymbolAtLocation: () => undefined,
-        getResolvedSymbolOrNil: () => undefined,
-        getResolvedSymbol: () => undefined,
-        getAliasedSymbol: () => undefined,
-      },
-      typeShape: {
-        isNullish: (type) => type?.kind === "test-nullish",
-      },
-    },
+    extensionId: "tsonic.csharp.surface.js",
+    phase: "finalization",
   };
 }
 
@@ -486,29 +452,69 @@ export function collectAllNodes(node, ast, result = []) {
 }
 
 export function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
+  const sourceCall = fakeNodeSubject(call, call?.Kind ?? "CallExpression");
   const callee = fakeCallCallee(options);
+  const sourceArguments = (options.arguments ?? []).map((argument) => fakeNodeSubject(argument));
+  const selectedCalleeDeclaration = options.sourceSelectedCalleeDeclaration ?? sourceSelectedDeclaration;
+  const sourceArgumentBindings = options.sourceArgumentBindings ?? sourceArguments.map((argument, index) => ({
+    sourceArgumentIndex: index,
+    effectiveArgumentIndex: index,
+    sourceForm: "value",
+    sourceParameterIndex: index,
+    sourceParameterForm: "parameter",
+    selectedArgumentType: options.sourceArgumentTypes?.[index] ?? argument,
+    selectedParameterType: options.sourceParameterTypes?.[index] ?? options.sourceArgumentTypes?.[index] ?? argument,
+  }));
   return {
     target: "csharp",
-    call: fakeNodeSubject(call, call?.Kind ?? "CallExpression"),
+    call: sourceCall,
     callee,
-    arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
+    arguments: sourceArguments,
+    callKind: isConstructCall(sourceCall) ? "construct" : "call",
     sourceSelectedDeclaration,
-    sourceSelectedCalleeDeclaration: options.sourceSelectedCalleeDeclaration ?? sourceSelectedDeclaration,
     sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
     sourceSelectedSignatureKind: options.sourceSelectedSignatureKind ?? "resolved",
-    ...(options.sourceCalleeDeclaration === undefined ? {} : { sourceCalleeDeclaration: options.sourceCalleeDeclaration }),
-    ...(options.sourceCalleeSymbol === undefined ? {} : { sourceCalleeSymbol: options.sourceCalleeSymbol }),
+    sourceArgumentBindings,
+    sourceCallee: selectedSourceValueEvidence(callee, options.sourceCalleeType ?? callee, {
+      declaration: options.sourceCalleeDeclaration,
+      symbol: options.sourceCalleeSymbol,
+      selectedDeclaration: selectedCalleeDeclaration,
+      selectedSymbol: options.sourceSelectedCalleeSymbol,
+    }),
+    sourceArguments: sourceArguments.map((argument, index) =>
+      selectedSourceValueEvidence(argument, options.sourceArgumentTypes?.[index] ?? argument)),
+    sourceResult: selectedSourceValueEvidence(sourceCall, options.sourceResultType ?? sourceCall),
+    ...(options.calleeReceiver === undefined
+      ? {}
+      : { sourceReceiver: selectedSourceValueEvidence(options.calleeReceiver, options.sourceReceiverType ?? options.calleeReceiver) }),
+    ...(options.optionalChain === undefined ? {} : { optionalChain: options.optionalChain }),
   };
 }
 
 export function jsCallRequestWithoutSignature(call, sourceSelectedDeclaration, options = {}) {
-  const callee = fakeCallCallee(options);
+  const request = jsCallRequest(call, sourceSelectedDeclaration, options);
+  const {
+    sourceSelectedSignature: _sourceSelectedSignature,
+    sourceSelectedSignatureKind: _sourceSelectedSignatureKind,
+    sourceArgumentBindings: _sourceArgumentBindings,
+    ...withoutSignature
+  } = request;
+  return withoutSignature;
+}
+
+function isConstructCall(call) {
+  return call?.Kind === "NewExpression" || call?.Kind === "KindNewExpression";
+}
+
+export function selectedSourceValueEvidence(expression, type = expression, options = {}) {
   return {
-    target: "csharp",
-    call: fakeNodeSubject(call, call?.Kind ?? "CallExpression"),
-    callee,
-    arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
-    sourceSelectedDeclaration,
+    expression,
+    type,
+    ...(options.symbol === undefined ? {} : { symbol: options.symbol }),
+    ...(options.declaration === undefined ? {} : { declaration: options.declaration }),
+    ...(options.selectedSymbol === undefined ? {} : { selectedSymbol: options.selectedSymbol }),
+    ...(options.selectedDeclaration === undefined ? {} : { selectedDeclaration: options.selectedDeclaration }),
+    ...(options.authoredTypeNode === undefined ? {} : { authoredTypeNode: options.authoredTypeNode }),
   };
 }
 
