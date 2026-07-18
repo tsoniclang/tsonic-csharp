@@ -11,8 +11,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
-  Symbol,
 } from "@tsonic/tsts";
 import {
   csharpTargetIterationFactKey,
@@ -27,12 +25,6 @@ import {
 import {
   targetOperation,
 } from "../operations.js";
-import {
-  asNodeSubject,
-  getNodeField,
-  getNodeList,
-  visitAstReaderNodes,
-} from "../ast-utils.js";
 import {
   asTargetTypeRef,
 } from "../../fact-subjects.js";
@@ -98,66 +90,18 @@ function recordIterationBindingCarrier(
   row: CsharpIterationOperationRow,
 ): void {
   const carrier = asTargetTypeRef(row.elementType);
-  const statement = asNodeSubject(request.statement);
-  const compiler = context.compiler;
-  if (carrier === undefined || statement === undefined || compiler === undefined) {
+  if (carrier === undefined) {
     return;
   }
-  const initializer = asNodeSubject(getNodeField(statement, "Initializer")) ??
-    asNodeSubject(getNodeField(statement, "initializer"));
-  const names = initializer === undefined ? [] : directIterationBindingIdentifiers(initializer, compiler.ast);
-  for (const name of names) {
-    context.facts.set(name, runtimeCarrierFactKey, { carrier }, row.evidence);
-    const sourceFile = compiler.ast.getSourceFile(name);
-    const symbol = compiler.checker.getSymbolAtLocation(name, { sourceFile });
-    if (symbol !== undefined) {
-      context.facts.set(symbol, runtimeCarrierFactKey, { carrier }, row.evidence);
-      recordIterationBindingReferenceCarriers(statement, symbol, carrier, context, row.evidence);
+  for (const subject of [
+    request.initializer,
+    request.sourceElement.authoredTypeNode,
+    request.sourceElement.selectedDeclaration,
+    request.sourceElement.selectedSymbol,
+    request.sourceElement.type,
+  ]) {
+    if (subject !== undefined) {
+      context.facts.set(subject, runtimeCarrierFactKey, { carrier }, row.evidence);
     }
   }
-}
-
-function recordIterationBindingReferenceCarriers(
-  statement: Node,
-  bindingSymbol: Symbol,
-  carrier: NonNullable<ReturnType<typeof asTargetTypeRef>>,
-  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
-  evidence: readonly ExtensionEvidence[],
-): void {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  visitAstReaderNodes(compiler.ast, statement, (node) => {
-    if (!compiler.ast.is.IsIdentifier(node)) {
-      return;
-    }
-    const sourceFile = compiler.ast.getSourceFile(node);
-    const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
-    if (symbol === bindingSymbol) {
-      context.facts.set(node, runtimeCarrierFactKey, { carrier }, evidence);
-    }
-  });
-}
-
-function directIterationBindingIdentifiers(
-  initializer: Node,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-): readonly Node[] {
-  if (ast.is.IsIdentifier(initializer)) {
-    return [initializer];
-  }
-  if (ast.is.IsVariableDeclaration(initializer)) {
-    const name = asNodeSubject(getNodeField(initializer, "name")) ??
-      asNodeSubject(getNodeField(initializer, "Name"));
-    return name !== undefined && ast.is.IsIdentifier(name) ? [name] : [];
-  }
-  if (!ast.is.IsVariableDeclarationList(initializer)) {
-    return [];
-  }
-  const declarations = getNodeList(getNodeField(initializer, "Declarations")).length === 0
-    ? getNodeList(getNodeField(initializer, "declarations"))
-    : getNodeList(getNodeField(initializer, "Declarations"));
-  return declarations
-    .flatMap((declaration) => directIterationBindingIdentifiers(declaration, ast));
 }

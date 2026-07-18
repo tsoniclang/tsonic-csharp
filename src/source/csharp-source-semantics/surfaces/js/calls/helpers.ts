@@ -12,23 +12,13 @@ import type {
 import {
   getCsharpArrayLikeElementType,
 } from "../arrays.js";
-import {
-  getCsharpJsArrayRuntimeCarrierForType,
-} from "../array-carriers.js";
-import {
-  getCsharpJsCollectionRuntimeCarrierForType,
-} from "../collections.js";
 import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
 import {
-  asType,
   csharpSourcePrimitiveTargetType,
   csharpJsCheckedTypeQuery,
 } from "../source-library.js";
-import {
-  asNodeSubject,
-} from "../../../ast-utils.js";
 import {
   getCsharpCheckedCallCalleeReceiver,
   getCsharpCheckedCallRequestContext,
@@ -36,9 +26,6 @@ import {
 import {
   isCsharpRecordDictionaryTargetType,
 } from "../../../dictionaries.js";
-import {
-  getReferencedDeclarationTargetTypeRef,
-} from "../../../referenced-declaration-target.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-ref-utils.js";
@@ -51,11 +38,6 @@ export function getNonSemanticTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
-    return undefined;
-  }
   return host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(subject, context, {
     ...csharpJsCheckedTypeQuery,
     allowSemanticTypeQuery: false,
@@ -77,15 +59,9 @@ export function isNumericSourcePrimitive(type: TargetTypeRef | undefined): boole
 }
 
 export function isNewExpression(
-  subject: unknown,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  request: Pick<CheckedCallMappingRequest, "callKind">,
 ): boolean {
-  const node = asNodeSubject(subject as ExtensionFactSubject | undefined);
-  if (node === undefined) {
-    return false;
-  }
-  const ast = context.compiler?.ast;
-  return ast?.is.IsNewExpression(node) === true;
+  return request.callKind === "construct";
 }
 
 export function getSourceLibraryCallReceiverElementType(
@@ -123,7 +99,7 @@ export function getSourceLibraryCallReceiverClosedTargetTypes(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): readonly TargetTypeRef[] {
-  const receiver = getCsharpCheckedCallCalleeReceiver(request, context);
+  const receiver = getCsharpCheckedCallCalleeReceiver(request);
   if (receiver === undefined) {
     return [];
   }
@@ -148,34 +124,22 @@ export function getSourceLibraryCallArgumentTargetTypes(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly (TargetTypeRef | undefined)[] {
-  return request.arguments.map((argument) => {
-    const node = asNodeSubject(argument);
-    const isNestedCall = node !== undefined &&
-      (context.compiler?.ast.is.IsCallExpression(node) === true || context.compiler?.ast.is.IsNewExpression(node) === true);
-    const sourceFile = node === undefined ? undefined : context.compiler?.ast.getSourceFile(node);
-    return isNestedCall
-      ? host.unwrapNullableTargetType(
-          context.facts.get(argument, selectedTargetSignatureFactKey)?.member.returnType ??
-            context.facts.get(argument, runtimeCarrierFactKey)?.carrier ??
-            context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
-            context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier,
-        )
-      : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
-          ...csharpJsCheckedTypeQuery,
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: false,
-          sourceFile,
-        }) ?? getReferencedDeclarationTargetTypeRef(argument, context, host.getTargetTypeRefForSubject, {
-          ...csharpJsCheckedTypeQuery,
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: true,
-          sourceFile,
-        }) ?? host.getTargetTypeRefForSubject(argument, context, {
-          ...csharpJsCheckedTypeQuery,
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: true,
-          sourceFile,
-        }));
+  return request.sourceArguments.map((argument) => {
+    const subjects = [
+      argument.expression,
+      argument.type,
+      argument.selectedDeclaration,
+      argument.selectedSymbol,
+      argument.declaration,
+      argument.symbol,
+    ];
+    for (const subject of subjects) {
+      const targetType = getSourceLibraryReceiverTargetTypeForSubject(subject, context, host);
+      if (targetType !== undefined) {
+        return host.unwrapNullableTargetType(targetType);
+      }
+    }
+    return undefined;
   });
 }
 
@@ -184,15 +148,17 @@ export function getSourceLibraryCallResultTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  const sourceReturnType = asType(request.sourceReturnType);
   return host.unwrapNullableTargetType(
     context.facts.get(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
       context.facts.get(request.call, runtimeCarrierFactKey)?.carrier ??
       context.factResolver.resolve(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
       context.factResolver.resolve(request.call, runtimeCarrierFactKey)?.carrier ??
-      getCsharpJsCollectionRuntimeCarrierForType(sourceReturnType, context, host) ??
-      getCsharpJsArrayRuntimeCarrierForType(sourceReturnType, context, host) ??
-      host.getTargetTypeRefForSubject(request.call, context, {
+      host.getTargetTypeRefForSubject(request.sourceResult.type, context, {
+        ...csharpJsCheckedTypeQuery,
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }) ??
+      host.getTargetTypeRefForSubject(request.sourceResult.expression, context, {
         ...csharpJsCheckedTypeQuery,
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
@@ -225,21 +191,6 @@ function getSourceLibraryReceiverTargetTypeForSubject(
   const resolvedFactTarget = getTargetTypeRefFromResolvedFacts(subject, context);
   if (resolvedFactTarget !== undefined) {
     return resolvedFactTarget;
-  }
-  if (asType(subject) !== undefined) {
-    return undefined;
-  }
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
-    return localFactTarget;
-  }
-  const referencedDeclarationTarget = getReferencedDeclarationTargetTypeRef(subject, context, host.getTargetTypeRefForSubject, {
-    ...csharpJsCheckedTypeQuery,
-    allowSemanticTypeQuery: false,
-  });
-  if (referencedDeclarationTarget !== undefined) {
-    return referencedDeclarationTarget;
   }
   return host.getTargetTypeRefForSubject(subject, context, {
       ...csharpJsCheckedTypeQuery,

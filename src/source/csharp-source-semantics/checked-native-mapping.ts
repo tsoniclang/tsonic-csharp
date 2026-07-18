@@ -59,7 +59,6 @@ import {
   mapCsharpIterationOperationRows,
 } from "./operation-selection/iteration.js";
 import {
-  asType,
   targetTypeRefEquals,
   targetTypeRefIsClosed,
   targetTypeRefKey,
@@ -69,9 +68,6 @@ import {
 } from "./target-member-selection.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
-import {
-  asNodeSubject,
-} from "./ast-utils.js";
 import {
   resolveCsharpCheckedConversionEvidence,
 } from "./checked-conversion-evidence.js";
@@ -87,13 +83,8 @@ export function mapCsharpNativeCheckedIteration(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const expressionNode = asNodeSubject(request.expression);
-  const expressionSourceFile = expressionNode === undefined ? undefined : context.compiler?.ast.getSourceFile(expressionNode);
-  const sourceExpressionType = expressionNode === undefined || context.compiler === undefined
-    ? undefined
-    : context.compiler.checker.getTypeAtLocation(expressionNode, { sourceFile: expressionSourceFile });
   const expressionType = host.getTargetTypeRefForSubject(request.expression, context, expressionEvidenceQuery) ??
-    host.getTargetTypeRefForSubject(sourceExpressionType, context, noRuntimeCarrierQuery);
+    host.getTargetTypeRefForSubject(request.sourceIterable.type, context, noRuntimeCarrierQuery);
   if (request.kind === "for-of") {
     const elementType = getCsharpCollectionElementTargetType(expressionType);
     if (elementType !== undefined) {
@@ -177,7 +168,7 @@ export function mapCsharpCheckedConversion(
   const source = conversionEvidence.source;
   const target = conversionEvidence.target;
   const structuralCompatAssertion = request.conversionKind === "assertion"
-    ? mapCsharpClosedCompatStructuralAssertion(request, context, compatibilityMode)
+    ? mapCsharpClosedCompatStructuralAssertion(request, context, host, compatibilityMode)
     : undefined;
   if (structuralCompatAssertion !== undefined) {
     return structuralCompatAssertion;
@@ -200,14 +191,14 @@ export function mapCsharpCheckedConversion(
     return assertionAnyConversion;
   }
   const selectedSignatureReturn = request.conversionKind === "call-argument"
-    ? context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType
+    ? context.facts.get(request.source.expression, selectedTargetSignatureFactKey)?.member.returnType
     : undefined;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# selected target operation already returns the selected target type." }]);
   }
-  const csharpOperationReturn = context.facts.get(request.source, csharpTargetOperationFactKey)?.resultType;
+  const csharpOperationReturn = context.facts.get(request.source.expression, csharpTargetOperationFactKey)?.resultType;
   if (csharpOperationReturn !== undefined && targetTypeRefEquals(csharpOperationReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
@@ -221,7 +212,7 @@ export function mapCsharpCheckedConversion(
   if (
     request.conversionKind === "call-argument" &&
     source === undefined &&
-    sourceFunctionExpressionHasSelectedTargetDelegate(request.source, target, context)
+    sourceFunctionExpressionHasSelectedTargetDelegate(request.source.expression, target, context)
   ) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
@@ -235,9 +226,7 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# delegate value is contextually convertible to the selected delegate target type through a closed wrapper." }]);
   }
-  const sourceExpression = request.conversionKind === "assertion"
-    ? request.sourceExpression
-    : request.source;
+  const sourceExpression = request.source.expression;
   if (isLiteralRepresentableAsTargetType(target, sourceExpression, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
@@ -331,22 +320,21 @@ export function mapCsharpCheckedConversion(
 function mapCsharpClosedCompatStructuralAssertion(
   request: Extract<CheckedConversionMappingRequest, { readonly conversionKind: "assertion" }>,
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+  host: CsharpOperationsProviderHost,
   compatibilityMode: TargetTypescriptCompatibilityMode,
 ): ExtensionObservation<CheckedConversionMappingResult> | undefined {
-  const ast = context.compiler?.ast;
-  const explicitTarget = asNodeSubject(request.explicitTargetTypeNode);
+  const targetShape = host.getCsharpObjectShapeFactForSubject(request.explicitTargetTypeNode, context) ??
+    host.getCsharpObjectShapeFactForSubject(request.target.type, context);
   if (
     compatibilityMode !== "compat" ||
-    ast === undefined ||
-    explicitTarget === undefined ||
-    !ast.is.IsTypeLiteralNode(explicitTarget)
+    targetShape === undefined
   ) {
     return undefined;
   }
-  const sourceOperationType = context.facts.get(request.sourceExpression, csharpTargetOperationFactKey)?.resultType ??
-    context.factResolver.resolve(request.sourceExpression, csharpTargetOperationFactKey)?.resultType;
-  const sourceCarrier = context.facts.get(request.sourceExpression, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(request.sourceExpression, runtimeCarrierFactKey)?.carrier ??
+  const sourceOperationType = context.facts.get(request.source.expression, csharpTargetOperationFactKey)?.resultType ??
+    context.factResolver.resolve(request.source.expression, csharpTargetOperationFactKey)?.resultType;
+  const sourceCarrier = context.facts.get(request.source.expression, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.source.expression, runtimeCarrierFactKey)?.carrier ??
     sourceOperationType;
   if (sourceCarrier === undefined || !isCsharpClosedCompatRuntimeCarrier(sourceCarrier)) {
     return undefined;
@@ -367,16 +355,16 @@ function mapCsharpAnyAssertionConversion(
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
   compatibilityMode: TargetTypescriptCompatibilityMode,
 ): ExtensionObservation<CheckedConversionMappingResult> | undefined {
-  const sourceRuntimeCarrier = context.facts.get(request.source, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(request.source, runtimeCarrierFactKey)?.carrier;
-  const targetRuntimeCarrier = context.facts.get(request.target, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(request.target, runtimeCarrierFactKey)?.carrier;
+  const sourceRuntimeCarrier = context.facts.get(request.source.expression, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.source.expression, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(request.source.type, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.source.type, runtimeCarrierFactKey)?.carrier;
+  const targetRuntimeCarrier = context.facts.get(request.target.type, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(request.target.type, runtimeCarrierFactKey)?.carrier;
   const sourceHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(source) ||
-    isCsharpAnyRuntimeCarrier(sourceRuntimeCarrier) ||
-    selectedSourceTypeIsAny(request.source, context);
+    isCsharpAnyRuntimeCarrier(sourceRuntimeCarrier);
   const targetHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(target) ||
-    isCsharpAnyRuntimeCarrier(targetRuntimeCarrier) ||
-    selectedSourceTypeIsAny(request.target, context);
+    isCsharpAnyRuntimeCarrier(targetRuntimeCarrier);
   if (!sourceHasOpaqueAnyCarrier && !targetHasOpaqueAnyCarrier) {
     return undefined;
   }
@@ -412,14 +400,6 @@ function mapCsharpAnyAssertionConversion(
   });
 }
 
-function selectedSourceTypeIsAny(
-  subject: CheckedConversionMappingRequest["source"],
-  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
-): boolean {
-  const type = asType(subject);
-  return type !== undefined && context.compiler?.typeShape.isAny(type) === true;
-}
-
 function getCsharpSourceDeclaredAssertionCast(
   request: CheckedConversionMappingRequest,
   source: ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>,
@@ -449,11 +429,15 @@ function isSourceDeclaredTargetType(type: NonNullable<ReturnType<CsharpOperation
 }
 
 function sourceFunctionExpressionHasSelectedTargetDelegate(
-  subject: CheckedConversionMappingRequest["source"],
+  subject: CheckedConversionMappingRequest["source"]["expression"],
   target: NonNullable<ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>>,
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
 ): boolean {
-  return sourceSubjectIsFunctionExpression(subject, context) && getCsharpDelegateSignature(target) !== undefined;
+  const contextual = context.facts.get(subject, contextualTargetTypeFactKey) ??
+    context.factResolver.resolve(subject, contextualTargetTypeFactKey);
+  return contextual?.targetType !== undefined &&
+    targetTypeRefEquals(contextual.targetType, target) &&
+    getCsharpDelegateSignature(target) !== undefined;
 }
 
 function sourceDelegateMatch(
@@ -486,15 +470,6 @@ function sourceDelegateMatch(
   return targetTypeRefEquals(targetDelegate.returnType, sourceDelegate.returnType)
     ? { matches: true }
     : { matches: false, reason: "return-type" };
-}
-
-function sourceSubjectIsFunctionExpression(
-  subject: CheckedConversionMappingRequest["source"],
-  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
-): boolean {
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  return node !== undefined && ast !== undefined && (ast.is.IsArrowFunction(node) || ast.is.IsFunctionExpression(node));
 }
 
 function subjectIdentity(subject: unknown): string {

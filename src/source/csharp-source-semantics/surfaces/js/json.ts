@@ -1,4 +1,5 @@
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
@@ -199,7 +200,7 @@ export function mapCsharpJsJsonRuntimeCarrier(
 }
 
 export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpJsSurfaceHost,
 ): void {
   const compiler = lifecycleContext.compiler;

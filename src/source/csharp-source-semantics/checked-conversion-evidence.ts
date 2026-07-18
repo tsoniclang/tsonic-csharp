@@ -11,9 +11,6 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
-import {
-  getTargetArgumentConversionType,
-} from "./target-member-arguments/argument-conversions.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -59,14 +56,14 @@ export function resolveCsharpCheckedConversionEvidence(
   if (request.conversionKind === "call-argument") {
     return {
       kind: "resolved",
-      source: host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery),
-      target: host.getTargetTypeRefForSubject(getTargetArgumentConversionType(request.targetParameter), context),
+      source: host.getTargetTypeRefForSubject(request.source.type, context, noRuntimeCarrierQuery),
+      target: request.target,
     };
   }
 
-  const semanticSource = host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery);
-  const semanticTarget = host.getTargetTypeRefForSubject(request.target, context);
-  const expressionSource = resolveDirectEvidenceTarget(request.sourceExpression, context, host, noRuntimeCarrierQuery);
+  const semanticSource = host.getTargetTypeRefForSubject(request.source.type, context, noRuntimeCarrierQuery);
+  const semanticTarget = host.getTargetTypeRefForSubject(request.target.type, context);
+  const expressionSource = resolveDirectEvidenceTarget(request.source.expression, context, host, noRuntimeCarrierQuery);
   if (expressionSource !== undefined) {
     const authoredTarget = resolveDirectEvidenceTarget(
       request.explicitTargetTypeNode,
@@ -121,9 +118,11 @@ function resolveConsistentAuthoredSource(
   host: CsharpOperationsProviderHost,
 ): AuthoredSourceResolution {
   const candidates = [
-    request.sourceSelectedSymbol,
-    request.sourceSelectedDeclaration,
-    request.sourceSelectedDeclarationTypeNode,
+    request.source.selectedSymbol,
+    request.source.selectedDeclaration,
+    request.source.authoredTypeNode,
+    request.source.symbol,
+    request.source.declaration,
   ]
     .map((subject) => resolveDirectEvidenceTarget(subject, context, host, noRuntimeCarrierQuery))
     .filter((candidate): candidate is AuthoredTargetEvidence => candidate !== undefined);

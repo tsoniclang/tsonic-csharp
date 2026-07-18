@@ -36,7 +36,11 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceContainer = getSelectedSourceLibraryDeclarationName(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context);
+  const sourceContainer = getSelectedSourceLibraryDeclarationName(
+    request.sourceResult.selectedDeclaration,
+    request.sourceResult.selectedSymbol,
+    context,
+  );
   if (sourceContainer === "Array" || sourceContainer === "ReadonlyArray") {
     const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
     const mapped = mapCsharpJsArrayElementAccess(request, context, receiverCarrier, undefined, host);

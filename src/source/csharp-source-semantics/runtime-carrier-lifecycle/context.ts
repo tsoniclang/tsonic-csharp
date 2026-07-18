@@ -1,12 +1,9 @@
 import type {
-  ExtensionObservationContext,
+  ExtensionLifecycleContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
 
-export type RuntimeCarrierLifecycleFactsContext = {
-  readonly host: ExtensionObservationContext["host"];
-  readonly compiler?: ExtensionObservationContext["compiler"];
-};
+export type RuntimeCarrierLifecycleFactsContext = Pick<ExtensionLifecycleContext, "host" | "compiler">;
 
 export type RuntimeCarrierFact = {
   readonly carrier: TargetTypeRef;

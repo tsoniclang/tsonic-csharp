@@ -3,6 +3,7 @@ import {
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   SourceFile,
@@ -33,7 +34,7 @@ export type CsharpObjectShapeFactResolver = (
 ) => CsharpObjectShapeFact | undefined;
 
 export function recordObjectBindingMemberRuntimeCarriers(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   sourceFile: SourceFile,
   node: Node,
   context: ExtensionObservationContext,

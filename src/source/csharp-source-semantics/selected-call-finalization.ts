@@ -1,4 +1,5 @@
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
 } from "@tsonic/tsts";
@@ -21,7 +22,7 @@ import {
   csharpJsSurfaceExtensionId,
 } from "./identity.js";
 import {
-  createCsharpLifecycleObservationContext,
+  createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
 import {
   asNodeSubject,
@@ -45,7 +46,7 @@ import {
 } from "./target-ref-utils.js";
 
 export function finalizeSelectedCallTargetMember(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   call: Node,
   selectedTarget: CsharpSelectedCallTargetFact | undefined,
   member: CsharpTargetMember,
@@ -62,7 +63,7 @@ export function finalizeSelectedCallTargetMember(
 }
 
 function finalizeSelectedCallRequirement(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   call: Node,
   member: CsharpTargetMember,
   requirement: NonNullable<CsharpSelectedCallTargetFact["finalizationRequirement"]>,
@@ -74,7 +75,7 @@ function finalizeSelectedCallRequirement(
     : undefined;
   const context = compiler === undefined
     ? undefined
-    : createCsharpLifecycleObservationContext(lifecycleContext, "operation.mapCheckedCall");
+    : createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   switch (requirement.kind) {
     case "closed-json-value": {
       const argumentTargetType = argument === undefined || context === undefined
@@ -122,7 +123,7 @@ function getFinalizedCallArgumentTargetType(
 }
 
 function finalizeSelectedCallTargetFamily(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   call: Node,
   selectedTarget: CsharpSelectedCallTargetFact | undefined,
   member: CsharpTargetMember,
@@ -149,7 +150,7 @@ function finalizeSelectedCallTargetFamily(
   if (receiver === undefined) {
     return rejectMissingTargetFamilyFinalization(lifecycleContext, call, family, member);
   }
-  const context = createCsharpLifecycleObservationContext(lifecycleContext, "operation.mapCheckedCall");
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const sourceFile = compiler.ast.getSourceFile(call);
   const receiverCarrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context) ??
     context.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
@@ -202,7 +203,7 @@ function deferredFamilyCandidateAcceptsReceiverCarrier(
 }
 
 function rejectMissingTargetFamilyFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
   call: Node,
   family: NonNullable<CsharpSelectedCallTargetFact["selectionFamily"]>,
   member: CsharpTargetMember,
@@ -233,7 +234,7 @@ function rejectMissingTargetFamilyFinalization(
 }
 
 function rejectMissingJsonFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
   call: Node,
   member: CsharpTargetMember,
   requirement: NonNullable<CsharpSelectedCallTargetFact["finalizationRequirement"]>,

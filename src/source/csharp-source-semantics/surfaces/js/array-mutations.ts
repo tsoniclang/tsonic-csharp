@@ -1,6 +1,5 @@
 import {
   acceptObservation,
-  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -8,8 +7,6 @@ import type {
   CheckedOperatorMappingRequest,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -23,12 +20,6 @@ import {
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
-import {
-  asNodeSubject,
-} from "../../ast-utils.js";
-import {
-  getCsharpArrayBoundaryCoreCarrierForReference,
-} from "./array-boundary-facts.js";
 import {
   isCsharpJsArrayCarrierTargetType,
 } from "./array-carriers.js";
@@ -54,7 +45,7 @@ export function mapCsharpJsArrayMutationOperator(
     return mapSelectedArrayLengthAssignment(request, context, host);
   }
   if (request.operator === "delete") {
-    return mapSelectedArrayElementDelete(request, context, host);
+    return mapSelectedArrayElementDelete(request, context);
   }
   return undefined;
 }
@@ -64,22 +55,28 @@ function mapSelectedArrayLengthAssignment(
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const compiler = context.compiler;
-  const left = asNodeSubject(request.left);
-  const right = asNodeSubject(request.right);
-  if (compiler === undefined || left === undefined || right === undefined || !compiler.ast.is.IsPropertyAccessExpression(left)) {
+  if (request.right === undefined || request.sourceRight === undefined) {
     return undefined;
   }
-  const selectedProperty = context.factResolver.resolve(left, targetOperationFactKey);
+  const selectedProperty = context.factResolver.resolve(request.left, targetOperationFactKey);
+  const selectedCsharpProperty = context.factResolver.resolve(request.left, csharpTargetOperationFactKey);
   if (
     selectedProperty?.operationKind !== "property" ||
     !csharpJsArrayLengthPropertyOperationIds.has(selectedProperty.operationId)
   ) {
     return undefined;
   }
-  const receiver = compiler.ast.as.AsPropertyAccessExpression(left)?.Expression;
-  const receiverCarrier = getSelectedArrayReceiverCarrier(receiver, context, host);
-  if (receiverCarrier === undefined || !hasIntegralTargetEvidence(right, context, host)) {
+  const receiverCarrier = selectedCsharpProperty?.kind === "member"
+    ? selectedCsharpProperty.declaringType
+    : undefined;
+  const assignedType = host.getTargetTypeRefForSubject(request.sourceRight.authoredTypeNode, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  }) ?? host.getTargetTypeRefForSubject(request.sourceRight.type, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  });
+  if (!isCsharpJsArrayCarrierTargetType(receiverCarrier) || !host.isIntegralTargetTypeRef(assignedType)) {
     return undefined;
   }
   const resultType = csharpSourcePrimitiveTargetType("int32");
@@ -99,15 +96,9 @@ function mapSelectedArrayLengthAssignment(
 function mapSelectedArrayElementDelete(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
-  host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const compiler = context.compiler;
-  const operand = asNodeSubject(request.left);
-  if (compiler === undefined || operand === undefined || !compiler.ast.is.IsElementAccessExpression(operand)) {
-    return undefined;
-  }
-  const selectedElement = context.factResolver.resolve(operand, targetOperationFactKey);
-  const selectedCsharpElement = context.factResolver.resolve(operand, csharpTargetOperationFactKey);
+  const selectedElement = context.factResolver.resolve(request.left, targetOperationFactKey);
+  const selectedCsharpElement = context.factResolver.resolve(request.left, csharpTargetOperationFactKey);
   if (
     selectedElement?.operationId !== csharpJsArrayElementOperationId ||
     selectedElement.operationKind !== "indexer" ||
@@ -116,10 +107,8 @@ function mapSelectedArrayElementDelete(
   ) {
     return undefined;
   }
-  const elementAccess = compiler.ast.as.AsElementAccessExpression(operand);
-  const receiverCarrier = getSelectedArrayReceiverCarrier(elementAccess?.Expression, context, host);
-  const argument = elementAccess?.ArgumentExpression;
-  if (receiverCarrier === undefined || argument === undefined || !hasIntegralTargetEvidence(argument, context, host)) {
+  const receiverCarrier = selectedCsharpElement.declaringType;
+  if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
     return undefined;
   }
   const resultType = csharpSourcePrimitiveTargetType("bool");
@@ -134,34 +123,4 @@ function mapSelectedArrayElementDelete(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(csharpJsArrayDeleteAtOperationId, "method", "deleteAt", { resultType }),
   }, [{ message: "C# JS array delete mutation mapped from selected operation evidence without lifecycle reconstruction." }]);
-}
-
-function getSelectedArrayReceiverCarrier(
-  receiver: Node | undefined,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): TargetTypeRef | undefined {
-  if (receiver === undefined) {
-    return undefined;
-  }
-  const carrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context) ??
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
-    host.getTargetTypeRefForSubject(receiver, context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: false,
-    });
-  return isCsharpJsArrayCarrierTargetType(carrier) ? carrier : undefined;
-}
-
-function hasIntegralTargetEvidence(
-  node: Node,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): boolean {
-  const targetType = host.getTargetTypeRefForSubject(node, context, {
-    allowRuntimeCarrier: true,
-    allowSemanticTypeQuery: false,
-  });
-  return host.isIntegralTargetTypeRef(targetType) ||
-    host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context);
 }

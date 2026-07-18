@@ -27,7 +27,7 @@ import {
   findTargetMember,
 } from "../target-member-selection.js";
 import {
-  getTargetArgumentConversionTypes,
+  getTargetArgumentConversionSlots,
 } from "../target-member-arguments/argument-conversions.js";
 import {
   targetMemberIsClosed,
@@ -80,7 +80,10 @@ export function mapDotnetNativeArrayCreateCall(
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
   }
-  const argumentConversions = getTargetArgumentConversionTypes(csharpMember.parameters, request.arguments.length);
+  const argumentConversions = getTargetArgumentConversionSlots(csharpMember.parameters, {
+    argumentCount: request.arguments.length,
+    sourceArgumentBindings: request.sourceArgumentBindings,
+  });
   if (argumentConversions === undefined) {
     return rejectObservation(csharpProviderDiagnostic(
       extensionId,
@@ -91,7 +94,9 @@ export function mapDotnetNativeArrayCreateCall(
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member: csharpMember, argumentConversions, targetTypeArguments: [nativeArrayElementType] },
+    kind: "target",
+    selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
+    argumentConversions,
   }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
 }
 
@@ -107,6 +112,6 @@ export function getNativeArrayCreateElementType(
   if (selectedTypeArguments.length === 1 && selectedTypeArguments[0] !== undefined) {
     return selectedTypeArguments[0];
   }
-  const contextualReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
+  const contextualReturnType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
   return contextualReturnType?.kind === "array" ? contextualReturnType.element : undefined;
 }

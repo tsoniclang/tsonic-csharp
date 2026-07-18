@@ -16,6 +16,7 @@ import type {
   FlowStateFact,
   ProviderVirtualDeclarationFact,
   StructFact,
+  TargetMember,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -23,6 +24,9 @@ import {
 import {
   unsupportedCsharpSourceFlowMarkerDiagnostic,
 } from "../source-flow-diagnostics.js";
+import {
+  getTargetArgumentConversionSlots,
+} from "../target-member-arguments/argument-conversions.js";
 import {
   erasedAttributeFactMember,
   erasedFieldFactMember,
@@ -68,9 +72,12 @@ export function mapCsharpSourceMarkerCall(
         sourceMarkerFactEvidence("field", "field.type", fieldFact),
       ));
     }
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedFieldFactMember(fieldFact) },
-    }, [{ message: "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure." }]);
+    return acceptErasedMarkerCall(
+      request,
+      erasedFieldFactMember(fieldFact),
+      extensionId,
+      "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure.",
+    );
   }
   if (isErasedSourceSemanticsCall(virtualDeclaration)) {
     const member = erasedSourceSemanticsMember(virtualDeclaration) ??
@@ -93,11 +100,41 @@ export function mapCsharpSourceMarkerCall(
     if (missingFactDiagnostic !== undefined) {
       return rejectObservation(missingFactDiagnostic);
     }
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member },
-    }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
+    return acceptErasedMarkerCall(
+      request,
+      member,
+      extensionId,
+      "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure.",
+    );
   }
   return undefined;
+}
+
+function acceptErasedMarkerCall(
+  request: CheckedCallMappingRequest,
+  member: TargetMember,
+  extensionId: string,
+  message: string,
+): ExtensionObservation<CheckedCallMappingResult> {
+  const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
+    argumentCount: request.arguments.length,
+    sourceArgumentBindings: request.sourceArgumentBindings,
+  });
+  if (argumentConversions === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ERASED_SOURCE_MARKER_ARGUMENT_BINDINGS_NOT_PROVEN",
+      9100186,
+      "C# source-semantics marker erasure requires exact TSTS argument-slot evidence.",
+      undefined,
+      request.call,
+    ));
+  }
+  return acceptObservation<CheckedCallMappingResult>({
+    kind: "target",
+    selectedSignature: { member },
+    argumentConversions,
+  }, [{ message }]);
 }
 
 function missingRequiredSourceMarkerFactDiagnostic(

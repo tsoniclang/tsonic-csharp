@@ -1,18 +1,18 @@
 import type {
-  ExtensionObservationContext,
+  ExtensionCompilerQueryContext,
+  ExtensionLifecycleContext,
+  ImmediateExtensionObservationContext,
 } from "@tsonic/tsts";
 
-export type SourceDeclarationLifecycleContext = {
-  readonly host: ExtensionObservationContext["host"];
-  readonly compiler?: ExtensionObservationContext["compiler"];
-};
+export type SourceDeclarationLifecycleContext = Pick<ExtensionLifecycleContext, "host" | "compiler">;
 
 export function createSourceDeclarationObservationContext(
   lifecycleContext: SourceDeclarationLifecycleContext,
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-): ExtensionObservationContext {
+  compiler: ExtensionCompilerQueryContext,
+): ImmediateExtensionObservationContext<"type.resolveRuntimeCarrier"> {
   return {
     observation: "type.resolveRuntimeCarrier",
+    phase: "finalization",
     extensionId: "",
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,

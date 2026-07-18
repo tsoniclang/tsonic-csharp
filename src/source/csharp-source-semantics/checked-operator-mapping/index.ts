@@ -56,13 +56,8 @@ import {
   isClosedCompatRuntimeOperationFact,
 } from "../opaque-any-diagnostics/closed-compat.js";
 import {
-  getBitwiseLiteralOperandTargetTypeRefs,
   getCheckedOperatorOperandTargetTypeRefs,
-  getOperatorSourceFile,
 } from "./operands.js";
-import {
-  asNodeSubject,
-} from "../ast-utils.js";
 import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
@@ -146,20 +141,11 @@ export function mapCsharpCheckedOperator(
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' has no finalized provider target operation.`);
   }
   const operandQuery = getCheckedOperatorOperandQuery(request.operator);
-  const sourceFile = getOperatorSourceFile(request.expression, context);
-  const operands = getCheckedOperatorOperandTargetTypeRefs(request, sourceFile, context, operandQuery, host);
-  const bitwiseLiteralOperands = getBitwiseLiteralOperandTargetTypeRefs(request.operator, operands.left, operands.right, request.left, request.right, context);
-  const left = bitwiseLiteralOperands.left;
-  const right = bitwiseLiteralOperands.right;
-  if (request.operator === "=" && isDestructuringAssignmentTarget(request.left, context) && right !== undefined) {
-    const operationId = `tsonic.csharp.operator.${targetOperator}`;
-    recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, right), [{ message: "C# destructuring assignment token operation recorded after TSTS accepted the source assignment and the right-hand carrier was finalized." }]);
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(operationId, "operator", targetOperator, { resultType: right }),
-    }, [{ message: "C# destructuring assignment selected from checked TSTS assignment and finalized right-hand carrier facts." }]);
-  }
+  const { left, right } = getCheckedOperatorOperandTargetTypeRefs(request, context, operandQuery, host);
   if (left === undefined || (request.right !== undefined && right === undefined)) {
-    return deferObservation;
+    return context.phase === "checking"
+      ? deferObservation
+      : rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' requires finalized target carrier facts for every exact TSTS-selected operand.`);
   }
   if (request.operator === "=" && (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right))) {
     const operationId = `tsonic.csharp.operator.${targetOperator}`;
@@ -194,18 +180,6 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
-}
-
-function isDestructuringAssignmentTarget(
-  subject: unknown,
-  context: ExtensionObservationContext,
-): boolean {
-  const node = asNodeSubject(subject);
-  if (node === undefined || context.compiler === undefined) {
-    return false;
-  }
-  const kind = context.compiler.ast.kindName(node);
-  return kind === "KindArrayLiteralExpression" || kind === "KindObjectLiteralExpression";
 }
 
 function rejectMissingCsharpOperatorFact(

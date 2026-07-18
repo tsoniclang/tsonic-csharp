@@ -1,5 +1,6 @@
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservation,
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
@@ -57,7 +58,7 @@ export function mapCsharpJsRegExpRuntimeCarrier(
 }
 
 export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {

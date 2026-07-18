@@ -170,6 +170,10 @@ export interface CsharpSourceReturnCarrierFact {
   readonly carrier: TargetTypeRef;
 }
 
+export interface CsharpProjectSourceFact {
+  readonly kind: "project-source";
+}
+
 export interface CsharpByrefStorageFact {
   readonly targetType: TargetTypeRef;
 }

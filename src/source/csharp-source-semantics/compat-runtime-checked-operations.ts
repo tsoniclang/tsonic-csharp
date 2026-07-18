@@ -14,13 +14,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
 } from "@tsonic/tsts";
-import {
-  asNodeSubject,
-  getNodeField,
-  getPropertyAccessName,
-} from "./ast-utils.js";
 import {
   compatAnyCallOperation,
   compatAnyConstructOperation,
@@ -45,18 +39,21 @@ import {
   recordTargetOperationFact,
 } from "./operations.js";
 import {
-  getBinaryOperatorText,
-} from "./operator-syntax.js";
-import {
   isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
+import {
+  getTargetArgumentConversionSlots,
+} from "./target-member-arguments/argument-conversions.js";
 export function mapCsharpCompatRuntimeCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (
     !requestTargetsCsharp(request.target) ||
-    !hasOpaqueAnyCarrier(request.receiver, context)
+    !hasOpaqueAnyCarrier([request.sourceReceiver.expression, request.sourceReceiver.type], context)
   ) {
     return deferObservation;
   }
@@ -73,7 +70,7 @@ export function mapCsharpCompatRuntimeCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier(request.receiver, context)) {
+  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier([request.sourceReceiver.expression, request.sourceReceiver.type], context)) {
     return deferObservation;
   }
   const operation = compatAnyElementReadOperation();
@@ -89,21 +86,37 @@ export function mapCsharpCompatRuntimeCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier(request.callee, context)) {
+  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier([request.sourceCallee.expression, request.sourceCallee.type], context)) {
     return deferObservation;
   }
-  const operation = callExpressionIsConstruct(request.call, context)
+  const operation = request.callKind === "construct"
     ? compatAnyConstructOperation(request.arguments.length)
     : compatAnyCallOperation(request.arguments.length);
+  const member = compatAnySelectedTargetMember(operation);
+  const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
+    argumentCount: request.arguments.length,
+    sourceArgumentBindings: request.sourceArgumentBindings,
+  });
+  if (argumentConversions === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_COMPAT_ANY_ARGUMENT_BINDINGS_NOT_PROVEN",
+      9100189,
+      "C# compatibility call requires exact TSTS argument-slot evidence.",
+      undefined,
+      request.call,
+    ));
+  }
   recordCsharpTargetOperation(context, request.call, operation, csharpCompatRuntimeEvidence);
   recordTargetOperationFact(context, request.call, targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
     resultType: operation.resultType,
   }), csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedCallMappingResult>({
+    kind: "target",
     selectedSignature: {
-      member: compatAnySelectedTargetMember(operation),
+      member,
     },
-    returnType: operation.resultType,
+    argumentConversions,
   }, csharpCompatRuntimeEvidence);
 }
 
@@ -115,7 +128,7 @@ export function mapCsharpCompatRuntimeCheckedOperator(
     return deferObservation;
   }
   if (request.operator === "=") {
-    const operation = getCompatRuntimeAssignmentOperation(request.expression, context);
+    const operation = getCompatRuntimeAssignmentOperation(request.left, context);
     if (operation === undefined) {
       return deferObservation;
     }
@@ -126,7 +139,10 @@ export function mapCsharpCompatRuntimeCheckedOperator(
       }),
     }, csharpCompatRuntimeEvidence);
   }
-  if (!hasOpaqueAnyCarrier(request.left, context) && !hasOpaqueAnyCarrier(request.right, context)) {
+  if (
+    !hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceLeft), context) &&
+    !hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceRight), context)
+  ) {
     return deferObservation;
   }
   const operation = request.right === undefined
@@ -149,65 +165,39 @@ export function mapCsharpCompatRuntimeCheckedOperator(
 }
 
 function getCompatRuntimeAssignmentOperation(
-  expression: ExtensionFactSubject,
+  left: ExtensionFactSubject,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
 ): ReturnType<typeof compatAnyPropertyWriteOperation> | ReturnType<typeof compatAnyElementWriteOperation> | undefined {
-  const compiler = context.compiler;
-  const node = asNodeSubject(expression);
-  if (compiler === undefined || node === undefined || !compiler.ast.is.IsBinaryExpression(node) || getBinaryOperatorText(compiler.ast, node) !== "=") {
+  const selected = context.facts.get(left, csharpTargetOperationFactKey) ??
+    context.factResolver.resolve(left, csharpTargetOperationFactKey);
+  if (selected?.kind !== "member") {
     return undefined;
   }
-  const left = asNodeSubject(getNodeField(node, "Left"));
-  if (left === undefined) {
-    return undefined;
+  if (selected.memberName === "ReadCompatElement") {
+    return compatAnyElementWriteOperation();
   }
-  if (compiler.ast.is.IsPropertyAccessExpression(left)) {
-    const receiver = asNodeSubject(getNodeField(left, "Expression"));
-    const propertyName = getPropertyAccessName(left, compiler.ast);
-    return propertyName !== undefined && hasOpaqueAnyCarrier(receiver, context)
-      ? compatAnyPropertyWriteOperation(propertyName)
-      : undefined;
-  }
-  if (compiler.ast.is.IsElementAccessExpression(left)) {
-    const receiver = asNodeSubject(getNodeField(left, "Expression"));
-    return hasOpaqueAnyCarrier(receiver, context)
-      ? compatAnyElementWriteOperation()
-      : undefined;
-  }
-  return undefined;
-}
-
-function callExpressionIsConstruct(
-  call: ExtensionFactSubject,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  const node = asNodeSubject(call);
-  return node !== undefined && context.compiler?.ast.is.IsNewExpression(node) === true;
+  const propertyName = selected.memberName === "ReadCompatSlot" &&
+    selected.argumentProjection?.[0]?.kind === "literal" &&
+    typeof selected.argumentProjection[0].value === "string"
+    ? selected.argumentProjection[0].value
+    : undefined;
+  return propertyName === undefined ? undefined : compatAnyPropertyWriteOperation(propertyName);
 }
 
 function hasOpaqueAnyCarrier(
-  subject: ExtensionFactSubject | Node | undefined,
-  context: Pick<ExtensionObservationContext, "factResolver" | "facts" | "compiler">,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  context: Pick<ExtensionObservationContext, "factResolver" | "facts">,
 ): boolean {
-  if (subject === undefined) {
-    return false;
-  }
-  if (
+  return subjects.some((subject) => subject !== undefined && (
     isCsharpAnyRuntimeCarrier(context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier) ||
     isCsharpAnyRuntimeCarrier(context.facts.get(subject, runtimeCarrierFactKey)?.carrier)
-  ) {
-    return true;
-  }
-  const node = asNodeSubject(subject);
-  const compiler = context.compiler;
-  if (node === undefined || compiler === undefined) {
-    return false;
-  }
-  const type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
-  return type !== undefined && (
-    compiler.typeShape.isAny(type) ||
-    isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier)
-  );
+  ));
+}
+
+function sourceEvidenceSubjects(
+  evidence: CheckedOperatorMappingRequest["sourceLeft"] | CheckedOperatorMappingRequest["sourceRight"],
+): readonly (ExtensionFactSubject | undefined)[] {
+  return evidence === undefined ? [] : [evidence.expression, evidence.type];
 }
 
 function requestTargetsCsharp(target: string | undefined): boolean {

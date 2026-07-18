@@ -2,6 +2,7 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   SourceFile,
@@ -29,7 +30,7 @@ import type {
 } from "./types.js";
 
 export function recordCsharpObjectRestBindingFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpObjectShapeLifecycleHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -80,7 +81,7 @@ function getObjectRestBindingShapeFromCheckedType(
 }
 
 function recordCsharpObjectRestBindingFact(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   sourceFile: SourceFile,
   subjects: readonly Node[],
   restShape: CsharpObjectShapeFact,

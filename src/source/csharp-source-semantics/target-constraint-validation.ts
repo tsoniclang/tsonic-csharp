@@ -80,6 +80,7 @@ export function validateCsharpTargetConstraintFactsBeforeFinalization(
   }
   const context = {
     observation: ExtensionObservationPoint.validateTargetConstraint,
+    phase: "finalization",
     extensionId: lifecycleContext.extensionId,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,

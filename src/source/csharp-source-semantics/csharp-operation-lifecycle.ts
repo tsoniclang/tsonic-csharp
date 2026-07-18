@@ -1,10 +1,11 @@
 import {
-  argumentPassingFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
+  targetCallArgumentPassingFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   SelectedTargetSignatureFact,
@@ -74,7 +75,7 @@ import {
 type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpOperationsProviderHost;
 
 export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -90,7 +91,7 @@ export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
 }
 
 export function recordCsharpSelectedPropertyOperationFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -106,7 +107,7 @@ export function recordCsharpSelectedPropertyOperationFactsBeforeFinalization(
 }
 
 function walkSelectedPropertyOperationFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node | undefined,
   host: CsharpFinalizedCallOperationHost,
 ): void {
@@ -185,7 +186,7 @@ function walkSelectedPropertyOperationFacts(
 }
 
 function recordSelectedStructuralCompatPropertyOperation(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   property: Node,
   operationId: string,
   receiverTargetType: TargetTypeRef,
@@ -216,7 +217,7 @@ function recordSelectedStructuralCompatPropertyOperation(
 }
 
 function walkSelectedCallOperationFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node | undefined,
   host: CsharpFinalizedCallOperationHost,
 ): void {
@@ -236,7 +237,7 @@ function walkSelectedCallOperationFacts(
     recordSourceOwnedCallReturnCarrierFact(lifecycleContext, node, selectedSignature);
     return;
   }
-  recordSelectedCallByrefStorageFacts(lifecycleContext, node, csharpTargetMemberFact(selectedSignature.member));
+  recordSelectedCallByrefStorageFacts(lifecycleContext, selectedSignature, csharpTargetMemberFact(selectedSignature.member));
   if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
     return;
   }
@@ -275,29 +276,27 @@ function walkSelectedCallOperationFacts(
 }
 
 function recordSelectedCallByrefStorageFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+  selectedSignature: SelectedTargetSignatureFact,
   selectedSourceMember: ReturnType<typeof csharpTargetMemberFact>,
 ): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || selectedSourceMember === undefined || !compiler.ast.is.IsCallExpression(node)) {
+  if (selectedSourceMember === undefined) {
     return;
   }
-  const arguments_ = compiler.ast.arguments(node);
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = asNodeSubject(arguments_[index]);
-    const parameter = selectedSourceMember.parameters[index];
-    if (argument === undefined || parameter === undefined || parameter.passingMode === "by-value") {
+  for (const slot of selectedSignature.argumentConversions) {
+    const parameter = selectedSourceMember.parameters[slot.targetParameterIndex];
+    if (parameter === undefined || parameter.passingMode === "by-value") {
       continue;
     }
-    const passing = lifecycleContext.host.facts.get(argument, argumentPassingFactKey) ??
-      lifecycleContext.host.factResolver.resolve(argument, argumentPassingFactKey);
+    const passing = lifecycleContext.host.facts.get(slot, targetCallArgumentPassingFactKey) ??
+      lifecycleContext.host.factResolver.resolve(slot, targetCallArgumentPassingFactKey);
     const targetExpression = asNodeSubject(passing?.targetExpression);
     if (
       passing === undefined ||
       targetExpression === undefined ||
       passing.mode !== parameter.passingMode ||
-      (passing.parameterIndex !== undefined && passing.parameterIndex !== index)
+      passing.targetParameterIndex !== slot.targetParameterIndex ||
+      passing.sourceArgumentIndex !== slot.sourceArgumentIndex
     ) {
       continue;
     }
@@ -314,7 +313,7 @@ function recordSelectedCallByrefStorageFacts(
 }
 
 function selectedFirstArgumentReceiverIsClosed(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node,
   member: NonNullable<ReturnType<typeof csharpTargetMemberFact>>,
   host: CsharpFinalizedCallOperationHost,
@@ -348,7 +347,7 @@ function selectedFirstArgumentReceiverIsClosed(
 }
 
 function recordSourceOwnedCallReturnCarrierFact(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node,
   selectedSignature: SelectedTargetSignatureFact,
 ): void {
@@ -365,14 +364,14 @@ function recordSourceOwnedCallReturnCarrierFact(
 }
 
 function getSourceReturnCarrierForSelectedSignature(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   selectedSignature: SelectedTargetSignatureFact,
 ): TargetTypeRef | undefined {
   for (const subject of [
     selectedSignature.sourceDeclaration,
     selectedSignature.sourceSignature,
-    selectedSignature.sourceSelectedCalleeDeclaration,
-    selectedSignature.sourceSelectedCalleeSymbol,
+    selectedSignature.sourceCallee.selectedDeclaration,
+    selectedSignature.sourceCallee.selectedSymbol,
   ]) {
     if (subject === undefined) {
       continue;
@@ -387,7 +386,7 @@ function getSourceReturnCarrierForSelectedSignature(
 }
 
 function getSelectedCallDeclaringTargetType(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node,
   member: ReturnType<typeof csharpTargetMemberFact>,
 ): TargetTypeRef | undefined {
@@ -411,7 +410,7 @@ function getSelectedCallDeclaringTargetType(
 }
 
 function getSelectedCallReceiver(
-  lifecycleContext: { readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
   node: Node,
 ): Node | undefined {
   const compiler = lifecycleContext.compiler;

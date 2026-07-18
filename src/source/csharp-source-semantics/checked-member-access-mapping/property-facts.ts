@@ -1,26 +1,20 @@
 import {
   acceptObservation,
+  deferObservation,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
   ExtensionObservation,
-  ExtensionObservationContext,
 } from "@tsonic/tsts";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
-  csharpSelectedPropertyTargetFactKey,
+  csharpProjectSourceFactKey,
   resolveCsharpObjectShapeMemberBySelectedSubject,
 } from "../../csharp-facts.js";
-import {
-  asNodeSubject,
-} from "../ast-utils.js";
-import {
-  getCsharpCheckedPropertyAccessRequestContext,
-} from "../checked-member-access-request-context.js";
 import {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
@@ -29,7 +23,6 @@ import {
 } from "../operations.js";
 import {
   getSourceReceiverTargetType,
-  selectedDeclarationIsAmbientOrExternal,
   targetTypeRefIsSourceDeclaredReceiver,
 } from "./lifecycle-helpers.js";
 import {
@@ -44,13 +37,14 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(request.sourceReceiver.type, context) ??
+    host.getCsharpObjectShapeFactForSubject(request.sourceReceiver.expression, context);
   if (objectShape === undefined) {
     return undefined;
   }
   const memberLookup = resolveCsharpObjectShapeMemberBySelectedSubject(objectShape, [
-    request.sourceSelectedDeclaration,
-    request.sourceSelectedSymbol,
+    request.sourceResult.selectedDeclaration,
+    request.sourceResult.selectedSymbol,
   ]);
   if (memberLookup.kind !== "resolved") {
     return undefined;
@@ -80,30 +74,28 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
 export function mapCsharpProjectSourceCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
+  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const selectedDeclaration = asNodeSubject(requestContext.sourceSelectedDeclaration);
-  const compiler = context.compiler;
-  if (selectedDeclaration === undefined || compiler === undefined) {
-    return undefined;
+  const selectedDeclaration = request.sourceResult.selectedDeclaration;
+  if (
+    selectedDeclaration === undefined ||
+    (context.facts.get(selectedDeclaration, csharpProjectSourceFactKey) === undefined &&
+      context.factResolver.resolve(selectedDeclaration, csharpProjectSourceFactKey) === undefined)
+  ) {
+    return context.phase === "checking" && selectedDeclaration !== undefined
+      ? deferObservation
+      : undefined;
   }
-  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
+  const receiverType = getSourceReceiverTargetType(
+    request.sourceReceiver.type,
+    request.sourceReceiver.expression,
+    context,
+    host,
+  );
+  if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }
   const operation = sourceOwnedPropertyOperation(request.propertyName);
-  if (selectedPropertyBelongsToStructuralSourceType(asNodeSubject(requestContext.sourceSelectedDeclarationContainer), context)) {
-    context.facts.set(request.expression, csharpSelectedPropertyTargetFactKey, {
-      selection: {
-        kind: "structural-compat-property",
-        propertyName: request.propertyName,
-        sourceSelectedDeclaration: selectedDeclaration,
-        ...(request.sourceResultType === undefined ? {} : { sourceResultType: request.sourceResultType }),
-      },
-    }, [{ message: "C# retained the exact TSTS-selected structural property until finalized receiver-carrier selection." }]);
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation,
-    }, [{ message: "C# structural source property was accepted from exact TSTS-selected declaration evidence; target dispatch is finalized from the receiver carrier." }]);
-  }
   recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
@@ -113,23 +105,15 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
 export function mapCsharpSourceCoreStructCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
+  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  return subjectIsSourceCoreStructDeclarationPayload(requestContext.sourceSelectedDeclarationContainer, context)
-    ? mapCsharpProjectSourceCheckedPropertyAccess(request, context)
+  return [
+    request.sourceReceiver.selectedDeclaration,
+    request.sourceReceiver.declaration,
+    request.sourceReceiver.type,
+  ].some((subject) => subjectIsSourceCoreStructDeclarationPayload(subject, context))
+    ? mapCsharpProjectSourceCheckedPropertyAccess(request, context, host)
     : undefined;
-}
-
-function selectedPropertyBelongsToStructuralSourceType(
-  declarationContainer: ReturnType<typeof asNodeSubject> | undefined,
-  context: ExtensionObservationContext,
-): boolean {
-  const ast = context.compiler?.ast;
-  if (declarationContainer === undefined || ast === undefined) {
-    return false;
-  }
-  const kind = ast.kindName(declarationContainer);
-  return kind === "KindTypeLiteral" || kind === "KindInterfaceDeclaration";
 }
 
 export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
@@ -137,11 +121,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
-    return undefined;
-  }
-  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }
@@ -157,25 +137,7 @@ function recordCsharpSourceOwnedPropertyOperation(
   context: CheckedPropertyAccessContext,
   operationId: string,
 ): void {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const sourceDeclaringType = asNodeSubject(requestContext.sourceSelectedDeclarationContainer);
-  const sourceDeclaringTypeSubject = !sourceDeclarationIsGenericNominalType(sourceDeclaringType, context)
-    ? sourceDeclaringType
-    : undefined;
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", request.propertyName, {
-    ...(sourceDeclaringTypeSubject === undefined ? {} : { sourceDeclaringType: sourceDeclaringTypeSubject }),
+    sourceDeclaringType: request.sourceReceiver.type,
   }), [{ message: "C# source-owned property operation recorded from TSTS-selected source declaration identity; backend resolves target type facts after semantic finalization." }]);
-}
-
-function sourceDeclarationIsGenericNominalType(
-  declaration: ReturnType<typeof asNodeSubject>,
-  context: ExtensionObservationContext,
-): boolean {
-  const ast = context.compiler?.ast;
-  if (declaration === undefined || ast === undefined) {
-    return false;
-  }
-  const kind = ast.kindName(declaration);
-  return (kind === "KindClassDeclaration" || kind === "KindInterfaceDeclaration") &&
-    ast.typeParameters(declaration).length > 0;
 }

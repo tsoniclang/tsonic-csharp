@@ -1,4 +1,5 @@
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   SourcePrimitiveKind,
@@ -32,7 +33,7 @@ import {
 } from "./target-type-ref.js";
 
 export function recordCsharpTypeParameterConstraintFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpObjectShapeSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -41,6 +42,7 @@ export function recordCsharpTypeParameterConstraintFactsBeforeFinalization(
   }
   const context = {
     observation: "type.resolveRuntimeCarrier",
+    phase: "finalization",
     extensionId: "",
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,

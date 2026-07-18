@@ -7,5 +7,5 @@ export {
   selectTargetMember,
 } from "./selection.js";
 export {
-  getTargetArgumentConversionTypes,
+  getTargetArgumentConversionSlots,
 } from "./argument-conversions.js";

@@ -5,10 +5,8 @@ import {
 import type {
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
-  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
-  Node,
   TargetMember,
 } from "@tsonic/tsts";
 import type {
@@ -41,9 +39,6 @@ import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
 } from "./unsupported.js";
-import {
-  asNodeSubject,
-} from "../../ast-utils.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
@@ -62,21 +57,12 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, request.sourceSelectedSymbol, context);
+  const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
+    request.sourceResult.selectedDeclaration,
+    request.sourceResult.selectedSymbol,
+    context,
+  );
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
-}
-
-function isCallCalleePropertyAccess(
-  node: Node,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
-): boolean {
-  if (ast === undefined) {
-    return false;
-  }
-  const parent = ast.parent(node);
-  return parent !== undefined &&
-    ast.is.IsCallExpression(parent) &&
-    ast.as.AsCallExpression(parent)?.Expression === node;
 }
 
 function mapCsharpSourceLibraryPropertyOperation(
@@ -90,15 +76,11 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
-  const expressionNode = asNodeSubject(request.expression);
   if (
-    request.expression !== undefined &&
     sourceLibrarySelectedDeclarationHasCallTarget(
       sourceMember,
       receiverType,
-      expressionNode !== undefined && isCallCalleePropertyAccess(expressionNode, context.compiler?.ast),
-      request.sourceSelectedDeclaration,
-      context,
+      request.callCallee,
     )
   ) {
     return acceptObservation<CheckedOperationMappingResult>({
@@ -224,8 +206,6 @@ function sourceLibrarySelectedDeclarationHasCallTarget(
   sourceMember: SourceLibraryMember,
   receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>,
   isCallCallee: boolean,
-  sourceSelectedDeclaration: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
   if (csharpJsSourceLibraryPropertyAllowsCallableValue(jsSurfaceSelectedSourceIdentityForMember(sourceMember))) {
     return true;
@@ -233,38 +213,8 @@ function sourceLibrarySelectedDeclarationHasCallTarget(
   if (isCallCallee && getCsharpJsSourceLibraryOperationRow(sourceMember) !== undefined) {
     return true;
   }
-  return (isCallCallee || sourceDeclarationIsCallable(sourceSelectedDeclaration, context)) &&
+  return isCallCallee &&
     csharpJsSourceLibraryMemberHasCallableProvider(sourceMember, {
       contextualDeclaringType: receiverType,
     });
-}
-
-function sourceDeclarationIsCallable(
-  declaration: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): boolean {
-  const node = asNodeSubject(declaration);
-  const compiler = context.compiler;
-  if (node === undefined || compiler === undefined) {
-    return false;
-  }
-  switch (compiler.ast.kindName(node)) {
-    case "KindMethodSignature":
-    case "MethodSignature":
-    case "KindMethodDeclaration":
-    case "MethodDeclaration":
-    case "KindFunctionDeclaration":
-    case "FunctionDeclaration":
-    case "KindCallSignature":
-    case "CallSignature":
-    case "KindConstructSignature":
-    case "ConstructSignature":
-    case "KindConstructor":
-    case "Constructor":
-    case "KindConstructorType":
-    case "ConstructorType":
-      return true;
-    default:
-      return false;
-  }
 }

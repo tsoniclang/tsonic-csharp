@@ -1,5 +1,5 @@
 import type {
-  ExtensionObservationContext,
+  ExtensionLifecycleContext,
 } from "@tsonic/tsts";
 import {
   csharpTargetNameFactKey,
@@ -15,7 +15,7 @@ import {
 } from "../../csharp-identifiers.js";
 
 export function recordCsharpTargetNameFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {

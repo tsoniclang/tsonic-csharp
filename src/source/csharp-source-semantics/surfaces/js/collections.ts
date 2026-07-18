@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
@@ -34,9 +35,6 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
-import {
-  setRuntimeCarrierFactIfLocallyAbsent,
-} from "../../runtime-carrier-lifecycle/fact-writes.js";
 
 export {
   csharpJsMapTargetType,
@@ -193,7 +191,10 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  setRuntimeCarrierFactIfLocallyAbsent(context, subject, fact, evidence[0]?.message ?? "C# JS surface collection runtime carrier recorded from checked TypeScript Map/Set library type.");
+  if (subject === undefined || context.facts.get(subject, runtimeCarrierFactKey) !== undefined) {
+    return;
+  }
+  context.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
 }
 
 function completeTargetTypeArguments(

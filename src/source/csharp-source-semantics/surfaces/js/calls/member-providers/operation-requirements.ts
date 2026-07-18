@@ -10,8 +10,11 @@ import type {
   JsSurfaceSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
-  asNodeSubject,
-} from "../../../../ast-utils.js";
+  getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms,
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
+} from "../../../../target-types.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverClosedTargetTypes,
@@ -103,7 +106,7 @@ function argumentConditionsStatus(
     if ("index" in condition) {
       const argumentType = argumentTypes[condition.index];
       if (argumentType === undefined) {
-        if (argumentConditionAllowsMissingArgument(condition, request.arguments[condition.index], context)) {
+        if (argumentConditionAllowsMissingArgument(condition, request, condition.index, context, host)) {
           continue;
         }
         missingArgumentIndex ??= condition.index;
@@ -117,7 +120,7 @@ function argumentConditionsStatus(
     for (let currentIndex = condition.fromIndex; currentIndex < argumentTypes.length; currentIndex += 1) {
       const argumentType = argumentTypes[currentIndex];
       if (argumentType === undefined) {
-        if (argumentConditionAllowsMissingArgument(condition, request.arguments[currentIndex], context)) {
+        if (argumentConditionAllowsMissingArgument(condition, request, currentIndex, context, host)) {
           continue;
         }
         missingArgumentIndex ??= currentIndex;
@@ -167,22 +170,40 @@ function argumentMatchesTargetCondition(
 
 function argumentConditionAllowsMissingArgument(
   condition: JsSurfaceArgumentCondition,
-  argument: CheckedCallMappingRequest["arguments"][number] | undefined,
+  request: CheckedCallMappingRequest,
+  argumentIndex: number,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
 ): boolean {
-  return condition.allowNullish === true && argumentHasNullishSourceType(argument, context);
+  return condition.allowNullish === true && argumentHasNullishTargetType(request, argumentIndex, context, host);
 }
 
-function argumentHasNullishSourceType(
-  argument: CheckedCallMappingRequest["arguments"][number] | undefined,
+function argumentHasNullishTargetType(
+  request: CheckedCallMappingRequest,
+  argumentIndex: number,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
 ): boolean {
-  const node = asNodeSubject(argument);
-  const compiler = context.compiler;
-  if (node === undefined || compiler === undefined) {
+  const evidence = request.sourceArguments[argumentIndex];
+  if (evidence === undefined) {
     return false;
   }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const type = compiler.checker.getTypeAtLocation(node, { sourceFile });
-  return type === undefined ? false : compiler.typeShape.isNullish(type);
+  const targetType = host.getTargetTypeRefForSubject(evidence.authoredTypeNode, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  }) ?? host.getTargetTypeRefForSubject(evidence.type, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  }) ?? host.getTargetTypeRefForSubject(evidence.expression, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  });
+  return targetTypeHasNullishArm(targetType);
+}
+
+function targetTypeHasNullishArm(type: TargetTypeRef | undefined): boolean {
+  return isCsharpRuntimeNullTargetType(type) ||
+    isCsharpRuntimeUndefinedTargetType(type) ||
+    getCsharpNullableElementTargetType(type) !== undefined ||
+    (getCsharpRuntimeUnionArms(type)?.some(targetTypeHasNullishArm) ?? false);
 }

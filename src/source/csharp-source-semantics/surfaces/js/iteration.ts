@@ -28,12 +28,6 @@ import {
   getCsharpArrayLengthMember,
 } from "./array-carriers.js";
 import {
-  asNodeSubject,
-} from "../../ast-utils.js";
-import {
-  getReferencedDeclarationTargetTypeRef,
-} from "../../referenced-declaration-target.js";
-import {
   mapCsharpIterationOperationRows,
 } from "../../operation-selection/iteration.js";
 import type {
@@ -48,29 +42,24 @@ export function mapCsharpJsSurfaceCheckedIteration(
   if (request.target !== undefined && request.target !== host.targetId) {
     return deferObservation;
   }
-  const seededExpressionCarrier = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
-  const expressionNode = asNodeSubject(request.expression);
-  const sourceFile = expressionNode === undefined ? undefined : context.compiler?.ast.getSourceFile(expressionNode);
-  const sourceExpressionType = expressionNode === undefined || context.compiler === undefined
-    ? undefined
-    : context.compiler.checker.getTypeAtLocation(expressionNode, { sourceFile });
+  const seededExpressionCarrier = context.factResolver.resolve(request.sourceIterable.expression, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(request.sourceIterable.expression, runtimeCarrierFactKey)?.carrier;
   const expressionType = seededExpressionCarrier ??
-    host.getTargetTypeRefForSubject(request.expression, context, {
+    host.getTargetTypeRefForSubject(request.sourceIterable.authoredTypeNode, context, {
       ...csharpJsCheckedTypeQuery,
       allowSemanticTypeQuery: false,
-      sourceFile,
     }) ??
-    getReferencedDeclarationTargetTypeRef(request.expression, context, host.getTargetTypeRefForSubject, {
+    host.getTargetTypeRefForSubject(request.sourceIterable.type, context, {
       ...csharpJsCheckedTypeQuery,
-      sourceFile,
-    }) ??
-    host.getTargetTypeRefForSubject(sourceExpressionType, context, csharpJsCheckedTypeQuery);
+      allowSemanticTypeQuery: false,
+    });
   const rows: CsharpIterationOperationRow[] = [];
   if (host.isCsharpStringType(expressionType)) {
     rows.push(createStringCodePointIterationRow());
   }
   if (request.kind === "for-in") {
-    const objectShape = host.getCsharpObjectShapeFactForSubject(request.expression, context);
+    const objectShape = host.getCsharpObjectShapeFactForSubject(request.sourceIterable.type, context) ??
+      host.getCsharpObjectShapeFactForSubject(request.sourceIterable.expression, context);
     if (objectShape !== undefined) {
       rows.push(createObjectShapeKeyIterationRow());
     }

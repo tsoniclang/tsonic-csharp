@@ -1,5 +1,5 @@
 import type {
-  ExtensionObservationContext,
+  ExtensionLifecycleContext,
   ExtensionFactSubject,
   Node,
   Symbol,
@@ -20,12 +20,12 @@ export type CsharpArrayCarrierRequirement =
   | "unresolved-structural-use";
 
 export type LifecycleContext = {
-  readonly host: ExtensionObservationContext["host"];
-  readonly compiler?: ExtensionObservationContext["compiler"];
+  readonly host: ExtensionLifecycleContext["host"];
+  readonly compiler: ExtensionLifecycleContext["compiler"];
   readonly analysis?: TargetLazySourceAnalysis;
 };
 
-export type CsharpArrayLifecycleAst = NonNullable<ExtensionObservationContext["compiler"]>["ast"];
+export type CsharpArrayLifecycleAst = ExtensionLifecycleContext["compiler"]["ast"];
 
 export interface ArrayParameterAnalysis {
   readonly parameter: Node;

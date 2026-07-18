@@ -19,11 +19,12 @@ export function getSelectedCallProviderVirtualDeclaration(
   return getProviderVirtualDeclaration(context, [
     request.sourceSelectedDeclaration,
     request.sourceSelectedSignature,
-    request.sourceSelectedCalleeDeclaration,
-    request.sourceSelectedCalleeSymbol,
+    request.sourceCallee.selectedDeclaration,
+    request.sourceCallee.selectedSymbol,
+    request.sourceCallee.declaration,
+    request.sourceCallee.symbol,
     requestContext?.calleeSelectedPropertyDeclaration,
     requestContext?.calleeSelectedPropertySymbol,
-    requestContext?.calleeSelectedPropertyDeclarationContainer,
   ], { preferSignatureId: request.sourceSelectedSignature !== undefined });
 }
 

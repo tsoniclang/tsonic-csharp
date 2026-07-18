@@ -1,5 +1,6 @@
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservation,
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
@@ -76,7 +77,7 @@ function isDateOrNullishDateUnion(
 }
 
 export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -125,7 +126,7 @@ function isCheckedSourceLibraryDateTypeReference(
 }
 
 function recordDateRuntimeCarrierFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
   subjects: readonly (ExtensionFactSubject | undefined)[],
   message: string,
 ): void {
@@ -144,7 +145,7 @@ function isCheckedSourceLibraryDateConstruction(
   context: ExtensionObservationContext,
 ): boolean {
   void sourceFile;
-  const selectedSignature = context.host.facts.get(node, selectedTargetSignatureFactKey) ??
+  const selectedSignature = context.facts.get(node, selectedTargetSignatureFactKey) ??
     context.factResolver.resolve(node, selectedTargetSignatureFactKey);
   const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
     selectedSignature?.sourceDeclaration,

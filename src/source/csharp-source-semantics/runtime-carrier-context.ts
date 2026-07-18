@@ -2,25 +2,19 @@ import {
   ExtensionObservationPoint,
 } from "@tsonic/tsts";
 import type {
-  CompilerExtension,
-  ExtensionObservationContext,
-  ExtensionObservationPointName,
+  ExtensionLifecycleContext,
+  ImmediateExtensionObservationContext,
+  ImmediateExtensionObservationPointName,
 } from "@tsonic/tsts";
 import {
   csharpTargetSemanticsExtensionId,
 } from "./identity.js";
 
-export type CsharpLifecycleObservationContext =
-  Parameters<NonNullable<CompilerExtension["initialize"]>>[0] extends never
-    ? never
-    : {
-        readonly host: ExtensionObservationContext["host"];
-        readonly compiler?: ExtensionObservationContext["compiler"];
-      };
+export type CsharpLifecycleObservationContext = Pick<ExtensionLifecycleContext, "host" | "compiler">;
 
 export function createRuntimeCarrierLifecycleObservationContext(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
+  lifecycleContext: CsharpLifecycleObservationContext,
+): ImmediateExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
   return createCsharpLifecycleObservationContext(
     lifecycleContext,
     ExtensionObservationPoint.resolveRuntimeCarrier,
@@ -28,16 +22,14 @@ export function createRuntimeCarrierLifecycleObservationContext(
 }
 
 export function createCsharpLifecycleObservationContext<
-  TObservation extends ExtensionObservationPointName,
+  TObservation extends ImmediateExtensionObservationPointName,
 >(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: CsharpLifecycleObservationContext,
   observation: TObservation,
-): ExtensionObservationContext<TObservation> {
-  if (lifecycleContext.compiler === undefined) {
-    throw new Error("C# lifecycle observation context requires a finalized TSTS compiler query context.");
-  }
+): ImmediateExtensionObservationContext<TObservation> {
   return {
     observation,
+    phase: "finalization",
     extensionId: csharpTargetSemanticsExtensionId,
     compiler: lifecycleContext.compiler,
     host: lifecycleContext.host,

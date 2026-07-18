@@ -110,6 +110,7 @@ export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
   }
   const context = {
     observation: ExtensionObservationPoint.observePostCheckAssignability,
+    phase: "finalization",
     extensionId: lifecycleContext.extensionId,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,

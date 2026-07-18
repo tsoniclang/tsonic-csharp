@@ -19,6 +19,7 @@ import type {
   CsharpJsonSerializableShapeFact,
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
+  CsharpProjectSourceFact,
   CsharpRegularExpressionLiteralFact,
   CsharpSelectedCallTargetFact,
   CsharpSelectedPropertyTargetFact,
@@ -187,6 +188,12 @@ export const csharpSourceReturnCarrierFactKey = defineExtensionFactKey<CsharpSou
   extensionId: "tsonic.csharp",
   name: "sourceReturnCarrier",
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
+});
+
+export const csharpProjectSourceFactKey = defineExtensionFactKey<CsharpProjectSourceFact>({
+  extensionId: "tsonic.csharp",
+  name: "projectSource",
+  equals: (left, right) => left.kind === right.kind,
 });
 
 export const csharpByrefStorageFactKey = defineExtensionFactKey<CsharpByrefStorageFact>({

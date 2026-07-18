@@ -53,7 +53,6 @@ import {
   asNativeArrayTargetType,
   getNativeArrayReceiverType,
   getSourceReceiverTargetType,
-  selectedDeclarationIsAmbientOrExternal,
   targetTypeRefIsSourceDeclaredReceiver,
 } from "./lifecycle-helpers.js";
 import {
@@ -87,7 +86,7 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(undefined, request.receiver, context, host);
+  const receiverType = getNativeArrayReceiverType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -100,7 +99,6 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   }
   const binding = findTargetBinding(context, [
     requestContext.sourceSelectedSymbol,
-    requestContext.sourceSelectedDeclarationContainer,
     requestContext.sourceSelectedDeclaration,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
@@ -131,27 +129,28 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(undefined, request.receiver, context, host);
+  const receiverType = getNativeArrayReceiverType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
-  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(request.sourceSelectedDeclaration, context);
+  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(request.sourceResult.selectedDeclaration, context);
   if (sourceProfileIdentity !== undefined) {
-    const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
+    const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
     const resultType = closeSelectedTargetResultType(receiverType.element, selectedResultType);
     if (resultType === undefined) {
       return rejectSourceIndexerResultTypeNotProven(
         extensionId,
         receiverType,
         selectedResultType,
-        request.sourceResultType !== undefined,
+        true,
       );
     }
     const sourceProfileMember = csharpSourceProfileIndexerMember(sourceProfileIdentity, resultType);
     if (sourceProfileMember === undefined) {
       return undefined;
     }
-    const indexType = host.getTargetTypeRefForSubject(request.argument, context);
+    const indexType = host.getTargetTypeRefForSubject(request.sourceArgument.type, context) ??
+      host.getTargetTypeRefForSubject(request.argument, context, { allowSemanticTypeQuery: false });
     if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
       return rejectNonIntegralNativeArrayIndex(extensionId);
     }
@@ -192,7 +191,8 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (member?.id !== dotnetNativeArrayIndexerMemberId) {
     return rejectNativeArrayIndexerNotFound(extensionId);
   }
-  const indexType = host.getTargetTypeRefForSubject(request.argument, context);
+  const indexType = host.getTargetTypeRefForSubject(request.sourceArgument.type, context) ??
+    host.getTargetTypeRefForSubject(request.argument, context, { allowSemanticTypeQuery: false });
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectNonIntegralNativeArrayIndex(extensionId);
   }
@@ -234,19 +234,21 @@ export function mapCsharpSourceArrayCheckedElementAccess(
     }, [{ message: "C# source array element access reused existing finalized target operation for repeated checked-element observation." }]);
   }
   const receiverType = asNativeArrayTargetType(unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
+    host.getTargetTypeRefForSubject(request.sourceReceiver.type, context, { allowRuntimeCarrier: true }) ??
+      host.getTargetTypeRefForSubject(request.sourceReceiver.expression, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
   ));
   if (receiverType?.kind !== "array") {
     return undefined;
   }
   const sourceProfileMember = csharpSourceProfileIndexerMember(
-    getCsharpSourceProfileMemberIdentity(request.sourceSelectedDeclaration, context),
+    getCsharpSourceProfileMemberIdentity(request.sourceResult.selectedDeclaration, context),
     receiverType.element,
   );
   if (sourceProfileMember === undefined) {
     return undefined;
   }
-  const indexType = host.getTargetTypeRefForSubject(request.argument, context);
+  const indexType = host.getTargetTypeRefForSubject(request.sourceArgument.type, context) ??
+    host.getTargetTypeRefForSubject(request.argument, context, { allowSemanticTypeQuery: false });
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectNonIntegralSourceArrayIndex(extensionId);
   }
@@ -263,7 +265,7 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
@@ -293,24 +295,20 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getSourceReceiverTargetType(undefined, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }
-  if (
-    requestContext.sourceSelectedDeclaration === undefined ||
-    selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)
-  ) {
+  if (request.sourceResult.selectedDeclaration === undefined) {
     return undefined;
   }
-  const resultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
+  const resultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
   if (resultType === undefined) {
     return rejectSourceIndexerResultTypeNotProven(
       extensionId,
       receiverType,
       resultType,
-      request.sourceResultType !== undefined,
+      true,
     );
   }
   const operationId = "tsonic.csharp.source.indexer";

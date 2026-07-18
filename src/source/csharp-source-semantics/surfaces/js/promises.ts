@@ -104,7 +104,7 @@ function selectedPromiseResultTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  return host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(request.sourceReturnType, context, {
+  return host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(request.sourceResult.type, context, {
     allowRuntimeCarrier: true,
     allowSemanticTypeQuery: false,
   }));

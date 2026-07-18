@@ -35,7 +35,7 @@ export function mapCsharpJsArrayElementAccess(
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const elementType = getCsharpArrayLikeElementType(receiverCarrier ?? semanticReceiverType) ??
-    host.getTargetTypeRefForSubject(request.sourceResultType, context, {
+    host.getTargetTypeRefForSubject(request.sourceResult.type, context, {
       ...csharpJsCheckedTypeQuery,
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: false,

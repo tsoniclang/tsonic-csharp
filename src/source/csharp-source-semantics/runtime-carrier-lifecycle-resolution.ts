@@ -2,8 +2,8 @@ import {
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionLifecycleContext,
   ExtensionObservation,
-  ExtensionObservationContext,
   Node,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
@@ -29,7 +29,7 @@ import type {
 } from "./runtime-carrier-types.js";
 
 export function getObservedRuntimeCarrierSyntaxTargetTypeRef(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
@@ -45,7 +45,7 @@ export function getObservedRuntimeCarrierSyntaxTargetTypeRef(
 }
 
 export function resolveCsharpRuntimeCarrierFromLifecycle(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   request: RuntimeCarrierFactRequest,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
@@ -54,7 +54,7 @@ export function resolveCsharpRuntimeCarrierFromLifecycle(
 }
 
 export function getRuntimeCarrierSyntaxTargetTypeRef(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   node: Node,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {

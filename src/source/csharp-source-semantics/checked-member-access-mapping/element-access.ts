@@ -65,7 +65,7 @@ export function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  if (request.sourceSelectedSymbol === undefined && request.sourceSelectedDeclaration === undefined) {
+  if (request.sourceResult.selectedSymbol === undefined && request.sourceResult.selectedDeclaration === undefined) {
     return rejectElementAccessNotMapped(extensionId);
   }
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
@@ -76,14 +76,17 @@ export function mapCsharpCheckedElementAccess(
   const binding = findTargetBinding(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
-    request.receiver,
+    request.sourceReceiver.selectedSymbol,
+    request.sourceReceiver.selectedDeclaration,
+    request.sourceReceiver.type,
+    request.sourceReceiver.expression,
   ]) ?? findTargetBindingFromVirtualDeclaration(
     selectedDeclaration,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
   ) ?? findTargetBindingFromResolvedTargetType(
     context,
-    [request.receiver],
+    [request.sourceReceiver.type, request.sourceReceiver.expression],
     host.getTargetTypeRefForSubject,
     host.getCsharpTargetBindingByTargetId,
     host.getCsharpTargetBindingByMetadataName,
@@ -101,7 +104,7 @@ export function mapCsharpCheckedElementAccess(
   const targetBinding = binding.target === csharpTargetId
     ? applyProviderVirtualExternAlias(host.getCsharpTargetBindingByTargetId(binding.id) ?? binding, selectedDeclaration) ?? binding
     : binding;
-  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver }, context, host);
+  const declaringTargetType = getDeclaringTargetType({ receiver: request.sourceReceiver.expression }, context, host);
   const selected = selectCheckedElementTargetMember(targetBinding, request, context, host, declaringTargetType);
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, selected.selectedDeclaration);
   if (unsupportedSelectedMember !== undefined) {
@@ -114,7 +117,7 @@ export function mapCsharpCheckedElementAccess(
   if (member.kind !== "indexer") {
     return rejectNonIndexerSelectedForElementAccess(extensionId, member.id, targetBinding.id);
   }
-  const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResultType, context);
+  const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
   const csharpMember = instantiateClosedSelectedTargetMember(member, host, {
     ...(declaringTargetType === undefined ? {} : { declaringTargetType }),
     ...(selectedResultType === undefined ? {} : { selectedResultType }),

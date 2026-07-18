@@ -4,14 +4,10 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
 } from "@tsonic/tsts";
-import {
-  asNodeSubject,
-  getNodeParent,
-} from "./ast-utils.js";
+
 export interface CsharpCheckedSelectedMemberContext {
   readonly sourceSelectedSymbol?: ExtensionFactSubject;
   readonly sourceSelectedDeclaration?: ExtensionFactSubject;
-  readonly sourceSelectedDeclarationContainer?: ExtensionFactSubject;
 }
 
 export type CsharpCheckedPropertyAccessRequestContext = CsharpCheckedSelectedMemberContext;
@@ -20,39 +16,24 @@ export type CsharpCheckedElementAccessRequestContext = CsharpCheckedSelectedMemb
 
 export function getCsharpCheckedPropertyAccessRequestContext(
   request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+  _context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): CsharpCheckedPropertyAccessRequestContext {
-  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, request.sourceSelectedDeclaration, context);
+  return selectedMemberContext(request.sourceResult.selectedSymbol, request.sourceResult.selectedDeclaration);
 }
 
 export function getCsharpCheckedElementAccessRequestContext(
   request: CheckedElementAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+  _context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): CsharpCheckedElementAccessRequestContext {
-  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, request.sourceSelectedDeclaration, context);
+  return selectedMemberContext(request.sourceResult.selectedSymbol, request.sourceResult.selectedDeclaration);
 }
 
-function getCsharpCheckedMemberAccessRequestContext(
-  _receiverSubject: ExtensionFactSubject,
+function selectedMemberContext(
   selectedSymbol: ExtensionFactSubject | undefined,
   selectedDeclaration: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
 ): CsharpCheckedSelectedMemberContext {
   return {
     ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
     ...(selectedDeclaration !== undefined ? { sourceSelectedDeclaration: selectedDeclaration } : {}),
-    ...selectedMemberContext(selectedDeclaration, context.compiler?.ast),
-  };
-}
-
-function selectedMemberContext(
-  selectedDeclarationSubject: ExtensionFactSubject | undefined,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
-): CsharpCheckedSelectedMemberContext {
-  const sourceSelectedDeclaration = asNodeSubject(selectedDeclarationSubject);
-  const sourceSelectedDeclarationContainer = getNodeParent(ast, sourceSelectedDeclaration);
-  return {
-    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
-    ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
   };
 }

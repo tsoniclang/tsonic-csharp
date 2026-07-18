@@ -3,7 +3,7 @@ import {
 } from "@tsonic/tsts";
 import type {
   CompilerExtension,
-  ExtensionObservationContext,
+  ExtensionLifecycleContext,
   ProviderIdentity,
   TargetSemanticProvider,
 } from "@tsonic/tsts";
@@ -42,8 +42,8 @@ import {
 } from "./surfaces/js/json.js";
 
 type CsharpSurfaceLifecycleContext = {
-  readonly host: ExtensionObservationContext["host"];
-  readonly compiler?: ExtensionObservationContext["compiler"];
+  readonly host: ExtensionLifecycleContext["host"];
+  readonly compiler: ExtensionLifecycleContext["compiler"];
 };
 
 export function createCsharpJsSurfaceExtension(context: TargetSurfaceExtensionContext): CompilerExtension {

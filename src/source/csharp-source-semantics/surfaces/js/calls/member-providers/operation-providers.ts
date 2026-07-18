@@ -62,9 +62,6 @@ import {
   isNewExpression,
 } from "../helpers.js";
 import {
-  asNodeSubject,
-} from "../../../../ast-utils.js";
-import {
   getObjectPrimitiveReceiverCallMembers,
   getObjectRecordDictionaryAssignMembers,
   getObjectRecordDictionaryCallMembers,
@@ -217,38 +214,14 @@ function targetMembersFromSelectedMetadata(
 function getExplicitCollectionConstructorResultType(
   request: JsSurfaceCallTargetProviderRequest,
 ): TargetTypeRef | undefined {
-  const typeArguments = getExplicitCallTypeArguments(request).length > 0
-    ? getExplicitCallTypeArguments(request)
-    : getExplicitConstructorTypeArguments(request);
-  if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
+  const typeArguments = getExplicitCallTypeArguments(request);
+  if (typeArguments.length > 0 && !typeArguments.some((argument) => argument === undefined)) {
+    return collectionTargetTypeForSelectedIdentity(
+      request.selectedIdentity,
+      typeArguments as readonly TargetTypeRef[],
+    );
   }
-  return collectionTargetTypeForSelectedIdentity(
-    request.selectedIdentity,
-    typeArguments as readonly TargetTypeRef[],
-  );
-}
-
-function getExplicitConstructorTypeArguments(
-  request: JsSurfaceCallTargetProviderRequest,
-): readonly (TargetTypeRef | undefined)[] {
-  if (!isNewExpression(request.request.call, request.context)) {
-    return [];
-  }
-  const ast = request.context.compiler?.ast;
-  const callNode = asNodeSubject(request.request.call);
-  if (ast === undefined || callNode === undefined) {
-    return [];
-  }
-  const sourceFile = ast.getSourceFile(callNode);
-  const typeArguments = ast.typeArguments(callNode);
-  return typeArguments.map((argument) =>
-    request.host.getTargetTypeRefForSubject(argument, request.context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
-      sourceFile,
-    })
-  );
+  return getSourceLibraryCallResultTargetType(request.request, request.context, request.host);
 }
 
 function targetMembersFromRuntimeHelperSelection(
@@ -320,22 +293,22 @@ function targetMembersFromSemanticException(
     case "date-call-construct":
       return dateTargetMembersForSelectedIdentity(
         request.selectedIdentity,
-        isNewExpression(request.request.call, request.context) ? "new" : "call",
+        isNewExpression(request.request) ? "new" : "call",
       );
     case "boolean-call-construct":
       return booleanConstructorTargetMembersForSelectedIdentity(
         request.selectedIdentity,
-        isNewExpression(request.request.call, request.context) ? "new" : "call",
+        isNewExpression(request.request) ? "new" : "call",
       );
     case "number-call-construct":
       return numberConstructorTargetMembersForSelectedIdentity(
         request.selectedIdentity,
-        isNewExpression(request.request.call, request.context) ? "new" : "call",
+        isNewExpression(request.request) ? "new" : "call",
       );
     case "string-call-construct":
       return stringConstructorTargetMembersForSelectedIdentity(
         request.selectedIdentity,
-        isNewExpression(request.request.call, request.context) ? "new" : "call",
+        isNewExpression(request.request) ? "new" : "call",
       );
     case "object-primitive-receiver-to-string":
       return getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host);
@@ -388,7 +361,7 @@ function arrayElementTypeFromClosedInputFacts(
   return getSourceLibraryCallReceiverElementType(request, context, host) ??
     request.arguments.map((argument) => {
       const nested = getClosedNestedCallArgumentTargetType(argument, context);
-      if (nested !== undefined || isNestedCallArgument(argument, context)) {
+      if (nested !== undefined) {
         return nested;
       }
       return getSourceLibraryCallArgumentTargetType(argument, request, context, host);
@@ -411,24 +384,10 @@ function getClosedNestedCallArgumentTargetType(
   argument: CheckedCallMappingRequest["arguments"][number],
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): TargetTypeRef | undefined {
-  const node = asNodeSubject(argument);
-  const ast = context.compiler?.ast;
-  if (node === undefined || ast === undefined || (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node))) {
-    return undefined;
-  }
   return context.facts.get(argument, selectedTargetSignatureFactKey)?.member.returnType ??
-    context.facts.get(argument, runtimeCarrierFactKey)?.carrier;
-}
-
-function isNestedCallArgument(
-  argument: CheckedCallMappingRequest["arguments"][number],
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  const node = asNodeSubject(argument);
-  const ast = context.compiler?.ast;
-  return node !== undefined &&
-    ast !== undefined &&
-    (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node));
+    context.facts.get(argument, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier;
 }
 
 function getExplicitCallTypeArguments(
@@ -441,7 +400,7 @@ function getExplicitCallTypeArguments(
   return sourceSelectedArguments.map((argument) =>
     request.host.getTargetTypeRefForSubject(argument.explicitTypeNode, request.context, {
       allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
+      allowSemanticTypeQuery: false,
     })
   );
 }

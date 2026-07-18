@@ -1,5 +1,6 @@
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
@@ -115,7 +116,7 @@ function objectLiteralHasSelectedTargetContext(
 }
 
 export function recordCsharpObjectShapeFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
   host: CsharpObjectShapeSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -124,6 +125,7 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
   }
   const context = {
     observation: "type.resolveRuntimeCarrier",
+    phase: "finalization",
     extensionId: "",
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,
