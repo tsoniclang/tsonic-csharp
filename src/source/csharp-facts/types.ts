@@ -170,6 +170,10 @@ export interface CsharpSourceReturnCarrierFact {
   readonly carrier: TargetTypeRef;
 }
 
+export interface CsharpPropagatedRuntimeCarrierFact {
+  readonly carrier: TargetTypeRef;
+}
+
 export interface CsharpProjectSourceFact {
   readonly kind: "project-source";
 }
@@ -193,20 +197,6 @@ export interface CsharpSelectedCallTargetFact {
     readonly sourceIdentity: string;
     readonly members: readonly CsharpTargetMember[];
   };
-}
-
-export interface CsharpSelectedPropertyTargetFact {
-  readonly selection:
-    | {
-        readonly kind: "deferred-target-operation";
-        readonly operationId: string;
-      }
-    | {
-        readonly kind: "structural-compat-property";
-        readonly propertyName: string;
-        readonly sourceSelectedDeclaration: ExtensionFactSubject;
-        readonly sourceResultType?: ExtensionFactSubject;
-      };
 }
 
 export type CsharpTargetOperationFact =

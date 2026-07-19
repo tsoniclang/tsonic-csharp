@@ -7,6 +7,9 @@ import {
   csharpJsonSerializableShapeFactKey,
 } from "../../../csharp-facts.js";
 import type {
+  CsharpJsonSerializableShapeFact,
+} from "../../../csharp-facts.js";
+import type {
   CsharpObjectShapeFact,
 } from "../../../csharp-facts.js";
 import type {
@@ -52,10 +55,11 @@ export function recordJsonSerializableObjectShapes(
   if (!collectJsonTargetTypeClosure(subject, targetType, context, host, new Set(), shapes)) {
     return false;
   }
+  const jsonSerializableShape: CsharpJsonSerializableShapeFact = {
+    kind: "closed-object-shape",
+  };
   for (const shape of shapes.values()) {
-    context.facts.set(shape.targetType, csharpJsonSerializableShapeFactKey, {
-      kind: "closed-object-shape",
-    }, [{ message: "C# closed JSON object-shape serialization fact recorded from selected JSON.stringify source evidence." }]);
+    context.facts.set(shape.targetType, csharpJsonSerializableShapeFactKey, jsonSerializableShape, [{ message: "C# closed JSON object-shape serialization fact recorded from selected JSON.stringify source evidence." }]);
   }
   return true;
 }

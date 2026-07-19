@@ -1,4 +1,4 @@
-import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 
 function exactProviderSourceSelection(signatureId) {
   return {
@@ -23,19 +23,22 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
     target: "csharp",
     kind: "class",
     members: [
-      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
-      method("Example.Target.m(System.Int32Alt)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }, {
+        providerSourceSignatureId: "Example.Target.m(source)",
+      }),
+      method("Example.Target.m(System.Int32Alt)", { kind: "source-primitive", name: "int32" }, {
+        providerSourceSignatureId: "Example.Target.m(source)",
+      }),
     ],
   };
 
-  const result = provider.mapCheckedCall({
-    target: "csharp",
+  const result = provider.mapCheckedCall(checkedCallRequest({
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration,
+    selectedCalleeSymbol: containerSymbol,
     arguments: [literalArgument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: literalArgument,
@@ -46,7 +49,10 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
       width: 32,
     },
     virtualDeclarationSubject: selectedDeclaration,
-    virtualDeclaration: virtualMember("Example.Target.m"),
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.m"),
+      signatureId: "Example.Target.m(source)",
+    },
   }));
 
   assert.equal(result.kind, "reject");
@@ -314,7 +320,7 @@ test("target member selection rejects byref parameter mode mismatches", () => {
     undefined,
   );
 });
-test("target member selection rejects argument-passing facts for a different selected parameter", () => {
+test("target member selection accepts canonical source-marker passing facts for matching byref parameters", () => {
   const key = {};
   const outCall = {};
   const value = {};
@@ -336,8 +342,6 @@ test("target member selection rejects argument-passing facts for a different sel
     argumentPassing: {
       mode: "byref-writeonly-must-init",
       targetExpression: value,
-      parameterIndex: 0,
-      targetParameter: outParameter,
     },
   });
   const resolveTargetTypeRef = (subject) => {
@@ -350,10 +354,12 @@ test("target member selection rejects argument-passing facts for a different sel
     return undefined;
   };
 
-  assert.equal(
-    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef),
-    undefined,
-  );
+  assert.equal(selectTargetMember(
+    [member],
+    { arguments: [key, outCall] },
+    context,
+    resolveTargetTypeRef,
+  )?.id, member.id);
 });
 test("C# provider keeps source-core argument-passing facts canonical", () => {
   const provider = getNativeSemanticProvider();
@@ -378,14 +384,13 @@ test("C# parameter-passing validation rejects selected byref members without sou
     returnType: { kind: "source-primitive", name: "bool" },
   };
 
-  const result = provider.mapCheckedCall({
-    target: "csharp",
+  const result = provider.mapCheckedCall(checkedCallRequest({
     call: {},
     callee: {},
-    calleePropertyName: "tryGetValue",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration,
+    selectedCalleeSymbol: containerSymbol,
     arguments: [{ kind: "target-named", id: "System.String" }, argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: {
       id: "Example.Target",
@@ -396,7 +401,10 @@ test("C# parameter-passing validation rejects selected byref members without sou
       members: [member],
     },
     virtualDeclarationSubject: selectedDeclaration,
-    virtualDeclaration: virtualMember("Example.Target.tryGetValue", "tryGetValue"),
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.tryGetValue", "tryGetValue"),
+      signatureId: member.id,
+    },
   }));
 
   assert.equal(result.kind, "reject");
@@ -432,14 +440,13 @@ test("C# provider does not refine exact selected byref call signatures to by-val
     ],
   };
 
-  const result = provider.mapCheckedCall({
-    target: "csharp",
+  const result = provider.mapCheckedCall(checkedCallRequest({
     call: {},
     callee: {},
-    calleePropertyName: "update",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration,
+    selectedCalleeSymbol: containerSymbol,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -513,14 +520,13 @@ test("C# provider rejects missing or mutated target parameter-mode facts before 
     const selectedDeclaration = {};
     const containerSymbol = {};
     const recordedFacts = [];
-    const result = provider.mapCheckedCall({
-      target: "csharp",
+    const result = provider.mapCheckedCall(checkedCallRequest({
       call: {},
       callee: {},
-      calleePropertyName: scenario.member.sourceName,
-      sourceSelectedDeclaration: selectedDeclaration,
+      selectedDeclaration,
+      selectedCalleeSymbol: containerSymbol,
       arguments: scenario.arguments,
-    }, fakeObservationContext({
+    }), fakeObservationContext({
       ...scenario.context,
       targetBindingSubject: containerSymbol,
       targetBinding: {
@@ -749,38 +755,6 @@ test("C# provider validates source primitive generic constraints from reflected 
   }, fakeObservationContext({}));
   assert.equal(missingArgument.kind, "reject");
 });
-test("C# target constraint lifecycle skips provider virtual declaration files", () => {
-  const providerSourceFile = { IsDeclarationFile: false };
-  const diagnostics = [];
-  validateCsharpTargetConstraintFactsBeforeFinalization({
-    extensionId: "test",
-    host: {
-      facts: {
-        get: (subject, key) => subject === providerSourceFile && key === providerVirtualDeclarationFactKey
-          ? {
-              providerId: "test-provider",
-              providerVersion: "1",
-              providerModuleId: "@provider/module",
-              moduleSpecifier: "@provider/module",
-              artifactFileName: "tsts-provider://provider/module.d.ts",
-            }
-          : undefined,
-      },
-      factResolver: { resolve: () => undefined },
-      diagnostics: { append: (diagnostic) => diagnostics.push(diagnostic) },
-    },
-    compiler: {
-      getSourceFiles: () => [providerSourceFile],
-      ast: {
-        children: () => {
-          throw new Error("provider virtual source files must not be traversed for user-source target constraints");
-        },
-      },
-    },
-  }, {});
-
-  assert.deepEqual(diagnostics, []);
-});
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -797,14 +771,13 @@ test("C# provider selects from a proven provider binding using checked source me
     ],
   };
 
-  const result = provider.mapCheckedCall({
-    target: "csharp",
+  const result = provider.mapCheckedCall(checkedCallRequest({
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration,
+    selectedCalleeSymbol: containerSymbol,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -815,7 +788,10 @@ test("C# provider selects from a proven provider binding using checked source me
       width: 32,
     },
     virtualDeclarationSubject: selectedDeclaration,
-    virtualDeclaration: virtualMember("Example.Target.m"),
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.m"),
+      signatureId: "Example.Target.m(System.Int32)",
+    },
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);

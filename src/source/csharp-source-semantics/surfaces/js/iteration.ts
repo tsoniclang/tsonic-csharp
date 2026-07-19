@@ -57,7 +57,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
   if (host.isCsharpStringType(expressionType)) {
     rows.push(createStringCodePointIterationRow());
   }
-  if (request.kind === "for-in") {
+  if (request.iterationKind === "for-in") {
     const objectShape = host.getCsharpObjectShapeFactForSubject(request.sourceIterable.type, context) ??
       host.getCsharpObjectShapeFactForSubject(request.sourceIterable.expression, context);
     if (objectShape !== undefined) {

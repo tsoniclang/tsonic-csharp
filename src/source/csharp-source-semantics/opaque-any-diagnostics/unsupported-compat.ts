@@ -1,10 +1,7 @@
 import {
-  csharpSelectedPropertyTargetFactKey,
   csharpTargetOperationFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../csharp-facts.js";
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionLifecycleContext,
   Node,
@@ -48,8 +45,7 @@ export function getUnsupportedCompatRuntimeOperation(
   const operation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
   if (
     isClosedCompatRuntimeOperationFact(operation) &&
-    !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext) &&
-    !isSelectedStructuralCompatOperation(node, lifecycleContext)
+    !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext)
   ) {
     return hardRejectedCompatOperation(
       "non-any-compat-carrier",
@@ -58,15 +54,6 @@ export function getUnsupportedCompatRuntimeOperation(
     );
   }
   return undefined;
-}
-
-function isSelectedStructuralCompatOperation(
-  node: Node,
-  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
-): boolean {
-  const selectedProperty = lifecycleContext.host.facts.get(node, csharpSelectedPropertyTargetFactKey) ??
-    lifecycleContext.host.factResolver.resolve(node, csharpSelectedPropertyTargetFactKey);
-  return selectedProperty?.selection.kind === "structural-compat-property";
 }
 
 function isExplicitTypeScriptAnyCompatOperation(
@@ -142,7 +129,7 @@ function isExplicitTypeScriptAnySubject(
   if (subject === undefined || compiler === undefined) {
     return false;
   }
-  if (isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier)) {
+  if (isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)) {
     return true;
   }
   const sourceFile = compiler.ast.getSourceFile(subject);

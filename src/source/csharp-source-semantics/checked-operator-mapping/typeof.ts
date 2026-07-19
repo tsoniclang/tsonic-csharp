@@ -37,9 +37,9 @@ export function mapCsharpTypeofOperator(
   if (request.operator !== "typeof") {
     return undefined;
   }
-  const operandType = host.getTargetTypeRefForSubject(request.sourceLeft?.authoredTypeNode, context, noRuntimeCarrierQuery) ??
-    host.getTargetTypeRefForSubject(request.sourceLeft?.type, context, noRuntimeCarrierQuery) ??
-    host.getTargetTypeRefForSubject(request.left, context, noRuntimeCarrierQuery);
+  const operandType = host.getTargetTypeRefForSubject(request.sourceOperand.authoredTypeNode, context, noRuntimeCarrierQuery) ??
+    host.getTargetTypeRefForSubject(request.sourceOperand.type, context, noRuntimeCarrierQuery) ??
+    host.getTargetTypeRefForSubject(request.operand, context, noRuntimeCarrierQuery);
   const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
   if (runtimeKind === undefined) {
     return context.phase === "checking"

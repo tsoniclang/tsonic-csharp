@@ -78,6 +78,9 @@ import {
 import {
   closeSelectedTargetResultType,
 } from "./selected-result-type.js";
+import {
+  getSelectedAccessEvidence,
+} from "../selected-source-evidence.js";
 
 export function mapCsharpNativeArrayCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -119,6 +122,7 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array length operation recorded from checked TypeScript property access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length"),
+    ...(member.returnType === undefined ? {} : { resultType: member.returnType }),
   }, [{ message: "C# native array length selected from checked TypeScript property access on provider-owned array contract." }]);
 }
 
@@ -128,14 +132,15 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const receiverType = getNativeArrayReceiverType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
-  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(request.sourceResult.selectedDeclaration, context);
+  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(selectedEvidence.selectedDeclaration, context);
   if (sourceProfileIdentity !== undefined) {
-    const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
+    const selectedResultType = host.getTargetTypeRefForSubject(selectedEvidence.type, context);
     const resultType = closeSelectedTargetResultType(receiverType.element, selectedResultType);
     if (resultType === undefined) {
       return rejectSourceIndexerResultTypeNotProven(
@@ -158,6 +163,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
     recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array indexer operation recorded from TSTS-selected C# source-profile index signature and finalized array carrier facts." }]);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperationFromMember(sourceProfileMember),
+      ...(sourceProfileMember.returnType === undefined ? {} : { resultType: sourceProfileMember.returnType }),
     }, [{ message: "C# native array indexer selected from the exact Tsonic C# source-profile index signature." }]);
   }
   const selectedOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
@@ -202,6 +208,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item"),
+    resultType: receiverType.element,
   }, [{ message: "C# native array indexer selected from checked TypeScript element access on provider-owned array contract." }]);
 }
 
@@ -227,6 +234,7 @@ export function mapCsharpSourceArrayCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
   if (existingOperation !== undefined) {
     return acceptObservation<CheckedOperationMappingResult>({
@@ -241,7 +249,7 @@ export function mapCsharpSourceArrayCheckedElementAccess(
     return undefined;
   }
   const sourceProfileMember = csharpSourceProfileIndexerMember(
-    getCsharpSourceProfileMemberIdentity(request.sourceResult.selectedDeclaration, context),
+    getCsharpSourceProfileMemberIdentity(selectedEvidence.selectedDeclaration, context),
     receiverType.element,
   );
   if (sourceProfileMember === undefined) {
@@ -254,8 +262,9 @@ export function mapCsharpSourceArrayCheckedElementAccess(
   }
   const operation = csharpTargetOperationFromMember(sourceProfileMember);
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# source array indexer operation recorded from the TSTS-selected C# source-profile index signature and finalized array carrier facts." }]);
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperationFromMember(sourceProfileMember),
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperationFromMember(sourceProfileMember),
+      ...(sourceProfileMember.returnType === undefined ? {} : { resultType: sourceProfileMember.returnType }),
   }, [{ message: "C# source array element access selected from the exact Tsonic C# source-profile index signature." }]);
 }
 
@@ -283,9 +292,8 @@ export function mapCsharpSourceTupleCheckedElementAccess(
     resultType,
   }), [{ message: "C# source tuple element member operation recorded from checked TSTS tuple receiver and literal element index facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operationId, "indexer", memberName, {
-      resultType,
-    }),
+    operation: targetOperation(operationId, "indexer", memberName),
+    resultType,
   }, [{ message: "C# source tuple element access selected from checked TSTS tuple receiver and literal element index facts." }]);
 }
 
@@ -295,14 +303,15 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }
-  if (request.sourceResult.selectedDeclaration === undefined) {
+  if (selectedEvidence.selectedDeclaration === undefined) {
     return undefined;
   }
-  const resultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
+  const resultType = host.getTargetTypeRefForSubject(selectedEvidence.type, context);
   if (resultType === undefined) {
     return rejectSourceIndexerResultTypeNotProven(
       extensionId,
@@ -314,6 +323,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   const operationId = "tsonic.csharp.source.indexer";
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item", { resultType }), [{ message: "C# source-owned indexer operation recorded from TSTS-selected source index-signature declaration and source result type evidence." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operationId, "indexer", "Item", { resultType }),
+    operation: targetOperation(operationId, "indexer", "Item"),
+    resultType,
   }, [{ message: "C# source-owned element access selected from TSTS-selected source index-signature evidence." }]);
 }

@@ -1,11 +1,14 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
+import type {
+  CsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -17,7 +20,6 @@ import {
   getCsharpTaskResultTargetType,
 } from "../target-types.js";
 import type {
-  RuntimeCarrierFact,
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
@@ -79,12 +81,11 @@ function getResolvedRuntimeCarrierFact(
   subject: ExtensionFactSubject | undefined,
   sourceFile: SourceFile,
   host: CsharpRuntimeCarrierSemanticsHost,
-): RuntimeCarrierFact | undefined {
+): CsharpPropagatedRuntimeCarrierFact | undefined {
   if (subject === undefined) {
     return undefined;
   }
-  const fact = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) ??
-    lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey);
+  const fact = getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject);
   if (fact !== undefined) {
     return fact;
   }

@@ -1,11 +1,11 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -85,11 +85,11 @@ function propagateCsharpRuntimeCarrierFactFromObjectBindingElement(
   const member = memberLookup.member;
   const fact = { carrier: member.type };
   const evidence = [{ message: "C# runtime carrier propagated from finalized object-shape destructuring member facts." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
-  lifecycleContext.host.facts.set(bindingName, runtimeCarrierFactKey, fact, evidence);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, fact, evidence);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, bindingName, fact, evidence);
   const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, bindingName);
   if (symbol !== undefined) {
-    lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, evidence);
   }
 }
 

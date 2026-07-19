@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   Node,
@@ -9,6 +6,9 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpObservedTargetAssignabilityFact,
+} from "../../csharp-facts.js";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   getNodeField,
@@ -151,8 +151,7 @@ export function getEnclosingReturnTargetCarrier(
       const typeNode = asNode(getNodeField(current, "Type"));
       return typeNode === undefined
         ? undefined
-        : context.facts.get(typeNode, runtimeCarrierFactKey)?.carrier ??
-          context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+        : getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, typeNode)?.carrier;
     }
     current = ast.parent(current);
   }

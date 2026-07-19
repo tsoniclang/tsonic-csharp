@@ -26,9 +26,6 @@ import {
 import {
   createCsharpSourceVirtualModulesProvider,
 } from "./source-virtual-modules.js";
-import {
-  recordCsharpAttributeBuilderFacts,
-} from "./attribute-builder-facts.js";
 
 export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
   const sourceSemantics = createSourceSemanticsExtension({
@@ -50,7 +47,6 @@ export function createCsharpSourceSemanticsExtension(_context: TargetProviderCon
       sourceSemantics.initialize?.(extensionContext);
       extensionContext.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext): void => {
         recordUnsupportedCsharpLangReExportDiagnostics(request, lifecycleContext.compiler.ast, lifecycleContext.host.diagnostics);
-        recordCsharpAttributeBuilderFacts(request, lifecycleContext.compiler.ast, lifecycleContext.host.facts);
       });
     },
   };

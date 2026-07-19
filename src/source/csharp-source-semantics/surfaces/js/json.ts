@@ -347,7 +347,12 @@ function isCheckedJsonParseCall(
   }
   const selectedSignature = context.host.facts.get(call, selectedTargetSignatureFactKey) ??
     context.factResolver.resolve(call, selectedTargetSignatureFactKey);
-  const sourceMember = resolveSourceLibraryMemberIdentity(selectedSignature?.sourceDeclaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(
+    selectedSignature?.sourceSelection.kind === "applicable"
+      ? selectedSignature.sourceSelection.declaration
+      : undefined,
+    context,
+  );
   if (
     sourceMember === undefined ||
     !jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), jsonParseIdentityPolicy)

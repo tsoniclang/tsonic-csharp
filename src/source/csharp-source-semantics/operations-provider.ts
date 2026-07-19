@@ -2,7 +2,6 @@ import {
   TstsProviderContractVersion,
   deferObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -21,12 +20,18 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
-import type { CsharpObjectShapeFact } from "../csharp-facts.js";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../csharp-facts.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../csharp-facts.js";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
 import {
-  csharpJsSurfaceExtensionId,
   csharpProviderVersion,
   csharpTargetId,
+  csharpTargetSemanticsExtensionId,
 } from "./identity.js";
 import {
   isCsharpStringType,
@@ -90,6 +95,17 @@ import {
 import {
   csharpOpaqueAnyOperationDiagnostic,
 } from "./opaque-any-diagnostics/diagnostic.js";
+import {
+  getApplicableSourceCallEvidence,
+  getSelectedAccessEvidence,
+} from "./selected-source-evidence.js";
+import {
+  checkedCallObservationAsSelection,
+  checkedConversionObservationAsSelection,
+  checkedOperationObservationAsSelection,
+  contextualTargetTypeObservationAsSelection,
+  runtimeCarrierObservationAsSelection,
+} from "./target-selection-contract.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -139,7 +155,7 @@ export function createCsharpTargetOperationsProvider(
     displayName: "Tsonic C# semantic mapper",
   };
   const jsSurface = options.jsSurface === true
-    ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, host))
+    ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpTargetSemanticsExtensionId, host))
     : undefined;
   const providerOperationContributions = options.providerOperationContributions ?? [];
   const typescriptCompatibilityMode = options.typescriptCompatibilityMode ?? "strict-native";
@@ -152,7 +168,7 @@ export function createCsharpTargetOperationsProvider(
         : jsObservation;
     },
   };
-  return {
+  const provider: TargetSemanticProvider = {
     identity,
     mapCheckedCall(request, context) {
       const compatObservation = typescriptCompatibilityMode === "compat"
@@ -161,10 +177,10 @@ export function createCsharpTargetOperationsProvider(
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
-      if (request.sourceSelectedSignatureKind === "untyped") {
+      if (request.sourceSelection.kind === "untyped") {
         const construction = checkedCallIsConstruction(request);
         return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
-          identity.id,
+          csharpTargetSemanticsExtensionId,
           construction
             ? { kind: "construct", description: "C# construct emission" }
             : { kind: "call", description: "C# call emission" },
@@ -183,7 +199,7 @@ export function createCsharpTargetOperationsProvider(
       if (jsObservation.kind !== "defer" || jsOwnsCall) {
         return jsObservation;
       }
-      return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
+      return mapCsharpCheckedCall(request, context, csharpTargetSemanticsExtensionId, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
       const compatObservation = typescriptCompatibilityMode === "compat"
@@ -202,7 +218,7 @@ export function createCsharpTargetOperationsProvider(
       if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedPropertyAccess(request, context))) {
         return jsObservation;
       }
-      return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
+      return mapCsharpCheckedPropertyAccess(request, context, csharpTargetSemanticsExtensionId, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
       const compatObservation = typescriptCompatibilityMode === "compat"
@@ -221,7 +237,7 @@ export function createCsharpTargetOperationsProvider(
       if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedElementAccess(request, context))) {
         return jsObservation;
       }
-      return mapCsharpCheckedElementAccess(request, context, identity.id, surfaceAwareHost);
+      return mapCsharpCheckedElementAccess(request, context, csharpTargetSemanticsExtensionId, surfaceAwareHost);
     },
     mapCheckedOperator(request, context) {
       const jsObservation = jsSurface?.mapCheckedOperator(request, context) ?? deferObservation;
@@ -248,6 +264,39 @@ export function createCsharpTargetOperationsProvider(
     mapCheckedConversion(request, context) {
       return mapCsharpCheckedConversion(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
+    resolveRuntimeCarrier(request, context) {
+      const observation = surfaceAwareHost.mapRuntimeCarrier(request, context);
+      if (observation.kind === "accept") {
+        const fact = {
+          carrier: observation.value.carrier,
+        };
+        for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
+          if (subject !== undefined) {
+            recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, fact, observation.evidence ?? []);
+          }
+        }
+      }
+      return observation;
+    },
+  };
+  return {
+    ...provider,
+    mapCheckedCall: (request, context) =>
+      checkedCallObservationAsSelection(provider.mapCheckedCall!(request, context)),
+    mapCheckedPropertyAccess: (request, context) =>
+      checkedOperationObservationAsSelection(provider.mapCheckedPropertyAccess!(request, context)),
+    mapCheckedElementAccess: (request, context) =>
+      checkedOperationObservationAsSelection(provider.mapCheckedElementAccess!(request, context)),
+    mapCheckedOperator: (request, context) =>
+      checkedOperationObservationAsSelection(provider.mapCheckedOperator!(request, context)),
+    mapCheckedIteration: (request, context) =>
+      checkedOperationObservationAsSelection(provider.mapCheckedIteration!(request, context)),
+    recordContextualTargetType: (request, context) =>
+      contextualTargetTypeObservationAsSelection(provider.recordContextualTargetType!(request, context)),
+    mapCheckedConversion: (request, context) =>
+      checkedConversionObservationAsSelection(provider.mapCheckedConversion!(request, context)),
+    resolveRuntimeCarrier: (request, context) =>
+      runtimeCarrierObservationAsSelection(provider.resolveRuntimeCarrier!(request, context)),
   };
 }
 
@@ -288,9 +337,8 @@ export function createCsharpJsSurfaceHost(
             ? request.receiverTargetType
           : request.argumentTargetTypes?.[request.arguments.indexOf(subject)] ??
             resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-            resolutionContext.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
             resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-            resolutionContext.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+            getRecordedCsharpPropagatedRuntimeCarrierFact(resolutionContext.facts, subject)?.carrier ??
             getReferencedDeclarationTargetTypeRef(subject, resolutionContext, host.getTargetTypeRefForSubject, resolutionOptions) ??
             host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
@@ -305,8 +353,9 @@ function jsSurfaceOwnsCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
+  const sourceSelection = getApplicableSourceCallEvidence(request);
   return resolveSelectedSourceLibraryMemberIdentity(request.sourceCallee.selectedDeclaration, request.sourceCallee.selectedSymbol, context) !== undefined ||
-    resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) !== undefined;
+    resolveSelectedSourceLibraryMemberIdentity(sourceSelection?.declaration, undefined, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedPropertyAccess(
@@ -314,7 +363,7 @@ function jsSurfaceOwnsCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  return resolveSourceLibraryMemberIdentity(request.sourceResult.selectedSymbol, context) !== undefined ||
+  return resolveSourceLibraryMemberIdentity(getSelectedAccessEvidence(request).selectedSymbol, context) !== undefined ||
     resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context) !== undefined;
 }
 
@@ -322,7 +371,8 @@ function jsSurfaceOwnsCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): boolean {
-  return getSelectedSourceLibraryDeclarationName(request.sourceResult.selectedDeclaration, request.sourceResult.selectedSymbol, context) !== undefined;
+  const evidence = getSelectedAccessEvidence(request);
+  return getSelectedSourceLibraryDeclarationName(evidence.selectedDeclaration, evidence.selectedSymbol, context) !== undefined;
 }
 
 export function useObservationOrWhenDeferred<T>(

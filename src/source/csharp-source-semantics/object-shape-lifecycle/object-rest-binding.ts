@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionLifecycleContext,
   ExtensionObservationContext,
@@ -8,6 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import type {
@@ -94,20 +92,20 @@ function recordCsharpObjectRestBindingFact(
   const evidence = [{ message: "C# object rest binding shape recorded from the TSTS-checked rest binding type." }];
   for (const subject of subjects) {
     lifecycleContext.host.facts.set(subject, csharpObjectShapeFactKey, restShape, evidence);
-    lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, runtimeCarrier, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, runtimeCarrier, evidence);
     const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, subject, sourceFile);
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, restShape, evidence);
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, runtimeCarrier, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, runtimeCarrier, evidence);
     }
     const type = getRuntimeCarrierSubjectType(compiler, sourceFile, subject);
     if (type !== undefined) {
       lifecycleContext.host.facts.set(type, csharpObjectShapeFactKey, restShape, evidence);
-      lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, runtimeCarrier, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, type, runtimeCarrier, evidence);
       const typeSymbol = compiler.checker.getTypeSymbol(type);
       if (typeSymbol !== undefined) {
         lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, restShape, evidence);
-        lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, runtimeCarrier, evidence);
+        recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, runtimeCarrier, evidence);
       }
     }
   }

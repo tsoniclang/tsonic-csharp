@@ -28,6 +28,9 @@ import {
   getTargetArgumentConversionSlots,
 } from "../target-member-arguments/argument-conversions.js";
 import {
+  getApplicableSourceCallEvidence,
+} from "../selected-source-evidence.js";
+import {
   erasedAttributeFactMember,
   erasedFieldFactMember,
   erasedSourceSemanticsMember,
@@ -118,7 +121,7 @@ function acceptErasedMarkerCall(
 ): ExtensionObservation<CheckedCallMappingResult> {
   const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
     argumentCount: request.arguments.length,
-    sourceArgumentBindings: request.sourceArgumentBindings,
+    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
   if (argumentConversions === undefined) {
     return rejectObservation(csharpProviderDiagnostic(

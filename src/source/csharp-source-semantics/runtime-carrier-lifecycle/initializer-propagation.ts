@@ -1,10 +1,13 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
+import type {
+  CsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -19,7 +22,6 @@ import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
 import type {
-  RuntimeCarrierFact,
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
@@ -38,7 +40,7 @@ export function propagateCsharpRuntimeCarrierFactFromDeclarationInitializer(
   }
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
   const name = asNodeSubject(getNodeField(node, "name"));
-  const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey) ??
+  const initializerFact = getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, initializer) ??
     getInitializerCarrierFromCheckedType(lifecycleContext, sourceFile, initializer, host);
   if (initializerFact === undefined) {
     return;
@@ -65,7 +67,7 @@ function getInitializerCarrierFromCheckedType(
   sourceFile: SourceFile,
   initializer: Node | undefined,
   host: CsharpRuntimeCarrierSemanticsHost,
-): RuntimeCarrierFact | undefined {
+): CsharpPropagatedRuntimeCarrierFact | undefined {
   if (initializer === undefined) {
     return undefined;
   }

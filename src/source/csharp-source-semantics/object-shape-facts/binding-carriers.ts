@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
   ExtensionLifecycleContext,
@@ -12,6 +9,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../csharp-facts.js";
 import {
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpObjectShapeFactKey,
   resolveCsharpObjectShapeMemberByFinalizedSourceName,
 } from "../../csharp-facts.js";
@@ -74,8 +72,8 @@ export function recordObjectBindingMemberRuntimeCarriers(
     }
     const member = memberLookup.member;
     const fact = { carrier: member.type };
-    lifecycleContext.host.facts.set(bindingElement, runtimeCarrierFactKey, fact, evidence);
-    lifecycleContext.host.facts.set(bindingName, runtimeCarrierFactKey, fact, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, bindingElement, fact, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, bindingName, fact, evidence);
     const bindingObjectShape = resolveObjectShape(bindingName, context, host);
     if (bindingObjectShape !== undefined) {
       lifecycleContext.host.facts.set(bindingElement, csharpObjectShapeFactKey, bindingObjectShape, evidence);
@@ -83,7 +81,7 @@ export function recordObjectBindingMemberRuntimeCarriers(
     }
     const symbol = getObjectShapeSymbolForQueryableNode(bindingName, sourceFile, context);
     if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, evidence);
       if (bindingObjectShape !== undefined) {
         lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, bindingObjectShape, evidence);
       }

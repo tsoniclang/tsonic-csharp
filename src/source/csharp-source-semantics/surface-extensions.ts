@@ -40,6 +40,10 @@ import {
 import {
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/json.js";
+import {
+  checkedCallObservationAsSelection,
+  checkedOperationObservationAsSelection,
+} from "./target-selection-contract.js";
 
 type CsharpSurfaceLifecycleContext = {
   readonly host: ExtensionLifecycleContext["host"];
@@ -74,19 +78,19 @@ export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtens
   return {
     identity,
     mapCheckedCall(request, context) {
-      return mapper.mapCheckedCall(request, context);
+      return checkedCallObservationAsSelection(mapper.mapCheckedCall(request, context));
     },
     mapCheckedPropertyAccess(request, context) {
-      return mapper.mapCheckedPropertyAccess(request, context);
+      return checkedOperationObservationAsSelection(mapper.mapCheckedPropertyAccess(request, context));
     },
     mapCheckedElementAccess(request, context) {
-      return mapper.mapCheckedElementAccess(request, context);
+      return checkedOperationObservationAsSelection(mapper.mapCheckedElementAccess(request, context));
     },
     mapCheckedOperator(request, context) {
-      return mapper.mapCheckedOperator(request, context);
+      return checkedOperationObservationAsSelection(mapper.mapCheckedOperator(request, context));
     },
     mapCheckedIteration(request, context) {
-      return mapper.mapCheckedIteration(request, context);
+      return checkedOperationObservationAsSelection(mapper.mapCheckedIteration(request, context));
     },
   };
 }

@@ -1,11 +1,11 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionLifecycleContext,
   Node,
   Type,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   asNodeSubject,
   getAstReaderChildNodes,
@@ -122,8 +122,7 @@ function hasOpaqueAnyCarrier(
     return false;
   }
   if (
-    isCsharpAnyRuntimeCarrier(lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey)?.carrier) ||
-    isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)
   ) {
     return true;
   }
@@ -137,6 +136,6 @@ function hasOpaqueAnyCarrier(
   const semanticType = compiler.checker.getTypeAtLocation(subject, { sourceFile: compiler.ast.getSourceFile(subject) }) as Type | undefined;
   return semanticType !== undefined && (
     compiler.typeShape.isAny(semanticType) ||
-    isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(semanticType, runtimeCarrierFactKey)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, semanticType)?.carrier)
   );
 }

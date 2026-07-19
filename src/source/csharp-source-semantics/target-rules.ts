@@ -172,7 +172,7 @@ export function getCsharpConversionOperation(source: TargetTypeRef | undefined, 
       const memberName = `From${armIndex + 1}`;
       const operationId = `${target.id}.${memberName}`;
       return {
-        operation: targetOperation(operationId, "method", memberName, { resultType: target }),
+        operation: targetOperation(operationId, "method", memberName),
         csharpOperation: csharpTargetMemberOperation(operationId, "method", memberName, {
           static: true,
           declaringType: target,

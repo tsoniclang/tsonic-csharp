@@ -50,6 +50,9 @@ import {
 import {
   csharpTargetMemberFact,
 } from "../../../target-types.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../../../selected-source-evidence.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -61,7 +64,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (sourceMember === undefined) {
     return undefined;
   }
-  if (request.sourceSelectedSignature === undefined) {
+  if (getApplicableSourceCallEvidence(request) === undefined) {
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(
@@ -105,7 +108,7 @@ export function mapCsharpSourceLibraryCheckedCall(
       ? rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, closedFactsStatus.argumentIndex)
       : rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  if (selectedMember === undefined && request.sourceSelectedSignature === undefined) {
+  if (selectedMember === undefined && getApplicableSourceCallEvidence(request) === undefined) {
     if (canWaitForFinalizedFacts) {
       return undefined;
     }
@@ -143,10 +146,10 @@ export function mapCsharpSourceLibraryCheckedCall(
 }
 
 export function resolveCheckedCallSourceLibraryMember(
-  request: Pick<CheckedCallMappingRequest, "sourceCallee" | "sourceSelectedDeclaration">,
+  request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ) {
-  return resolveSelectedSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, undefined, context) ??
+  return resolveSelectedSourceLibraryMemberIdentity(getApplicableSourceCallEvidence(request)?.declaration, undefined, context) ??
     resolveSelectedSourceLibraryMemberIdentity(request.sourceCallee.selectedDeclaration, request.sourceCallee.selectedSymbol, context);
 }
 

@@ -289,19 +289,27 @@ export function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, p
   const selectedSymbol = sourceSelectedSymbol?.Kind === undefined ? sourceSelectedSymbol : options.sourceSelectedSymbol;
   const receiverType = options.receiverType ?? receiver.SemanticType ?? receiver;
   const resultType = options.sourceResultType ?? expression;
+  const accessMode = options.accessMode ?? "read";
+  const selectedResult = selectedSourceValueEvidence(expression, resultType, {
+    selectedDeclaration,
+    selectedSymbol,
+  });
+  const selectedWriteType = selectedSourceTypeEvidence(options.sourceWriteType ?? resultType, {
+    selectedDeclaration,
+    selectedSymbol,
+  });
   return {
+    sourceOperationKind: "property-access",
     target: "csharp",
     expression,
     receiver,
     propertyName,
-    accessMode: options.accessMode ?? "read",
-    callCallee: options.callCallee ?? false,
     sourceReceiver: selectedSourceValueEvidence(receiver, receiverType),
-    sourceResult: selectedSourceValueEvidence(expression, resultType, {
-      selectedDeclaration,
-      selectedSymbol,
-    }),
-    ...(options.optionalChain === undefined ? {} : { optionalChain: options.optionalChain }),
+    accessMode,
+    use: options.callCallee === true ? "call-callee" : "value",
+    ...(accessMode === "write" ? {} : { sourceReadResult: selectedResult }),
+    ...(accessMode === "read" || accessMode === "delete" ? {} : { sourceWriteType: selectedWriteType }),
+    chainRole: sourceChainRole("property-access", options),
   };
 }
 
@@ -465,16 +473,31 @@ export function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     selectedArgumentType: options.sourceArgumentTypes?.[index] ?? argument,
     selectedParameterType: options.sourceParameterTypes?.[index] ?? options.sourceArgumentTypes?.[index] ?? argument,
   }));
+  const sourceParameters = options.sourceParameters ?? sourceArguments.map((argument, index) => ({
+    parameterIndex: index,
+    parameterName: `argument${index}`,
+    parameterSymbol: {},
+    selectedType: options.sourceParameterTypes?.[index] ?? options.sourceArgumentTypes?.[index] ?? argument,
+    acceptsOmission: false,
+    rest: false,
+  }));
   return {
+    sourceOperationKind: "call",
     target: "csharp",
     call: sourceCall,
     callee,
     arguments: sourceArguments,
     callKind: isConstructCall(sourceCall) ? "construct" : "call",
-    sourceSelectedDeclaration,
-    sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
-    sourceSelectedSignatureKind: options.sourceSelectedSignatureKind ?? "resolved",
-    sourceArgumentBindings,
+    sourceSelection: options.sourceSelectionKind === "untyped"
+      ? { kind: "untyped" }
+      : {
+          kind: "applicable",
+          signature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
+          ...(sourceSelectedDeclaration === undefined ? {} : { declaration: sourceSelectedDeclaration }),
+          methodTypeArguments: options.sourceSelectedMethodTypeArguments ?? [],
+          parameters: sourceParameters,
+          argumentBindings: sourceArgumentBindings,
+        },
     sourceCallee: selectedSourceValueEvidence(callee, options.sourceCalleeType ?? callee, {
       declaration: options.sourceCalleeDeclaration,
       symbol: options.sourceCalleeSymbol,
@@ -487,19 +510,15 @@ export function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     ...(options.calleeReceiver === undefined
       ? {}
       : { sourceReceiver: selectedSourceValueEvidence(options.calleeReceiver, options.sourceReceiverType ?? options.calleeReceiver) }),
-    ...(options.optionalChain === undefined ? {} : { optionalChain: options.optionalChain }),
+    chainRole: sourceChainRole("call", options),
   };
 }
 
 export function jsCallRequestWithoutSignature(call, sourceSelectedDeclaration, options = {}) {
-  const request = jsCallRequest(call, sourceSelectedDeclaration, options);
-  const {
-    sourceSelectedSignature: _sourceSelectedSignature,
-    sourceSelectedSignatureKind: _sourceSelectedSignatureKind,
-    sourceArgumentBindings: _sourceArgumentBindings,
-    ...withoutSignature
-  } = request;
-  return withoutSignature;
+  return jsCallRequest(call, sourceSelectedDeclaration, {
+    ...options,
+    sourceSelectionKind: "untyped",
+  });
 }
 
 function isConstructCall(call) {
@@ -516,6 +535,31 @@ export function selectedSourceValueEvidence(expression, type = expression, optio
     ...(options.selectedDeclaration === undefined ? {} : { selectedDeclaration: options.selectedDeclaration }),
     ...(options.authoredTypeNode === undefined ? {} : { authoredTypeNode: options.authoredTypeNode }),
   };
+}
+
+export function selectedSourceTypeEvidence(type, options = {}) {
+  return {
+    type,
+    ...(options.symbol === undefined ? {} : { symbol: options.symbol }),
+    ...(options.declaration === undefined ? {} : { declaration: options.declaration }),
+    ...(options.selectedSymbol === undefined ? {} : { selectedSymbol: options.selectedSymbol }),
+    ...(options.selectedDeclaration === undefined ? {} : { selectedDeclaration: options.selectedDeclaration }),
+    ...(options.authoredTypeNode === undefined ? {} : { authoredTypeNode: options.authoredTypeNode }),
+  };
+}
+
+function sourceChainRole(participant, options) {
+  return options.optionalChain === true
+    ? {
+        kind: "optional-chain",
+        participant,
+        position: options.optionalChainPosition ?? "root",
+        boundary: options.optionalChainBoundary ?? "outermost",
+      }
+    : {
+        kind: "ordinary",
+        participant,
+      };
 }
 
 export function fakeCallCallee(options = {}) {
@@ -537,34 +581,15 @@ export function selectedSourceLibrarySignature(sourceSelectedDeclaration) {
 }
 
 export function nodejsCallRequest(call, sourceSelectedSignature) {
-  return {
-    target: "csharp",
-    call,
-    callee: {},
-    arguments: [],
-    sourceSelectedSignature,
-  };
+  return jsCallRequest(call, undefined, { sourceSelectedSignature });
 }
 
 export function nodejsCallRequestWithoutSignature(call, sourceSelectedDeclaration) {
-  return {
-    target: "csharp",
-    call,
-    callee: {},
-    arguments: [],
-    sourceSelectedDeclaration,
-  };
+  return jsCallRequestWithoutSignature(call, sourceSelectedDeclaration);
 }
 
 export function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
-  return {
-    target: "csharp",
-    expression,
-    receiver: {},
-    receiverType: {},
-    propertyName: "platform",
-    sourceSelectedSymbol,
-  };
+  return sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, "platform");
 }
 
 export function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {

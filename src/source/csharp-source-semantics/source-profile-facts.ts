@@ -3,8 +3,10 @@ import {
 } from "@tsonic/target-api";
 import type {
   AstReader,
-  ExtensionLifecycleContext,
+  ExtensionFactStore,
   Node,
+  SourceFile,
+  SourceFileBoundLifecycleRequest,
 } from "@tsonic/tsts";
 import {
   csharpSourceProfileDeclarationFactKey,
@@ -20,30 +22,28 @@ import {
   csharpSourceProfileOwnerId,
 } from "./source-profile-declarations.js";
 
-type CsharpSourceProfileLifecycleContext = Pick<ExtensionLifecycleContext, "host" | "compiler">;
-
-export function recordCsharpSourceProfileDeclarationFactsBeforeFinalization(
-  lifecycleContext: CsharpSourceProfileLifecycleContext,
+export function recordCsharpSourceProfileDeclarationFacts(
+  request: SourceFileBoundLifecycleRequest,
+  ast: AstReader,
+  facts: ExtensionFactStore,
 ): void {
-  const compiler = lifecycleContext.compiler;
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined) {
-      continue;
-    }
-    const ownerId = sourceProfileOwnerId(compiler.ast.getFileName(sourceFile));
-    if (ownerId === undefined) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      const fact = sourceProfileDeclarationFact(compiler.ast, node, ownerId);
-      if (fact === undefined) {
-        return;
-      }
-      lifecycleContext.host.facts.set(node, csharpSourceProfileDeclarationFactKey, fact, [{
-        message: "C# source-profile declaration identity recorded from the host-selected declaration input.",
-      }]);
-    });
+  const sourceFile = request.sourceFile as SourceFile | undefined;
+  if (sourceFile === undefined) {
+    return;
   }
+  const ownerId = sourceProfileOwnerId(ast.getFileName(sourceFile));
+  if (ownerId === undefined) {
+    return;
+  }
+  visitAstReaderNodes(ast, sourceFile, (node) => {
+    const fact = sourceProfileDeclarationFact(ast, node, ownerId);
+    if (fact === undefined) {
+      return;
+    }
+    facts.set(node, csharpSourceProfileDeclarationFactKey, fact, [{
+      message: "C# source-profile declaration identity recorded from the host-selected declaration input.",
+    }]);
+  });
 }
 
 function sourceProfileOwnerId(fileName: string): string | undefined {

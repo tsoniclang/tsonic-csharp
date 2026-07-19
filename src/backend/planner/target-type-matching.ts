@@ -50,7 +50,7 @@ export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): 
       return right.kind === "target-specific" &&
         left.target === right.target &&
         left.name === right.name &&
-        Object.is(left.value, right.value);
+        left.payloadId === right.payloadId;
   }
 }
 

@@ -4,14 +4,12 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import {
   csharpProviderDiagnostic,
 } from "../../../diagnostics.js";
 import {
   csharpArrayBoundaryFactKey,
   csharpArrayCarrierFactKey,
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpSourceReturnCarrierFactKey,
 } from "../../../../csharp-facts.js";
 import type {
@@ -91,7 +89,7 @@ export function recordArrayLocalFacts(
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
   for (const subject of arrayLocalRuntimeCarrierSubjects(local, lifecycleContext)) {
-    lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, { carrier: boundary.coreCarrierType }, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, { carrier: boundary.coreCarrierType }, evidence);
   }
 }
 

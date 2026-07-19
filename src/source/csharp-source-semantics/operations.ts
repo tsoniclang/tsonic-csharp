@@ -2,12 +2,9 @@ import type {
   CheckedOperationMappingResult,
   ExtensionEvidence,
   ExtensionFactSubject,
-  ExtensionFactWriteResult,
   ExtensionObservationContext,
+  TargetOperationFact,
   TargetTypeRef,
-} from "@tsonic/tsts";
-import {
-  targetOperationFactKey,
 } from "@tsonic/tsts";
 import {
   csharpSourceOwnedPropertyOperationPrefix,
@@ -20,9 +17,6 @@ import {
 import {
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
-import {
-  targetTypeRefAsSelection,
-} from "./target-selection-contract.js";
 import type {
   CsharpTargetMember,
 } from "./target-types.js";
@@ -39,32 +33,17 @@ export function targetOperation(
   operationId: string,
   operationKind: "property" | "method" | "indexer" | "operator" | "constructor" | "iteration",
   targetOperation: string,
-  options: { readonly resultType?: TargetTypeRef } = {},
 ): CheckedOperationMappingResult["operation"] {
   return {
     operationId,
     operationKind,
     targetOperation,
-    ...(options.resultType !== undefined ? { resultType: targetTypeRefAsSelection(options.resultType) } : {}),
   };
 }
 
-export function recordTargetOperationFact(
-  context: Pick<ExtensionObservationContext, "facts">,
-  subject: ExtensionFactSubject,
-  operation: CheckedOperationMappingResult["operation"],
-  evidence: readonly ExtensionEvidence[] = [],
-): ExtensionFactWriteResult {
-  const existing = context.facts.get(subject, targetOperationFactKey);
-  if (targetOperationFactsAreStructurallyIdentical(existing, operation)) {
-    return "idempotent";
-  }
-  return context.facts.set(subject, targetOperationFactKey, operation, evidence);
-}
-
 export function targetOperationFactsAreStructurallyIdentical(
-  left: CheckedOperationMappingResult["operation"] | undefined,
-  right: CheckedOperationMappingResult["operation"] | undefined,
+  left: TargetOperationFact | undefined,
+  right: TargetOperationFact | undefined,
 ): boolean {
   if (left === right) {
     return true;
@@ -83,15 +62,15 @@ export function sourceOwnedPropertyOperation(propertyName: string): CheckedOpera
 }
 
 export function targetOperationFromMember(member: CsharpTargetMember): CheckedOperationMappingResult["operation"] {
-  const resultType = member.kind === "constructor"
-    ? member.declaringType
-    : member.returnType;
   return {
     operationId: member.id,
     operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
     targetOperation: member.targetName,
-    ...(resultType === undefined ? {} : { resultType: targetTypeRefAsSelection(resultType) }),
   };
+}
+
+export function targetOperationResultTypeFromMember(member: CsharpTargetMember): TargetTypeRef | undefined {
+  return member.kind === "constructor" ? member.declaringType : member.returnType;
 }
 
 export function csharpTargetOperationFromMember(

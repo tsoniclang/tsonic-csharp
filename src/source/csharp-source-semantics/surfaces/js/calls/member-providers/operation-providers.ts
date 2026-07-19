@@ -83,6 +83,9 @@ import type {
 import {
   jsSurfaceTargetMemberIsCallable,
 } from "./operation-types.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../../../../selected-source-evidence.js";
 
 export function operationRowFromMetadataIndex(
   identity: JsSurfaceSourceIdentitySelector,
@@ -393,11 +396,11 @@ function getClosedNestedCallArgumentTargetType(
 function getExplicitCallTypeArguments(
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly (TargetTypeRef | undefined)[] {
-  const sourceSelectedArguments = request.request.sourceSelectedMethodTypeArguments;
-  if (sourceSelectedArguments === undefined || sourceSelectedArguments.some((argument) => argument.explicitTypeNode === undefined)) {
+  const sourceSelection = getApplicableSourceCallEvidence(request.request);
+  if (sourceSelection === undefined || sourceSelection.methodTypeArguments.some((argument) => argument.explicitTypeNode === undefined)) {
     return [];
   }
-  return sourceSelectedArguments.map((argument) =>
+  return sourceSelection.methodTypeArguments.map((argument) =>
     request.host.getTargetTypeRefForSubject(argument.explicitTypeNode, request.context, {
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: false,

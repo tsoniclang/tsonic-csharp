@@ -4,10 +4,8 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import {
   csharpObjectShapeFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
@@ -196,7 +194,7 @@ export function subjectHasSourceDeclaredStructRuntimeCarrier(
   if (subjectReferencesSourceCoreStructMarkerDeclaration(subject, context)) {
     return true;
   }
-  const direct = context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+  const direct = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier;
   if (isSourceDeclaredStructRuntimeCarrier(direct)) {
     return true;
   }
@@ -211,8 +209,8 @@ export function subjectHasSourceDeclaredStructRuntimeCarrier(
   }
   const type = getSemanticTypeForObjectShapeLookup(node, context);
   const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
-  return isSourceDeclaredStructRuntimeCarrier(context.facts.get(type, runtimeCarrierFactKey)?.carrier) ||
-    isSourceDeclaredStructRuntimeCarrier(context.facts.get(typeSymbol, runtimeCarrierFactKey)?.carrier);
+  return isSourceDeclaredStructRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, type)?.carrier) ||
+    isSourceDeclaredStructRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, typeSymbol)?.carrier);
 }
 
 function subjectReferencesSourceCoreStructMarkerDeclaration(

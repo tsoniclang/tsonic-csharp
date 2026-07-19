@@ -80,7 +80,7 @@ export function targetTypeRefEquals(left: TargetTypeRef | undefined, right: Targ
       return right.kind === "target-specific"
         && left.target === right.target
         && left.name === right.name
-        && Object.is(left.value, right.value);
+        && left.payloadId === right.payloadId;
   }
 }
 

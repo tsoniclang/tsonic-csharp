@@ -55,7 +55,7 @@ function mapSelectedArrayLengthAssignment(
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (request.right === undefined || request.sourceRight === undefined) {
+  if (request.operatorKind !== "binary") {
     return undefined;
   }
   const selectedProperty = context.factResolver.resolve(request.left, targetOperationFactKey);
@@ -89,7 +89,8 @@ function mapSelectedArrayLengthAssignment(
     message: "C# JS array length mutation selected from the checked assignment request, selected Array.length operation fact, and finalized JSArray carrier.",
   }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(csharpJsArraySetLengthOperationId, "method", "setLength", { resultType }),
+    operation: targetOperation(csharpJsArraySetLengthOperationId, "method", "setLength"),
+    resultType,
   }, [{ message: "C# JS array length mutation mapped from selected operation evidence without lifecycle reconstruction." }]);
 }
 
@@ -97,8 +98,11 @@ function mapSelectedArrayElementDelete(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const selectedElement = context.factResolver.resolve(request.left, targetOperationFactKey);
-  const selectedCsharpElement = context.factResolver.resolve(request.left, csharpTargetOperationFactKey);
+  if (request.operatorKind !== "prefix-unary") {
+    return undefined;
+  }
+  const selectedElement = context.factResolver.resolve(request.operand, targetOperationFactKey);
+  const selectedCsharpElement = context.factResolver.resolve(request.operand, csharpTargetOperationFactKey);
   if (
     selectedElement?.operationId !== csharpJsArrayElementOperationId ||
     selectedElement.operationKind !== "indexer" ||
@@ -121,6 +125,7 @@ function mapSelectedArrayElementDelete(
     message: "C# JS array delete mutation selected from the checked delete request, selected array-indexer operation fact, and finalized JSArray carrier.",
   }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(csharpJsArrayDeleteAtOperationId, "method", "deleteAt", { resultType }),
+    operation: targetOperation(csharpJsArrayDeleteAtOperationId, "method", "deleteAt"),
+    resultType,
   }, [{ message: "C# JS array delete mutation mapped from selected operation evidence without lifecycle reconstruction." }]);
 }

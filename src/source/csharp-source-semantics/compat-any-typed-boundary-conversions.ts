@@ -1,6 +1,6 @@
 import type {
   ExtensionEvidence,
-  TargetOperationFact,
+  TargetOperationProposal,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -28,7 +28,7 @@ export type CsharpCompatAnyTypedBoundaryConversionDecision =
 export interface CsharpCompatAnyTypedBoundaryConversion {
   readonly kind: "cast" | "box";
   readonly convertedType: TargetTypeRef;
-  readonly operation: TargetOperationFact;
+  readonly operation: TargetOperationProposal;
   readonly csharpOperation: CsharpTargetOperationFact;
 }
 
@@ -49,7 +49,7 @@ export function getCompatAnyTypedBoundaryConversion(
     return {
       kind: "box",
       convertedType: tsValueType,
-      operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName, { resultType: tsValueType }),
+      operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName),
       csharpOperation,
     };
   }
@@ -63,7 +63,7 @@ export function getCompatAnyTypedBoundaryConversion(
   return {
     kind: "cast",
     convertedType: target,
-    operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName, { resultType: target }),
+    operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName),
     csharpOperation,
   };
 }

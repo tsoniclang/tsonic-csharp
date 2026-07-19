@@ -30,6 +30,9 @@ import {
 import {
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "./selected-source-evidence.js";
 
 export {
   selectTargetMember,
@@ -59,7 +62,7 @@ export function findTargetMemberForCall(
     request.arguments,
     declaration,
     requestContext.calleeReceiver,
-    request.sourceSelectedSignature !== undefined || declaration?.signatureId !== undefined,
+    getApplicableSourceCallEvidence(request) !== undefined || declaration?.signatureId !== undefined,
   );
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);

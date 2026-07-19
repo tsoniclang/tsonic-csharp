@@ -1,6 +1,5 @@
 import {
   selectedTargetSignatureFactKey,
-  runtimeCarrierFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -10,6 +9,8 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpTargetOperationFactKey,
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
@@ -60,7 +61,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+  if (compiler === undefined || getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node) !== undefined) {
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
@@ -68,13 +69,13 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   if (catchVariableCarrier !== undefined) {
     const fact = { carrier: catchVariableCarrier };
     const evidence = [{ message: "C# catch variable runtime carrier recorded from finalized provider exception policy." }];
-    lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, fact, evidence);
     const sourceFile = compiler.ast.getSourceFile(node);
     const symbol = sourceFile === undefined
       ? undefined
       : getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
     if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, evidence);
     }
     return;
   }
@@ -83,7 +84,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
     if (objectShape !== undefined) {
       const evidence = [{ message: "C# runtime carrier recorded from finalized object-shape facts." }];
       lifecycleContext.host.facts.set(node, csharpObjectShapeFactKey, objectShape, evidence);
-      lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, { carrier: objectShape.targetType }, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, { carrier: objectShape.targetType }, evidence);
       return;
     }
   }
@@ -104,7 +105,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   }
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, fact, evidence);
 }
 
 function isSourceOwnedArrayOperationExpression(

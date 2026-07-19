@@ -1,7 +1,6 @@
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
@@ -17,6 +16,10 @@ import type {
 import {
   asType,
 } from "./source-library.js";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../../csharp-facts.js";
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
@@ -191,10 +194,10 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  if (subject === undefined || context.facts.get(subject, runtimeCarrierFactKey) !== undefined) {
+  if (subject === undefined || getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject) !== undefined) {
     return;
   }
-  context.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
+  recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, fact, evidence);
 }
 
 function completeTargetTypeArguments(

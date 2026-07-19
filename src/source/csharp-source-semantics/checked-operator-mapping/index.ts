@@ -2,7 +2,6 @@ import {
   acceptObservation,
   deferObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -19,6 +18,8 @@ import {
   csharpTargetId,
 } from "../identity.js";
 import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpTargetOperationFactKey,
   CsharpTargetOperatorOperation,
 } from "../../csharp-facts.js";
@@ -89,20 +90,19 @@ export function mapCsharpCheckedOperator(
   if (existingOperation !== undefined) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: existingOperation,
+      ...(existingOperation.resultType === undefined ? {} : { resultType: existingOperation.resultType }),
     }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
   }
   if (existingCsharpOperation?.kind === "operator-token") {
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(existingCsharpOperation.operationId, "operator", existingCsharpOperation.operator, {
-        resultType: existingCsharpOperation.resultType,
-      }),
+      operation: targetOperation(existingCsharpOperation.operationId, "operator", existingCsharpOperation.operator),
+      ...(existingCsharpOperation.resultType === undefined ? {} : { resultType: existingCsharpOperation.resultType }),
     }, [{ message: "C# source operator reused existing finalized C# operator-token fact for repeated checked-operator observation." }]);
   }
   if (existingCsharpOperation?.kind === "member" && isClosedCompatRuntimeOperationFact(existingCsharpOperation)) {
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(existingCsharpOperation.operationId, "method", existingCsharpOperation.memberName, {
-        resultType: existingCsharpOperation.resultType,
-      }),
+      operation: targetOperation(existingCsharpOperation.operationId, "method", existingCsharpOperation.memberName),
+      ...(existingCsharpOperation.resultType === undefined ? {} : { resultType: existingCsharpOperation.resultType }),
     }, [{ message: "C# source operator reused existing finalized closed compat-runtime C# operation fact for repeated checked-operator observation." }]);
   }
   if (existingCsharpOperation !== undefined) {
@@ -119,6 +119,7 @@ export function mapCsharpCheckedOperator(
     recordCsharpTargetOperation(context, request.expression, typeofComparison.csharpOperation, [{ message: "C# typeof comparison operation recorded from checked TSTS operator result." }]);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: typeofComparison.operation,
+      ...(typeofComparison.csharpOperation.resultType === undefined ? {} : { resultType: typeofComparison.csharpOperation.resultType }),
     }, [{ message: "C# typeof comparison selected from checked TSTS operator result." }]);
   }
   const typeofOperator = mapCsharpTypeofOperator(request, context, host);
@@ -128,12 +129,11 @@ export function mapCsharpCheckedOperator(
   if (request.operator === "instanceof") {
     const boolType = csharpSourcePrimitiveTargetType("bool");
     const evidence = [{ message: "C# type-test operation recorded from checked TSTS instanceof expression." }];
-    if (context.facts.get(request.expression, runtimeCarrierFactKey) === undefined) {
-      context.facts.set(request.expression, runtimeCarrierFactKey, { carrier: boolType }, [{ message: "C# instanceof expression runtime carrier finalized as bool after TSTS accepted the source type-test operation." }]);
-    }
+    recordCsharpPropagatedRuntimeCarrierFact(context.facts, request.expression, { carrier: boolType }, [{ message: "C# instanceof expression runtime carrier finalized as bool after TSTS accepted the source type-test operation." }]);
     recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.instanceof", CsharpTargetOperatorOperation.typeTest), evidence);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest, { resultType: boolType }),
+      operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest),
+      resultType: boolType,
     }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);
   }
   const targetOperator = getCsharpOperatorTargetOperation(request.operator);
@@ -151,7 +151,8 @@ export function mapCsharpCheckedOperator(
     const operationId = `tsonic.csharp.operator.${targetOperator}`;
     recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, left), [{ message: "C# assignment token operation recorded after TSTS accepted the source assignment; typed any-boundary validation is handled by post-check assignability facts." }]);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(operationId, "operator", targetOperator, { resultType: left }),
+      operation: targetOperation(operationId, "operator", targetOperator),
+      resultType: left,
     }, [{ message: "C# assignment operator accepted without dynamic any dispatch; target conversion or diagnostic is supplied by assignability validation." }]);
   }
   if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
@@ -177,8 +178,8 @@ export function mapCsharpCheckedOperator(
       operationId,
       "operator",
       targetOperator,
-      { resultType },
     ),
+    resultType,
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
 }
 
@@ -196,7 +197,7 @@ function getCsharpOperatorResultTypeRef(
   context: ExtensionObservationContext,
 ): TargetTypeRef {
   const expectedResult = request.operator === "??"
-    ? context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier
+    ? getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.expression)?.carrier
     : undefined;
   return getCsharpOperatorResultTypeRefForOperator(request.operator, left, right, expectedResult);
 }

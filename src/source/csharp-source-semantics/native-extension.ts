@@ -1,11 +1,10 @@
 import {
   ExtensionLifecycleEvent,
-  runtimeCarrierFactKey,
-  sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
 import type {
   BeforeSemanticsFinalizedLifecycleRequest,
   CompilerExtension,
+  SourceFileBoundLifecycleRequest,
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
@@ -23,12 +22,6 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
-  csharpSourcePrimitiveTargetType,
-} from "./target-types.js";
-import {
-  asType,
-} from "./target-ref-utils.js";
-import {
   createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
@@ -42,15 +35,8 @@ import {
   recordCsharpObjectRestBindingFactsBeforeFinalization,
 } from "./object-shape-lifecycle.js";
 import {
-  recordCsharpSelectedCallOperationFactsBeforeFinalization,
-  recordCsharpSelectedPropertyOperationFactsBeforeFinalization,
-} from "./csharp-operation-lifecycle.js";
-import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
 } from "./checked-assignability-validation/index.js";
-import {
-  validateCsharpTargetConstraintFactsBeforeFinalization,
-} from "./target-constraint-validation.js";
 import {
   diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization,
   diagnoseOpaqueAnyOperationsBeforeFinalization,
@@ -58,9 +44,6 @@ import {
 import {
   recordCsharpTargetNameFactsBeforeFinalization,
 } from "./target-name-facts.js";
-import {
-  recordCsharpProviderTargetBindingFactsBeforeFinalization,
-} from "./provider-target-binding-facts.js";
 import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
@@ -74,7 +57,7 @@ import {
   recordCsharpJsSurfaceSeedFactsBeforeFinalization,
 } from "./surface-extensions.js";
 import {
-  recordCsharpSourceProfileDeclarationFactsBeforeFinalization,
+  recordCsharpSourceProfileDeclarationFacts,
 } from "./source-profile-facts.js";
 
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
@@ -108,10 +91,11 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         providerOperationContributions: hosts.providerOperationContributions,
         typescriptCompatibilityMode: hosts.typescriptCompatibilityMode,
       }));
+      extensionContext.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
+        recordCsharpSourceProfileDeclarationFacts(request, lifecycleContext.compiler.ast, lifecycleContext.host.facts);
+      });
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        runBeforeFinalizedStage("source-profile-declaration-facts", () => recordCsharpSourceProfileDeclarationFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
-        runBeforeFinalizedStage("provider-target-binding-facts", () => recordCsharpProviderTargetBindingFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("attribute-application-facts", () => recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("source-compat-runtime-hard-rejects", () => diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization(lifecycleContext));
@@ -123,26 +107,9 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("type-parameter-constraint-facts", () => recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("runtime-carrier-facts-after-shapes", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
-        runBeforeFinalizedStage("selected-property-operation-facts", () => recordCsharpSelectedPropertyOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
-        runBeforeFinalizedStage("target-constraint-validation", () => validateCsharpTargetConstraintFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
-        runBeforeFinalizedStage("selected-call-operation-facts", () => recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("runtime-carrier-facts-after-selected-calls", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost, hosts.typescriptCompatibilityMode));
-      });
-      extensionContext.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
-        if (asType(subject) !== undefined) {
-          return undefined;
-        }
-        const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
-        return primitive === undefined
-          ? undefined
-          : {
-              value: {
-                carrier: csharpSourcePrimitiveTargetType(primitive.kind),
-              },
-              evidence: [{ message: "C# primitive carrier resolved from finalized source primitive fact." }],
-            };
       });
     },
   };

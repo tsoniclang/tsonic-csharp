@@ -1,11 +1,15 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
+import type {
+  CsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -23,7 +27,6 @@ import {
   csharpNullableTargetType,
 } from "../target-types.js";
 import type {
-  RuntimeCarrierFact,
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
@@ -42,7 +45,7 @@ export function propagateCsharpRuntimeCarrierFactFromDeclarationType(
   }
   const typeNode = asNodeSubject(getNodeField(node, "Type"));
   const name = asNodeSubject(getNodeField(node, "name"));
-  const resolvedTypeFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
+  const resolvedTypeFact = getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeNode) ??
     resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
   if (resolvedTypeFact === undefined) {
     return;
@@ -65,7 +68,7 @@ export function resolveDeclarationTypeRuntimeCarrierFact(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   typeNode: Node | undefined,
   host: CsharpRuntimeCarrierSemanticsHost,
-): RuntimeCarrierFact | undefined {
+): CsharpPropagatedRuntimeCarrierFact | undefined {
   if (typeNode === undefined) {
     return undefined;
   }
@@ -83,7 +86,7 @@ export function resolveDeclarationTypeRuntimeCarrierFact(
     return undefined;
   }
   const fact = { carrier };
-  lifecycleContext.host.facts.set(typeNode, runtimeCarrierFactKey, fact, [{ message: "C# declaration runtime carrier resolved from source type annotation semantics." }]);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeNode, fact, [{ message: "C# declaration runtime carrier resolved from source type annotation semantics." }]);
   return fact;
 }
 

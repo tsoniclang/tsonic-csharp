@@ -2,7 +2,6 @@ import {
   acceptObservation,
   deferObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedIterationMappingRequest,
@@ -13,6 +12,7 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpTargetIterationFactKey,
 } from "../../csharp-facts.js";
 import type {
@@ -30,7 +30,7 @@ import {
 } from "../../fact-subjects.js";
 
 export interface CsharpIterationOperationRow {
-  readonly sourceIterationKind: CheckedIterationMappingRequest["kind"];
+  readonly sourceIterationKind: CheckedIterationMappingRequest["iterationKind"];
   readonly operationId: string;
   readonly iterationKind: CsharpTargetIterationFact["iterationKind"];
   readonly lowering: CsharpTargetIterationLowering;
@@ -44,7 +44,7 @@ export function mapCsharpIterationOperationRows(
   extensionId: string,
   rows: readonly CsharpIterationOperationRow[],
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  const matching = rows.filter((row) => row.sourceIterationKind === request.kind);
+  const matching = rows.filter((row) => row.sourceIterationKind === request.iterationKind);
   if (matching.length === 0) {
     void extensionId;
     return deferObservation;
@@ -54,11 +54,11 @@ export function mapCsharpIterationOperationRows(
       extensionId,
       "CSHARP_ITERATION_OPERATION_AMBIGUOUS",
       9100174,
-      `C# target found ${matching.length} finalized iteration metadata rows for a checked ${request.kind} operation. Provider/surface metadata must select exactly one row before backend emission.`,
+      `C# target found ${matching.length} finalized iteration metadata rows for a checked ${request.iterationKind} operation. Provider/surface metadata must select exactly one row before backend emission.`,
       [{
         message: "Ambiguous iteration metadata rows",
         details: {
-          sourceIterationKind: request.kind,
+          sourceIterationKind: request.iterationKind,
           operationIds: matching.map((row) => row.operationId),
           lowerings: matching.map((row) => row.lowering.kind),
         },
@@ -101,7 +101,7 @@ function recordIterationBindingCarrier(
     request.sourceElement.type,
   ]) {
     if (subject !== undefined) {
-      context.facts.set(subject, runtimeCarrierFactKey, { carrier }, row.evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, { carrier }, row.evidence);
     }
   }
 }

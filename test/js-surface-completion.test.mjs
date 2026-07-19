@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
+import { csharpSourceProfileDeclarationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider } from "../dist/source/csharp-source-semantics/surface-extensions.js";
+
+const sourceProfileDeclarationFacts = new WeakMap();
 
 function createCsharpJsSurfaceOperationsProvider(host) {
   return createProductCsharpJsSurfaceOperationsProvider({ operationsProviderHost: host });
@@ -11,6 +14,7 @@ test("JS surface maps exact Number formatting methods from selected identity and
   const receiver = {};
   const digits = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
     [receiver, float64Type()],
     [digits, int32Type()],
@@ -24,10 +28,15 @@ test("JS surface maps exact Number formatting methods from selected identity and
     calleeReceiver: receiver,
   }), fakeContext(facts));
 
-  assert.equal(fixedResult.kind, "accept");
+  assert.equal(fixedResult.kind, "accept", fixedResult.kind === "reject" ? `${fixedResult.diagnostic.extensionCode}: ${fixedResult.diagnostic.message}` : undefined);
   assert.equal(fixedResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toFixed");
-  assert.equal(fixedResult.value.selectedSignature.member.receiverPassing, "first-argument");
-  assert.equal(precisionResult.kind, "accept");
+  assert.deepEqual(fixedResult.value.argumentConversions, [{
+    sourceArgumentIndex: 0,
+    sourceForm: "value",
+    targetParameterIndex: 0,
+    targetForm: "parameter",
+  }]);
+  assert.equal(precisionResult.kind, "accept", precisionResult.kind === "reject" ? `${precisionResult.diagnostic.extensionCode}: ${precisionResult.diagnostic.message}` : undefined);
   assert.equal(precisionResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toPrecision");
 });
 
@@ -145,6 +154,7 @@ test("JS surface maps RegExp construction and toString from selected identities 
   const flags = {};
   const receiver = {};
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: regexpType() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
     [pattern, stringType()],
     [flags, stringType()],
@@ -158,10 +168,10 @@ test("JS surface maps RegExp construction and toString from selected identities 
     calleeReceiver: receiver,
   }), fakeContext(facts));
 
-  assert.equal(constructResult.kind, "accept");
+  assert.equal(constructResult.kind, "accept", constructResult.kind === "reject" ? `${constructResult.diagnostic.extensionCode}: ${constructResult.diagnostic.message}` : undefined);
   assert.equal(constructResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)");
   assert.equal(constructResult.value.selectedSignature.member.kind, "constructor");
-  assert.equal(toStringResult.kind, "accept");
+  assert.equal(toStringResult.kind, "accept", toStringResult.kind === "reject" ? `${toStringResult.diagnostic.extensionCode}: ${toStringResult.diagnostic.message}` : undefined);
   assert.equal(toStringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.RegExp.toString");
   assert.equal(toStringResult.value.selectedSignature.member.returnType.id, "System.String");
 });
@@ -191,26 +201,81 @@ test("JS surface maps console profile methods and rejects invalid label facts", 
 function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/src/.tsonic/source-profiles/js/js.d.ts") {
   const sourceFile = { FileName: fileName };
   const parent = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
-  return {
+  const declaration = {
     Kind: 1,
     Name: { Text: memberName },
     Parent: parent,
     SourceFile: sourceFile,
   };
+  sourceProfileDeclarationFacts.set(parent, {
+    ownerId: "js",
+    kind: "type",
+    name: declaringName,
+  });
+  sourceProfileDeclarationFacts.set(declaration, {
+    ownerId: "js",
+    kind: "member",
+    name: memberName,
+    declaringName,
+  });
+  return declaration;
 }
 
 function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
   const callee = options.calleeReceiver === undefined
     ? {}
     : propertyAccessCallee(options.calleeReceiver, sourceSelectedDeclaration?.Name?.Text ?? "");
+  const arguments_ = options.arguments ?? [];
+  const parameters = arguments_.map((argument, index) => ({
+    parameterIndex: index,
+    parameterName: `argument${index}`,
+    parameterSymbol: {},
+    selectedType: argument,
+    acceptsOmission: false,
+    rest: false,
+  }));
   return {
+    sourceOperationKind: "call",
     target: "csharp",
     call,
     callee,
-    arguments: options.arguments ?? [],
-    sourceSelectedDeclaration,
-    sourceSelectedSignature: { declaration: sourceSelectedDeclaration },
+    arguments: arguments_,
+    callKind: call?.Kind === "KindNewExpression" ? "construct" : "call",
+    sourceSelection: {
+      kind: "applicable",
+      signature: { declaration: sourceSelectedDeclaration },
+      declaration: sourceSelectedDeclaration,
+      methodTypeArguments: [],
+      parameters,
+      argumentBindings: arguments_.map((argument, index) => ({
+        sourceArgumentIndex: index,
+        effectiveArgumentIndex: index,
+        sourceForm: "value",
+        sourceParameterIndex: index,
+        sourceParameterForm: "parameter",
+        selectedArgumentType: argument,
+        selectedParameterType: parameterType(parameters, index, argument),
+      })),
+    },
+    sourceCallee: {
+      expression: callee,
+      type: callee,
+      selectedDeclaration: sourceSelectedDeclaration,
+    },
+    sourceArguments: arguments_.map((argument) => ({ expression: argument, type: argument })),
+    sourceResult: { expression: call, type: call },
+    ...(options.calleeReceiver === undefined ? {} : {
+      sourceReceiver: {
+        expression: options.calleeReceiver,
+        type: options.calleeReceiver,
+      },
+    }),
+    chainRole: { kind: "ordinary", participant: "call" },
   };
+}
+
+function parameterType(parameters, index, fallback) {
+  return parameters[index]?.selectedType ?? fallback;
 }
 
 function propertyAccessCallee(receiver, memberName) {
@@ -243,8 +308,10 @@ function fakeContext(facts) {
   return {
     facts,
     factResolver: {
-      resolve: (subject, key) => facts.get(subject, key),
+      resolve: (subject, key) => facts.get(subject, key) ??
+        (key === csharpSourceProfileDeclarationFactKey ? sourceProfileDeclarationFacts.get(subject) : undefined),
     },
+    phase: "finalization",
     compiler: {
       ast: {
         getSourceFile: (node) => node?.SourceFile,

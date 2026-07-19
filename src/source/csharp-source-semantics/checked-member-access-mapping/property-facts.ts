@@ -31,6 +31,9 @@ import {
 import type {
   CheckedPropertyAccessContext,
 } from "./types.js";
+import {
+  getSelectedAccessEvidence,
+} from "../selected-source-evidence.js";
 
 export function mapCsharpObjectShapeCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -42,9 +45,10 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   if (objectShape === undefined) {
     return undefined;
   }
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const memberLookup = resolveCsharpObjectShapeMemberBySelectedSubject(objectShape, [
-    request.sourceResult.selectedDeclaration,
-    request.sourceResult.selectedSymbol,
+    selectedEvidence.selectedDeclaration,
+    selectedEvidence.selectedSymbol,
   ]);
   if (memberLookup.kind !== "resolved") {
     return undefined;
@@ -66,8 +70,8 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
       operationId,
       member.memberKind === "method" ? "method" : "property",
       member.targetName,
-      { resultType: member.type },
     ),
+    resultType: member.type,
   }, [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
 }
 
@@ -76,7 +80,7 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const selectedDeclaration = request.sourceResult.selectedDeclaration;
+  const selectedDeclaration = getSelectedAccessEvidence(request).selectedDeclaration;
   if (
     selectedDeclaration === undefined ||
     (context.facts.get(selectedDeclaration, csharpProjectSourceFactKey) === undefined &&

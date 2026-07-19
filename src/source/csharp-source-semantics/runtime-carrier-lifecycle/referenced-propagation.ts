@@ -1,10 +1,11 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
@@ -21,11 +22,11 @@ export function propagateCsharpRuntimeCarrierFactFromReferencedSymbol(
   if (carrier === undefined) {
     return;
   }
-  const existing = lifecycleContext.host.facts.get(node, runtimeCarrierFactKey);
+  const existing = getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node);
   if (existing !== undefined) {
     return;
   }
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, {
     carrier,
   }, [{ message: "C# runtime carrier propagated from finalized referenced declaration facts." }]);
 }

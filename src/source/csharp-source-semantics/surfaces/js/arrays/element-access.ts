@@ -27,6 +27,9 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "../../../target-ref-utils.js";
+import {
+  getSelectedAccessEvidence,
+} from "../../../selected-source-evidence.js";
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
@@ -34,8 +37,9 @@ export function mapCsharpJsArrayElementAccess(
   semanticReceiverType: TargetTypeRef | undefined,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const elementType = getCsharpArrayLikeElementType(receiverCarrier ?? semanticReceiverType) ??
-    host.getTargetTypeRefForSubject(request.sourceResult.type, context, {
+    host.getTargetTypeRefForSubject(selectedEvidence.type, context, {
       ...csharpJsCheckedTypeQuery,
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: false,
@@ -57,15 +61,15 @@ export function mapCsharpJsArrayElementAccess(
     }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: existingOperation,
+      ...(existingOperation.resultType === undefined ? {} : { resultType: existingOperation.resultType }),
     }, [{ message: "C# JS surface array indexer reused existing finalized target operation for repeated checked-element observation." }]);
   }
   const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey) ??
     context.facts.get(request.expression, csharpTargetOperationFactKey);
   if (existingCsharpOperation?.kind === "member" && existingCsharpOperation.operationKind === "indexer") {
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(existingCsharpOperation.operationId, "indexer", "System.Array.Item", {
-        ...(existingCsharpOperation.resultType !== undefined ? { resultType: existingCsharpOperation.resultType } : {}),
-      }),
+      operation: targetOperation(existingCsharpOperation.operationId, "indexer", "System.Array.Item"),
+      ...(existingCsharpOperation.resultType === undefined ? {} : { resultType: existingCsharpOperation.resultType }),
     }, [{ message: "C# JS surface array indexer reused existing finalized C# target indexer operation after proving no canonical target operation already exists." }]);
   }
   const literalIndex = host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context);
@@ -83,9 +87,8 @@ export function mapCsharpJsArrayElementAccess(
       : "C# JS surface array indexer operation recorded from finalized array receiver carrier facts." }]);
   }
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item", {
-      resultType: elementType,
-    }),
+    operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item"),
+    resultType: elementType,
   }, [{ message: receiverCarrier === undefined && !targetTypeRefIsClosed(elementType)
     ? "C# JS surface array indexer selected from checked TypeScript array semantics; C# operation finalization still requires closed selected result or receiver carrier facts."
     : "C# JS surface array indexer selected from finalized array receiver carrier facts." }]);

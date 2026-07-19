@@ -147,9 +147,12 @@ function isCheckedSourceLibraryDateConstruction(
   void sourceFile;
   const selectedSignature = context.facts.get(node, selectedTargetSignatureFactKey) ??
     context.factResolver.resolve(node, selectedTargetSignatureFactKey);
+  const sourceSelection = selectedSignature?.sourceSelection.kind === "applicable"
+    ? selectedSignature.sourceSelection
+    : undefined;
   const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
-    selectedSignature?.sourceDeclaration,
-    selectedSignature?.sourceSignature,
+    sourceSelection?.declaration,
+    sourceSelection?.signature,
     context,
   );
   return sourceMember?.declaringName === "Date";

@@ -85,9 +85,8 @@ export function mapCsharpJsStringElementAccess(
     ],
   }), [{ message: "C# JS surface string code-unit operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", "String.Substring", {
-      resultType: csharpStringTargetType(),
-    }),
+    operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", "String.Substring"),
+    resultType: csharpStringTargetType(),
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
 }
 

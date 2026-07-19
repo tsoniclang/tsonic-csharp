@@ -10,6 +10,9 @@ import type {
 import {
   csharpProjectSourceFactKey,
 } from "../csharp-facts.js";
+import type {
+  CsharpProjectSourceFact,
+} from "../csharp-facts.js";
 import {
   createSourceDeclarationObservationContext,
 } from "./source-declaration-facts/context.js";
@@ -52,9 +55,10 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      lifecycleContext.host.facts.set(node, csharpProjectSourceFactKey, {
+      const projectSourceFact: CsharpProjectSourceFact = {
         kind: "project-source",
-      }, [{ message: "C# project-source ownership recorded from the host-selected non-declaration source file." }]);
+      };
+      lifecycleContext.host.facts.set(node, csharpProjectSourceFactKey, projectSourceFact, [{ message: "C# project-source ownership recorded from the host-selected non-declaration source file." }]);
       const context = createSourceDeclarationObservationContext(lifecycleContext, compiler);
       const structDeclaration = getCsharpSourceStructDeclarationTargetForSubject(node, context, host);
       if (structDeclaration !== undefined) {

@@ -6,7 +6,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  acceptObservation,
+  deferObservation,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
@@ -25,20 +25,21 @@ import {
   getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./array-boundary-facts.js";
 import {
-  targetOperation,
-} from "./source-library.js";
-import {
   getSelectedSourceLibraryDeclarationName,
 } from "../../source-library.js";
+import {
+  getSelectedAccessEvidence,
+} from "../../selected-source-evidence.js";
 
 export function mapCsharpSourceLibraryCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const sourceContainer = getSelectedSourceLibraryDeclarationName(
-    request.sourceResult.selectedDeclaration,
-    request.sourceResult.selectedSymbol,
+    selectedEvidence.selectedDeclaration,
+    selectedEvidence.selectedSymbol,
     context,
   );
   if (sourceContainer === "Array" || sourceContainer === "ReadonlyArray") {
@@ -47,27 +48,21 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
     if (mapped !== undefined) {
       return mapped;
     }
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item"),
-    }, [{ message: "C# JS surface array indexer accepted from TSTS-selected source-profile element access; concrete C# operation finalization requires later receiver carrier facts." }]);
+    return deferObservation;
   }
   if (sourceContainer === "String") {
     const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
     if (receiverCarrier !== undefined) {
       return mapCsharpJsStringElementAccess(request, context, receiverCarrier, host);
     }
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", "String.Substring"),
-    }, [{ message: "C# JS surface string indexer accepted from TSTS-selected source-profile element access; concrete C# operation finalization requires later receiver carrier facts." }]);
+    return deferObservation;
   }
   if (sourceContainer === "Record") {
     const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
     if (receiverCarrier !== undefined) {
       return mapCsharpJsRecordDictionaryElementAccess(request, context, receiverCarrier, host);
     }
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.js.Record.indexer", "indexer", "Record.Dictionary.Item"),
-    }, [{ message: "C# JS surface Record indexer accepted from TSTS-selected source-profile element access; concrete C# operation finalization requires later Record dictionary carrier facts." }]);
+    return deferObservation;
   }
   return undefined;
 }

@@ -2,6 +2,9 @@ import {
   defineExtensionFactKey,
 } from "@tsonic/tsts";
 import {
+  csharpTargetSemanticsExtensionId,
+} from "../csharp-extension-identities.js";
+import {
   csharpTargetIterationLoweringEquals,
   csharpTargetOperationFactEquals,
   csharpTypeParameterConstraintArrayEquals,
@@ -22,18 +25,38 @@ import type {
   CsharpProjectSourceFact,
   CsharpSourceProfileDeclarationFact,
   CsharpRegularExpressionLiteralFact,
+  CsharpPropagatedRuntimeCarrierFact,
   CsharpSelectedCallTargetFact,
-  CsharpSelectedPropertyTargetFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
   CsharpTargetNameFact,
   CsharpTargetOperationFact,
   CsharpTargetTypeParameterConstraintFact,
 } from "./types.js";
+import {
+  snapshotCsharpArrayBoundaryFact,
+  snapshotCsharpArrayCarrierFact,
+  snapshotCsharpAttributeApplicationFact,
+  snapshotCsharpByrefStorageFact,
+  snapshotCsharpJsonSerializableShapeFact,
+  snapshotCsharpObjectShapeFact,
+  snapshotCsharpObservedTargetAssignabilityFact,
+  snapshotCsharpProjectSourceFact,
+  snapshotCsharpRegularExpressionLiteralFact,
+  snapshotCsharpPropagatedRuntimeCarrierFact,
+  snapshotCsharpSelectedCallTargetFact,
+  snapshotCsharpSourceProfileDeclarationFact,
+  snapshotCsharpSourceReturnCarrierFact,
+  snapshotCsharpTargetIterationFact,
+  snapshotCsharpTargetNameFact,
+  snapshotCsharpTargetOperationFact,
+  snapshotCsharpTargetTypeParameterConstraintFact,
+} from "./snapshots.js";
 
 export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShapeFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "objectShape",
+  snapshot: snapshotCsharpObjectShapeFact,
   equals: (left, right) =>
     targetTypeRefEquals(left.targetType, right.targetType)
     && objectShapeMemberArrayEquals(left.members, right.members)
@@ -42,20 +65,23 @@ export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShape
 });
 
 export const csharpJsonSerializableShapeFactKey = defineExtensionFactKey<CsharpJsonSerializableShapeFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "jsonSerializableShape",
+  snapshot: snapshotCsharpJsonSerializableShapeFact,
   equals: (left, right) => left.kind === right.kind,
 });
 
 export const csharpTargetNameFactKey = defineExtensionFactKey<CsharpTargetNameFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "targetName",
+  snapshot: snapshotCsharpTargetNameFact,
   equals: (left, right) => left.name === right.name,
 });
 
 export const csharpAttributeApplicationFactKey = defineExtensionFactKey<CsharpAttributeApplicationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "attributeApplication",
+  snapshot: snapshotCsharpAttributeApplicationFact,
   equals: (left, right) =>
     left.attributeType === right.attributeType
     && left.attributeName === right.attributeName
@@ -68,14 +94,16 @@ export const csharpAttributeApplicationFactKey = defineExtensionFactKey<CsharpAt
 });
 
 export const csharpTargetTypeParameterConstraintFactKey = defineExtensionFactKey<CsharpTargetTypeParameterConstraintFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "typeParameterConstraint",
+  snapshot: snapshotCsharpTargetTypeParameterConstraintFact,
   equals: (left, right) => csharpTypeParameterConstraintArrayEquals(left.constraints, right.constraints),
 });
 
 export const csharpObservedTargetAssignabilityFactKey = defineExtensionFactKey<CsharpObservedTargetAssignabilityFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "observedTargetAssignability",
+  snapshot: snapshotCsharpObservedTargetAssignabilityFact,
   equals: (left, right) =>
     left.source === right.source
     && left.target === right.target
@@ -85,8 +113,9 @@ export const csharpObservedTargetAssignabilityFactKey = defineExtensionFactKey<C
 });
 
 export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetIterationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "targetIteration",
+  snapshot: snapshotCsharpTargetIterationFact,
   equals: (left, right) =>
     left.operationId === right.operationId
     && left.iterationKind === right.iterationKind
@@ -95,14 +124,16 @@ export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetI
 });
 
 export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "targetOperation",
+  snapshot: snapshotCsharpTargetOperationFact,
   equals: csharpTargetOperationFactEquals,
 });
 
 export const csharpSelectedCallTargetFactKey = defineExtensionFactKey<CsharpSelectedCallTargetFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "selectedCallTarget",
+  snapshot: snapshotCsharpSelectedCallTargetFact,
   equals: (left, right) => targetMemberEquals(left.member, right.member)
     && left.finalizationRequirement?.kind === right.finalizationRequirement?.kind
     && left.finalizationRequirement?.argumentIndex === right.finalizationRequirement?.argumentIndex
@@ -124,45 +155,31 @@ function targetMemberArrayEquals(
   return left.every((member, index) => targetMemberEquals(member, right[index]));
 }
 
-export const csharpSelectedPropertyTargetFactKey = defineExtensionFactKey<CsharpSelectedPropertyTargetFact>({
-  extensionId: "tsonic.csharp",
-  name: "selectedPropertyTarget",
-  equals: (left, right) => {
-    if (left.selection.kind !== right.selection.kind) {
-      return false;
-    }
-    if (left.selection.kind === "deferred-target-operation" && right.selection.kind === "deferred-target-operation") {
-      return left.selection.operationId === right.selection.operationId;
-    }
-    return left.selection.kind === "structural-compat-property" &&
-      right.selection.kind === "structural-compat-property" &&
-      left.selection.propertyName === right.selection.propertyName &&
-      left.selection.sourceSelectedDeclaration === right.selection.sourceSelectedDeclaration &&
-      left.selection.sourceResultType === right.selection.sourceResultType;
-  },
-});
-
 export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "targetMutationOperation",
+  snapshot: snapshotCsharpTargetOperationFact,
   equals: csharpTargetOperationFactEquals,
 });
 
 export const csharpTargetConversionOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "targetConversionOperation",
+  snapshot: snapshotCsharpTargetOperationFact,
   equals: csharpTargetOperationFactEquals,
 });
 
 export const csharpRegularExpressionLiteralFactKey = defineExtensionFactKey<CsharpRegularExpressionLiteralFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "regularExpressionLiteral",
+  snapshot: snapshotCsharpRegularExpressionLiteralFact,
   equals: (left, right) => left.pattern === right.pattern && left.flags === right.flags,
 });
 
 export const csharpArrayCarrierFactKey = defineExtensionFactKey<CsharpArrayCarrierFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "arrayCarrier",
+  snapshot: snapshotCsharpArrayCarrierFact,
   equals: (left, right) =>
     left.sourceKind === right.sourceKind &&
     left.lane === right.lane &&
@@ -173,8 +190,9 @@ export const csharpArrayCarrierFactKey = defineExtensionFactKey<CsharpArrayCarri
 });
 
 export const csharpArrayBoundaryFactKey = defineExtensionFactKey<CsharpArrayBoundaryFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "arrayBoundary",
+  snapshot: snapshotCsharpArrayBoundaryFact,
   equals: (left, right) =>
     left.publicShape === right.publicShape &&
     targetTypeRefEquals(left.publicType, right.publicType) &&
@@ -186,20 +204,30 @@ export const csharpArrayBoundaryFactKey = defineExtensionFactKey<CsharpArrayBoun
 });
 
 export const csharpSourceReturnCarrierFactKey = defineExtensionFactKey<CsharpSourceReturnCarrierFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "sourceReturnCarrier",
+  snapshot: snapshotCsharpSourceReturnCarrierFact,
+  equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
+});
+
+export const csharpPropagatedRuntimeCarrierFactKey = defineExtensionFactKey<CsharpPropagatedRuntimeCarrierFact>({
+  extensionId: csharpTargetSemanticsExtensionId,
+  name: "propagatedRuntimeCarrier",
+  snapshot: snapshotCsharpPropagatedRuntimeCarrierFact,
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
 });
 
 export const csharpProjectSourceFactKey = defineExtensionFactKey<CsharpProjectSourceFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "projectSource",
+  snapshot: snapshotCsharpProjectSourceFact,
   equals: (left, right) => left.kind === right.kind,
 });
 
 export const csharpSourceProfileDeclarationFactKey = defineExtensionFactKey<CsharpSourceProfileDeclarationFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "sourceProfileDeclaration",
+  snapshot: snapshotCsharpSourceProfileDeclarationFact,
   equals: (left, right) =>
     left.ownerId === right.ownerId &&
     left.kind === right.kind &&
@@ -208,7 +236,8 @@ export const csharpSourceProfileDeclarationFactKey = defineExtensionFactKey<Csha
 });
 
 export const csharpByrefStorageFactKey = defineExtensionFactKey<CsharpByrefStorageFact>({
-  extensionId: "tsonic.csharp",
+  extensionId: csharpTargetSemanticsExtensionId,
   name: "byrefStorage",
+  snapshot: snapshotCsharpByrefStorageFact,
   equals: (left, right) => targetTypeRefEquals(left.targetType, right.targetType),
 });

@@ -23,6 +23,9 @@ import {
 import {
   targetArityMatches,
 } from "../../../target-member-arguments/arity.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../../../selected-source-evidence.js";
 
 export function selectSourceLibraryCallMember(
   candidates: readonly TargetMember[],
@@ -77,7 +80,7 @@ export function selectDeferredCanonicalSourceLibraryCallMember(
   if (selected !== undefined) {
     return selected;
   }
-  if (request.sourceSelectedSignatureKind !== "resolved") {
+  if (getApplicableSourceCallEvidence(request) === undefined) {
     return undefined;
   }
   const arityMatched = canonicalCandidates.filter((candidate) => {

@@ -1,5 +1,4 @@
 import {
-  runtimeCarrierFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -13,6 +12,7 @@ import type {
 } from "@tsonic/target-api";
 import {
   csharpTargetConversionOperationFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
@@ -145,20 +145,22 @@ function recordCompatAnyBoundaryConversionFact(
   if (existing !== undefined) {
     return false;
   }
+  const existingCsharpOperation = context.facts.get(conversionSubject, csharpTargetConversionOperationFactKey) ??
+    context.factResolver.resolve(conversionSubject, csharpTargetConversionOperationFactKey);
+  if (
+    existingCsharpOperation?.resultType !== undefined &&
+    existingConversionSatisfiesBoundary(existingCsharpOperation.resultType, target)
+  ) {
+    return true;
+  }
+  if (existingCsharpOperation !== undefined) {
+    return false;
+  }
   const conversion = getCompatAnyTypedBoundaryConversion(source, target);
   if (conversion === undefined || conversion.kind === "identity") {
     return false;
   }
   const evidence = getCompatAnyTypedBoundaryEvidence(conversion.kind);
-  context.facts.set(
-    conversionSubject,
-    targetConversionFactKey,
-    {
-      convertedType: conversion.convertedType,
-      operation: conversion.operation,
-    },
-    evidence,
-  );
   context.facts.set(
     conversionSubject,
     csharpTargetConversionOperationFactKey,
@@ -208,6 +210,5 @@ function getRuntimeCarrier(
 ): TargetTypeRef | undefined {
   return subject === undefined
     ? undefined
-    : context.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
-      context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
+    : getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier;
 }

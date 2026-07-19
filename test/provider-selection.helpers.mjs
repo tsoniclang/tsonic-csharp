@@ -18,13 +18,86 @@ import {
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
-import { validateCsharpTargetConstraintFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/target-constraint-validation.js";
 import {
   csharpNullableValueTargetType,
   csharpSourcePrimitiveDotnetMetadataName,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import { resolveTargetTypeRefFromSubjectFacts } from "../dist/source/csharp-source-semantics/target-type-subject-facts.js";
-export { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts };
+export { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts };
+
+export function checkedCallRequest(options = {}) {
+  const call = options.call ?? {};
+  const callee = options.callee ?? {};
+  const arguments_ = options.arguments ?? [];
+  const selectedSignature = options.selectedSignature ?? {};
+  const selectedParameters = options.selectedParameters ?? arguments_.map((argument, index) => ({
+    parameterIndex: index,
+    parameterName: `argument${index}`,
+    parameterSymbol: {},
+    selectedType: options.sourceParameterTypes?.[index] ?? options.sourceArgumentTypes?.[index] ?? argument,
+    acceptsOmission: false,
+    rest: false,
+  }));
+  const argumentBindings = options.argumentBindings ?? arguments_.map((argument, index) => ({
+    sourceArgumentIndex: index,
+    effectiveArgumentIndex: index,
+    sourceForm: "value",
+    sourceParameterIndex: index,
+    sourceParameterForm: "parameter",
+    selectedArgumentType: options.sourceArgumentTypes?.[index] ?? argument,
+    selectedParameterType: selectedParameters[index]?.selectedType ?? options.sourceArgumentTypes?.[index] ?? argument,
+  }));
+  const selectedDeclaration = options.selectedDeclaration;
+  const selectedCalleeDeclaration = options.selectedCalleeDeclaration ?? selectedDeclaration;
+  return {
+    sourceOperationKind: "call",
+    target: options.target ?? "csharp",
+    call,
+    callee,
+    arguments: arguments_,
+    callKind: options.callKind ?? "call",
+    sourceSelection: options.selectionKind === "untyped"
+      ? { kind: "untyped" }
+      : {
+          kind: "applicable",
+          signature: selectedSignature,
+          ...(selectedDeclaration === undefined ? {} : { declaration: selectedDeclaration }),
+          methodTypeArguments: options.methodTypeArguments ?? [],
+          parameters: selectedParameters,
+          argumentBindings,
+        },
+    sourceCallee: {
+      expression: callee,
+      type: options.sourceCalleeType ?? callee,
+      ...(options.calleeSymbol === undefined ? {} : { symbol: options.calleeSymbol }),
+      ...(options.calleeDeclaration === undefined ? {} : { declaration: options.calleeDeclaration }),
+      ...(options.selectedCalleeSymbol === undefined ? {} : { selectedSymbol: options.selectedCalleeSymbol }),
+      ...(selectedCalleeDeclaration === undefined ? {} : { selectedDeclaration: selectedCalleeDeclaration }),
+    },
+    sourceArguments: arguments_.map((argument, index) => ({
+      expression: argument,
+      type: options.sourceArgumentTypes?.[index] ?? argument,
+    })),
+    sourceResult: {
+      expression: call,
+      type: options.sourceResultType ?? call,
+    },
+    ...(options.receiver === undefined ? {} : {
+      sourceReceiver: {
+        expression: options.receiver,
+        type: options.receiverType ?? options.receiver,
+        ...(options.receiverSymbol === undefined ? {} : { symbol: options.receiverSymbol }),
+        ...(options.receiverDeclaration === undefined ? {} : { declaration: options.receiverDeclaration }),
+        ...(options.selectedReceiverSymbol === undefined ? {} : { selectedSymbol: options.selectedReceiverSymbol }),
+        ...(options.selectedReceiverDeclaration === undefined ? {} : { selectedDeclaration: options.selectedReceiverDeclaration }),
+      },
+    }),
+    chainRole: {
+      kind: "ordinary",
+      participant: "call",
+    },
+  };
+}
 
 
 

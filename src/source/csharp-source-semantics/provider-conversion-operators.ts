@@ -72,7 +72,7 @@ export function getCsharpProviderConversionOperatorById(
   const member = matches[0]!;
   return {
     kind: "matched",
-    operation: targetOperation(member.id, "operator", member.conversionKind, { resultType: target }),
+    operation: targetOperation(member.id, "operator", member.conversionKind),
     csharpOperation: csharpTargetConversionOperatorOperation(
       member.id,
       member.conversionKind,

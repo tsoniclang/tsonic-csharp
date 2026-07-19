@@ -24,10 +24,10 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
           kind: "target-specific",
           target: "csharp",
           name: "unsupported-constraint",
-          value: {
-            reason: `Unsupported .NET target constraint 'implements' for non-named contract '${contract.kind}'.`,
-            contract,
-          },
+          payloadId: unsupportedConstraintPayloadId(
+            "implements",
+            `non-named-contract:${contract.kind}`,
+          ),
         };
       }
       return {
@@ -68,10 +68,14 @@ function dotnetUnsupportedConstraintToTargetConstraint(constraint: DotnetUnsuppo
     kind: "target-specific",
     target: "csharp",
     name: "unsupported-constraint",
-    value: {
-      targetId: constraint.targetId,
-      metadataName: constraint.metadataName,
-      reason: constraint.reason,
-    },
+    payloadId: unsupportedConstraintPayloadId(
+      constraint.targetId,
+      constraint.metadataName,
+      constraint.reason,
+    ),
   };
+}
+
+function unsupportedConstraintPayloadId(...parts: readonly string[]): string {
+  return parts.map((part) => encodeURIComponent(part)).join("|");
 }

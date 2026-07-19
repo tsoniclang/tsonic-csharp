@@ -54,5 +54,6 @@ export function mapCsharpJsRecordDictionaryElementAccess(
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: "C# Record dictionary indexer operation recorded from checked TypeScript Record carrier and provider-owned Dictionary indexer facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(member),
+    ...(member.returnType === undefined ? {} : { resultType: member.returnType }),
   }, [{ message: "C# Record dictionary indexer selected from checked TypeScript Record carrier and provider-owned Dictionary indexer facts." }]);
 }

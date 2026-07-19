@@ -1,5 +1,4 @@
 import {
-  runtimeCarrierFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
@@ -11,6 +10,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   asNodeSubject,
@@ -41,7 +41,7 @@ export function getTargetTypeRefForSyntaxNode(
   if (keyword !== undefined) {
     return keyword;
   }
-  const direct = facts.get(node, runtimeCarrierFactKey)?.carrier;
+  const direct = getRecordedCsharpPropagatedRuntimeCarrierFact(facts, node)?.carrier;
   if (direct !== undefined) {
     return direct;
   }

@@ -2,8 +2,10 @@ import {
   acceptObservation,
   deferObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+} from "../csharp-facts.js";
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
@@ -36,7 +38,6 @@ import {
 import {
   targetOperation,
   recordCsharpTargetOperation,
-  recordTargetOperationFact,
 } from "./operations.js";
 import {
   isCsharpAnyRuntimeCarrier,
@@ -47,6 +48,9 @@ import {
 import {
   getTargetArgumentConversionSlots,
 } from "./target-member-arguments/argument-conversions.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "./selected-source-evidence.js";
 export function mapCsharpCompatRuntimeCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
@@ -60,9 +64,8 @@ export function mapCsharpCompatRuntimeCheckedPropertyAccess(
   const operation = compatAnyPropertyReadOperation(request.propertyName);
   recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
-      resultType: operation.resultType,
-    }),
+    operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName),
+    ...(operation.resultType === undefined ? {} : { resultType: operation.resultType }),
   }, csharpCompatRuntimeEvidence);
 }
 
@@ -76,9 +79,8 @@ export function mapCsharpCompatRuntimeCheckedElementAccess(
   const operation = compatAnyElementReadOperation();
   recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
-      resultType: operation.resultType,
-    }),
+    operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName),
+    ...(operation.resultType === undefined ? {} : { resultType: operation.resultType }),
   }, csharpCompatRuntimeEvidence);
 }
 
@@ -95,7 +97,7 @@ export function mapCsharpCompatRuntimeCheckedCall(
   const member = compatAnySelectedTargetMember(operation);
   const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
     argumentCount: request.arguments.length,
-    sourceArgumentBindings: request.sourceArgumentBindings,
+    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
   if (argumentConversions === undefined) {
     return rejectObservation(csharpProviderDiagnostic(
@@ -108,9 +110,6 @@ export function mapCsharpCompatRuntimeCheckedCall(
     ));
   }
   recordCsharpTargetOperation(context, request.call, operation, csharpCompatRuntimeEvidence);
-  recordTargetOperationFact(context, request.call, targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
-    resultType: operation.resultType,
-  }), csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
     selectedSignature: {
@@ -127,25 +126,25 @@ export function mapCsharpCompatRuntimeCheckedOperator(
   if (!requestTargetsCsharp(request.target)) {
     return deferObservation;
   }
-  if (request.operator === "=") {
+  if (request.operatorKind === "binary" && request.operator === "=") {
     const operation = getCompatRuntimeAssignmentOperation(request.left, context);
     if (operation === undefined) {
       return deferObservation;
     }
     recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
-        resultType: operation.resultType,
-      }),
+      operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName),
+      ...(operation.resultType === undefined ? {} : { resultType: operation.resultType }),
     }, csharpCompatRuntimeEvidence);
   }
-  if (
-    !hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceLeft), context) &&
-    !hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceRight), context)
-  ) {
+  const hasOpaqueOperand = request.operatorKind === "binary"
+    ? hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceLeft), context) ||
+      hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceRight), context)
+    : hasOpaqueAnyCarrier(sourceEvidenceSubjects(request.sourceOperand), context);
+  if (!hasOpaqueOperand) {
     return deferObservation;
   }
-  const operation = request.right === undefined
+  const operation = request.operatorKind !== "binary"
     ? compatAnyUnaryOperatorOperation(request.operator)
     : compatAnyBinaryOperatorOperation(request.operator);
   if (operation === undefined) {
@@ -158,9 +157,8 @@ export function mapCsharpCompatRuntimeCheckedOperator(
   }
   recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operation.operationId, "operator", request.operator, {
-      resultType: operation.resultType,
-    }),
+    operation: targetOperation(operation.operationId, "operator", request.operator),
+    ...(operation.resultType === undefined ? {} : { resultType: operation.resultType }),
   }, csharpCompatRuntimeEvidence);
 }
 
@@ -189,8 +187,7 @@ function hasOpaqueAnyCarrier(
   context: Pick<ExtensionObservationContext, "factResolver" | "facts">,
 ): boolean {
   return subjects.some((subject) => subject !== undefined && (
-    isCsharpAnyRuntimeCarrier(context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier) ||
-    isCsharpAnyRuntimeCarrier(context.facts.get(subject, runtimeCarrierFactKey)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier)
   ));
 }
 

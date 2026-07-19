@@ -15,6 +15,7 @@ import {
 } from "./runtime-carrier-object-shapes.js";
 import {
   csharpAnyRuntimeCarrier,
+  csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
   asType,
@@ -84,7 +85,13 @@ export function mapRuntimeCarrier(
     subject !== undefined && context.factResolver.resolve(subject, sourcePrimitiveFactKey) !== undefined
   );
   if (primitiveSubject !== undefined) {
-    return deferObservation;
+    const primitive = context.factResolver.resolve(primitiveSubject, sourcePrimitiveFactKey);
+    if (primitive === undefined) {
+      throw new Error("C# runtime carrier primitive evidence disappeared during exact fact resolution.");
+    }
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: csharpSourcePrimitiveTargetType(primitive.kind),
+    }, [{ message: "C# primitive runtime carrier mapped from finalized TSTS source-primitive evidence." }]);
   }
   const syntaxCarrier = requestType === undefined
     ? host.getTargetTypeRefForSubject(request.type, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false })

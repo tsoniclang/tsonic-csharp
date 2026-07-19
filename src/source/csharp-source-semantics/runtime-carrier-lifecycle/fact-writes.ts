@@ -1,21 +1,22 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionEvidence,
   ExtensionFactSubject,
   Node,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import type {
-  RuntimeCarrierFact,
+  CsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
+import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 
 export function setRuntimeCarrierFactIfAbsent(
   lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
   node: Node | undefined,
-  fact: RuntimeCarrierFact | undefined,
+  fact: CsharpPropagatedRuntimeCarrierFact | undefined,
   message: string,
 ): void {
   setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, fact, [{ message }]);
@@ -24,37 +25,25 @@ export function setRuntimeCarrierFactIfAbsent(
 export function setRuntimeCarrierFactIfUnresolved(
   lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
   subject: ExtensionFactSubject | undefined,
-  fact: RuntimeCarrierFact | undefined,
+  fact: CsharpPropagatedRuntimeCarrierFact | undefined,
   evidence: readonly ExtensionEvidence[],
 ): boolean {
-  if (subject === undefined || fact === undefined || getResolvedRuntimeCarrierFact(lifecycleContext, subject) !== undefined) {
+  if (subject === undefined || fact === undefined) {
     return false;
   }
-  lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
-  return true;
+  const result = recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, fact, evidence);
+  return result === "inserted" || result === "idempotent";
 }
 
 export function setRuntimeCarrierFactIfLocallyAbsent(
   lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
   subject: ExtensionFactSubject | undefined,
-  fact: { readonly carrier: TargetTypeRef },
+  fact: CsharpPropagatedRuntimeCarrierFact,
   message: string,
 ): boolean {
   if (subject === undefined) {
     return false;
   }
-  const existing = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey);
-  if (existing !== undefined) {
-    return false;
-  }
-  lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);
-  return true;
-}
-
-function getResolvedRuntimeCarrierFact(
-  lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
-  subject: ExtensionFactSubject,
-): RuntimeCarrierFact | undefined {
-  return lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) ??
-    lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey);
+  const result = recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, fact, [{ message }]);
+  return result === "inserted" || result === "idempotent";
 }

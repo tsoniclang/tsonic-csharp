@@ -1,11 +1,12 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   Node,
   SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpPropagatedRuntimeCarrierFact,
+} from "../../csharp-facts.js";
 import {
   getRuntimeCarrierSubjectSymbol,
   getRuntimeCarrierSubjectType,
@@ -40,12 +41,12 @@ export function recordCsharpRuntimeCarrierFact(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+  if (compiler === undefined || getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node) !== undefined) {
     return;
   }
   const syntaxCarrier = getRuntimeCarrierFromTypeSyntax(lifecycleContext, node, host);
   if (syntaxCarrier !== undefined) {
-    lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, { carrier: syntaxCarrier }, [
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, { carrier: syntaxCarrier }, [
       { message: "C# runtime carrier recorded from source type syntax before semantic type carrier resolution." },
     ]);
     return;
@@ -64,20 +65,19 @@ export function recordCsharpRuntimeCarrierFact(
   }
   const fact = {
     carrier: result.value.carrier,
-    ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
   };
   if (isObjectLiteralInterfaceDeclarationCarrier(compiler.ast, node, fact.carrier)) {
     return;
   }
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, node, fact, result.evidence ?? []);
   if (
     runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier) &&
     !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)
   ) {
-    lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, type, fact, result.evidence ?? []);
   }
   if (symbol !== undefined && !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)) {
-    lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, result.evidence ?? []);
   }
   const typeSymbol = compiler.checker.getTypeSymbol(type);
   if (
@@ -85,7 +85,7 @@ export function recordCsharpRuntimeCarrierFact(
     runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier) &&
     !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)
   ) {
-    lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, fact, result.evidence ?? []);
   }
 }
 

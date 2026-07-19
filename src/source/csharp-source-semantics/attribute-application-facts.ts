@@ -64,7 +64,7 @@ function walkAttributeApplicationFacts(
   if (!lifecycleContext.compiler.ast.is.IsCallExpression(node)) {
     return;
   }
-  const attribute = lifecycleContext.host.facts.get(node, attributeFactKey);
+    const attribute = lifecycleContext.host.facts.get(node, attributeFactKey);
   if (attribute === undefined) {
     return;
   }

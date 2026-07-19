@@ -33,21 +33,6 @@ export function compatAnyPropertyReadOperation(propertyName: string): CsharpTarg
   ]);
 }
 
-export function compatStructuralPropertyReadOperation(
-  operationId: string,
-  propertyName: string,
-  resultType: TargetTypeRef,
-): CsharpTargetMemberOperationFact {
-  if (resultType.kind === "target-named" && resultType.id === "Tsonic.CSharp.Js.TsValue") {
-    return compatRuntimeMethodOperation(operationId, "ReadCompatSlot", [
-      { kind: "literal", value: propertyName },
-    ]);
-  }
-  return compatRuntimeMethodOperation(operationId, "ReadCompatSlotAs", [
-    { kind: "literal", value: propertyName },
-  ], resultType, [resultType]);
-}
-
 export function compatAnyPropertyWriteOperation(propertyName: string): CsharpTargetMemberOperationFact {
   return compatRuntimeMethodOperation(`tsonic.csharp.compat.any.property-write:${propertyName}`, "WriteCompatSlot", [
     { kind: "literal", value: propertyName },

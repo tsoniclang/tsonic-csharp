@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionEvidence,
   Node,
@@ -8,6 +5,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  recordCsharpPropagatedRuntimeCarrierFact,
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import type {
@@ -37,33 +35,33 @@ export function recordSourceDeclarationTarget(
   }
   const fact = { carrier: targetType };
   const evidence: readonly ExtensionEvidence[] = [{ message: "C# source declaration runtime carrier recorded from TSTS source declaration identity." }];
-  lifecycleContext.host.facts.set(declaration, runtimeCarrierFactKey, fact, evidence);
+  recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, declaration, fact, evidence);
   if (objectShape !== undefined) {
     lifecycleContext.host.facts.set(declaration, csharpObjectShapeFactKey, objectShape, evidence);
   }
   const name = asNodeSubject(getNodeField(declaration, "name"));
   if (name !== undefined) {
-    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, fact, evidence);
+    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, name, fact, evidence);
     if (objectShape !== undefined) {
       lifecycleContext.host.facts.set(name, csharpObjectShapeFactKey, objectShape, evidence);
     }
     const symbol = compiler.checker.getSymbolAtLocation(name, { sourceFile }) ??
       compiler.checker.getResolvedSymbol(name, { sourceFile });
     if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, evidence);
       if (objectShape !== undefined) {
         lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, objectShape, evidence);
       }
     }
     const type = isSourceDeclaredStructTargetType(targetType) ? undefined : compiler.checker.getTypeAtLocation(name, { sourceFile });
     if (type !== undefined) {
-      lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, evidence);
+      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, type, fact, evidence);
       if (objectShape !== undefined) {
         lifecycleContext.host.facts.set(type, csharpObjectShapeFactKey, objectShape, evidence);
       }
       const typeSymbol = compiler.checker.getTypeSymbol(type);
       if (typeSymbol !== undefined) {
-        lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, fact, evidence);
+        recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, fact, evidence);
         if (objectShape !== undefined) {
           lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, evidence);
         }

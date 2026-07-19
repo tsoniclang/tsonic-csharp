@@ -1,6 +1,6 @@
 import {
+  deferObservation,
   acceptObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperationMappingResult,
@@ -28,8 +28,6 @@ import {
 import {
   csharpJsSourceLibraryPropertyAllowsCallableValue,
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
-  csharpJsSourceLibraryPropertyDeferredOperation,
-  csharpJsSourceLibraryPropertyDeferredResultType,
   csharpJsSourceLibraryPropertyPrecheck,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
@@ -49,17 +47,21 @@ import {
   getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./array-boundary-facts.js";
 import {
-  csharpSelectedPropertyTargetFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../../csharp-facts.js";
+import {
+  getSelectedAccessEvidence,
+} from "../../selected-source-evidence.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedEvidence = getSelectedAccessEvidence(request);
   const sourceMember = resolveSelectedSourceLibraryMemberIdentity(
-    request.sourceResult.selectedDeclaration,
-    request.sourceResult.selectedSymbol,
+    selectedEvidence.selectedDeclaration,
+    selectedEvidence.selectedSymbol,
     context,
   );
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
@@ -80,7 +82,7 @@ function mapCsharpSourceLibraryPropertyOperation(
     sourceLibrarySelectedDeclarationHasCallTarget(
       sourceMember,
       receiverType,
-      request.callCallee,
+      request.use === "call-callee",
     )
   ) {
     return acceptObservation<CheckedOperationMappingResult>({
@@ -102,27 +104,8 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)) {
-    const deferredOperation = csharpJsSourceLibraryPropertyDeferredOperation(selectedIdentity);
-    if (deferredOperation === undefined) {
-      return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
-    }
-    context.facts.set(request.expression, csharpSelectedPropertyTargetFactKey, {
-      selection: {
-        kind: "deferred-target-operation",
-        operationId: deferredOperation.operationId,
-      },
-    }, [{ message: `C# retained selected JS property identity '${sourceLibraryMemberIdentity(sourceMember)}' until receiver carrier finalization.` }]);
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(
-        deferredOperation.operationId,
-        "property",
-        deferredOperation.targetOperation,
-        {
-          resultType: csharpJsSourceLibraryPropertyDeferredResultType(selectedIdentity),
-        },
-      ),
-    }, [{ message: `C# JS surface property '${sourceLibraryMemberIdentity(sourceMember)}' accepted from checked TypeScript declaration; target member selection is deferred until finalized receiver carrier facts exist.` }]);
+  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity) && receiverType === undefined) {
+    return deferObservation;
   }
   if (receiverType === undefined && sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity)) {
     return undefined;
@@ -136,11 +119,8 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)
-      ? targetOperation(member.id, "property", member.sourceName, {
-          ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
-        })
-      : targetOperationFromMember(member),
+    operation: targetOperationFromMember(member),
+    ...(member.returnType === undefined ? {} : { resultType: member.returnType }),
   }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }
 
@@ -166,32 +146,32 @@ function getSourceLibraryPropertyReceiverType(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   host: CsharpJsSurfaceHost,
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
-  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)) {
-    return host.unwrapNullableTargetType(
-      getCsharpArrayBoundaryCoreCarrierForReference(request.receiver, context) ??
-      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
-        host.getTargetTypeRefForSubject(request.receiver, context, {
-          allowRuntimeCarrier: true,
-          allowSemanticTypeQuery: false,
-        }),
-    );
-  }
-  if (sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity)) {
-    return host.unwrapNullableTargetType(
-      host.getTargetTypeRefForSubject(request.receiver, context, {
+  const requiresFinalCarrier = sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity);
+  const subjects = [
+    request.sourceReceiver.expression,
+    request.sourceReceiver.type,
+    request.sourceReceiver.selectedDeclaration,
+    request.sourceReceiver.selectedSymbol,
+    request.sourceReceiver.declaration,
+    request.sourceReceiver.symbol,
+  ];
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const targetType = (requiresFinalCarrier
+      ? getCsharpArrayBoundaryCoreCarrierForReference(subject, context)
+      : undefined) ??
+      getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier ??
+      host.getTargetTypeRefForSubject(subject, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
-      }) ??
-        context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier,
-    );
+      });
+    if (targetType !== undefined) {
+      return host.unwrapNullableTargetType(targetType);
+    }
   }
-  return host.unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiver, context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: false,
-    }) ??
-      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier,
-  );
+  return undefined;
 }
 
 function getSourceLibraryPropertyMember(

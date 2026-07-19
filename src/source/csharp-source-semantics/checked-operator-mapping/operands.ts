@@ -1,5 +1,4 @@
 import {
-  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -11,6 +10,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import type {
   TargetTypeRefResolutionOptions,
@@ -87,6 +87,5 @@ function getFinalizedCheckedOperandTargetTypeRef(
     context.facts.get(subject, targetOperationFactKey)?.resultType ??
     context.factResolver.resolve(subject, csharpTargetOperationFactKey)?.resultType ??
     context.facts.get(subject, csharpTargetOperationFactKey)?.resultType ??
-    context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
-    context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+    getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier;
 }

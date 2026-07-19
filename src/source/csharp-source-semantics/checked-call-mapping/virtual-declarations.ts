@@ -7,6 +7,9 @@ import type {
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
 } from "@tsonic/tsts";
+import {
+  getApplicableSourceCallEvidence,
+} from "../selected-source-evidence.js";
 import type {
   CsharpCheckedCallRequestContext,
 } from "../checked-call-request-context.js";
@@ -16,16 +19,17 @@ export function getSelectedCallProviderVirtualDeclaration(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   requestContext?: CsharpCheckedCallRequestContext,
 ): ProviderVirtualDeclarationFact | undefined {
+  const sourceSelection = getApplicableSourceCallEvidence(request);
   return getProviderVirtualDeclaration(context, [
-    request.sourceSelectedDeclaration,
-    request.sourceSelectedSignature,
+    sourceSelection?.declaration,
+    sourceSelection?.signature,
     request.sourceCallee.selectedDeclaration,
     request.sourceCallee.selectedSymbol,
     request.sourceCallee.declaration,
     request.sourceCallee.symbol,
     requestContext?.calleeSelectedPropertyDeclaration,
     requestContext?.calleeSelectedPropertySymbol,
-  ], { preferSignatureId: request.sourceSelectedSignature !== undefined });
+  ], { preferSignatureId: sourceSelection !== undefined });
 }
 
 function getProviderVirtualDeclaration(

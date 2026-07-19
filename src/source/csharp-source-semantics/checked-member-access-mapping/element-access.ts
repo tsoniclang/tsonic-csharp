@@ -55,6 +55,9 @@ import {
 import type {
   CheckedElementAccessContext,
 } from "./types.js";
+import {
+  getSelectedAccessEvidence,
+} from "../selected-source-evidence.js";
 
 export function mapCsharpCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -65,7 +68,8 @@ export function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  if (request.sourceResult.selectedSymbol === undefined && request.sourceResult.selectedDeclaration === undefined) {
+  const selectedEvidence = getSelectedAccessEvidence(request);
+  if (selectedEvidence.selectedSymbol === undefined && selectedEvidence.selectedDeclaration === undefined) {
     return rejectElementAccessNotMapped(extensionId);
   }
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
@@ -117,7 +121,7 @@ export function mapCsharpCheckedElementAccess(
   if (member.kind !== "indexer") {
     return rejectNonIndexerSelectedForElementAccess(extensionId, member.id, targetBinding.id);
   }
-  const selectedResultType = host.getTargetTypeRefForSubject(request.sourceResult.type, context);
+  const selectedResultType = host.getTargetTypeRefForSubject(selectedEvidence.type, context);
   const csharpMember = instantiateClosedSelectedTargetMember(member, host, {
     ...(declaringTargetType === undefined ? {} : { declaringTargetType }),
     ...(selectedResultType === undefined ? {} : { selectedResultType }),
@@ -128,5 +132,6 @@ export function mapCsharpCheckedElementAccess(
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target indexer operation recorded from checked TSTS provider declaration and provider target identity." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(csharpMember),
+    ...(csharpMember.returnType === undefined ? {} : { resultType: csharpMember.returnType }),
   }, [{ message: "C# target indexer access selected from checked TSTS provider declaration." }]);
 }

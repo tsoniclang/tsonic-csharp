@@ -39,6 +39,9 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../selected-source-evidence.js";
 
 export function mapDotnetNativeArrayCreateCall(
   request: CheckedCallMappingRequest,
@@ -86,7 +89,7 @@ export function mapDotnetNativeArrayCreateCall(
   }
   const argumentConversions = getTargetArgumentConversionSlots(csharpMember.parameters, {
     argumentCount: request.arguments.length,
-    sourceArgumentBindings: request.sourceArgumentBindings,
+    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
   if (argumentConversions === undefined) {
     return rejectObservation(csharpProviderDiagnostic(
@@ -112,7 +115,7 @@ export function getNativeArrayCreateElementType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const selectedTypeArguments = request.sourceSelectedMethodTypeArguments?.map((argument) =>
+  const selectedTypeArguments = getApplicableSourceCallEvidence(request)?.methodTypeArguments.map((argument) =>
     host.getTargetTypeRefForSubject(argument.explicitTypeNode, context) ??
       host.getTargetTypeRefForSubject(argument.selectedType, context)
   ) ?? [];

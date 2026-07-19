@@ -81,7 +81,7 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
       return right.kind === "target-specific" &&
         left.target === right.target &&
         left.name === right.name &&
-        Object.is(left.value, right.value);
+        left.payloadId === right.payloadId;
   }
 }
 
@@ -174,7 +174,7 @@ export function targetTypeRefKey(type: TargetTypeRef): string {
     case "lifetime":
       return `${nullablePrefix}lifetime:${type.name}`;
     case "target-specific":
-      return `${nullablePrefix}target-specific:${type.target}:${type.name}:${String(type.value)}`;
+      return `${nullablePrefix}target-specific:${type.target}:${type.name}:${type.payloadId ?? ""}`;
   }
 }
 

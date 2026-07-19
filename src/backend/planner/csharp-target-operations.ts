@@ -2,15 +2,7 @@ import type {
   Node,
   SelectedTargetSignatureFact,
   TargetOperationFact,
-  TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  CsharpTargetMember,
-  CsharpTargetParameter,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
-  csharpTargetMemberFact,
-} from "../../source/csharp-source-semantics/target-types.js";
 import type {
   TargetCompileInput,
   TargetDiagnostic,
@@ -39,12 +31,7 @@ import {
 } from "./target-types.js";
 import {
   targetMembersHaveCompatibleSourceSelectedSignature,
-  targetMemberAsSourceSelectedSignatureForExpected,
-  targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver,
 } from "../../source/csharp-source-semantics/selected-target-source-signature.js";
-import {
-  targetTypeRefEquals,
-} from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 export function getRequiredCsharpTargetOperation(
   input: TargetCompileInput,
@@ -157,16 +144,11 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
-  const selectedMember = csharpTargetMemberFact(selectedSignature.member);
-  if (selectedMember === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a C# selected target member fact for '${selectedSignature.member.id}'.`));
-    return undefined;
-  }
-  const mismatch = selectedFamilyMatches || targetMembersHaveCompatibleSourceSelectedSignature(selectedMember, operation.selectedMember)
-    ? undefined
-    : getSelectedMemberEmissionFactMismatch(selectedMember, operation.selectedMember) ?? "signature-shape";
-  if (mismatch !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member ${mismatch} facts for '${selectedSignature.member.id}'.`));
+  if (
+    !selectedFamilyMatches &&
+    !targetMembersHaveCompatibleSourceSelectedSignature(selectedSignature.member, operation.selectedMember)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received a C# selected member whose canonical source signature does not match '${selectedSignature.member.id}'.`));
     return undefined;
   }
   if (operation.operationKind !== operation.selectedMember.kind) {
@@ -210,14 +192,12 @@ function selectedCallTargetFamilyMatchesOperation(
   }
   const selectedCallTarget = input.facts.getFact(subject, csharpSelectedCallTargetFactKey);
   const family = selectedCallTarget?.selectionFamily;
-  const selectedSourceMember = csharpTargetMemberFact(selectedSignature.member);
   const operationSelection = operation.selectedMember.csharpDeferredTargetSelection;
   if (
     selectedCallTarget === undefined ||
     family === undefined ||
-    selectedSourceMember === undefined ||
     operationSelection?.familyId !== family.familyId ||
-    !targetMembersHaveCompatibleSourceSelectedSignature(selectedSourceMember, selectedCallTarget.member) ||
+    !targetMembersHaveCompatibleSourceSelectedSignature(selectedSignature.member, selectedCallTarget.member) ||
     operation.selectedMember.sourceIdentityKeys?.includes(family.sourceIdentity) !== true
   ) {
     return false;
@@ -225,100 +205,4 @@ function selectedCallTargetFamilyMatchesOperation(
   const knownFamilyMember = family.members.some((candidate) =>
     targetMemberEquals(candidate, operation.selectedMember));
   return knownFamilyMember || selectedCallTarget.finalizationRequirement !== undefined;
-}
-
-function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, actual: CsharpTargetMember): string | undefined {
-  if (actual.kind !== expected.kind) {
-    return "kind";
-  }
-  if (actual.targetName !== expected.targetName) {
-    return "target-name";
-  }
-  if (actual.static !== expected.static) {
-    return "static-dispatch";
-  }
-  if (actual.receiverPassing !== expected.receiverPassing) {
-    return "receiver-passing";
-  }
-  const actualAsSource = targetMemberAsSourceSelectedSignatureForExpected(expected, actual);
-  if (!optionalTargetTypeRefEquals(actualAsSource.returnType, expected.returnType)) {
-    return "return-type";
-  }
-  if (!optionalTargetTypeRefEquals(actualAsSource.declaringType, expected.declaringType)) {
-    return "declaring-type";
-  }
-  if (
-    actual.receiverPassing === "first-argument" &&
-    expected.parameters.length === actual.parameters.length - 1 &&
-    !targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver(expected, actual)
-  ) {
-    return "receiver-type";
-  }
-  if (actualAsSource.parameters.length !== expected.parameters.length) {
-    return "parameter-list";
-  }
-  for (let index = 0; index < expected.parameters.length; index += 1) {
-    const expectedParameter = expected.parameters[index];
-    const actualParameter = actualAsSource.parameters[index];
-    if (expectedParameter === undefined || actualParameter === undefined) {
-      return "parameter-list";
-    }
-    if (!targetTypeRefEquals(actualParameter.type, expectedParameter.type)) {
-      return "parameter-type";
-    }
-    if (
-      actualParameter.passingMode !== expectedParameter.passingMode
-    ) {
-      return "parameter-passing";
-    }
-    if (actualParameter.optional !== expectedParameter.optional) {
-      return "parameter-optional";
-    }
-    if (actualParameter.paramsArray !== expectedParameter.paramsArray) {
-      return "parameter-params";
-    }
-    if (!targetParameterMetadataEquals(actualParameter, expectedParameter)) {
-      return "parameter-default";
-    }
-  }
-  return undefined;
-}
-
-function optionalTargetTypeRefEquals(left: TargetTypeRef | undefined, right: TargetTypeRef | undefined): boolean {
-  if (left === undefined || right === undefined) {
-    return left === right;
-  }
-  return targetTypeRefEquals(left, right);
-}
-
-function targetParameterMetadataEquals(left: CsharpTargetParameter, right: CsharpTargetParameter): boolean {
-  return left.csharpOmittableOptionalArgument === right.csharpOmittableOptionalArgument &&
-    targetMetadataValueEquals(left.defaultValue, right.defaultValue) &&
-    targetMetadataValueEquals(left.unsupportedDefaultValue, right.unsupportedDefaultValue);
-}
-
-function targetMetadataValueEquals(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) {
-    return true;
-  }
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) &&
-      Array.isArray(right) &&
-      left.length === right.length &&
-      left.every((item, index) => targetMetadataValueEquals(item, right[index]));
-  }
-  if (!isPlainRecord(left) || !isPlainRecord(right)) {
-    return false;
-  }
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
-  return leftKeys.length === rightKeys.length &&
-    leftKeys.every((key, index) => {
-      const rightKey = rightKeys[index];
-      return key === rightKey && targetMetadataValueEquals(left[key], right[rightKey]);
-    });
-}
-
-function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

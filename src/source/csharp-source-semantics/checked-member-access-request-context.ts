@@ -4,6 +4,9 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
 } from "@tsonic/tsts";
+import {
+  getSelectedAccessEvidence,
+} from "./selected-source-evidence.js";
 
 export interface CsharpCheckedSelectedMemberContext {
   readonly sourceSelectedSymbol?: ExtensionFactSubject;
@@ -18,14 +21,16 @@ export function getCsharpCheckedPropertyAccessRequestContext(
   request: CheckedPropertyAccessMappingRequest,
   _context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): CsharpCheckedPropertyAccessRequestContext {
-  return selectedMemberContext(request.sourceResult.selectedSymbol, request.sourceResult.selectedDeclaration);
+  const evidence = getSelectedAccessEvidence(request);
+  return selectedMemberContext(evidence.selectedSymbol, evidence.selectedDeclaration);
 }
 
 export function getCsharpCheckedElementAccessRequestContext(
   request: CheckedElementAccessMappingRequest,
   _context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): CsharpCheckedElementAccessRequestContext {
-  return selectedMemberContext(request.sourceResult.selectedSymbol, request.sourceResult.selectedDeclaration);
+  const evidence = getSelectedAccessEvidence(request);
+  return selectedMemberContext(evidence.selectedSymbol, evidence.selectedDeclaration);
 }
 
 function selectedMemberContext(

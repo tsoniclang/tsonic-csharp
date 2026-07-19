@@ -35,6 +35,9 @@ import {
   checkedCallIsConstruction,
   getCsharpCheckedCallRequestContext,
 } from "../checked-call-request-context.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../selected-source-evidence.js";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
@@ -111,14 +114,14 @@ export function targetMemberMissEvidence(
         hasReceiver: requestContext.calleeReceiver !== undefined,
         selectedMemberId: declaration?.memberId,
         selectedSignatureId: declaration?.signatureId,
-        sourceSelectedSignatureAvailable: request.sourceSelectedSignature !== undefined,
+        sourceSelectedSignatureAvailable: getApplicableSourceCallEvidence(request) !== undefined,
         selectedExportName: declaration?.exportName,
         selectedMemberName: declaration?.memberName,
         selectedTargetIdentity: declaration?.targetIdentity,
         declaringTargetType: options.declaringTargetType,
         methodTargetTypeArguments: options.methodTargetTypeArguments,
         firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
-        sourceArgumentBindings: request.sourceArgumentBindings,
+        sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
         candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),
       },
     },

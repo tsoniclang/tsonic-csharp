@@ -23,6 +23,7 @@ import {
   sourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
+  csharpTargetMemberAsSourceSelectedSignature,
   targetMemberAsSourceSelectedSignature,
 } from "../../../selected-target-source-signature.js";
 import {
@@ -34,6 +35,9 @@ import {
 import {
   getTargetArgumentConversionSlots,
 } from "../../../target-member-arguments/argument-conversions.js";
+import {
+  getApplicableSourceCallEvidence,
+} from "../../../selected-source-evidence.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -41,10 +45,12 @@ export function acceptSourceLibraryCheckedCall(
   member: TargetMember,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(member);
-  const argumentConversions = getTargetArgumentConversionSlots(sourceSelectedMember.parameters, {
+  const csharpMember = csharpTargetMemberFact(member) as CsharpTargetMember;
+  const csharpSourceSelectedMember = csharpTargetMemberAsSourceSelectedSignature(csharpMember);
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(csharpMember);
+  const argumentConversions = getTargetArgumentConversionSlots(csharpSourceSelectedMember.parameters, {
     argumentCount: request.arguments.length,
-    sourceArgumentBindings: request.sourceArgumentBindings,
+    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
   if (argumentConversions === undefined) {
     return rejectSourceLibraryArgumentBindings(request, sourceMember, context);
@@ -72,10 +78,11 @@ export function acceptDeferredSourceLibraryCheckedCall(
       .map(csharpTargetMemberFact)
       .filter((candidate): candidate is CsharpTargetMember =>
         candidate?.csharpDeferredTargetSelection?.familyId === deferredSelection.familyId);
-  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(member);
-  const argumentConversions = getTargetArgumentConversionSlots(sourceSelectedMember.parameters, {
+  const csharpSourceSelectedMember = csharpTargetMemberAsSourceSelectedSignature(csharpMember);
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(csharpMember);
+  const argumentConversions = getTargetArgumentConversionSlots(csharpSourceSelectedMember.parameters, {
     argumentCount: request.arguments.length,
-    sourceArgumentBindings: request.sourceArgumentBindings,
+    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
   if (argumentConversions === undefined) {
     return rejectSourceLibraryArgumentBindings(request, sourceMember, context);

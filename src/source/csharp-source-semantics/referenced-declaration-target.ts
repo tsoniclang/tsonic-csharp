@@ -5,9 +5,11 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpPropagatedRuntimeCarrierFact,
+} from "../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -67,10 +69,9 @@ function getDeclarationInitializerTargetTypeRef(
     return undefined;
   }
   const localSelected = context.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType;
-  const localCarrier = context.facts.get(initializer, runtimeCarrierFactKey)?.carrier;
+  const localCarrier = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, initializer)?.carrier;
   const resolvedSelected = context.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
-  const resolvedCarrier = context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
-  return localSelected ?? localCarrier ?? resolvedSelected ?? resolvedCarrier;
+  return localSelected ?? localCarrier ?? resolvedSelected;
 }
 
 function getDeclarationAnnotationTargetTypeRef(
