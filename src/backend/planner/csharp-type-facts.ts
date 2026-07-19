@@ -134,7 +134,7 @@ export function getCsharpTypeForUnionTypeNode(
   if (nullableSyntax !== undefined) {
     return nullableSyntax;
   }
-  const runtimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+  const runtimeCarrier = getTargetTypeRefFromDirectFacts(input, node);
   if (runtimeCarrier !== undefined) {
     const carrier = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, runtimeCarrier, diagnostics, node);
     if (carrier !== undefined) {

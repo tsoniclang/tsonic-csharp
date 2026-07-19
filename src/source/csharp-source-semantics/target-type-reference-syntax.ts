@@ -1,9 +1,11 @@
 import {
   providerVirtualDeclarationFactKey,
-  runtimeCarrierFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
+import {
+  csharpRuntimeCarrierFactKey,
+} from "../csharp-facts.js";
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
@@ -265,7 +267,7 @@ function getTargetTypeRefFromSourceDeclarationReference(
       if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
         continue;
       }
-      const recordedTarget = context.factResolver.resolve(declaration, runtimeCarrierFactKey)?.carrier;
+      const recordedTarget = context.factResolver.resolve(declaration, csharpRuntimeCarrierFactKey)?.carrier;
       const targetType = recordedTarget ?? sourceDeclarationTargetType(getNodeNameText(ast, declaration), kind);
       if (targetType === undefined) {
         continue;

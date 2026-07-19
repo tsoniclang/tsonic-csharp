@@ -11,6 +11,9 @@ import {
 import {
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
+import {
+  getConsumedCsharpRuntimeCarrierFact,
+} from "../../source/csharp-facts.js";
 
 export function getTargetTypeRefFromDirectFacts(
   input: TargetCompileInput,
@@ -25,7 +28,7 @@ export function getTargetTypeRefFromDirectFacts(
     return targetTypeRef;
   }
   if (options.includeRuntimeCarrier !== false) {
-    const runtimeCarrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
+    const runtimeCarrier = getConsumedCsharpRuntimeCarrierFact(input.facts, subject)?.carrier;
     if (runtimeCarrier !== undefined) {
       return runtimeCarrier;
     }

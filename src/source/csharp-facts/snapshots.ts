@@ -1,4 +1,8 @@
 import type {
+  CsharpTargetNamedTypeRef,
+  CsharpTargetTypeRenderShape,
+} from "../csharp-source-semantics/target-types.js";
+import type {
   ExtensionEvidence,
   ExtensionFactSubject,
   TargetTypeRef,
@@ -13,7 +17,7 @@ import type {
   CsharpObservedTargetAssignabilityFact,
   CsharpProjectSourceFact,
   CsharpRegularExpressionLiteralFact,
-  CsharpPropagatedRuntimeCarrierFact,
+  CsharpRuntimeCarrierFact,
   CsharpSelectedCallTargetFact,
   CsharpSourceProfileDeclarationFact,
   CsharpSourceReturnCarrierFact,
@@ -167,11 +171,12 @@ export function snapshotCsharpSourceReturnCarrierFact(value: CsharpSourceReturnC
   return Object.freeze({ carrier: snapshotTargetTypeRef(value.carrier) });
 }
 
-export function snapshotCsharpPropagatedRuntimeCarrierFact(
-  value: CsharpPropagatedRuntimeCarrierFact,
-): CsharpPropagatedRuntimeCarrierFact {
+export function snapshotCsharpRuntimeCarrierFact(
+  value: CsharpRuntimeCarrierFact,
+): CsharpRuntimeCarrierFact {
+  assertExactFields(value, "runtimeCarrier", ["carrier"]);
   return Object.freeze({
-    carrier: snapshotTargetTypeRef(value.carrier),
+    carrier: snapshotCsharpTargetTypeRef(value.carrier),
   });
 }
 
@@ -194,8 +199,373 @@ export function snapshotCsharpByrefStorageFact(value: CsharpByrefStorageFact): C
   return Object.freeze({ targetType: snapshotTargetTypeRef(value.targetType) });
 }
 
-function snapshotTargetTypeRef(value: TargetTypeRef): TargetTypeRef {
+export function snapshotCsharpTargetTypeRef<T extends TargetTypeRef>(value: T): T {
+  validateCsharpTargetTypeRef(value, "targetTypeRef", {
+    active: new WeakSet(),
+    completed: new WeakSet(),
+  });
   return snapshotOwnedData(value, "targetTypeRef");
+}
+
+interface TargetTypeValidationState {
+  readonly active: WeakSet<object>;
+  readonly completed: WeakSet<object>;
+}
+
+const sourcePrimitiveKinds = new Set([
+  "bool",
+  "char",
+  "int8",
+  "uint8",
+  "int16",
+  "uint16",
+  "int32",
+  "uint32",
+  "int64",
+  "uint64",
+  "native-int",
+  "native-uint",
+  "float16",
+  "float32",
+  "float64",
+  "decimal",
+  "int128",
+  "uint128",
+]);
+
+const targetNamedCsharpFields = [
+  "csharpNullableReference",
+  "csharpRender",
+  "csharpThrowable",
+  "csharpTypeofRuntimeKind",
+  "csharpSpecialType",
+  "csharpSourceDeclarationKind",
+  "csharpBaseType",
+  "csharpValueType",
+  "csharpArrayLiteralElementType",
+  "csharpArrayLiteralConstructionType",
+  "csharpEnumerableElementType",
+  "csharpReadOnlyIndexableElementType",
+  "csharpDenseMutableElementType",
+  "csharpDelegateSignature",
+  "csharpTaskResultType",
+  "csharpRuntimeUnionArms",
+  "csharpRuntimeUnionObjectShapes",
+  "csharpJsSurfaceKind",
+  "csharpCollectionSurface",
+] as const;
+
+function validateCsharpTargetTypeRef(
+  value: TargetTypeRef,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (!enterValidationObject(value, path, state)) {
+    return;
+  }
+  try {
+    switch (value.kind) {
+      case "source-primitive":
+        assertExactFields(value, path, ["kind", "name", "csharpNullableReference"]);
+        assertAllowedString(value.name, `${path}.name`, sourcePrimitiveKinds);
+        break;
+      case "source-global":
+        assertExactFields(value, path, ["kind", "name", "typeArguments", "csharpNullableReference"]);
+        assertString(value.name, `${path}.name`);
+        validateOptionalTargetTypeArray(value.typeArguments, `${path}.typeArguments`, state);
+        break;
+      case "target-named":
+        assertExactFields(value, path, ["kind", "id", "typeArguments", ...targetNamedCsharpFields]);
+        assertString(value.id, `${path}.id`);
+        validateOptionalTargetTypeArray(value.typeArguments, `${path}.typeArguments`, state);
+        validateCsharpTargetNamedMetadata(value as CsharpTargetNamedTypeRef, path, state);
+        break;
+      case "type-parameter":
+        assertExactFields(value, path, ["kind", "name", "csharpNullableReference"]);
+        assertString(value.name, `${path}.name`);
+        break;
+      case "array":
+        assertExactFields(value, path, ["kind", "element", "rank", "csharpNullableReference"]);
+        validateCsharpTargetTypeRef(value.element, `${path}.element`, state);
+        assertOptionalPositiveInteger(value.rank, `${path}.rank`);
+        break;
+      case "tuple":
+        assertExactFields(value, path, ["kind", "elements", "csharpNullableReference"]);
+        validateTargetTypeArray(value.elements, `${path}.elements`, state);
+        break;
+      case "pointer":
+        assertExactFields(value, path, ["kind", "pointee", "mutability", "csharpNullableReference"]);
+        validateCsharpTargetTypeRef(value.pointee, `${path}.pointee`, state);
+        assertOptionalAllowedString(value.mutability, `${path}.mutability`, new Set(["const", "mut", "target-defined"]));
+        break;
+      case "function-pointer":
+        assertExactFields(value, path, ["kind", "args", "result", "abi", "csharpNullableReference"]);
+        validateTargetTypeArray(value.args, `${path}.args`, state);
+        validateCsharpTargetTypeRef(value.result, `${path}.result`, state);
+        assertOptionalStringArray(value.abi, `${path}.abi`, state);
+        break;
+      case "opaque":
+        assertExactFields(value, path, ["kind", "id", "csharpNullableReference"]);
+        assertString(value.id, `${path}.id`);
+        break;
+      case "associated-type":
+        assertExactFields(value, path, ["kind", "owner", "name", "csharpNullableReference"]);
+        validateCsharpTargetTypeRef(value.owner, `${path}.owner`, state);
+        assertString(value.name, `${path}.name`);
+        break;
+      case "lifetime":
+        assertExactFields(value, path, ["kind", "name", "csharpNullableReference"]);
+        assertString(value.name, `${path}.name`);
+        break;
+      case "target-specific":
+        assertExactFields(value, path, ["kind", "target", "name", "payloadId", "csharpNullableReference"]);
+        assertString(value.target, `${path}.target`);
+        assertString(value.name, `${path}.name`);
+        assertOptionalString(value.payloadId, `${path}.payloadId`);
+        break;
+    }
+    assertOptionalTrue((value as { readonly csharpNullableReference?: unknown }).csharpNullableReference, `${path}.csharpNullableReference`);
+  } finally {
+    leaveValidationObject(value, state);
+  }
+}
+
+function validateCsharpTargetNamedMetadata(
+  value: CsharpTargetNamedTypeRef,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (value.csharpRender !== undefined) {
+    validateCsharpRenderShape(value.csharpRender, `${path}.csharpRender`, state);
+  }
+  assertOptionalTrue(value.csharpThrowable, `${path}.csharpThrowable`);
+  assertOptionalAllowedString(value.csharpTypeofRuntimeKind, `${path}.csharpTypeofRuntimeKind`, new Set(["string", "number", "boolean", "bigint"]));
+  assertOptionalAllowedString(value.csharpSpecialType, `${path}.csharpSpecialType`, new Set(["string", "void", "nullable"]));
+  assertOptionalAllowedString(value.csharpSourceDeclarationKind, `${path}.csharpSourceDeclarationKind`, new Set(["class", "interface", "enum", "struct"]));
+  validateOptionalTargetType(value.csharpBaseType, `${path}.csharpBaseType`, state);
+  assertOptionalTrue(value.csharpValueType, `${path}.csharpValueType`);
+  validateOptionalTargetType(value.csharpArrayLiteralElementType, `${path}.csharpArrayLiteralElementType`, state);
+  validateOptionalTargetType(value.csharpArrayLiteralConstructionType, `${path}.csharpArrayLiteralConstructionType`, state);
+  validateOptionalTargetType(value.csharpEnumerableElementType, `${path}.csharpEnumerableElementType`, state);
+  validateOptionalTargetType(value.csharpReadOnlyIndexableElementType, `${path}.csharpReadOnlyIndexableElementType`, state);
+  validateOptionalTargetType(value.csharpDenseMutableElementType, `${path}.csharpDenseMutableElementType`, state);
+  if (value.csharpDelegateSignature !== undefined) {
+    const signature = value.csharpDelegateSignature;
+    assertExactFields(signature, `${path}.csharpDelegateSignature`, ["parameters", "returnType"]);
+    validateTargetTypeArray(signature.parameters, `${path}.csharpDelegateSignature.parameters`, state);
+    validateCsharpTargetTypeRef(signature.returnType, `${path}.csharpDelegateSignature.returnType`, state);
+  }
+  validateOptionalTargetType(value.csharpTaskResultType, `${path}.csharpTaskResultType`, state);
+  validateOptionalTargetTypeArray(value.csharpRuntimeUnionArms, `${path}.csharpRuntimeUnionArms`, state);
+  if (value.csharpRuntimeUnionObjectShapes !== undefined) {
+    validateArray(value.csharpRuntimeUnionObjectShapes, `${path}.csharpRuntimeUnionObjectShapes`, state, (shape, index) => {
+      if (shape !== undefined) {
+        validateCsharpObjectShape(shape, `${path}.csharpRuntimeUnionObjectShapes[${index}]`, state);
+      }
+    });
+  }
+  assertOptionalAllowedString(value.csharpJsSurfaceKind, `${path}.csharpJsSurfaceKind`, new Set(["map", "set", "date", "regexp"]));
+  assertOptionalAllowedString(value.csharpCollectionSurface, `${path}.csharpCollectionSurface`, new Set(["record"]));
+}
+
+function validateCsharpRenderShape(
+  value: CsharpTargetTypeRenderShape,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (!enterValidationObject(value, path, state)) {
+    return;
+  }
+  try {
+    switch (value.kind) {
+      case "predefined":
+        assertExactFields(value, path, ["kind", "name"]);
+        assertString(value.name, `${path}.name`);
+        break;
+      case "nullable":
+        assertExactFields(value, path, ["kind"]);
+        break;
+      case "named":
+        assertExactFields(value, path, ["kind", "externAlias", "namespace", "name", "genericArity", "nested"]);
+        assertOptionalString(value.externAlias, `${path}.externAlias`);
+        assertOptionalStringArray(value.namespace, `${path}.namespace`, state);
+        assertString(value.name, `${path}.name`);
+        assertOptionalNonNegativeInteger(value.genericArity, `${path}.genericArity`);
+        if (value.nested !== undefined) {
+          validateArray(value.nested, `${path}.nested`, state, (nested, index) => {
+            const nestedPath = `${path}.nested[${index}]`;
+            assertExactFields(nested, nestedPath, ["name", "genericArity"]);
+            assertString(nested.name, `${nestedPath}.name`);
+            assertOptionalNonNegativeInteger(nested.genericArity, `${nestedPath}.genericArity`);
+          });
+        }
+        break;
+    }
+  } finally {
+    leaveValidationObject(value, state);
+  }
+}
+
+function validateCsharpObjectShape(
+  value: CsharpObjectShapeFact,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (!enterValidationObject(value, path, state)) {
+    return;
+  }
+  try {
+    assertExactFields(value, path, ["targetType", "members", "implements", "constructible"]);
+    validateCsharpTargetTypeRef(value.targetType, `${path}.targetType`, state);
+    validateArray(value.members, `${path}.members`, state, (member, index) => {
+      const memberPath = `${path}.members[${index}]`;
+      assertExactFields(member, memberPath, ["sourceName", "sourceSubjects", "targetName", "memberKind", "type", "optional", "readonly"]);
+      assertString(member.sourceName, `${memberPath}.sourceName`);
+      if (member.sourceSubjects !== undefined && !Array.isArray(member.sourceSubjects)) {
+        throw new Error(`C# target type '${memberPath}.sourceSubjects' must be an array.`);
+      }
+      assertString(member.targetName, `${memberPath}.targetName`);
+      assertAllowedString(member.memberKind, `${memberPath}.memberKind`, new Set(["property", "method"]));
+      validateCsharpTargetTypeRef(member.type, `${memberPath}.type`, state);
+      assertOptionalBoolean(member.optional, `${memberPath}.optional`);
+      assertOptionalBoolean(member.readonly, `${memberPath}.readonly`);
+    });
+    validateOptionalTargetTypeArray(value.implements, `${path}.implements`, state);
+    assertOptionalBoolean(value.constructible, `${path}.constructible`);
+  } finally {
+    leaveValidationObject(value, state);
+  }
+}
+
+function validateOptionalTargetType(value: TargetTypeRef | undefined, path: string, state: TargetTypeValidationState): void {
+  if (value !== undefined) {
+    validateCsharpTargetTypeRef(value, path, state);
+  }
+}
+
+function validateOptionalTargetTypeArray(
+  value: readonly TargetTypeRef[] | undefined,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (value !== undefined) {
+    validateTargetTypeArray(value, path, state);
+  }
+}
+
+function validateTargetTypeArray(value: readonly TargetTypeRef[], path: string, state: TargetTypeValidationState): void {
+  validateArray(value, path, state, (entry, index) => validateCsharpTargetTypeRef(entry, `${path}[${index}]`, state));
+}
+
+function validateArray<T>(
+  value: readonly T[],
+  path: string,
+  state: TargetTypeValidationState,
+  validateEntry: (entry: T, index: number) => void,
+): void {
+  if (!Array.isArray(value)) {
+    throw new Error(`C# target type '${path}' must be an array.`);
+  }
+  if (!enterValidationObject(value, path, state)) {
+    return;
+  }
+  try {
+    value.forEach(validateEntry);
+  } finally {
+    leaveValidationObject(value, state);
+  }
+}
+
+function assertExactFields(value: object, path: string, fields: readonly string[]): void {
+  const allowed = new Set(fields);
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new Error(`C# target type '${path}' contains unsupported field '${String(key)}'.`);
+    }
+  }
+}
+
+function assertString(value: unknown, path: string): asserts value is string {
+  if (typeof value !== "string") {
+    throw new Error(`C# target type '${path}' must be a string.`);
+  }
+}
+
+function assertOptionalString(value: unknown, path: string): void {
+  if (value !== undefined) {
+    assertString(value, path);
+  }
+}
+
+function assertAllowedString(value: unknown, path: string, allowed: ReadonlySet<string>): void {
+  assertString(value, path);
+  if (!allowed.has(value)) {
+    throw new Error(`C# target type '${path}' has unsupported value '${value}'.`);
+  }
+}
+
+function assertOptionalAllowedString(value: unknown, path: string, allowed: ReadonlySet<string>): void {
+  if (value !== undefined) {
+    assertAllowedString(value, path, allowed);
+  }
+}
+
+function assertOptionalStringArray(
+  value: readonly string[] | undefined,
+  path: string,
+  state: TargetTypeValidationState,
+): void {
+  if (value !== undefined) {
+    validateArray(value, path, state, (entry, index) => assertString(entry, `${path}[${index}]`));
+  }
+}
+
+function assertOptionalTrue(value: unknown, path: string): void {
+  if (value !== undefined && value !== true) {
+    throw new Error(`C# target type '${path}' must be true when present.`);
+  }
+}
+
+function assertOptionalBoolean(value: unknown, path: string): void {
+  if (value !== undefined && typeof value !== "boolean") {
+    throw new Error(`C# target type '${path}' must be a boolean when present.`);
+  }
+}
+
+function assertOptionalPositiveInteger(value: unknown, path: string): void {
+  if (value !== undefined && (!Number.isSafeInteger(value) || (value as number) <= 0)) {
+    throw new Error(`C# target type '${path}' must be a positive safe integer when present.`);
+  }
+}
+
+function assertOptionalNonNegativeInteger(value: unknown, path: string): void {
+  if (value !== undefined && (!Number.isSafeInteger(value) || (value as number) < 0)) {
+    throw new Error(`C# target type '${path}' must be a non-negative safe integer when present.`);
+  }
+}
+
+function enterValidationObject(value: object, path: string, state: TargetTypeValidationState): boolean {
+  if (state.completed.has(value)) {
+    return false;
+  }
+  if (state.active.has(value)) {
+    throw new Error(`C# target type '${path}' contains a cycle.`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+    throw new Error(`C# target type '${path}' contains a non-plain object.`);
+  }
+  state.active.add(value);
+  return true;
+}
+
+function leaveValidationObject(value: object, state: TargetTypeValidationState): void {
+  state.active.delete(value);
+  state.completed.add(value);
+}
+
+function snapshotTargetTypeRef(value: TargetTypeRef): TargetTypeRef {
+  return snapshotCsharpTargetTypeRef(value);
 }
 
 function snapshotTargetTypeRefSubject(value: ExtensionFactSubject): ExtensionFactSubject {

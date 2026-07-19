@@ -12,7 +12,7 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
-  recordCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpTargetIterationFactKey,
 } from "../../csharp-facts.js";
 import type {
@@ -101,7 +101,7 @@ function recordIterationBindingCarrier(
     request.sourceElement.type,
   ]) {
     if (subject !== undefined) {
-      recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, { carrier }, row.evidence);
+      recordCsharpRuntimeCarrierFact(context.facts, subject, { carrier }, row.evidence);
     }
   }
 }

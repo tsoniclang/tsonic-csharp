@@ -25,7 +25,7 @@ import type {
   CsharpProjectSourceFact,
   CsharpSourceProfileDeclarationFact,
   CsharpRegularExpressionLiteralFact,
-  CsharpPropagatedRuntimeCarrierFact,
+  CsharpRuntimeCarrierFact,
   CsharpSelectedCallTargetFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
@@ -43,7 +43,7 @@ import {
   snapshotCsharpObservedTargetAssignabilityFact,
   snapshotCsharpProjectSourceFact,
   snapshotCsharpRegularExpressionLiteralFact,
-  snapshotCsharpPropagatedRuntimeCarrierFact,
+  snapshotCsharpRuntimeCarrierFact,
   snapshotCsharpSelectedCallTargetFact,
   snapshotCsharpSourceProfileDeclarationFact,
   snapshotCsharpSourceReturnCarrierFact,
@@ -210,10 +210,10 @@ export const csharpSourceReturnCarrierFactKey = defineExtensionFactKey<CsharpSou
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
 });
 
-export const csharpPropagatedRuntimeCarrierFactKey = defineExtensionFactKey<CsharpPropagatedRuntimeCarrierFact>({
+export const csharpRuntimeCarrierFactKey = defineExtensionFactKey<CsharpRuntimeCarrierFact>({
   extensionId: csharpTargetSemanticsExtensionId,
-  name: "propagatedRuntimeCarrier",
-  snapshot: snapshotCsharpPropagatedRuntimeCarrierFact,
+  name: "runtimeCarrier",
+  snapshot: snapshotCsharpRuntimeCarrierFact,
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
 });
 

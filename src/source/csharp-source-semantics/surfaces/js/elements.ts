@@ -7,8 +7,10 @@ import type {
 } from "@tsonic/tsts";
 import {
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../../../csharp-facts.js";
 import {
   mapCsharpJsArrayElementAccess,
 } from "./arrays.js";
@@ -74,7 +76,7 @@ function getFinalizedReceiverCarrier(
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
     getCsharpArrayBoundaryCoreCarrierForReference(request.receiver, context) ??
-      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+      getRecordedCsharpRuntimeCarrierFact(context.facts, request.receiver)?.carrier ??
       host.getTargetTypeRefForSubject(request.receiver, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,

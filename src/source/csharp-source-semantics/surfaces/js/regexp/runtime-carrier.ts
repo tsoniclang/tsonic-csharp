@@ -12,8 +12,10 @@ import type {
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import {
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../../../../csharp-facts.js";
 import {
   getNodeField,
   isCsharpUserSourceFile,
@@ -24,7 +26,7 @@ import {
 } from "../../../runtime-carriers.js";
 import {
   setRuntimeCarrierFactIfUnresolved,
-} from "../../../runtime-carrier-lifecycle/fact-writes.js";
+} from "../../../runtime-carrier-fact-writes.js";
 import {
   getSymbolForDeclarationLookup,
 } from "../../../symbol-utils.js";
@@ -47,9 +49,12 @@ export function mapCsharpJsRegExpRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  recordCsharpJsRegExpLiteralFact(request.type, context);
-  const carrier = getCsharpJsRegExpRuntimeCarrierForSubject(request.type, context) ??
-    getCsharpJsRegExpRuntimeCarrierForType(asType(request.type), context);
+  for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
+    recordCsharpJsRegExpLiteralFact(subject, context);
+  }
+  const carrier = [request.type, request.sourceTypeReference, request.sourceSymbol]
+    .map((subject) => getCsharpJsRegExpRuntimeCarrierForSubject(subject, context))
+    .find((candidate) => candidate !== undefined);
   return carrier === undefined
     ? deferObservation
     : acceptObservation<RuntimeCarrierFactResult>({
@@ -119,7 +124,7 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
   if (node !== undefined && ast?.is.IsRegularExpressionLiteral(node) === true) {
     return csharpJsRegExpTargetType();
   }
-  const direct = context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+  const direct = getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier;
   if (isCsharpJsRegExpRuntimeCarrier(direct)) {
     return direct;
   }
@@ -127,22 +132,7 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
   if (directType !== undefined) {
     return getCsharpJsRegExpRuntimeCarrierForType(directType, context);
   }
-  const checker = context.compiler?.checker;
-  if (node === undefined || ast === undefined || checker === undefined) {
-    return undefined;
-  }
-  const sourceFile = ast.getSourceFile(node);
-  const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
-  const symbolCarrier = context.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
-  if (isCsharpJsRegExpRuntimeCarrier(symbolCarrier)) {
-    return symbolCarrier;
-  }
-  const resolvedSymbol = checker.getResolvedSymbol(node, { sourceFile });
-  const resolvedCarrier = context.facts.get(resolvedSymbol, runtimeCarrierFactKey)?.carrier;
-  if (isCsharpJsRegExpRuntimeCarrier(resolvedCarrier)) {
-    return resolvedCarrier;
-  }
-  return getCsharpJsRegExpRuntimeCarrierForType(checker.getTypeAtLocation(node, { sourceFile }), context);
+  return undefined;
 }
 
 export function getCsharpJsRegExpRuntimeCarrierForType(

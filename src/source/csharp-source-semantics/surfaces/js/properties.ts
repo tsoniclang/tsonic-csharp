@@ -47,7 +47,7 @@ import {
   getCsharpArrayBoundaryCoreCarrierForReference,
 } from "./array-boundary-facts.js";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../../csharp-facts.js";
 import {
   getSelectedAccessEvidence,
@@ -162,7 +162,7 @@ function getSourceLibraryPropertyReceiverType(
     const targetType = (requiresFinalCarrier
       ? getCsharpArrayBoundaryCoreCarrierForReference(subject, context)
       : undefined) ??
-      getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier ??
+      getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier ??
       host.getTargetTypeRefForSubject(subject, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,

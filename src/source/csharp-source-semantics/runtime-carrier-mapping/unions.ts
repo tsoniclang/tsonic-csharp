@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
@@ -12,6 +9,7 @@ import type {
 } from "../../csharp-facts.js";
 import {
   csharpObjectShapeFactKey,
+  csharpRuntimeCarrierFactKey,
 } from "../../csharp-facts.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
@@ -104,11 +102,10 @@ function getUnionConstituentRuntimeCarrier(
   if (isTstsNullType(type, context.compiler.typeShape)) {
     return { carrier: csharpRuntimeNullTargetType() };
   }
-  const runtimeCarrier = context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier;
+  const runtimeCarrier = context.factResolver.resolve(type, csharpRuntimeCarrierFactKey)?.carrier ??
+    context.facts.get(type, csharpRuntimeCarrierFactKey)?.carrier;
   const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(type, context);
-  const carrier = runtimeCarrier ??
-    objectShape?.targetType ??
-    host.getTargetTypeRefForType(type, context, { allowRuntimeCarrier: true });
+  const carrier = runtimeCarrier ?? objectShape?.targetType;
   if (objectShape !== undefined && carrier !== undefined && targetTypeRefEquals(objectShape.targetType, carrier)) {
     context.facts.set(objectShape.targetType, csharpObjectShapeFactKey, objectShape, [{ message: "C# union constituent object-shape fact attached to finalized target carrier type." }]);
   }

@@ -33,9 +33,21 @@ export function resolveRuntimeCarrierForExpression(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): TargetCarrierResolution | undefined {
-  return sourceNode === undefined
-    ? undefined
-    : input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile });
+  if (sourceNode === undefined) {
+    return undefined;
+  }
+  const carrier = getTargetTypeRefForNode(input, sourceNode, sourceFile);
+  return carrier === undefined
+    ? {
+        kind: "missing",
+        reason: "C# runtime carrier is missing; no finalized C# carrier, operation, source-profile, or provider fact owns this expression.",
+        evidence: [{ message: "C# emission does not consume the canonical TSTS runtime-carrier fact as an enriched C# output fallback.", subject: sourceNode }],
+      }
+    : {
+        kind: "resolved",
+        carrier,
+        evidence: [{ message: "C# runtime carrier resolved from finalized C# target-owned facts.", subject: sourceNode }],
+      };
 }
 
 export function getTargetTypeRefForNode(
@@ -50,14 +62,11 @@ export function getTargetTypeRefForNode(
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
     return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
       getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      typeReferenceFact ??
-      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
+      typeReferenceFact;
   }
   const finalizedOperationResult = input.facts.getFact(sourceNode, csharpTargetOperationFactKey)?.resultType;
-  const resolvedCarrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   return typeReferenceFact ??
     finalizedOperationResult ??
-    resolvedCarrier ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??

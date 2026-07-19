@@ -6,31 +6,31 @@ import type {
   ExtensionFactWriteResult,
 } from "@tsonic/tsts";
 import {
-  csharpPropagatedRuntimeCarrierFactKey,
+  csharpRuntimeCarrierFactKey,
 } from "./keys.js";
 import type {
-  CsharpPropagatedRuntimeCarrierFact,
+  CsharpRuntimeCarrierFact,
 } from "./types.js";
 
-export function getRecordedCsharpPropagatedRuntimeCarrierFact(
+export function getRecordedCsharpRuntimeCarrierFact(
   facts: ExtensionFactStore,
   subject: ExtensionFactSubject | undefined,
-): CsharpPropagatedRuntimeCarrierFact | undefined {
-  return facts.get(subject, csharpPropagatedRuntimeCarrierFactKey);
+): CsharpRuntimeCarrierFact | undefined {
+  return facts.get(subject, csharpRuntimeCarrierFactKey);
 }
 
-export function getConsumedCsharpPropagatedRuntimeCarrierFact(
+export function getConsumedCsharpRuntimeCarrierFact(
   facts: ExtensionConsumerQueries,
   subject: ExtensionFactSubject | undefined,
-): CsharpPropagatedRuntimeCarrierFact | undefined {
-  return facts.getFact(subject, csharpPropagatedRuntimeCarrierFactKey);
+): CsharpRuntimeCarrierFact | undefined {
+  return facts.getFact(subject, csharpRuntimeCarrierFactKey);
 }
 
-export function recordCsharpPropagatedRuntimeCarrierFact(
+export function recordCsharpRuntimeCarrierFact(
   facts: ExtensionFactStore,
   subject: ExtensionFactSubject,
-  fact: CsharpPropagatedRuntimeCarrierFact,
+  fact: CsharpRuntimeCarrierFact,
   evidence: readonly ExtensionEvidence[] = [],
 ): ExtensionFactWriteResult {
-  return facts.set(subject, csharpPropagatedRuntimeCarrierFactKey, fact, evidence);
+  return facts.set(subject, csharpRuntimeCarrierFactKey, fact, evidence);
 }

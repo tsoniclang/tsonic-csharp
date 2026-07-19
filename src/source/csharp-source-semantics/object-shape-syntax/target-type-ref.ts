@@ -10,7 +10,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   asNodeSubject,
@@ -41,7 +41,7 @@ export function getTargetTypeRefForSyntaxNode(
   if (keyword !== undefined) {
     return keyword;
   }
-  const direct = getRecordedCsharpPropagatedRuntimeCarrierFact(facts, node)?.carrier;
+  const direct = getRecordedCsharpRuntimeCarrierFact(facts, node)?.carrier;
   if (direct !== undefined) {
     return direct;
   }

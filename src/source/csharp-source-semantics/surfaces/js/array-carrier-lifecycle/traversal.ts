@@ -7,9 +7,11 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
+import {
+  csharpRuntimeCarrierFactKey,
+} from "../../../../csharp-facts.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -226,8 +228,8 @@ function initializerHasFullJsArrayCarrier(
   initializer: Node,
   context: ExtensionObservationContext,
 ): boolean {
-  const carrier = context.facts.get(initializer, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier ??
+  const carrier = context.facts.get(initializer, csharpRuntimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(initializer, csharpRuntimeCarrierFactKey)?.carrier ??
     context.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType ??
     context.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
   return isCsharpJsArrayCarrierTargetType(carrier);
@@ -522,8 +524,8 @@ function initializerHasExplicitNativeArrayTarget(
   if (compiler?.ast.is.IsArrayLiteralExpression(initializer) === true) {
     return false;
   }
-  const recordedCarrier = context.host.facts.get(initializer, runtimeCarrierFactKey)?.carrier ??
-    context.host.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
+  const recordedCarrier = context.host.facts.get(initializer, csharpRuntimeCarrierFactKey)?.carrier ??
+    context.host.factResolver.resolve(initializer, csharpRuntimeCarrierFactKey)?.carrier;
   if (recordedCarrier?.kind === "array") {
     return true;
   }

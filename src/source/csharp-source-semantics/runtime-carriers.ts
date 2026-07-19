@@ -15,6 +15,3 @@ export type {
 export {
   mapRuntimeCarrier,
 } from "./runtime-carrier-mapping.js";
-export {
-  recordCsharpRuntimeCarrierFactsBeforeFinalization,
-} from "./runtime-carrier-lifecycle.js";

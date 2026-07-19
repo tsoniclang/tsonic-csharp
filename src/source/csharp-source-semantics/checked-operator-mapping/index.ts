@@ -18,8 +18,8 @@ import {
   csharpTargetId,
 } from "../identity.js";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpTargetOperationFactKey,
   CsharpTargetOperatorOperation,
 } from "../../csharp-facts.js";
@@ -129,7 +129,7 @@ export function mapCsharpCheckedOperator(
   if (request.operator === "instanceof") {
     const boolType = csharpSourcePrimitiveTargetType("bool");
     const evidence = [{ message: "C# type-test operation recorded from checked TSTS instanceof expression." }];
-    recordCsharpPropagatedRuntimeCarrierFact(context.facts, request.expression, { carrier: boolType }, [{ message: "C# instanceof expression runtime carrier finalized as bool after TSTS accepted the source type-test operation." }]);
+    recordCsharpRuntimeCarrierFact(context.facts, request.expression, { carrier: boolType }, [{ message: "C# instanceof expression runtime carrier finalized as bool after TSTS accepted the source type-test operation." }]);
     recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.instanceof", CsharpTargetOperatorOperation.typeTest), evidence);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest),
@@ -197,7 +197,7 @@ function getCsharpOperatorResultTypeRef(
   context: ExtensionObservationContext,
 ): TargetTypeRef {
   const expectedResult = request.operator === "??"
-    ? getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.expression)?.carrier
+    ? getRecordedCsharpRuntimeCarrierFact(context.facts, request.expression)?.carrier
     : undefined;
   return getCsharpOperatorResultTypeRefForOperator(request.operator, left, right, expectedResult);
 }

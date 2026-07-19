@@ -37,7 +37,7 @@ import type {
 import {
   getProviderVirtualDeclarationTargetTypeRef,
   getProviderVirtualDeclarationTargetTypeRefFromDeclarations,
-  resolveRuntimeCarrier,
+  resolveCsharpRuntimeCarrier,
 } from "./target-type-resolution-facts.js";
 import {
   targetTypeRefContainsSourcePrimitive,
@@ -185,12 +185,12 @@ function resolveNonPrimitiveRuntimeCarrier(
   if (options.allowRuntimeCarrier === false) {
     return undefined;
   }
-  const direct = resolveRuntimeCarrier(type, context);
+  const direct = resolveCsharpRuntimeCarrier(type, context);
   if (direct !== undefined && !targetTypeRefContainsSourcePrimitive(direct)) {
     return direct;
   }
   const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
-  const symbolCarrier = resolveRuntimeCarrier(typeSymbol, context);
+  const symbolCarrier = resolveCsharpRuntimeCarrier(typeSymbol, context);
   if (symbolCarrier === undefined || targetTypeRefContainsSourcePrimitive(symbolCarrier)) {
     return undefined;
   }

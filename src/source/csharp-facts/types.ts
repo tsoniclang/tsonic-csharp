@@ -7,6 +7,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
+  CsharpTargetTypeRef,
 } from "../csharp-source-semantics/target-types.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
@@ -170,8 +171,8 @@ export interface CsharpSourceReturnCarrierFact {
   readonly carrier: TargetTypeRef;
 }
 
-export interface CsharpPropagatedRuntimeCarrierFact {
-  readonly carrier: TargetTypeRef;
+export interface CsharpRuntimeCarrierFact {
+  readonly carrier: CsharpTargetTypeRef;
 }
 
 export interface CsharpProjectSourceFact {

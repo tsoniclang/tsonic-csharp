@@ -12,7 +12,7 @@ import type {
 } from "@tsonic/target-api";
 import {
   csharpTargetConversionOperationFactKey,
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
@@ -210,5 +210,5 @@ function getRuntimeCarrier(
 ): TargetTypeRef | undefined {
   return subject === undefined
     ? undefined
-    : getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier;
+    : getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier;
 }

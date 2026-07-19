@@ -17,8 +17,8 @@ import {
   asType,
 } from "./source-library.js";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
 } from "../../../csharp-facts.js";
 import type {
   CsharpJsSurfaceHost,
@@ -194,10 +194,10 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  if (subject === undefined || getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject) !== undefined) {
+  if (subject === undefined || getRecordedCsharpRuntimeCarrierFact(context.facts, subject) !== undefined) {
     return;
   }
-  recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, fact, evidence);
+  recordCsharpRuntimeCarrierFact(context.facts, subject, fact, evidence);
 }
 
 function completeTargetTypeArguments(

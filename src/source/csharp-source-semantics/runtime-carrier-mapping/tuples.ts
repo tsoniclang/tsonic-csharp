@@ -5,11 +5,11 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import {
   asType,
 } from "../target-ref-utils.js";
+import {
+  csharpRuntimeCarrierFactKey,
+} from "../../csharp-facts.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
@@ -39,9 +39,7 @@ function getTupleElementRuntimeCarrier(
   if (type === undefined) {
     return undefined;
   }
-  return context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier ??
-    context.facts.get(type, runtimeCarrierFactKey)?.carrier ??
-    host.getRecordedCsharpObjectShapeFactForSubject(type, context)?.targetType ??
-    host.getTargetTypeRefForType(type, context, {}) ??
-    host.getCsharpObjectShapeFactForSubject(type, context)?.targetType;
+  return context.factResolver.resolve(type, csharpRuntimeCarrierFactKey)?.carrier ??
+    context.facts.get(type, csharpRuntimeCarrierFactKey)?.carrier ??
+    host.getRecordedCsharpObjectShapeFactForSubject(type, context)?.targetType;
 }

@@ -1,7 +1,6 @@
 import {
   deferObservation,
   rejectObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedIterationMappingRequest,
@@ -33,6 +32,9 @@ import {
 import type {
   CsharpIterationOperationRow,
 } from "../../operation-selection/iteration.js";
+import {
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../../../csharp-facts.js";
 
 export function mapCsharpJsSurfaceCheckedIteration(
   request: CheckedIterationMappingRequest,
@@ -42,8 +44,10 @@ export function mapCsharpJsSurfaceCheckedIteration(
   if (request.target !== undefined && request.target !== host.targetId) {
     return deferObservation;
   }
-  const seededExpressionCarrier = context.factResolver.resolve(request.sourceIterable.expression, runtimeCarrierFactKey)?.carrier ??
-    context.facts.get(request.sourceIterable.expression, runtimeCarrierFactKey)?.carrier;
+  const seededExpressionCarrier = getRecordedCsharpRuntimeCarrierFact(
+    context.facts,
+    request.sourceIterable.expression,
+  )?.carrier;
   const expressionType = seededExpressionCarrier ??
     host.getTargetTypeRefForSubject(request.sourceIterable.authoredTypeNode, context, {
       ...csharpJsCheckedTypeQuery,

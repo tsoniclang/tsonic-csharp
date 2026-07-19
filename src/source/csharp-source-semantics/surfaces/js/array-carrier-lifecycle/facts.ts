@@ -9,7 +9,7 @@ import {
 import {
   csharpArrayBoundaryFactKey,
   csharpArrayCarrierFactKey,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpSourceReturnCarrierFactKey,
 } from "../../../../csharp-facts.js";
 import type {
@@ -22,7 +22,7 @@ import {
 } from "../../../target-types.js";
 import {
   setRuntimeCarrierFactIfLocallyAbsent,
-} from "../../../runtime-carrier-lifecycle/fact-writes.js";
+} from "../../../runtime-carrier-fact-writes.js";
 import {
   boundaryFactForArrayParameter,
 } from "./carrier-classification.js";
@@ -89,7 +89,7 @@ export function recordArrayLocalFacts(
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
   for (const subject of arrayLocalRuntimeCarrierSubjects(local, lifecycleContext)) {
-    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, { carrier: boundary.coreCarrierType }, evidence);
+    recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, subject, { carrier: boundary.coreCarrierType }, evidence);
   }
 }
 

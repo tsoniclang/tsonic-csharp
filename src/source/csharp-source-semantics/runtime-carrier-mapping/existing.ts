@@ -1,21 +1,25 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
 } from "@tsonic/tsts";
+import {
+  csharpRuntimeCarrierFactKey,
+} from "../../csharp-facts.js";
 
 export function getExistingRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext,
 ): RuntimeCarrierFactResult["carrier"] | undefined {
-  return context.facts.get(request.type, runtimeCarrierFactKey)?.carrier ??
-    (request.sourceTypeReference === undefined
-      ? undefined
-      : context.facts.get(request.sourceTypeReference, runtimeCarrierFactKey)?.carrier) ??
-    (request.sourceSymbol === undefined
-      ? undefined
-      : context.facts.get(request.sourceSymbol, runtimeCarrierFactKey)?.carrier);
+  for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = context.facts.get(subject, csharpRuntimeCarrierFactKey)?.carrier ??
+      context.factResolver.resolve(subject, csharpRuntimeCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
 }

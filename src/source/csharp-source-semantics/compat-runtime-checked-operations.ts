@@ -4,7 +4,7 @@ import {
   rejectObservation,
 } from "@tsonic/tsts";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../csharp-facts.js";
 import type {
   CheckedCallMappingRequest,
@@ -187,7 +187,7 @@ function hasOpaqueAnyCarrier(
   context: Pick<ExtensionObservationContext, "factResolver" | "facts">,
 ): boolean {
   return subjects.some((subject) => subject !== undefined && (
-    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier)
   ));
 }
 

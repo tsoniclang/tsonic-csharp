@@ -21,9 +21,6 @@ import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
 import {
-  probeCarrierFromResolution,
-} from "./runtime-carriers.js";
-import {
   targetTypeRefsMatch,
 } from "./target-types.js";
 import {
@@ -42,8 +39,7 @@ export function planRuntimeUnionUseSiteProjection(
   if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
     return baseExpression;
   }
-  const useSiteCarrier = getTargetTypeRefFromDirectFacts(input, node) ??
-    probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(node, { sourceFile }));
+  const useSiteCarrier = getTargetTypeRefFromDirectFacts(input, node);
   if (useSiteCarrier === undefined || isCsharpRuntimeUnionTargetType(useSiteCarrier)) {
     return baseExpression;
   }
@@ -117,14 +113,12 @@ function getRuntimeUnionStorageCarrier(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): TargetTypeRef | undefined {
-  const nodeCarrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(node, { sourceFile })) ??
-    getTargetTypeRefFromDirectFacts(input, node);
+  const nodeCarrier = getTargetTypeRefFromDirectFacts(input, node);
   if (isCsharpRuntimeUnionTargetType(nodeCarrier)) {
     return nodeCarrier;
   }
   for (const subject of storageCarrierSubjects(node, sourceFile, input)) {
-    const carrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrier(subject)) ??
-      getTargetTypeRefFromDirectFacts(input, subject);
+    const carrier = getTargetTypeRefFromDirectFacts(input, subject);
     if (isCsharpRuntimeUnionTargetType(carrier)) {
       return carrier;
     }

@@ -20,8 +20,8 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpTargetConversionOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
@@ -334,7 +334,7 @@ function mapCsharpClosedCompatStructuralAssertion(
   }
   const sourceOperationType = context.facts.get(request.source.expression, csharpTargetOperationFactKey)?.resultType ??
     context.factResolver.resolve(request.source.expression, csharpTargetOperationFactKey)?.resultType;
-  const sourceCarrier = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.source.expression)?.carrier ??
+  const sourceCarrier = getRecordedCsharpRuntimeCarrierFact(context.facts, request.source.expression)?.carrier ??
     sourceOperationType;
   if (sourceCarrier === undefined || !isCsharpClosedCompatRuntimeCarrier(sourceCarrier)) {
     return undefined;
@@ -342,7 +342,7 @@ function mapCsharpClosedCompatStructuralAssertion(
   const evidence = [{
     message: "C# compat structural assertion preserves the exact closed runtime carrier selected for the source expression; TSTS-selected structural members remain compile-time evidence.",
   }];
-  recordCsharpPropagatedRuntimeCarrierFact(context.facts, request.expression, { carrier: sourceCarrier }, evidence);
+  recordCsharpRuntimeCarrierFact(context.facts, request.expression, { carrier: sourceCarrier }, evidence);
   return acceptObservation<CheckedConversionMappingResult>({
     convertedType: sourceCarrier,
   }, evidence);
@@ -355,9 +355,9 @@ function mapCsharpAnyAssertionConversion(
   context: ExtensionObservationContext<"operation.mapCheckedConversion">,
   compatibilityMode: TargetTypescriptCompatibilityMode,
 ): ExtensionObservation<CheckedConversionMappingResult> | undefined {
-  const sourceRuntimeCarrier = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.source.expression)?.carrier ??
-    getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.source.type)?.carrier;
-  const targetRuntimeCarrier = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, request.target.type)?.carrier;
+  const sourceRuntimeCarrier = getRecordedCsharpRuntimeCarrierFact(context.facts, request.source.expression)?.carrier ??
+    getRecordedCsharpRuntimeCarrierFact(context.facts, request.source.type)?.carrier;
+  const targetRuntimeCarrier = getRecordedCsharpRuntimeCarrierFact(context.facts, request.target.type)?.carrier;
   const sourceHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(source) ||
     isCsharpAnyRuntimeCarrier(sourceRuntimeCarrier);
   const targetHasOpaqueAnyCarrier = isCsharpAnyRuntimeCarrier(target) ||

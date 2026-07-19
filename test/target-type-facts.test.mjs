@@ -36,9 +36,6 @@ import {
   csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
-  isRuntimeUnionCarrier,
-} from "../dist/source/csharp-source-semantics/runtime-carrier-lifecycle/carrier-classification.js";
-import {
   csharpJsArrayCarrierTargetType,
 } from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 import {
@@ -200,11 +197,11 @@ test("runtime union carriers require explicit union-arm metadata", () => {
 
   assert.ok(runtimeUnion);
   assert.equal(isCsharpRuntimeUnionTargetType(rawUnion), false);
-  assert.equal(isRuntimeUnionCarrier(rawUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(rawUnion), false);
   assert.equal(isCsharpRuntimeUnionTargetType(malformedUnion), false);
-  assert.equal(isRuntimeUnionCarrier(malformedUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(malformedUnion), false);
   assert.equal(isCsharpRuntimeUnionTargetType(runtimeUnion), true);
-  assert.equal(isRuntimeUnionCarrier(runtimeUnion), true);
+  assert.equal(isCsharpRuntimeUnionTargetType(runtimeUnion), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

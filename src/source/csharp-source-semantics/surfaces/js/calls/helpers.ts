@@ -1,8 +1,10 @@
 import {
-  runtimeCarrierFactKey,
-  selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
+import {
+  csharpTargetOperationFactKey,
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../../../../csharp-facts.js";
 import type {
   CheckedCallMappingRequest,
   ExtensionFactSubject,
@@ -104,10 +106,9 @@ export function getSourceLibraryCallReceiverClosedTargetTypes(
     return [];
   }
   const candidates = [
-    context.facts.get(receiver, selectedTargetSignatureFactKey)?.member.returnType,
-    context.facts.get(receiver, runtimeCarrierFactKey)?.carrier,
-    context.factResolver.resolve(receiver, selectedTargetSignatureFactKey)?.member.returnType,
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier,
+    context.facts.get(receiver, csharpTargetOperationFactKey)?.resultType,
+    context.factResolver.resolve(receiver, csharpTargetOperationFactKey)?.resultType,
+    getRecordedCsharpRuntimeCarrierFact(context.facts, receiver)?.carrier,
     getResolvedSourcePrimitiveTargetType(receiver, context),
   ];
   const result: TargetTypeRef[] = [];
@@ -149,10 +150,9 @@ export function getSourceLibraryCallResultTargetType(
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
-    context.facts.get(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
-      context.facts.get(request.call, runtimeCarrierFactKey)?.carrier ??
-      context.factResolver.resolve(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
-      context.factResolver.resolve(request.call, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(request.call, csharpTargetOperationFactKey)?.resultType ??
+      context.factResolver.resolve(request.call, csharpTargetOperationFactKey)?.resultType ??
+      getRecordedCsharpRuntimeCarrierFact(context.facts, request.call)?.carrier ??
       host.getTargetTypeRefForSubject(request.sourceResult.type, context, {
         ...csharpJsCheckedTypeQuery,
         allowRuntimeCarrier: true,
@@ -203,8 +203,8 @@ function getTargetTypeRefFromLocalFacts(
   subject: ExtensionFactSubject,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): TargetTypeRef | undefined {
-  return context.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-    context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+  return context.facts.get(subject, csharpTargetOperationFactKey)?.resultType ??
+    getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier;
 }
 
 function getTargetTypeRefFromResolvedFacts(
@@ -212,7 +212,7 @@ function getTargetTypeRefFromResolvedFacts(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): TargetTypeRef | undefined {
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
-  return context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+  return context.factResolver.resolve(subject, csharpTargetOperationFactKey)?.resultType ??
     (primitive === undefined ? undefined : csharpSourcePrimitiveTargetType(primitive.kind));
 }
 

@@ -13,8 +13,8 @@ import type {
   CsharpTargetMember,
 } from "./target-types.js";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
@@ -114,8 +114,7 @@ function getFinalizedCallArgumentTargetType(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ) {
-  return context.facts.get(argument, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier ??
+  return getRecordedCsharpRuntimeCarrierFact(context.facts, argument)?.carrier ??
     host.getTargetTypeRefForSubject(argument, context, {
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: false,
@@ -153,8 +152,7 @@ function finalizeSelectedCallTargetFamily(
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const sourceFile = compiler.ast.getSourceFile(call);
   const receiverCarrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context) ??
-    context.facts.get(receiver, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier;
+    getRecordedCsharpRuntimeCarrierFact(context.facts, receiver)?.carrier;
   if (receiverCarrier === undefined) {
     return rejectMissingTargetFamilyFinalization(lifecycleContext, call, family, member);
   }

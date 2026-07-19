@@ -21,8 +21,8 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
 } from "../csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
@@ -272,7 +272,17 @@ export function createCsharpTargetOperationsProvider(
         };
         for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
           if (subject !== undefined) {
-            recordCsharpPropagatedRuntimeCarrierFact(context.facts, subject, fact, observation.evidence ?? []);
+            const writeResult = recordCsharpRuntimeCarrierFact(context.facts, subject, fact, observation.evidence ?? []);
+            if (writeResult !== "inserted" && writeResult !== "idempotent") {
+              return rejectObservation(csharpProviderDiagnostic(
+                csharpTargetSemanticsExtensionId,
+                "CSHARP_RUNTIME_CARRIER_FACT_WRITE_FAILED",
+                9100190,
+                `C# runtime-carrier selection could not publish its exact target-owned fact (${writeResult}).`,
+                observation.evidence ?? [],
+                request.sourceTypeReference ?? request.type,
+              ));
+            }
           }
         }
       }
@@ -338,7 +348,7 @@ export function createCsharpJsSurfaceHost(
           : request.argumentTargetTypes?.[request.arguments.indexOf(subject)] ??
             resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-            getRecordedCsharpPropagatedRuntimeCarrierFact(resolutionContext.facts, subject)?.carrier ??
+            getRecordedCsharpRuntimeCarrierFact(resolutionContext.facts, subject)?.carrier ??
             getReferencedDeclarationTargetTypeRef(subject, resolutionContext, host.getTargetTypeRefForSubject, resolutionOptions) ??
             host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,

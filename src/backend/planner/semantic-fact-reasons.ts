@@ -10,6 +10,9 @@ import {
 import {
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
+import {
+  getConsumedCsharpRuntimeCarrierFact,
+} from "../../source/csharp-facts.js";
 
 export function appendTargetFactReasons(
   reasons: string[],
@@ -26,8 +29,8 @@ export function appendTargetFactReasons(
   if (input.facts.getFact(subject, providerVirtualDeclarationFactKey) !== undefined) {
     reasons.push(`${label} provider virtual declaration`);
   }
-  if (input.facts.getRuntimeCarrierFact(subject) !== undefined) {
-    reasons.push(`${label} runtime carrier`);
+  if (getConsumedCsharpRuntimeCarrierFact(input.facts, subject) !== undefined) {
+    reasons.push(`${label} C# runtime carrier`);
   }
   if (input.facts.getSourcePrimitiveFact(subject) !== undefined) {
     reasons.push(`${label} source primitive`);
@@ -76,8 +79,8 @@ export function appendProviderOperationFactReasons(
   if (input.facts.getFact(subject, providerVirtualDeclarationFactKey) !== undefined) {
     reasons.push(`${label} provider virtual declaration`);
   }
-  if (input.facts.getRuntimeCarrierFact(subject) !== undefined) {
-    reasons.push(`${label} runtime carrier`);
+  if (getConsumedCsharpRuntimeCarrierFact(input.facts, subject) !== undefined) {
+    reasons.push(`${label} C# runtime carrier`);
   }
   if (input.facts.getTargetConversionFact(subject) !== undefined) {
     reasons.push(`${label} target conversion`);

@@ -2,7 +2,6 @@ import {
   functionPointerFactKey,
   pointerFactKey,
   providerVirtualDeclarationFactKey,
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
   targetOperationFactKey,
@@ -26,7 +25,7 @@ import {
   csharpSourcePrimitiveKindForProviderVirtualDeclaration,
 } from "./source-modules.js";
 import {
-  resolveRuntimeCarrier,
+  resolveCsharpRuntimeCarrier,
 } from "./target-type-resolution-facts.js";
 import {
   asNodeSubject,
@@ -81,8 +80,7 @@ export function resolveDirectTargetTypeRefFromSubjectFacts(
     return resolveSubject(operationResult, context, options);
   }
   if (options.allowRuntimeCarrier !== false) {
-    const direct = resolveRuntimeCarrier(subject, context) ??
-      context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+    const direct = resolveCsharpRuntimeCarrier(subject, context);
     if (direct !== undefined) {
       return direct;
     }
@@ -134,8 +132,7 @@ function resolveDeclarationInitializerTargetType(
     if (operationResult !== undefined) {
       return operationResult;
     }
-    const initializerCarrier = resolveRuntimeCarrier(initializer, context) ??
-      context.facts.get(initializer, runtimeCarrierFactKey)?.carrier;
+    const initializerCarrier = resolveCsharpRuntimeCarrier(initializer, context);
     if (initializerCarrier !== undefined) {
       return initializerCarrier;
     }

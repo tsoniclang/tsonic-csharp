@@ -4,7 +4,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   asNodeSubject,
@@ -122,7 +122,7 @@ function hasOpaqueAnyCarrier(
     return false;
   }
   if (
-    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)
   ) {
     return true;
   }
@@ -136,6 +136,6 @@ function hasOpaqueAnyCarrier(
   const semanticType = compiler.checker.getTypeAtLocation(subject, { sourceFile: compiler.ast.getSourceFile(subject) }) as Type | undefined;
   return semanticType !== undefined && (
     compiler.typeShape.isAny(semanticType) ||
-    isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, semanticType)?.carrier)
+    isCsharpAnyRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(lifecycleContext.host.facts, semanticType)?.carrier)
   );
 }

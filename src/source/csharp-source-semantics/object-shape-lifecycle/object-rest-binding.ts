@@ -5,7 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
-  recordCsharpPropagatedRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import type {
@@ -92,20 +92,20 @@ function recordCsharpObjectRestBindingFact(
   const evidence = [{ message: "C# object rest binding shape recorded from the TSTS-checked rest binding type." }];
   for (const subject of subjects) {
     lifecycleContext.host.facts.set(subject, csharpObjectShapeFactKey, restShape, evidence);
-    recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject, runtimeCarrier, evidence);
+    recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, subject, runtimeCarrier, evidence);
     const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, subject, sourceFile);
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, restShape, evidence);
-      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, symbol, runtimeCarrier, evidence);
+      recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, symbol, runtimeCarrier, evidence);
     }
     const type = getRuntimeCarrierSubjectType(compiler, sourceFile, subject);
     if (type !== undefined) {
       lifecycleContext.host.facts.set(type, csharpObjectShapeFactKey, restShape, evidence);
-      recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, type, runtimeCarrier, evidence);
+      recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, type, runtimeCarrier, evidence);
       const typeSymbol = compiler.checker.getTypeSymbol(type);
       if (typeSymbol !== undefined) {
         lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, restShape, evidence);
-        recordCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, runtimeCarrier, evidence);
+        recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, runtimeCarrier, evidence);
       }
     }
   }

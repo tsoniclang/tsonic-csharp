@@ -36,7 +36,7 @@ import {
 } from "./target-type.js";
 import {
   setRuntimeCarrierFactIfUnresolved,
-} from "../../../runtime-carrier-lifecycle/fact-writes.js";
+} from "../../../runtime-carrier-fact-writes.js";
 
 export function mapCsharpJsDateRuntimeCarrier(
   request: RuntimeCarrierFactRequest,

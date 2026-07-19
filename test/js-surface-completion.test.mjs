@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
-import { csharpSourceProfileDeclarationFactKey } from "../dist/source/csharp-facts.js";
+import {
+  csharpRuntimeCarrierFactKey,
+  csharpSourceProfileDeclarationFactKey,
+} from "../dist/source/csharp-facts.js";
 import { createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider } from "../dist/source/csharp-source-semantics/surface-extensions.js";
 
 const sourceProfileDeclarationFacts = new WeakMap();
@@ -14,7 +17,7 @@ test("JS surface maps exact Number formatting methods from selected identity and
   const receiver = {};
   const digits = {};
   const facts = new TestFactStore();
-  facts.set(receiver, runtimeCarrierFactKey, { carrier: float64Type() });
+  facts.set(receiver, csharpRuntimeCarrierFactKey, { carrier: float64Type() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
     [receiver, float64Type()],
     [digits, int32Type()],
@@ -154,7 +157,7 @@ test("JS surface maps RegExp construction and toString from selected identities 
   const flags = {};
   const receiver = {};
   const facts = new TestFactStore();
-  facts.set(receiver, runtimeCarrierFactKey, { carrier: regexpType() });
+  facts.set(receiver, csharpRuntimeCarrierFactKey, { carrier: regexpType() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
     [pattern, stringType()],
     [flags, stringType()],

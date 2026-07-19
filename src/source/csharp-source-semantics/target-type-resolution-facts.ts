@@ -1,7 +1,9 @@
 import {
   providerVirtualDeclarationFactKey,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import {
+  csharpRuntimeCarrierFactKey,
+} from "../csharp-facts.js";
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
@@ -69,11 +71,14 @@ function isCatchVariableIdentifier(
   return grandparent !== undefined && ast.is.IsCatchClause(grandparent);
 }
 
-export function resolveRuntimeCarrier(
+export function resolveCsharpRuntimeCarrier(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  return subject === undefined ? undefined : context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
+  return subject === undefined
+    ? undefined
+    : context.facts.get(subject, csharpRuntimeCarrierFactKey)?.carrier ??
+      context.factResolver.resolve(subject, csharpRuntimeCarrierFactKey)?.carrier;
 }
 
 export function getProviderVirtualDeclarationTargetTypeRef(

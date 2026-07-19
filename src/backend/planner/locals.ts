@@ -191,8 +191,7 @@ function getInitializerTypeSubject(
   if (HasSourceKind(input.ast, initializer, KindCallExpression) || HasSourceKind(input.ast, initializer, KindNewExpression)) {
     return initializer;
   }
-  return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
-    input.targetFacts.resolveRuntimeCarrierForNode(initializer, { sourceFile }).kind === "resolved" ||
+  return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined ||
     input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
     input.facts.getFact(initializer, csharpTargetOperationFactKey) !== undefined
     ? initializer

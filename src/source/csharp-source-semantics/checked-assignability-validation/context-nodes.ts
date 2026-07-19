@@ -8,7 +8,7 @@ import type {
   CsharpObservedTargetAssignabilityFact,
 } from "../../csharp-facts.js";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import {
   getNodeField,
@@ -151,7 +151,7 @@ export function getEnclosingReturnTargetCarrier(
       const typeNode = asNode(getNodeField(current, "Type"));
       return typeNode === undefined
         ? undefined
-        : getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, typeNode)?.carrier;
+        : getRecordedCsharpRuntimeCarrierFact(context.facts, typeNode)?.carrier;
     }
     current = ast.parent(current);
   }

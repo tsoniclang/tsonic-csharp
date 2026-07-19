@@ -4,9 +4,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-  selectedTargetSignatureFactKey,
-} from "@tsonic/tsts";
+  csharpTargetOperationFactKey,
+  getRecordedCsharpRuntimeCarrierFact,
+} from "../../../../../csharp-facts.js";
 import type {
   CsharpTargetMember,
 } from "../../../../target-types.js";
@@ -387,10 +387,9 @@ function getClosedNestedCallArgumentTargetType(
   argument: CheckedCallMappingRequest["arguments"][number],
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): TargetTypeRef | undefined {
-  return context.facts.get(argument, selectedTargetSignatureFactKey)?.member.returnType ??
-    context.facts.get(argument, runtimeCarrierFactKey)?.carrier ??
-    context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
-    context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier;
+  return context.facts.get(argument, csharpTargetOperationFactKey)?.resultType ??
+    context.factResolver.resolve(argument, csharpTargetOperationFactKey)?.resultType ??
+    getRecordedCsharpRuntimeCarrierFact(context.facts, argument)?.carrier;
 }
 
 function getExplicitCallTypeArguments(

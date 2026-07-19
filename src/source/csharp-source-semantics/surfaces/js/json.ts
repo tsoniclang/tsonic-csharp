@@ -54,7 +54,7 @@ import {
 } from "../../runtime-carriers.js";
 import {
   setRuntimeCarrierFactIfUnresolved,
-} from "../../runtime-carrier-lifecycle/fact-writes.js";
+} from "../../runtime-carrier-fact-writes.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../dictionaries.js";

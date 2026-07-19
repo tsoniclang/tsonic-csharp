@@ -27,7 +27,14 @@ export interface CsharpTargetNestedTypeRenderShape {
   readonly genericArity?: number;
 }
 
+export type CsharpTargetTypeRef =
+  | (Exclude<TargetTypeRef, { readonly kind: "target-named" }> & {
+      readonly csharpNullableReference?: true;
+    })
+  | CsharpTargetNamedTypeRef;
+
 export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named" }> & {
+  readonly csharpNullableReference?: true;
   readonly csharpRender?: CsharpTargetTypeRenderShape;
   readonly csharpThrowable?: true;
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
@@ -41,6 +48,11 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
   readonly csharpDenseMutableElementType?: TargetTypeRef;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
+  readonly csharpTaskResultType?: TargetTypeRef;
+  readonly csharpRuntimeUnionArms?: readonly TargetTypeRef[];
+  readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
+  readonly csharpJsSurfaceKind?: "map" | "set" | "date" | "regexp";
+  readonly csharpCollectionSurface?: "record";
 };
 
 export type CsharpNullableReferenceTargetTypeRef = TargetTypeRef & {

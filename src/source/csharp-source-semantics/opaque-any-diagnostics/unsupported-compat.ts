@@ -1,6 +1,6 @@
 import {
   csharpTargetOperationFactKey,
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../../csharp-facts.js";
 import type {
   ExtensionLifecycleContext,
@@ -129,7 +129,7 @@ function isExplicitTypeScriptAnySubject(
   if (subject === undefined || compiler === undefined) {
     return false;
   }
-  if (isCsharpAnyRuntimeCarrier(getRecordedCsharpPropagatedRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)) {
+  if (isCsharpAnyRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(lifecycleContext.host.facts, subject)?.carrier)) {
     return true;
   }
   const sourceFile = compiler.ast.getSourceFile(subject);

@@ -8,7 +8,7 @@ import {
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import {
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
 } from "../csharp-facts.js";
 import {
   asNodeSubject,
@@ -69,7 +69,7 @@ function getDeclarationInitializerTargetTypeRef(
     return undefined;
   }
   const localSelected = context.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType;
-  const localCarrier = getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, initializer)?.carrier;
+  const localCarrier = getRecordedCsharpRuntimeCarrierFact(context.facts, initializer)?.carrier;
   const resolvedSelected = context.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
   return localSelected ?? localCarrier ?? resolvedSelected;
 }

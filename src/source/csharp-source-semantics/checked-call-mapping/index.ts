@@ -22,8 +22,8 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpProjectSourceFactKey,
-  getRecordedCsharpPropagatedRuntimeCarrierFact,
-  recordCsharpPropagatedRuntimeCarrierFact,
+  getRecordedCsharpRuntimeCarrierFact,
+  recordCsharpRuntimeCarrierFact,
   csharpTargetOperationFactKey,
 } from "../../csharp-facts.js";
 import {
@@ -445,7 +445,7 @@ function acceptCsharpSourceProfileCall(
     message: "C# source-profile call operation recorded from TSTS-selected source declaration identity and C# source profile metadata.",
   }]);
   if (member.returnType !== undefined) {
-    recordCsharpPropagatedRuntimeCarrierFact(context.facts, request.call, { carrier: member.returnType }, [{
+    recordCsharpRuntimeCarrierFact(context.facts, request.call, { carrier: member.returnType }, [{
       message: "C# source-profile call runtime carrier recorded from selected source-profile declaration metadata.",
     }]);
   }
@@ -773,11 +773,11 @@ function recordSourceOwnedCallRuntimeCarrier(
     returnType.kind === "array" ||
     !targetTypeRefIsClosed(returnType) ||
     isVoidTargetType(returnType) ||
-    getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, call) !== undefined
+    getRecordedCsharpRuntimeCarrierFact(context.facts, call) !== undefined
   ) {
     return;
   }
-  recordCsharpPropagatedRuntimeCarrierFact(context.facts, call, { carrier: returnType }, [{
+  recordCsharpRuntimeCarrierFact(context.facts, call, { carrier: returnType }, [{
     message: "C# source-owned call runtime carrier recorded from TSTS-selected project source declaration return facts.",
   }]);
 }
@@ -837,7 +837,7 @@ function getRuntimeCarrierForSubject(
   if (subject === undefined) {
     return undefined;
   }
-  return getRecordedCsharpPropagatedRuntimeCarrierFact(context.facts, subject)?.carrier;
+  return getRecordedCsharpRuntimeCarrierFact(context.facts, subject)?.carrier;
 }
 
 function isFinalizedSourceOwnedReturnCarrier(
