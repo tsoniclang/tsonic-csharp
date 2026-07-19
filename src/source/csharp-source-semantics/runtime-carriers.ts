@@ -6,7 +6,6 @@ export type {
   CsharpLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
 export {
-  getRuntimeCarrierSubjectSymbol,
   getRuntimeCarrierSubjectType,
 } from "./runtime-carrier-subjects.js";
 export type {

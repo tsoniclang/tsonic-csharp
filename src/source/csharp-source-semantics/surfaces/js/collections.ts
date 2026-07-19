@@ -3,7 +3,6 @@ import {
   deferObservation,
 } from "@tsonic/tsts";
 import type {
-  ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
   ExtensionObservation,
@@ -23,9 +22,6 @@ import {
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
-import {
-  getSymbolForDeclarationLookup,
-} from "../../symbol-utils.js";
 import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "../../target-type-keywords.js";
@@ -92,7 +88,7 @@ export function recordCsharpJsCollectionRuntimeCarrierFactForNode(
 ): void {
   const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host, options);
   if (carrier !== undefined) {
-    recordCollectionRuntimeCarrierFact(node, carrier, sourceFile, context);
+    recordCollectionRuntimeCarrierFact(node, carrier, context);
   }
 }
 
@@ -176,20 +172,15 @@ function checkedTypeAtLocation(
 function recordCollectionRuntimeCarrierFact(
   node: Node,
   carrier: TargetTypeRef,
-  sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): void {
   const fact = { carrier };
   const evidence = [{ message: "C# JS surface collection runtime carrier recorded from checked TypeScript Map/Set library type." }];
   setCollectionRuntimeCarrierFactIfAbsent(node, fact, evidence, context);
-  const symbol = context.compiler === undefined
-    ? undefined
-    : getSymbolForDeclarationLookup(context.compiler.ast, context.compiler.checker, node, sourceFile);
-  setCollectionRuntimeCarrierFactIfAbsent(symbol, fact, evidence, context);
 }
 
 function setCollectionRuntimeCarrierFactIfAbsent(
-  subject: ExtensionFactSubject | undefined,
+  subject: Node | undefined,
   fact: { readonly carrier: TargetTypeRef },
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,

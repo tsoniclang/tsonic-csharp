@@ -18,6 +18,7 @@ import type {
   CsharpProjectSourceFact,
   CsharpRegularExpressionLiteralFact,
   CsharpRuntimeCarrierFact,
+  CsharpSourceDeclarationTargetFact,
   CsharpSourceProfileDeclarationFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
@@ -172,6 +173,15 @@ export function snapshotCsharpRuntimeCarrierFact(
   assertExactFields(value, "runtimeCarrier", ["carrier"]);
   return Object.freeze({
     carrier: snapshotCsharpTargetTypeRef(value.carrier),
+  });
+}
+
+export function snapshotCsharpSourceDeclarationTargetFact(
+  value: CsharpSourceDeclarationTargetFact,
+): CsharpSourceDeclarationTargetFact {
+  assertExactFields(value, "sourceDeclarationTarget", ["targetType"]);
+  return Object.freeze({
+    targetType: snapshotCsharpTargetTypeRef(value.targetType),
   });
 }
 

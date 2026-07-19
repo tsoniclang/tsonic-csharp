@@ -1,4 +1,4 @@
-import { test, assert, runtimeCarrierFactKey, targetOperationFactKey, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, planExpression, planExpressionWithExpectedType, createDestructuringPlannerState, KindArrowFunction, KindArrayLiteralExpression, KindAwaitExpression, KindBigIntLiteral, KindConditionalExpression, KindIdentifier, KindNoSubstitutionTemplateLiteral, KindObjectLiteralExpression, KindParameter, KindPostfixUnaryExpression, KindPropertyAccessExpression, KindMethodDeclaration, KindPrefixUnaryExpression, KindRegularExpressionLiteral, KindThisKeyword, KindTemplateExpression, ModifierFlagsAsync, ModifierFlagsStatic, printCsharpExpression, csharpObjectShapeFactKey, csharpRegularExpressionLiteralFactKey, csharpTargetOperationFactKey, csharpBigIntegerTargetType, csharpDelegateTargetType, csharpNullableValueTargetType, csharpQualifiedTypeRenderShape, csharpStringTargetType, csharpSourcePrimitiveTargetType, csharpTargetNamedType, csharpTaskTargetType, csharpVoidTargetType, mapCsharpCheckedOperator, targetOperationFactsAreStructurallyIdentical, binary, conditional, awaitExpression, asyncArrowFunction, asyncArrowFunctionWithParameters, block, returnStatement, objectLiteral, propertyAssignment, objectShape, thisKeyword, node, parented, identifier, numericLiteral, propertyAccess, templateExpression, sourcePrimitiveCarrier, fakeOperatorHost, fakeOperatorHostWithSubjects, fakeObservationContext, factEntryKey, fakeInput, runtimeCarrierResolution, fakeAst } from "./operator-facts.helpers.mjs";
+import { test, assert, runtimeCarrierFactKey, targetOperationFactKey, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, planExpression, planExpressionWithExpectedType, createDestructuringPlannerState, KindArrowFunction, KindArrayLiteralExpression, KindAwaitExpression, KindBigIntLiteral, KindConditionalExpression, KindIdentifier, KindNoSubstitutionTemplateLiteral, KindObjectLiteralExpression, KindParameter, KindPostfixUnaryExpression, KindPropertyAccessExpression, KindMethodDeclaration, KindPrefixUnaryExpression, KindRegularExpressionLiteral, KindThisKeyword, KindTemplateExpression, ModifierFlagsAsync, ModifierFlagsStatic, printCsharpExpression, csharpObjectShapeFactKey, csharpRegularExpressionLiteralFactKey, csharpTargetOperationFactKey, csharpBigIntegerTargetType, csharpDelegateTargetType, csharpNullableValueTargetType, csharpQualifiedTypeRenderShape, csharpStringTargetType, csharpSourcePrimitiveTargetType, csharpTargetNamedType, csharpTaskTargetType, csharpVoidTargetType, mapCsharpCheckedOperator, targetOperationFactsAreStructurallyIdentical, binary, checkedOperatorRequest, conditional, awaitExpression, asyncArrowFunction, asyncArrowFunctionWithParameters, block, returnStatement, objectLiteral, propertyAssignment, objectShape, thisKeyword, node, parented, identifier, numericLiteral, propertyAccess, templateExpression, sourcePrimitiveCarrier, fakeOperatorHost, fakeOperatorHostWithSubjects, fakeObservationContext, factEntryKey, fakeInput, runtimeCarrierResolution, fakeAst } from "./operator-facts.helpers.mjs";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -14,7 +14,7 @@ test("binary expression emission requires selected target operator fact even for
   assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# binary operator emission requires a selected provider operator fact/);
-  assert.match(diagnostics[0].message, /operand node runtime carrier/);
+  assert.match(diagnostics[0].message, /no provider\/source facts and no source-owned declaration/);
 });
 test("binary expression emission uses the finalized selected target operator fact", () => {
   const left = identifier("left");
@@ -47,13 +47,13 @@ test("checked provider-owned binary operators fail closed without selected provi
   const expression = binary(left, right);
   const providerType = csharpTargetNamedType("ProviderOperators.Number", undefined, csharpQualifiedTypeRenderShape("ProviderOperators", "Number"));
   const context = fakeObservationContext();
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "+",
     left,
     right,
     target: "csharp",
-  }, context, fakeOperatorHost(providerType));
+  }), context, fakeOperatorHost(providerType));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_OPERATOR_NOT_MAPPED");
@@ -74,13 +74,13 @@ test("checked provider-owned binary operators consume finalized exact provider o
   const context = fakeObservationContext(new Map([
     [factEntryKey(expression, targetOperationFactKey), selectedOperation],
   ]));
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "+",
     left,
     right,
     target: "csharp",
-  }, context, fakeOperatorHost(providerType));
+  }), context, fakeOperatorHost(providerType));
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation, selectedOperation);
@@ -94,20 +94,20 @@ test("source-primitive increment records finalized operator token facts", () => 
   };
   const intType = csharpSourcePrimitiveTargetType("int32");
   const context = fakeObservationContext();
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "++",
     left: operand,
     target: "csharp",
-  }, context, fakeOperatorHost(intType));
+  }), context, fakeOperatorHost(intType));
 
   assert.equal(result.kind, "accept");
   assert.deepEqual(result.value.operation, {
     operationId: "tsonic.csharp.operator.++",
     operationKind: "operator",
     targetOperation: "++",
-    resultType: intType,
   });
+  assert.deepEqual(result.value.resultType, intType);
   assert.equal(context.writes.length, 1);
   assert.deepEqual(context.writes[0].value, {
     kind: "operator-token",
@@ -125,19 +125,19 @@ test("nullish coalescing result uses nullable-left target type before expression
   const context = fakeObservationContext(new Map([
     [factEntryKey(expression, runtimeCarrierFactKey), { carrier: csharpStringTargetType() }],
   ]));
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "??",
     left,
     right,
     target: "csharp",
-  }, context, fakeOperatorHostWithSubjects(new Map([
+  }), context, fakeOperatorHostWithSubjects(new Map([
     [left, nullableChar],
     [right, charType],
   ])));
 
   assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.operation.resultType, charType);
+  assert.deepEqual(result.value.resultType, charType);
   assert.equal(context.writes.length, 1);
   assert.deepEqual(context.writes[0].value.resultType, charType);
 });
@@ -148,19 +148,19 @@ test("checked numeric arithmetic widens finalized operator result facts from ope
   const intType = csharpSourcePrimitiveTargetType("int32");
   const doubleType = csharpSourcePrimitiveTargetType("float64");
   const context = fakeObservationContext();
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "+",
     left,
     right,
     target: "csharp",
-  }, context, fakeOperatorHostWithSubjects(new Map([
+  }), context, fakeOperatorHostWithSubjects(new Map([
     [left, intType],
     [right, doubleType],
   ])));
 
   assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.operation.resultType, doubleType);
+  assert.deepEqual(result.value.resultType, doubleType);
   assert.equal(context.writes.length, 1);
   assert.deepEqual(context.writes[0].value.resultType, doubleType);
 });
@@ -169,19 +169,19 @@ test("checked string concatenation records string result when either operand is 
   const right = identifier("right");
   const expression = binary(left, right);
   const context = fakeObservationContext();
-  const result = mapCsharpCheckedOperator({
+  const result = mapCsharpCheckedOperator(checkedOperatorRequest({
     expression,
     operator: "+",
     left,
     right,
     target: "csharp",
-  }, context, fakeOperatorHostWithSubjects(new Map([
+  }), context, fakeOperatorHostWithSubjects(new Map([
     [left, csharpSourcePrimitiveTargetType("int32")],
     [right, csharpStringTargetType()],
   ])));
 
   assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.operation.resultType, csharpStringTargetType());
+  assert.deepEqual(result.value.resultType, csharpStringTargetType());
   assert.equal(context.writes.length, 1);
   assert.deepEqual(context.writes[0].value.resultType, csharpStringTargetType());
 });

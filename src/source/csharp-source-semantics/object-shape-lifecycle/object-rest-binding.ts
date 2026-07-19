@@ -96,7 +96,6 @@ function recordCsharpObjectRestBindingFact(
     const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, subject, sourceFile);
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, restShape, evidence);
-      recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, symbol, runtimeCarrier, evidence);
     }
     const type = getRuntimeCarrierSubjectType(compiler, sourceFile, subject);
     if (type !== undefined) {
@@ -105,7 +104,6 @@ function recordCsharpObjectRestBindingFact(
       const typeSymbol = compiler.checker.getTypeSymbol(type);
       if (typeSymbol !== undefined) {
         lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, restShape, evidence);
-        recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, typeSymbol, runtimeCarrier, evidence);
       }
     }
   }

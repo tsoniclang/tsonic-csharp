@@ -65,29 +65,19 @@ test("JS surface rejects Number locale formatting without Intl facts", () => {
   assert.match(localeResult.diagnostic.message, /Intl\.NumberFormat-compatible locale and options semantics/);
 });
 
-test("JS surface rejects Number formatting methods without required closed facts", () => {
+test("JS surface consumes exact checked Number formatting signatures before target argument carrier finalization", () => {
   const receiver = {};
   const digits = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
-    [digits, stringType()],
-  ])));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map()));
 
-  const missingReceiver = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toExponential"), {
+  const result = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toExponential"), {
     arguments: [digits],
     calleeReceiver: receiver,
   }), fakeContext(facts));
-  const wrongDigits = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toFixed"), {
-    arguments: [digits],
-    calleeReceiver: digits,
-  }), fakeContext(facts));
-
-  assert.equal(missingReceiver.kind, "reject");
-  assert.equal(missingReceiver.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
-  assert.match(missingReceiver.diagnostic.message, /Number\.toExponential/);
-  assert.match(missingReceiver.diagnostic.message, /receiver lacks finalized target runtime facts/);
-  assert.equal(wrongDigits.kind, "reject");
-  assert.equal(wrongDigits.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toExponential");
+  assert.deepEqual(facts.get(receiver, csharpRuntimeCarrierFactKey)?.carrier, float64Type());
 });
 
 test("JS surface maps Object.is from selected identity and closed argument facts", () => {
@@ -225,10 +215,11 @@ function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "/
 }
 
 function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
+  const sourceCall = fakeNodeSubject(call, call?.Kind ?? "KindCallExpression");
   const callee = options.calleeReceiver === undefined
-    ? {}
+    ? fakeNodeSubject({})
     : propertyAccessCallee(options.calleeReceiver, sourceSelectedDeclaration?.Name?.Text ?? "");
-  const arguments_ = options.arguments ?? [];
+  const arguments_ = (options.arguments ?? []).map((argument) => fakeNodeSubject(argument));
   const parameters = arguments_.map((argument, index) => ({
     parameterIndex: index,
     parameterName: `argument${index}`,
@@ -240,10 +231,10 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
   return {
     sourceOperationKind: "call",
     target: "csharp",
-    call,
+    call: sourceCall,
     callee,
     arguments: arguments_,
-    callKind: call?.Kind === "KindNewExpression" ? "construct" : "call",
+    callKind: sourceCall.Kind === "KindNewExpression" ? "construct" : "call",
     sourceSelection: {
       kind: "applicable",
       signature: { declaration: sourceSelectedDeclaration },
@@ -266,7 +257,7 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
       selectedDeclaration: sourceSelectedDeclaration,
     },
     sourceArguments: arguments_.map((argument) => ({ expression: argument, type: argument })),
-    sourceResult: { expression: call, type: call },
+    sourceResult: { expression: sourceCall, type: sourceCall },
     ...(options.calleeReceiver === undefined ? {} : {
       sourceReceiver: {
         expression: options.calleeReceiver,
@@ -275,6 +266,13 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     }),
     chainRole: { kind: "ordinary", participant: "call" },
   };
+}
+
+function fakeNodeSubject(subject, kind = "KindIdentifier") {
+  if (subject !== undefined && subject !== null && typeof subject === "object" && subject.Kind === undefined) {
+    subject.Kind = kind;
+  }
+  return subject;
 }
 
 function parameterType(parameters, index, fallback) {
@@ -446,6 +444,11 @@ class TestFactStore {
       subjectFacts = new Map();
       this.#facts.set(subject, subjectFacts);
     }
-    subjectFacts.set(key, value);
+    const existing = subjectFacts.get(key);
+    if (existing === undefined) {
+      subjectFacts.set(key, value);
+      return "inserted";
+    }
+    return key.equals(existing, value) ? "idempotent" : "conflict";
   }
 }

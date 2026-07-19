@@ -311,8 +311,8 @@ export function fakeInput(options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
@@ -368,7 +368,10 @@ export const fakeAst = {
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
   name: (node) => node?.name,
   text: (node) => String(node?.Text ?? ""),
-  is: {
+  parent: (node) => node?.Parent,
+  children: (node) => node?.Children ?? node?.Types ?? [],
+  typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
+  is: new Proxy({
     IsKeywordTypeNode: () => false,
     IsTypeReferenceNode: () => false,
     IsUnionTypeNode: () => false,
@@ -388,5 +391,9 @@ export const fakeAst = {
     IsConstructorTypeNode: () => false,
     IsTemplateLiteralTypeNode: () => false,
     IsImportTypeNode: () => false,
-  },
+  }, {
+    get(target, property) {
+      return property in target ? target[property] : () => false;
+    },
+  }),
 };

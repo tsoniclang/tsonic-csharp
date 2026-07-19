@@ -139,7 +139,6 @@ function storageCarrierSubjects(
     input.analysis.getSymbolAtLocation(node, { sourceFile }),
     input.analysis.getResolvedSymbol(node, { sourceFile }),
   ]) {
-    pushSubject(subjects, symbol);
     for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
       pushSubject(subjects, declaration);
       pushSubject(subjects, Node_Name(input.ast, declaration));

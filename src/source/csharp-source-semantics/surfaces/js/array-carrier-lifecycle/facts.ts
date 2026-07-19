@@ -145,13 +145,12 @@ function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly Extensio
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayRuntimeCarrierSubjects(parameter: ArrayParameterAnalysis): readonly ExtensionFactSubject[] {
-  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+function arrayRuntimeCarrierSubjects(parameter: ArrayParameterAnalysis): readonly Node[] {
+  const subjects: readonly (Node | undefined)[] = [
     parameter.name,
-    parameter.symbol,
     ...parameter.sourceUses.map((use) => use.node),
   ];
-  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+  return subjects.filter((subject): subject is Node => subject !== undefined);
 }
 
 function arrayLocalFactSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
@@ -166,29 +165,28 @@ function arrayLocalFactSubjects(local: ArrayLocalAnalysis, lifecycleContext: Lif
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
-  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly Node[] {
+  const subjects: readonly (Node | undefined)[] = [
     local.declaration,
     local.name,
     arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
-    local.symbol,
     ...local.sourceUses.map((use) => use.node),
   ];
-  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+  return subjects.filter((subject): subject is Node => subject !== undefined);
 }
 
-function arrayReturnFactSubjects(returnType: ArrayReturnAnalysis): readonly ExtensionFactSubject[] {
-  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+function arrayReturnFactSubjects(returnType: ArrayReturnAnalysis): readonly Node[] {
+  const subjects: readonly (Node | undefined)[] = [
     returnType.typeNode,
   ];
-  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+  return subjects.filter((subject): subject is Node => subject !== undefined);
 }
 
 function arrayLiteralInitializerSubject(
   local: ArrayLocalAnalysis,
   lifecycleContext: LifecycleContext,
-): ExtensionFactSubject | undefined {
+): Node | undefined {
   const initializer = local.initializer;
   return initializer !== undefined && lifecycleContext.compiler?.ast.is.IsArrayLiteralExpression(initializer) === true
     ? initializer

@@ -85,7 +85,6 @@ export function getSourceLibraryCallReceiverTargetTypes(
   const candidates = [
     requestContext.calleeReceiver,
     requestContext.calleeReceiverType,
-    requestContext.calleeReceiverTypeSymbol,
   ];
   const result: TargetTypeRef[] = [];
   for (const candidate of candidates) {
@@ -126,16 +125,24 @@ export function getSourceLibraryCallArgumentTargetTypes(
   host: CsharpJsSurfaceHost,
 ): readonly (TargetTypeRef | undefined)[] {
   return request.sourceArguments.map((argument) => {
-    const subjects = [
+    const exactSubjects = [
       argument.expression,
       argument.type,
+      argument.authoredTypeNode,
+    ];
+    for (const subject of exactSubjects) {
+      const targetType = getSourceLibraryReceiverTargetTypeForSubject(subject, context, host);
+      if (targetType !== undefined) {
+        return host.unwrapNullableTargetType(targetType);
+      }
+    }
+    for (const subject of [
       argument.selectedDeclaration,
       argument.selectedSymbol,
       argument.declaration,
       argument.symbol,
-    ];
-    for (const subject of subjects) {
-      const targetType = getSourceLibraryReceiverTargetTypeForSubject(subject, context, host);
+    ]) {
+      const targetType = getDeclarationInvariantSourceLibraryTargetType(subject, context, host);
       if (targetType !== undefined) {
         return host.unwrapNullableTargetType(targetType);
       }
@@ -222,4 +229,20 @@ function getResolvedSourcePrimitiveTargetType(
 ): TargetTypeRef | undefined {
   const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
   return primitive === undefined ? undefined : csharpSourcePrimitiveTargetType(primitive.kind);
+}
+
+function getDeclarationInvariantSourceLibraryTargetType(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+  return getResolvedSourcePrimitiveTargetType(subject, context) ??
+    host.getTargetTypeRefForSubject(subject, context, {
+      ...csharpJsCheckedTypeQuery,
+      allowRuntimeCarrier: false,
+      allowSemanticTypeQuery: false,
+    });
 }

@@ -25,6 +25,18 @@ export function getCheckedOperatorOperandTargetTypeRefs(
   operandQuery: TargetTypeRefResolutionOptions,
   host: CsharpOperationsProviderHost,
 ): { readonly left: TargetTypeRef | undefined; readonly right: TargetTypeRef | undefined } {
+  if (request.operatorKind !== "binary") {
+    return {
+      left: getCheckedOperatorOperandTargetTypeRef(
+        request.sourceOperand,
+        request.operand,
+        context,
+        operandQuery,
+        host,
+      ),
+      right: undefined,
+    };
+  }
   return {
     left: getCheckedOperatorOperandTargetTypeRef(
       request.sourceLeft,
@@ -54,10 +66,6 @@ function getCheckedOperatorOperandTargetTypeRef(
     evidence?.expression,
     evidence?.type,
     evidence?.authoredTypeNode,
-    evidence?.selectedDeclaration,
-    evidence?.selectedSymbol,
-    evidence?.declaration,
-    evidence?.symbol,
     expressionSubject,
   ];
   for (const candidate of candidates) {
@@ -70,6 +78,24 @@ function getCheckedOperatorOperandTargetTypeRef(
     }
     const mapped = host.getTargetTypeRefForSubject(candidate, context, {
       ...options,
+      allowSemanticTypeQuery: false,
+    });
+    if (mapped !== undefined) {
+      return mapped;
+    }
+  }
+  for (const candidate of [
+    evidence?.selectedDeclaration,
+    evidence?.selectedSymbol,
+    evidence?.declaration,
+    evidence?.symbol,
+  ]) {
+    if (candidate === undefined) {
+      continue;
+    }
+    const mapped = host.getTargetTypeRefForSubject(candidate, context, {
+      ...options,
+      allowRuntimeCarrier: false,
       allowSemanticTypeQuery: false,
     });
     if (mapped !== undefined) {

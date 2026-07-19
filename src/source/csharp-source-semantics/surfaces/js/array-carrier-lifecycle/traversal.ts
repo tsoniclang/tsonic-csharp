@@ -154,7 +154,7 @@ export function collectArrayReturnTypeNodes(
       ...(typeNode === undefined ? {} : { typeNode }),
       ...(semanticType === undefined ? {} : { semanticType }),
       readonlySourceContract: isReadonlySourceArrayDeclaredType(typeNode, sourceFile, context),
-      sourceReturnSubjects: getArrayReturnSourceSubjects(node, sourceFile, lifecycleContext),
+      sourceReturnSubjects: getArrayReturnSourceSubjects(node, lifecycleContext),
       returnExpressions: getArrayReturnExpressionSubjects(node, lifecycleContext),
       elementType,
     });
@@ -363,7 +363,6 @@ function getDeclarationReturnSemanticType(
 
 function getArrayReturnSourceSubjects(
   declaration: Node,
-  sourceFile: SourceFile,
   lifecycleContext: LifecycleContext,
 ): readonly ExtensionFactSubject[] {
   const compiler = lifecycleContext.compiler;
@@ -375,17 +374,11 @@ function getArrayReturnSourceSubjects(
   const ownerName = owner === undefined
     ? undefined
     : asNodeSubject(getNodeField(owner, "name"));
-  const symbol =
-    getSymbolForDeclarationLookup(compiler.ast, compiler.checker, declaration, sourceFile) ??
-    getSymbolForOptionalDeclarationLookup(declarationName, sourceFile, lifecycleContext) ??
-    getSymbolForOptionalDeclarationLookup(owner, sourceFile, lifecycleContext) ??
-    getSymbolForOptionalDeclarationLookup(ownerName, sourceFile, lifecycleContext);
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     declaration,
     owner,
     declarationName,
     ownerName,
-    symbol,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
@@ -444,17 +437,6 @@ function isFunctionLikeDeclaration(
     default:
       return false;
   }
-}
-
-function getSymbolForOptionalDeclarationLookup(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  lifecycleContext: LifecycleContext,
-): ReturnType<typeof getSymbolForDeclarationLookup> {
-  const compiler = lifecycleContext.compiler;
-  return compiler === undefined || node === undefined
-    ? undefined
-    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);
 }
 
 function getCallableOwnerDeclaration(

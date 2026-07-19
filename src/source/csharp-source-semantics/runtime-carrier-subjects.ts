@@ -1,18 +1,38 @@
 import type {
   ExtensionObservationContext,
   Node,
+  RuntimeCarrierFactRequest,
   SourceFile,
-  Symbol,
   Type,
 } from "@tsonic/tsts";
+import type {
+  CsharpRuntimeCarrierFactSubject,
+} from "../csharp-facts.js";
 import {
+  asNodeSubject,
   isControlFlowLabelIdentifier,
   isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
-  getSymbolForDeclarationLookup,
-} from "./symbol-utils.js";
+  asType,
+} from "./target-ref-utils.js";
+
+export function getExactRuntimeCarrierRequestSubjects(
+  request: RuntimeCarrierFactRequest,
+): readonly CsharpRuntimeCarrierFactSubject[] {
+  const type = asType(request.type);
+  if (type === undefined) {
+    throw new Error("TSTS runtime-carrier request did not contain an exact semantic Type subject.");
+  }
+  const sourceTypeReference = asNodeSubject(request.sourceTypeReference);
+  const subjects: readonly CsharpRuntimeCarrierFactSubject[] = sourceTypeReference === undefined
+    ? [type]
+    : [sourceTypeReference, type];
+  return subjects.length === 2 && subjects[0] === subjects[1]
+    ? [subjects[0]!]
+    : subjects;
+}
 
 export function getRuntimeCarrierSubjectType(
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
@@ -28,17 +48,6 @@ export function getRuntimeCarrierSubjectType(
   return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
     ? compiler.checker.getTypeAtLocation(node, { sourceFile })
     : undefined;
-}
-
-export function getRuntimeCarrierSubjectSymbol(
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-  sourceFile: SourceFile,
-  node: Node,
-): Symbol | undefined {
-  if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node) || isControlFlowLabelIdentifier(compiler.ast, node)) {
-    return undefined;
-  }
-  return getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);
 }
 
 export function isRuntimeCarrierTypeSyntaxNode(

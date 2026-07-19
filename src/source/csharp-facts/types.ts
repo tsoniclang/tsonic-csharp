@@ -175,6 +175,10 @@ export interface CsharpRuntimeCarrierFact {
   readonly carrier: CsharpTargetTypeRef;
 }
 
+export interface CsharpSourceDeclarationTargetFact {
+  readonly targetType: CsharpTargetTypeRef;
+}
+
 export interface CsharpProjectSourceFact {
   readonly kind: "project-source";
 }

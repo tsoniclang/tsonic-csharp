@@ -41,6 +41,12 @@ export function resolveRuntimeCarrierForExpression(
     return undefined;
   }
   const carrier = getTargetTypeRefForNode(input, sourceNode, sourceFile);
+  const targetResolution = carrier === undefined
+    ? input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })
+    : undefined;
+  if (targetResolution?.kind === "missing") {
+    return targetResolution;
+  }
   return carrier === undefined
     ? {
         kind: "missing",
@@ -132,13 +138,12 @@ export function getTargetTypeRefForType(
   void seen;
   return type === undefined
     ? undefined
-    : getTargetTypeRefFromSemanticTypeFacts(input, type) ??
-      getTargetTypeRefFromSemanticTypeFacts(input, input.analysis.getTypeSymbol(type));
+    : getTargetTypeRefFromSemanticTypeFacts(input, type);
 }
 
 function getTargetTypeRefFromSemanticTypeFacts(
   input: TargetCompileInput,
-  subject: Type | Type["symbol"] | undefined,
+  subject: Type,
 ): TargetTypeRef | undefined {
   const fact = getTargetTypeRefFromDirectFacts(input, subject);
   return fact === undefined || targetTypeRefContainsSourcePrimitive(fact)

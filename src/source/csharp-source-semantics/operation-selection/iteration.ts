@@ -96,8 +96,6 @@ function recordIterationBindingCarrier(
   for (const subject of [
     request.initializer,
     request.sourceElement.authoredTypeNode,
-    request.sourceElement.selectedDeclaration,
-    request.sourceElement.selectedSymbol,
     request.sourceElement.type,
   ]) {
     if (subject !== undefined) {

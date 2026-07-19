@@ -2,6 +2,7 @@ import {
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
 import {
+  asCsharpRuntimeCarrierFactSubject,
   csharpRuntimeCarrierFactKey,
 } from "../csharp-facts.js";
 import type {
@@ -75,10 +76,11 @@ export function resolveCsharpRuntimeCarrier(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  return subject === undefined
+  const exactSubject = asCsharpRuntimeCarrierFactSubject(subject);
+  return exactSubject === undefined
     ? undefined
-    : context.facts.get(subject, csharpRuntimeCarrierFactKey)?.carrier ??
-      context.factResolver.resolve(subject, csharpRuntimeCarrierFactKey)?.carrier;
+    : context.facts.get(exactSubject, csharpRuntimeCarrierFactKey)?.carrier ??
+      context.factResolver.resolve(exactSubject, csharpRuntimeCarrierFactKey)?.carrier;
 }
 
 export function getProviderVirtualDeclarationTargetTypeRef(

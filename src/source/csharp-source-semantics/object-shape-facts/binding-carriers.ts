@@ -81,7 +81,6 @@ export function recordObjectBindingMemberRuntimeCarriers(
     }
     const symbol = getObjectShapeSymbolForQueryableNode(bindingName, sourceFile, context);
     if (symbol !== undefined) {
-      recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, symbol, fact, evidence);
       if (bindingObjectShape !== undefined) {
         lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, bindingObjectShape, evidence);
       }

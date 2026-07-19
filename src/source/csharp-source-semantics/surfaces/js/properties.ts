@@ -150,10 +150,7 @@ function getSourceLibraryPropertyReceiverType(
   const subjects = [
     request.sourceReceiver.expression,
     request.sourceReceiver.type,
-    request.sourceReceiver.selectedDeclaration,
-    request.sourceReceiver.selectedSymbol,
-    request.sourceReceiver.declaration,
-    request.sourceReceiver.symbol,
+    request.sourceReceiver.authoredTypeNode,
   ];
   for (const subject of subjects) {
     if (subject === undefined) {
@@ -167,6 +164,23 @@ function getSourceLibraryPropertyReceiverType(
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
       });
+    if (targetType !== undefined) {
+      return host.unwrapNullableTargetType(targetType);
+    }
+  }
+  for (const subject of [
+    request.sourceReceiver.selectedDeclaration,
+    request.sourceReceiver.selectedSymbol,
+    request.sourceReceiver.declaration,
+    request.sourceReceiver.symbol,
+  ]) {
+    if (subject === undefined) {
+      continue;
+    }
+    const targetType = host.getTargetTypeRefForSubject(subject, context, {
+      allowRuntimeCarrier: false,
+      allowSemanticTypeQuery: false,
+    });
     if (targetType !== undefined) {
       return host.unwrapNullableTargetType(targetType);
     }

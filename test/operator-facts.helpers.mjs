@@ -109,6 +109,39 @@ export function binary(left, right, operatorKind = "KindPlusToken") {
   };
 }
 
+export function checkedOperatorRequest({ expression, operator, left, right, target = "csharp" }) {
+  const sourceResult = { expression, type: expression };
+  if (right !== undefined) {
+    return {
+      sourceOperationKind: "operator",
+      operatorKind: "binary",
+      expression,
+      operator,
+      left,
+      right,
+      sourceLeft: { expression: left, type: left },
+      sourceRight: { expression: right, type: right },
+      sourceResult,
+      target,
+    };
+  }
+  const operatorKind = expression.Kind === KindPostfixUnaryExpression
+    ? "postfix-update"
+    : operator === "++" || operator === "--"
+      ? "prefix-update"
+      : "prefix-unary";
+  return {
+    sourceOperationKind: "operator",
+    operatorKind,
+    expression,
+    operator,
+    operand: left,
+    sourceOperand: { expression: left, type: left },
+    sourceResult,
+    target,
+  };
+}
+
 export function conditional(condition, whenTrue, whenFalse) {
   return {
     Kind: KindConditionalExpression,
@@ -393,6 +426,8 @@ const asKind = (kind) => (node) => node?.Kind === kind ? node : undefined;
 export const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   text: (node) => String(node?.Text ?? ""),
+  children: (node) => node?.Children ?? node?.Types ?? [],
+  typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
   parent: (node) => node?.Parent,
   name: (node) => node?.name,
   hasModifier: (node, flag) => ((node?.ModifierFlags ?? 0) & flag) !== 0,
@@ -413,7 +448,7 @@ export const fakeAst = {
     AsVoidExpression: asKind("KindVoidExpression"),
     AsAwaitExpression: asKind(KindAwaitExpression),
   },
-  is: {
+  is: new Proxy({
     IsKeywordTypeNode: () => false,
     IsTypeReferenceNode: () => false,
     IsUnionTypeNode: () => false,
@@ -433,5 +468,9 @@ export const fakeAst = {
     IsConstructorTypeNode: () => false,
     IsTemplateLiteralTypeNode: () => false,
     IsImportTypeNode: () => false,
-  },
+  }, {
+    get(target, property) {
+      return property in target ? target[property] : () => false;
+    },
+  }),
 };

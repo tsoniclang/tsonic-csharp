@@ -12,6 +12,7 @@ import {
 } from "../../../target-types.js";
 import {
   targetTypeRefEquals,
+  targetTypeRefIsClosed,
 } from "../../../target-ref-utils.js";
 
 export type CsharpRequestCarrierFactWrite = "not-proven" | "recorded" | "conflict";
@@ -39,7 +40,7 @@ export function recordUniqueSelectedCallReceiverCarrier(
     return "not-proven";
   }
   const carrier = uniqueReceiverTypes[0];
-  if (carrier === undefined) {
+  if (carrier === undefined || !targetTypeRefIsClosed(carrier)) {
     return "not-proven";
   }
   const write = recordCsharpRuntimeCarrierFact(context.facts, receiver, { carrier }, [{

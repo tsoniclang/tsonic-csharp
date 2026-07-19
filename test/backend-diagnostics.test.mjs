@@ -24,7 +24,7 @@ test("missing required runtime carrier preserves resolver reason and evidence an
 
   const input = fakeCompileInput(sourceFile, {
     runtimeCarrierResolution: missingCarrierResolution(
-      "resolver exhausted finalized node, symbol, and semantic type carrier facts",
+      "resolver exhausted finalized node and semantic type carrier facts",
       [{
         message: "resolver evidence: identifier ready had no finalized runtimeCarrierFact",
         subject: condition,
@@ -36,7 +36,7 @@ test("missing required runtime carrier preserves resolver reason and evidence an
 
   assert.equal(result.artifacts.length, 0);
   assert.equal(result.diagnostics.length, 1);
-  assert.match(result.diagnostics[0].message, /resolver exhausted finalized node, symbol, and semantic type carrier facts/u);
+  assert.match(result.diagnostics[0].message, /resolver exhausted finalized node and semantic type carrier facts/u);
   assert.ok(result.diagnostics[0].evidence?.includes("resolver evidence: identifier ready had no finalized runtimeCarrierFact"));
   assert.ok(result.diagnostics[0].evidence?.includes(`source.module=${fileName}`));
   assert.ok(result.diagnostics[0].evidence?.includes(`source.file=${fileName}`));
@@ -92,6 +92,9 @@ function fakeCompileInput(sourceFile, options = {}) {
       getSourceFile: () => sourceFile,
       forEachChild: forEachChildNode,
       is: {
+        IsStringLiteral: () => false,
+        IsNoSubstitutionTemplateLiteral: () => false,
+        IsTemplateExpression: () => false,
         IsKeywordTypeNode: () => false,
         IsTypeReferenceNode: () => false,
         IsUnionTypeNode: () => false,

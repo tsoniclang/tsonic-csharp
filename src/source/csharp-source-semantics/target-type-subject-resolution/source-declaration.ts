@@ -14,6 +14,9 @@ import {
   sourceDeclarationTargetType,
 } from "../source-declaration-facts.js";
 import {
+  csharpSourceDeclarationTargetFactKey,
+} from "../../csharp-facts.js";
+import {
   getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "../symbol-utils.js";
@@ -22,6 +25,10 @@ export function getSourceDeclarationTargetTypeRef(
   subject: ExtensionFactSubject,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
+  const direct = context.factResolver.resolve(subject, csharpSourceDeclarationTargetFactKey)?.targetType;
+  if (direct !== undefined) {
+    return direct;
+  }
   const node = asNodeSubject(subject);
   const ast = context.compiler?.ast;
   const checker = context.compiler?.checker;
@@ -36,6 +43,10 @@ export function getSourceDeclarationTargetTypeRef(
     }
     if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
       continue;
+    }
+    const recorded = context.factResolver.resolve(declaration, csharpSourceDeclarationTargetFactKey)?.targetType;
+    if (recorded !== undefined) {
+      return recorded;
     }
     const name = getNodeNameText(ast, declaration);
     if (name.length === 0) {

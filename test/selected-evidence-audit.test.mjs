@@ -117,6 +117,117 @@ test("selected-evidence fixtures do not fabricate non-contract request fields", 
   assert.deepEqual(hits, []);
 });
 
+test("runtime-carrier request handling never treats declaration symbols as concrete carrier subjects", () => {
+  const files = [
+    "src/source/csharp-source-semantics/operations-provider.ts",
+    "src/source/csharp-source-semantics/runtime-carrier-mapping/existing.ts",
+    "src/source/csharp-source-semantics/runtime-carrier-mapping/syntax.ts",
+    "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
+  ];
+  const forbidden = files.flatMap((file) => {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    return /\brequest\.sourceSymbol\b/u.test(source) ? [file] : [];
+  });
+  assert.deepEqual(forbidden, []);
+});
+
+test("C# runtime-carrier writes are centralized and never target symbol-shaped subjects", () => {
+  const productFiles = sourceFiles(join(repoRoot, "src"));
+  const directWriteOwner = "src/source/csharp-facts/runtime-carrier.ts";
+  const violations = [];
+  for (const file of productFiles) {
+    const relativeFile = relative(repoRoot, file).split(sep).join("/");
+    const source = readFileSync(file, "utf8");
+    if (relativeFile !== directWriteOwner && /\.set\([\s\S]{0,240}?\bcsharpRuntimeCarrierFactKey\b/u.test(source)) {
+      violations.push(`${relativeFile}: direct fact-key write`);
+    }
+    for (const match of source.matchAll(/recordCsharpRuntimeCarrierFact\(\s*[^,]+,\s*([^,\n)]+)/gu)) {
+      if (/(?:sourceSymbol|selectedSymbol|typeSymbol|\.symbol)\b/u.test(match[1] ?? "")) {
+        violations.push(`${relativeFile}: symbol-shaped runtime-carrier write`);
+      }
+    }
+  }
+  assert.deepEqual(violations, []);
+});
+
+test("source declaration target templates never masquerade as concrete runtime carriers", () => {
+  const files = [
+    "src/source/csharp-source-semantics/source-declaration-facts/recording.ts",
+    "src/source/csharp-source-semantics/target-type-reference-syntax.ts",
+    "src/source/csharp-source-semantics/target-type-subject-resolution/source-declaration.ts",
+  ];
+  const forbiddenTokens = [
+    "csharpRuntimeCarrierFactKey",
+    "recordCsharpRuntimeCarrierFact",
+    "getRecordedCsharpRuntimeCarrierFact",
+    "resolveCsharpRuntimeCarrier",
+  ];
+  const forbidden = files.flatMap((file) => {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    return forbiddenTokens
+      .filter((token) => source.includes(token))
+      .map((token) => `${file}: ${token}`);
+  });
+  assert.deepEqual(forbidden, []);
+});
+
+test("runtime-carrier symbol provenance is declaration-invariant source-primitive evidence only", () => {
+  const hits = sourceFiles(join(repoRoot, "src"))
+    .flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      return source.includes("request.sourceSymbol")
+        ? [{ file: relative(repoRoot, file).split(sep).join("/"), source }]
+        : [];
+    });
+  assert.deepEqual(hits.map(({ file }) => file), [
+    "src/source/csharp-source-semantics/runtime-carrier-mapping.ts",
+  ]);
+  assert.match(
+    hits[0]?.source ?? "",
+    /const primitiveSubject = \[[\s\S]*request\.sourceSymbol[\s\S]*sourcePrimitiveFactKey/u,
+  );
+});
+
+test("concrete runtime-carrier publication never falls back to declaration provenance", () => {
+  const rules = [
+    [
+      "src/source/csharp-source-semantics/operation-selection/iteration.ts",
+      /request\.sourceElement\.(?:selectedDeclaration|declaration|selectedSymbol|symbol)\b/gu,
+    ],
+    [
+      "src/source/csharp-source-semantics/surfaces/js/calls/helpers.ts",
+      /requestContext\.calleeReceiverTypeSymbol\b/gu,
+    ],
+    [
+      "src/backend/planner/runtime-carriers.ts",
+      /getTargetTypeRefFromSemanticTypeFacts\(input,\s*input\.analysis\.getTypeSymbol\(/gu,
+    ],
+  ];
+  const violations = rules.flatMap(([file, pattern]) => {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    return [...source.matchAll(pattern)].map((match) => `${file}: ${match[0]}`);
+  });
+  assert.deepEqual(violations, []);
+});
+
+test("source return carrier templates stay on exact callable declarations, never shared symbols", () => {
+  const rules = [
+    [
+      "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
+      /getArrayReturnSourceSubjects[\s\S]*?const subjects:[\s\S]*?\b(?:symbol|sourceSymbol|selectedSymbol)\b[\s\S]*?return subjects/gu,
+    ],
+    [
+      "src/backend/planner/csharp-type-node/source-generic-types.ts",
+      /getSourceReturnCarrierFromSelectedDeclaration[\s\S]*?reference\?\.symbol/gu,
+    ],
+  ];
+  const violations = rules.flatMap(([file, pattern]) => {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    return [...source.matchAll(pattern)].map((match) => `${file}: ${match[0].slice(0, 80)}`);
+  });
+  assert.deepEqual(violations, []);
+});
+
 function sourceFiles(directory) {
   return readdirSync(directory).flatMap((entryName) => {
     const path = join(directory, entryName);

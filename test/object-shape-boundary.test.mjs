@@ -118,9 +118,10 @@ test("provider-owned property access emits from finalized selected member fact, 
     access,
     {},
     fakeInput({
-      runtimeCarriers: new Map([[receiver, {
-        carrier: csharpTargetNamedType("Example.Values", undefined, csharpQualifiedTypeRenderShape("Example", "Values")),
-      }]]),
+      runtimeCarriers: new Map([[
+        receiver,
+        csharpTargetNamedType("Example.Values", undefined, csharpQualifiedTypeRenderShape("Example", "Values")),
+      ]]),
       selectedPropertySubject: access,
       selectedProperty: targetOperation(operationId, "property"),
       csharpOperationSubject: access,

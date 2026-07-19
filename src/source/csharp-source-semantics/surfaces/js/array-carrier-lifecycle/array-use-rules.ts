@@ -119,10 +119,7 @@ function carrierRequirementsForSelectedSignatureArgumentUse(
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const parameterType = compiler.checker.getTypeOfSymbol(parameter, { sourceFile: use.sourceFile });
-  const parameterCarrier = host.getTargetTypeRefForSubject(parameter, context, {
-    allowRuntimeCarrier: true,
-    sourceFile: use.sourceFile,
-  }) ?? host.getTargetTypeRefForType?.(parameterType, context, {
+  const parameterCarrier = host.getTargetTypeRefForType?.(parameterType, context, {
       allowRuntimeCarrier: true,
       sourceFile: use.sourceFile,
     });

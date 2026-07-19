@@ -39,15 +39,19 @@ import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
 } from "./target-type.js";
+import {
+  getExactRuntimeCarrierRequestSubjects,
+} from "../../../runtime-carrier-subjects.js";
 
 export function mapCsharpJsRegExpRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
+  const subjects = getExactRuntimeCarrierRequestSubjects(request);
+  for (const subject of subjects) {
     recordCsharpJsRegExpLiteralFact(subject, context);
   }
-  const carrier = [request.type, request.sourceTypeReference, request.sourceSymbol]
+  const carrier = subjects
     .map((subject) => getCsharpJsRegExpRuntimeCarrierForSubject(subject, context))
     .find((candidate) => candidate !== undefined);
   return carrier === undefined

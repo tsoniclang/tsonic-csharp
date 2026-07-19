@@ -63,7 +63,7 @@ export function resolveTargetTypeRefForTypeCore(
   }
   const types = context.compiler?.typeShape;
   if (types === undefined) {
-    return resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
+    return resolveNonPrimitiveRuntimeCarrier(type, context, options);
   }
   const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
@@ -102,7 +102,7 @@ export function resolveTargetTypeRefForTypeCore(
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
     }, host);
   }
-  const runtimeCarrier = resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
+  const runtimeCarrier = resolveNonPrimitiveRuntimeCarrier(type, context, options);
   if (runtimeCarrier !== undefined) {
     return runtimeCarrier;
   }
@@ -179,48 +179,14 @@ function resolveNonPrimitiveRuntimeCarrier(
   type: Type,
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-  resolveTargetTypeArgumentsForType: CsharpTargetTypeArgumentsResolver,
 ): TargetTypeRef | undefined {
   if (options.allowRuntimeCarrier === false) {
     return undefined;
   }
   const direct = resolveCsharpRuntimeCarrier(type, context);
-  if (direct !== undefined && !targetTypeRefContainsSourcePrimitive(direct)) {
-    return direct;
-  }
-  const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
-  const symbolCarrier = resolveCsharpRuntimeCarrier(typeSymbol, context);
-  if (symbolCarrier === undefined || targetTypeRefContainsSourcePrimitive(symbolCarrier)) {
-    return undefined;
-  }
-  const instantiated = instantiateSemanticRuntimeCarrier(symbolCarrier, type, context, options, host, resolveTargetTypeArgumentsForType);
-  return instantiated === undefined || targetTypeRefContainsSourcePrimitive(instantiated)
+  return direct === undefined || targetTypeRefContainsSourcePrimitive(direct)
     ? undefined
-    : instantiated;
-}
-
-function instantiateSemanticRuntimeCarrier(
-  carrier: TargetTypeRef,
-  type: Type,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-  resolveTargetTypeArgumentsForType: CsharpTargetTypeArgumentsResolver,
-): TargetTypeRef | undefined {
-  if (carrier.kind !== "target-named") {
-    return carrier;
-  }
-  const typeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
-  if (typeArguments === undefined) {
-    return undefined;
-  }
-  return typeArguments.length === 0
-    ? carrier
-    : {
-        ...carrier,
-        typeArguments,
-      };
+    : direct;
 }
 
 function targetTypeArgumentArityMatches(typeParameterCount: number, typeArgumentCount: number): boolean {

@@ -98,7 +98,7 @@ function getSourceReturnCarrierFromSelectedDeclaration(
   const reference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
   const declaration = reference?.declaration;
   const name = declaration === undefined ? undefined : input.ast.name(declaration);
-  for (const subject of [declaration, name, reference?.symbol]) {
+  for (const subject of [declaration, name]) {
     if (subject === undefined) {
       continue;
     }

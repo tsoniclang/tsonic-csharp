@@ -1,7 +1,6 @@
 import type {
   ExtensionEvidence,
   ExtensionFactStore,
-  ExtensionFactSubject,
   Node,
 } from "@tsonic/tsts";
 import {
@@ -26,7 +25,7 @@ export function setRuntimeCarrierFactIfAbsent(
 
 export function setRuntimeCarrierFactIfUnresolved(
   context: RuntimeCarrierFactWriteContext,
-  subject: ExtensionFactSubject | undefined,
+  subject: Node | undefined,
   fact: CsharpRuntimeCarrierFact | undefined,
   evidence: readonly ExtensionEvidence[],
 ): boolean {
@@ -42,7 +41,7 @@ export function setRuntimeCarrierFactIfUnresolved(
 
 export function setRuntimeCarrierFactIfLocallyAbsent(
   context: RuntimeCarrierFactWriteContext,
-  subject: ExtensionFactSubject | undefined,
+  subject: Node | undefined,
   fact: CsharpRuntimeCarrierFact,
   message: string,
 ): boolean {

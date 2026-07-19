@@ -208,9 +208,7 @@ export function subjectHasSourceDeclaredStructRuntimeCarrier(
     return false;
   }
   const type = getSemanticTypeForObjectShapeLookup(node, context);
-  const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
-  return isSourceDeclaredStructRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(context.facts, type)?.carrier) ||
-    isSourceDeclaredStructRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(context.facts, typeSymbol)?.carrier);
+  return isSourceDeclaredStructRuntimeCarrier(getRecordedCsharpRuntimeCarrierFact(context.facts, type)?.carrier);
 }
 
 function subjectReferencesSourceCoreStructMarkerDeclaration(

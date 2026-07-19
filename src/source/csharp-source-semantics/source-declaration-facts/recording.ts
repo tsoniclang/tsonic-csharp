@@ -4,8 +4,8 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  recordCsharpRuntimeCarrierFact,
   csharpObjectShapeFactKey,
+  csharpSourceDeclarationTargetFactKey,
 } from "../../csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
@@ -24,15 +24,15 @@ export function recordSourceDeclarationTarget(
   if (ast === undefined) {
     return;
   }
-  const fact = { carrier: targetType };
-  const evidence: readonly ExtensionEvidence[] = [{ message: "C# source declaration runtime carrier recorded from TSTS source declaration identity." }];
-  recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, declaration, fact, evidence);
+  const fact = { targetType };
+  const evidence: readonly ExtensionEvidence[] = [{ message: "C# source declaration target template recorded from TSTS source declaration identity." }];
+  lifecycleContext.host.facts.set(declaration, csharpSourceDeclarationTargetFactKey, fact, evidence);
   if (objectShape !== undefined) {
     lifecycleContext.host.facts.set(declaration, csharpObjectShapeFactKey, objectShape, evidence);
   }
   const name = ast.name(declaration);
   if (name !== undefined) {
-    recordCsharpRuntimeCarrierFact(lifecycleContext.host.facts, name, fact, evidence);
+    lifecycleContext.host.facts.set(name, csharpSourceDeclarationTargetFactKey, fact, evidence);
     if (objectShape !== undefined) {
       lifecycleContext.host.facts.set(name, csharpObjectShapeFactKey, objectShape, evidence);
     }

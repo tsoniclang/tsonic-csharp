@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpArrayBoundaryFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpRuntimeCarrierFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
   createCsharpSourceSemanticsExtension,
@@ -20,9 +20,10 @@ import {
   createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider,
 } from "../dist/source/csharp-source-semantics/surface-extensions.js";
 import { mapCsharpJsSurfaceCheckedIteration } from "../dist/source/csharp-source-semantics/surfaces/js/iteration.js";
+import { csharpEnumerableTargetType, csharpReadOnlyListTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 import { csharpJsMapCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-metadata.js";
 import { csharpJsSetCollectionPolicy } from "../dist/source/csharp-source-semantics/surfaces/js/collection-target-metadata/set-metadata.js";
-export { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy };
+export { test, assert, createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey, createTsonicCoreSourceExtension, csharpArrayBoundaryFactKey, csharpRuntimeCarrierFactKey, csharpSourceProfileDeclarationFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey, createCsharpJsSurfaceExtension, createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension, csharpJsSourceProfileOwnerId, csharpJsSurfaceSourceProfileContributions, csharpSourceProfileContributions, csharpSourceProfileOwnerId, planArrayLiteralExpressionWithCarrier, createCsharpNativeOperationsProvider, createProductCsharpJsSurfaceOperationsProvider, mapCsharpJsSurfaceCheckedIteration, csharpJsMapCollectionPolicy, csharpJsSetCollectionPolicy };
 
 const sourceProfileDeclarationFacts = new WeakMap();
 
@@ -248,8 +249,6 @@ export function fakeNamespaceImportContext(facts, sourceFile) {
           AsElementAccessExpression: (node) => node?.Kind === "ElementAccessExpression" ? node : undefined,
           AsCallExpression: (node) => node?.Kind === "CallExpression" ? node : undefined,
           AsNewExpression: (node) => node?.Kind === "NewExpression" ? node : undefined,
-        },
-        as: {
           AsImportDeclaration: (node) => node?.Kind === "ImportDeclaration" ? node : undefined,
           AsImportClause: (node) => node?.Kind === "ImportClause" ? node : undefined,
           AsNamespaceImport: (node) => node?.Kind === "NamespaceImport" ? node : undefined,
@@ -310,6 +309,45 @@ export function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, p
     ...(accessMode === "write" ? {} : { sourceReadResult: selectedResult }),
     ...(accessMode === "read" || accessMode === "delete" ? {} : { sourceWriteType: selectedWriteType }),
     chainRole: sourceChainRole("property-access", options),
+  };
+}
+
+export function sourceLibraryElementRequest(expression, receiverValue, argumentValue, sourceSelectedDeclaration, options = {}) {
+  const receiver = fakeNodeSubject(receiverValue);
+  const argument = fakeNodeSubject(argumentValue);
+  const receiverType = options.receiverType ?? receiver.SemanticType ?? receiver;
+  const argumentType = options.argumentType ?? argument.SemanticType ?? argument;
+  const resultType = options.sourceResultType ?? expression;
+  const accessMode = options.accessMode ?? "read";
+  const selection = {
+    selectedDeclaration: sourceSelectedDeclaration,
+    selectedSymbol: options.sourceSelectedSymbol,
+  };
+  return {
+    sourceOperationKind: "element-access",
+    target: "csharp",
+    expression,
+    receiver,
+    argument,
+    sourceReceiver: selectedSourceValueEvidence(receiver, receiverType),
+    sourceArgument: selectedSourceValueEvidence(argument, argumentType),
+    ...(options.sourceSelectedElementIndex === undefined
+      ? {}
+      : { sourceSelectedElementIndex: options.sourceSelectedElementIndex }),
+    accessMode,
+    use: options.callCallee === true ? "call-callee" : "value",
+    ...(accessMode === "write"
+      ? {}
+      : { sourceReadResult: selectedSourceValueEvidence(expression, resultType, selection) }),
+    ...(accessMode === "read" || accessMode === "delete"
+      ? {}
+      : {
+          sourceWriteType: selectedSourceTypeEvidence(
+            options.sourceWriteType ?? resultType,
+            selection,
+          ),
+        }),
+    chainRole: sourceChainRole("element-access", options),
   };
 }
 
@@ -712,18 +750,11 @@ export function int32ArrayType() {
 }
 
 export function int32EnumerableType() {
-  return genericSystemCollectionType("IEnumerable", int32Type(), {
-    csharpArrayLiteralElementType: int32Type(),
-    csharpEnumerableElementType: int32Type(),
-  });
+  return csharpEnumerableTargetType(int32Type());
 }
 
 export function int32ReadOnlyListType() {
-  return genericSystemCollectionType("IReadOnlyList", int32Type(), {
-    csharpArrayLiteralElementType: int32Type(),
-    csharpEnumerableElementType: int32Type(),
-    csharpReadOnlyIndexableElementType: int32Type(),
-  });
+  return csharpReadOnlyListTargetType(int32Type());
 }
 
 export function genericSystemCollectionType(name, elementType, extras = {}) {
@@ -822,12 +853,21 @@ export class TestFactStore {
     return this.#facts.get(subject)?.get(key);
   }
 
+  setCsharpRuntimeCarrier(subject, carrier) {
+    return this.set(subject, csharpRuntimeCarrierFactKey, { carrier });
+  }
+
   set(subject, key, value) {
     let subjectFacts = this.#facts.get(subject);
     if (subjectFacts === undefined) {
       subjectFacts = new Map();
       this.#facts.set(subject, subjectFacts);
     }
+    const existing = subjectFacts.get(key);
+    if (existing !== undefined) {
+      return key.equals(existing, value) ? "idempotent" : "conflict";
+    }
     subjectFacts.set(key, value);
+    return "inserted";
   }
 }

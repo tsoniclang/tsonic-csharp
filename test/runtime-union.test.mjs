@@ -388,8 +388,12 @@ function fakeInput(options = {}) {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  text: (node) => String(node?.Text ?? ""),
+  parent: (node) => node?.Parent,
+  children: (node) => node?.Children ?? node?.Types ?? [],
+  typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
   getSourceFile: () => undefined,
-  is: {
+  is: new Proxy({
     IsKeywordTypeNode: () => false,
     IsTypeReferenceNode: () => false,
     IsUnionTypeNode: (node) => node?.Kind === KindUnionType,
@@ -409,7 +413,11 @@ const fakeAst = {
     IsConstructorTypeNode: () => false,
     IsTemplateLiteralTypeNode: () => false,
     IsImportTypeNode: () => false,
-  },
+  }, {
+    get(target, property) {
+      return property in target ? target[property] : () => false;
+    },
+  }),
 };
 
 function collectIdentifiersByText(sourceFile, ast, text) {

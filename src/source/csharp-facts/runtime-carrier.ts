@@ -2,9 +2,14 @@ import type {
   ExtensionConsumerQueries,
   ExtensionEvidence,
   ExtensionFactStore,
-  ExtensionFactSubject,
   ExtensionFactWriteResult,
+  Node,
+  Type,
 } from "@tsonic/tsts";
+import {
+  asNodeSubject,
+  asSemanticType,
+} from "../fact-subjects.js";
 import {
   csharpRuntimeCarrierFactKey,
 } from "./keys.js";
@@ -12,25 +17,43 @@ import type {
   CsharpRuntimeCarrierFact,
 } from "./types.js";
 
+export type CsharpRuntimeCarrierFactSubject = Node | Type;
+
+export function asCsharpRuntimeCarrierFactSubject(
+  subject: unknown,
+): CsharpRuntimeCarrierFactSubject | undefined {
+  return asNodeSubject(subject) ?? asSemanticType(subject);
+}
+
 export function getRecordedCsharpRuntimeCarrierFact(
   facts: ExtensionFactStore,
-  subject: ExtensionFactSubject | undefined,
+  subject: unknown,
 ): CsharpRuntimeCarrierFact | undefined {
-  return facts.get(subject, csharpRuntimeCarrierFactKey);
+  const exactSubject = asCsharpRuntimeCarrierFactSubject(subject);
+  return exactSubject === undefined
+    ? undefined
+    : facts.get(exactSubject, csharpRuntimeCarrierFactKey);
 }
 
 export function getConsumedCsharpRuntimeCarrierFact(
   facts: ExtensionConsumerQueries,
-  subject: ExtensionFactSubject | undefined,
+  subject: unknown,
 ): CsharpRuntimeCarrierFact | undefined {
-  return facts.getFact(subject, csharpRuntimeCarrierFactKey);
+  const exactSubject = asCsharpRuntimeCarrierFactSubject(subject);
+  return exactSubject === undefined
+    ? undefined
+    : facts.getFact(exactSubject, csharpRuntimeCarrierFactKey);
 }
 
 export function recordCsharpRuntimeCarrierFact(
   facts: ExtensionFactStore,
-  subject: ExtensionFactSubject,
+  subject: unknown,
   fact: CsharpRuntimeCarrierFact,
   evidence: readonly ExtensionEvidence[] = [],
 ): ExtensionFactWriteResult {
-  return facts.set(subject, csharpRuntimeCarrierFactKey, fact, evidence);
+  const exactSubject = asCsharpRuntimeCarrierFactSubject(subject);
+  if (exactSubject === undefined) {
+    throw new Error("C# runtime-carrier facts require an exact source node or semantic type subject.");
+  }
+  return facts.set(exactSubject, csharpRuntimeCarrierFactKey, fact, evidence);
 }

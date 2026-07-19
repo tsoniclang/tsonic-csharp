@@ -25,6 +25,7 @@ import type {
   CsharpSourceProfileDeclarationFact,
   CsharpRegularExpressionLiteralFact,
   CsharpRuntimeCarrierFact,
+  CsharpSourceDeclarationTargetFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
   CsharpTargetNameFact,
@@ -42,6 +43,7 @@ import {
   snapshotCsharpProjectSourceFact,
   snapshotCsharpRegularExpressionLiteralFact,
   snapshotCsharpRuntimeCarrierFact,
+  snapshotCsharpSourceDeclarationTargetFact,
   snapshotCsharpSourceProfileDeclarationFact,
   snapshotCsharpSourceReturnCarrierFact,
   snapshotCsharpTargetIterationFact,
@@ -187,6 +189,13 @@ export const csharpRuntimeCarrierFactKey = defineExtensionFactKey<CsharpRuntimeC
   name: "runtimeCarrier",
   snapshot: snapshotCsharpRuntimeCarrierFact,
   equals: (left, right) => targetTypeRefEquals(left.carrier, right.carrier),
+});
+
+export const csharpSourceDeclarationTargetFactKey = defineExtensionFactKey<CsharpSourceDeclarationTargetFact>({
+  extensionId: csharpTargetSemanticsExtensionId,
+  name: "sourceDeclarationTarget",
+  snapshot: snapshotCsharpSourceDeclarationTargetFact,
+  equals: (left, right) => targetTypeRefEquals(left.targetType, right.targetType),
 });
 
 export const csharpProjectSourceFactKey = defineExtensionFactKey<CsharpProjectSourceFact>({

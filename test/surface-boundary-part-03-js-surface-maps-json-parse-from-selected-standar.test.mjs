@@ -61,7 +61,7 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
   }), fakeContext(facts));
   assert.equal(parseResult.kind, "accept");
   facts.set(parseCall, selectedTargetSignatureFactKey, parseResult.value.selectedSignature);
-  facts.set(parseCall, runtimeCarrierFactKey, { carrier: tsValueType() });
+  facts.setCsharpRuntimeCarrier(parseCall, tsValueType());
 
   const stringifyResult = provider.mapCheckedCall(jsCallRequest(stringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parseCall],
@@ -93,7 +93,7 @@ test("JS surface rejects JSON.stringify when the argument carrier fact is mutate
   const call = {};
   const value = {};
   const facts = new TestFactStore();
-  facts.set(value, runtimeCarrierFactKey, { carrier: { kind: "opaque", id: "any" } });
+  facts.setCsharpRuntimeCarrier(value, { kind: "opaque", id: "any" });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
@@ -201,7 +201,7 @@ test("JS array length mutation maps only from selected property evidence on the 
   const expression = fakeNodeSubject({}, "BinaryExpression");
   const carrier = jsArrayType();
   const facts = new TestFactStore();
-  facts.set(receiver, runtimeCarrierFactKey, { carrier });
+  facts.setCsharpRuntimeCarrier(receiver, carrier);
   facts.set(left, targetOperationFactKey, {
     operationId: "tsonic.csharp.js.Array.length",
     operationKind: "property",
@@ -232,7 +232,7 @@ test("JS array length mutation refuses same-shaped syntax without selected prope
   const right = fakeNodeSubject({}, "NumericLiteral");
   const expression = fakeNodeSubject({}, "BinaryExpression");
   const facts = new TestFactStore();
-  facts.set(receiver, runtimeCarrierFactKey, { carrier: jsArrayType() });
+  facts.setCsharpRuntimeCarrier(receiver, jsArrayType());
   const host = {
     ...fakeHost(undefined, new Map([[right, int32Type()]])),
     targetId: "csharp",
@@ -655,7 +655,7 @@ test("JS surface maps Object.hasOwnProperty only from selected declaration and c
   const receiver = {};
   const key = {};
   const facts = new TestFactStore();
-  facts.set(receiver, runtimeCarrierFactKey, { carrier: jsObjectType() });
+  facts.setCsharpRuntimeCarrier(receiver, jsObjectType());
   const targetTypes = new Map([
     [key, stringType()],
   ]);

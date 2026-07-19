@@ -108,6 +108,9 @@ import {
   contextualTargetTypeObservationAsSelection,
   runtimeCarrierObservationAsSelection,
 } from "./target-selection-contract.js";
+import {
+  getExactRuntimeCarrierRequestSubjects,
+} from "./runtime-carrier-subjects.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -288,19 +291,17 @@ export function createCsharpTargetOperationsProvider(
         const fact = {
           carrier: observation.value.carrier,
         };
-        for (const subject of [request.type, request.sourceTypeReference, request.sourceSymbol]) {
-          if (subject !== undefined) {
-            const writeResult = recordCsharpRuntimeCarrierFact(context.facts, subject, fact, observation.evidence ?? []);
-            if (writeResult !== "inserted" && writeResult !== "idempotent") {
-              return rejectObservation(csharpProviderDiagnostic(
-                csharpTargetSemanticsExtensionId,
-                "CSHARP_RUNTIME_CARRIER_FACT_WRITE_FAILED",
-                9100190,
-                `C# runtime-carrier selection could not publish its exact target-owned fact (${writeResult}).`,
-                observation.evidence ?? [],
-                request.sourceTypeReference ?? request.type,
-              ));
-            }
+        for (const subject of getExactRuntimeCarrierRequestSubjects(request)) {
+          const writeResult = recordCsharpRuntimeCarrierFact(context.facts, subject, fact, observation.evidence ?? []);
+          if (writeResult !== "inserted" && writeResult !== "idempotent") {
+            return rejectObservation(csharpProviderDiagnostic(
+              csharpTargetSemanticsExtensionId,
+              "CSHARP_RUNTIME_CARRIER_FACT_WRITE_FAILED",
+              9100190,
+              `C# runtime-carrier selection could not publish its exact target-owned fact (${writeResult}).`,
+              observation.evidence ?? [],
+              request.sourceTypeReference ?? request.type,
+            ));
           }
         }
       }
