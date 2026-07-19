@@ -8,9 +8,6 @@ import type {
   ExtensionObservationContext,
   TargetMember,
 } from "@tsonic/tsts";
-import {
-  csharpSelectedCallTargetFactKey,
-} from "../../../../csharp-facts.js";
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
@@ -38,6 +35,9 @@ import {
 import {
   getApplicableSourceCallEvidence,
 } from "../../../selected-source-evidence.js";
+import {
+  recordSelectedCallResultCarrier,
+} from "./request-carrier-facts.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -55,54 +55,15 @@ export function acceptSourceLibraryCheckedCall(
   if (argumentConversions === undefined) {
     return rejectSourceLibraryArgumentBindings(request, sourceMember, context);
   }
+  if (recordSelectedCallResultCarrier(request, member, context) === "conflict") {
+    return rejectSourceLibraryCallResultCarrierConflict(request, sourceMember, context);
+  }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
     selectedSignature: { member: sourceSelectedMember },
     argumentConversions,
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
-}
-
-export function acceptDeferredSourceLibraryCheckedCall(
-  request: CheckedCallMappingRequest,
-  sourceMember: SourceLibraryMember,
-  member: TargetMember,
-  candidates: readonly TargetMember[],
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): ExtensionObservation<CheckedCallMappingResult> {
-  const csharpMember = csharpTargetMemberFact(member) as CsharpTargetMember;
-  const deferredSelection = csharpMember.csharpDeferredTargetSelection;
-  const selectionFamilyMembers = deferredSelection === undefined
-    ? []
-    : candidates
-      .map(csharpTargetMemberFact)
-      .filter((candidate): candidate is CsharpTargetMember =>
-        candidate?.csharpDeferredTargetSelection?.familyId === deferredSelection.familyId);
-  const csharpSourceSelectedMember = csharpTargetMemberAsSourceSelectedSignature(csharpMember);
-  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(csharpMember);
-  const argumentConversions = getTargetArgumentConversionSlots(csharpSourceSelectedMember.parameters, {
-    argumentCount: request.arguments.length,
-    sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
-  });
-  if (argumentConversions === undefined) {
-    return rejectSourceLibraryArgumentBindings(request, sourceMember, context);
-  }
-  context.facts.set(request.call, csharpSelectedCallTargetFactKey, {
-    member: csharpMember,
-    ...(csharpMember.csharpCallFinalization === undefined ? {} : { finalizationRequirement: csharpMember.csharpCallFinalization }),
-    ...(deferredSelection === undefined ? {} : {
-      selectionFamily: {
-        familyId: deferredSelection.familyId,
-        sourceIdentity: sourceLibraryMemberIdentity(sourceMember),
-        members: selectionFamilyMembers,
-      },
-    }),
-  }, [{ message: `C# retained the exact selected target member for checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}' until closed receiver facts are finalized.` }]);
-  return acceptObservation<CheckedCallMappingResult>({
-    kind: "target",
-    selectedSignature: { member: sourceSelectedMember },
-    argumentConversions,
-  }, [{ message: `C# JS surface target call signature accepted from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'; target operation recording waits for finalized closed facts.` }]);
 }
 
 function rejectSourceLibraryArgumentBindings(
@@ -118,6 +79,24 @@ function rejectSourceLibraryArgumentBindings(
       9100188,
       `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' requires exact TSTS argument-slot evidence.`,
       undefined,
+      request.call,
+    ),
+  };
+}
+
+function rejectSourceLibraryCallResultCarrierConflict(
+  request: CheckedCallMappingRequest,
+  sourceMember: SourceLibraryMember,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return {
+    kind: "reject",
+    diagnostic: csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_SOURCE_LIBRARY_CALL_RESULT_CARRIER_CONFLICT",
+      9100191,
+      `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' produced conflicting exact target result-carrier facts.`,
+      [{ message: "Selected target call result carrier conflicts with an existing target-owned carrier fact." }],
       request.call,
     ),
   };

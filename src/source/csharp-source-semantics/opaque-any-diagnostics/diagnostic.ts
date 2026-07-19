@@ -7,16 +7,15 @@ import type {
 import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
-import type {
-  OpaqueAnyOperation,
-} from "./opaque-operation.js";
 import {
   unsupportedAnyOperationCode,
   unsupportedAnyOperationNumericCode,
 } from "./diagnostic-constants.js";
-import {
-  subjectIdentity,
-} from "./subject-identity.js";
+
+export interface OpaqueAnyOperation {
+  readonly kind: string;
+  readonly description: string;
+}
 
 export function csharpOpaqueAnyOperationDiagnostic(
   extensionId: string,
@@ -35,24 +34,21 @@ export function csharpOpaqueAnyOperationDiagnostic(
         reason: "Compatibility mode is selected, but no closed dynamic runtime operation fact exists for this expression.",
         architecture: "A selected compatibility surface must provide an explicit TsValue/TsObject/TsFunction operation fact; backend emission must not infer dynamic behavior from TypeScript any.",
       };
-  return {
-    ...csharpProviderDiagnostic(
-      extensionId,
-      unsupportedAnyOperationCode,
-      unsupportedAnyOperationNumericCode,
-      modeDetails.message,
-      [
-        {
-          message: "C# dynamic boundary rejected",
-          details: modeDetails.reason,
-        },
-        {
-          message: "Required architecture",
-          details: modeDetails.architecture,
-        },
-      ],
-      nodeOrSpan,
-    ),
-    identity: `csharp-any-operation:${compatibilityMode}:${operation.kind}:${subjectIdentity(nodeOrSpan)}`,
-  };
+  return csharpProviderDiagnostic(
+    extensionId,
+    unsupportedAnyOperationCode,
+    unsupportedAnyOperationNumericCode,
+    modeDetails.message,
+    [
+      {
+        message: "C# dynamic boundary rejected",
+        details: modeDetails.reason,
+      },
+      {
+        message: "Required architecture",
+        details: modeDetails.architecture,
+      },
+    ],
+    nodeOrSpan,
+  );
 }

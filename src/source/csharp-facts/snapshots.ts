@@ -18,7 +18,6 @@ import type {
   CsharpProjectSourceFact,
   CsharpRegularExpressionLiteralFact,
   CsharpRuntimeCarrierFact,
-  CsharpSelectedCallTargetFact,
   CsharpSourceProfileDeclarationFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
@@ -132,10 +131,6 @@ export function snapshotCsharpTargetIterationFact(value: CsharpTargetIterationFa
 
 export function snapshotCsharpTargetOperationFact(value: CsharpTargetOperationFact): CsharpTargetOperationFact {
   return snapshotOwnedData(value, "targetOperation");
-}
-
-export function snapshotCsharpSelectedCallTargetFact(value: CsharpSelectedCallTargetFact): CsharpSelectedCallTargetFact {
-  return snapshotOwnedData(value, "selectedCallTarget");
 }
 
 export function snapshotCsharpRegularExpressionLiteralFact(

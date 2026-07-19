@@ -1,5 +1,6 @@
 import {
   acceptObservation,
+  deferObservation,
   providerVirtualDeclarationFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -37,7 +38,6 @@ import {
 } from "../target-types.js";
 import {
   isIntegralTargetTypeRef,
-  unwrapNullableTargetType,
 } from "../target-rules.js";
 import {
   findTargetMember,
@@ -50,7 +50,6 @@ import {
   dotnetNativeArrayTypeId,
 } from "../../../providers/dotnet/native-array.js";
 import {
-  asNativeArrayTargetType,
   getNativeArrayReceiverType,
   getSourceReceiverTargetType,
   targetTypeRefIsSourceDeclaredReceiver,
@@ -59,7 +58,6 @@ import {
   rejectNativeArrayIndexerNotFound,
   rejectNativeArrayPropertyNotSupported,
   rejectNonIntegralNativeArrayIndex,
-  rejectNonIntegralSourceArrayIndex,
   rejectSourceIndexerResultTypeNotProven,
   rejectTupleElementCarrierMissing,
   rejectTupleElementIndexNotProven,
@@ -75,6 +73,9 @@ import {
   csharpSourceProfileIndexerMember,
   getCsharpSourceProfileMemberIdentity,
 } from "../source-profile-operations.js";
+import {
+  csharpSourceProfileOwnerId,
+} from "../source-profile-declarations.js";
 import {
   closeSelectedTargetResultType,
 } from "./selected-result-type.js";
@@ -235,30 +236,36 @@ export function mapCsharpSourceArrayCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const selectedEvidence = getSelectedAccessEvidence(request);
+  const sourceProfileIdentity = getCsharpSourceProfileMemberIdentity(
+    selectedEvidence.selectedDeclaration,
+    context,
+  );
+  if (
+    sourceProfileIdentity?.kind !== "indexer" ||
+    sourceProfileIdentity.ownerId !== csharpSourceProfileOwnerId
+  ) {
+    return undefined;
+  }
   const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
   if (existingOperation !== undefined) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: existingOperation,
     }, [{ message: "C# source array element access reused existing finalized target operation for repeated checked-element observation." }]);
   }
-  const receiverType = asNativeArrayTargetType(unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.sourceReceiver.type, context, { allowRuntimeCarrier: true }) ??
-      host.getTargetTypeRefForSubject(request.sourceReceiver.expression, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
-  ));
-  if (receiverType?.kind !== "array") {
-    return undefined;
-  }
-  const sourceProfileMember = csharpSourceProfileIndexerMember(
-    getCsharpSourceProfileMemberIdentity(selectedEvidence.selectedDeclaration, context),
-    receiverType.element,
-  );
-  if (sourceProfileMember === undefined) {
-    return undefined;
-  }
   const indexType = host.getTargetTypeRefForSubject(request.sourceArgument.type, context) ??
     host.getTargetTypeRefForSubject(request.argument, context, { allowSemanticTypeQuery: false });
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
-    return rejectNonIntegralSourceArrayIndex(extensionId);
+    return rejectNonIntegralNativeArrayIndex(extensionId);
+  }
+  const resultType = host.getTargetTypeRefForSubject(selectedEvidence.type, context);
+  if (resultType === undefined) {
+    return context.phase === "checking"
+      ? deferObservation
+      : rejectSourceIndexerResultTypeNotProven(extensionId, undefined, undefined, true);
+  }
+  const sourceProfileMember = csharpSourceProfileIndexerMember(sourceProfileIdentity, resultType);
+  if (sourceProfileMember === undefined) {
+    return undefined;
   }
   const operation = csharpTargetOperationFromMember(sourceProfileMember);
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# source array indexer operation recorded from the TSTS-selected C# source-profile index signature and finalized array carrier facts." }]);

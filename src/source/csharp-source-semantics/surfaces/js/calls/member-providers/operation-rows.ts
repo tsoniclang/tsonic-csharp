@@ -377,7 +377,6 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: arrayConstructorIdentityPolicy,
     policyKind: "carrier-member",
     callableWithoutContext: true,
-    lifecycleRuntimeCarrierFacts: [{ subject: "call-result", carrier: "array" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: true })],
   },
   {
@@ -408,14 +407,12 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: collectionConstructorIdentityPolicy,
     policyKind: "carrier-member",
-    lifecycleRuntimeCarrierFacts: [{ subject: "call-result", carrier: "collection" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: true })],
   },
   {
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
     closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.selectedCollectionCarrier },
-    lifecycleRuntimeCarrierFacts: [{ subject: "callee-receiver", carrier: "collection", checkedTypeDerivation: "finalization" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: false })],
   },
   {

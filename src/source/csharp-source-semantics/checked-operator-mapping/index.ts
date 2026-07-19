@@ -57,6 +57,12 @@ import {
   isClosedCompatRuntimeOperationFact,
 } from "../opaque-any-diagnostics/closed-compat.js";
 import {
+  csharpOpaqueAnyOperationDiagnostic,
+} from "../opaque-any-diagnostics/diagnostic.js";
+import {
+  getCheckedOperatorOpaqueAnyOperation,
+} from "../opaque-any-diagnostics/selected-evidence.js";
+import {
   getCheckedOperatorOperandTargetTypeRefs,
 } from "./operands.js";
 import {
@@ -113,6 +119,15 @@ export function mapCsharpCheckedOperator(
     : deferObservation;
   if (compatRuntimeOperator.kind !== "defer") {
     return compatRuntimeOperator;
+  }
+  const opaqueAnyOperation = getCheckedOperatorOpaqueAnyOperation(request, context);
+  if (opaqueAnyOperation !== undefined) {
+    return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
+      context.extensionId,
+      opaqueAnyOperation,
+      typescriptCompatibilityMode,
+      request.expression,
+    ));
   }
   const typeofComparison = getTypeofComparisonOperation(request, context);
   if (typeofComparison !== undefined) {

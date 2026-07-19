@@ -36,7 +36,6 @@ import {
 } from "./checked-assignability-validation/index.js";
 import {
   diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization,
-  diagnoseOpaqueAnyOperationsBeforeFinalization,
 } from "./opaque-any-diagnostics.js";
 import {
   recordCsharpTargetNameFactsBeforeFinalization,
@@ -102,7 +101,6 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("object-shape-facts", () => recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("type-parameter-constraint-facts", () => recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
-        runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost, hosts.typescriptCompatibilityMode));
       });
     },

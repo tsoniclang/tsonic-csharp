@@ -190,16 +190,6 @@ export interface CsharpByrefStorageFact {
   readonly targetType: TargetTypeRef;
 }
 
-export interface CsharpSelectedCallTargetFact {
-  readonly member: CsharpTargetMember;
-  readonly finalizationRequirement?: CsharpTargetMember["csharpCallFinalization"];
-  readonly selectionFamily?: {
-    readonly familyId: string;
-    readonly sourceIdentity: string;
-    readonly members: readonly CsharpTargetMember[];
-  };
-}
-
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
   | CsharpTargetArrayCreationOperationFact

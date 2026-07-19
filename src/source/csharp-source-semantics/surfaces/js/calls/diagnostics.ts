@@ -85,6 +85,25 @@ export function rejectSourceLibraryCallWithoutClosedArgumentFacts(
   ));
 }
 
+export function rejectSourceLibraryCallReceiverCarrierConflict(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+  subject: import("@tsonic/tsts").ExtensionFactSubject,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(
+    host.extensionId,
+    "CSHARP_SOURCE_LIBRARY_RECEIVER_CARRIER_CONFLICT",
+    9100192,
+    `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' produced conflicting exact receiver-carrier facts.`,
+    missingSurfaceCallEvidence(sourceMember, "conflicting-finalized-receiver-carrier", [
+      "selected JS source declaration/signature identity",
+      "one exact receiver target type shared by every target candidate",
+      "idempotent target-owned receiver carrier fact",
+    ]),
+    subject,
+  ));
+}
+
 function missingSurfaceCallEvidence(
   sourceMember: SourceLibraryMember,
   reason: string,

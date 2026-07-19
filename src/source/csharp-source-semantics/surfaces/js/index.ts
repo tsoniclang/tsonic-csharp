@@ -21,9 +21,6 @@ import {
   mapCsharpJsDateRuntimeCarrier,
 } from "./date/index.js";
 import {
-  mapCsharpJsJsonRuntimeCarrier,
-} from "./json.js";
-import {
   mapCsharpJsCollectionRuntimeCarrier,
 } from "./collections.js";
 import {
@@ -93,10 +90,7 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
       if (arrayCarrier.kind !== "defer") {
         return arrayCarrier;
       }
-      const jsonCarrier = mapCsharpJsJsonRuntimeCarrier(request, context, host);
-      return jsonCarrier.kind === "defer"
-        ? mapCsharpJsCollectionRuntimeCarrier(request, context, host)
-        : jsonCarrier;
+      return mapCsharpJsCollectionRuntimeCarrier(request, context, host);
     },
     mapCheckedCall(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

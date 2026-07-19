@@ -5,7 +5,6 @@ export {
 export {
   getCsharpJsDateRuntimeCarrierForType,
   mapCsharpJsDateRuntimeCarrier,
-  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
 } from "./runtime-carrier.js";
 export {
   dateTargetMembersForSelectedIdentity,

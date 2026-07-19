@@ -32,14 +32,8 @@ import {
   recordCsharpJsArrayCarrierFactsBeforeFinalization,
 } from "./surfaces/js/array-carrier-lifecycle.js";
 import {
-  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
+  recordCsharpJsRegExpLiteralFactsBeforeFinalization,
 } from "./surfaces/js/regexp/index.js";
-import {
-  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
-} from "./surfaces/js/date/index.js";
-import {
-  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
-} from "./surfaces/js/json.js";
 import {
   checkedCallObservationAsSelection,
   checkedOperationObservationAsSelection,
@@ -110,9 +104,6 @@ export function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   lifecycleContext: CsharpSurfaceLifecycleContext,
   hosts: CsharpExtensionSemanticHosts,
 ): void {
-  const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
-  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
-  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
-  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsRegExpLiteralFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }

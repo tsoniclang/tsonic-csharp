@@ -1,5 +1,6 @@
 import {
   providerVirtualDeclarationFactKey,
+  structFactKey,
 } from "@tsonic/tsts";
 import {
   visitAstReaderNodes,
@@ -60,19 +61,21 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
       };
       lifecycleContext.host.facts.set(node, csharpProjectSourceFactKey, projectSourceFact, [{ message: "C# project-source ownership recorded from the host-selected non-declaration source file." }]);
       const context = createSourceDeclarationObservationContext(lifecycleContext, compiler);
-      const structDeclaration = getCsharpSourceStructDeclarationTargetForSubject(node, context, host);
+      const structDeclaration = lifecycleContext.host.facts.get(node, structFactKey) === undefined
+        ? undefined
+        : getCsharpSourceStructDeclarationTargetForSubject(node, context, host);
       if (structDeclaration !== undefined) {
-        recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, structDeclaration.targetType, structDeclaration.objectShape);
+        recordSourceDeclarationTarget(lifecycleContext, node, structDeclaration.targetType, structDeclaration.objectShape);
         return;
       }
       const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node, context, host);
       if (declarationTarget !== undefined) {
-        recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, declarationTarget);
+        recordSourceDeclarationTarget(lifecycleContext, node, declarationTarget);
         return;
       }
       const enumMemberTarget = getEnumMemberTargetType(compiler.ast, node);
       if (enumMemberTarget !== undefined) {
-        recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, enumMemberTarget);
+        recordSourceDeclarationTarget(lifecycleContext, node, enumMemberTarget);
       }
     });
   }

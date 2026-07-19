@@ -1,60 +1,28 @@
 import type {
-  ExtensionLifecycleContext,
-  ExtensionObservation,
-  ExtensionObservationContext,
-  Node,
-  RuntimeCarrierFactRequest,
-  RuntimeCarrierFactResult,
-  SourceFile,
   TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  acceptObservation,
-  deferObservation,
-  selectedTargetSignatureFactKey,
-} from "@tsonic/tsts";
-import {
   csharpJsArrayCarrierTargetType,
 } from "./array-target-type.js";
-import type {
-  CsharpJsSurfaceHost,
-} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  resolveSourceLibraryMemberIdentity,
   targetParameter,
 } from "./source-library.js";
 import type {
-  JsSurfaceSourceIdentitySelector,
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
   jsSurfaceTargetMemberFromMetadata,
-  jsSurfaceSelectedSourceIdentityForMember,
-  jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import {
   csharpJsObjectCarrierTargetType,
 } from "./objects.js";
-import {
-  asNodeSubject,
-  getNodeField,
-  getNodeList,
-  isCsharpUserSourceFile,
-  visitAstReaderNodes,
-} from "../../ast-utils.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../runtime-carriers.js";
-import {
-  setRuntimeCarrierFactIfUnresolved,
-} from "../../runtime-carrier-fact-writes.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../dictionaries.js";
@@ -181,51 +149,6 @@ export function deferredJsonObjectShapeStringifyTargetMembers(): readonly Return
   })].map(jsSurfaceTargetMemberFromMetadata);
 }
 
-export function mapCsharpJsJsonRuntimeCarrier(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-  host: CsharpJsSurfaceHost,
-): ExtensionObservation<RuntimeCarrierFactResult> {
-  const call = asNodeSubject(request.type);
-  if (call === undefined || context.compiler?.ast.is.IsCallExpression(call) !== true) {
-    return deferObservation;
-  }
-  const sourceFile = context.compiler.ast.getSourceFile(call);
-  if (sourceFile === undefined || !isCheckedJsonParseCall(call, sourceFile, context, host)) {
-    return deferObservation;
-  }
-  return acceptObservation<RuntimeCarrierFactResult>({
-    carrier: jsonValueTargetType,
-  }, [{ message: "C# JS surface JSON.parse runtime carrier recorded from selected Tsonic JS source-profile declaration and closed string argument facts." }]);
-}
-
-export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (!isCsharpUserSourceFile(sourceFile, compiler.ast)) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (
-        compiler.ast.is.IsCallExpression(node) !== true ||
-        !isCheckedJsonParseCall(node, sourceFile, context, host)
-      ) {
-        return;
-      }
-      setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, {
-        carrier: jsonValueTargetType,
-      }, [{ message: "C# JS surface JSON.parse runtime carrier recorded before generic any carrier finalization." }]);
-    });
-  }
-}
-
 function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetMemberMetadata {
   return {
     id: row.id,
@@ -334,39 +257,3 @@ const jsonTargetMemberMetadata = [
 export const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
   jsSurfaceTargetMemberMetadataWithSourceIdentity("JSON", jsonTargetMemberMetadata),
 );
-
-function isCheckedJsonParseCall(
-  call: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): boolean {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return false;
-  }
-  const selectedSignature = context.host.facts.get(call, selectedTargetSignatureFactKey) ??
-    context.factResolver.resolve(call, selectedTargetSignatureFactKey);
-  const sourceMember = resolveSourceLibraryMemberIdentity(
-    selectedSignature?.sourceSelection.kind === "applicable"
-      ? selectedSignature.sourceSelection.declaration
-      : undefined,
-    context,
-  );
-  if (
-    sourceMember === undefined ||
-    !jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), jsonParseIdentityPolicy)
-  ) {
-    return false;
-  }
-  const argument = getNodeList(getNodeField(call, "Arguments"))[0];
-  return host.isCsharpStringType(host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
-    allowRuntimeCarrier: true,
-    allowSemanticTypeQuery: true,
-    sourceFile,
-  })));
-}
-
-const jsonParseIdentityPolicy = {
-  ids: ["JSON.parse"],
-} satisfies JsSurfaceSourceIdentitySelector;

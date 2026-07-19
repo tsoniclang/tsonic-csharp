@@ -19,6 +19,9 @@ import {
   sourceLocationEvidence,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
+import {
+  getDirectTargetBindingForReference,
+} from "./provider-reference-facts.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -58,7 +61,7 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
-  const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
+  const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
     return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
       getTargetTypeRefFromDirectFacts(input, sourceNode) ??
@@ -67,10 +70,7 @@ export function getTargetTypeRefForNode(
   const finalizedOperationResult = input.facts.getFact(sourceNode, csharpTargetOperationFactKey)?.resultType;
   return typeReferenceFact ??
     finalizedOperationResult ??
-    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-    getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
-    getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
-    getTargetTypeRefFromSymbolDeclarations(input, sourceNode, sourceFile);
+    getTargetTypeRefFromDirectFacts(input, sourceNode);
 }
 
 function getTargetTypeRefFromTargetBindingForReference(
@@ -78,7 +78,7 @@ function getTargetTypeRefFromTargetBindingForReference(
   sourceNode: Node,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  const binding = input.targetFacts.getTargetBindingForReference(sourceNode, { sourceFile });
+  const binding = getDirectTargetBindingForReference(input, sourceNode);
   if (binding === undefined) {
     return undefined;
   }
@@ -89,35 +89,9 @@ function getTargetTypeRefFromTargetBindingForReference(
     : csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
 }
 
-function getTargetTypeRefFromSymbolDeclarations(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const symbols = [
-    input.analysis.getSymbolAtLocation(sourceNode, { sourceFile }),
-    input.analysis.getResolvedSymbol(sourceNode, { sourceFile }),
-  ];
-  for (const symbol of symbols) {
-    for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
-      const declarationFact = getTargetTypeRefFromDirectFacts(input, declaration);
-      if (declarationFact !== undefined) {
-        return declarationFact;
-      }
-      const declarationName = asNodeSubject(getNodeField(declaration, "name"));
-      const declarationNameFact = getTargetTypeRefFromDirectFacts(input, declarationName);
-      if (declarationNameFact !== undefined) {
-        return declarationNameFact;
-      }
-    }
-  }
-  return undefined;
-}
-
 function getTargetTypeRefFromTypeReferenceName(
   input: TargetCompileInput,
   sourceNode: Node,
-  sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   if (input.ast.kindName(sourceNode) !== "KindTypeReference") {
     return undefined;
@@ -125,9 +99,7 @@ function getTargetTypeRefFromTypeReferenceName(
   const typeName = asNodeSubject(getNodeField(sourceNode, "TypeName"));
   return typeName === undefined
     ? undefined
-    : getTargetTypeRefFromDirectFacts(input, typeName, { includeRuntimeCarrier: false }) ??
-      getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(typeName, { sourceFile }), { includeRuntimeCarrier: false }) ??
-      getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(typeName, { sourceFile }), { includeRuntimeCarrier: false });
+    : getTargetTypeRefFromDirectFacts(input, typeName, { includeRuntimeCarrier: false });
 }
 
 function getNodeField(node: Node, field: string): unknown {

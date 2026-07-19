@@ -4,6 +4,9 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
 } from "@tsonic/tsts";
+import {
+  deferObservation,
+} from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
@@ -12,14 +15,12 @@ import {
   sourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
-  csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
-} from "./closed-facts/index.js";
-import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "../unsupported.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
+  rejectSourceLibraryCallReceiverCarrierConflict,
   rejectSourceLibraryCallWithoutClosedArgumentFacts,
   rejectSourceLibraryCallWithoutClosedFacts,
   rejectSourceLibraryCallWithoutUniqueTargetMember,
@@ -33,11 +34,9 @@ import {
   operationRowClosedFactsStatus,
 } from "./member-providers/index.js";
 import {
-  acceptDeferredSourceLibraryCheckedCall,
   acceptSourceLibraryCheckedCall,
 } from "./operations.js";
 import {
-  selectDeferredCanonicalSourceLibraryCallMember,
   selectSourceLibraryCallMember,
 } from "./selection.js";
 import {
@@ -53,12 +52,17 @@ import {
 import {
   getApplicableSourceCallEvidence,
 } from "../../../selected-source-evidence.js";
+import {
+  finalizeSourceLibraryCallMemberFromRequest,
+} from "./finalize-member.js";
+import {
+  recordUniqueSelectedCallReceiverCarrier,
+} from "./request-carrier-facts.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-  options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   const sourceMember = resolveCheckedCallSourceLibraryMember(request, context);
   if (sourceMember === undefined) {
@@ -76,11 +80,16 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const canWaitForFinalizedFacts = csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
+  const canWaitForFinalizedFacts = context.phase === "checking";
   const operationRow = getCsharpJsSourceLibraryOperationRow(sourceMember);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
-    return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
+    return canWaitForFinalizedFacts
+      ? deferObservation
+      : rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host, request.call);
+  }
+  if (recordUniqueSelectedCallReceiverCarrier(request, candidates, context) === "conflict") {
+    return rejectSourceLibraryCallReceiverCarrierConflict(sourceMember, host, request.call);
   }
   const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host, true, sourceLibraryMemberIdentity(sourceMember));
   const closedFactsStatus = operationRow === undefined
@@ -88,19 +97,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
   if (closedFactsStatus.kind !== "satisfied") {
     if (canWaitForFinalizedFacts) {
-      const deferredCanonicalMember = selectDeferredCanonicalSourceLibraryCallMember(
-        candidates,
-        request,
-        context,
-        host,
-        sourceLibraryMemberIdentity(sourceMember),
-      );
-      const deferredMember = selectedMember ??
-        deferredCanonicalMember ??
-        (candidates.length === 1 ? candidates[0] : undefined);
-      return deferredMember === undefined
-        ? rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host)
-        : acceptDeferredSourceLibraryCheckedCall(request, sourceMember, deferredMember, candidates, context);
+      return deferObservation;
     }
     return closedFactsStatus.kind === "missing" &&
       closedFactsStatus.reason === "argument" &&
@@ -108,17 +105,11 @@ export function mapCsharpSourceLibraryCheckedCall(
       ? rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, closedFactsStatus.argumentIndex)
       : rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  if (selectedMember === undefined && getApplicableSourceCallEvidence(request) === undefined) {
-    if (canWaitForFinalizedFacts) {
-      return undefined;
-    }
-    return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
-  }
   const member = selectedMember;
   if (member === undefined) {
     if (targetMemberSelectionRequiresReceiverFacts(candidates, request, context)) {
       if (canWaitForFinalizedFacts) {
-        return undefined;
+        return deferObservation;
       }
       return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
     }
@@ -127,7 +118,7 @@ export function mapCsharpSourceLibraryCheckedCall(
       return rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, missingArgumentFactIndex);
     }
     if (canWaitForFinalizedFacts) {
-      return undefined;
+      return deferObservation;
     }
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host, {
       candidates: candidates.map((candidate) => ({
@@ -139,10 +130,22 @@ export function mapCsharpSourceLibraryCheckedCall(
       argumentTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
     });
   }
-  if (csharpTargetMemberFact(member)?.csharpCallFinalization !== undefined) {
-    return acceptDeferredSourceLibraryCheckedCall(request, sourceMember, member, candidates, context);
+  const finalizedMember = finalizeSourceLibraryCallMemberFromRequest(request, member, context, host);
+  if (finalizedMember === undefined) {
+    if (canWaitForFinalizedFacts) {
+      return deferObservation;
+    }
+    const requirement = csharpTargetMemberFact(member)?.csharpCallFinalization;
+    return requirement === undefined
+      ? rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host)
+      : rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, requirement.argumentIndex);
   }
-  return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
+  if (finalizedMember.csharpDeferredTargetSelection?.variant === "canonical") {
+    return canWaitForFinalizedFacts
+      ? deferObservation
+      : rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
+  }
+  return acceptSourceLibraryCheckedCall(request, sourceMember, finalizedMember, context);
 }
 
 export function resolveCheckedCallSourceLibraryMember(

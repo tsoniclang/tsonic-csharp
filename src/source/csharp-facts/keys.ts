@@ -10,7 +10,6 @@ import {
   csharpTypeParameterConstraintArrayEquals,
   extensionFactSubjectTypeRefEquals,
   objectShapeMemberArrayEquals,
-  targetMemberEquals,
   targetTypeRefArrayEquals,
   targetTypeRefEquals,
 } from "./equality.js";
@@ -26,7 +25,6 @@ import type {
   CsharpSourceProfileDeclarationFact,
   CsharpRegularExpressionLiteralFact,
   CsharpRuntimeCarrierFact,
-  CsharpSelectedCallTargetFact,
   CsharpSourceReturnCarrierFact,
   CsharpTargetIterationFact,
   CsharpTargetNameFact,
@@ -44,7 +42,6 @@ import {
   snapshotCsharpProjectSourceFact,
   snapshotCsharpRegularExpressionLiteralFact,
   snapshotCsharpRuntimeCarrierFact,
-  snapshotCsharpSelectedCallTargetFact,
   snapshotCsharpSourceProfileDeclarationFact,
   snapshotCsharpSourceReturnCarrierFact,
   snapshotCsharpTargetIterationFact,
@@ -129,31 +126,6 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   snapshot: snapshotCsharpTargetOperationFact,
   equals: csharpTargetOperationFactEquals,
 });
-
-export const csharpSelectedCallTargetFactKey = defineExtensionFactKey<CsharpSelectedCallTargetFact>({
-  extensionId: csharpTargetSemanticsExtensionId,
-  name: "selectedCallTarget",
-  snapshot: snapshotCsharpSelectedCallTargetFact,
-  equals: (left, right) => targetMemberEquals(left.member, right.member)
-    && left.finalizationRequirement?.kind === right.finalizationRequirement?.kind
-    && left.finalizationRequirement?.argumentIndex === right.finalizationRequirement?.argumentIndex
-    && left.selectionFamily?.familyId === right.selectionFamily?.familyId
-    && left.selectionFamily?.sourceIdentity === right.selectionFamily?.sourceIdentity
-    && targetMemberArrayEquals(left.selectionFamily?.members, right.selectionFamily?.members),
-});
-
-function targetMemberArrayEquals(
-  left: readonly CsharpSelectedCallTargetFact["member"][] | undefined,
-  right: readonly CsharpSelectedCallTargetFact["member"][] | undefined,
-): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (left === undefined || right === undefined || left.length !== right.length) {
-    return false;
-  }
-  return left.every((member, index) => targetMemberEquals(member, right[index]));
-}
 
 export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
   extensionId: csharpTargetSemanticsExtensionId,

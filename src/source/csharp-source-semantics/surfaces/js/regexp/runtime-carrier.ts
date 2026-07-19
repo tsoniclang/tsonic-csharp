@@ -5,7 +5,6 @@ import type {
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
-  SourceFile,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -17,7 +16,6 @@ import {
   getRecordedCsharpRuntimeCarrierFact,
 } from "../../../../csharp-facts.js";
 import {
-  getNodeField,
   isCsharpUserSourceFile,
   visitAstReaderNodes,
 } from "../../../ast-utils.js";
@@ -27,9 +25,6 @@ import {
 import {
   setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-fact-writes.js";
-import {
-  getSymbolForDeclarationLookup,
-} from "../../../symbol-utils.js";
 import {
   asNodeSubject,
   asType,
@@ -62,7 +57,7 @@ export function mapCsharpJsRegExpRuntimeCarrier(
       }, [{ message: "C# JS surface runtime carrier mapped from checked JavaScript library type." }]);
 }
 
-export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
+export function recordCsharpJsRegExpLiteralFactsBeforeFinalization(
   lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -82,37 +77,8 @@ export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
       setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, {
         carrier: csharpJsRegExpTargetType(),
       }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);
-      recordCsharpJsRegExpBindingCarrierFact(node, sourceFile, context);
     });
   }
-}
-
-function recordCsharpJsRegExpBindingCarrierFact(
-  literal: ExtensionFactSubject,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
-): void {
-  const node = asNodeSubject(literal);
-  const compiler = context.compiler;
-  if (node === undefined || compiler === undefined) {
-    return;
-  }
-  const declaration = compiler.ast.parent(node);
-  if (
-    declaration === undefined ||
-    compiler.ast.kindName(declaration) !== "KindVariableDeclaration" ||
-    asNodeSubject(getNodeField(declaration, "Initializer")) !== node
-  ) {
-    return;
-  }
-  const name = asNodeSubject(getNodeField(declaration, "name"));
-  const fact = { carrier: csharpJsRegExpTargetType() };
-  const evidence = [{ message: "C# JS surface RegExp literal runtime carrier propagated to checked variable binding." }];
-  setRuntimeCarrierFactIfUnresolved(context, name, fact, evidence);
-  const symbol = name === undefined
-    ? undefined
-    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
-  setRuntimeCarrierFactIfUnresolved(context, symbol, fact, evidence);
 }
 
 export function getCsharpJsRegExpRuntimeCarrierForSubject(

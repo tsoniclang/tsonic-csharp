@@ -34,10 +34,14 @@ export function getSourceDeclarationTargetType(
   if (getSourceLibraryDeclarationName(node, context) !== undefined) {
     return undefined;
   }
+  const baseType = kind === "KindClassDeclaration" && host !== undefined
+    ? getSourceClassBaseTargetType(ast, node, context, host)
+    : { kind: "absent" } as const;
+  if (baseType.kind === "missing") {
+    return undefined;
+  }
   return sourceDeclarationTargetType(getNodeNameText(ast, node), kind, undefined, {
-    baseType: kind === "KindClassDeclaration" && host !== undefined
-      ? getSourceClassBaseTargetType(ast, node, context, host)
-      : undefined,
+    ...(baseType.kind === "resolved" ? { baseType: baseType.type } : {}),
   });
 }
 
@@ -86,24 +90,21 @@ function getSourceClassBaseTargetType(
   node: Node,
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
-): TargetTypeRef | undefined {
+): { readonly kind: "absent" } | { readonly kind: "missing" } | { readonly kind: "resolved"; readonly type: TargetTypeRef } {
   const heritage = ast.extendsHeritageElements(node)[0];
   if (heritage === undefined) {
-    return undefined;
+    return { kind: "absent" };
   }
   const expression = asNodeSubject(getNodeField(heritage, "Expression")) ??
     asNodeSubject(getNodeField(heritage, "expression")) ??
     heritage;
-  const direct = host.getTargetTypeRefForSubject(expression, context, { allowRuntimeCarrier: true });
-  if (direct !== undefined) {
-    return direct;
-  }
-  const compiler = context.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  const type = compiler.checker.getTypeAtLocation(expression, { sourceFile: ast.getSourceFile(expression) });
-  return host.getTargetTypeRefForType(type, context, { allowRuntimeCarrier: true });
+  const direct = host.getTargetTypeRefForSubject(expression, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+  });
+  return direct === undefined
+    ? { kind: "missing" }
+    : { kind: "resolved", type: direct };
 }
 
 export function isSourceDeclaredStructTargetType(targetType: TargetTypeRef): boolean {

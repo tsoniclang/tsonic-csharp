@@ -6,7 +6,7 @@ export {
   getCsharpJsRegExpRuntimeCarrierForSubject,
   getCsharpJsRegExpRuntimeCarrierForType,
   mapCsharpJsRegExpRuntimeCarrier,
-  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
+  recordCsharpJsRegExpLiteralFactsBeforeFinalization,
 } from "./runtime-carrier.js";
 export {
   regExpPropertyTargetMemberIdentityIndex,

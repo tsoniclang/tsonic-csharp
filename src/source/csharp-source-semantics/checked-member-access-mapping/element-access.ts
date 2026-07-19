@@ -96,11 +96,13 @@ export function mapCsharpCheckedElementAccess(
     host.getCsharpTargetBindingByMetadataName,
   );
   if (binding === undefined) {
-    return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
+    const mapped = mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceTupleCheckedElementAccess(request, context, extensionId, host) ??
-      mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, extensionId, host) ??
-      rejectElementAccessNotMapped(extensionId);
+      mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, extensionId, host);
+    return mapped ?? (context.phase === "checking"
+      ? deferObservation
+      : rejectElementAccessNotMapped(extensionId));
   }
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;

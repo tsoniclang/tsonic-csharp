@@ -90,11 +90,13 @@ import {
   getCsharpCheckedPropertyAccessRequestContext,
 } from "./checked-member-access-request-context.js";
 import {
-  checkedCallIsConstruction,
-} from "./checked-call-request-context.js";
-import {
   csharpOpaqueAnyOperationDiagnostic,
 } from "./opaque-any-diagnostics/diagnostic.js";
+import {
+  getCheckedCallOpaqueAnyOperation,
+  getCheckedElementOpaqueAnyOperation,
+  getCheckedPropertyOpaqueAnyOperation,
+} from "./opaque-any-diagnostics/selected-evidence.js";
 import {
   getApplicableSourceCallEvidence,
   getSelectedAccessEvidence,
@@ -177,13 +179,11 @@ export function createCsharpTargetOperationsProvider(
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
-      if (request.sourceSelection.kind === "untyped") {
-        const construction = checkedCallIsConstruction(request);
+      const opaqueAnyOperation = getCheckedCallOpaqueAnyOperation(request, context);
+      if (opaqueAnyOperation !== undefined) {
         return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
           csharpTargetSemanticsExtensionId,
-          construction
-            ? { kind: "construct", description: "C# construct emission" }
-            : { kind: "call", description: "C# call emission" },
+          opaqueAnyOperation,
           typescriptCompatibilityMode,
           request.call,
         ));
@@ -208,6 +208,15 @@ export function createCsharpTargetOperationsProvider(
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
+      const opaqueAnyOperation = getCheckedPropertyOpaqueAnyOperation(request, context);
+      if (opaqueAnyOperation !== undefined) {
+        return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
+          csharpTargetSemanticsExtensionId,
+          opaqueAnyOperation,
+          typescriptCompatibilityMode,
+          request.expression,
+        ));
+      }
       for (const contribution of providerOperationContributions) {
         const providerPackageObservation = contribution.mapCheckedPropertyAccess?.(request, context) ?? deferObservation;
         if (providerPackageObservation.kind !== "defer") {
@@ -226,6 +235,15 @@ export function createCsharpTargetOperationsProvider(
         : deferObservation;
       if (compatObservation.kind !== "defer") {
         return compatObservation;
+      }
+      const opaqueAnyOperation = getCheckedElementOpaqueAnyOperation(request, context);
+      if (opaqueAnyOperation !== undefined) {
+        return rejectObservation(csharpOpaqueAnyOperationDiagnostic(
+          csharpTargetSemanticsExtensionId,
+          opaqueAnyOperation,
+          typescriptCompatibilityMode,
+          request.expression,
+        ));
       }
       for (const contribution of providerOperationContributions) {
         const providerPackageObservation = contribution.mapCheckedElementAccess?.(request, context) ?? deferObservation;

@@ -28,6 +28,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  getDirectTargetBindingForReference,
+} from "../provider-reference-facts.js";
 
 export function getCsharpTypeFromTargetBindingForReference(
   node: Node,
@@ -35,7 +38,7 @@ export function getCsharpTypeFromTargetBindingForReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[] | undefined,
 ): CsharpTypeNode | undefined {
-  const targetBinding = input.targetFacts.getTargetBindingForReference(node, { sourceFile });
+  const targetBinding = getDirectTargetBindingForReference(input, node);
   if (targetBinding === undefined) {
     return undefined;
   }

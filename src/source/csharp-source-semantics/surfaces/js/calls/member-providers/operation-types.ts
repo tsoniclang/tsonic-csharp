@@ -23,7 +23,6 @@ export interface JsSurfaceOperationRow {
   readonly policyKind: JsSurfaceOperationPolicyKind;
   readonly closedFacts?: JsSurfaceClosedFactsRequirement;
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
-  readonly lifecycleRuntimeCarrierFacts?: readonly JsSurfaceLifecycleRuntimeCarrierFact[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
   readonly unsupported?: JsSurfaceUnsupportedOperation;
   readonly callableWithoutContext?: boolean;
@@ -37,17 +36,6 @@ export type JsSurfaceOperationPolicyKind =
   | "runtime-helper"
   | "semantic-exception"
   | "unsupported";
-
-export type JsSurfaceLifecycleRuntimeCarrierFact =
-  | {
-    readonly subject: "call-result";
-    readonly carrier: "array" | "collection";
-  }
-  | {
-    readonly subject: "callee-receiver";
-    readonly carrier: "collection";
-    readonly checkedTypeDerivation?: "finalization";
-  };
 
 export type JsSurfaceClosedFactsRequirement =
   | { readonly kind: "all"; readonly requirements: readonly JsSurfaceClosedFactsRequirement[] }
