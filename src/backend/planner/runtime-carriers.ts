@@ -7,6 +7,7 @@ import {
   targetTypeRefContainsSourcePrimitive,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
 import {
+  csharpStringTargetType,
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
@@ -61,16 +62,31 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
+  const intrinsicLiteralType = getIntrinsicLiteralTargetType(input, sourceNode);
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
     return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
       getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      typeReferenceFact;
+      typeReferenceFact ??
+      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   }
   const finalizedOperationResult = input.facts.getFact(sourceNode, csharpTargetOperationFactKey)?.resultType;
   return typeReferenceFact ??
     finalizedOperationResult ??
-    getTargetTypeRefFromDirectFacts(input, sourceNode);
+    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+    intrinsicLiteralType ??
+    probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
+}
+
+function getIntrinsicLiteralTargetType(
+  input: TargetCompileInput,
+  sourceNode: Node,
+): TargetTypeRef | undefined {
+  return input.ast.is.IsStringLiteral(sourceNode) ||
+    input.ast.is.IsNoSubstitutionTemplateLiteral(sourceNode) ||
+    input.ast.is.IsTemplateExpression(sourceNode)
+    ? csharpStringTargetType()
+    : undefined;
 }
 
 function getTargetTypeRefFromTargetBindingForReference(
