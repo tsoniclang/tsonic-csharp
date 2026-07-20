@@ -87,7 +87,6 @@ import {
   unwrapNullableTargetType,
 } from "../target-rules.js";
 import {
-  erasedAttributeFactMember,
   getCheckedAttributeBuilderFact,
 } from "../erased-source-markers.js";
 import type {
@@ -95,7 +94,6 @@ import type {
 } from "../operations-provider.js";
 import {
   mapCsharpSourceMarkerCall,
-  validateCsharpAttributeMarkerFact,
 } from "./source-marker-calls.js";
 import {
   getSelectedCallProviderVirtualDeclaration,
@@ -141,32 +139,6 @@ export function mapCsharpCheckedCall(
   const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
   if (sourceMarkerCall !== undefined) {
     return sourceMarkerCall;
-  }
-  if (attributeFact !== undefined) {
-    const attributeFactDiagnostic = validateCsharpAttributeMarkerFact(attributeFact, extensionId);
-    if (attributeFactDiagnostic !== undefined) {
-      return rejectObservation(attributeFactDiagnostic);
-    }
-    const member = erasedAttributeFactMember(attributeFact);
-    const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
-      argumentCount: request.arguments.length,
-      sourceArgumentBindings: sourceSelection?.argumentBindings,
-    });
-    if (argumentConversions === undefined) {
-      return rejectObservation(csharpProviderDiagnostic(
-        extensionId,
-        "CSHARP_ATTRIBUTE_MARKER_ARGUMENT_BINDINGS_NOT_PROVEN",
-        9100187,
-        "C# attribute marker erasure requires exact TSTS argument-slot evidence.",
-        undefined,
-        request.call,
-      ));
-    }
-    return acceptObservation<CheckedCallMappingResult>({
-      kind: "target",
-      selectedSignature: { member },
-      argumentConversions,
-    }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);
   }
   const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey) ??
     context.factResolver.resolve(request.call, selectedTargetSignatureFactKey);

@@ -83,7 +83,10 @@ export function dotnetMemberToProviderMember(
   if (member.kind === "indexer" && !isSourceVisibleProviderIndexer(member)) {
     return undefined;
   }
-  const type = member.type === undefined ? undefined : tryDotnetTypeRefToProviderType(member.type);
+  const providerMemberId = dotnetProviderMemberId(member);
+  const type = member.type === undefined
+    ? undefined
+    : tryDotnetTypeRefToProviderType(member.type, `${providerMemberId}.type`);
   if (member.type !== undefined && type === undefined) {
     return undefined;
   }
@@ -100,7 +103,7 @@ export function dotnetMemberToProviderMember(
     return undefined;
   }
   return {
-    id: dotnetProviderMemberId(member),
+    id: providerMemberId,
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.sourceStatic !== undefined || member.static !== undefined ? { static: member.sourceStatic ?? member.static } : {}),
@@ -188,7 +191,10 @@ function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolea
     return false;
   }
   const parameter = signature.parameters[0]!;
-  const parameterType = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type);
+  const parameterType = tryDotnetTypeRefToProviderType(
+    parameter.sourceType ?? parameter.type,
+    `${member.targetId}.indexerParameter`,
+  );
   return parameterType !== undefined && isProviderTsCompatibleIndexType(parameterType);
 }
 

@@ -144,7 +144,7 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["array", new Set(["kind", "elementType", "rank"])],
   ["tuple", new Set(["kind", "elements"])],
   ["union", new Set(["kind", "types"])],
-  ["function", new Set(["kind", "parameters", "returnType", "typeParameters"])],
+  ["function", new Set(["kind", "id", "parameters", "returnType", "typeParameters"])],
   ["pointer", new Set(["kind", "pointee", "mutability"])],
   ["function-pointer", new Set(["kind", "args", "result", "abi"])],
   ["opaque", new Set(["kind", "id", "displayName", "sourceShape"])],
@@ -803,6 +803,7 @@ function validateDotnetTypeRef(
       validateDotnetTypeRefs(type.types, `${path}.types`, collector, options);
       return;
     case "function":
+      requireNonEmptyString(type.id, `${path}.id`, collector);
       validateDotnetTypeParameters(type.typeParameters ?? [], `${path}.typeParameters`, collector);
       validateDotnetParameters(type.parameters, `${path}.parameters`, collector);
       validateDotnetTypeRef(type.returnType, `${path}.returnType`, collector, options);

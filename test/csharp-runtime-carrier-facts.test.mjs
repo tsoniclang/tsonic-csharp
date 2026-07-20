@@ -24,6 +24,12 @@ import {
 import {
   mapCsharpIterationOperationRows,
 } from "../dist/source/csharp-source-semantics/operation-selection/iteration.js";
+import {
+  getTypeSyntaxCarrierFromFinalizedTypeFacts,
+} from "../dist/source/csharp-source-semantics/runtime-carrier-mapping/syntax.js";
+import {
+  targetBindingFactKey,
+} from "../../tsonic/packages/tsts/dist/src/index.js";
 
 const int32 = Object.freeze({ kind: "source-primitive", name: "int32" });
 const stringType = Object.freeze({
@@ -181,6 +187,53 @@ test("C# runtime-carrier resolution never reuses a concrete carrier from a decla
     { type, sourceTypeReference, sourceSymbol },
     observationContext(facts),
   ), int32);
+});
+
+test("C# runtime-carrier syntax resolution instantiates a declaration-invariant symbol binding without checker re-entry", () => {
+  const sourceTypeReference = { Kind: "KindTypeReference" };
+  const type = { flags: 1 };
+  const sourceSymbol = fakeSymbol("Buffer");
+  const facts = new TestFactStore();
+  facts.set(sourceSymbol, targetBindingFactKey, {
+    id: "Tsonic.CSharp.Node.Buffer",
+    sourceName: "Buffer",
+    targetName: "Tsonic.CSharp.Node.Buffer",
+    target: "csharp",
+    kind: "class",
+    csharpRender: {
+      kind: "named",
+      namespace: ["Tsonic", "CSharp", "Node"],
+      name: "Buffer",
+    },
+  });
+  const ast = {
+    kindName: (node) => node === sourceTypeReference ? "KindTypeReference" : undefined,
+    typeArguments: () => [],
+  };
+  const context = {
+    ...observationContext(facts),
+    compiler: { ast },
+  };
+  const host = {
+    getTargetTypeRefForSyntaxNode: () => {
+      throw new Error("Exact provider symbol binding must resolve before syntax or checker fallback.");
+    },
+  };
+
+  assert.deepEqual(getTypeSyntaxCarrierFromFinalizedTypeFacts(
+    { type, sourceTypeReference, sourceSymbol, target: "csharp" },
+    context,
+    host,
+  ), {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Node.Buffer",
+    csharpRender: {
+      kind: "named",
+      namespace: ["Tsonic", "CSharp", "Node"],
+      name: "Buffer",
+    },
+  });
+  assert.equal(facts.get(sourceSymbol, csharpRuntimeCarrierFactKey), undefined);
 });
 
 test("C# backend semantic-type resolution never falls back to a declaration-symbol carrier", () => {

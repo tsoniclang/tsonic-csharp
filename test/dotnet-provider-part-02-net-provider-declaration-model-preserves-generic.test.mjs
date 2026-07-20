@@ -113,6 +113,7 @@ test(".NET explicit CLR array target refs preserve provider-supplied rank facts"
 test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
   const functionType = dotnetTypeRefToProviderType({
     kind: "function",
+    id: "test.callback",
     parameters: [
       {
         name: "value",
@@ -130,12 +131,14 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
   });
 
   assert.equal(functionType.kind, "function");
+  assert.equal(functionType.id, '["$","test.callback"]');
   assert.equal(functionType.parameters[0].passingMode, "byref-writeonly-must-init");
   assert.equal(functionType.parameters[1].passingMode, undefined);
   assert.equal(functionType.parameters[1].optional, true);
 
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "function",
+    id: "test.unsupported-pointer-callback",
     parameters: [
       {
         name: "pointer",

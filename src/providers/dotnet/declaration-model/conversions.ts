@@ -11,13 +11,17 @@ import type {
 } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 
-export function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | undefined): ProviderHeritageDeclaration | undefined {
+export function tryDotnetBaseTypeToProviderHeritage(
+  baseType: DotnetTypeRef | undefined,
+  identityPath: string,
+): ProviderHeritageDeclaration | undefined {
   if (baseType === undefined) {
     return undefined;
   }
-  const providerType = tryDotnetTypeRefToProviderType(baseType.kind === "named" && baseType.sourceShape !== undefined
-    ? baseType.sourceShape
-    : baseType);
+  const providerType = tryDotnetTypeRefToProviderType(
+    baseType.kind === "named" && baseType.sourceShape !== undefined ? baseType.sourceShape : baseType,
+    identityPath,
+  );
   if (providerType?.kind !== "provider-ref") {
     return undefined;
   }

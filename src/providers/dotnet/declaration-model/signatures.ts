@@ -18,8 +18,12 @@ export function dotnetSignatureToProviderSignature(
     readonly parentTypeParameterNames?: readonly string[];
   } = {},
 ): ProviderSignatureDeclaration | undefined {
-  const parameters = signature.parameters.slice(options.sourceParameterOffset ?? 0).map(dotnetParameterToProviderParameter);
-  const returnType = signature.returnType === undefined ? undefined : tryDotnetTypeRefToProviderType(signature.returnType);
+  const sourceParameters = signature.parameters.slice(options.sourceParameterOffset ?? 0);
+  const parameters = sourceParameters.map((parameter, index) =>
+    dotnetParameterToProviderParameter(parameter, `${signatureId}.parameters[${index}]`));
+  const returnType = signature.returnType === undefined
+    ? undefined
+    : tryDotnetTypeRefToProviderType(signature.returnType, `${signatureId}.returnType`);
   if (parameters.some((parameter) => parameter === undefined) || (signature.returnType !== undefined && returnType === undefined)) {
     return undefined;
   }
@@ -28,7 +32,12 @@ export function dotnetSignatureToProviderSignature(
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
     parameters: parameters as ProviderParameterDeclaration[],
     ...(returnType !== undefined ? { returnType } : {}),
-    ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
+    ...(signature.typeParameters !== undefined
+      ? {
+        typeParameters: signature.typeParameters.map((parameter, index) =>
+          dotnetTypeParameterToProviderTypeParameter(parameter, `${signatureId}.typeParameters[${index}]`)),
+      }
+      : {}),
   }, options.parentTypeParameterNames ?? []);
 }
 

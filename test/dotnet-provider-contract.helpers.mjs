@@ -211,6 +211,16 @@ export function assertProviderTypeExpressionInvariant(type, path) {
     assert.equal(type.target, "csharp", `${path}.target`);
     assert.equal(typeof type.id, "string", `${path}.id`);
     assert.notEqual(type.id.length, 0, `${path}.id`);
+    assert.notEqual(type.sourceShape, undefined, `${path}.sourceShape`);
+  }
+  if (type.kind === "opaque") {
+    assert.equal(typeof type.id, "string", `${path}.id`);
+    assert.notEqual(type.id.length, 0, `${path}.id`);
+    assert.notEqual(type.sourceShape, undefined, `${path}.sourceShape`);
+  }
+  if (type.kind === "function") {
+    assert.equal(typeof type.id, "string", `${path}.id`);
+    assert.notEqual(type.id.length, 0, `${path}.id`);
   }
 }
 

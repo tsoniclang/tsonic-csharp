@@ -5,38 +5,38 @@ import type {
 } from "../../../source/csharp-facts.js";
 
 export function unsupportedAttributeTarget(
-  attribute: CsharpAttributeApplicationFact,
+  _attribute: CsharpAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute["type"] {
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_ATTRIBUTE_FACT",
     category: "error",
     source: "tsonic-csharp",
-    message: `C# attribute type '${attribute.attributeName}' must carry an AST type or value subject from finalized TSTS facts.`,
+    message: "C# attribute type must carry an AST type or value subject from finalized source-core facts.",
   });
   return { kind: "InvalidType", reason: "unsupported attribute target" };
 }
 
 export function unsupportedAttributeArgument(
-  attribute: CsharpAttributeApplicationFact,
+  _attribute: CsharpAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): void {
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_ATTRIBUTE_FACT",
     category: "error",
     source: "tsonic-csharp",
-    message: `C# attribute '${attribute.attributeName}' argument must carry an AST expression subject from finalized TSTS facts.`,
+    message: "C# attribute argument must carry an AST expression subject from finalized source-core facts.",
   });
 }
 
 export function attributeApplicationDiagnostic(
-  attribute: CsharpAttributeApplicationFact,
+  _attribute: CsharpAttributeApplicationFact,
   message: string,
 ): TargetDiagnostic {
   return {
     code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION",
     category: "error",
     source: "tsonic-csharp",
-    message: `C# attribute application '${attribute.attributeName}' ${message}`,
+    message: `C# attribute application ${message}`,
   };
 }

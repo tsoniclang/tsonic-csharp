@@ -301,7 +301,7 @@ export type DotnetTypeRef =
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }
-  | { readonly kind: "function"; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
+  | { readonly kind: "function"; readonly id: string; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
   | { readonly kind: "pointer"; readonly pointee: DotnetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
   | { readonly kind: "function-pointer"; readonly args: readonly DotnetTypeRef[]; readonly result: DotnetTypeRef; readonly abi?: readonly string[] }
   | { readonly kind: "opaque"; readonly id: string; readonly displayName?: string; readonly sourceShape?: DotnetTypeRef };

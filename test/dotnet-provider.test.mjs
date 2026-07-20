@@ -857,6 +857,7 @@ test(".NET provider model keeps event facts target-only until source event seman
   const eventHandler = namedDotnetTypeRef("System.EventHandler", {
     sourceShape: {
       kind: "function",
+      id: "System.EventHandler.Invoke",
       parameters: [],
       returnType: { kind: "void" },
     },

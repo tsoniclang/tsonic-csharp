@@ -87,9 +87,10 @@ export function snapshotCsharpTargetNameFact(value: CsharpTargetNameFact): Cshar
 export function snapshotCsharpAttributeApplicationFact(value: CsharpAttributeApplicationFact): CsharpAttributeApplicationFact {
   return Object.freeze({
     attributeType: value.attributeType,
-    attributeName: value.attributeName,
     ...(value.arguments === undefined ? {} : { arguments: snapshotOpaqueSubjectArray(value.arguments) }),
     applicationTarget: value.applicationTarget,
+    ...(value.selectedMember === undefined ? {} : { selectedMember: value.selectedMember }),
+    ...(value.applicationMemberKind === undefined ? {} : { applicationMemberKind: value.applicationMemberKind }),
     ...(value.applicationPlacement === undefined ? {} : { applicationPlacement: value.applicationPlacement }),
     ...(value.applicationParameterName === undefined ? {} : { applicationParameterName: value.applicationParameterName }),
     ...(value.applicationTargetSpecifier === undefined ? {} : { applicationTargetSpecifier: value.applicationTargetSpecifier }),

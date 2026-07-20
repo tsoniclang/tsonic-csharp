@@ -46,31 +46,39 @@ export function getTypeSyntaxCarrierFromFinalizedTypeFacts(
   for (const subject of getExactRuntimeCarrierRequestSubjects(request)) {
     const node = asNodeSubject(subject);
     if (node !== undefined && isTypeSyntaxNode(ast, node)) {
+      const sourceTypeArguments = ast.typeArguments(node);
       const instantiated = context.facts.get(node, instantiatedTargetTypeFactKey) ??
         context.factResolver.resolve(node, instantiatedTargetTypeFactKey);
       const binding = instantiated?.targetType ??
         context.facts.get(node, targetBindingFactKey) ??
-        context.factResolver.resolve(node, targetBindingFactKey);
+        context.factResolver.resolve(node, targetBindingFactKey) ??
+        (request.sourceSymbol === undefined
+          ? undefined
+          : context.facts.get(request.sourceSymbol, targetBindingFactKey) ??
+            context.factResolver.resolve(request.sourceSymbol, targetBindingFactKey));
       const providerDeclaration = context.facts.get(node, providerVirtualDeclarationFactKey) ??
-        context.factResolver.resolve(node, providerVirtualDeclarationFactKey);
+        context.factResolver.resolve(node, providerVirtualDeclarationFactKey) ??
+        (request.sourceSymbol === undefined
+          ? undefined
+          : context.facts.get(request.sourceSymbol, providerVirtualDeclarationFactKey) ??
+            context.factResolver.resolve(request.sourceSymbol, providerVirtualDeclarationFactKey));
       if (binding !== undefined || providerDeclaration !== undefined) {
         if (binding === undefined) {
           return undefined;
         }
         const typeArguments = instantiated?.resolvedTypeArguments ??
-          (instantiated?.typeArguments ?? ast.typeArguments(node)).map((argument) => host.getTargetTypeRefForSubject(argument, context, {
-            allowRuntimeCarrier: true,
-            allowSemanticTypeQuery: false,
-          }));
-        if (typeArguments.some((argument) => argument === undefined)) {
+          (instantiated?.typeArguments ?? sourceTypeArguments).map((argument) =>
+            host.getTargetTypeRefForSyntaxNode(asNodeSubject(argument), context.facts, ast)
+          );
+        if (
+          typeArguments.some((argument) => argument === undefined) ||
+          typeArguments.length !== (binding.typeParameters?.length ?? 0)
+        ) {
           return undefined;
         }
         return csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
       }
-      const carrier = host.getTargetTypeRefForSubject(node, context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: false,
-      });
+      const carrier = host.getTargetTypeRefForSyntaxNode(node, context.facts, ast);
       if (carrier !== undefined) {
         return carrier;
       }

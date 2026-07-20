@@ -44,9 +44,6 @@ import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
-  recordCsharpAttributeApplicationFactsBeforeFinalization,
-} from "./attribute-application-facts.js";
-import {
   getCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
 import {
@@ -93,7 +90,6 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
-        runBeforeFinalizedStage("attribute-application-facts", () => recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("source-compat-runtime-hard-rejects", () => diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization(lifecycleContext));
         if (jsSurfaceSelected) {
           runBeforeFinalizedStage("js-surface-seed-facts", () => recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts));

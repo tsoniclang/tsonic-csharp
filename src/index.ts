@@ -21,6 +21,9 @@ export {
   recordCsharpTargetOperation,
 } from "./source/csharp-source-semantics/operations.js";
 export {
+  csharpCheckedCallMappingResultForMember,
+} from "./source/csharp-source-semantics/target-selection-contract.js";
+export {
   getCsharpCheckedCallRequestContext,
 } from "./source/csharp-source-semantics/checked-call-request-context.js";
 export {

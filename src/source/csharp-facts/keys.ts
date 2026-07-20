@@ -83,10 +83,11 @@ export const csharpAttributeApplicationFactKey = defineExtensionFactKey<CsharpAt
   snapshot: snapshotCsharpAttributeApplicationFact,
   equals: (left, right) =>
     left.attributeType === right.attributeType
-    && left.attributeName === right.attributeName
     && (left.arguments ?? []).length === (right.arguments ?? []).length
     && (left.arguments ?? []).every((argument, index) => argument === (right.arguments ?? [])[index])
     && left.applicationTarget === right.applicationTarget
+    && left.selectedMember === right.selectedMember
+    && left.applicationMemberKind === right.applicationMemberKind
     && left.applicationPlacement === right.applicationPlacement
     && left.applicationParameterName === right.applicationParameterName
     && left.applicationTargetSpecifier === right.applicationTargetSpecifier,

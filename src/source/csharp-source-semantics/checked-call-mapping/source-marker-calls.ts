@@ -19,6 +19,12 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
+  csharpAttributeApplicationFactKey,
+} from "../../csharp-facts.js";
+import type {
+  CsharpAttributeApplicationFact,
+} from "../../csharp-facts.js";
+import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -47,6 +53,36 @@ export function mapCsharpSourceMarkerCall(
   virtualDeclaration: ProviderVirtualDeclarationFact | undefined,
   attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  if (attributeFact !== undefined) {
+    const attributeDiagnostic = validateCsharpAttributeMarkerFact(attributeFact, extensionId);
+    if (attributeDiagnostic !== undefined) {
+      return rejectObservation(attributeDiagnostic);
+    }
+    if (attributeFact.kind === "application") {
+      const writeResult = context.facts.set(
+        request.call,
+        csharpAttributeApplicationFactKey,
+        csharpAttributeApplicationFromSourceFact(attributeFact),
+        [{ message: "C# attribute application fact mapped from the finalized source-core builder application fact." }],
+      );
+      if (writeResult !== "inserted" && writeResult !== "idempotent") {
+        return rejectObservation(csharpProviderDiagnostic(
+          extensionId,
+          "CSHARP_ATTRIBUTE_APPLICATION_FACT_WRITE_FAILED",
+          9100188,
+          `C# could not record the finalized attribute application fact (${writeResult}).`,
+          undefined,
+          request.call,
+        ));
+      }
+    }
+    return acceptErasedMarkerCall(
+      request,
+      erasedAttributeFactMember(),
+      extensionId,
+      "C# attribute builder call was checked by a finalized source-core fact and marked for fact-driven erasure.",
+    );
+  }
   if (isErasedFieldSourceSemanticsCall(virtualDeclaration)) {
     const fieldFact = getCheckedFieldFact(request, context);
     if (fieldFact === undefined) {
@@ -83,8 +119,7 @@ export function mapCsharpSourceMarkerCall(
     );
   }
   if (isErasedSourceSemanticsCall(virtualDeclaration)) {
-    const member = erasedSourceSemanticsMember(virtualDeclaration) ??
-      (attributeFact === undefined ? undefined : erasedAttributeFactMember(attributeFact));
+    const member = erasedSourceSemanticsMember(virtualDeclaration);
     if (member === undefined) {
       return rejectObservation(csharpProviderDiagnostic(
         extensionId,
@@ -193,25 +228,40 @@ export function validateCsharpAttributeMarkerFact(
   if (attributeFact === undefined) {
     return missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", "attribute", "attribute");
   }
-  if ((attributeFact as { readonly target?: unknown }).target === undefined) {
+  if ((attributeFact as { readonly applicationTarget?: unknown }).applicationTarget === undefined) {
     return csharpProviderDiagnostic(
       extensionId,
       "CSHARP_ATTRIBUTE_MARKER_TARGET_NOT_PROVEN",
       9100162,
-      "C# attribute marker call requires finalized TSTS attribute target evidence before erasure.",
-      sourceMarkerFactEvidence("attribute", "attribute.target", attributeFact),
+      "C# attribute builder call requires a finalized source-core application target before erasure.",
+      sourceMarkerFactEvidence("attribute", "attribute.applicationTarget", attributeFact),
     );
   }
-  if (!isRequiredString((attributeFact as { readonly attributeName?: unknown }).attributeName)) {
+  if (attributeFact.kind === "application" && (attributeFact as { readonly attributeType?: unknown }).attributeType === undefined) {
     return csharpProviderDiagnostic(
       extensionId,
-      "CSHARP_ATTRIBUTE_MARKER_NAME_NOT_PROVEN",
+      "CSHARP_ATTRIBUTE_MARKER_TYPE_NOT_PROVEN",
       9100163,
-      "C# attribute marker call requires finalized TSTS attribute name evidence before erasure.",
-      sourceMarkerFactEvidence("attribute", "attribute.attributeName", attributeFact),
+      "C# attribute application requires finalized source-core attribute type evidence before erasure.",
+      sourceMarkerFactEvidence("attribute", "attribute.attributeType", attributeFact),
     );
   }
   return undefined;
+}
+
+function csharpAttributeApplicationFromSourceFact(
+  attribute: Extract<NonNullable<ReturnType<typeof getCheckedAttributeBuilderFact>>, { readonly kind: "application" }>,
+): CsharpAttributeApplicationFact {
+  return {
+    attributeType: attribute.attributeType,
+    arguments: attribute.arguments,
+    applicationTarget: attribute.applicationTarget,
+    ...(attribute.selectedMember === undefined ? {} : { selectedMember: attribute.selectedMember }),
+    ...(attribute.applicationMemberKind === undefined ? {} : { applicationMemberKind: attribute.applicationMemberKind }),
+    ...(attribute.applicationPlacement === undefined ? {} : { applicationPlacement: attribute.applicationPlacement }),
+    ...(attribute.applicationParameterName === undefined ? {} : { applicationParameterName: attribute.applicationParameterName }),
+    ...(attribute.applicationTargetSpecifier === undefined ? {} : { applicationTargetSpecifier: attribute.applicationTargetSpecifier }),
+  };
 }
 
 function validateArgumentPassingMarkerFact(

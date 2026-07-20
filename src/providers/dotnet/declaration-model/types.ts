@@ -35,10 +35,10 @@ export function dotnetTypeToProviderExport(
 ): ProviderExportDeclaration {
   const kind = dotnetTypeKindToProviderKind(declaration.typeKind);
   const members = dotnetTypeSourceMembers(declaration, context);
-  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType, `${declaration.targetId}.baseType`);
   const sourceType = declaration.sourceShape === undefined
     ? undefined
-    : tryDotnetTypeRefToProviderType(declaration.sourceShape);
+    : tryDotnetTypeRefToProviderType(declaration.sourceShape, `${declaration.targetId}.sourceShape`);
   return {
     id: declaration.targetId,
     name: declaration.sourceName,
@@ -46,7 +46,12 @@ export function dotnetTypeToProviderExport(
     ...(declaration.sourceTypeFamily !== undefined ? { sourceTypeFamily: declaration.sourceTypeFamily } : {}),
     targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
-    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
+    ...(declaration.typeParameters !== undefined
+      ? {
+        typeParameters: declaration.typeParameters.map((parameter, index) =>
+          dotnetTypeParameterToProviderTypeParameter(parameter, `${declaration.targetId}.typeParameters[${index}]`)),
+      }
+      : {}),
     ...(baseHeritage !== undefined ? { heritage: [baseHeritage] } : {}),
     ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
@@ -79,7 +84,7 @@ function inheritedSourceMembers(
     return new Map();
   }
   const membersByKey = new Map<string, ProviderMemberDeclaration[]>();
-  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType, `${declaration.targetId}.baseType`);
   const baseType = baseHeritage?.type;
   if (baseType?.kind !== "provider-ref") {
     return membersByKey;

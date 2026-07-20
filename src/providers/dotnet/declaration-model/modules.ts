@@ -70,7 +70,7 @@ export function dotnetExportToProviderExport(
       };
     }
     case "value": {
-      const type = tryDotnetTypeRefToProviderType(declaration.type);
+      const type = tryDotnetTypeRefToProviderType(declaration.type, `${declaration.targetId}.type`);
       if (type === undefined) {
         return undefined;
       }

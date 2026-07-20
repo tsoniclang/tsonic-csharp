@@ -1,4 +1,5 @@
 import type {
+  CheckedCallMappingRequest,
   CheckedCallMappingResult,
   CheckedConversionMappingResult,
   CheckedOperationMappingResult,
@@ -18,6 +19,32 @@ import type {
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "./target-types.js";
+import {
+  getTargetArgumentConversionSlots,
+} from "./target-member-arguments/index.js";
+
+export function csharpCheckedCallMappingResultForMember(
+  request: Pick<CheckedCallMappingRequest, "arguments" | "sourceSelection">,
+  member: CsharpTargetMember,
+): Extract<CheckedCallMappingResult, { readonly kind: "target" }> | undefined {
+  if (request.sourceSelection.kind !== "applicable") {
+    return undefined;
+  }
+  const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
+    argumentCount: request.arguments.length,
+    sourceArgumentBindings: request.sourceSelection.argumentBindings,
+  });
+  if (argumentConversions === undefined) {
+    return undefined;
+  }
+  return {
+    kind: "target",
+    selectedSignature: {
+      member: targetMemberAsSelection(member),
+    },
+    argumentConversions,
+  };
+}
 
 export function targetMemberAsSelection(member: TargetMember | CsharpTargetMember): TargetMember {
   return {

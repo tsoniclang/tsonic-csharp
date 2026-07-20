@@ -52,9 +52,10 @@ export interface CsharpTargetNameFact {
 
 export interface CsharpAttributeApplicationFact {
   readonly attributeType: ExtensionFactSubject;
-  readonly attributeName: string;
   readonly arguments?: readonly ExtensionFactSubject[];
   readonly applicationTarget: ExtensionFactSubject;
+  readonly selectedMember?: ExtensionFactSubject;
+  readonly applicationMemberKind?: "property" | "method";
   readonly applicationPlacement?: "declaration" | "constructor";
   readonly applicationParameterName?: string;
   readonly applicationTargetSpecifier?: string;

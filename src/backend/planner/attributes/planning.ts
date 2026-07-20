@@ -67,6 +67,9 @@ function planAttribute(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute | undefined {
+  if (!attributeApplicationMemberKindIsValid(attribute, sourceFile, input, diagnostics)) {
+    return undefined;
+  }
   const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
   const arguments_ = planAttributeArguments(attribute, sourceFile, input, diagnostics);
   if (arguments_ === undefined) {
@@ -79,6 +82,30 @@ function planAttribute(
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: arguments_,
   };
+}
+
+function attributeApplicationMemberKindIsValid(
+  attribute: CsharpAttributeApplicationFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): boolean {
+  const memberKind = attribute.applicationMemberKind;
+  if (memberKind === undefined) {
+    return true;
+  }
+  const declaration = resolveAttributeApplication(attribute, sourceFile, input).selectedDeclaration;
+  const kind = SourceKind(input.ast, declaration);
+  const valid = memberKind === "property"
+    ? kind === KindPropertyDeclaration || kind === KindPropertySignature || kind === KindGetAccessor || kind === KindSetAccessor
+    : kind === KindMethodDeclaration || kind === KindMethodSignature || kind === KindFunctionDeclaration;
+  if (!valid) {
+    diagnostics.push(attributeApplicationDiagnostic(
+      attribute,
+      `uses a ${memberKind} selector whose exact selected declaration is ${attributeSubjectDescription(declaration, input)}.`,
+    ));
+  }
+  return valid;
 }
 
 function planAttributeArguments(

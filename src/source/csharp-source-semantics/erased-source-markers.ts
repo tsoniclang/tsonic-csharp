@@ -1,9 +1,7 @@
 import {
-  attributeFactKey,
   fieldFactKey,
 } from "@tsonic/tsts";
 import type {
-  AttributeFact,
   CheckedCallMappingRequest,
   ExtensionObservationContext,
   FieldFact,
@@ -14,12 +12,12 @@ import {
   csharpLangModule,
 } from "./identity.js";
 import {
+  tsonicAttributeBuilderFactKey,
   tsonicCoreLangModule,
 } from "@tsonic/source-core";
-import {
-  getCsharpCheckedCallRequestContext,
-} from "./checked-call-request-context.js";
-
+import type {
+  TsonicAttributeBuilderFact,
+} from "@tsonic/source-core";
 export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
   if (declaration === undefined) {
     return false;
@@ -27,17 +25,14 @@ export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarat
   if (declaration.moduleSpecifier !== tsonicCoreLangModule && declaration.moduleSpecifier !== csharpLangModule) {
     return false;
   }
-  return declaration.exportName === "attribute" ||
-    declaration.exportName === "struct" ||
+  return declaration.exportName === "struct" ||
     declaration.exportName === "defaultof" ||
     declaration.exportName === "out" ||
     declaration.exportName === "ref" ||
     declaration.exportName === "inref" ||
     declaration.exportName === "borrow" ||
     declaration.exportName === "borrowMut" ||
-    declaration.exportName === "move" ||
-    declaration.exportName === "__TsonicAttributeBuilder" ||
-    declaration.exportName === "__TsonicAttributeMemberBuilder";
+    declaration.exportName === "move";
 }
 
 export function isErasedFieldSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
@@ -53,15 +48,9 @@ export function isErasedFieldSourceSemanticsCall(declaration: ProviderVirtualDec
 export function getCheckedAttributeBuilderFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): AttributeFact | undefined {
-  const requestContext = getCsharpCheckedCallRequestContext(request, context);
-  const receiverFact = requestContext.calleeReceiver === undefined
-    ? undefined
-    : context.factResolver.resolve(requestContext.calleeReceiver, attributeFactKey) ??
-      context.facts.get(requestContext.calleeReceiver, attributeFactKey);
-  return context.factResolver.resolve(request.call, attributeFactKey) ??
-    context.facts.get(request.call, attributeFactKey) ??
-    receiverFact;
+): TsonicAttributeBuilderFact | undefined {
+  return context.factResolver.resolve(request.call, tsonicAttributeBuilderFactKey) ??
+    context.facts.get(request.call, tsonicAttributeBuilderFactKey);
 }
 
 export function getCheckedFieldFact(
@@ -83,8 +72,8 @@ export function erasedSourceSemanticsMember(
   return erasedMarkerMember(id, sourceName);
 }
 
-export function erasedAttributeFactMember(attribute: AttributeFact): TargetMember {
-  return erasedMarkerMember(`source-semantics.attribute:${attribute.attributeName}`, "attribute");
+export function erasedAttributeFactMember(): TargetMember {
+  return erasedMarkerMember("source-core.attribute-builder", "attribute");
 }
 
 export function erasedFieldFactMember(field: FieldFact): TargetMember {

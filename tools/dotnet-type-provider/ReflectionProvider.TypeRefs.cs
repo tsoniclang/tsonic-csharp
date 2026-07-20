@@ -698,6 +698,7 @@ sealed partial class ReflectionProvider
             return new
             {
                 kind = "function",
+                id = TypeTargetId(type),
                 parameters,
                 returnType,
             };
