@@ -2,6 +2,7 @@ import {
   acceptObservation,
   argumentPassingFactKey,
   defaultValueFactKey,
+  deferObservation,
   flowStateFactKey,
   rejectObservation,
   structFactKey,
@@ -11,12 +12,15 @@ import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionEvidence,
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   FlowStateFact,
   ProviderVirtualDeclarationFact,
   StructFact,
   TargetMember,
+  TargetParameter,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpAttributeApplicationFactKey,
@@ -50,6 +54,7 @@ export function mapCsharpSourceMarkerCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   extensionId: string,
+  resolveTargetTypeRef: (subject: ExtensionFactSubject | undefined) => TargetTypeRef | undefined,
   virtualDeclaration: ProviderVirtualDeclarationFact | undefined,
   attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
@@ -79,7 +84,9 @@ export function mapCsharpSourceMarkerCall(
     return acceptErasedMarkerCall(
       request,
       erasedAttributeFactMember(),
+      context,
       extensionId,
+      resolveTargetTypeRef,
       "C# attribute builder call was checked by a finalized source-core fact and marked for fact-driven erasure.",
     );
   }
@@ -114,7 +121,9 @@ export function mapCsharpSourceMarkerCall(
     return acceptErasedMarkerCall(
       request,
       erasedFieldFactMember(fieldFact),
+      context,
       extensionId,
+      resolveTargetTypeRef,
       "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure.",
     );
   }
@@ -141,7 +150,9 @@ export function mapCsharpSourceMarkerCall(
     return acceptErasedMarkerCall(
       request,
       member,
+      context,
       extensionId,
+      resolveTargetTypeRef,
       "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure.",
     );
   }
@@ -151,10 +162,30 @@ export function mapCsharpSourceMarkerCall(
 function acceptErasedMarkerCall(
   request: CheckedCallMappingRequest,
   member: TargetMember,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
   extensionId: string,
+  resolveTargetTypeRef: (subject: ExtensionFactSubject | undefined) => TargetTypeRef | undefined,
   message: string,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  const argumentConversions = getTargetArgumentConversionSlots(member.parameters, {
+  const parameters = getErasedMarkerTargetParameters(request, resolveTargetTypeRef);
+  if (parameters === undefined) {
+    if (context.phase === "checking") {
+      return deferObservation;
+    }
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ERASED_SOURCE_MARKER_PARAMETER_FACT_NOT_PROVEN",
+      9100189,
+      "C# source-semantics marker erasure requires every TSTS-selected source parameter to have a finalized target type fact.",
+      undefined,
+      request.call,
+    ));
+  }
+  const selectedMember: TargetMember = {
+    ...member,
+    parameters,
+  };
+  const argumentConversions = getTargetArgumentConversionSlots(selectedMember.parameters, {
     argumentCount: request.arguments.length,
     sourceArgumentBindings: getApplicableSourceCallEvidence(request)?.argumentBindings,
   });
@@ -170,9 +201,35 @@ function acceptErasedMarkerCall(
   }
   return acceptObservation<CheckedCallMappingResult>({
     kind: "target",
-    selectedSignature: { member },
+    selectedSignature: { member: selectedMember },
     argumentConversions,
   }, [{ message }]);
+}
+
+function getErasedMarkerTargetParameters(
+  request: CheckedCallMappingRequest,
+  resolveTargetTypeRef: (subject: ExtensionFactSubject | undefined) => TargetTypeRef | undefined,
+): readonly TargetParameter[] | undefined {
+  const sourceSelection = getApplicableSourceCallEvidence(request);
+  if (sourceSelection === undefined) {
+    return undefined;
+  }
+  const parameters: TargetParameter[] = [];
+  for (const sourceParameter of sourceSelection.parameters) {
+    const targetType = resolveTargetTypeRef(sourceParameter.authoredTypeNode) ??
+      resolveTargetTypeRef(sourceParameter.selectedType);
+    if (targetType === undefined) {
+      return undefined;
+    }
+    parameters.push({
+      name: sourceParameter.parameterName,
+      type: targetType,
+      passingMode: "by-value",
+      ...(sourceParameter.acceptsOmission ? { optional: true } : {}),
+      ...(sourceParameter.rest ? { paramsArray: true } : {}),
+    });
+  }
+  return parameters;
 }
 
 function missingRequiredSourceMarkerFactDiagnostic(

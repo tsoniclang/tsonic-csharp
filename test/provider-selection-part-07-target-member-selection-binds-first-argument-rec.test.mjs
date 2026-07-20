@@ -1,4 +1,4 @@
-import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
@@ -111,13 +111,12 @@ test("C# provider call selection uses provider signature identity when TSTS sign
   const selected = findTargetMemberForCall(
     binding,
     declaration,
-    {
+    checkedCallRequest({
       target: "csharp",
       call: {},
       callee: {},
       arguments: [argument],
-      sourceSelectedSignature: {},
-    },
+    }),
     fakeObservationContext({}),
     () => undefined,
     {
@@ -179,13 +178,12 @@ test("C# provider call selection prefers provider virtual signature identity ove
   const selected = findTargetMemberForCall(
     binding,
     declaration,
-    {
+    checkedCallRequest({
       target: "csharp",
       call: {},
       callee: {},
       arguments: [argument, { kind: "target-named", id: "System.String", csharpSpecialType: "string" }],
-      sourceSelectedSignature: { signatureId: "source-profile:write(response,text)" },
-    },
+    }),
     fakeObservationContext({}),
     (subject) => subject.kind === "target-named" ? subject : undefined,
     {
@@ -267,14 +265,15 @@ test("C# provider maps explicit static-container extension calls without prepend
     "Example.Http.ResponseWritingExtensions",
   );
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(staticContainer, "WriteAsync"),
-    sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedSignature: selectedSignature,
+    selectedDeclaration: selectedDeclaration,
+    selectedSignature: selectedSignature,
+    receiver: staticContainer,
     arguments: [responseArgument, bodyArgument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: staticContainer,
     targetBinding: {
       id: "Example.Http.ResponseWritingExtensions",
@@ -328,9 +327,9 @@ test("C# provider maps explicit static-container extension calls without prepend
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? JSON.stringify(result.diagnostic, null, 2) : undefined);
   assert.equal(result.value.selectedSignature.member.id, signatureId);
-  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal("receiverPassing" in result.value.selectedSignature.member, false);
   assert.equal(result.value.selectedSignature.member.parameters.length, 3);
-  assert.equal(result.value.selectedSignature.argumentConversions.length, 2);
+  assert.equal(result.value.argumentConversions.length, 2);
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.operationId, signatureId);
@@ -346,13 +345,15 @@ test("C# provider maps extension receiver calls from selected provider signature
   const start = { kind: "source-primitive", name: "int32" };
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(receiver, "asSpan"),
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
+    receiverType: csharpStringType(),
     arguments: [start],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: {
       id: "System.MemoryExtensions",
@@ -385,9 +386,9 @@ test("C# provider maps extension receiver calls from selected provider signature
     recordedFacts,
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.selectedSignature.member.id, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
-  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal("receiverPassing" in result.value.selectedSignature.member, false);
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.operationId, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
@@ -408,13 +409,15 @@ test("C# provider maps projected extension receiver calls when receiver shares t
   const signatureId = "Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapGet(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,System.String,System.Delegate)";
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(receiver, "MapGet"),
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
+    receiverType: webApplicationType,
     arguments: [pattern, handler],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiver,
     targetBinding: {
       id: "Microsoft.AspNetCore.Builder.WebApplication",
@@ -450,7 +453,7 @@ test("C# provider maps projected extension receiver calls when receiver shares t
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? JSON.stringify(result.diagnostic, null, 2) : undefined);
   assert.equal(result.value.selectedSignature.member.id, signatureId);
-  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal("receiverPassing" in result.value.selectedSignature.member, false);
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.operationId, signatureId);
@@ -465,13 +468,15 @@ test("C# provider maps LINQ ExtensionMethods receiver calls from selected signat
   const receiver = { Kind: "KindIdentifier", Text: "values", kind: "array", element: int32 };
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(receiver, "average"),
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
+    receiverType: receiver,
     arguments: [],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: {
       id: "System.Linq.Enumerable",
@@ -503,9 +508,9 @@ test("C# provider maps LINQ ExtensionMethods receiver calls from selected signat
     recordedFacts,
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.selectedSignature.member.id, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)");
-  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal("receiverPassing" in result.value.selectedSignature.member, false);
   assert.deepEqual(result.value.selectedSignature.member.returnType, { kind: "source-primitive", name: "float64" });
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
@@ -526,13 +531,15 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   const offset = int32;
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(receiver, "overlaps"),
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
+    receiverType: receiver,
     arguments: [other, outCall],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: overlapExtensionsBinding(),
     virtualDeclarationSubject: selectedDeclaration,
@@ -550,7 +557,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)");
-  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal("receiverPassing" in result.value.selectedSignature.member, false);
   assert.equal(result.value.selectedSignature.member.parameters[1]?.passingMode, "byref-writeonly-must-init");
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
@@ -582,26 +589,31 @@ test("C# provider rejects receiver calls when static target metadata omits recei
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: propertyAccessCallee(receiver, "current"),
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
     arguments: [],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
-    virtualDeclaration: virtualMember("Example.Extensions.current", "current"),
+    virtualDeclaration: {
+      ...virtualMember("Example.Extensions.current#static", "current"),
+      signatureId: "Example.Extensions.current",
+    },
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN");
 });
-test("target member selection applies declaring generics before literal collection matching", () => {
+test("target member selection applies declaring generics before exact selected collection matching", () => {
   const arrayLiteral = { Kind: 2, Elements: [{ Kind: 1, Text: "1" }, { Kind: 1, Text: "2" }] };
+  const selectedArrayType = { flags: 1 };
   const int32Type = { kind: "source-primitive", name: "int32" };
-  const float64ArrayType = { kind: "array", element: { kind: "source-primitive", name: "float64" } };
+  const int32ArrayType = { kind: "array", element: int32Type };
   const member = {
     id: "System.Collections.Generic.List`1..ctor(System.Collections.Generic.IEnumerable`1<T>)",
     sourceName: "constructor",
@@ -619,24 +631,13 @@ test("target member selection applies declaring generics before literal collecti
     }],
     overloadGroup: "System.Collections.Generic.List`1..ctor",
   };
-  const context = {
-    compiler: {
-      ast: {
-        kindName: (node) => node?.Kind === 2 ? "KindArrayLiteralExpression" : node?.Kind === 1 ? "KindNumericLiteral" : "Unknown",
-        elements: (node) => node.Elements ?? [],
-        text: (node) => node.Text ?? "",
-        is: {
-          IsStringLiteral: () => false,
-        },
-      },
-    },
-  };
-  const resolveTargetTypeRef = (subject) => subject === arrayLiteral ? float64ArrayType : undefined;
+  const context = {};
+  const resolveTargetTypeRef = (subject) => subject === selectedArrayType ? int32ArrayType : undefined;
 
   assert.deepEqual(
     selectTargetMember(
       [member],
-      { arguments: [arrayLiteral] },
+      { arguments: [arrayLiteral], sourceArgumentTypes: [selectedArrayType] },
       context,
       resolveTargetTypeRef,
       {

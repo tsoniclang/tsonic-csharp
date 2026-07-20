@@ -88,7 +88,6 @@ export function isLiteralRepresentableAsTargetType(
     }
   }
 }
-
 function getTargetElementTypeForArrayLiteral(expected: TargetTypeRef): TargetTypeRef | undefined {
   if (expected.kind === "array") {
     return expected.element;

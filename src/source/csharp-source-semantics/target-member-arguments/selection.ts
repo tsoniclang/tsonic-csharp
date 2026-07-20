@@ -11,10 +11,6 @@ import {
   getEffectiveArgumentForTargetParameter,
 } from "./argument-passing.js";
 import {
-  asNodeSubject,
-  isSemanticTypeQueryableValueExpressionNode,
-} from "../ast-utils.js";
-import {
   getParameterForArgument,
   targetArityMatches,
   targetMemberArityPenalty,
@@ -66,6 +62,9 @@ export function selectExactTargetMember(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
+  if (!sourceArgumentEvidenceShapeIsValid(request)) {
+    return undefined;
+  }
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
@@ -90,6 +89,7 @@ export function selectExactTargetMember(
     }
     const argumentType = getTargetTypeRefForArgument(
       effectiveArgument.subject,
+      request.sourceArgumentTypes?.[index],
       context,
       resolveTargetTypeRef,
     );
@@ -147,6 +147,9 @@ function targetMemberMatch(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions,
 ): { readonly member: CsharpTargetMember; readonly score: number } | undefined {
+  if (!sourceArgumentEvidenceShapeIsValid(request)) {
+    return undefined;
+  }
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined) {
     return undefined;
@@ -176,6 +179,7 @@ function targetMemberMatch(
     }
     const argumentType = getTargetTypeRefForArgument(
       effectiveArgument.subject,
+      request.sourceArgumentTypes?.[index],
       context,
       resolveTargetTypeRef,
     );
@@ -248,6 +252,7 @@ function targetMemberMatch(
 
 function getTargetTypeRefForArgument(
   subject: ExtensionFactSubject,
+  selectedSourceType: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): ReturnType<TargetTypeRefResolver> {
@@ -255,30 +260,17 @@ function getTargetTypeRefForArgument(
   if (direct !== undefined && direct.kind !== "type-parameter") {
     return direct;
   }
-  const checked = getCheckedExpressionTargetTypeRef(subject, context, resolveTargetTypeRef);
-  return checked !== undefined && (direct === undefined || checked.kind !== "type-parameter")
-    ? checked
+  const selected = selectedSourceType === undefined
+    ? undefined
+    : resolveTargetTypeRef(selectedSourceType, context);
+  return selected !== undefined && (direct === undefined || selected.kind !== "type-parameter")
+    ? selected
     : direct;
 }
 
-function getCheckedExpressionTargetTypeRef(
-  subject: ExtensionFactSubject,
-  context: ExtensionObservationContext,
-  resolveTargetTypeRef: TargetTypeRefResolver,
-): ReturnType<TargetTypeRefResolver> {
-  const node = asNodeSubject(subject);
-  const compiler = context.compiler;
-  if (
-    node === undefined ||
-    compiler === undefined
-  ) {
-    return undefined;
-  }
-  if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
-    return undefined;
-  }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  return resolveTargetTypeRef(compiler.checker.getTypeAtLocation(node, { sourceFile }), context, { sourceFile });
+function sourceArgumentEvidenceShapeIsValid(request: TargetMemberSelectionRequest): boolean {
+  return request.sourceArgumentTypes === undefined ||
+    request.sourceArgumentTypes.length === request.arguments.length;
 }
 
 function targetParameterAcceptsCheckedSourceArgument(

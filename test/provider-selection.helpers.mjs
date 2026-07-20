@@ -15,7 +15,10 @@ import {
   structFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import {
+  tsonicAttributeBuilderFactKey,
+} from "@tsonic/source-core";
+import { csharpAttributeApplicationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 import {
@@ -23,7 +26,7 @@ import {
   csharpSourcePrimitiveDotnetMetadataName,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import { resolveTargetTypeRefFromSubjectFacts } from "../dist/source/csharp-source-semantics/target-type-subject-facts.js";
-export { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts };
+export { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpAttributeApplicationFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts };
 
 export function checkedCallRequest(options = {}) {
   const call = options.call ?? {};
@@ -81,6 +84,9 @@ export function checkedCallRequest(options = {}) {
     sourceResult: {
       expression: call,
       type: options.sourceResultType ?? call,
+      ...(options.sourceResultTypeNode === undefined ? {} : {
+        authoredTypeNode: options.sourceResultTypeNode,
+      }),
     },
     ...(options.receiver === undefined ? {} : {
       sourceReceiver: {
@@ -95,6 +101,118 @@ export function checkedCallRequest(options = {}) {
     chainRole: {
       kind: "ordinary",
       participant: "call",
+    },
+  };
+}
+
+export function selectedTargetSignatureFact(request, member, argumentConversions = []) {
+  return {
+    member,
+    argumentConversions,
+    sourceCallKind: request.callKind,
+    sourceSelection: request.sourceSelection,
+    sourceCallee: request.sourceCallee,
+    sourceArguments: request.sourceArguments,
+    sourceResult: request.sourceResult,
+    ...(request.sourceReceiver === undefined ? {} : { sourceReceiver: request.sourceReceiver }),
+    sourceChainRole: request.chainRole,
+  };
+}
+
+export function checkedPropertyRequest(options = {}) {
+  const expression = options.expression ?? {};
+  const receiver = options.receiver ?? {};
+  const resultType = options.sourceResultType ?? expression;
+  const accessMode = options.accessMode ?? "read";
+  const selectedEvidence = {
+    ...(options.selectedSymbol === undefined ? {} : { selectedSymbol: options.selectedSymbol }),
+    ...(options.selectedDeclaration === undefined ? {} : { selectedDeclaration: options.selectedDeclaration }),
+  };
+  return {
+    sourceOperationKind: "property-access",
+    target: options.target ?? "csharp",
+    expression,
+    receiver,
+    propertyName: options.propertyName ?? "property",
+    sourceReceiver: {
+      expression: receiver,
+      type: options.receiverType ?? receiver,
+      ...(options.receiverSymbol === undefined ? {} : { symbol: options.receiverSymbol }),
+      ...(options.receiverDeclaration === undefined ? {} : { declaration: options.receiverDeclaration }),
+      ...(options.selectedReceiverSymbol === undefined ? {} : { selectedSymbol: options.selectedReceiverSymbol }),
+      ...(options.selectedReceiverDeclaration === undefined ? {} : { selectedDeclaration: options.selectedReceiverDeclaration }),
+    },
+    accessMode,
+    use: options.use ?? "value",
+    ...(accessMode === "write" ? {} : {
+      sourceReadResult: {
+        expression,
+        type: resultType,
+        ...selectedEvidence,
+      },
+    }),
+    ...(accessMode === "read" || accessMode === "delete" ? {} : {
+      sourceWriteType: {
+        type: options.sourceWriteType ?? resultType,
+        ...selectedEvidence,
+      },
+    }),
+    chainRole: {
+      kind: "ordinary",
+      participant: "property-access",
+    },
+  };
+}
+
+export function checkedElementRequest(options = {}) {
+  const expression = options.expression ?? {};
+  const receiver = options.receiver ?? {};
+  const argument = options.argument ?? {};
+  const resultType = options.sourceResultType ?? expression;
+  const accessMode = options.accessMode ?? "read";
+  const selectedEvidence = {
+    ...(options.selectedSymbol === undefined ? {} : { selectedSymbol: options.selectedSymbol }),
+    ...(options.selectedDeclaration === undefined ? {} : { selectedDeclaration: options.selectedDeclaration }),
+  };
+  return {
+    sourceOperationKind: "element-access",
+    target: options.target ?? "csharp",
+    expression,
+    receiver,
+    argument,
+    sourceArgument: {
+      expression: argument,
+      type: options.argumentType ?? argument,
+    },
+    ...(options.sourceSelectedElementIndex === undefined ? {} : {
+      sourceSelectedElementIndex: options.sourceSelectedElementIndex,
+    }),
+    sourceReceiver: {
+      expression: receiver,
+      type: options.receiverType ?? receiver,
+      ...(options.receiverSymbol === undefined ? {} : { symbol: options.receiverSymbol }),
+      ...(options.receiverDeclaration === undefined ? {} : { declaration: options.receiverDeclaration }),
+      ...(options.selectedReceiverSymbol === undefined ? {} : { selectedSymbol: options.selectedReceiverSymbol }),
+      ...(options.selectedReceiverDeclaration === undefined ? {} : { selectedDeclaration: options.selectedReceiverDeclaration }),
+    },
+    accessMode,
+    use: options.use ?? "value",
+    ...(accessMode === "write" ? {} : {
+      sourceReadResult: {
+        expression,
+        type: resultType,
+        ...selectedEvidence,
+      },
+    }),
+    ...(accessMode === "read" || accessMode === "delete" ? {} : {
+      sourceWriteType: {
+        type: options.sourceWriteType ?? resultType,
+        ...selectedEvidence,
+      },
+    }),
+    chainRole: {
+      kind: "ordinary",
+      participant: "element-access",
     },
   };
 }
@@ -507,7 +625,7 @@ export function fakeObservationContext(options) {
         if (subject === options.virtualDeclarationSubject && key === targetBindingFactKey && options.targetBinding !== undefined) {
           return options.targetBinding;
         }
-        if (subject === options.attributeSubject && key === attributeFactKey) {
+        if (subject === options.attributeSubject && key === tsonicAttributeBuilderFactKey) {
           return options.attribute;
         }
         if (subject === options.fieldSubject && key === fieldFactKey) {
@@ -532,6 +650,7 @@ export function fakeObservationContext(options) {
       },
       set(subject, key, value, evidence) {
         options.recordedFacts?.push({ subject, key, value, evidence });
+        return options.factWriteResult ?? "inserted";
       },
     },
     factResolver: {
@@ -552,7 +671,7 @@ export function fakeObservationContext(options) {
         if (subject === options.virtualDeclarationSubject && key === targetBindingFactKey && options.targetBinding !== undefined) {
           return options.targetBinding;
         }
-        if (subject === options.attributeSubject && key === attributeFactKey) {
+        if (subject === options.attributeSubject && key === tsonicAttributeBuilderFactKey) {
           return options.attribute;
         }
         if (subject === options.fieldSubject && key === fieldFactKey) {

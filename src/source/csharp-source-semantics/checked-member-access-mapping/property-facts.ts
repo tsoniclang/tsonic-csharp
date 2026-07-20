@@ -91,8 +91,7 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
       : undefined;
   }
   const receiverType = getSourceReceiverTargetType(
-    request.sourceReceiver.type,
-    request.sourceReceiver.expression,
+    request.sourceReceiver,
     context,
     host,
   );
@@ -125,7 +124,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

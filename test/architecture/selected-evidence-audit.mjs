@@ -93,7 +93,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
       "src/source/csharp-source-semantics/ast-utils/node-access.ts",
       "src/source/csharp-source-semantics/ast-utils/traversal.ts",
       "src/source/csharp-source-semantics/symbol-utils.ts",
-      "src/source/csharp-source-semantics/target-member-arguments/selection.ts",
       "src/source/csharp-source-semantics/target-name-facts.ts",
       "src/source/csharp-source-semantics/target-type-resolution-facts.ts",
     ],
@@ -129,7 +128,6 @@ export const selectedEvidenceFileClassifications = Object.freeze(new Map([
   ),
   ...classified(
     [
-      "src/source/csharp-source-semantics/checked-operator-mapping/operator-rules.ts",
       "src/source/csharp-source-semantics/object-shape-recorded-facts.ts",
       "src/source/csharp-source-semantics/object-shape-semantic/subject-type.ts",
       "src/source/csharp-source-semantics/runtime-carrier-subjects.ts",
@@ -177,7 +175,6 @@ const rawAstReaderContractGapFiles = Object.freeze([
   "src/source/csharp-source-semantics/ast-utils/expression-syntax.ts",
   "src/source/csharp-source-semantics/ast-utils/node-access.ts",
   "src/source/csharp-source-semantics/ast-utils/type-syntax.ts",
-  "src/source/csharp-source-semantics/attribute-application-facts.ts",
   "src/source/csharp-source-semantics/callable-target-types.ts",
   "src/source/csharp-source-semantics/checked-assignability-validation/context-nodes.ts",
   "src/source/csharp-source-semantics/checked-assignability-validation/index.ts",
@@ -202,7 +199,6 @@ const rawAstReaderContractGapFiles = Object.freeze([
   "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
   "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
   "src/source/csharp-source-semantics/symbol-utils.ts",
-  "src/source/csharp-source-semantics/target-member-arguments/type-matching.ts",
   "src/source/csharp-source-semantics/target-member-literals.ts",
   "src/source/csharp-source-semantics/target-type-checked-expression-syntax.ts",
   "src/source/csharp-source-semantics/target-type-constructed-expression-syntax.ts",

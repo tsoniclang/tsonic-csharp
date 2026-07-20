@@ -90,7 +90,7 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
+  const receiverType = getNativeArrayReceiverType(request.sourceReceiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -135,7 +135,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const selectedEvidence = getSelectedAccessEvidence(request);
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  const receiverType = getNativeArrayReceiverType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
+  const receiverType = getNativeArrayReceiverType(request.sourceReceiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -281,7 +281,7 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver, context, host);
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
@@ -311,7 +311,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const selectedEvidence = getSelectedAccessEvidence(request);
-  const receiverType = getSourceReceiverTargetType(request.sourceReceiver.type, request.sourceReceiver.expression, context, host);
+  const receiverType = getSourceReceiverTargetType(request.sourceReceiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

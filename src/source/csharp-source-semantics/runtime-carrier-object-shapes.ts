@@ -10,7 +10,6 @@ import type {
   CsharpObjectShapeFact,
 } from "../csharp-facts.js";
 import {
-  asType,
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
 import type {
@@ -23,7 +22,7 @@ export function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   carrier: TargetTypeRef,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
-  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(request.type, context);
   if (objectShape === undefined || !targetTypeRefEquals(objectShape.targetType, carrier)) {
     return;
   }
@@ -42,13 +41,6 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   }
   if (sourceDeclaredStruct) {
     return;
-  }
-  const requestType = asType(request.type);
-  const typeSymbol = requestType === undefined
-    ? undefined
-    : context.compiler?.checker.getTypeSymbol(requestType);
-  if (typeSymbol !== undefined) {
-    context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
   }
 }
 

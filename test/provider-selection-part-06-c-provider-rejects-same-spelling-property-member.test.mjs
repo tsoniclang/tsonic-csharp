@@ -1,4 +1,4 @@
-import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, checkedPropertyRequest, checkedElementRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 
 test("C# provider rejects same-spelling property members without selected member identity", () => {
   const provider = getNativeSemanticProvider();
@@ -17,13 +17,13 @@ test("C# provider rejects same-spelling property members without selected member
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "m",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -38,6 +38,7 @@ test("C# provider closes selected generic property results only from TSTS source
   const selectedDeclaration = {};
   const expression = {};
   const receiver = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Box",
     sourceName: "Box",
@@ -56,28 +57,33 @@ test("C# provider closes selected generic property results only from TSTS source
   };
   const context = fakeObservationContext({
     targetBinding: binding,
+    recordedFacts,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Box.Value", "Value"),
   });
 
-  const accepted = provider.mapCheckedPropertyAccess({
+  const accepted = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     sourceResultType: csharpStringType(),
     propertyName: "Value",
-  }, context);
-  const missingEvidence = provider.mapCheckedPropertyAccess({
+  }), context);
+  const missingEvidence = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "Value",
-  }, context);
+  }), context);
 
   assert.equal(accepted.kind, "accept");
-  assert.deepEqual(accepted.value.operation.resultType, csharpStringType());
+  assert.deepEqual(accepted.value.resultType, { kind: "target-named", id: "System.String" });
+  assert.deepEqual(
+    recordedFacts.find((fact) => fact.subject === expression && fact.key === csharpTargetOperationFactKey)?.value.resultType,
+    csharpStringType(),
+  );
   assert.equal(missingEvidence.kind, "reject");
   assert.equal(missingEvidence.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_RENDERABLE");
 });
@@ -92,21 +98,21 @@ test("C# provider preserves an exact closed target result across lossy source-re
     kind: "class",
     members: [property("Example.Target.Value", "Value", "Value")],
   };
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     sourceResultType: { kind: "source-primitive", name: "float64" },
     propertyName: "Value",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.Value", "Value"),
   }));
 
-  assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.operation.resultType, { kind: "source-primitive", name: "int32" });
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
+  assert.deepEqual(result.value.resultType, { kind: "source-primitive", name: "int32" });
 });
 test("C# provider rejects selected source-result evidence with the wrong open target shape", () => {
   const provider = getNativeSemanticProvider();
@@ -130,17 +136,17 @@ test("C# provider rejects selected source-result evidence with the wrong open ta
       },
     }],
   };
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     sourceResultType: {
       kind: "array",
       element: csharpStringType(),
     },
     propertyName: "Value",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Box.Value", "Value"),
@@ -168,13 +174,13 @@ test("C# provider reports selected unsupported property identities with provider
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "unrelated",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -210,13 +216,13 @@ test("C# provider rejects events even when target facts exist until event source
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "changed",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -252,14 +258,13 @@ test("C# provider reports selected unsupported call identities with provider rea
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "notUsedForSelection",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -306,13 +311,14 @@ test("C# provider reports selected unsupported constructor identities with provi
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    callKind: "construct",
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -359,14 +365,14 @@ test("C# provider reports selected unsupported indexer identities with provider 
     ],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -397,6 +403,8 @@ test("C# provider closes selected generic indexer results from TSTS sourceResult
   const selectedDeclaration = {};
   const receiverType = {};
   const argument = {};
+  const acceptedExpression = {};
+  const recordedFacts = [];
   const signatureId = "Example.Box.Item(System.Int32)";
   const binding = {
     id: "Example.Box",
@@ -434,28 +442,33 @@ test("C# provider closes selected generic indexer results from TSTS sourceResult
       ...virtualMember("Example.Box.Item", "Item"),
       signatureId,
     },
+    recordedFacts,
   });
 
-  const accepted = provider.mapCheckedElementAccess({
+  const accepted = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
-    expression: {},
+    expression: acceptedExpression,
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     sourceResultType: csharpStringType(),
     argument,
-  }, context);
-  const missingEvidence = provider.mapCheckedElementAccess({
+  }), context);
+  const missingEvidence = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, context);
+  }), context);
 
   assert.equal(accepted.kind, "accept");
-  assert.deepEqual(accepted.value.operation.resultType, csharpStringType());
+  assert.deepEqual(accepted.value.resultType, { kind: "target-named", id: "System.String" });
+  assert.deepEqual(
+    recordedFacts.find((fact) => fact.subject === acceptedExpression && fact.key === csharpTargetOperationFactKey)?.value.resultType,
+    csharpStringType(),
+  );
   assert.equal(missingEvidence.kind, "reject");
   assert.equal(missingEvidence.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_RENDERABLE");
 });
@@ -476,13 +489,13 @@ test("C# provider does not infer unsupported identity from metadata-name-only ma
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "pointerProperty",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -511,14 +524,14 @@ test("C# provider preserves exact selected indexer signatures instead of refinin
     ],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -535,7 +548,7 @@ test("C# provider preserves exact selected indexer signatures instead of refinin
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int64)");
 });
 test("C# provider maps selected string indexers from provider signature identity", () => {
@@ -555,14 +568,14 @@ test("C# provider maps selected string indexers from provider signature identity
     ],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -601,14 +614,14 @@ test("C# provider closes selected indexer arguments through provider conversion 
     members: [member],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression,
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -643,14 +656,14 @@ test("C# provider rejects selected indexer conversions without provider metadata
     members: [member],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression,
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -691,14 +704,14 @@ test("C# provider rejects indexer conversion metadata without exact signature id
     members: [member],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression,
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -731,14 +744,14 @@ test("C# provider does not select the sole target indexer without exact provider
     members: [member],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression,
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -785,14 +798,14 @@ test("C# provider maps selected byref indexers from source marker target express
     ],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument: outCall,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     argumentPassingSubject: outCall,
@@ -844,14 +857,14 @@ test("C# provider rejects selected byref indexers without source marker facts", 
     }],
   };
 
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     argument,
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -875,12 +888,12 @@ test("C# provider rejects selected byref indexers without source marker facts", 
 });
 test("C# provider rejects element access without TSTS-selected element evidence", () => {
   const provider = getNativeSemanticProvider();
-  const result = provider.mapCheckedElementAccess({
+  const result = provider.mapCheckedElementAccess(checkedElementRequest({
     target: "csharp",
     expression: {},
     receiver: {},
     argument: {},
-  }, fakeObservationContext({}));
+  }), fakeObservationContext({}));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_ELEMENT_ACCESS_NOT_MAPPED");
@@ -903,20 +916,20 @@ test("C# object-shape property access requires the exact TSTS-selected member su
     objectShapesBySubject: new Map([[receiver, objectShape]]),
   });
 
-  const accepted = provider.mapCheckedPropertyAccess({
+  const accepted = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver,
     propertyName: "value",
-    sourceSelectedDeclaration: selectedDeclaration,
-  }, fakeObservationContext({}));
-  const rejected = provider.mapCheckedPropertyAccess({
+    selectedDeclaration: selectedDeclaration,
+  }), fakeObservationContext({}));
+  const rejected = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression: {},
     receiver,
     propertyName: "value",
-    sourceSelectedDeclaration: sameSpellingDeclaration,
-  }, fakeObservationContext({}));
+    selectedDeclaration: sameSpellingDeclaration,
+  }), fakeObservationContext({}));
 
   assert.equal(accepted.kind, "accept");
   assert.equal(accepted.value.operation.targetOperation, "Value");

@@ -12,6 +12,7 @@ import type {
 
 export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
+  readonly sourceArgumentTypes?: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
   readonly sourceSelectionProven?: true;
   readonly sourceSelectedIdentity?: string;

@@ -78,7 +78,6 @@ export {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
-  getNullishTargetTypeRefForKnownOperatorOperand,
   operatorRequiresSelectedProviderIdentity,
 } from "./operator-rules.js";
 

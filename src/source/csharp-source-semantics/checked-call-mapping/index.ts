@@ -136,7 +136,14 @@ export function mapCsharpCheckedCall(
   const sourceSelection = getApplicableSourceCallEvidence(request);
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
   let virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
-  const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
+  const sourceMarkerCall = mapCsharpSourceMarkerCall(
+    request,
+    context,
+    extensionId,
+    (subject) => host.getTargetTypeRefForSubject(subject, context),
+    virtualDeclaration,
+    attributeFact,
+  );
   if (sourceMarkerCall !== undefined) {
     return sourceMarkerCall;
   }

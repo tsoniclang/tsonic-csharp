@@ -117,17 +117,15 @@ test("selected-evidence fixtures do not fabricate non-contract request fields", 
   assert.deepEqual(hits, []);
 });
 
-test("runtime-carrier request handling never treats declaration symbols as concrete carrier subjects", () => {
-  const files = [
-    "src/source/csharp-source-semantics/operations-provider.ts",
-    "src/source/csharp-source-semantics/runtime-carrier-mapping/existing.ts",
-    "src/source/csharp-source-semantics/runtime-carrier-mapping/syntax.ts",
-    "src/source/csharp-source-semantics/surfaces/js/regexp/runtime-carrier.ts",
-  ];
-  const forbidden = files.flatMap((file) => {
-    const source = readFileSync(join(repoRoot, file), "utf8");
-    return /\brequest\.sourceSymbol\b/u.test(source) ? [file] : [];
-  });
+test("runtime-carrier request handling never uses declaration symbols as concrete carrier subjects", () => {
+  const forbidden = sourceFiles(join(repoRoot, "src/source/csharp-source-semantics"))
+    .flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      const blocks = source.match(/.{0,180}\brequest\.sourceSymbol\b.{0,180}/gu) ?? [];
+      return blocks
+        .filter((block) => /\b(?:csharpRuntimeCarrierFactKey|recordCsharpRuntimeCarrierFact|getRecordedCsharpRuntimeCarrierFact)\b/u.test(block))
+        .map(() => relative(repoRoot, file).split(sep).join("/"));
+    });
   assert.deepEqual(forbidden, []);
 });
 
@@ -180,11 +178,20 @@ test("runtime-carrier symbol provenance is declaration-invariant source-primitiv
         : [];
     });
   assert.deepEqual(hits.map(({ file }) => file), [
+    "src/source/csharp-source-semantics/runtime-carrier-mapping/syntax.ts",
     "src/source/csharp-source-semantics/runtime-carrier-mapping.ts",
   ]);
   assert.match(
-    hits[0]?.source ?? "",
+    hits[1]?.source ?? "",
     /const primitiveSubject = \[[\s\S]*request\.sourceSymbol[\s\S]*sourcePrimitiveFactKey/u,
+  );
+  assert.match(
+    hits[0]?.source ?? "",
+    /request\.sourceSymbol[\s\S]*targetBindingFactKey[\s\S]*request\.sourceSymbol[\s\S]*providerVirtualDeclarationFactKey/u,
+  );
+  assert.doesNotMatch(
+    hits[0]?.source ?? "",
+    /\b(?:csharpRuntimeCarrierFactKey|recordCsharpRuntimeCarrierFact|getRecordedCsharpRuntimeCarrierFact)\b/u,
   );
 });
 

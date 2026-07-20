@@ -1,4 +1,4 @@
-import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, checkedPropertyRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 
 test("C# provider rejects exact selected generic signatures with contradictory target facts", () => {
   const provider = getNativeSemanticProvider();
@@ -28,14 +28,13 @@ test("C# provider rejects exact selected generic signatures with contradictory t
     overloadGroup: "Example.Target.pair",
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "pair",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [int32, string],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: {
       id: "Example.Target",
@@ -55,7 +54,7 @@ test("C# provider rejects exact selected generic signatures with contradictory t
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
-test("C# provider resolves overloaded member selections from provider member identity and target facts", () => {
+test("C# provider maps the exact overloaded signature selected by the provider", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -72,14 +71,13 @@ test("C# provider resolves overloaded member selections from provider member ide
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -98,10 +96,11 @@ test("C# provider resolves overloaded member selections from provider member ide
       artifactFileName: "tsts-provider://test",
       memberName: "m",
       memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Int64)",
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 test("C# provider preserves exact selected call signatures instead of refining to siblings", () => {
@@ -121,14 +120,13 @@ test("C# provider preserves exact selected call signatures instead of refining t
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -154,7 +152,7 @@ test("C# provider preserves exact selected call signatures instead of refining t
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
-test("C# provider selects within a proven overload group from target argument facts", () => {
+test("C# provider maps the exact selected overload after target argument closure", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -171,14 +169,13 @@ test("C# provider selects within a proven overload group from target argument fa
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -197,13 +194,14 @@ test("C# provider selects within a proven overload group from target argument fa
       artifactFileName: "tsts-provider://test",
       memberName: "m",
       memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Int32)",
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
-test("C# provider maps calls from TSTS-selected callee symbol virtual declaration facts", () => {
+test("C# provider maps exact signature identity from TSTS-selected callee evidence", () => {
   const provider = getNativeSemanticProvider();
   const calleeSymbol = {};
   const containerSymbol = {};
@@ -220,14 +218,13 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    sourceCalleeSymbol: calleeSymbol,
-    calleePropertyName: "m",
+    selectedCalleeSymbol: calleeSymbol,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -246,10 +243,11 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
       artifactFileName: "tsts-provider://test",
       memberName: "m",
       memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Int32)",
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 test("C# provider rejects exact selected signatures when target facts contradict the TS-selected signature", () => {
@@ -270,14 +268,13 @@ test("C# provider rejects exact selected signatures when target facts contradict
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -323,14 +320,13 @@ test("C# provider selects within provider source-projection signature groups usi
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -366,14 +362,13 @@ test("C# provider does not refine selected signatures outside the proven overloa
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -415,14 +410,13 @@ test("C# provider accepts literal arguments for exact selected target signatures
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [literalArgument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -457,14 +451,13 @@ test("C# provider accepts representable literals for exact nullable target param
     members: [method(signatureId, nullableInt32)],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [literalArgument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -500,14 +493,13 @@ test("C# provider does not search target members outside the selected provider o
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -549,14 +541,13 @@ test("C# provider rejects same-spelling call members without selected provider i
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "m",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -605,22 +596,23 @@ test("C# provider rejects provider-owned receiver calls without selected member 
   };
   const provider = getNativeSemanticProvider({ bindings: [binding] });
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: propertyAccessCallee(receiver, "toString"),
-    sourceCalleeSymbol: receiverType,
+    receiver,
+    receiverType,
     arguments: [],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: receiverType,
     targetBinding: binding,
   }));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SELECTED_PROVIDER_SIGNATURE_NOT_PROVEN");
   assert.equal(
     result.diagnostic.message,
-    "C# provider could not map checked call 'toString' on target 'Example.Exception'.",
+    "C# provider resolved target binding 'Example.Exception', but TSTS did not prove the selected provider signature identity for checked call '<anonymous>'.",
   );
 });
 test("C# provider maps property access from selected provider member identity instead of property text", () => {
@@ -641,20 +633,20 @@ test("C# provider maps property access from selected provider member identity in
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "m",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.actual", "renamed"),
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.operation.operationId, "Example.Target.actual");
 });
 test("C# provider maps field access from selected provider member identity", () => {
@@ -674,20 +666,20 @@ test("C# provider maps field access from selected provider member identity", () 
     ],
   };
 
-  const result = provider.mapCheckedPropertyAccess({
+  const result = provider.mapCheckedPropertyAccess(checkedPropertyRequest({
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedSymbol: selectedDeclaration,
+    selectedSymbol: selectedDeclaration,
     propertyName: "m",
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.ActualField", "renamed"),
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.extensionCode : undefined);
   assert.equal(result.value.operation.operationId, "Example.Target.ActualField");
   assert.equal(result.value.operation.operationKind, "property");
 });

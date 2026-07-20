@@ -39,9 +39,6 @@ import {
   getProviderVirtualDeclarationTargetTypeRefFromDeclarations,
   resolveCsharpRuntimeCarrier,
 } from "./target-type-resolution-facts.js";
-import {
-  targetTypeRefContainsSourcePrimitive,
-} from "./target-ref-utils.js";
 
 export type CsharpTargetTypeArgumentsResolver = (
   type: Type,
@@ -63,7 +60,7 @@ export function resolveTargetTypeRefForTypeCore(
   }
   const types = context.compiler?.typeShape;
   if (types === undefined) {
-    return resolveNonPrimitiveRuntimeCarrier(type, context, options);
+    return resolveRuntimeCarrier(type, context, options);
   }
   const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
@@ -102,7 +99,7 @@ export function resolveTargetTypeRefForTypeCore(
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
     }, host);
   }
-  const runtimeCarrier = resolveNonPrimitiveRuntimeCarrier(type, context, options);
+  const runtimeCarrier = resolveRuntimeCarrier(type, context, options);
   if (runtimeCarrier !== undefined) {
     return runtimeCarrier;
   }
@@ -175,7 +172,7 @@ function getHomogeneousPrimitiveUnionTargetTypeRef(
   return undefined;
 }
 
-function resolveNonPrimitiveRuntimeCarrier(
+function resolveRuntimeCarrier(
   type: Type,
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
@@ -183,10 +180,7 @@ function resolveNonPrimitiveRuntimeCarrier(
   if (options.allowRuntimeCarrier === false) {
     return undefined;
   }
-  const direct = resolveCsharpRuntimeCarrier(type, context);
-  return direct === undefined || targetTypeRefContainsSourcePrimitive(direct)
-    ? undefined
-    : direct;
+  return resolveCsharpRuntimeCarrier(type, context);
 }
 
 function targetTypeArgumentArityMatches(typeParameterCount: number, typeArgumentCount: number): boolean {

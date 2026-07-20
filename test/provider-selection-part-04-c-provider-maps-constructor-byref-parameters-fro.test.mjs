@@ -1,4 +1,4 @@
-import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, validateCsharpTargetConstraintFactsBeforeFinalization, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
 
 test("C# provider maps constructor byref parameters from source marker target expressions", () => {
   const provider = getNativeSemanticProvider();
@@ -6,6 +6,11 @@ test("C# provider maps constructor byref parameters from source marker target ex
   const containerSymbol = {};
   const outCall = {};
   const value = {};
+  const targetType = {
+    kind: "target-named",
+    id: "Example.Target",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+  };
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
@@ -23,13 +28,15 @@ test("C# provider maps constructor byref parameters from source marker target ex
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: { Kind: "KindNewExpression" },
     callee: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    callKind: "construct",
+    selectedDeclaration: selectedDeclaration,
+    sourceResultType: targetType,
     arguments: [outCall],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     argumentPassingSubject: outCall,
@@ -48,6 +55,7 @@ test("C# provider maps constructor byref parameters from source marker target ex
     virtualDeclaration: {
       ...virtualMember("Example.Target..ctor", "constructor"),
       signatureId: "Example.Target..ctor(out System.Int32)",
+      targetIdentity: targetType,
     },
   }));
 
@@ -91,14 +99,13 @@ test("C# provider closes ref out and in parameter modes from selected provider m
   const provider = getNativeSemanticProvider({ bindings: [binding] });
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: {},
-    calleePropertyName: "update",
-    sourceSelectedSignature: selectedSignature,
+    selectedSignature: selectedSignature,
     arguments: [refCall, outCall, inCall],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualSignatureSubject: selectedSignature,
@@ -107,23 +114,14 @@ test("C# provider closes ref out and in parameter modes from selected provider m
       [refCall, {
         mode: "byref-readwrite",
         targetExpression: int32,
-        parameterIndex: 0,
-        targetParameter: refParameter,
-        selectedSignature: selectedProviderDeclaration,
       }],
       [outCall, {
         mode: "byref-writeonly-must-init",
         targetExpression: bool,
-        parameterIndex: 1,
-        targetParameter: outParameter,
-        selectedSignature: selectedProviderDeclaration,
       }],
       [inCall, {
         mode: "byref-readonly",
         targetExpression: int64,
-        parameterIndex: 2,
-        targetParameter: inParameter,
-        selectedSignature: selectedProviderDeclaration,
       }],
     ]),
     recordedFacts,
@@ -136,7 +134,12 @@ test("C# provider closes ref out and in parameter modes from selected provider m
     "byref-writeonly-must-init",
     "byref-readonly",
   ]);
-  assert.deepEqual(result.value.selectedSignature.argumentConversions, [int32, bool, int64]);
+  assert.deepEqual(result.value.argumentConversions, [0, 1, 2].map((index) => ({
+    sourceArgumentIndex: index,
+    sourceForm: "value",
+    targetParameterIndex: index,
+    targetForm: "parameter",
+  })));
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.deepEqual(operation?.selectedMember?.parameters.map((parameter) => parameter.passingMode), [
     "byref-readwrite",
@@ -195,13 +198,14 @@ test("C# provider does not refine exact selected constructor signatures from byr
   };
   const provider = getNativeSemanticProvider({ bindings: [binding] });
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: {},
-    sourceSelectedSignature: selectedSignature,
+    callKind: "construct",
+    selectedSignature: selectedSignature,
     arguments: [refCall],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualSignatureSubject: selectedSignature,
@@ -224,7 +228,7 @@ test("C# provider does not refine exact selected constructor signatures from byr
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
   assert.match(result.diagnostic.message, /could not map checked call '<anonymous>'/);
 });
-test("C# provider rejects argument-passing facts tied to another selected provider signature", () => {
+test("C# provider rejects argument-passing modes inconsistent with the exact selected target parameter", () => {
   const selectedSignature = {};
   const containerSymbol = {};
   const call = {};
@@ -234,10 +238,6 @@ test("C# provider rejects argument-passing facts tied to another selected provid
   const selectedProviderDeclaration = {
     ...virtualMember("Example.Target.update", "update"),
     signatureId: "Example.Target.update(out System.Int32)",
-  };
-  const otherProviderDeclaration = {
-    ...virtualMember("Example.Target.update", "update"),
-    signatureId: "Example.Target.update(ref System.Int32)",
   };
   const member = {
     id: selectedProviderDeclaration.signatureId,
@@ -259,25 +259,21 @@ test("C# provider rejects argument-passing facts tied to another selected provid
   const provider = getNativeSemanticProvider({ bindings: [binding] });
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: {},
-    calleePropertyName: "update",
-    sourceSelectedSignature: selectedSignature,
+    selectedSignature: selectedSignature,
     arguments: [outCall],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualSignatureSubject: selectedSignature,
     virtualSignatureDeclaration: selectedProviderDeclaration,
     argumentPassingSubject: outCall,
     argumentPassing: {
-      mode: "byref-writeonly-must-init",
+      mode: "byref-readwrite",
       targetExpression: int32,
-      parameterIndex: 0,
-      targetParameter: outParameter,
-      selectedSignature: otherProviderDeclaration,
     },
     recordedFacts,
   }));
@@ -309,13 +305,14 @@ test("C# provider rejects constructor byref parameters without source marker fac
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: { Kind: "KindNewExpression" },
     callee: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    callKind: "construct",
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     sourcePrimitiveSubject: argument,
@@ -372,14 +369,13 @@ test("C# provider prefers selected generic signatures when target argument facts
     ],
   };
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call: {},
     callee: {},
-    calleePropertyName: "identity",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
     arguments: [argument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -454,14 +450,19 @@ test("C# provider keeps inferred generic method arguments after selected binding
   });
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: propertyAccessCallee(receiver, "copy"),
-    calleePropertyName: "copy",
-    sourceSelectedDeclaration: selectedDeclaration,
+    selectedDeclaration: selectedDeclaration,
+    receiver,
+    receiverType: declaringClosedType,
+    methodTypeArguments: [{
+      typeParameterName: "TMethod",
+      selectedType: markedType,
+    }],
     arguments: [markedType],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -469,13 +470,12 @@ test("C# provider keeps inferred generic method arguments after selected binding
       ...virtualMember(genericMember.id, "copy", binding.id),
       signatureId: genericMember.id,
     },
-    typesByNode: new Map([[receiver, declaringClosedType]]),
     recordedFacts,
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, genericMember.id);
-  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, markedType);
+  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, { kind: "target-named", id: markedType.id });
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.Void");
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
@@ -535,18 +535,17 @@ test("C# provider keeps explicit generic method target arguments for selected pr
   });
   const recordedFacts = [];
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: {},
-    calleePropertyName: "Read",
-    sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedMethodTypeArguments: [{
+    selectedDeclaration: selectedDeclaration,
+    methodTypeArguments: [{
       typeParameterName: "T",
       selectedType: selectedDtoType,
     }],
     arguments: [stringArgument],
-  }, fakeObservationContext({
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -558,8 +557,8 @@ test("C# provider keeps explicit generic method target arguments for selected pr
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
-  assert.deepEqual(result.value.selectedSignature.targetTypeArguments, [dtoType]);
-  assert.deepEqual(result.value.selectedSignature.member.returnType, dtoType);
+  assert.deepEqual(result.value.selectedSignature.targetTypeArguments, [{ kind: "target-named", id: dtoType.id }]);
+  assert.deepEqual(result.value.selectedSignature.member.returnType, { kind: "target-named", id: dtoType.id });
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.operationId, genericMember.id);
@@ -627,18 +626,18 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
     targetTypesBySubject: new Map([[selectedDtoType, dtoType]]),
   });
 
-  const result = provider.mapCheckedCall({
+  const result = provider.mapCheckedCall(checkedCallRequest({
     target: "csharp",
     call,
     callee: {},
-    calleePropertyName: "Write",
-    sourceSelectedDeclaration: selectedDeclaration,
-    sourceSelectedMethodTypeArguments: [{
+    selectedDeclaration: selectedDeclaration,
+    methodTypeArguments: [{
       typeParameterName: "T",
       selectedType: selectedDtoType,
     }],
     arguments: [argument],
-  }, fakeObservationContext({
+    sourceArgumentTypes: [sourceCarrierType],
+  }), fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
@@ -646,9 +645,8 @@ test("C# provider trusts TSTS-selected generic source arguments when target carr
       ...virtualMember(genericMember.id, "Write", binding.id),
       signatureId: genericMember.id,
     },
-    typesByNode: new Map([[argument, sourceCarrierType]]),
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
-  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, dtoType);
+  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, { kind: "target-named", id: dtoType.id });
 });

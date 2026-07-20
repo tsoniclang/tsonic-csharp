@@ -2,7 +2,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   SourcePrimitiveKind,
-  SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -11,9 +10,6 @@ import {
 import type {
   TargetTypeRefResolutionOptions,
 } from "../target-member-selection.js";
-import {
-  asNodeSubject,
-} from "../ast-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -89,39 +85,6 @@ export function getLiteralTargetTypeRefForKnownOperatorOperand(
   return unwrappedExpected !== undefined && isLiteralRepresentableAsTargetType(unwrappedExpected, operand, context)
     ? unwrappedExpected
     : undefined;
-}
-
-export function getNullishTargetTypeRefForKnownOperatorOperand(
-  expectedOperandType: TargetTypeRef | undefined,
-  operand: ExtensionFactSubject | undefined,
-  sourceFile: SourceFile | undefined,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  return expectedOperandType !== undefined && isNullishExpressionOperand(operand, sourceFile, context)
-    ? expectedOperandType
-    : undefined;
-}
-
-function isNullishExpressionOperand(
-  operand: ExtensionFactSubject | undefined,
-  sourceFile: SourceFile | undefined,
-  context: ExtensionObservationContext,
-): boolean {
-  const node = asNodeSubject(operand);
-  const compiler = context.compiler;
-  if (node === undefined || compiler === undefined) {
-    return false;
-  }
-  const kind = compiler.ast.kindName(node);
-  if (kind === "KindNullKeyword" || kind === "KindVoidExpression") {
-    return true;
-  }
-  if (kind !== "KindIdentifier" || compiler.ast.text(node) !== "undefined") {
-    return false;
-  }
-  const checkedSourceFile = sourceFile ?? compiler.ast.getSourceFile(node);
-  const type = compiler.checker.getTypeAtLocation(node, { sourceFile: checkedSourceFile });
-  return type === undefined ? false : compiler.typeShape.isNullish(type);
 }
 
 function getPromotedSourcePrimitiveArithmeticType(left: TargetTypeRef, right: TargetTypeRef | undefined): TargetTypeRef | undefined {

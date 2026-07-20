@@ -1,861 +1,410 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { deferObservation } from "@tsonic/tsts";
 import {
-  deferObservation,
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
+  csharpProjectSourceFactKey,
+  csharpRuntimeCarrierFactKey,
+} from "../dist/source/csharp-facts.js";
 import {
   createCsharpNativeOperationsProvider,
 } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import {
   isCsharpSourceOwnedSelectedSignature,
 } from "../dist/source/csharp-source-semantics/source-owned-selected-signature.js";
+import {
+  csharpStringTargetType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
+import { checkedCallRequest } from "./provider-selection.helpers.mjs";
 
-test("source-owned checked calls close over destructured binding carrier facts", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const bindingElement = node("KindBindingElement", sourceFile);
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const sourceReturnType = { kind: "semantic-number" };
-  const symbol = { Flags: 0, Name: "run" };
-  const float64 = { kind: "source-primitive", name: "float64" };
-  const delegateCarrier = {
-    kind: "target-named",
-    id: "System.Func`2",
-    typeArguments: [float64, float64],
-    csharpDelegateSignature: {
-      parameters: [float64],
-      returnType: float64,
-    },
-  };
+const int32 = { kind: "source-primitive", name: "int32" };
+const string = csharpStringTargetType();
+const stringSelection = { kind: "target-named", id: "System.String" };
+const bool = { kind: "source-primitive", name: "bool" };
 
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [bindingElement]]]),
+test("source-owned calls close their return from the exact TSTS-selected result type", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("result");
+  const context = fixture.context();
+
+  const result = fixture.map({
+    context,
+    sourceResultType,
+    targetTypes: new Map([[sourceResultType, int32]]),
   });
-  const result = sourceOwnedProvider(new Map([
-    [callee, delegateCarrier],
-    [sourceReturnType, float64],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedCalleeDeclaration: bindingElement,
-    sourceReturnType,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
-});
-
-test("source-owned checked calls close over implicit source class constructor symbols", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const classDeclaration = node("KindClassDeclaration", sourceFile);
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindNewExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "Point" };
-  const pointType = {
-    kind: "target-named",
-    id: "Point",
-    csharpRender: { kind: "named", name: "Point" },
-    csharpSourceDeclarationKind: "class",
-  };
-
-  const result = sourceOwnedProvider(new Map([[call, pointType]])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedCalleeDeclaration: classDeclaration,
-    arguments: [],
-  }, fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [classDeclaration]]]),
-  }));
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-});
-
-test("source-owned checked calls derive generic class constructor returns from selected declaration and type arguments", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const typeArgument = node("KindTypeReference", sourceFile, { Text: "int32" });
-  const classDeclaration = node("KindClassDeclaration", sourceFile, { name: node("KindIdentifier", sourceFile, { Text: "Box" }) });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindNewExpression", sourceFile, { TypeArguments: { Nodes: [typeArgument] } });
-  const symbol = { Flags: 0, Name: "Box" };
-  const int32 = { kind: "source-primitive", name: "int32" };
-
-  const result = sourceOwnedProvider(new Map([
-    [typeArgument, int32],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: classDeclaration,
-    arguments: [],
-  }, fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [classDeclaration]]]),
-  }));
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-});
-
-test("source-owned checked calls derive generic explicit-constructor returns from the selected constructor declaration", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const typeArgument = node("KindTypeReference", sourceFile, { Text: "T" });
-  const classDeclaration = node("KindClassDeclaration", sourceFile, { name: node("KindIdentifier", sourceFile, { Text: "Wrapper" }) });
-  const constructorDeclaration = node("KindConstructor", sourceFile, { Parent: classDeclaration });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindNewExpression", sourceFile, { TypeArguments: { Nodes: [typeArgument] } });
-  const symbol = { Flags: 0, Name: "Wrapper" };
-  const typeParameter = { kind: "type-parameter", name: "T" };
-
-  const result = sourceOwnedProvider(new Map([
-    [typeArgument, typeParameter],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: constructorDeclaration,
-    arguments: [],
-  }, fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [constructorDeclaration]]]),
-  }));
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-});
-
-test("source-owned checked calls close over selected declaration return annotations", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const returnType = node("KindNumberKeyword", sourceFile);
-  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "classify" };
-  const float64 = { kind: "source-primitive", name: "float64" };
-
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
+  assertSourceOwnedAccept(result, { returnType: int32 });
+  assert.deepEqual(context.facts.get(fixture.call, csharpRuntimeCarrierFactKey), {
+    carrier: int32,
   });
-  const result = sourceOwnedProvider(new Map([
-    [returnType, float64],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: functionDeclaration,
-    arguments: [],
-  }, context);
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
 });
 
-test("source-owned checked calls do not close raw TypeScript array annotations as native array returns", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const returnType = node("KindArrayType", sourceFile);
-  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "compose" };
-  const rawSourceArray = {
-    kind: "array",
-    element: { kind: "source-primitive", name: "int32" },
-  };
+test("source-owned calls prefer an exact authored result type node over a broader semantic result", () => {
+  const fixture = sourceOwnedFixture();
+  const authoredTypeNode = node("KindTypeReference");
+  const sourceResultType = semanticType("broader-result");
 
-  const result = sourceOwnedProvider(new Map([
-    [returnType, rawSourceArray],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: functionDeclaration,
-    arguments: [],
-  }, fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
-  }));
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-});
-
-test("source-owned checked calls close over callable type return annotations", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const returnType = node("KindNumberKeyword", sourceFile);
-  const functionType = node("KindFunctionTypeNode", sourceFile, { Type: returnType });
-  const variableDeclaration = node("KindVariableDeclaration", sourceFile, { Type: functionType });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "callback" };
-  const float64 = { kind: "source-primitive", name: "float64" };
-
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [variableDeclaration]]]),
+  const result = fixture.map({
+    sourceResultType,
+    sourceResultTypeNode: authoredTypeNode,
+    targetTypes: new Map([
+      [authoredTypeNode, string],
+      [sourceResultType, { kind: "opaque", id: "any" }],
+    ]),
   });
-  const result = sourceOwnedProvider(new Map([
-    [returnType, float64],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: variableDeclaration,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
+  assertSourceOwnedAccept(result, { returnType: stringSelection });
 });
 
-test("source-owned checked calls prefer a local delegate parameter over its external contextual signature", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const declarationFile = {
-    IsDeclarationFile: true,
-    FileName: "/profiles/js-globals.d.ts",
-  };
-  const parameter = node("KindParameter", sourceFile);
-  const externalSignature = node("KindCallSignature", declarationFile);
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceSelectedDeclaration: externalSignature,
-    sourceSelectedCalleeDeclaration: parameter,
-    arguments: [],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.deepEqual(result.value.selectedSignature.member.parameters, []);
-});
-
-test("source-owned checked calls keep function-declaration callable returns as delegate carriers", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const returnType = node("KindNumberKeyword", sourceFile);
-  const functionType = node("KindFunctionTypeNode", sourceFile, { Type: returnType, Parameters: { Nodes: [] } });
-  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: functionType });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "makeCounter" };
-  const float64 = { kind: "source-primitive", name: "float64" };
-  const delegateCarrier = {
-    kind: "target-named",
-    id: "System.Func`1",
-    typeArguments: [float64],
-    csharpDelegateSignature: {
-      parameters: [],
-      returnType: float64,
-    },
-  };
-
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
+test("source-owned calls consume a finalized private C# carrier on the exact result type", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("carrier-backed-result");
+  const context = fixture.context({
+    facts: [[sourceResultType, csharpRuntimeCarrierFactKey, { carrier: bool }]],
   });
-  const result = sourceOwnedProvider(new Map([
-    [returnType, float64],
-    [functionType, delegateCarrier],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: functionDeclaration,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: delegateCarrier });
+  const result = fixture.map({ context, sourceResultType });
+
+  assertSourceOwnedAccept(result, { returnType: bool });
 });
 
-test("source-owned checked calls do not query the call expression for TSTS-instantiated generic method returns", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const typeParameterReturn = node("KindTypeReference", sourceFile, { Text: "Transformer<U>" });
-  const methodDeclaration = node("KindMethodDeclaration", sourceFile, { Type: typeParameterReturn });
-  const callee = node("KindPropertyAccessExpression", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "map" };
-  const stringType = { kind: "source-primitive", name: "string" };
-  const uninstantiatedReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [{ kind: "type-parameter", name: "U" }],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
-  const instantiatedReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [stringType],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
+test("source-owned array returns remain exact without publishing a concrete call carrier", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("array-result");
+  const array = { kind: "array", element: int32 };
+  const context = fixture.context();
 
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [methodDeclaration]]]),
+  const result = fixture.map({
+    context,
+    sourceResultType,
+    targetTypes: new Map([[sourceResultType, array]]),
   });
-  const result = sourceOwnedProvider(new Map([
-    [call, (options) => options?.allowSemanticTypeQuery === false ? undefined : instantiatedReturn],
-    [typeParameterReturn, uninstantiatedReturn],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: methodDeclaration,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.equal(context.facts.get(call, runtimeCarrierFactKey), undefined);
+  assertSourceOwnedAccept(result, { returnType: array });
+  assert.equal(context.facts.get(fixture.call, csharpRuntimeCarrierFactKey), undefined);
 });
 
-test("source-owned checked calls close over TSTS-selected semantic return types", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const typeParameterReturn = node("KindTypeReference", sourceFile, { Text: "Transformer<U>" });
-  const methodDeclaration = node("KindMethodDeclaration", sourceFile, { Type: typeParameterReturn });
-  const callee = node("KindPropertyAccessExpression", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "map" };
-  const sourceReturnType = { kind: "semantic-transformer-string" };
-  const stringType = { kind: "source-primitive", name: "string" };
-  const uninstantiatedReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [{ kind: "type-parameter", name: "U" }],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
-  const instantiatedReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [stringType],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
+test("source-owned calls fail closed for an opaque any result", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("any-result");
 
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [methodDeclaration]]]),
+  const result = fixture.map({
+    sourceResultType,
+    targetTypes: new Map([[sourceResultType, { kind: "opaque", id: "any" }]]),
   });
-  const result = sourceOwnedProvider(new Map([
-    [sourceReturnType, instantiatedReturn],
-    [typeParameterReturn, uninstantiatedReturn],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: methodDeclaration,
-    sourceReturnType,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: instantiatedReturn });
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_RESULT_FACT_NOT_PROVEN");
+  assert.equal(result.diagnostic.nodeOrSpan, fixture.call);
 });
 
-test("source-owned checked calls prefer receiver type-argument facts over numeric semantic return types", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const typeParameterName = node("KindIdentifier", sourceFile, { Text: "T" });
-  const typeParameter = node("KindTypeParameter", sourceFile, { name: typeParameterName });
-  const receiverTypeArgument = node("KindTypeReference", sourceFile, { Text: "int32" });
-  const receiver = node("KindNewExpression", sourceFile, { TypeArguments: { Nodes: [receiverTypeArgument] } });
-  const callee = node("KindPropertyAccessExpression", sourceFile, { Expression: receiver });
-  const returnType = node("KindTypeReference", sourceFile, { Text: "Transformer<T>" });
-  const classDeclaration = node("KindClassDeclaration", sourceFile, { TypeParameters: { Nodes: [typeParameter] } });
-  const methodDeclaration = node("KindMethodDeclaration", sourceFile, { Type: returnType, Parent: classDeclaration });
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "replace" };
-  const int32 = { kind: "source-primitive", name: "int32" };
-  const float64 = { kind: "source-primitive", name: "float64" };
-  const receiverCarrier = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [int32],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
-  const annotatedReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [{ kind: "type-parameter", name: "T" }],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
-  const broadSemanticReturn = {
-    kind: "target-named",
-    id: "Transformer",
-    typeArguments: [float64],
-    csharpRender: { kind: "named", name: "Transformer" },
-    csharpSourceDeclarationKind: "class",
-  };
-  const sourceReturnType = { kind: "semantic-transformer-number" };
+test("source-owned construction consumes exact construct-kind and result evidence", () => {
+  const fixture = sourceOwnedFixture({ callKind: "construct" });
+  const sourceResultType = semanticType("constructed-result");
+  const point = { kind: "target-named", id: "Example.Point" };
 
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [methodDeclaration]]]),
+  const result = fixture.map({
+    sourceResultType,
+    targetTypes: new Map([[sourceResultType, point]]),
   });
-  const result = sourceOwnedProvider(new Map([
-    [receiver, receiverCarrier],
-    [receiverTypeArgument, int32],
-    [returnType, annotatedReturn],
-    [sourceReturnType, broadSemanticReturn],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: methodDeclaration,
-    sourceReturnType,
-    arguments: [],
-  }, context);
 
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: receiverCarrier });
+  assertSourceOwnedAccept(result, { returnType: point });
 });
 
-test("source-owned checked calls use TSTS semantic return annotation when direct annotation facts are absent", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const returnType = node("KindNumberKeyword", sourceFile);
-  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const symbol = { Flags: 0, Name: "score" };
-  const semanticType = { kind: "semantic-number" };
-  const float64 = { kind: "source-primitive", name: "float64" };
+test("source-owned generic calls consume exact TSTS-selected method type arguments", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("generic-result");
+  const selectedType = semanticType("selected-method-type");
 
-  const context = fakeObservationContext({
-    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
-    semanticTypesByTypeNode: new Map([[returnType, semanticType]]),
-  });
-  const result = sourceOwnedProvider(new Map([
-    [semanticType, float64],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceCalleeSymbol: symbol,
-    sourceSelectedDeclaration: functionDeclaration,
-    arguments: [],
-  }, context);
-
-  assert.equal(result.kind, "accept");
-  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
-  assert.equal(result.value.selectedSignature.member.returnType, undefined);
-  assert.deepEqual(context.facts.get(call, runtimeCarrierFactKey), { carrier: float64 });
-});
-
-test("source-owned checked calls record parameter and method type arguments from TSTS-selected evidence", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const parameterName = node("KindIdentifier", sourceFile, { Text: "value" });
-  const parameterTypeNode = node("KindTypeReference", sourceFile, { Text: "T" });
-  const parameter = node("KindParameterDeclaration", sourceFile, { name: parameterName, Type: parameterTypeNode });
-  const parameterSymbol = { kind: "parameter-symbol" };
-  const declaration = node("KindFunctionDeclaration", sourceFile, {
-    Parameters: { Nodes: [parameter] },
-  });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const selectedType = { kind: "semantic-string" };
-  const openParameterType = { kind: "type-parameter", name: "T" };
-  const stringType = { kind: "source-primitive", name: "string" };
-
-  const result = sourceOwnedProvider(new Map([
-    [parameterTypeNode, openParameterType],
-    [selectedType, stringType],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "value",
-      parameterSymbol,
-      parameterDeclaration: parameter,
-      selectedType,
-      authoredTypeNode: parameterTypeNode,
-    })]),
-    sourceSelectedDeclaration: declaration,
-    sourceSelectedMethodTypeArguments: [{
+  const result = fixture.map({
+    sourceResultType,
+    methodTypeArguments: [{
       typeParameterName: "T",
+      typeParameter: node("KindTypeParameter"),
       selectedType,
     }],
-    arguments: [node("KindStringLiteral", sourceFile, { Text: "ok" })],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.selectedSignature.targetTypeArguments, [stringType]);
-  assert.deepEqual(result.value.selectedSignature.member.parameters, [{
-    name: "value",
-    type: stringType,
-    passingMode: "by-value",
-  }]);
-});
-
-test("source-owned checked calls map TSTS-selected parameter type evidence without checker re-entry", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const optionsTypeNode = node("KindTypeReference", sourceFile, { Text: "Options" });
-  const parameterDeclaration = node("KindParameter", sourceFile, {
-    name: node("KindIdentifier", sourceFile, { Text: "options" }),
-    Type: optionsTypeNode,
+    targetTypes: new Map([
+      [sourceResultType, string],
+      [selectedType, string],
+    ]),
   });
-  const parameterSymbol = { kind: "parameter-symbol" };
-  const selectedType = { kind: "semantic-options" };
-  const declaration = node("KindConstructor", sourceFile);
-  const call = node("KindNewExpression", sourceFile);
-  const optionsType = {
-    kind: "target-named",
-    id: "Example.Options",
-    csharpRender: { kind: "named", namespace: ["Example"], name: "Options" },
-  };
 
-  const result = sourceOwnedProvider(new Map([
-    [optionsTypeNode, optionsType],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee: node("KindIdentifier", sourceFile),
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "options",
-      parameterSymbol,
-      parameterDeclaration,
-      selectedType,
-      authoredTypeNode: optionsTypeNode,
-    })]),
-    sourceSelectedDeclaration: declaration,
-    arguments: [node("KindIdentifier", sourceFile)],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.selectedSignature.member.parameters, [{
-    name: "options",
-    type: optionsType,
-    passingMode: "by-value",
-  }]);
-});
-
-test("source-owned checked calls prefer instantiated selected parameter evidence over authored generic syntax", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const parameterTypeNode = node("KindTypeReference", sourceFile, { Text: "T" });
-  const parameterDeclaration = node("KindParameter", sourceFile, {
-    name: node("KindIdentifier", sourceFile, { Text: "value" }),
-    Type: parameterTypeNode,
+  assertSourceOwnedAccept(result, {
+    returnType: stringSelection,
+    targetTypeArguments: [stringSelection],
   });
-  const selectedType = { kind: "semantic-instantiated-string" };
-  const declaration = node("KindParameter", sourceFile);
-  const openType = { kind: "type-parameter", name: "T" };
-  const instantiatedType = { kind: "source-primitive", name: "string" };
-
-  const result = sourceOwnedProvider(new Map([
-    [parameterTypeNode, openType],
-    [selectedType, instantiatedType],
-  ])).mapCheckedCall({
-    target: "csharp",
-    call: node("KindCallExpression", sourceFile),
-    callee: node("KindIdentifier", sourceFile),
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "value",
-      parameterSymbol: { kind: "parameter-symbol" },
-      parameterDeclaration,
-      selectedType,
-      authoredTypeNode: parameterTypeNode,
-    })]),
-    sourceSelectedCalleeDeclaration: declaration,
-    arguments: [node("KindStringLiteral", sourceFile, { Text: "ok" })],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.selectedSignature.member.parameters, [{
-    name: "value",
-    type: instantiatedType,
-    passingMode: "by-value",
-  }]);
 });
 
-test("source-owned checked calls fail closed when TSTS-selected method type arguments lack target facts", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const declaration = node("KindFunctionDeclaration", sourceFile);
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const selectedType = { kind: "semantic-unresolved" };
+test("source-owned generic calls fail closed when a selected method type argument has no target fact", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("generic-result");
 
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence(),
-    sourceSelectedDeclaration: declaration,
-    sourceSelectedMethodTypeArguments: [{
+  const result = fixture.map({
+    sourceResultType,
+    methodTypeArguments: [{
       typeParameterName: "T",
-      selectedType,
+      selectedType: semanticType("unresolved-method-type"),
     }],
-    arguments: [],
-  }, fakeObservationContext());
+    targetTypes: new Map([[sourceResultType, string]]),
+  });
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_METHOD_TYPE_ARGUMENT_NOT_PROVEN");
-  assert.equal(result.diagnostic.nodeOrSpan, call);
 });
 
-test("source-owned checked calls fail closed when selected parameter target facts are missing", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const parameter = node("KindParameterDeclaration", sourceFile, {
-    name: node("KindIdentifier", sourceFile, { Text: "value" }),
-  });
-  const declaration = node("KindFunctionDeclaration", sourceFile, {
-    Parameters: { Nodes: [parameter] },
-  });
-  const callee = node("KindIdentifier", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const selectedType = { kind: "semantic-unresolved-parameter" };
+test("source-owned calls map exact selected parameter evidence without checker reconstruction", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("parameterized-result");
+  const selectedParameterType = semanticType("parameter-type");
+  const argument = node("KindIdentifier");
 
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee,
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "value",
-      parameterSymbol: { kind: "parameter-symbol" },
-      parameterDeclaration: parameter,
-      selectedType,
-    })]),
-    sourceSelectedDeclaration: declaration,
-    arguments: [node("KindNumericLiteral", sourceFile, { Text: "1" })],
-  }, fakeObservationContext());
+  const result = fixture.map({
+    sourceResultType,
+    arguments: [argument],
+    sourceArgumentTypes: [selectedParameterType],
+    selectedParameters: [selectedParameter({
+      index: 0,
+      name: "value",
+      selectedType: selectedParameterType,
+    })],
+    targetTypes: new Map([
+      [sourceResultType, bool],
+      [selectedParameterType, int32],
+    ]),
+  });
+
+  assertSourceOwnedAccept(result, {
+    returnType: bool,
+    parameters: [{
+      name: "value",
+      type: int32,
+      passingMode: "by-value",
+    }],
+    argumentConversions: [{
+      sourceArgumentIndex: 0,
+      sourceForm: "value",
+      targetParameterIndex: 0,
+      targetForm: "parameter",
+    }],
+  });
+});
+
+test("source-owned calls fail closed when selected parameter target evidence is missing", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("parameterized-result");
+  const unresolvedParameterType = semanticType("unresolved-parameter");
+
+  const result = fixture.map({
+    sourceResultType,
+    arguments: [node("KindIdentifier")],
+    selectedParameters: [selectedParameter({
+      index: 0,
+      name: "value",
+      selectedType: unresolvedParameterType,
+    })],
+    targetTypes: new Map([[sourceResultType, bool]]),
+  });
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
-  assert.equal(result.diagnostic.nodeOrSpan, call);
+  assert.equal(result.diagnostic.nodeOrSpan, fixture.call);
 });
 
-test("source-owned checked calls do not require target facts for TSTS-proven omitted parameters", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const parameter = node("KindParameterDeclaration", sourceFile, {
-    name: node("KindIdentifier", sourceFile, { Text: "value" }),
-  });
-  const declaration = node("KindParameterDeclaration", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const selectedType = { kind: "semantic-unresolved-omitted-parameter" };
+test("source-owned omitted parameters fail closed without target omission semantics", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("optional-result");
+  const optionalParameterType = semanticType("optional-parameter");
 
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee: node("KindIdentifier", sourceFile),
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "value",
-      parameterSymbol: { kind: "parameter-symbol" },
-      parameterDeclaration: parameter,
-      selectedType,
+  const result = fixture.map({
+    sourceResultType,
+    selectedParameters: [selectedParameter({
+      index: 0,
+      name: "value",
+      selectedType: optionalParameterType,
       acceptsOmission: true,
-    })]),
-    sourceSelectedCalleeDeclaration: declaration,
-    arguments: [],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "accept");
-  assert.deepEqual(result.value.selectedSignature.member.parameters, []);
-});
-
-test("source-owned checked calls still require target facts for supplied optional parameters", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const parameter = node("KindParameterDeclaration", sourceFile, {
-    name: node("KindIdentifier", sourceFile, { Text: "value" }),
+    })],
+    targetTypes: new Map([
+      [sourceResultType, bool],
+      [optionalParameterType, string],
+    ]),
   });
-  const declaration = node("KindParameterDeclaration", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
-  const selectedType = { kind: "semantic-unresolved-supplied-parameter" };
-
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
-    call,
-    callee: node("KindIdentifier", sourceFile),
-    ...resolvedSignatureEvidence([selectedParameterEvidence({
-      parameterIndex: 0,
-      parameterName: "value",
-      parameterSymbol: { kind: "parameter-symbol" },
-      parameterDeclaration: parameter,
-      selectedType,
-      acceptsOmission: true,
-    })]),
-    sourceSelectedCalleeDeclaration: declaration,
-    arguments: [node("KindIdentifier", sourceFile)],
-  }, fakeObservationContext());
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
-  assert.equal(result.diagnostic.nodeOrSpan, call);
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_ARGUMENT_CONVERSIONS_NOT_PROVEN");
 });
 
-test("source-owned checked calls reject absent selected parameter evidence instead of treating it as an implicit zero-parameter signature", () => {
-  const sourceFile = sourceFileNode("/src/index.ts");
-  const declaration = node("KindFunctionDeclaration", sourceFile);
-  const call = node("KindCallExpression", sourceFile);
+test("source-owned exact zero-parameter selections close without invented parameters", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("zero-parameter-result");
 
-  const result = sourceOwnedProvider(new Map()).mapCheckedCall({
-    target: "csharp",
+  const result = fixture.map({
+    sourceResultType,
+    selectedParameters: [],
+    targetTypes: new Map([[sourceResultType, bool]]),
+  });
+
+  assertSourceOwnedAccept(result, {
+    returnType: bool,
+    parameters: [],
+    argumentConversions: [],
+  });
+});
+
+test("calls without exact project-source ownership do not enter source-owned closure", () => {
+  const fixture = sourceOwnedFixture();
+  const sourceResultType = semanticType("unowned-result");
+  const context = fixture.context({ projectOwned: false });
+
+  const result = fixture.map({
+    context,
+    sourceResultType,
+    targetTypes: new Map([[sourceResultType, bool]]),
+  });
+
+  assert.notEqual(result.kind, "accept");
+});
+
+test("source-owned missing prerequisite evidence defers during checking", () => {
+  const fixture = sourceOwnedFixture();
+  const result = fixture.map({
+    context: fixture.context({ phase: "checking" }),
+    sourceResultType: semanticType("not-finalized"),
+  });
+
+  assert.equal(result, deferObservation);
+});
+
+function sourceOwnedFixture(options = {}) {
+  const declaration = node("KindFunctionDeclaration");
+  const call = node(options.callKind === "construct" ? "KindNewExpression" : "KindCallExpression");
+  const callee = node("KindIdentifier");
+
+  return {
     call,
-    callee: node("KindIdentifier", sourceFile),
-    sourceSelectedSignature: {},
-    sourceSelectedSignatureKind: "resolved",
-    sourceSelectedDeclaration: declaration,
-    arguments: [],
-  }, fakeObservationContext());
-
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_CALL_PARAMETER_FACT_NOT_PROVEN");
-  assert.equal(result.diagnostic.nodeOrSpan, call);
-});
-
+    context: (contextOptions = {}) => observationContext({
+      declaration,
+      ...contextOptions,
+    }),
+    map(mapOptions = {}) {
+      const context = mapOptions.context ?? observationContext({ declaration });
+      const provider = sourceOwnedProvider(mapOptions.targetTypes ?? new Map());
+      return provider.mapCheckedCall(checkedCallRequest({
+        target: "csharp",
+        call,
+        callee,
+        callKind: options.callKind ?? "call",
+        selectedSignature: node("KindSignature"),
+        selectedDeclaration: declaration,
+        selectedCalleeDeclaration: declaration,
+        selectedParameters: mapOptions.selectedParameters ?? [],
+        methodTypeArguments: mapOptions.methodTypeArguments ?? [],
+        arguments: mapOptions.arguments ?? [],
+        sourceArgumentTypes: mapOptions.sourceArgumentTypes,
+        sourceResultType: mapOptions.sourceResultType ?? semanticType("default-result"),
+        sourceResultTypeNode: mapOptions.sourceResultTypeNode,
+      }), context);
+    },
+  };
+}
 
 function sourceOwnedProvider(targetTypes) {
   return createCsharpNativeOperationsProvider({
     getCsharpTargetBindingByTargetId: () => undefined,
     getCsharpTargetBindingByMetadataName: () => undefined,
-    getTargetTypeRefForSubject: (subject, context, options) => {
-      const targetType = targetTypes.get(subject);
-      if (targetType !== undefined) {
-        return typeof targetType === "function" ? targetType(options) : targetType;
-      }
-      const semanticType = context.compiler?.checker.getTypeFromTypeNode(subject);
-      return semanticType === undefined ? undefined : targetTypes.get(semanticType);
-    },
+    getTargetTypeRefForSubject: (subject) => targetTypes.get(subject),
     getBaseTargetTypeRef: () => undefined,
+    getAssignableTargetTypeRefs: () => [],
     getCsharpObjectShapeFactForSubject: () => undefined,
     mapRuntimeCarrier: () => deferObservation,
-    getTargetTypeRefForType: (type) => targetTypes.get(type),
   });
 }
 
-function fakeObservationContext(options = {}) {
-  const factStore = new Map();
+function observationContext(options) {
+  const facts = new TestFactStore(options.facts ?? []);
+  if (options.projectOwned !== false) {
+    facts.set(options.declaration, csharpProjectSourceFactKey, { kind: "project-source" });
+  }
   return {
-    facts: {
-      get: (subject, key) => factStore.get(subject)?.get(key),
-      set: (subject, key, value) => {
-        let subjectFacts = factStore.get(subject);
-        if (subjectFacts === undefined) {
-          subjectFacts = new Map();
-          factStore.set(subject, subjectFacts);
-        }
-        subjectFacts.set(key, value);
-      },
-    },
+    observation: "operation.mapCheckedCall",
+    phase: options.phase ?? "finalization",
+    extensionId: "tsonic.csharp.operations",
+    facts,
     factResolver: {
-      resolve: () => undefined,
+      resolve: (subject, key) => facts.get(subject, key),
     },
     diagnostics: [],
-    compiler: {
-      ast: {
-        kindName: (subject) => subject?.Kind ?? "Undefined",
-        getSourceFile: (subject) => subject?.SourceFile,
-        getFileName: (sourceFile) => sourceFile.FileName,
-        parent: (subject) => subject?.Parent,
-        name: (subject) => subject?.name,
-        text: (subject) => subject?.Text ?? "",
-        hasModifierKind: () => false,
-        parameters: (subject) => subject?.Parameters?.Nodes ?? [],
-        typeArguments: (subject) => subject?.TypeArguments?.Nodes ?? [],
-        typeParameters: (subject) => subject?.TypeParameters?.Nodes ?? [],
-        as: {
-          AsPropertyAccessExpression: (subject) => subject?.Kind === "KindPropertyAccessExpression" ? subject : undefined,
-        },
-        is: new Proxy({
-          IsIdentifier: (subject) => subject?.Kind === "KindIdentifier",
-          IsPrivateIdentifier: () => false,
-          IsQualifiedName: () => false,
-          IsPropertyAccessExpression: (subject) => subject?.Kind === "KindPropertyAccessExpression",
-          IsFunctionTypeNode: (subject) => subject?.Kind === "KindFunctionTypeNode",
-          IsConstructorTypeNode: (subject) => subject?.Kind === "KindConstructorTypeNode",
-        }, { get: (target, property) => target[property] ?? (() => false) }),
-      },
-      checker: {
-        getSymbolAtLocation: () => undefined,
-        getResolvedSymbol: () => undefined,
-        getResolvedSymbolOrNil: () => undefined,
-        getAliasedSymbol: () => undefined,
-        getTypeAtLocation: () => undefined,
-        getTypeFromTypeNode: (node) => options.semanticTypesByTypeNode?.get(node),
-        getTypeSymbol: () => undefined,
-        getSymbolDeclarations: () => [],
-      },
-    },
   };
 }
 
-function resolvedSignatureEvidence(parameters = []) {
-  return {
-    sourceSelectedSignature: {},
-    sourceSelectedSignatureKind: "resolved",
-    sourceSelectedSignatureParameters: parameters,
-  };
+class TestFactStore {
+  #facts = new Map();
+
+  constructor(initialFacts) {
+    for (const [subject, key, value] of initialFacts) {
+      this.set(subject, key, value);
+    }
+  }
+
+  get(subject, key) {
+    return this.#facts.get(subject)?.get(key);
+  }
+
+  set(subject, key, value) {
+    let subjectFacts = this.#facts.get(subject);
+    if (subjectFacts === undefined) {
+      subjectFacts = new Map();
+      this.#facts.set(subject, subjectFacts);
+    }
+    const existing = subjectFacts.get(key);
+    if (existing !== undefined) {
+      return key.equals(existing, value) ? "idempotent" : "conflict";
+    }
+    subjectFacts.set(key, key.snapshot === undefined ? value : key.snapshot(value));
+    return "inserted";
+  }
 }
 
-function selectedParameterEvidence(options) {
+function selectedParameter(options) {
   return {
-    parameterIndex: options.parameterIndex,
-    parameterName: options.parameterName,
-    parameterSymbol: options.parameterSymbol,
-    ...(options.parameterDeclaration === undefined ? {} : { parameterDeclaration: options.parameterDeclaration }),
+    parameterIndex: options.index,
+    parameterName: options.name,
+    parameterSymbol: node("KindParameterSymbol"),
+    parameterDeclaration: node("KindParameter"),
     selectedType: options.selectedType,
-    ...(options.authoredTypeNode === undefined ? {} : { authoredTypeNode: options.authoredTypeNode }),
+    ...(options.authoredTypeNode === undefined ? {} : {
+      authoredTypeNode: options.authoredTypeNode,
+    }),
     acceptsOmission: options.acceptsOmission ?? false,
     rest: options.rest ?? false,
   };
 }
 
-function sourceFileNode(fileName) {
-  return {
-    IsDeclarationFile: false,
-    FileName: fileName,
-  };
+function assertSourceOwnedAccept(result, options) {
+  assert.equal(
+    result.kind,
+    "accept",
+    result.kind === "reject" ? `${result.diagnostic.extensionCode}: ${result.diagnostic.message}` : undefined,
+  );
+  assert.equal(result.value.kind, "target");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.deepEqual(result.value.selectedSignature.member.returnType, options.returnType);
+  assert.deepEqual(
+    result.value.selectedSignature.member.parameters,
+    options.parameters ?? [],
+  );
+  assert.deepEqual(
+    result.value.selectedSignature.targetTypeArguments,
+    options.targetTypeArguments,
+  );
+  assert.deepEqual(
+    result.value.argumentConversions,
+    options.argumentConversions ?? [],
+  );
 }
 
-function node(kind, sourceFile, fields = {}) {
-  return {
-    Kind: kind,
-    SourceFile: sourceFile,
-    ...fields,
-  };
+function semanticType(label) {
+  return { flags: 1, label };
+}
+
+function node(Kind) {
+  return { Kind };
 }

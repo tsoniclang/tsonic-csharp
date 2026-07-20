@@ -104,6 +104,21 @@ export function mapRuntimeCarrier(
       carrier: typeSyntaxCarrier,
     }, [{ message: "C# runtime carrier mapped from source syntax/provider facts." }]);
   }
+  const semanticCarrier = requestType === undefined
+    ? undefined
+    : host.getTargetTypeRefForType(requestType, context, {
+        allowRuntimeCarrier: false,
+        allowSemanticTypeQuery: false,
+      });
+  if (
+    semanticCarrier !== undefined &&
+    (request.sourceTypeReference === undefined || semanticCarrier.kind === "type-parameter")
+  ) {
+    recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, semanticCarrier, host);
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: semanticCarrier,
+    }, [{ message: "C# runtime carrier mapped from the exact checked semantic type supplied by TSTS." }]);
+  }
   const commonUnionCarrier = getCommonNonNullishUnionRuntimeCarrier(request, context, host);
   if (commonUnionCarrier !== undefined) {
     if (commonUnionCarrier.objectShape !== undefined) {
@@ -122,7 +137,7 @@ export function mapRuntimeCarrier(
   if (isCallableTypeWithoutCarrierEvidence(request, context)) {
     return deferObservation;
   }
-  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(request.type, context);
   if (objectShape !== undefined) {
     recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
     return acceptObservation<RuntimeCarrierFactResult>({

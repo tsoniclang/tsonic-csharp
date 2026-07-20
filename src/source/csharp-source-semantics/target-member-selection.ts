@@ -63,9 +63,10 @@ export function findTargetMemberForCall(
     declaration,
     requestContext.calleeReceiver,
     getApplicableSourceCallEvidence(request) !== undefined || declaration?.signatureId !== undefined,
+    request.sourceArguments.map((argument) => argument.type),
   );
   if (declaration?.signatureId !== undefined) {
-    const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
+    const selectedMember = getTargetMemberByProviderDeclarationSignature(csharpBinding, declaration);
     if (selectedMember !== undefined) {
       const exact = selectExactTargetMember(
         selectedMember,
@@ -147,9 +148,11 @@ function targetMemberSelectionRequest(
   declaration: ProviderVirtualDeclarationFact | undefined,
   receiver?: TargetMemberSelectionRequest["receiver"],
   sourceSelectionProven = false,
+  sourceArgumentTypes?: TargetMemberSelectionRequest["sourceArgumentTypes"],
 ): TargetMemberSelectionRequest {
   return {
     arguments: arguments_,
+    ...(sourceArgumentTypes === undefined ? {} : { sourceArgumentTypes }),
     ...(receiver !== undefined ? { receiver } : {}),
     ...(sourceSelectionProven ? { sourceSelectionProven: true } : {}),
     ...(declaration !== undefined ? { selectedProviderDeclaration: declaration } : {}),
@@ -170,11 +173,12 @@ export function findTargetMemberForElementAccess(
     declaration,
     undefined,
     declaration?.signatureId !== undefined,
+    [request.sourceArgument.type],
   );
   if (declaration?.signatureId === undefined) {
     return undefined;
   }
-  const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
+  const selectedMember = getTargetMemberByProviderDeclarationSignature(csharpBinding, declaration);
   if (selectedMember !== undefined) {
     return selectExactTargetMember(
       selectedMember,
@@ -211,7 +215,7 @@ export function findTargetMember(
 ): CsharpTargetMember | undefined {
   const members = csharpTargetMemberFacts(binding.members);
   if (declaration?.signatureId !== undefined) {
-    return members.find((member) => member.id === declaration.signatureId) ??
+    return getTargetMemberByProviderDeclarationSignature(binding, declaration) ??
       createProviderSelectedMemberGroup(
         declaration.signatureId,
         getTargetMembersByProviderSourceSignatureId(binding, declaration.signatureId),
@@ -270,7 +274,7 @@ function getTargetMemberCandidates(
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): readonly CsharpTargetMember[] {
   if (declaration?.signatureId !== undefined) {
-    const signatureMember = getTargetMemberById(binding, declaration.signatureId);
+    const signatureMember = getTargetMemberByProviderDeclarationSignature(binding, declaration);
     return signatureMember === undefined ? [] : [signatureMember];
   }
   if (declaration?.memberId !== undefined) {
@@ -314,6 +318,29 @@ function getTargetMemberById(
         member.id === disambiguated.baseId &&
         targetMemberStaticFlag(member) === disambiguated.static
       );
+}
+
+function getTargetMemberByProviderDeclarationSignature(
+  binding: CsharpTargetBindingFact | undefined,
+  declaration: ProviderVirtualDeclarationFact,
+): CsharpTargetMember | undefined {
+  if (declaration.signatureId === undefined) {
+    return undefined;
+  }
+  const member = getTargetMemberById(binding, declaration.signatureId);
+  if (member === undefined) {
+    return undefined;
+  }
+  if (declaration.memberId === undefined) {
+    return member;
+  }
+  const memberIdentityCandidates = getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
+  if (memberIdentityCandidates.length === 0) {
+    return providerDisambiguatedMemberId(declaration.memberId) === undefined ? member : undefined;
+  }
+  return memberIdentityCandidates.some((candidate) => candidate.id === member.id)
+    ? member
+    : undefined;
 }
 
 function getTargetMembersByProviderSourceSignatureId(

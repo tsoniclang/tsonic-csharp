@@ -4,9 +4,6 @@ import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
 import {
-  targetTypeRefContainsSourcePrimitive,
-} from "../../source/csharp-source-semantics/target-ref-utils.js";
-import {
   csharpStringTargetType,
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
@@ -145,10 +142,7 @@ function getTargetTypeRefFromSemanticTypeFacts(
   input: TargetCompileInput,
   subject: Type,
 ): TargetTypeRef | undefined {
-  const fact = getTargetTypeRefFromDirectFacts(input, subject);
-  return fact === undefined || targetTypeRefContainsSourcePrimitive(fact)
-    ? undefined
-    : fact;
+  return getTargetTypeRefFromDirectFacts(input, subject);
 }
 
 export function probeCarrierFromResolution(
