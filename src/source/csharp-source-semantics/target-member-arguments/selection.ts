@@ -28,6 +28,7 @@ import {
   targetTypeRefIsClosed,
 } from "../target-ref-utils.js";
 import type {
+  TargetMemberEffectiveSlot,
   TargetMemberSelectionOptions,
   TargetMemberSelectionRequest,
   TargetTypeRefResolver,
@@ -62,11 +63,8 @@ export function selectExactTargetMember(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
-  if (!sourceArgumentEvidenceShapeIsValid(request)) {
-    return undefined;
-  }
-  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
-  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
+  const slots = getTargetEffectiveSlotsForMember(member, request, options);
+  if (slots === undefined || !targetArityMatches(member.parameters, slots.length)) {
     return undefined;
   }
   const typeParameterBindings = getSelectedTargetMemberTypeParameterBindings(member, options);
@@ -74,13 +72,13 @@ export function selectExactTargetMember(
     return undefined;
   }
   const selectedTypeParameterBindings = new Set(typeParameterBindings.keys());
-  for (let index = 0; index < arguments_.length; index += 1) {
+  for (let index = 0; index < slots.length; index += 1) {
     const parameter = getParameterForArgument(member.parameters, index);
-    const argument = arguments_[index];
-    if (parameter === undefined || argument === undefined) {
+    const slot = slots[index];
+    if (parameter === undefined || slot === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, slot.subject, context, {
       parameterIndex: index,
       selectedProviderDeclaration: request.selectedProviderDeclaration,
     });
@@ -89,7 +87,7 @@ export function selectExactTargetMember(
     }
     const argumentType = getTargetTypeRefForArgument(
       effectiveArgument.subject,
-      request.sourceArgumentTypes?.[index],
+      slot.selectedType,
       context,
       resolveTargetTypeRef,
     );
@@ -147,15 +145,12 @@ function targetMemberMatch(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions,
 ): { readonly member: CsharpTargetMember; readonly score: number } | undefined {
-  if (!sourceArgumentEvidenceShapeIsValid(request)) {
-    return undefined;
-  }
-  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
-  if (arguments_ === undefined) {
+  const slots = getTargetEffectiveSlotsForMember(member, request, options);
+  if (slots === undefined) {
     return undefined;
   }
   const parameters = member.parameters;
-  if (!targetArityMatches(parameters, arguments_.length)) {
+  if (!targetArityMatches(parameters, slots.length)) {
     return undefined;
   }
   const typeParameterBindings = getSelectedTargetMemberTypeParameterBindings(member, options);
@@ -164,13 +159,13 @@ function targetMemberMatch(
   }
   const selectedTypeParameterBindings = new Set(typeParameterBindings.keys());
   let argumentScore = 0;
-  for (let index = 0; index < arguments_.length; index += 1) {
+  for (let index = 0; index < slots.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
-    const argument = arguments_[index];
-    if (parameter === undefined || argument === undefined) {
+    const slot = slots[index];
+    if (parameter === undefined || slot === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, slot.subject, context, {
       parameterIndex: index,
       selectedProviderDeclaration: request.selectedProviderDeclaration,
     });
@@ -179,7 +174,7 @@ function targetMemberMatch(
     }
     const argumentType = getTargetTypeRefForArgument(
       effectiveArgument.subject,
-      request.sourceArgumentTypes?.[index],
+      slot.selectedType,
       context,
       resolveTargetTypeRef,
     );
@@ -246,7 +241,7 @@ function targetMemberMatch(
   }
   return {
     member: substituteTargetMemberTypeParameters(member, typeParameterBindings),
-    score: argumentScore + targetMemberArityPenalty(parameters, arguments_.length),
+    score: argumentScore + targetMemberArityPenalty(parameters, slots.length),
   };
 }
 
@@ -266,11 +261,6 @@ function getTargetTypeRefForArgument(
   return selected !== undefined && (direct === undefined || selected.kind !== "type-parameter")
     ? selected
     : direct;
-}
-
-function sourceArgumentEvidenceShapeIsValid(request: TargetMemberSelectionRequest): boolean {
-  return request.sourceArgumentTypes === undefined ||
-    request.sourceArgumentTypes.length === request.arguments.length;
 }
 
 function targetParameterAcceptsCheckedSourceArgument(
@@ -420,21 +410,22 @@ function getSelectedTargetMemberTypeParameterBindings(
   return bindings;
 }
 
-function getTargetArgumentSubjectsForMember(
+function getTargetEffectiveSlotsForMember(
   member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   options: TargetMemberSelectionOptions = {},
-): readonly ExtensionFactSubject[] | undefined {
-  if (member.receiverPassing !== "first-argument") {
-    return request.arguments;
-  }
-  if (options.firstArgumentReceiver === false) {
-    return request.arguments;
+): readonly TargetMemberEffectiveSlot[] | undefined {
+  const argumentSlots = request.arguments.map((argument): TargetMemberEffectiveSlot => ({
+    ...argument,
+    origin: "argument",
+  }));
+  if (member.receiverPassing !== "first-argument" || options.firstArgumentReceiver === false) {
+    return argumentSlots;
   }
   const receiver = options.firstArgumentReceiver ?? request.receiver;
   return receiver === undefined
     ? undefined
-    : [receiver, ...request.arguments];
+    : [{ ...receiver, origin: "receiver" }, ...argumentSlots];
 }
 
 function getExpectedTargetTypeForArgument(parameter: CsharpTargetParameter) {

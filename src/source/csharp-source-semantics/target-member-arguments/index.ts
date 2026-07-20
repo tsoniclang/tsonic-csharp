@@ -1,6 +1,8 @@
 export type {
+  TargetMemberEffectiveSlot,
   TargetMemberSelectionOptions,
   TargetMemberSelectionRequest,
+  TargetMemberSourceValue,
 } from "./types.js";
 export {
   selectExactTargetMember,

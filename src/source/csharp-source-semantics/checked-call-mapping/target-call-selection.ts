@@ -191,8 +191,17 @@ function findConstructorTargetMemberForProviderType(
   return selectTargetMember(
     (binding.members ?? []).filter((candidate) => candidate.kind === "constructor"),
     {
-      arguments: request.arguments,
-      receiver: requestContext.calleeReceiver,
+      arguments: request.arguments.map((subject, index) => {
+        const selectedType = request.sourceArguments[index]?.type;
+        return selectedType === undefined ? { subject } : { subject, selectedType };
+      }),
+      ...(requestContext.calleeReceiver === undefined
+        ? {}
+        : {
+            receiver: requestContext.calleeReceiverType === undefined
+              ? { subject: requestContext.calleeReceiver }
+              : { subject: requestContext.calleeReceiver, selectedType: requestContext.calleeReceiverType },
+          }),
     },
     context,
     (subject, resolutionContext, resolutionOptions) => host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions),

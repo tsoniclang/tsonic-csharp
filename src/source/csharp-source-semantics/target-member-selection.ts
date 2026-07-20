@@ -1,6 +1,7 @@
 import type {
   CheckedCallMappingRequest,
   CheckedElementAccessMappingRequest,
+  ExtensionFactSubject,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
@@ -42,6 +43,7 @@ export {
 } from "./target-member-literals.js";
 export type {
   TargetMemberSelectionOptions,
+  TargetMemberSourceValue,
 } from "./target-member-arguments/index.js";
 export type {
   TargetTypeRefResolutionOptions,
@@ -59,11 +61,14 @@ export function findTargetMemberForCall(
   const csharpBinding = csharpTargetBindingFact(binding);
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const selectionRequest = targetMemberSelectionRequest(
-    request.arguments,
+    targetMemberSourceArguments(request.arguments, request.sourceArguments.map((argument) => argument.type)),
     declaration,
-    requestContext.calleeReceiver,
+    requestContext.calleeReceiver === undefined
+      ? undefined
+      : requestContext.calleeReceiverType === undefined
+        ? { subject: requestContext.calleeReceiver }
+        : { subject: requestContext.calleeReceiver, selectedType: requestContext.calleeReceiverType },
     getApplicableSourceCallEvidence(request) !== undefined || declaration?.signatureId !== undefined,
-    request.sourceArguments.map((argument) => argument.type),
   );
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberByProviderDeclarationSignature(csharpBinding, declaration);
@@ -148,15 +153,28 @@ function targetMemberSelectionRequest(
   declaration: ProviderVirtualDeclarationFact | undefined,
   receiver?: TargetMemberSelectionRequest["receiver"],
   sourceSelectionProven = false,
-  sourceArgumentTypes?: TargetMemberSelectionRequest["sourceArgumentTypes"],
 ): TargetMemberSelectionRequest {
   return {
     arguments: arguments_,
-    ...(sourceArgumentTypes === undefined ? {} : { sourceArgumentTypes }),
     ...(receiver !== undefined ? { receiver } : {}),
     ...(sourceSelectionProven ? { sourceSelectionProven: true } : {}),
     ...(declaration !== undefined ? { selectedProviderDeclaration: declaration } : {}),
   };
+}
+
+/**
+ * Pairs each source argument subject with the exact selected type recorded for
+ * that same argument. Both come from one checked request and are 1:1 by
+ * construction, so pairing here keeps them aligned through receiver passing.
+ */
+function targetMemberSourceArguments(
+  subjects: readonly ExtensionFactSubject[],
+  selectedTypes: readonly (ExtensionFactSubject | undefined)[],
+): TargetMemberSelectionRequest["arguments"] {
+  return subjects.map((subject, index) => {
+    const selectedType = selectedTypes[index];
+    return selectedType === undefined ? { subject } : { subject, selectedType };
+  });
 }
 
 export function findTargetMemberForElementAccess(
@@ -169,11 +187,10 @@ export function findTargetMemberForElementAccess(
 ): CsharpTargetMember | undefined {
   const csharpBinding = csharpTargetBindingFact(binding);
   const selectionRequest = targetMemberSelectionRequest(
-    [request.argument],
+    targetMemberSourceArguments([request.argument], [request.sourceArgument.type]),
     declaration,
     undefined,
     declaration?.signatureId !== undefined,
-    [request.sourceArgument.type],
   );
   if (declaration?.signatureId === undefined) {
     return undefined;

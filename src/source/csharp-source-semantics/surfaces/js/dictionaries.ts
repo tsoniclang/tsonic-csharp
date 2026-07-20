@@ -40,7 +40,13 @@ export function mapCsharpJsRecordDictionaryElementAccess(
   });
   const member = candidates.length === 1
     ? candidates[0]
-    : host.selectTargetMember(candidates, { arguments: [request.argument] }, context);
+    : host.selectTargetMember(candidates, {
+        arguments: [
+          request.sourceArgument.type === undefined
+            ? { subject: request.argument }
+            : { subject: request.argument, selectedType: request.sourceArgument.type },
+        ],
+      }, context);
   if (member === undefined) {
     return rejectObservation({
       ...host.csharpProviderDiagnostic(host.extensionId, "CSHARP_RECORD_DICTIONARY_INDEXER_NOT_MAPPED", 9100114, "C# Record dictionary surface could not map checked TypeScript element access to a provider-owned Dictionary indexer from finalized key facts."),

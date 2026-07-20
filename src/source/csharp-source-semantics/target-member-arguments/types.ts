@@ -10,10 +10,29 @@ import type {
   TargetTypeRefResolver,
 } from "../target-type-ref-resolution.js";
 
+/**
+ * One source-side value paired with the exact TSTS-selected type for that same
+ * value. Subject and selected type travel together so no consumer can index
+ * them out of alignment.
+ */
+export interface TargetMemberSourceValue {
+  readonly subject: ExtensionFactSubject;
+  readonly selectedType?: ExtensionFactSubject;
+}
+
+/**
+ * One target parameter slot after receiver passing is applied. A member with
+ * `receiverPassing === "first-argument"` contributes a `receiver` slot ahead of
+ * its argument slots, so slot ordinals are target ordinals and each slot still
+ * carries its own selected type.
+ */
+export interface TargetMemberEffectiveSlot extends TargetMemberSourceValue {
+  readonly origin: "receiver" | "argument";
+}
+
 export interface TargetMemberSelectionRequest {
-  readonly arguments: readonly ExtensionFactSubject[];
-  readonly sourceArgumentTypes?: readonly ExtensionFactSubject[];
-  readonly receiver?: ExtensionFactSubject;
+  readonly arguments: readonly TargetMemberSourceValue[];
+  readonly receiver?: TargetMemberSourceValue;
   readonly sourceSelectionProven?: true;
   readonly sourceSelectedIdentity?: string;
   readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
@@ -25,7 +44,7 @@ export interface TargetMemberSelectionOptions {
   readonly declaringTargetType?: TargetTypeRef;
   readonly declaringTypeParameters?: readonly CsharpTargetTypeParameter[];
   readonly methodTargetTypeArguments?: readonly TargetTypeRef[];
-  readonly firstArgumentReceiver?: ExtensionFactSubject | false;
+  readonly firstArgumentReceiver?: TargetMemberSourceValue | false;
   readonly preferredMemberId?: string;
 }
 

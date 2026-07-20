@@ -67,7 +67,7 @@ test("target member selection does not treat System.Object as an implicit wildca
     : undefined;
 
   assert.equal(
-    selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: argument }] }, context, resolveTargetTypeRef),
     undefined,
   );
 });
@@ -88,7 +88,7 @@ test("target member selection accepts source-checked object parameters only from
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      { arguments: [{ subject: argument }], ...exactProviderSourceSelection(member.id) },
       context,
       resolveTargetTypeRef,
     )?.id,
@@ -97,7 +97,7 @@ test("target member selection accepts source-checked object parameters only from
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument] },
+      { arguments: [{ subject: argument }] },
       context,
       resolveTargetTypeRef,
     ),
@@ -121,7 +121,7 @@ test("target member selection lets exact checked signatures prove source-project
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      { arguments: [{ subject: argument }], ...exactProviderSourceSelection(member.id) },
       context,
       resolveTargetTypeRef,
     )?.id,
@@ -130,7 +130,7 @@ test("target member selection lets exact checked signatures prove source-project
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument] },
+      { arguments: [{ subject: argument }] },
       context,
       resolveTargetTypeRef,
     ),
@@ -157,7 +157,7 @@ test("target member selection lets exact source-profile identities prove source-
     selectTargetMember(
       [member],
       {
-        arguments: [argument],
+        arguments: [{ subject: argument }],
         sourceSelectionProven: true,
         sourceSelectedIdentity: sourceIdentity,
       },
@@ -170,7 +170,7 @@ test("target member selection lets exact source-profile identities prove source-
     selectTargetMember(
       [member],
       {
-        arguments: [argument],
+        arguments: [{ subject: argument }],
         sourceSelectionProven: true,
         sourceSelectedIdentity: "Promise.then",
       },
@@ -189,7 +189,7 @@ test("target member selection accepts source-primitive parameters only from exac
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      { arguments: [{ subject: argument }], ...exactProviderSourceSelection(member.id) },
       context,
       resolveTargetTypeRef,
     )?.id,
@@ -198,7 +198,7 @@ test("target member selection accepts source-primitive parameters only from exac
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument] },
+      { arguments: [{ subject: argument }] },
       context,
       resolveTargetTypeRef,
     ),
@@ -214,7 +214,7 @@ test("target member selection lets exact checked source signatures prove source-
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument], ...exactProviderSourceSelection(member.id) },
+      { arguments: [{ subject: argument }], ...exactProviderSourceSelection(member.id) },
       context,
       resolveTargetTypeRef,
     )?.id,
@@ -223,7 +223,7 @@ test("target member selection lets exact checked source signatures prove source-
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [argument] },
+      { arguments: [{ subject: argument }] },
       context,
       resolveTargetTypeRef,
     ),
@@ -264,7 +264,7 @@ test("target member selection uses source marker target expression for byref par
   };
 
   assert.equal(
-    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef)?.id,
+    selectTargetMember([member], { arguments: [{ subject: key }, { subject: outCall }] }, context, resolveTargetTypeRef)?.id,
     member.id,
   );
 });
@@ -286,7 +286,7 @@ test("target member selection rejects byref parameters without source marker fac
   const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
 
   assert.equal(
-    selectTargetMember([member], { arguments: [key, outCall] }, fakeObservationContext({}), resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: key }, { subject: outCall }] }, fakeObservationContext({}), resolveTargetTypeRef),
     undefined,
   );
 });
@@ -316,7 +316,7 @@ test("target member selection rejects byref parameter mode mismatches", () => {
   const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
 
   assert.equal(
-    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: key }, { subject: outCall }] }, context, resolveTargetTypeRef),
     undefined,
   );
 });
@@ -356,7 +356,7 @@ test("target member selection accepts canonical source-marker passing facts for 
 
   assert.equal(selectTargetMember(
     [member],
-    { arguments: [key, outCall] },
+    { arguments: [{ subject: key }, { subject: outCall }] },
     context,
     resolveTargetTypeRef,
   )?.id, member.id);
@@ -565,7 +565,7 @@ test("target member selection rejects source marker wrappers for by-value parame
   const resolveTargetTypeRef = (subject) => subject === value ? int32 : undefined;
 
   assert.equal(
-    selectTargetMember([member], { arguments: [outCall] }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: outCall }] }, context, resolveTargetTypeRef),
     undefined,
   );
 });

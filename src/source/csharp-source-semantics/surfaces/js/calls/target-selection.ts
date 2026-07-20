@@ -37,9 +37,18 @@ export function selectSourceLibraryCallMember(
 ): TargetMember | undefined {
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const selected = host.selectTargetMember(candidates, {
-    arguments: request.arguments,
+    arguments: request.arguments.map((subject, index) => {
+      const selectedType = request.sourceArguments[index]?.type;
+      return selectedType === undefined ? { subject } : { subject, selectedType };
+    }),
     argumentTargetTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
-    receiver: requestContext.calleeReceiver,
+    ...(requestContext.calleeReceiver === undefined
+      ? {}
+      : {
+          receiver: requestContext.calleeReceiverType === undefined
+            ? { subject: requestContext.calleeReceiver }
+            : { subject: requestContext.calleeReceiver, selectedType: requestContext.calleeReceiverType },
+        }),
     receiverTargetType: getSourceLibraryCallReceiverClosedTargetTypes(request, context)[0],
     ...(sourceSelectionProven ? { sourceSelectionProven: true } : {}),
     sourceSelectedIdentity: selectedSourceIdentity,
@@ -70,9 +79,18 @@ export function selectDeferredCanonicalSourceLibraryCallMember(
   }
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const selected = host.selectTargetMember(canonicalCandidates, {
-    arguments: request.arguments,
+    arguments: request.arguments.map((subject, index) => {
+      const selectedType = request.sourceArguments[index]?.type;
+      return selectedType === undefined ? { subject } : { subject, selectedType };
+    }),
     argumentTargetTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
-    receiver: requestContext.calleeReceiver,
+    ...(requestContext.calleeReceiver === undefined
+      ? {}
+      : {
+          receiver: requestContext.calleeReceiverType === undefined
+            ? { subject: requestContext.calleeReceiver }
+            : { subject: requestContext.calleeReceiver, selectedType: requestContext.calleeReceiverType },
+        }),
     receiverTargetType: canonicalReceiverType,
     sourceSelectionProven: true,
     sourceSelectedIdentity: selectedSourceIdentity,

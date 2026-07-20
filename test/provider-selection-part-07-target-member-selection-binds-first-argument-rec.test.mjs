@@ -43,7 +43,7 @@ test("target member selection binds first-argument receiver generics before expl
   };
 
   assert.deepEqual(
-    selectTargetMember([member], { arguments: [validArgument], receiver }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: validArgument }], receiver: { subject: receiver } }, context, resolveTargetTypeRef),
     {
       ...member,
       parameters: [
@@ -59,11 +59,11 @@ test("target member selection binds first-argument receiver generics before expl
     },
   );
   assert.equal(
-    selectTargetMember([member], { arguments: [invalidArgument], receiver }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: invalidArgument }], receiver: { subject: receiver } }, context, resolveTargetTypeRef),
     undefined,
   );
   assert.equal(
-    selectTargetMember([member], { arguments: [validArgument] }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: validArgument }] }, context, resolveTargetTypeRef),
     undefined,
   );
 });
@@ -236,11 +236,11 @@ test("target member selection does not prepend provider static container for exp
   };
 
   assert.equal(
-    selectTargetMember([member], { arguments: [value, start], receiver: staticContainer }, context, resolveTargetTypeRef),
+    selectTargetMember([member], { arguments: [{ subject: value }, { subject: start }], receiver: { subject: staticContainer } }, context, resolveTargetTypeRef),
     undefined,
   );
   assert.deepEqual(
-    selectTargetMember([member], { arguments: [value, start], receiver: staticContainer }, context, resolveTargetTypeRef, { firstArgumentReceiver: false }),
+    selectTargetMember([member], { arguments: [{ subject: value }, { subject: start }], receiver: { subject: staticContainer } }, context, resolveTargetTypeRef, { firstArgumentReceiver: false }),
     member,
   );
 });
@@ -637,7 +637,7 @@ test("target member selection applies declaring generics before exact selected c
   assert.deepEqual(
     selectTargetMember(
       [member],
-      { arguments: [arrayLiteral], sourceArgumentTypes: [selectedArrayType] },
+      { arguments: [{ subject: arrayLiteral, selectedType: selectedArrayType }] },
       context,
       resolveTargetTypeRef,
       {
@@ -700,7 +700,7 @@ test("target member selection rejects collection literal matching without provid
   assert.equal(
     selectTargetMember(
       [member],
-      { arguments: [arrayLiteral] },
+      { arguments: [{ subject: arrayLiteral }] },
       context,
       resolveTargetTypeRef,
       {
@@ -724,8 +724,64 @@ test("target member selection does not treat opaque any or unknown as wildcard t
   for (const typeId of ["any", "unknown"]) {
     const member = method(`Example.Target.${typeId}`, { kind: "opaque", id: typeId });
     assert.equal(
-      selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
+      selectTargetMember([member], { arguments: [{ subject: argument }] }, context, resolveTargetTypeRef),
       undefined,
     );
   }
+});
+
+test("first-argument receiver slot resolves its own selected type, not the first source argument's", () => {
+  // Regression: target slots are receiver-prepended while source argument
+  // evidence is not, so indexing selected types by target ordinal attributed
+  // the first argument's selected type to the receiver slot.
+  const receiverExpression = {};
+  const receiverSelectedType = {};
+  const argumentExpression = {};
+  const argumentSelectedType = {};
+  const int32Type = { kind: "source-primitive", name: "int32" };
+  const int32ArrayType = { kind: "array", element: int32Type };
+  const member = {
+    id: "Tsonic.CSharp.Runtime.ArrayHelpers.includes",
+    sourceName: "includes",
+    targetName: "Includes",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    parameters: [
+      { name: "array", type: { kind: "array", element: { kind: "type-parameter", name: "T" } }, passingMode: "by-value" },
+      { name: "value", type: { kind: "type-parameter", name: "T" }, passingMode: "by-value" },
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = {};
+  // Only the selected-type subjects resolve, so selection must consume each
+  // slot's own selected type rather than the expression subject.
+  const resolveTargetTypeRef = (subject) => {
+    if (subject === receiverSelectedType) {
+      return int32ArrayType;
+    }
+    if (subject === argumentSelectedType) {
+      return int32Type;
+    }
+    return undefined;
+  };
+
+  assert.deepEqual(
+    selectTargetMember(
+      [member],
+      {
+        arguments: [{ subject: argumentExpression, selectedType: argumentSelectedType }],
+        receiver: { subject: receiverExpression, selectedType: receiverSelectedType },
+      },
+      context,
+      resolveTargetTypeRef,
+    ),
+    {
+      ...member,
+      parameters: [
+        { ...member.parameters[0], type: int32ArrayType },
+        { ...member.parameters[1], type: int32Type },
+      ],
+    },
+  );
 });

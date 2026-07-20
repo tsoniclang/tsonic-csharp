@@ -9,6 +9,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
+import type { TargetMemberSourceValue } from "../../target-member-selection.js";
 import type {
   CsharpTargetEnrichmentHost,
 } from "../../target-enrichment.js";
@@ -90,9 +91,9 @@ export interface CsharpJsSurfaceHost {
   readonly selectTargetMember: (
     candidates: readonly TargetMember[],
     request: {
-      readonly arguments: readonly ExtensionFactSubject[];
+      readonly arguments: readonly TargetMemberSourceValue[];
       readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
-      readonly receiver?: ExtensionFactSubject;
+      readonly receiver?: TargetMemberSourceValue;
       readonly receiverTargetType?: TargetTypeRef;
       readonly sourceSelectionProven?: true;
       readonly sourceSelectedIdentity?: string;

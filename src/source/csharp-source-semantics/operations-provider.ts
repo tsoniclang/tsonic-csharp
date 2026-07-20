@@ -42,7 +42,7 @@ import {
   isLiteralRepresentableAsTargetType,
   selectTargetMember,
 } from "./target-member-selection.js";
-import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
+import type { TargetMemberSelectionOptions, TargetMemberSourceValue, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type {
   TargetTypescriptCompatibilityMode,
 } from "@tsonic/target-api";
@@ -349,9 +349,9 @@ export function createCsharpJsSurfaceHost(
     selectTargetMember: (
       candidates: readonly TargetMember[],
       request: {
-        readonly arguments: readonly ExtensionFactSubject[];
+        readonly arguments: readonly TargetMemberSourceValue[];
         readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
-        readonly receiver?: ExtensionFactSubject;
+        readonly receiver?: TargetMemberSourceValue;
         readonly receiverTargetType?: TargetTypeRef;
         readonly sourceSelectionProven?: true;
         readonly sourceSelectedIdentity?: string;
@@ -362,9 +362,9 @@ export function createCsharpJsSurfaceHost(
       selectTargetMember(candidates, request, context, (subject, resolutionContext, resolutionOptions) =>
         subject === undefined
           ? undefined
-          : subject === request.receiver && request.receiverTargetType !== undefined
+          : subject === request.receiver?.subject && request.receiverTargetType !== undefined
             ? request.receiverTargetType
-          : request.argumentTargetTypes?.[request.arguments.indexOf(subject)] ??
+          : request.argumentTargetTypes?.[request.arguments.findIndex((argument) => argument.subject === subject)] ??
             resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             getRecordedCsharpRuntimeCarrierFact(resolutionContext.facts, subject)?.carrier ??
