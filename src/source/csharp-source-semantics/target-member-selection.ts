@@ -83,7 +83,7 @@ export function findTargetMemberForCall(
       if (exact !== undefined) {
         return exact;
       }
-      const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
+      const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration);
       if (sourceProjectionCandidates.length === 1) {
         return selectExactTargetMember(
           sourceProjectionCandidates[0]!,
@@ -107,7 +107,7 @@ export function findTargetMemberForCall(
       }
       return undefined;
     }
-    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
+    const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration);
     if (sourceProjectionCandidates.length === 1) {
       return selectExactTargetMember(
         sourceProjectionCandidates[0]!,
@@ -146,6 +146,15 @@ export function findTargetMemberForCall(
         resolveTargetTypeRef,
         options,
       );
+}
+
+/**
+ * The subset of a provider declaration identity that names one member. Both
+ * fields are supplied by the checker; neither is derived from spelling.
+ */
+interface ProviderDeclarationMemberIdentity {
+  readonly memberId?: string;
+  readonly memberStatic?: boolean;
 }
 
 function targetMemberSelectionRequest(
@@ -205,7 +214,7 @@ export function findTargetMemberForElementAccess(
       options,
     );
   }
-  const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration.memberId);
+  const sourceProjectionCandidates = getTargetMembersByProviderSourceSignatureId(csharpBinding, declaration.signatureId, declaration);
   if (sourceProjectionCandidates.length === 1) {
     return selectExactTargetMember(
       sourceProjectionCandidates[0]!,
@@ -243,7 +252,7 @@ export function findTargetMember(
     if (selectedMember !== undefined) {
       return selectedMember;
     }
-    return createProviderSelectedMemberGroup(declaration.memberId, getTargetMemberCandidatesForMemberId(binding, declaration.memberId));
+    return createProviderSelectedMemberGroup(declaration.memberId, getTargetMemberCandidatesForMemberId(binding, declaration));
   }
   return undefined;
 }
@@ -295,46 +304,51 @@ function getTargetMemberCandidates(
     return signatureMember === undefined ? [] : [signatureMember];
   }
   if (declaration?.memberId !== undefined) {
-    return getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
+    return getTargetMemberCandidatesForMemberId(binding, declaration);
   }
   return [];
 }
 
 function getTargetMemberCandidatesForMemberId(
   binding: CsharpTargetBindingFact | undefined,
-  memberId: string,
+  declaration: ProviderDeclarationMemberIdentity,
 ): readonly CsharpTargetMember[] {
+  const memberId = declaration.memberId;
+  if (memberId === undefined) {
+    return [];
+  }
   const members = binding?.members ?? [];
   const selectedMember = members.find((member) => member.id === memberId);
   if (selectedMember !== undefined) {
     return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
   }
-  const disambiguated = providerDisambiguatedMemberId(memberId);
-  if (disambiguated !== undefined) {
-    return members.filter((member) =>
-      member.overloadGroup === disambiguated.baseId &&
-      targetMemberStaticFlag(member) === disambiguated.static
-    );
+  const providerIdentityMembers = members.filter((member) => member.providerMemberId === memberId);
+  if (providerIdentityMembers.length > 0) {
+    return providerIdentityMembers.filter((member) => targetMemberMatchesSelectedStaticness(member, declaration));
   }
-  return members.filter((member) => member.overloadGroup === memberId);
+  return members
+    .filter((member) => member.overloadGroup === memberId)
+    .filter((member) => targetMemberMatchesSelectedStaticness(member, declaration));
+}
+
+/**
+ * Staticness is supplied by the checker as `memberStatic`; it is never inferred
+ * from the member id spelling. Absent evidence does not constrain the match,
+ * but contradictory evidence rejects the candidate.
+ */
+function targetMemberMatchesSelectedStaticness(
+  member: CsharpTargetMember,
+  declaration: ProviderDeclarationMemberIdentity,
+): boolean {
+  return declaration.memberStatic === undefined ||
+    declaration.memberStatic === (member.static === true);
 }
 
 function getTargetMemberById(
   binding: CsharpTargetBindingFact | undefined,
   memberId: string,
 ): CsharpTargetMember | undefined {
-  const members = binding?.members ?? [];
-  const exact = members.find((member) => member.id === memberId);
-  if (exact !== undefined) {
-    return exact;
-  }
-  const disambiguated = providerDisambiguatedMemberId(memberId);
-  return disambiguated === undefined
-    ? undefined
-    : members.find((member) =>
-        member.id === disambiguated.baseId &&
-        targetMemberStaticFlag(member) === disambiguated.static
-      );
+  return (binding?.members ?? []).find((member) => member.id === memberId);
 }
 
 function getTargetMemberByProviderDeclarationSignature(
@@ -351,9 +365,11 @@ function getTargetMemberByProviderDeclarationSignature(
   if (declaration.memberId === undefined) {
     return member;
   }
-  const memberIdentityCandidates = getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
+  const memberIdentityCandidates = getTargetMemberCandidatesForMemberId(binding, declaration);
   if (memberIdentityCandidates.length === 0) {
-    return providerDisambiguatedMemberId(declaration.memberId) === undefined ? member : undefined;
+    // No member-identity evidence resolved. The signature match still stands
+    // only when the selected staticness does not contradict it.
+    return targetMemberMatchesSelectedStaticness(member, declaration) ? member : undefined;
   }
   return memberIdentityCandidates.some((candidate) => candidate.id === member.id)
     ? member
@@ -363,13 +379,13 @@ function getTargetMemberByProviderDeclarationSignature(
 function getTargetMembersByProviderSourceSignatureId(
   binding: CsharpTargetBindingFact | undefined,
   providerSourceSignatureId: string,
-  selectedMemberId?: string,
+  declaration?: ProviderDeclarationMemberIdentity,
 ): readonly CsharpTargetMember[] {
   const sourceSignatureCandidates = (binding?.members ?? []).filter((member) => member.providerSourceSignatureId === providerSourceSignatureId);
-  if (selectedMemberId === undefined) {
+  if (declaration?.memberId === undefined) {
     return sourceSignatureCandidates;
   }
-  const selectedMemberCandidates = getTargetMemberCandidatesForMemberId(binding, selectedMemberId);
+  const selectedMemberCandidates = getTargetMemberCandidatesForMemberId(binding, declaration);
   if (selectedMemberCandidates.length === 0) {
     return sourceSignatureCandidates;
   }
@@ -388,16 +404,3 @@ function getTargetMemberCandidatesForSelectedMember(
   return overloadGroup.length === 0 ? [selectedMember] : overloadGroup;
 }
 
-function providerDisambiguatedMemberId(memberId: string): { readonly baseId: string; readonly static: boolean } | undefined {
-  if (memberId.endsWith("#static")) {
-    return { baseId: memberId.slice(0, -"#static".length), static: true };
-  }
-  if (memberId.endsWith("#instance")) {
-    return { baseId: memberId.slice(0, -"#instance".length), static: false };
-  }
-  return undefined;
-}
-
-function targetMemberStaticFlag(member: CsharpTargetMember): boolean {
-  return member.static === true;
-}

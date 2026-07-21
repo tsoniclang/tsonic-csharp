@@ -7,6 +7,7 @@ import type {
 } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 import { dotnetMemberKindToProviderKind } from "./conversions.js";
+import { dotnetProviderMemberId } from "../provider-member-identity.js";
 import {
   dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
@@ -146,21 +147,6 @@ function mergeProviderMemberWithLocalBase(
     }];
   }
   return [];
-}
-
-function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
-  if (member.kind === "constructor") {
-    return dotnetMetadataNameWithoutSignature(member.targetId);
-  }
-  if (member.kind === "method") {
-    return `${member.targetId}#${member.static === true ? "static" : "instance"}`;
-  }
-  return member.targetId;
-}
-
-function dotnetMetadataNameWithoutSignature(metadataName: string): string {
-  const signatureStart = metadataName.indexOf("(");
-  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }
 
 function isSourceReadableMember(member: DotnetMemberDeclaration, declaringType: DotnetTypeDeclaration): boolean {

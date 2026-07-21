@@ -1,4 +1,5 @@
 import { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts, checkedCallRequest, getNativeSemanticProvider, method, property, field, eventMember, constructorMember, targetParameterWithOptions, unsupportedMember, assertUnsupportedDiagnosticEvidence, indexer, csharpStringType, csharpObjectType, csharpVoidType, csharpReadOnlySpanType, csharpIEnumerableType, overlapExtensionsBinding, overlapMethod, targetParameter, spanType, readOnlySpanType, coreLangMarker, virtualMember, propertyAccessCallee, targetIdFromMemberId, fakeObservationContext } from "./provider-selection.helpers.mjs";
+import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 function exactProviderSourceSelection(signatureId) {
   return {
@@ -796,4 +797,86 @@ test("C# provider selects from a proven provider binding using checked source me
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("provider member selection distinguishes same-spelling static and instance members by exact identity", () => {
+  // class Example { static Equals(value: string): boolean; Equals(value: string): boolean; }
+  // Both members share a target id and spelling; only the provider member
+  // identity plus ProviderDeclarationIdentity.memberStatic separates them.
+  const argument = {};
+  const staticSignatureId = "Example.Equals(System.String)";
+  const instanceSignatureId = "Example.Equals(System.String)$instance";
+  const binding = {
+    target: "csharp",
+    id: "Example",
+    kind: "class",
+    members: [
+      {
+        id: staticSignatureId,
+        providerMemberId: "Example.Equals#static",
+        sourceName: "Equals",
+        targetName: "Equals",
+        kind: "method",
+        static: true,
+        overloadGroup: "Example.Equals",
+        parameters: [{ name: "value", type: csharpStringType(), passingMode: "by-value" }],
+        returnType: { kind: "source-primitive", name: "bool" },
+      },
+      {
+        id: instanceSignatureId,
+        providerMemberId: "Example.Equals#instance",
+        sourceName: "Equals",
+        targetName: "Equals",
+        kind: "method",
+        overloadGroup: "Example.Equals",
+        parameters: [{ name: "value", type: csharpStringType(), passingMode: "by-value" }],
+        returnType: { kind: "source-primitive", name: "bool" },
+      },
+    ],
+  };
+  const resolveTargetTypeRef = (subject) => subject === argument ? csharpStringType() : undefined;
+  const select = (memberId, memberStatic) => findTargetMemberForCall(
+    binding,
+    { moduleSpecifier: "@example/x.js", exportName: "Example", memberId, memberStatic, memberName: "Equals" },
+    checkedCallRequest({ target: "csharp", call: {}, callee: {}, arguments: [argument] }),
+    fakeObservationContext({}),
+    resolveTargetTypeRef,
+    { firstArgumentReceiver: false },
+  );
+
+  assert.equal(select("Example.Equals#static", true)?.id, staticSignatureId);
+  assert.equal(select("Example.Equals#instance", false)?.id, instanceSignatureId);
+});
+
+test("provider member selection fails closed when selected staticness contradicts the target member", () => {
+  const argument = {};
+  const binding = {
+    target: "csharp",
+    id: "Example",
+    kind: "class",
+    members: [{
+      id: "Example.Equals(System.String)",
+      providerMemberId: "Example.Equals#static",
+      sourceName: "Equals",
+      targetName: "Equals",
+      kind: "method",
+      static: true,
+      overloadGroup: "Example.Equals",
+      parameters: [{ name: "value", type: csharpStringType(), passingMode: "by-value" }],
+      returnType: { kind: "source-primitive", name: "bool" },
+    }],
+  };
+
+  assert.equal(
+    findTargetMemberForCall(
+      binding,
+      // Contradictory: the identity names the static member, memberStatic says instance.
+      { moduleSpecifier: "@example/x.js", exportName: "Example", memberId: "Example.Equals#static", memberStatic: false, memberName: "Equals" },
+      checkedCallRequest({ target: "csharp", call: {}, callee: {}, arguments: [argument] }),
+      fakeObservationContext({}),
+      (subject) => subject === argument ? csharpStringType() : undefined,
+      { firstArgumentReceiver: false },
+    ),
+    undefined,
+  );
 });

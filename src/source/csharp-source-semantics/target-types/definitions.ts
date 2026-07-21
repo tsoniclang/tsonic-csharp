@@ -138,6 +138,12 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  /**
+   * The exact provider member identity this target member was produced from.
+   * Provider declaration identities carry the same value, so selection compares
+   * it directly instead of reconstructing the relation from the id spelling.
+   */
+  readonly providerMemberId?: string;
   readonly providerSourceSignatureId?: string;
   readonly sourceIdentityKeys?: readonly string[];
   readonly csharpCallFinalization?: CsharpCallFinalizationRequirement;

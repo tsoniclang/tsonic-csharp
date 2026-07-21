@@ -13,6 +13,7 @@ import type {
   DotnetSignatureDeclaration,
   DotnetTypeRef,
 } from "../model-types.js";
+import { dotnetProviderMemberId } from "../provider-member-identity.js";
 import {
   dotnetAttributeToTargetAttribute,
   dotnetUnsupportedAttributeToTargetUnsupportedAttribute,
@@ -54,6 +55,7 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
         ? []
         : [{
             id: member.targetId,
+            providerMemberId: dotnetProviderMemberId(member),
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
@@ -94,6 +96,7 @@ function dotnetSignatureToTargetMember(
 ): DotnetTargetMember {
   return {
     id: signature.id,
+    providerMemberId: dotnetProviderMemberId(member),
     sourceName: member.sourceName,
     targetName: signature.targetName ?? member.targetName,
     kind: member.kind,
