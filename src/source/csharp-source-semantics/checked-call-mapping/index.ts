@@ -658,10 +658,13 @@ function acceptSourceOwnedCheckedCall(
     ));
   }
   recordSourceOwnedCallRuntimeCarrier(request.call, returnType, context);
+  const selectedTypeParameterNames = getApplicableSourceCallEvidence(request)
+    ?.methodTypeArguments.map((argument) => argument.typeParameterName);
   const selectedSignature = csharpSourceOwnedTargetSignatureSelection({
     parameters,
     returnType,
     ...(targetTypeArguments === undefined ? {} : { targetTypeArguments }),
+    ...(selectedTypeParameterNames === undefined ? {} : { typeParameterNames: selectedTypeParameterNames }),
   });
   const argumentConversions = getTargetArgumentConversionSlots(
     csharpTargetMemberFact(selectedSignature.member)?.parameters ?? [],
