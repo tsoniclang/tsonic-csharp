@@ -2,6 +2,9 @@ import {
   acceptObservation,
   rejectObservation,
 } from "@tsonic/tsts";
+import {
+  reconcileAuthoredAndSelectedTargetType,
+} from "../source-evidence-reconciliation.js";
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
@@ -115,10 +118,13 @@ export function getNativeArrayCreateElementType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const selectedTypeArguments = getApplicableSourceCallEvidence(request)?.methodTypeArguments.map((argument) =>
-    host.getTargetTypeRefForSubject(argument.explicitTypeNode, context) ??
-      host.getTargetTypeRefForSubject(argument.selectedType, context)
-  ) ?? [];
+  const selectedTypeArguments = getApplicableSourceCallEvidence(request)?.methodTypeArguments.map((argument) => {
+    const reconciled = reconcileAuthoredAndSelectedTargetType(
+      host.getTargetTypeRefForSubject(argument.explicitTypeNode, context),
+      host.getTargetTypeRefForSubject(argument.selectedType, context),
+    );
+    return reconciled.kind === "resolved" ? reconciled.targetType : undefined;
+  }) ?? [];
   if (selectedTypeArguments.length === 1 && selectedTypeArguments[0] !== undefined) {
     return selectedTypeArguments[0];
   }

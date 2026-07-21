@@ -32,6 +32,9 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
+  reconcileAuthoredAndSelectedTargetType,
+} from "../source-evidence-reconciliation.js";
+import {
   unsupportedCsharpSourceFlowMarkerDiagnostic,
 } from "../source-flow-diagnostics.js";
 import {
@@ -216,11 +219,16 @@ function getErasedMarkerTargetParameters(
   }
   const parameters: TargetParameter[] = [];
   for (const sourceParameter of sourceSelection.parameters) {
-    const targetType = resolveTargetTypeRef(sourceParameter.authoredTypeNode) ??
-      resolveTargetTypeRef(sourceParameter.selectedType);
-    if (targetType === undefined) {
+    const reconciled = reconcileAuthoredAndSelectedTargetType(
+      resolveTargetTypeRef(sourceParameter.authoredTypeNode),
+      resolveTargetTypeRef(sourceParameter.selectedType),
+    );
+    if (reconciled.kind !== "resolved") {
+      // Unresolved defers during checking and rejects at finalization through
+      // the caller; contradictory evidence is never resolved by precedence.
       return undefined;
     }
+    const targetType = reconciled.targetType;
     parameters.push({
       name: sourceParameter.parameterName,
       type: targetType,

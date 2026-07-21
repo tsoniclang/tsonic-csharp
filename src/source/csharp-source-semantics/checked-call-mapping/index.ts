@@ -121,6 +121,12 @@ import {
   getCsharpSourceProfileMemberIdentity,
 } from "../source-profile-operations.js";
 import {
+  reconcileAuthoredAndSelectedTargetType,
+} from "../source-evidence-reconciliation.js";
+import type {
+  SourceEvidenceReconciliation,
+} from "../source-evidence-reconciliation.js";
+import {
   getApplicableSourceCallEvidence,
 } from "../selected-source-evidence.js";
 
@@ -697,13 +703,17 @@ function getSourceOwnedCallParameters(
     if (parameter === undefined || parameter.parameterIndex !== index) {
       return undefined;
     }
-    const targetType = getSelectedSourceParameterTargetType(parameter, context, host);
-    if (targetType === undefined) {
-      return undefined;
+    const reconciled = getSelectedSourceParameterTargetType(parameter, context, host);
+    if (reconciled.kind !== "resolved") {
+      // Unresolved defers or rejects through the caller's lifecycle path;
+      // contradictory authored/selected evidence fails closed here.
+      return reconciled.kind === "conflict"
+        ? recordSourceEvidenceConflict(context, "parameter", parameter.parameterName, reconciled)
+        : undefined;
     }
     mapped.push({
       name: parameter.parameterName.length === 0 ? `arg${index}` : parameter.parameterName,
-      type: targetType,
+      type: reconciled.targetType,
       passingMode: "by-value",
       ...(parameter.acceptsOmission ? { optional: true } : {}),
       ...(parameter.rest ? { paramsArray: true } : {}),
@@ -716,9 +726,11 @@ function getSelectedSourceParameterTargetType(
   parameter: SourceSelectedSignatureParameter,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
-): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(parameter.authoredTypeNode, context) ??
-    host.getTargetTypeRefForSubject(parameter.selectedType, context);
+): SourceEvidenceReconciliation {
+  return reconcileAuthoredAndSelectedTargetType(
+    host.getTargetTypeRefForSubject(parameter.authoredTypeNode, context),
+    host.getTargetTypeRefForSubject(parameter.selectedType, context),
+  );
 }
 
 function rejectOrDeferSourceOwnedCall(
@@ -805,8 +817,35 @@ function getSelectedSourceTypeArgumentTargetRef(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(argument.explicitTypeNode, context) ??
-    host.getTargetTypeRefForSubject(argument.selectedType, context);
+  const reconciled = reconcileAuthoredAndSelectedTargetType(
+    host.getTargetTypeRefForSubject(argument.explicitTypeNode, context),
+    host.getTargetTypeRefForSubject(argument.selectedType, context),
+  );
+  return reconciled.kind === "resolved" ? reconciled.targetType : undefined;
+}
+
+/**
+ * Contradictory authored/selected evidence is a deterministic rejection, not a
+ * precedence question. Returning undefined keeps the caller's fail-closed path.
+ */
+function recordSourceEvidenceConflict(
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  subjectKind: string,
+  subjectName: string,
+  conflict: Extract<SourceEvidenceReconciliation, { kind: "conflict" }>,
+): undefined {
+  context.diagnostics.append(csharpProviderDiagnostic(
+    context.extensionId,
+    "CSHARP_SOURCE_EVIDENCE_CONFLICT",
+    9100131,
+    "C# source semantics found contradictory authored and selected target type evidence for one checked source value.",
+    [
+      { message: `Conflicting ${subjectKind}`, details: subjectName },
+      { message: "Authored target type", details: conflict.authored },
+      { message: "Selected target type", details: conflict.selected },
+    ],
+  ));
+  return undefined;
 }
 
 function getRuntimeCarrierForSubject(

@@ -27,6 +27,9 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "../target-ref-utils.js";
+import {
+  reconcileAuthoredAndSelectedTargetType,
+} from "../source-evidence-reconciliation.js";
 import type {
   TargetMemberEffectiveSlot,
   TargetMemberSelectionOptions,
@@ -251,16 +254,13 @@ function getTargetTypeRefForArgument(
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): ReturnType<TargetTypeRefResolver> {
-  const direct = resolveTargetTypeRef(subject, context);
-  if (direct !== undefined && direct.kind !== "type-parameter") {
-    return direct;
-  }
-  const selected = selectedSourceType === undefined
-    ? undefined
-    : resolveTargetTypeRef(selectedSourceType, context);
-  return selected !== undefined && (direct === undefined || selected.kind !== "type-parameter")
-    ? selected
-    : direct;
+  const reconciled = reconcileAuthoredAndSelectedTargetType(
+    resolveTargetTypeRef(subject, context),
+    selectedSourceType === undefined ? undefined : resolveTargetTypeRef(selectedSourceType, context),
+  );
+  // Selection scores candidates; a contradiction here means this candidate has
+  // no usable argument type, which the caller already treats as a non-match.
+  return reconciled.kind === "resolved" ? reconciled.targetType : undefined;
 }
 
 function targetParameterAcceptsCheckedSourceArgument(
