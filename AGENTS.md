@@ -37,3 +37,8 @@ This repo follows the Tsonic “airplane-grade” architecture rules.
   - This applies to `.analysis/`, `.temp/`, `.tests/`, `.todos/`, build output, and every other ignored path. Investigation and planning documents stay untracked.
   - If something genuinely must be tracked, change `.gitignore` in its own reviewed commit and explain why. Do not bypass the ignore rule per-file.
 - Never force-push or delete remote branches/tags.
+
+## Review Scope and Status
+
+- Review an in-progress checkpoint against the scope explicitly claimed complete at that checkpoint, not against the eventual end state. Verify completed items fully; list known unstarted or explicitly deferred items as remaining status rather than presenting them as newly discovered failures of the completed scope.
+- Keep checkpoint quality and overall completion separate. If known work remains, say the branch/task is incomplete, while stating precisely whether the completed checkpoint itself satisfies its claimed acceptance criteria.
