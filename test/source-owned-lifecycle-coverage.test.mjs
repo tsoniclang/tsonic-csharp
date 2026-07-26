@@ -19,6 +19,7 @@ import {
 
 const sourceOwnedCallMemberId = "tsonic.csharp.source-owned-call";
 const int32Carrier = { kind: "source-primitive", name: "int32" };
+const boolCarrier = { kind: "source-primitive", name: "bool" };
 
 function finalize(sourceText) {
   const session = createCsharpSession(sourceText);
@@ -104,6 +105,133 @@ test("source-owned zero-argument call on a source receiver finalizes its selecte
   assert.deepEqual(
     extensionHost.facts.get(call, csharpRuntimeCarrierFactKey)?.carrier,
     int32Carrier,
+    evidence,
+  );
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-owned tuple results close through calls and literal element access", () => {
+  const { session, sourceFile, extensionHost } = finalize(`
+    import type { bool, int32 } from "@tsonic/core/types.js";
+
+    function pair(seed: int32): [int32, bool] {
+      return [seed, true as bool];
+    }
+
+    export function first(seed: int32): int32 {
+      const result: [int32, bool] = pair(seed);
+      return result[0];
+    }
+  `);
+  const call = callsByCallee(sourceFile, session).find((entry) => entry.name === "pair")?.call;
+  const evidence = evidenceOf(extensionHost);
+  assert.notEqual(call, undefined, evidence);
+  assert.equal(
+    extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
+    evidence,
+  );
+  assert.deepEqual(
+    extensionHost.facts.get(call, csharpRuntimeCarrierFactKey)?.carrier,
+    { kind: "tuple", elements: [int32Carrier, boolCarrier] },
+    evidence,
+  );
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-owned generic composite results and parameters close through nested calls", () => {
+  const { session, sourceFile, extensionHost } = finalize(`
+    import type { bool, int32 } from "@tsonic/core/types.js";
+
+    function attachFlag<T>(value: T): [T, bool] {
+      return [value, true as bool];
+    }
+
+    function first(value: [int32, bool]): int32 {
+      return value[0];
+    }
+
+    export function use(seed: int32): int32 {
+      return first(attachFlag<int32>(seed));
+    }
+  `);
+  const calls = callsByCallee(sourceFile, session);
+  const attachFlag = calls.find((entry) => entry.name === "attachFlag")?.call;
+  const first = calls.find((entry) => entry.name === "first")?.call;
+  const evidence = evidenceOf(extensionHost);
+  assert.notEqual(attachFlag, undefined, evidence);
+  assert.notEqual(first, undefined, evidence);
+  assert.equal(
+    extensionHost.facts.get(attachFlag, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
+    evidence,
+  );
+  assert.equal(
+    extensionHost.facts.get(first, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
+    evidence,
+  );
+  assert.deepEqual(
+    extensionHost.facts.get(attachFlag, csharpRuntimeCarrierFactKey)?.carrier,
+    { kind: "tuple", elements: [int32Carrier, boolCarrier] },
+    evidence,
+  );
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-owned array results close through calls and literal element access", () => {
+  const { session, sourceFile, extensionHost } = finalize(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    function singleton(seed: int32): int32[] {
+      return [seed];
+    }
+
+    export function first(seed: int32): int32 {
+      const result: int32[] = singleton(seed);
+      return result[0 as int32];
+    }
+  `);
+  const call = callsByCallee(sourceFile, session).find((entry) => entry.name === "singleton")?.call;
+  const evidence = evidenceOf(extensionHost);
+  assert.notEqual(call, undefined, evidence);
+  assert.equal(
+    extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
+    evidence,
+  );
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-owned class construction and class-valued calls close from declaration shape facts", () => {
+  const { session, sourceFile, extensionHost } = finalize(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    class Box {
+      constructor(public readonly value: int32) {}
+    }
+
+    function makeBox(seed: int32): Box {
+      return new Box(seed);
+    }
+
+    export function readBox(seed: int32): int32 {
+      return makeBox(seed).value;
+    }
+  `);
+  const call = callsByCallee(sourceFile, session).find((entry) => entry.name === "makeBox")?.call;
+  const construction = collectNodesByKind(sourceFile, session.ast, "KindNewExpression")[0];
+  const evidence = evidenceOf(extensionHost);
+  assert.notEqual(call, undefined, evidence);
+  assert.notEqual(construction, undefined, evidence);
+  assert.equal(
+    extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
+    evidence,
+  );
+  assert.equal(
+    extensionHost.facts.get(construction, selectedTargetSignatureFactKey)?.member.id,
+    sourceOwnedCallMemberId,
     evidence,
   );
   assert.deepEqual(extensionHost.diagnostics.all(), []);

@@ -116,7 +116,7 @@ export function mapCsharpCheckedPropertyAccess(
   if (sourceOwnedMethodGroup !== undefined) {
     return sourceOwnedMethodGroup;
   }
-  const sourceCoreStructProperty = mapCsharpSourceCoreStructCheckedPropertyAccess(request, context, host);
+  const sourceCoreStructProperty = mapCsharpSourceCoreStructCheckedPropertyAccess(request, context);
   if (sourceCoreStructProperty !== undefined) {
     return sourceCoreStructProperty;
   }
@@ -146,7 +146,7 @@ export function mapCsharpCheckedPropertyAccess(
   if (binding === undefined) {
     const mapped = mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??
-      mapCsharpProjectSourceCheckedPropertyAccess(request, context, host) ??
+      mapCsharpProjectSourceCheckedPropertyAccess(request, context) ??
       mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host);
     return mapped ?? (context.phase === "checking"
       ? deferObservation

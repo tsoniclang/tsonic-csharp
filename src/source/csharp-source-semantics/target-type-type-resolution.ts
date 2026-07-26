@@ -4,6 +4,9 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
+import {
   resolveTargetBinding,
 } from "./provider-bindings.js";
 import {
@@ -180,7 +183,8 @@ function resolveRuntimeCarrier(
   if (options.allowRuntimeCarrier === false) {
     return undefined;
   }
-  return resolveCsharpRuntimeCarrier(type, context);
+  return context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier ??
+    resolveCsharpRuntimeCarrier(type, context);
 }
 
 function targetTypeArgumentArityMatches(typeParameterCount: number, typeArgumentCount: number): boolean {

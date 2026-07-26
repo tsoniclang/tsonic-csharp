@@ -78,7 +78,6 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
 export function mapCsharpProjectSourceCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
-  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const selectedDeclaration = getSelectedAccessEvidence(request).selectedDeclaration;
   if (
@@ -90,14 +89,6 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
       ? deferObservation
       : undefined;
   }
-  const receiverType = getSourceReceiverTargetType(
-    request.sourceReceiver,
-    context,
-    host,
-  );
-  if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
-    return undefined;
-  }
   const operation = sourceOwnedPropertyOperation(request.propertyName);
   recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
@@ -108,14 +99,13 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
 export function mapCsharpSourceCoreStructCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
-  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   return [
     request.sourceReceiver.selectedDeclaration,
     request.sourceReceiver.declaration,
     request.sourceReceiver.type,
   ].some((subject) => subjectIsSourceCoreStructDeclarationPayload(subject, context))
-    ? mapCsharpProjectSourceCheckedPropertyAccess(request, context, host)
+    ? mapCsharpProjectSourceCheckedPropertyAccess(request, context)
     : undefined;
 }
 

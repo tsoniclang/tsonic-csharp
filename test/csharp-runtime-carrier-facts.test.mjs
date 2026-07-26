@@ -236,6 +236,63 @@ test("C# runtime-carrier syntax resolution instantiates a declaration-invariant 
   assert.equal(facts.get(sourceSymbol, csharpRuntimeCarrierFactKey), undefined);
 });
 
+test("C# runtime-carrier syntax resolution never treats a semantic type as an AST node", () => {
+  const type = { flags: 1, Kind: "KindTypeReference" };
+  const facts = new TestFactStore();
+  const context = {
+    ...observationContext(facts),
+    compiler: {
+      ast: {
+        kindName: () => "KindTypeReference",
+        typeArguments: () => {
+          throw new Error("Semantic Type entered the AST syntax path.");
+        },
+      },
+    },
+  };
+
+  assert.equal(
+    getTypeSyntaxCarrierFromFinalizedTypeFacts(
+      { type, target: "csharp" },
+      context,
+      {
+        getTargetTypeRefForSyntaxNode: () => {
+          throw new Error("Semantic Type entered syntax target resolution.");
+        },
+      },
+    ),
+    undefined,
+  );
+});
+
+test("C# runtime-carrier syntax resolution does not request type arguments from non-generic syntax", () => {
+  const sourceTypeReference = { Kind: "KindNumberKeyword" };
+  const type = { flags: 1 };
+  const facts = new TestFactStore();
+  const context = {
+    ...observationContext(facts),
+    compiler: {
+      ast: {
+        kindName: () => "KindNumberKeyword",
+        typeArguments: () => {
+          throw new Error("Non-generic syntax entered Node.TypeArguments.");
+        },
+      },
+    },
+  };
+
+  assert.equal(
+    getTypeSyntaxCarrierFromFinalizedTypeFacts(
+      { type, sourceTypeReference, target: "csharp" },
+      context,
+      {
+        getTargetTypeRefForSyntaxNode: (node) => node === sourceTypeReference ? int32 : undefined,
+      },
+    ),
+    int32,
+  );
+});
+
 test("C# backend semantic-type resolution never falls back to a declaration-symbol carrier", () => {
   const symbol = fakeSymbol("Task");
   const type = { flags: 1, symbol };

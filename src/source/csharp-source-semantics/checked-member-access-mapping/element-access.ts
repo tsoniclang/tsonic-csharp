@@ -68,6 +68,15 @@ export function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const tupleAccess = mapCsharpSourceTupleCheckedElementAccess(
+    request,
+    context,
+    extensionId,
+    host,
+  );
+  if (tupleAccess !== undefined) {
+    return tupleAccess;
+  }
   const selectedEvidence = getSelectedAccessEvidence(request);
   if (selectedEvidence.selectedSymbol === undefined && selectedEvidence.selectedDeclaration === undefined) {
     return rejectElementAccessNotMapped(extensionId);
@@ -98,7 +107,6 @@ export function mapCsharpCheckedElementAccess(
   if (binding === undefined) {
     const mapped = mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceArrayCheckedElementAccess(request, context, extensionId, host) ??
-      mapCsharpSourceTupleCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, extensionId, host);
     return mapped ?? (context.phase === "checking"
       ? deferObservation
