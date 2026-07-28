@@ -497,9 +497,11 @@ test("C# source semantics rejects unsupported type-only barrels for C# type alia
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
-  const diagnostics = session.ensureChecked(sourceFile);
+  session.ensureChecked(sourceFile);
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = session.getDiagnostics("semantic", sourceFile);
   assert.match(formatDiagnostics(diagnostics), /TSONIC_CSHARP_9100170/u);
-  assert.deepEqual(session.extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
     "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
   ]);
 });

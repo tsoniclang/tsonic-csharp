@@ -1,13 +1,11 @@
 import {
   createSourceSemanticsExtension,
-  ExtensionLifecycleEvent,
 } from "@tsonic/tsts";
 import type {
   AstReader,
   CompilerExtension,
   ExtensionEvidence,
   Node,
-  SourceFileBoundLifecycleRequest,
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
@@ -45,9 +43,19 @@ export function createCsharpSourceSemanticsExtension(_context: TargetProviderCon
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createCsharpSourceVirtualModulesProvider());
       sourceSemantics.initialize?.(extensionContext);
-      extensionContext.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext): void => {
-        recordUnsupportedCsharpLangReExportDiagnostics(request, lifecycleContext.compiler.ast, lifecycleContext.host.diagnostics);
-      });
+    },
+    analyzeSource(context): void {
+      sourceSemantics.analyzeSource?.(context);
+      for (const sourceFile of context.sourceFiles) {
+        if (sourceFile === undefined || context.ast.getFileName(sourceFile).endsWith(".d.ts")) {
+          continue;
+        }
+        recordUnsupportedCsharpLangReExportDiagnostics(
+          sourceFile,
+          context.ast,
+          context.diagnostics,
+        );
+      }
     },
   };
 }
@@ -79,14 +87,10 @@ type DiagnosticSink = {
 };
 
 function recordUnsupportedCsharpLangReExportDiagnostics(
-  request: SourceFileBoundLifecycleRequest,
+  sourceFile: Node,
   ast: AstReader,
   diagnostics: DiagnosticSink,
 ): void {
-  const sourceFile = request.sourceFile as Node | undefined;
-  if (sourceFile === undefined) {
-    return;
-  }
   let exportDeclarationIndex = 0;
   for (const statement of ast.statements(sourceFile)) {
     if (statement === undefined || !ast.is.IsExportDeclaration(statement)) {
@@ -132,10 +136,11 @@ function exportedCsharpLangAliasNames(exportDeclaration: Node, ast: AstReader): 
   }
   const exportedNames: string[] = [];
   for (const specifier of ast.elements(exportClause)) {
-    if (specifier === undefined) {
+    if (specifier === undefined || !ast.is.IsExportSpecifier(specifier)) {
       continue;
     }
-    const exportNameNode = (specifier as { readonly PropertyName?: Node }).PropertyName ?? ast.name(specifier);
+    const exportNameNode = ast.as.AsExportSpecifier(specifier)?.PropertyName ??
+      ast.name(specifier);
     const exportName = exportNameNode === undefined ? undefined : ast.text(exportNameNode);
     if (exportName !== undefined && csharpLangExportNames.has(exportName)) {
       exportedNames.push(exportName);
