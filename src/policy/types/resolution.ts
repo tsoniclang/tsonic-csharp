@@ -63,13 +63,16 @@ import {
   targetTypeRefEquals,
 } from "./equality.js";
 import {
-  csharpAnyRuntimeCarrier,
+  csharpAnyTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   csharpRuntimeUnionTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
 } from "./runtime-carriers.js";
+import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
 import {
   csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
@@ -179,7 +182,10 @@ export function createCsharpTypePolicy(
     if (literal !== undefined) {
       return literal;
     }
-    const keyword = resolveKeywordType(host.ast.kindName(node));
+    const keyword = resolveKeywordType(
+      host.ast.kindName(node),
+      host.target,
+    );
     if (keyword !== undefined) {
       return keyword;
     }
@@ -786,7 +792,9 @@ export function createCsharpTypePolicy(
       return typeParameter;
     }
     if (queries.typeShape.isAny(type)) {
-      return csharpAnyRuntimeCarrier();
+      return csharpAnyTargetType(
+        readCsharpTypescriptCompatibilityMode(host.target),
+      );
     }
     if (queries.typeShape.isUnknown(type)) {
       return { kind: "opaque", id: "unknown" };
@@ -1517,7 +1525,10 @@ function uniqueTargetTypes(
   return [...byIdentity.values()];
 }
 
-function resolveKeywordType(kind: string): TargetTypeRef | undefined {
+function resolveKeywordType(
+  kind: string,
+  target: TargetSelection,
+): TargetTypeRef | undefined {
   switch (kind) {
     case "KindBooleanKeyword":
       return csharpSourcePrimitiveTargetType("bool");
@@ -1530,7 +1541,9 @@ function resolveKeywordType(kind: string): TargetTypeRef | undefined {
     case "KindVoidKeyword":
       return csharpVoidTargetType();
     case "KindAnyKeyword":
-      return csharpAnyRuntimeCarrier();
+      return csharpAnyTargetType(
+        readCsharpTypescriptCompatibilityMode(target),
+      );
     case "KindUnknownKeyword":
       return { kind: "opaque", id: "unknown" };
     case "KindNeverKeyword":

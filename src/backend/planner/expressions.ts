@@ -169,7 +169,13 @@ function planExpressionCore(
     case KindRegularExpressionLiteral:
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTypeOfExpression:
-      return planTypeofExpression(node, sourceFile, input, diagnostics);
+      return planTypeofExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        scopedPlanExpression,
+      );
     case KindVoidExpression:
       return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
@@ -253,7 +259,7 @@ function planExpressionCore(
           planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode),
       );
     case KindNewExpression:
-      return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode) =>
+      return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode) =>
         planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode));
     case KindPrefixUnaryExpression: {
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
@@ -280,7 +286,8 @@ function planExpressionCore(
         return undefined;
       }
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument);
+        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
+        planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType));
       return binary;
     }
     default: {

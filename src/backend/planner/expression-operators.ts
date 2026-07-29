@@ -7,7 +7,12 @@ import type {
 } from "@tsonic/target-api";
 import {
   selectCsharpBinaryOperation,
+  sourceOperatorFromKindName,
 } from "../../policy/operations/index.js";
+import {
+  selectCsharpCompatAnyBinaryOperation,
+  selectCsharpCompatAnyReceiverOperation,
+} from "../../policy/compat/index.js";
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
@@ -23,6 +28,7 @@ import {
 } from "./diagnostics.js";
 import type {
   CallArgumentPlanner,
+  ExpectedExpressionPlanner,
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
@@ -39,6 +45,12 @@ import {
   HasSourceKind,
   KindBinaryExpression,
 } from "./source-ast.js";
+import {
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export {
   planTypeofExpression,
@@ -54,6 +66,7 @@ export function tryPlanBinaryExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
   if (!HasSourceKind(input.ast, node, KindBinaryExpression)) {
     return undefined;
@@ -92,6 +105,78 @@ export function tryPlanBinaryExpression(
   if (typeofComparison !== undefined || diagnostics.length > typeofStart) {
     return typeofComparison;
   }
+  const expression = input.ast.as.AsBinaryExpression(node);
+  const sourceOperator = sourceOperatorFromKindName(
+    input.ast.operatorKindName(node),
+  );
+  if (
+    sourceOperator === "=" &&
+    expression?.Left !== undefined &&
+    expression.Right !== undefined
+  ) {
+    const compatAssignment = tryPlanCompatAnyAssignment(
+      node,
+      expression.Left,
+      expression.Right,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+    );
+    if (compatAssignment.handled) {
+      return compatAssignment.expression;
+    }
+  }
+  if (
+    sourceOperator !== undefined &&
+    sourceOperator !== "=" &&
+    expression?.Left !== undefined &&
+    expression.Right !== undefined
+  ) {
+    const compat = selectCsharpCompatAnyBinaryOperation(
+      input,
+      expression.Left,
+      expression.Right,
+      sourceFile,
+      sourceOperator,
+    );
+    if (compat.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+      return undefined;
+    }
+    if (compat.kind === "resolved") {
+      const left = planExpression(
+        expression.Left,
+        sourceFile,
+        input,
+        diagnostics,
+      );
+      const right = planExpression(
+        expression.Right,
+        sourceFile,
+        input,
+        diagnostics,
+      );
+      if (left === undefined || right === undefined) {
+        return undefined;
+      }
+      return translateCsharpCompatInvocation(
+        compat,
+        undefined,
+        [
+          left,
+          { kind: "LiteralExpression", value: sourceOperator },
+          compat.lazyRight === true
+            ? {
+                kind: "LambdaExpression",
+                parameters: [],
+                body: right,
+              }
+            : right,
+        ],
+      );
+    }
+  }
   const selection = selectCsharpBinaryOperation(input, node, sourceFile);
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
@@ -107,12 +192,23 @@ export function tryPlanBinaryExpression(
       input,
       diagnostics,
     );
-    const right = planExpression(
-      selection.right,
-      sourceFile,
-      input,
-      diagnostics,
-    );
+    const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType);
+    const right = sourceOperator === "=" && expectedRightType !== undefined
+      ? planExpressionWithExpectedType(
+          selection.right,
+          sourceFile,
+          input,
+          diagnostics,
+          expectedRightType,
+          undefined,
+          selection.leftType,
+        )
+      : planExpression(
+          selection.right,
+          sourceFile,
+          input,
+          diagnostics,
+        );
     return left === undefined || right === undefined
       ? undefined
       : {
@@ -120,8 +216,109 @@ export function tryPlanBinaryExpression(
           left,
           operatorToken: assignmentToken,
           right,
-        };
+  };
+}
+
+function tryPlanCompatAnyAssignment(
+  node: Node,
+  left: Node,
+  right: Node,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): {
+  readonly handled: boolean;
+  readonly expression?: CsharpExpression;
+} {
+  if (input.ast.is.IsPropertyAccessExpression(left)) {
+    const property = input.ast.as.AsPropertyAccessExpression(left);
+    const receiverNode = property?.Expression;
+    const selection = selectCsharpCompatAnyReceiverOperation(
+      input,
+      receiverNode,
+      sourceFile,
+      "property-write",
+      property?.QuestionDotToken !== undefined,
+    );
+    if (selection.kind === "not-any") {
+      return { handled: false };
+    }
+    if (selection.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+      return { handled: true };
+    }
+    const nameNode = property?.name;
+    const receiver = receiverNode === undefined
+      ? undefined
+      : planExpression(receiverNode, sourceFile, input, diagnostics);
+    const value = planExpression(right, sourceFile, input, diagnostics);
+    if (nameNode === undefined || receiver === undefined || value === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility property write requires an exact receiver, property name, and value.",
+      ));
+      return { handled: true };
+    }
+    return {
+      handled: true,
+      expression: translateCsharpCompatInvocation(
+        selection,
+        receiver,
+        [
+          { kind: "LiteralExpression", value: input.ast.text(nameNode) },
+          value,
+        ],
+      ),
+    };
   }
+  if (input.ast.is.IsElementAccessExpression(left)) {
+    const element = input.ast.as.AsElementAccessExpression(left);
+    const receiverNode = element?.Expression;
+    const argumentNode = element?.ArgumentExpression;
+    const selection = selectCsharpCompatAnyReceiverOperation(
+      input,
+      receiverNode,
+      sourceFile,
+      "element-write",
+      element?.QuestionDotToken !== undefined,
+    );
+    if (selection.kind === "not-any") {
+      return { handled: false };
+    }
+    if (selection.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+      return { handled: true };
+    }
+    const receiver = receiverNode === undefined
+      ? undefined
+      : planExpression(receiverNode, sourceFile, input, diagnostics);
+    const argument = argumentNode === undefined
+      ? undefined
+      : planExpression(argumentNode, sourceFile, input, diagnostics);
+    const value = planExpression(right, sourceFile, input, diagnostics);
+    if (
+      receiver === undefined ||
+      argument === undefined ||
+      value === undefined
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility element write requires an exact receiver, key, and value.",
+      ));
+      return { handled: true };
+    }
+    return {
+      handled: true,
+      expression: translateCsharpCompatInvocation(
+        selection,
+        receiver,
+        [argument, value],
+      ),
+    };
+  }
+  return { handled: false };
+}
   const binaryToken = csharpBinaryOperatorTokenFromText(
     selection.targetOperator,
   );

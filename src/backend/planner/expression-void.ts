@@ -9,6 +9,9 @@ import {
   readCsharpTypescriptCompatibilityMode,
 } from "../../options/csharp-target-options.js";
 import {
+  selectCsharpCompatAnyVoidOperation,
+} from "../../policy/compat/index.js";
+import {
   csharpTsValueTargetType,
 } from "../../policy/types/index.js";
 import type {
@@ -26,6 +29,9 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import {
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
 
 export function planVoidExpression(
   node: Node,
@@ -37,6 +43,28 @@ export function planVoidExpression(
   if (!input.ast.is.IsVoidExpression(node)) {
     return undefined;
   }
+  const operand = input.ast.as.AsVoidExpression(node)?.Expression;
+  const compat = selectCsharpCompatAnyVoidOperation(
+    input,
+    operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const expression = operand === undefined
+      ? undefined
+      : planExpression(operand, sourceFile, input, diagnostics);
+    return expression === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(
+          compat,
+          undefined,
+          [expression],
+        );
+  }
   if (readCsharpTypescriptCompatibilityMode(input.target) !== "compat") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -44,7 +72,6 @@ export function planVoidExpression(
     ));
     return undefined;
   }
-  const operand = input.ast.as.AsVoidExpression(node)?.Expression;
   const receiver = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
   if (operand === undefined || receiver === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

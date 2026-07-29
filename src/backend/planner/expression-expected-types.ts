@@ -60,7 +60,7 @@ import {
   tryPlanBinaryExpressionWithExpectedType,
 } from "./expression-operators.js";
 import {
-  requireCsharpBoolRuntimeCarrier,
+  planCsharpConditionExpression,
 } from "./expression-bool-carriers.js";
 import {
   csharpRuntimeNullTargetType,
@@ -208,10 +208,14 @@ export function planExpressionWithExpectedTypeCore(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
       return undefined;
     }
-    if (!requireCsharpBoolRuntimeCarrier(expression.Condition, "Conditional expression condition", sourceFile, input, diagnostics)) {
-      return undefined;
-    }
-    const condition = planners.planExpression(expression.Condition!, sourceFile, input, diagnostics);
+    const condition = planCsharpConditionExpression(
+      expression.Condition,
+      "Conditional expression condition",
+      sourceFile,
+      input,
+      diagnostics,
+      planners.planExpression,
+    );
     const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {

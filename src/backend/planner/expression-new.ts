@@ -16,6 +16,7 @@ import {
 } from "../../translate/expressions/constructions.js";
 import type {
   CallArgumentPlanner,
+  ExpressionPlanner,
 } from "./expression-planner-types.js";
 
 export function planNewExpression(
@@ -23,6 +24,7 @@ export function planNewExpression(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
   return translateCsharpConstruction(
@@ -30,6 +32,7 @@ export function planNewExpression(
     sourceFile,
     input,
     diagnostics,
+    planExpression,
     planCallArgument,
   );
 }

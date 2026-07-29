@@ -8,6 +8,9 @@ import type {
 import {
   selectCsharpTargetProperty,
 } from "../../policy/members/index.js";
+import {
+  selectCsharpCompatAnyReceiverOperation,
+} from "../../policy/compat/index.js";
 import type {
   CsharpTargetPropertySelection,
 } from "../../policy/members/index.js";
@@ -31,6 +34,9 @@ import {
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
+import {
+  translateCsharpCompatInvocation,
+} from "./compat.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -39,6 +45,37 @@ export function translateCsharpPropertyAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
+  const expression = input.ast.as.AsPropertyAccessExpression(node);
+  const receiverNode = expression?.Expression;
+  const compat = selectCsharpCompatAnyReceiverOperation(
+    input,
+    receiverNode,
+    sourceFile,
+    "property-read",
+    expression?.QuestionDotToken !== undefined,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const nameNode = expression?.name;
+    const receiver = receiverNode === undefined
+      ? undefined
+      : planExpression(receiverNode, sourceFile, input, diagnostics);
+    if (nameNode === undefined || receiver === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility property read requires an exact receiver and property name.",
+      ));
+      return undefined;
+    }
+    return translateCsharpCompatInvocation(
+      compat,
+      receiver,
+      [{ kind: "LiteralExpression", value: input.ast.text(nameNode) }],
+    );
+  }
   const selection = selectCsharpTargetProperty(input, node, sourceFile);
   switch (selection.kind) {
     case "resolved":

@@ -11,6 +11,9 @@ import type {
 import {
   selectCsharpTargetCall,
 } from "../../policy/members/index.js";
+import {
+  selectCsharpCompatAnyCallOperation,
+} from "../../policy/compat/index.js";
 import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
@@ -44,6 +47,9 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../backend/planner/target-types.js";
+import {
+  translateCsharpCompatInvocation,
+} from "./compat.js";
 
 export function translateCsharpCallExpression(
   node: Node,
@@ -53,6 +59,73 @@ export function translateCsharpCallExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
+  const expression = input.ast.as.AsCallExpression(node);
+  const sourceCall = input.queries(sourceFile).checker.getResolvedCallInfo(node);
+  const calleeNode = sourceCall?.sourceCallee.expression ??
+    expression?.Expression;
+  const compatShape = compatCallShape(input, sourceCall);
+  const compat = selectCsharpCompatAnyCallOperation(
+    input,
+    calleeNode,
+    compatShape.receiver,
+    sourceFile,
+    compatShape.kind,
+    expression?.QuestionDotToken !== undefined,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const sourceArguments = input.ast.arguments(node)
+      .filter((argument): argument is Node => argument !== undefined);
+    if (
+      sourceArguments.length !== input.ast.arguments(node).length ||
+      sourceArguments.some((argument) =>
+        input.ast.is.IsSpreadElement(argument)
+      )
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility calls over TypeScript any require exact non-spread source arguments.",
+      ));
+      return undefined;
+    }
+    const receiverNode = compatShape.receiver ?? calleeNode;
+    const receiver = receiverNode === undefined
+      ? undefined
+      : planExpression(receiverNode, sourceFile, input, diagnostics);
+    const arguments_ = sourceArguments.map((argument) =>
+      planExpression(argument, sourceFile, input, diagnostics)
+    );
+    if (
+      receiver === undefined ||
+      arguments_.some((argument) => argument === undefined)
+    ) {
+      return undefined;
+    }
+    const invocationArguments = compatCallArguments(
+      input,
+      compatShape,
+      expression?.QuestionDotToken !== undefined,
+      arguments_ as readonly CsharpExpression[],
+      sourceFile,
+      diagnostics,
+      planExpression,
+    );
+    if (invocationArguments === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility member calls require an exact selected property name or element key.",
+      ));
+      return undefined;
+    }
+    return translateCsharpCompatInvocation(
+      compat,
+      receiver,
+      invocationArguments,
+    );
+  }
   const selection = selectCsharpTargetCall(input, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
@@ -109,6 +182,95 @@ export function translateCsharpCallExpression(
           `candidate=${candidate}`),
       ));
       return undefined;
+  }
+}
+
+type CompatCallShape =
+  | { readonly kind: "direct"; readonly receiver?: undefined }
+  | {
+      readonly kind: "property";
+      readonly receiver: Node | undefined;
+      readonly name: Node | undefined;
+      readonly optionalReceiver: boolean;
+    }
+  | {
+      readonly kind: "element";
+      readonly receiver: Node | undefined;
+      readonly key: Node | undefined;
+      readonly optionalReceiver: boolean;
+    };
+
+function compatCallShape(
+  input: CsharpTranslationContext,
+  source: ResolvedSourceCallInfo | undefined,
+): CompatCallShape {
+  const access = source?.sourceCalleeAccess;
+  if (
+    access?.kind === "property" &&
+    input.ast.is.IsPropertyAccessExpression(access.expression)
+  ) {
+    const property = input.ast.as.AsPropertyAccessExpression(access.expression);
+    return {
+      kind: "property",
+      receiver: access.receiver.expression,
+      name: property?.name,
+      optionalReceiver: property?.QuestionDotToken !== undefined,
+    };
+  }
+  if (
+    access?.kind === "element" &&
+    input.ast.is.IsElementAccessExpression(access.expression)
+  ) {
+    const element = input.ast.as.AsElementAccessExpression(access.expression);
+    return {
+      kind: "element",
+      receiver: access.receiver.expression,
+      key: access.argument.expression,
+      optionalReceiver: element?.QuestionDotToken !== undefined,
+    };
+  }
+  return { kind: "direct" };
+}
+
+function compatCallArguments(
+  input: CsharpTranslationContext,
+  shape: CompatCallShape,
+  optionalCall: boolean,
+  arguments_: readonly CsharpExpression[],
+  sourceFile: SourceFile,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): readonly CsharpExpression[] | undefined {
+  switch (shape.kind) {
+    case "direct":
+      return arguments_;
+    case "property":
+      return shape.name === undefined
+        ? undefined
+        : [
+            { kind: "LiteralExpression", value: input.ast.text(shape.name) },
+            { kind: "LiteralExpression", value: shape.optionalReceiver },
+            { kind: "LiteralExpression", value: optionalCall },
+            ...arguments_,
+          ];
+    case "element": {
+      const key = shape.key === undefined
+        ? undefined
+        : planExpression(
+            shape.key,
+            sourceFile,
+            input,
+            diagnostics,
+          );
+      return key === undefined
+        ? undefined
+        : [
+            key,
+            { kind: "LiteralExpression", value: shape.optionalReceiver },
+            { kind: "LiteralExpression", value: optionalCall },
+            ...arguments_,
+          ];
+    }
   }
 }
 

@@ -192,11 +192,11 @@ function validateBinaryTargetSemantics(
   right: TargetTypeRef,
   input: CsharpTranslationContext,
 ): string | undefined {
-  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
-    return `Source operator '${operator}' over opaque any requires an explicit closed compatibility-runtime policy.`;
-  }
   if (operator === "=") {
     return undefined;
+  }
+  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
+    return `Source operator '${operator}' over opaque any requires an explicit closed compatibility-runtime policy.`;
   }
   if (left.kind === "type-parameter" || right.kind === "type-parameter") {
     return `Source operator '${operator}' over a type parameter requires an exact target constraint policy.`;

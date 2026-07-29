@@ -8,6 +8,9 @@ import type {
 import {
   selectCsharpTargetCall,
 } from "../../policy/members/index.js";
+import {
+  selectCsharpCompatAnyReceiverOperation,
+} from "../../policy/compat/index.js";
 import type {
   CsharpTargetCallSelection,
 } from "../../policy/members/index.js";
@@ -21,6 +24,7 @@ import {
 } from "../../backend/planner/diagnostics.js";
 import type {
   CallArgumentPlanner,
+  ExpressionPlanner,
 } from "../../backend/planner/expression-planner-types.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -33,14 +37,63 @@ import {
   translateSelectedTargetArguments,
   translateSourceOwnedArguments,
 } from "./calls.js";
+import {
+  translateCsharpCompatInvocation,
+} from "./compat.js";
 
 export function translateCsharpConstruction(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
+  const expression = input.ast.as.AsNewExpression(node);
+  const calleeNode = expression?.Expression;
+  const compat = selectCsharpCompatAnyReceiverOperation(
+    input,
+    calleeNode,
+    sourceFile,
+    "construct",
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const sourceArguments = input.ast.arguments(node)
+      .filter((argument): argument is Node => argument !== undefined);
+    if (
+      sourceArguments.length !== input.ast.arguments(node).length ||
+      sourceArguments.some((argument) =>
+        input.ast.is.IsSpreadElement(argument)
+      )
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility construction over TypeScript any requires exact non-spread source arguments.",
+      ));
+      return undefined;
+    }
+    const callee = calleeNode === undefined
+      ? undefined
+      : planExpression(calleeNode, sourceFile, input, diagnostics);
+    const arguments_ = sourceArguments.map((argument) =>
+      planExpression(argument, sourceFile, input, diagnostics)
+    );
+    if (
+      callee === undefined ||
+      arguments_.some((argument) => argument === undefined)
+    ) {
+      return undefined;
+    }
+    return translateCsharpCompatInvocation(
+      compat,
+      callee,
+      arguments_ as readonly CsharpExpression[],
+    );
+  }
   const selection = selectCsharpTargetCall(input, node, sourceFile);
   switch (selection.kind) {
     case "resolved":

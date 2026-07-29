@@ -8,6 +8,9 @@ import type {
 import {
   selectCsharpTargetElement,
 } from "../../policy/members/index.js";
+import {
+  selectCsharpCompatAnyReceiverOperation,
+} from "../../policy/compat/index.js";
 import type {
   CsharpTargetElementSelection,
 } from "../../policy/members/index.js";
@@ -35,6 +38,9 @@ import {
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
+import {
+  translateCsharpCompatInvocation,
+} from "./compat.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -44,6 +50,40 @@ export function translateCsharpElementAccess(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
+  const expression = input.ast.as.AsElementAccessExpression(node);
+  const receiverNode = expression?.Expression;
+  const argumentNode = expression?.ArgumentExpression;
+  const compat = selectCsharpCompatAnyReceiverOperation(
+    input,
+    receiverNode,
+    sourceFile,
+    "element-read",
+    expression?.QuestionDotToken !== undefined,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const receiver = receiverNode === undefined
+      ? undefined
+      : planExpression(receiverNode, sourceFile, input, diagnostics);
+    const argument = argumentNode === undefined
+      ? undefined
+      : planExpression(argumentNode, sourceFile, input, diagnostics);
+    if (receiver === undefined || argument === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# compatibility element read requires an exact receiver and key.",
+      ));
+      return undefined;
+    }
+    return translateCsharpCompatInvocation(
+      compat,
+      receiver,
+      [argument],
+    );
+  }
   const selection = selectCsharpTargetElement(input, node, sourceFile);
   switch (selection.kind) {
     case "resolved":

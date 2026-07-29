@@ -1,7 +1,11 @@
 import type {
   CsharpObjectShapeFact,
+  CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "./definitions.js";
+import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
 import type {
   CsharpRuntimeUnionTargetTypeRef,
 } from "./definitions.js";
@@ -12,8 +16,20 @@ import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 
-export function csharpAnyRuntimeCarrier(): TargetTypeRef {
-  return { kind: "opaque", id: "any" };
+export function csharpAnyTargetType(
+  mode: TargetTypescriptCompatibilityMode,
+): TargetTypeRef {
+  return mode === "compat"
+    ? csharpCompatAnyTargetType()
+    : { kind: "opaque", id: "any" };
+}
+
+export function csharpCompatAnyTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "tsonic.csharp.compat:any",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"),
+  );
 }
 
 export function csharpTsValueTargetType(): TargetTypeRef {
@@ -61,11 +77,19 @@ export function csharpRuntimeUnionTargetType(
 }
 
 export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "opaque" && type.id === "any";
+  return type !== undefined &&
+    (
+      type.kind === "opaque" && type.id === "any" ||
+      type.kind === "target-named" && type.id === "tsonic.csharp.compat:any"
+    );
 }
 
 export function isCsharpTsValueTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.TsValue";
+  return type?.kind === "target-named" &&
+    (
+      type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "tsonic.csharp.compat:any"
+    );
 }
 
 export function isCsharpClosedJsonRuntimeLeaf(
@@ -82,6 +106,7 @@ export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefin
   return type?.kind === "target-named" &&
     (
       type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "tsonic.csharp.compat:any" ||
       type.id === "Tsonic.CSharp.Js.TsObject" ||
       type.id === "Tsonic.CSharp.Js.TsArray" ||
       type.id === "Tsonic.CSharp.Js.TsUnion" ||

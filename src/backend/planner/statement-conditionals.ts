@@ -3,9 +3,6 @@ import {
   AsDoStatement,
   AsIfStatement,
   AsWhileStatement,
-  HasSourceKind,
-  KindFalseKeyword,
-  KindTrueKeyword,
 } from "./source-ast.js";
 import type {
   Node,
@@ -28,7 +25,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  requireCsharpBoolRuntimeCarrier,
+  planCsharpConditionExpression as planCheckedConditionExpression,
 } from "./expression-bool-carriers.js";
 import type {
   NestedStatementPlanner,
@@ -118,11 +115,19 @@ export function planConditionExpression(
     diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
     return undefined;
   }
-  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
-    return planExpression(expression, sourceFile, input, diagnostics, state);
-  }
-  if (!requireCsharpBoolRuntimeCarrier(expression, `${statementKind} condition`, sourceFile, input, diagnostics)) {
-    return undefined;
-  }
-  return planExpression(expression, sourceFile, input, diagnostics, state);
+  return planCheckedConditionExpression(
+    expression,
+    `${statementKind} condition`,
+    sourceFile,
+    input,
+    diagnostics,
+    (condition, conditionSourceFile, conditionInput, conditionDiagnostics) =>
+      planExpression(
+        condition,
+        conditionSourceFile,
+        conditionInput,
+        conditionDiagnostics,
+        state,
+      ),
+  );
 }

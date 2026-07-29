@@ -9,6 +9,9 @@ import {
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
 import {
+  selectCsharpCompatAnyTypeofOperation,
+} from "../../policy/compat/index.js";
+import {
   getCsharpTypeofRuntimeKind,
   sourceOperatorFromKindName,
 } from "../../policy/operations/index.js";
@@ -33,17 +36,42 @@ import type {
 import {
   tryPlanRuntimeUnionTypeTest,
 } from "./runtime-union-projections.js";
+import {
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
 
 export function planTypeofExpression(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   if (!input.ast.is.IsTypeOfExpression(node)) {
     return undefined;
   }
   const operand = input.ast.as.AsTypeOfExpression(node)?.Expression;
+  const compat = selectCsharpCompatAnyTypeofOperation(
+    input,
+    operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const planned = operand === undefined
+      ? undefined
+      : planExpression(operand, sourceFile, input, diagnostics);
+    return planned === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(
+          compat,
+          undefined,
+          [planned],
+        );
+  }
   const operandType = input.types.resolveNode(operand, sourceFile);
   const runtimeKind = getCsharpTypeofRuntimeKind(operandType);
   if (operand === undefined || runtimeKind === undefined) {
