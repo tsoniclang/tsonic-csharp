@@ -40,6 +40,7 @@ import type {
 } from "../context/index.js";
 import {
   translateCsharpCompatInvocation,
+  translateCsharpCompatValueFactory,
 } from "./compat.js";
 
 export function translateCsharpElementAccess(
@@ -81,7 +82,9 @@ export function translateCsharpElementAccess(
     return translateCsharpCompatInvocation(
       compat,
       receiver,
-      [argument],
+      expression?.QuestionDotToken === undefined
+        ? [argument]
+        : [translateCsharpCompatValueFactory(argument)],
     );
   }
   const selection = selectCsharpTargetElement(input, node, sourceFile);

@@ -37,3 +37,26 @@ export function translateCsharpCompatInvocation(
         })),
       };
 }
+
+export function translateCsharpCompatValueFactory(
+  expression: CsharpExpression,
+): CsharpExpression {
+  return {
+    kind: "LambdaExpression",
+    parameters: [],
+    body: expression,
+  };
+}
+
+export function translateCsharpCompatArgumentFactory(
+  arguments_: readonly CsharpExpression[],
+): CsharpExpression {
+  return translateCsharpCompatValueFactory({
+    kind: "ArrayCreationExpression",
+    elementType: {
+      kind: "NullableType",
+      inner: { kind: "PredefinedType", name: "object" },
+    },
+    elements: arguments_,
+  });
+}

@@ -48,7 +48,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../../backend/planner/target-types.js";
 import {
+  translateCsharpCompatArgumentFactory,
   translateCsharpCompatInvocation,
+  translateCsharpCompatValueFactory,
 } from "./compat.js";
 
 export function translateCsharpCallExpression(
@@ -243,7 +245,9 @@ function compatCallArguments(
 ): readonly CsharpExpression[] | undefined {
   switch (shape.kind) {
     case "direct":
-      return arguments_;
+      return optionalCall
+        ? [translateCsharpCompatArgumentFactory(arguments_)]
+        : arguments_;
     case "property":
       return shape.name === undefined
         ? undefined
@@ -251,7 +255,7 @@ function compatCallArguments(
             { kind: "LiteralExpression", value: input.ast.text(shape.name) },
             { kind: "LiteralExpression", value: shape.optionalReceiver },
             { kind: "LiteralExpression", value: optionalCall },
-            ...arguments_,
+            translateCsharpCompatArgumentFactory(arguments_),
           ];
     case "element": {
       const key = shape.key === undefined
@@ -265,10 +269,10 @@ function compatCallArguments(
       return key === undefined
         ? undefined
         : [
-            key,
+            translateCsharpCompatValueFactory(key),
             { kind: "LiteralExpression", value: shape.optionalReceiver },
             { kind: "LiteralExpression", value: optionalCall },
-            ...arguments_,
+            translateCsharpCompatArgumentFactory(arguments_),
           ];
     }
   }

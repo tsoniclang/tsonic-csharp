@@ -315,6 +315,129 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# compat translation closes every supported any operation", () => {
+  const compiled = cleanCompile(`
+    export function use(value: any, key: string): any {
+      value.name;
+      value.name = 1;
+      value[key];
+      value[key] = 2;
+      value(3);
+      value.create(4);
+      value[key](5);
+      new value(6);
+      value + 1;
+      value && value;
+      !value;
+      typeof value;
+      void value;
+      if (value) return value;
+      return value ? value : key;
+    }
+  `, {
+    targetOptions: { typescriptCompatibility: "compat" },
+  });
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Tsonic.CSharp.Js.TsValue use(Tsonic.CSharp.Js.TsValue value, string key)
+        {
+            value.ReadCompatSlot("name");
+            value.WriteCompatSlot("name", 1);
+            value.ReadCompatElement(key);
+            value.WriteCompatElement(key, 2);
+            value.InvokeCompat(3);
+            value.InvokeCompatSlot("create", false, false, () => new object?[] { 4 });
+            value.InvokeCompatElement(() => key, false, false, () => new object?[] { 5 });
+            value.ConstructCompat(6);
+            Tsonic.CSharp.Js.TsValue.ApplyCompatBinary(value, "+", 1);
+            Tsonic.CSharp.Js.TsValue.ApplyCompatLogical(value, "&&", () => value);
+            Tsonic.CSharp.Js.TsValue.ApplyCompatUnaryBoolean(value, "!");
+            Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(value);
+            _ = value;
+            if (Tsonic.CSharp.Js.TsValue.ToCompatBoolean(value))
+            {
+                return value;
+            }
+            return Tsonic.CSharp.Js.TsValue.ToCompatBoolean(value) ? value : Tsonic.CSharp.Js.TsValue.from(key);
+        }
+    }
+}
+`);
+});
+
+test("direct C# compat translation preserves optional-chain evaluation regions", () => {
+  const compiled = cleanCompile(`
+    export function optional(
+      value: any,
+      key: () => string,
+      argument: () => any,
+    ): any {
+      value?.name;
+      value?.[key()];
+      value?.(argument());
+      value?.create(argument());
+      value.create?.(argument());
+      value?.[key()]?.(argument());
+      return value ?? argument();
+    }
+  `, {
+    targetOptions: { typescriptCompatibility: "compat" },
+  });
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Tsonic.CSharp.Js.TsValue optional(Tsonic.CSharp.Js.TsValue value, Func<string> key, Func<Tsonic.CSharp.Js.TsValue> argument)
+        {
+            value.ReadCompatSlotOptional("name");
+            value.ReadCompatElementOptional(() => key());
+            value.InvokeCompatOptional(() => new object?[] { argument() });
+            value.InvokeCompatSlot("create", true, false, () => new object?[] { argument() });
+            value.InvokeCompatSlot("create", false, true, () => new object?[] { argument() });
+            value.InvokeCompatElement(() => key(), true, true, () => new object?[] { argument() });
+            return Tsonic.CSharp.Js.TsValue.ApplyCompatLogical(value, "??", () => argument());
+        }
+    }
+}
+`);
+});
+
+test("direct C# strict-native translation rejects opaque any declarations and operations", () => {
+  const compiled = compileCsharpSource({
+    sourceText:
+      "export function read(value: any): any { return value.name; }",
+    targetOptions: { typescriptCompatibility: "strict-native" },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
+    [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message:
+        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax. Node kind: 132.",
+    }, {
+      code: "CSHARP_UNSUPPORTED_AST",
+      message:
+        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax. Node kind: 132.",
+    }, {
+      code: "CSHARP_UNSUPPORTED_AST",
+      message:
+        "C# property read uses TypeScript any in strict-native mode. Node kind: 212.",
+    }],
+  );
+  assert.deepEqual([...compiled.artifacts], []);
+});
+
 function cleanCompile(sourceText, options = {}) {
   const compiled = compileCsharpSource({ sourceText, ...options });
   assert.equal(compiled.sourceDiagnosticsText, "");
