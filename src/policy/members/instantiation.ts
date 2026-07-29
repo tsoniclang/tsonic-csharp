@@ -21,6 +21,7 @@ import type {
   TargetTypeRef,
 } from "../types/index.js";
 import {
+  csharpTargetParameterValueType,
   targetTypeRefKey,
 } from "../types/index.js";
 import {
@@ -444,7 +445,10 @@ function validateArgumentsTargetSelectedParameters(
       host,
       sourceExpression,
       sourceType,
-      argument.targetParameter.type,
+      csharpTargetParameterValueType(
+        argument.targetParameter,
+        argument.sourceForm,
+      ),
       "implicit",
     );
     if (
@@ -459,7 +463,7 @@ function validateArgumentsTargetSelectedParameters(
       return {
         kind: "rejected",
         reason:
-          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with representation '${targetTypeRefKey(argument.targetParameter.type)}' through an implicit conversion.${detail}`,
+          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}' through an implicit conversion.${detail}`,
       };
     }
   }

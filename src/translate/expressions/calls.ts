@@ -21,6 +21,9 @@ import type {
   CsharpTargetParameter,
   TargetTypeRef,
 } from "../../policy/types/index.js";
+import {
+  csharpTargetParameterValueType,
+} from "../../policy/types/index.js";
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
@@ -389,11 +392,7 @@ function translateCallArgument(
     ));
     return undefined;
   }
-  const targetType = sourceForm === "spread-sequence"
-    ? parameter.type
-    : parameter.paramsArray === true && parameter.type.kind === "array"
-      ? parameter.type.element
-      : parameter.type;
+  const targetType = csharpTargetParameterValueType(parameter, sourceForm);
   const expectedType = csharpTypeFromTargetTypeRef(targetType);
   if (expectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

@@ -119,8 +119,9 @@ function sourceProfileContext(selectedSurfaces) {
 }
 
 function assertNoBundledTypeScriptLibraries(session) {
-  const fileNames = session.getSourceFiles()
-    .map((sourceFile) => session.ast.getFileName(sourceFile))
+  const checked = session.checkSource();
+  const fileNames = checked.sourceFiles
+    .map((sourceFile) => checked.ast.getFileName(sourceFile))
     .filter((fileName) => fileName !== "");
   assert.equal(fileNames.some((fileName) => /\/lib\.[^/]*\.d\.ts$/u.test(fileName)), false, `bundled TypeScript lib leaked into source profile program: ${fileNames.join("\n")}`);
 }

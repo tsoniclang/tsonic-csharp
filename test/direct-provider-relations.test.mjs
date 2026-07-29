@@ -1,0 +1,249 @@
+import {
+  assert,
+  providerBinding,
+  providerDeclaration,
+  providerMethod,
+  signatureRelation,
+  test,
+} from "./direct-provider-selection.helpers.mjs";
+import {
+  createCsharpProviderRelationCatalog,
+  providerMemberSourceIdentity,
+  providerSignatureSourceIdentity,
+} from "../dist/provider/target-relations/index.js";
+
+test("provider relation lookup uses the complete selected signature identity", () => {
+  const declaration = providerDeclaration({
+    memberId: "provider.member",
+    memberStatic: false,
+    memberName: "same",
+    signatureId: "provider.signature",
+  });
+  const relation = signatureRelation({
+    declaration,
+    member: providerMethod({
+      id: "Target.Type.Member()",
+      sourceName: "same",
+      targetName: "DifferentTargetName",
+    }),
+  });
+  const catalog = createCsharpProviderRelationCatalog([[relation]]);
+  const identity = providerSignatureSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(identity.identity), [relation]);
+
+  const differentSignature = providerSignatureSourceIdentity({
+    ...declaration,
+    signatureId: "provider.signature.other",
+  });
+  assert.equal(differentSignature.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(differentSignature.identity), []);
+
+  const differentMember = providerSignatureSourceIdentity({
+    ...declaration,
+    memberId: "provider.member.other",
+  });
+  assert.equal(differentMember.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(differentMember.identity), []);
+});
+
+test("same-spelling static and instance provider members remain separate", () => {
+  const instanceDeclaration = providerDeclaration({
+    memberId: "provider.instance",
+    memberStatic: false,
+    memberName: "Equals",
+    signatureId: null,
+  });
+  const staticDeclaration = providerDeclaration({
+    memberId: "provider.static",
+    memberStatic: true,
+    memberName: "Equals",
+    signatureId: null,
+  });
+  const instanceIdentity = providerMemberSourceIdentity(instanceDeclaration);
+  const staticIdentity = providerMemberSourceIdentity(staticDeclaration);
+  assert.equal(instanceIdentity.kind, "resolved");
+  assert.equal(staticIdentity.kind, "resolved");
+  assert.notDeepEqual(instanceIdentity.identity, staticIdentity.identity);
+});
+
+test("one provider signature may map to multiple target candidates without ranking", () => {
+  const declaration = providerDeclaration();
+  const first = signatureRelation({
+    declaration,
+    binding: providerBinding({ id: "Target.First" }),
+    member: providerMethod({
+      id: "Target.First.Member()",
+      declaringTypeId: "Target.First",
+    }),
+  });
+  const second = signatureRelation({
+    declaration,
+    binding: providerBinding({ id: "Target.Second" }),
+    member: providerMethod({
+      id: "Target.Second.Member()",
+      declaringTypeId: "Target.Second",
+    }),
+  });
+  const catalog = createCsharpProviderRelationCatalog([[first], [second]]);
+  const identity = providerSignatureSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(identity.identity), [first, second]);
+});
+
+test("provider aliases are explicit relations rather than target-name equality", () => {
+  const firstDeclaration = providerDeclaration({
+    memberId: "provider.alias.first",
+    signatureId: "provider.alias.first.signature",
+  });
+  const secondDeclaration = providerDeclaration({
+    memberId: "provider.alias.second",
+    signatureId: "provider.alias.second.signature",
+  });
+  const binding = providerBinding();
+  const member = providerMethod({ id: "Target.Type.Canonical()" });
+  const first = signatureRelation({
+    declaration: firstDeclaration,
+    binding,
+    member,
+  });
+  const second = signatureRelation({
+    declaration: secondDeclaration,
+    binding,
+    member,
+  });
+  const catalog = createCsharpProviderRelationCatalog([[first, second]]);
+  const firstIdentity = providerSignatureSourceIdentity(firstDeclaration);
+  const secondIdentity = providerSignatureSourceIdentity(secondDeclaration);
+  assert.equal(firstIdentity.kind, "resolved");
+  assert.equal(secondIdentity.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(firstIdentity.identity), [first]);
+  assert.deepEqual(catalog.resolveSignature(secondIdentity.identity), [second]);
+});
+
+test("provider relation slices merge deterministically and deduplicate exact repeats", () => {
+  const declaration = providerDeclaration();
+  const relation = signatureRelation({ declaration });
+  const catalog = createCsharpProviderRelationCatalog([
+    [relation],
+    [{ ...relation }],
+  ]);
+  assert.equal(catalog.relations.length, 1);
+  assert.deepEqual(catalog.relations[0], relation);
+});
+
+test("contradictory duplicate provider relations fail closed", () => {
+  const declaration = providerDeclaration();
+  const relation = signatureRelation({ declaration });
+  const conflicting = {
+    ...relation,
+    targetMember: {
+      ...relation.targetMember,
+      targetName: "Contradictory",
+    },
+  };
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation, conflicting]]),
+    /provider relation conflict/u,
+  );
+});
+
+test("incomplete member evidence cannot become a provider member identity", () => {
+  const missingStaticness = providerMemberSourceIdentity(
+    providerDeclaration({
+      memberStatic: null,
+      signatureId: null,
+    }),
+  );
+  assert.equal(missingStaticness.kind, "missing");
+  assert.match(missingStaticness.reason, /missing member id, staticness, or property key/u);
+});
+
+test("signature evidence with a partial member identity fails closed", () => {
+  const identity = providerSignatureSourceIdentity(
+    providerDeclaration({
+      memberStatic: null,
+    }),
+  );
+  assert.equal(identity.kind, "missing");
+  assert.match(identity.reason, /incomplete member identity/u);
+});
+
+test("provider relations reject contradictory source and target staticness", () => {
+  const declaration = providerDeclaration({ memberStatic: true });
+  const relation = signatureRelation({
+    declaration,
+    member: providerMethod({ static: false }),
+    receiver: { kind: "instance" },
+  });
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /instance receiver relation contradicts source or target staticness/u,
+  );
+});
+
+test("provider first-argument receiver relations require explicit target metadata", () => {
+  const declaration = providerDeclaration({ memberStatic: false });
+  const member = providerMethod({
+    static: true,
+    parameters: [{
+      name: "receiver",
+      type: { kind: "target-named", id: "Fixture.Target" },
+      passingMode: "by-value",
+    }],
+  });
+  const relation = signatureRelation({
+    declaration,
+    member,
+    receiver: { kind: "target-parameter", targetParameterIndex: 0 },
+    sourceParameters: [],
+  });
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /exact static first-argument target receiver/u,
+  );
+});
+
+test("provider parameter relations must cover each exact target slot once", () => {
+  const declaration = providerDeclaration();
+  const member = providerMethod({
+    parameters: [{
+      name: "value",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "by-value",
+    }],
+  });
+  const relation = signatureRelation({
+    declaration,
+    member,
+    sourceParameters: [],
+  });
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /does not cover the exact target signature/u,
+  );
+});
+
+test("provider type-parameter relations must cover exact target arity", () => {
+  const declaration = providerDeclaration();
+  const binding = providerBinding({
+    id: "Fixture.Target`1",
+    typeParameters: [{ name: "T" }],
+  });
+  const relation = signatureRelation({
+    declaration,
+    binding,
+    member: providerMethod({
+      declaringType: {
+        kind: "target-named",
+        id: binding.id,
+        typeArguments: [{ kind: "type-parameter", name: "T" }],
+      },
+    }),
+    bindingTypeParameters: [],
+  });
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /binding type-parameter relation does not cover the exact target arity/u,
+  );
+});

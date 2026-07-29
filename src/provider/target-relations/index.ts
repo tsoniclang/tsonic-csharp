@@ -226,6 +226,7 @@ export function createCsharpProviderRelationCatalog(
 ): CsharpProviderRelationCatalog {
   const relationsByIdentity = new Map<string, CsharpProviderTargetRelation[]>();
   for (const relation of slices.flat()) {
+    assertCsharpProviderTargetRelationContract(relation);
     const key = providerSourceIdentityKey(relation.source);
     const existing = relationsByIdentity.get(key) ?? [];
     const duplicate = existing.find((candidate) =>
@@ -254,6 +255,208 @@ export function createCsharpProviderRelationCatalog(
     resolveSignature: resolve,
     relations,
   });
+}
+
+export function assertCsharpProviderTargetRelationContract(
+  relation: CsharpProviderTargetRelation,
+): void {
+  if (
+    relation.source.kind !== relation.kind ||
+    relation.targetBinding.target !== "csharp" ||
+    relation.targetBinding.id.length === 0
+  ) {
+    throw new Error(
+      "C# provider relation has contradictory source kind or target binding identity.",
+    );
+  }
+  if (relation.kind === "value") {
+    if (
+      relation.targetMember.id.length === 0 ||
+      relation.targetMember.declaringType === undefined ||
+      relation.targetMember.static !== true ||
+      (
+        relation.targetMember.kind !== "property" &&
+        relation.targetMember.kind !== "field"
+      )
+    ) {
+      throw new Error(
+        "C# provider value relation must target an exact static property or field.",
+      );
+    }
+    return;
+  }
+  assertCompleteTypeParameterRelation(
+    relation.bindingTypeParameters,
+    relation.targetBinding.typeParameters?.length ?? 0,
+    "binding",
+  );
+  if (relation.kind === "type") {
+    return;
+  }
+  if (
+    relation.targetMember.id.length === 0 ||
+    relation.targetMember.declaringType === undefined
+  ) {
+    throw new Error(
+      "C# provider member relation requires an exact target member and declaring type.",
+    );
+  }
+  assertReceiverRelation(relation);
+  if (relation.kind === "member") {
+    if (
+      relation.targetMember.kind !== "property" &&
+      relation.targetMember.kind !== "field" &&
+      relation.targetMember.kind !== "event"
+    ) {
+      throw new Error(
+        "C# provider member relation must target a property, field, or event.",
+      );
+    }
+    return;
+  }
+  if (
+    relation.targetMember.kind !== "method" &&
+    relation.targetMember.kind !== "constructor" &&
+    relation.targetMember.kind !== "indexer" &&
+    relation.targetMember.kind !== "operator"
+  ) {
+    throw new Error(
+      "C# provider signature relation must target a callable member or indexer.",
+    );
+  }
+  assertCompleteTypeParameterRelation(
+    relation.methodTypeParameters,
+    relation.targetMember.typeParameters?.length ?? 0,
+    "method",
+  );
+  assertParameterRelations(relation);
+}
+
+function assertReceiverRelation(
+  relation: Exclude<
+    CsharpProviderTargetRelation,
+    { readonly kind: "type" | "value" }
+  >,
+): void {
+  const sourceStatic = relation.source.memberStatic;
+  const targetStatic = relation.targetMember.static === true;
+  switch (relation.receiver.kind) {
+    case "none":
+      if (
+        relation.targetMember.kind !== "constructor" &&
+        (!targetStatic || sourceStatic !== true)
+      ) {
+        throw new Error(
+          "C# provider receiver relation 'none' requires a constructor or an exact static source-to-target member relation.",
+        );
+      }
+      return;
+    case "instance":
+      if (targetStatic || sourceStatic !== false) {
+        throw new Error(
+          "C# provider instance receiver relation contradicts source or target staticness.",
+        );
+      }
+      return;
+    case "target-parameter": {
+      const receiver = relation.targetMember.parameters[
+        relation.receiver.targetParameterIndex
+      ];
+      if (
+        sourceStatic !== false ||
+        !targetStatic ||
+        relation.targetMember.receiverPassing !== "first-argument" ||
+        receiver === undefined
+      ) {
+        throw new Error(
+          "C# provider target-parameter receiver relation requires an instance-shaped source member and an exact static first-argument target receiver.",
+        );
+      }
+    }
+  }
+}
+
+function assertCompleteTypeParameterRelation(
+  relations: readonly CsharpProviderTypeParameterRelation[],
+  targetArity: number,
+  role: "binding" | "method",
+): void {
+  if (relations.length !== targetArity) {
+    throw new Error(
+      `C# provider ${role} type-parameter relation does not cover the exact target arity.`,
+    );
+  }
+  const sourceIndexes = new Set<number>();
+  const targetIndexes = new Set<number>();
+  for (const relation of relations) {
+    if (
+      !Number.isSafeInteger(relation.sourceTypeParameterIndex) ||
+      !Number.isSafeInteger(relation.targetTypeParameterIndex) ||
+      relation.sourceTypeParameterIndex < 0 ||
+      relation.sourceTypeParameterIndex >= relations.length ||
+      relation.targetTypeParameterIndex < 0 ||
+      relation.targetTypeParameterIndex >= targetArity ||
+      sourceIndexes.has(relation.sourceTypeParameterIndex) ||
+      targetIndexes.has(relation.targetTypeParameterIndex)
+    ) {
+      throw new Error(
+        `C# provider ${role} type-parameter relation is incomplete, duplicated, or out of range.`,
+      );
+    }
+    sourceIndexes.add(relation.sourceTypeParameterIndex);
+    targetIndexes.add(relation.targetTypeParameterIndex);
+  }
+}
+
+function assertParameterRelations(
+  relation: Extract<
+    CsharpProviderTargetRelation,
+    { readonly kind: "signature" }
+  >,
+): void {
+  const receiverIndex = relation.receiver.kind === "target-parameter"
+    ? relation.receiver.targetParameterIndex
+    : undefined;
+  if (
+    relation.parameters.length !==
+      relation.targetMember.parameters.length -
+        (receiverIndex === undefined ? 0 : 1)
+  ) {
+    throw new Error(
+      "C# provider parameter relation does not cover the exact target signature.",
+    );
+  }
+  const sourceIndexes = new Set<number>();
+  const targetIndexes = new Set<number>();
+  for (const parameter of relation.parameters) {
+    const target = relation.targetMember.parameters[
+      parameter.targetParameterIndex
+    ];
+    if (
+      !Number.isSafeInteger(parameter.sourceParameterIndex) ||
+      !Number.isSafeInteger(parameter.targetParameterIndex) ||
+      parameter.sourceParameterIndex < 0 ||
+      parameter.sourceParameterIndex >= relation.parameters.length ||
+      parameter.targetParameterIndex < 0 ||
+      target === undefined ||
+      parameter.targetParameterIndex === receiverIndex ||
+      sourceIndexes.has(parameter.sourceParameterIndex) ||
+      targetIndexes.has(parameter.targetParameterIndex) ||
+      parameter.targetPassingMode !== target.passingMode ||
+      parameter.targetAcceptsOmission !==
+        (
+          target.optional === true ||
+          target.csharpOmittableOptionalArgument === true
+        ) ||
+      parameter.targetParamsArray !== (target.paramsArray === true)
+    ) {
+      throw new Error(
+        "C# provider parameter relation is incomplete, contradictory, duplicated, or out of range.",
+      );
+    }
+    sourceIndexes.add(parameter.sourceParameterIndex);
+    targetIndexes.add(parameter.targetParameterIndex);
+  }
 }
 
 function providerTargetRelationIdentity(relation: CsharpProviderTargetRelation): string {

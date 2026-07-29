@@ -78,3 +78,14 @@ export function targetParameter(
     ...(options.optional === true && options.csharpOmittableOptionalArgument !== false ? { csharpOmittableOptionalArgument: true } : {}),
   };
 }
+
+export function csharpTargetParameterValueType(
+  parameter: CsharpTargetParameter,
+  sourceForm: "value" | "spread-element" | "spread-sequence",
+): TargetTypeRef {
+  return sourceForm !== "spread-sequence" &&
+      parameter.paramsArray === true &&
+      parameter.type.kind === "array"
+    ? parameter.type.element
+    : parameter.type;
+}
