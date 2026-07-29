@@ -67,6 +67,8 @@ import {
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   csharpRuntimeUnionTargetType,
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
 } from "./runtime-carriers.js";
 import {
   csharpBigIntegerTargetType,
@@ -76,6 +78,7 @@ import {
 } from "./scalar-types.js";
 import {
   classifyCsharpSourceProfileType,
+  selectedCsharpSourceProfileOwner,
 } from "./source-profile.js";
 import {
   resolveCsharpSourceLiteralTargetType,
@@ -94,7 +97,7 @@ import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 
-export interface CsharpTypePolicyHost {
+export interface CsharpTypePolicyBaseHost {
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
@@ -103,6 +106,15 @@ export interface CsharpTypePolicyHost {
   readonly target: TargetSelection;
   queries(sourceFile: SourceFile): SourceFileQueries;
   queriesFor(node: Node): SourceFileQueries;
+}
+
+export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly structuralTypes: {
+    resolveNode(
+      node: Node,
+      sourceFile: SourceFile,
+    ): TargetTypeRef | undefined;
+  };
 }
 
 export interface CsharpTypePolicy {
@@ -178,7 +190,9 @@ export function createCsharpTypePolicy(
         nextState(state),
       );
       if (element !== undefined) {
-        return { kind: "array", element };
+        return selectedCsharpSourceProfileOwner(host.target) === "js"
+          ? csharpJsArrayTargetType(element)
+          : { kind: "array", element };
       }
       return resolveTypeWithState(
         queries.checker.getTypeFromTypeNode(node),
@@ -200,6 +214,20 @@ export function createCsharpTypePolicy(
             kind: "tuple",
             elements: elements as readonly TargetTypeRef[],
           };
+    }
+    if (host.ast.is.IsUnionTypeNode(node)) {
+      const members = host.ast.children(node).map((member) =>
+        resolveNodeWithState(
+          member,
+          queries.sourceFile,
+          nextState(state),
+        )
+      );
+      return members.some((member) => member === undefined)
+        ? undefined
+        : combineTargetUnionMembers(
+            members as readonly TargetTypeRef[],
+          );
     }
     if (host.ast.is.IsNamedTupleMember(node)) {
       return resolveNodeWithState(
@@ -259,6 +287,13 @@ export function createCsharpTypePolicy(
     if (projectType !== undefined) {
       return projectType;
     }
+    const structuralType = host.structuralTypes.resolveNode(
+      node,
+      queries.sourceFile,
+    );
+    if (structuralType !== undefined) {
+      return structuralType;
+    }
     return resolveTypeWithState(
       queries.checker.getTypeAtLocation(node),
       queries.sourceFile,
@@ -278,6 +313,13 @@ export function createCsharpTypePolicy(
       const assertion = host.ast.is.IsAsExpression(node)
         ? host.ast.as.AsAsExpression(node)
         : host.ast.as.AsTypeAssertion(node);
+      if (host.ast.isConstAssertion(node)) {
+        return resolveNodeWithState(
+          assertion?.Expression,
+          queries.sourceFile,
+          nextState(state),
+        );
+      }
       return resolveNodeWithState(
         assertion?.Type,
         queries.sourceFile,
@@ -1074,6 +1116,30 @@ export function createCsharpTypePolicy(
       : csharpRuntimeUnionTargetType(targetMembers);
   }
 
+  function combineTargetUnionMembers(
+    members: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined {
+    const valueMembers = uniqueTargetTypes(
+      members.filter(
+        (member) =>
+          !isCsharpRuntimeNullTargetType(member) &&
+          !isCsharpRuntimeUndefinedTargetType(member),
+      ),
+    );
+    const containsNullish = valueMembers.length !== members.length;
+    if (valueMembers.length === 0) {
+      return members.some(isCsharpRuntimeUndefinedTargetType)
+        ? csharpRuntimeUndefinedTargetType()
+        : csharpRuntimeNullTargetType();
+    }
+    const valueType = valueMembers.length === 1
+      ? valueMembers[0]!
+      : csharpRuntimeUnionTargetType(valueMembers);
+    return valueType === undefined || !containsNullish
+      ? valueType
+      : csharpNullableTargetType(valueType);
+  }
+
   function resolveCallableType(
     type: Type,
     queries: SourceFileQueries,
@@ -1099,10 +1165,11 @@ export function createCsharpTypePolicy(
     if (parameterTypes.some((parameter) => parameter === undefined)) {
       return undefined;
     }
-    const returnType = resolveTypeWithState(
+    const returnType = resolveSelectedDeclarationResult(
+      queries.checker.getSignatureDeclaration(signature),
       queries.typeShape.getReturnTypeOfSignature(signature),
-      queries.sourceFile,
-      nextState(state),
+      queries,
+      state,
     );
     if (returnType === undefined) {
       return undefined;

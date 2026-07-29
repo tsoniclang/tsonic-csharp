@@ -27,11 +27,9 @@ import {
 import type {
   CsharpObjectShapePolicy,
   CsharpTypePolicy,
-  CsharpTypePolicyHost,
 } from "../../policy/types/index.js";
 import {
-  createCsharpObjectShapePolicy,
-  createCsharpTypePolicy,
+  createCsharpTypeSystem,
 } from "../../policy/types/index.js";
 import type {
   CsharpProviderCallSelectionHost,
@@ -82,7 +80,7 @@ export function createCsharpTranslationContext(
     }
     return input.source.getSourceFileQueries(sourceFile);
   };
-  const typePolicyHost: CsharpTypePolicyHost = {
+  const typePolicyHost = {
     ast: input.source.ast,
     sourceFiles,
     sourceFacts: input.source.sourceFacts,
@@ -92,11 +90,7 @@ export function createCsharpTranslationContext(
     queries,
     queriesFor,
   };
-  const types = createCsharpTypePolicy(typePolicyHost);
-  const objectShapes = createCsharpObjectShapePolicy({
-    ...typePolicyHost,
-    types,
-  });
+  const { types, objectShapes } = createCsharpTypeSystem(typePolicyHost);
   const artifacts = createCsharpTranslationArtifactGraph({ objectShapes });
   const outputIdentities = createCsharpSourceOutputIdentityPlanner({
     ast: input.source.ast,

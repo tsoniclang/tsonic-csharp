@@ -14,8 +14,10 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
+  getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
   isSourceOwnedCallableRuntimeCarrierSubject,
+  targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import type {
   CsharpExpression,
@@ -46,8 +48,20 @@ export function applyCsharpConversionSelection(
   }
   switch (selection.kind) {
     case "identity":
-    case "implicit":
       return expression;
+    case "implicit":
+      return selection.proof === "runtime-union-arm"
+        ? applyRuntimeUnionArmConversion(
+            node,
+            sourceFile,
+            input,
+            diagnostics,
+            sourceType,
+            targetType,
+            selection,
+            expression,
+          )
+        : expression;
     case "nullable-value":
       return {
         kind: "SimpleMemberAccessExpression",
@@ -105,6 +119,59 @@ export function applyCsharpConversionSelection(
       diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
       return undefined;
   }
+}
+
+function applyRuntimeUnionArmConversion(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  selection: Extract<
+    CsharpConversionSelection,
+    { readonly kind: "implicit"; readonly proof: "runtime-union-arm" }
+  >,
+  expression: CsharpExpression,
+): CsharpExpression | undefined {
+  const arms = getCsharpRuntimeUnionArms(targetType);
+  const selectedArm = arms?.[selection.armIndex];
+  const declaringType = targetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(targetType);
+  if (
+    selectedArm === undefined ||
+    !targetTypeRefEquals(selectedArm, selection.armType) ||
+    declaringType === undefined
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# runtime-union construction requires one exact source arm and a renderable closed union carrier.",
+    ));
+    return undefined;
+  }
+  const convertedExpression = applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceType,
+    selection.armType,
+    selection.sourceToArm,
+    expression,
+  );
+  if (convertedExpression === undefined) {
+    return undefined;
+  }
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: declaringType,
+      name: `From${selection.armIndex + 1}`,
+    },
+    arguments: [{ kind: "Argument", expression: convertedExpression }],
+  };
 }
 
 function applyDelegateAdapter(

@@ -17,7 +17,7 @@ import {
 } from "../../csharp-identifiers.js";
 import type {
   CsharpTypePolicy,
-  CsharpTypePolicyHost,
+  CsharpTypePolicyBaseHost,
 } from "./resolution.js";
 import type {
   CsharpObjectShapeFact,
@@ -37,17 +37,22 @@ import {
   isCsharpVoidTargetType,
 } from "./identity.js";
 import {
+  getCsharpNullableElementTargetType,
   csharpNullableTargetType,
 } from "./nullable.js";
 import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 
-export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyHost {
+export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly types: CsharpTypePolicy;
 }
 
 export interface CsharpObjectShapePolicy {
+  resolveProjectedType(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,
@@ -65,6 +70,8 @@ const maximumObjectShapeDepth = 64;
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpObjectShapePolicy {
+  const activeNodes = new WeakSet<object>();
+  const activeProjections = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
 
@@ -79,32 +86,152 @@ export function createCsharpObjectShapePolicy(
     if (cached !== undefined) {
       return cached;
     }
-    const queries = sourceFile === undefined
-      ? host.queriesFor(node)
-      : host.queries(sourceFile);
-    const directStruct = resolveStructShape(node, queries);
-    if (directStruct !== undefined) {
-      remember(node, directStruct);
-      return directStruct;
+    if (activeNodes.has(node)) {
+      return undefined;
     }
-    const contextualType = host.ast.is.IsObjectLiteralExpression(node)
-      ? queries.checker.getContextualType(node)
+    activeNodes.add(node);
+    try {
+      const queries = sourceFile === undefined
+        ? host.queriesFor(node)
+        : host.queries(sourceFile);
+      const directStruct = resolveStructShape(node, queries);
+      if (directStruct !== undefined) {
+        remember(node, directStruct);
+        return directStruct;
+      }
+      const selectedTarget = host.types.resolveNode(node, queries.sourceFile);
+      const selectedShape = resolveTarget(selectedTarget);
+      if (selectedShape !== undefined) {
+        remember(node, selectedShape);
+        return selectedShape;
+      }
+      const contextualType = host.ast.is.IsObjectLiteralExpression(node)
+        ? queries.checker.getContextualType(node)
+        : undefined;
+      const semanticType = contextualType ??
+        queries.checker.getTypeAtLocation(node);
+      const shape = resolveSemanticShape(
+        semanticType,
+        node,
+        queries,
+        {
+          depth: 0,
+          activeTypes: new Set(),
+        },
+      );
+      if (shape !== undefined) {
+        remember(node, shape);
+      }
+      return shape;
+    } finally {
+      activeNodes.delete(node);
+    }
+  }
+
+  function resolveProjectedType(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (node === undefined) {
+      return undefined;
+    }
+    const parent = host.ast.parent(node);
+    const referenced = host.navigation.referenceFor(node)?.declaration;
+    const bindingElement = host.ast.is.IsBindingElement(node)
+      ? node
+      : parent !== undefined && host.ast.is.IsBindingElement(parent)
+      ? parent
+      : referenced !== undefined && host.ast.is.IsBindingElement(referenced)
+      ? referenced
       : undefined;
-    const semanticType = contextualType ??
-      queries.checker.getTypeAtLocation(node);
-    const shape = resolveSemanticShape(
-      semanticType,
-      node,
-      queries,
-      {
-        depth: 0,
-        activeTypes: new Set(),
-      },
-    );
-    if (shape !== undefined) {
-      remember(node, shape);
+    if (
+      bindingElement === undefined ||
+      activeProjections.has(bindingElement)
+    ) {
+      return undefined;
     }
-    return shape;
+    const bindingPattern = host.ast.parent(bindingElement);
+    if (
+      bindingPattern === undefined ||
+      !host.ast.is.IsObjectBindingPattern(bindingPattern)
+    ) {
+      return undefined;
+    }
+    const declaration = host.ast.as.AsBindingElement(bindingElement);
+    const propertyNode = declaration?.PropertyName ?? declaration?.name;
+    const sourceName = sourcePropertyName(propertyNode);
+    if (sourceName === undefined) {
+      return undefined;
+    }
+    activeProjections.add(bindingElement);
+    try {
+      const owner = host.ast.parent(bindingPattern);
+      const ownerType = bindingProjectionOwnerType(
+        owner,
+        bindingPattern,
+        sourceFile,
+      );
+      const ownerShape = resolveTarget(ownerType);
+      const selectedMembers = ownerShape?.members.filter(
+        (member) => member.sourceName === sourceName,
+      ) ?? [];
+      if (selectedMembers.length !== 1) {
+        return undefined;
+      }
+      const selectedType = selectedMembers[0]!.type;
+      return declaration?.Initializer === undefined
+        ? selectedType
+        : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
+    } finally {
+      activeProjections.delete(bindingElement);
+    }
+  }
+
+  function bindingProjectionOwnerType(
+    owner: Node | undefined,
+    bindingPattern: Node,
+    sourceFile: SourceFile | undefined,
+  ): TargetTypeRef | undefined {
+    if (owner === undefined) {
+      return undefined;
+    }
+    if (host.ast.is.IsVariableDeclaration(owner)) {
+      const declaration = host.ast.as.AsVariableDeclaration(owner);
+      const source = declaration?.Type ?? declaration?.Initializer;
+      return host.types.resolveNode(
+        source,
+        sourceFile ?? host.ast.getSourceFile(owner),
+      );
+    }
+    if (host.ast.is.IsParameterDeclaration(owner)) {
+      return host.types.resolveNode(
+        host.ast.as.AsParameterDeclaration(owner)?.Type,
+        sourceFile ?? host.ast.getSourceFile(owner),
+      );
+    }
+    if (
+      host.ast.is.IsBindingElement(owner) &&
+      host.ast.as.AsBindingElement(owner)?.name === bindingPattern
+    ) {
+      return resolveProjectedType(
+        owner,
+        sourceFile ?? host.ast.getSourceFile(owner),
+      );
+    }
+    return undefined;
+  }
+
+  function sourcePropertyName(
+    node: Node | undefined,
+  ): string | undefined {
+    return node !== undefined &&
+        (
+          host.ast.is.IsIdentifier(node) ||
+          host.ast.is.IsStringLiteral(node) ||
+          host.ast.is.IsNumericLiteral(node)
+        )
+      ? host.ast.text(node)
+      : undefined;
   }
 
   function resolveTarget(
@@ -293,7 +420,7 @@ export function createCsharpObjectShapePolicy(
     );
     const memberType = method
       ? resolveMethodType(sourceType, queries, state)
-      : host.types.resolveType(sourceType, queries.sourceFile);
+      : resolvePropertyType(declarations, sourceType, queries);
     if (memberType === undefined) {
       return undefined;
     }
@@ -315,6 +442,49 @@ export function createCsharpObjectShapePolicy(
         ? { readonly: true }
         : {}),
     };
+  }
+
+  function resolvePropertyType(
+    declarations: readonly Node[],
+    sourceType: Type,
+    queries: SourceFileQueries,
+  ): TargetTypeRef | undefined {
+    const authoredTypeNodes = declarations
+      .map(propertyDeclarationTypeNode)
+      .filter((typeNode): typeNode is Node => typeNode !== undefined);
+    if (authoredTypeNodes.length === 0) {
+      return host.types.resolveType(sourceType, queries.sourceFile);
+    }
+    const authoredTypes = authoredTypeNodes.map((typeNode) =>
+      host.types.resolveNode(
+        typeNode,
+        host.ast.getSourceFile(typeNode) ?? queries.sourceFile,
+      )
+    );
+    if (authoredTypes.some((type) => type === undefined)) {
+      return undefined;
+    }
+    const first = authoredTypes[0]!;
+    return authoredTypes.every((type) =>
+        type !== undefined && targetTypeRefEquals(first, type)
+      )
+      ? first
+      : undefined;
+  }
+
+  function propertyDeclarationTypeNode(
+    declaration: Node,
+  ): Node | undefined {
+    if (host.ast.is.IsPropertyDeclaration(declaration)) {
+      return host.ast.as.AsPropertyDeclaration(declaration)?.Type;
+    }
+    if (host.ast.is.IsPropertySignatureDeclaration(declaration)) {
+      return host.ast.as.AsPropertySignatureDeclaration(declaration)?.Type;
+    }
+    if (host.ast.is.IsGetAccessorDeclaration(declaration)) {
+      return host.ast.as.AsGetAccessorDeclaration(declaration)?.Type;
+    }
+    return undefined;
   }
 
   function resolveMethodType(
@@ -364,6 +534,7 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    resolveProjectedType,
     resolveNode,
     resolveTarget,
   });

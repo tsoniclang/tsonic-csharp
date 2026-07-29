@@ -267,6 +267,9 @@ function planAssertionExpression(
     ));
     return undefined;
   }
+  if (input.ast.isConstAssertion(node)) {
+    return planExpression(expressionNode, sourceFile, input, diagnostics);
+  }
   const sourceType = input.types.resolveNode(expressionNode, sourceFile);
   const targetType = input.types.resolveNode(targetTypeNode, sourceFile);
   const selection = selectCsharpExpressionConversion(

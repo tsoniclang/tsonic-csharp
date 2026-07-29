@@ -1,7 +1,6 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsAsExpression,
-  AsTypeReferenceNode,
   AsTypeAssertion,
   AsVariableDeclaration,
   HasSourceKind,
@@ -9,7 +8,6 @@ import {
   KindCallExpression,
   KindFunctionExpression,
   KindNewExpression,
-  KindTypeReference,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
@@ -107,7 +105,7 @@ function getInitializerTypeSubject(
   }
   const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
   const assertedTarget = assertion?.Type;
-  if (assertedTarget !== undefined && isConstAssertionType(assertedTarget, input)) {
+  if (assertedTarget !== undefined && input.ast.isConstAssertion(initializer)) {
     return assertion?.Expression;
   }
   if (assertedTarget !== undefined) {
@@ -124,25 +122,17 @@ function getInitializerTypeSubject(
     : undefined;
 }
 
-function isConstAssertionType(
-  node: Node,
-  input: CsharpTranslationContext,
-): boolean {
-  const name = input.ast.name(node) ?? (
-    HasSourceKind(input.ast, node, KindTypeReference)
-      ? AsTypeReferenceNode(node)?.TypeName
-      : undefined
-  );
-  return name !== undefined && input.ast.text(name) === "const";
-}
-
 function getConstAssertionInitializerType(
   initializer: Node,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): CsharpLocalDeclaration["type"] | undefined {
   const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
-  if (assertion?.Type === undefined || assertion.Expression === undefined || !isConstAssertionType(assertion.Type, input)) {
+  if (
+    assertion?.Type === undefined ||
+    assertion.Expression === undefined ||
+    !input.ast.isConstAssertion(initializer)
+  ) {
     return undefined;
   }
   return getCsharpTypeFromSemanticType(

@@ -18,8 +18,8 @@ import {
   invalidCsharpType,
 } from "../csharp-type-primitives.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "../target-types.js";
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "../target-type-object-shapes.js";
 
 export function getCsharpTypeForNode(
   node: Node | undefined,
@@ -39,7 +39,12 @@ export function getCsharpTypeForNode(
     ));
     return errorType;
   }
-  const csharpType = csharpTypeFromTargetTypeRef(targetType);
+  const csharpType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
+    input,
+    targetType,
+    diagnostics,
+    node,
+  );
   if (csharpType !== undefined) {
     return csharpType;
   }

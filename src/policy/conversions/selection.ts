@@ -50,9 +50,15 @@ export type CsharpConversionSelection =
         | "nullable"
         | "reference"
         | "collection-interface"
-        | "runtime-union-arm"
         | "provider-operator";
       readonly providerOperatorId?: string;
+    }
+  | {
+      readonly kind: "implicit";
+      readonly proof: "runtime-union-arm";
+      readonly armIndex: number;
+      readonly armType: TargetTypeRef;
+      readonly sourceToArm: CsharpConversionSelection;
     }
   | {
       readonly kind: "cast";
@@ -245,11 +251,56 @@ export function selectCsharpExpressionConversion(
   mode: CsharpConversionMode,
 ): CsharpConversionSelection {
   const selected = selectCsharpConversion(input, source, target, mode);
-  return selected.kind === "rejected" &&
-      target !== undefined &&
-      csharpLiteralIsRepresentableAs(input, expression, target)
+  if (selected.kind !== "rejected" || target === undefined) {
+    return selected;
+  }
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
+  if (runtimeUnionArms !== undefined) {
+    const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
+      const sourceToArm = selectCsharpExpressionConversion(
+        input,
+        expression,
+        source,
+        armType,
+        mode,
+      );
+      return conversionIsApplicable(sourceToArm, mode)
+        ? [{ armIndex, armType, sourceToArm }]
+        : [];
+    });
+    if (candidates.length === 1) {
+      return {
+        kind: "implicit",
+        proof: "runtime-union-arm",
+        ...candidates[0]!,
+      };
+    }
+    if (candidates.length > 1) {
+      return {
+        kind: "ambiguous",
+        reason:
+          "C# runtime-union expression conversion matches more than one exact arm.",
+        candidateIds: candidates.map((candidate) =>
+          `${candidate.armIndex}:${targetTypeRefKey(candidate.armType)}`),
+      };
+    }
+  }
+  return csharpLiteralIsRepresentableAs(input, expression, target)
     ? { kind: "implicit", proof: "literal" }
     : selected;
+}
+
+function conversionIsApplicable(
+  selection: CsharpConversionSelection,
+  mode: CsharpConversionMode,
+): boolean {
+  return selection.kind === "identity" ||
+    selection.kind === "implicit" ||
+    selection.kind === "delegate-adapter" ||
+    selection.kind === "nullable-value" ||
+    selection.kind === "compat-box" ||
+    selection.kind === "compat-cast" ||
+    mode === "explicit" && selection.kind === "cast";
 }
 
 function selectAnyConversion(
@@ -291,9 +342,18 @@ function selectRuntimeUnionConversion(
   if (arms === undefined) {
     return undefined;
   }
-  const matchingArms = arms.filter((arm) => targetTypeRefEquals(arm, source));
+  const matchingArms = arms.flatMap((armType, armIndex) =>
+    targetTypeRefEquals(armType, source)
+      ? [{ armIndex, armType }]
+      : []
+  );
   if (matchingArms.length === 1) {
-    return { kind: "implicit", proof: "runtime-union-arm" };
+    return {
+      kind: "implicit",
+      proof: "runtime-union-arm",
+      ...matchingArms[0]!,
+      sourceToArm: { kind: "identity" },
+    };
   }
   return {
     kind: "rejected",

@@ -4,6 +4,7 @@ import {
   KindCallExpression,
   KindArrayLiteralExpression,
   KindBinaryExpression,
+  KindConditionalExpression,
   KindDeleteExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
@@ -327,13 +328,19 @@ export function planExpressionWithExpectedType(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
+  const effectiveExpectedTargetType = expectedTargetType ??
+    (
+      expectedTypeSubject === undefined
+        ? undefined
+        : input.types.resolveNode(expectedTypeSubject, sourceFile)
+    );
   const expression = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
     planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
-  }, expectedTargetType);
-  if (expression === undefined || expectedTargetType === undefined) {
+  }, effectiveExpectedTargetType);
+  if (expression === undefined || effectiveExpectedTargetType === undefined) {
     return expression;
   }
   if (expressionIsConstructedInExpectedRepresentation(input, node)) {
@@ -344,7 +351,7 @@ export function planExpressionWithExpectedType(
     input,
     node,
     sourceType,
-    expectedTargetType,
+    effectiveExpectedTargetType,
     "implicit",
   );
   return applyCsharpConversionSelection(
@@ -353,7 +360,7 @@ export function planExpressionWithExpectedType(
     input,
     diagnostics,
     sourceType,
-    expectedTargetType,
+    effectiveExpectedTargetType,
     selection,
     expression,
   );
@@ -368,6 +375,7 @@ function expressionIsConstructedInExpectedRepresentation(
     case KindObjectLiteralExpression:
     case KindArrowFunction:
     case KindFunctionExpression:
+    case KindConditionalExpression:
       return true;
     default:
       return false;
