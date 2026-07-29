@@ -34,10 +34,10 @@ import {
   isCsharpReadOnlyIndexableCollectionTargetType,
   csharpListTargetType,
   csharpReadOnlyListTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import {
   csharpJsArrayCarrierTargetType,
-} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
+} from "../dist/policy/types/index.js";
 import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,

@@ -13,7 +13,7 @@ import {
 } from "../dist/source/csharp-source-semantics/source-owned-selected-signature.js";
 import {
   csharpStringTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import { checkedCallRequest } from "./provider-selection.helpers.mjs";
 
 const int32 = { kind: "source-primitive", name: "int32" };

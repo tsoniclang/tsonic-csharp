@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
+import { csharpDelegateTargetType, csharpEnumerableTargetType, csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/policy/types/index.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import {

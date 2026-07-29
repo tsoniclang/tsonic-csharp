@@ -62,10 +62,10 @@ import {
   csharpTaskTargetType,
   csharpVoidTargetType,
   csharpTsValueTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import {
   csharpJsArrayCarrierTargetType,
-} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
+} from "../dist/policy/types/index.js";
 export { test, assert, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, createDestructuringPlannerState, planStatements, planLocalDeclaration, printCsharpType, KindBlock, KindBreakStatement, KindContinueStatement, KindDefaultClause, KindDoStatement, KindArrayLiteralExpression, KindAwaitExpression, KindBinaryExpression, KindEqualsToken, KindExpressionStatement, KindForStatement, KindForInStatement, KindForOfStatement, KindIdentifier, KindLabeledStatement, KindNumericLiteral, KindObjectBindingPattern, KindObjectLiteralExpression, KindSpreadElement, KindStringLiteral, KindSwitchStatement, KindTryStatement, KindTrueKeyword, KindVariableDeclaration, KindVariableDeclarationList, KindWhileStatement, csharpByrefStorageFactKey, csharpObjectShapeFactKey, csharpTargetOperationFactKey, csharpTargetIterationFactKey, csharpExceptionTargetType, csharpListTargetType, csharpNullableValueTargetType, csharpQualifiedTypeRenderShape, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType, csharpTaskTargetType, csharpVoidTargetType, csharpTsValueTargetType, csharpJsArrayCarrierTargetType };
 
 

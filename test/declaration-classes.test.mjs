@@ -28,7 +28,7 @@ import { csharpTargetNameFactKey } from "../dist/source/csharp-facts.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpTaskTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 
 test("class declarations emit public/static members and static blocks through Roslyn AST", () => {
   const sourceExample = `

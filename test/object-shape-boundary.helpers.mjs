@@ -45,7 +45,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 export { test, assert, missingCarrierResolution, missingParameterCarrierResolution, resolvedCarrierResolution, csharpObjectShapeFactKey, csharpTargetOperationFactKey, beginObjectShapePlanning, beginObjectShapeSourceFilePlanning, csharpTypeFromObjectShapeFact, objectShapeStorageMemberName, takeObjectShapeDeclarations, planObjectLiteralExpressionWithExpectedType, planObjectShapeSpreadAssignments, tryPlanRecordDictionaryLiteralWithExpectedType, printCsharpCompilationUnit, planElementAccessExpression, planPropertyAccessExpression, KindElementAccessExpression, KindFalseKeyword, KindGetAccessor, KindIdentifier, KindMethodDeclaration, KindNumericLiteral, KindObjectLiteralExpression, KindPropertyAccessExpression, KindPropertyAssignment, KindShorthandPropertyAssignment, KindSpreadAssignment, KindStringLiteral, KindTrueKeyword, csharpQualifiedTypeRenderShape, csharpDelegateTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType, csharpTargetNamedType };
 
 

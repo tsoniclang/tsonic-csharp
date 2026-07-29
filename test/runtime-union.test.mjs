@@ -32,7 +32,7 @@ import {
   csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import {
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,

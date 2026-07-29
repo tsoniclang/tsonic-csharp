@@ -27,7 +27,7 @@ import {
   csharpTaskTargetType,
   csharpTargetNamedType,
   substituteTargetTypeParameters,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 
 const doubleType = { kind: "source-primitive", name: "float64" };
 const meterType = csharpTargetNamedType("ProviderConversionFixtures.Meter", undefined, csharpQualifiedTypeRenderShape("ProviderConversionFixtures", "Meter"), {

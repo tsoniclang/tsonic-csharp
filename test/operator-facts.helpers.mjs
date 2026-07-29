@@ -46,7 +46,7 @@ import {
   csharpTargetNamedType,
   csharpTaskTargetType,
   csharpVoidTargetType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import {
   mapCsharpCheckedOperator,
 } from "../dist/source/csharp-source-semantics/checked-operator-mapping/index.js";

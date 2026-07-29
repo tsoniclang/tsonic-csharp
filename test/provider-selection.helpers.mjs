@@ -24,7 +24,7 @@ import { selectTargetMember } from "../dist/source/csharp-source-semantics/targe
 import {
   csharpNullableValueTargetType,
   csharpSourcePrimitiveDotnetMetadataName,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import { resolveTargetTypeRefFromSubjectFacts } from "../dist/source/csharp-source-semantics/target-type-subject-facts.js";
 export { test, assert, argumentPassingFactKey, attributeFactKey, defaultValueFactKey, deferObservation, fieldFactKey, flowStateFactKey, functionPointerFactKey, pointerFactKey, providerVirtualDeclarationFactKey, selectedTargetSignatureFactKey, sourcePrimitiveFactKey, structFactKey, targetBindingFactKey, csharpAttributeApplicationFactKey, csharpTargetOperationFactKey, createCsharpNativeOperationsProvider, selectTargetMember, csharpNullableValueTargetType, csharpSourcePrimitiveDotnetMetadataName, resolveTargetTypeRefFromSubjectFacts };
 

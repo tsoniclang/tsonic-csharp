@@ -16,7 +16,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();

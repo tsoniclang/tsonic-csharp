@@ -17,7 +17,7 @@ import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/cshar
 import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+} from "../dist/policy/types/index.js";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
