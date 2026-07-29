@@ -92,7 +92,7 @@ export function applyCsharpConversionSelection(
       return invokeStaticGeneric(
         csharpTsValueTargetType(),
         "from",
-        sourceType === undefined ? [] : [sourceType],
+        [],
         expression,
         node,
         diagnostics,
