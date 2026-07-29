@@ -6,6 +6,7 @@ import type {
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  isCsharpArrayIndexTargetType,
   targetTypeRefEquals,
 } from "../types/index.js";
 import type {
@@ -34,6 +35,7 @@ interface NativeStringMethodPolicy {
 
 const stringType = csharpStringTargetType();
 const intType = csharpSourcePrimitiveTargetType("int32");
+const numberType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const instanceReceiver = { kind: "instance" } as const;
 
@@ -108,7 +110,10 @@ export const csharpNativeSourceProfilePropertyPolicies:
       select(
         context: CsharpSourceProfilePropertyPolicyContext,
       ): CsharpSourceProfilePropertyPolicyResult {
-        const declaringType = context.host.types.resolveType(
+        const declaringType = context.host.types.resolveNode(
+          context.source.receiver.expression,
+          context.sourceFile,
+        ) ?? context.host.types.resolveType(
           context.source.receiver.type,
           context.sourceFile,
         );
@@ -124,10 +129,10 @@ export const csharpNativeSourceProfilePropertyPolicies:
           declaringType === undefined ||
           !receiverMatches ||
           resultType === undefined ||
-          !targetTypeRefEquals(resultType, intType)
+          !targetTypeRefEquals(resultType, numberType)
         ) {
           return rejectedNativeProfileProperty(
-            `The checked ${declaringName}.Length access does not resolve to its declared C# receiver and int32 result carriers.`,
+            `The checked ${declaringName}.Length access does not resolve to its declared C# receiver and source-profile numeric read evidence.`,
           );
         }
         return {
@@ -155,22 +160,35 @@ export const csharpNativeSourceProfileElementPolicies:
       select(
         context: CsharpSourceProfileElementPolicyContext,
       ): CsharpSourceProfileElementPolicyResult {
-        const declaringType = context.host.types.resolveType(
+        const declaringType = context.host.types.resolveNode(
+          context.source.receiver.expression,
+          context.sourceFile,
+        ) ?? context.host.types.resolveType(
           context.source.receiver.type,
           context.sourceFile,
         );
-        const resultType = context.host.types.resolveType(
-          context.source.sourceReadType ?? context.source.sourceWriteType,
+        const selectedSourceResult =
+          context.source.sourceReadType ?? context.source.sourceWriteType;
+        const indexType = context.host.types.resolveNode(
+          context.source.argument.expression,
+          context.sourceFile,
+        ) ?? context.host.types.resolveType(
+          context.source.argument.type,
           context.sourceFile,
         );
         if (
           declaringType?.kind !== "array" ||
-          resultType === undefined ||
-          !targetTypeRefEquals(declaringType.element, resultType)
+          selectedSourceResult === undefined
         ) {
           return rejectedNativeProfileElement(
             `The checked ${declaringName} index access does not resolve to one exact native C# array element carrier.`,
           );
+        }
+        if (
+          indexType === undefined ||
+          !isCsharpArrayIndexTargetType(indexType)
+        ) {
+          return rejectedNativeProfileArrayIndex();
         }
         return {
           kind: "resolved",
@@ -180,8 +198,8 @@ export const csharpNativeSourceProfileElementPolicies:
             targetName: "Item",
             kind: "indexer",
             declaringType,
-            parameters: [nativeParameter("index", intType)],
-            returnType: resultType,
+            parameters: [nativeParameter("index", indexType)],
+            returnType: declaringType.element,
             ...(declaringName === "ReadonlyArray"
               ? { readonly: true as const }
               : {}),
@@ -275,6 +293,18 @@ function rejectedNativeProfileElement(
       "CSHARP_NATIVE_SOURCE_PROFILE_ELEMENT_NOT_CLOSED",
       9100903,
       message,
+    ),
+  };
+}
+
+function rejectedNativeProfileArrayIndex():
+  CsharpSourceProfileElementPolicyResult {
+  return {
+    kind: "rejected",
+    diagnostic: nativeProfileDiagnostic(
+      "CSHARP_NATIVE_ARRAY_INDEX_NOT_INTEGRAL",
+      9100109,
+      "C# native array element access requires an integral TSTS/provider-backed index type.",
     ),
   };
 }

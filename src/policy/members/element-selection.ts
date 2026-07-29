@@ -147,7 +147,15 @@ function instantiateProviderElement(
     relation.targetBinding,
     relation.targetMember,
     relation.bindingTypeParameters,
-    [source.receiver.type, source.sourceReadType, source.sourceWriteType],
+    relation.bindingTypeArgumentSource === "receiver" ||
+        relation.bindingTypeArgumentSource === "callee"
+      ? [{
+          node: source.receiver.expression,
+          type: source.receiver.type,
+        }]
+      : [{
+          type: source.sourceReadType ?? source.sourceWriteType,
+        }],
     sourceFile,
   );
   const targetParameter = targetMember?.parameters[

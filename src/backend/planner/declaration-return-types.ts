@@ -14,6 +14,7 @@ import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
+  csharpSourceTypeArgumentNodes,
   getCsharpTaskResultTargetType,
 } from "../../policy/types/index.js";
 
@@ -92,7 +93,7 @@ function getDeclarationReturnTargetType(
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: CsharpTranslationContext): Node | undefined {
-  const typeArguments = typeNode === undefined ? [] : input.ast.typeArguments(typeNode);
+  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, typeNode);
   return typeArguments[0];
 }
 

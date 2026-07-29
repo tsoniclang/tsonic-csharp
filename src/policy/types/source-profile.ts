@@ -3,11 +3,17 @@ import type {
   SourceFileQueries,
   Type,
 } from "@tsonic/tsts";
+import type {
+  TargetSelection,
+} from "@tsonic/target-api";
 import {
   isTsonicSourceProfileDeclarationPath,
 } from "@tsonic/target-api";
 
 export type CsharpSourceProfileTypeKind =
+  | "boolean"
+  | "number"
+  | "string"
   | "array"
   | "readonly-array"
   | "promise"
@@ -26,7 +32,18 @@ export interface CsharpSourceProfileTypeIdentity {
   readonly kind: CsharpSourceProfileTypeKind;
 }
 
+export function selectedCsharpSourceProfileOwner(
+  target: TargetSelection,
+): CsharpSourceProfileTypeIdentity["ownerId"] {
+  return target.surfaces?.includes("js") === true
+    ? "js"
+    : "csharp-provider";
+}
+
 const sourceProfileTypePolicies = Object.freeze([
+  sourceProfileTypePolicy("csharp-provider", "Boolean", "boolean"),
+  sourceProfileTypePolicy("csharp-provider", "Number", "number"),
+  sourceProfileTypePolicy("csharp-provider", "String", "string"),
   sourceProfileTypePolicy("csharp-provider", "Array", "array"),
   sourceProfileTypePolicy("csharp-provider", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("csharp-provider", "Promise", "promise"),
@@ -39,6 +56,9 @@ const sourceProfileTypePolicies = Object.freeze([
     "IterableIterator",
     "iterable",
   ),
+  sourceProfileTypePolicy("js", "Boolean", "boolean"),
+  sourceProfileTypePolicy("js", "Number", "number"),
+  sourceProfileTypePolicy("js", "String", "string"),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),

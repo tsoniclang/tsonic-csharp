@@ -63,13 +63,7 @@ export function resolveCsharpProviderCallRelations(
   }
   const declaration = resolveCsharpProviderDeclarationEvidence(
     host.sourceFacts,
-    [
-      queries.checker.getSignatureDeclaration(source.selectedSignature),
-      source.sourceCalleeAccess?.selectedDeclaration,
-      source.sourceCalleeAccess?.selectedSymbol,
-      source.sourceCallee.selectedDeclaration,
-      source.sourceCallee.selectedSymbol,
-    ],
+    [queries.checker.getSignatureDeclaration(source.selectedSignature)],
     "signature",
   );
   return resolveProviderRelations(host, declaration, "signature");

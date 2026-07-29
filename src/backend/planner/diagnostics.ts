@@ -1,10 +1,58 @@
 import { KindString, SourceFile_FileName } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type {
+  ExtensionDiagnostic,
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 
 export interface BackendDiagnosticOptions {
   readonly evidence?: readonly string[];
   readonly sourceFile?: SourceFile;
+}
+
+export function selectedPolicyDiagnostic(
+  node: Node,
+  diagnostic: ExtensionDiagnostic,
+  sourceFile?: SourceFile,
+): TargetDiagnostic {
+  const evidence = uniqueEvidence([
+    ...(diagnostic.evidence?.map((entry) => entry.message) ?? []),
+    ...sourceLocationEvidence(node, sourceFile),
+  ]);
+  const sourceSpan = structuredSourceSpan(node, sourceFile);
+  return {
+    code: `TS${diagnostic.numericCode}`,
+    category: diagnostic.category,
+    source: diagnostic.extensionId,
+    message: diagnostic.message,
+    ...(sourceSpan === undefined ? {} : { sourceSpan }),
+    ...(evidence.length === 0 ? {} : { evidence }),
+  };
+}
+
+export function targetPolicyDiagnostic(
+  node: Node,
+  code: string,
+  message: string,
+  sourceFile?: SourceFile,
+  evidence: readonly string[] = [],
+): TargetDiagnostic {
+  const completeEvidence = uniqueEvidence([
+    ...evidence,
+    ...sourceLocationEvidence(node, sourceFile),
+  ]);
+  const sourceSpan = structuredSourceSpan(node, sourceFile);
+  return {
+    code,
+    category: "error",
+    source: "tsonic-csharp",
+    message,
+    ...(sourceSpan === undefined ? {} : { sourceSpan }),
+    ...(completeEvidence.length === 0
+      ? {}
+      : { evidence: completeEvidence }),
+  };
 }
 
 export function unsupportedNodeDiagnostic(

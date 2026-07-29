@@ -130,6 +130,7 @@ function resolveMemberRelations(
         targetMember: template.targetMember,
         receiver: template.receiver,
         bindingTypeParameters: template.bindingTypeParameters,
+        bindingTypeArgumentSource: template.bindingTypeArgumentSource,
       })),
   };
 }
@@ -160,6 +161,7 @@ function resolveSignatureRelations(
         receiver: template.receiver,
         parameters: template.parameters,
         bindingTypeParameters: template.bindingTypeParameters,
+        bindingTypeArgumentSource: template.bindingTypeArgumentSource,
         methodTypeParameters: template.methodTypeParameters,
       })),
   };

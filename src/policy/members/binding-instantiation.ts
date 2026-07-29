@@ -1,4 +1,5 @@
 import type {
+  Node,
   SourceFile,
   Type,
 } from "@tsonic/tsts";
@@ -16,18 +17,25 @@ import {
   targetTypeRefEquals,
 } from "../types/index.js";
 
+export interface CsharpSourceTypeEvidence {
+  readonly node?: Node;
+  readonly type?: Type;
+}
+
 export function resolveCsharpTargetBindingArguments(
   types: CsharpTypePolicy,
   binding: CsharpTargetBindingFact,
-  sourceTypes: readonly (Type | undefined)[],
+  sourceEvidence: readonly CsharpSourceTypeEvidence[],
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const targetArity = binding.typeParameters?.length ?? 0;
   if (targetArity === 0) {
     return [];
   }
-  const candidates = sourceTypes
-    .map((type) => types.resolveType(type, sourceFile))
+  const candidates = sourceEvidence
+    .map((evidence) =>
+      types.resolveNode(evidence.node, sourceFile) ??
+      types.resolveType(evidence.type, sourceFile))
     .filter(
       (type): type is TargetTypeRef =>
         type !== undefined &&
@@ -68,7 +76,7 @@ export function instantiateCsharpProviderBindingMember(
   binding: CsharpTargetBindingFact,
   member: CsharpTargetMember,
   bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[],
-  sourceTypes: readonly (Type | undefined)[],
+  sourceEvidence: readonly CsharpSourceTypeEvidence[],
   sourceFile: SourceFile,
 ): CsharpTargetMember | undefined {
   if (!isCompleteTypeParameterRelation(
@@ -80,7 +88,7 @@ export function instantiateCsharpProviderBindingMember(
   const arguments_ = resolveCsharpTargetBindingArguments(
     types,
     binding,
-    sourceTypes,
+    sourceEvidence,
     sourceFile,
   );
   if (arguments_ === undefined) {

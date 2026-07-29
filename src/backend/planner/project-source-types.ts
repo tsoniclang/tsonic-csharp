@@ -25,6 +25,9 @@ import {
 import {
   isProviderVirtualSourceFile,
 } from "./provider-virtual-source-files.js";
+import {
+  csharpSourceTypeArgumentNodes,
+} from "../../policy/types/index.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(
   node: Node,
@@ -57,8 +60,7 @@ export function getCsharpTypeFromProjectSourceTypeReferenceNode(
   if (type === undefined) {
     return undefined;
   }
-  const typeArguments = input.ast.typeArguments(node)
-    .filter((argument): argument is Node => argument !== undefined)
+  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, node)
     .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("project source type argument"), diagnostics));
   return withCsharpTypeArguments(type, typeArguments);
 }

@@ -18,6 +18,7 @@ import type {
 import {
   csharpBaseTargetTypeFromBinding,
   csharpEnumerableTargetType,
+  csharpObjectTargetType,
   csharpTargetBindingFact,
   getCsharpCollectionElementTargetType,
   getCsharpDelegateSignature,
@@ -138,6 +139,12 @@ export function selectCsharpConversion(
   if (delegate !== undefined) {
     return delegate;
   }
+  if (
+    targetTypeRefEquals(target, csharpObjectTargetType()) &&
+    targetTypeImplicitlyConvertsToObject(source)
+  ) {
+    return { kind: "implicit", proof: "reference" };
+  }
   if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
     return { kind: "implicit", proof: "reference" };
   }
@@ -161,6 +168,28 @@ export function selectCsharpConversion(
     reason:
       `No exact C# ${mode} conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
   };
+}
+
+function targetTypeImplicitlyConvertsToObject(
+  source: TargetTypeRef,
+): boolean {
+  switch (source.kind) {
+    case "source-primitive":
+    case "array":
+    case "tuple":
+      return true;
+    case "target-named":
+      return (source as CsharpTargetNamedTypeRef).csharpSpecialType !== "void";
+    case "source-global":
+    case "type-parameter":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return false;
+  }
 }
 
 function selectCollectionInterfaceConversion(

@@ -117,6 +117,42 @@ export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): Targ
   return { kind: "source-primitive", name: kind };
 }
 
+export function isCsharpIntegralTargetType(
+  type: TargetTypeRef,
+): boolean {
+  if (type.kind !== "source-primitive") {
+    return false;
+  }
+  switch (type.name) {
+    case "char":
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "int64":
+    case "uint64":
+    case "native-int":
+    case "native-uint":
+    case "int128":
+    case "uint128":
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function isCsharpArrayIndexTargetType(
+  type: TargetTypeRef,
+): boolean {
+  return isCsharpIntegralTargetType(type) &&
+    !(
+      type.kind === "source-primitive" &&
+      (type.name === "int128" || type.name === "uint128")
+    );
+}
+
 export function csharpSourcePrimitiveRuntimeKind(
   kind: SourcePrimitiveKind,
 ): "string" | "number" | "boolean" | "bigint" {

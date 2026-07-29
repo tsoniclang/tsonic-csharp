@@ -30,6 +30,8 @@ import type {
   CsharpTypeNode,
 } from "../../backend/roslyn/syntax.js";
 import {
+  selectedPolicyDiagnostic,
+  targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "../../backend/planner/diagnostics.js";
 import type {
@@ -72,16 +74,37 @@ export function translateCsharpCallExpression(
         planCallArgument,
       );
     case "rejected":
-      diagnostics.push(unsupportedNodeDiagnostic(
+      diagnostics.push(selectedPolicyDiagnostic(
         node,
-        selection.diagnostic.message,
-        selection.diagnostic.evidence?.map((entry) => entry.message),
+        selection.diagnostic,
+        sourceFile,
       ));
       return undefined;
     case "missing":
+      diagnostics.push(targetPolicyDiagnostic(
+        node,
+        "CSHARP_TARGET_CALL_NOT_CLOSED",
+        selection.reason,
+        sourceFile,
+      ));
+      return undefined;
     case "conflict":
+      diagnostics.push(targetPolicyDiagnostic(
+        node,
+        "CSHARP_TARGET_CALL_IDENTITY_CONFLICT",
+        selection.reason,
+        sourceFile,
+      ));
+      return undefined;
     case "ambiguous":
-      diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+      diagnostics.push(targetPolicyDiagnostic(
+        node,
+        "CSHARP_TARGET_CALL_AMBIGUOUS",
+        selection.reason,
+        sourceFile,
+        selection.candidates.map((candidate) =>
+          `candidate=${candidate}`),
+      ));
       return undefined;
   }
 }

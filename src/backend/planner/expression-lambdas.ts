@@ -44,6 +44,7 @@ import type {
 } from "./expression-planner-types.js";
 import {
   csharpDelegateTargetType,
+  csharpSourceTypeArgumentNodes,
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
@@ -433,6 +434,6 @@ function getContextualTargetRef(
 
 function getAsyncLambdaReturnExpressionSubject(node: Node, input: CsharpTranslationContext): Node | undefined {
   const expression = AsArrowFunction(node) ?? AsFunctionExpression(node);
-  const typeArguments = expression?.Type === undefined ? [] : input.ast.typeArguments(expression.Type);
+  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, expression?.Type);
   return typeArguments[0];
 }

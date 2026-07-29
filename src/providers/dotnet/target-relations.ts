@@ -8,6 +8,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpProviderParameterRelation,
+  CsharpProviderBindingTypeArgumentSource,
   CsharpTargetReceiverRelation,
   CsharpProviderTypeParameterRelation,
 } from "../../provider/target-relations/index.js";
@@ -60,6 +61,10 @@ export type DotnetProviderTargetRelationTemplate =
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly bindingTypeArgumentSource: Exclude<
+        CsharpProviderBindingTypeArgumentSource,
+        "selected-operation-type-arguments"
+      >;
     }
   | {
       readonly kind: "signature";
@@ -73,6 +78,7 @@ export type DotnetProviderTargetRelationTemplate =
       readonly receiver: CsharpTargetReceiverRelation;
       readonly parameters: readonly CsharpProviderParameterRelation[];
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
     };
 
@@ -195,6 +201,9 @@ function dotnetProviderMemberTargetRelationTemplates(
       targetMember: projection.targetMember,
       receiver: providerReceiverRelation(projection),
       bindingTypeParameters,
+      bindingTypeArgumentSource: providerBindingTypeArgumentSource(
+        projection.targetMember,
+      ),
     }));
   }
   return member.signatures.flatMap((signature) =>
@@ -220,9 +229,22 @@ function dotnetProviderMemberTargetRelationTemplates(
         receiver: providerReceiverRelation(projection),
         parameters,
         bindingTypeParameters,
+        bindingTypeArgumentSource:
+          projection.targetMember.kind === "constructor"
+            ? "selected-operation-type-arguments"
+            : providerBindingTypeArgumentSource(projection.targetMember),
         methodTypeParameters,
       };
     }));
+}
+
+function providerBindingTypeArgumentSource(
+  member: CsharpTargetMember,
+): Exclude<
+  CsharpProviderBindingTypeArgumentSource,
+  "selected-operation-type-arguments"
+> {
+  return member.static === true ? "callee" : "receiver";
 }
 
 function providerTypeParameterRelations(

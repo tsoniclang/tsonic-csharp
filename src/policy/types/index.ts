@@ -13,6 +13,8 @@ export * from "./identity.js";
 export * from "./extern-aliases.js";
 export * from "./equality.js";
 export * from "./source-profile.js";
+export * from "./source-literal-policy.js";
+export * from "./source-syntax.js";
 export * from "./source-ownership.js";
 export * from "./surface-types.js";
 export * from "./resolution.js";

@@ -88,6 +88,7 @@ export function createCsharpTranslationContext(
     sourceFacts: input.source.sourceFacts,
     navigation: createSourceProgramNavigation(input.source),
     providers,
+    target: input.target,
     queries,
     queriesFor,
   };

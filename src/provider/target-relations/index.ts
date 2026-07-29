@@ -70,6 +70,12 @@ export interface CsharpProviderTypeParameterRelation {
   readonly targetTypeParameterIndex: number;
 }
 
+export type CsharpProviderBindingTypeArgumentSource =
+  | "receiver"
+  | "result"
+  | "callee"
+  | "selected-operation-type-arguments";
+
 export type CsharpProviderTargetRelation =
   | {
       readonly kind: "type";
@@ -90,6 +96,10 @@ export type CsharpProviderTargetRelation =
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly bindingTypeArgumentSource: Exclude<
+        CsharpProviderBindingTypeArgumentSource,
+        "selected-operation-type-arguments"
+      >;
     }
   | {
       readonly kind: "signature";
@@ -99,6 +109,7 @@ export type CsharpProviderTargetRelation =
       readonly receiver: CsharpTargetReceiverRelation;
       readonly parameters: readonly CsharpProviderParameterRelation[];
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
     };
 

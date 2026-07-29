@@ -21,6 +21,9 @@ import type {
   TargetTypeRef,
 } from "../types/index.js";
 import {
+  targetTypeRefKey,
+} from "../types/index.js";
+import {
   selectCsharpExpressionConversion,
 } from "../conversions/index.js";
 import {
@@ -78,14 +81,10 @@ export function instantiateCsharpProviderCall(
   if (relationError !== undefined) {
     return { kind: "rejected", reason: relationError };
   }
-  const bindingArguments = resolveCsharpTargetBindingArguments(
+  const bindingArguments = resolveProviderBindingTypeArguments(
     host.types,
-    relation.targetBinding,
-    [
-      source.sourceReceiver?.type,
-      source.sourceResultType,
-      source.sourceCallee.type,
-    ],
+    relation,
+    source,
     sourceFile,
   );
   if (bindingArguments === undefined) {
@@ -132,11 +131,17 @@ export function instantiateCsharpProviderCall(
         "The checker-selected source argument slots do not match the provider parameter relation.",
     };
   }
-  if (!argumentsTargetSelectedParameters(host, targetMember, source, arguments_, sourceFile)) {
+  const argumentValidation = validateArgumentsTargetSelectedParameters(
+    host,
+    targetMember,
+    source,
+    arguments_,
+    sourceFile,
+  );
+  if (argumentValidation.kind === "rejected") {
     return {
       kind: "rejected",
-      reason:
-        "A checker-selected source argument cannot satisfy its exact related C# target parameter.",
+      reason: argumentValidation.reason,
     };
   }
   return {
@@ -150,6 +155,43 @@ export function instantiateCsharpProviderCall(
       arguments: arguments_,
     },
   };
+}
+
+function resolveProviderBindingTypeArguments(
+  types: CsharpTypePolicy,
+  relation: CsharpProviderSignatureRelation,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): readonly TargetTypeRef[] | undefined {
+  if (
+    relation.bindingTypeArgumentSource !==
+      "selected-operation-type-arguments"
+  ) {
+    const evidence = relation.bindingTypeArgumentSource === "receiver"
+      ? {
+          node: source.sourceReceiver?.expression,
+          type: source.sourceReceiver?.type,
+        }
+      : relation.bindingTypeArgumentSource === "callee"
+        ? {
+            node: source.sourceCallee.expression,
+            type: source.sourceCallee.type,
+          }
+        : { type: source.sourceResultType };
+    return resolveCsharpTargetBindingArguments(
+      types,
+      relation.targetBinding,
+      [evidence],
+      sourceFile,
+    );
+  }
+  return resolveSelectedTypeArguments(
+    types,
+    source.sourceSelectedMethodTypeArguments ?? [],
+    relation.bindingTypeParameters,
+    relation.targetBinding.typeParameters?.length ?? 0,
+    sourceFile,
+  );
 }
 
 function validateProviderCallRelation(
@@ -227,16 +269,45 @@ function resolveMethodTypeArguments(
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  const targetArity = relation.targetMember.typeParameters?.length ?? 0;
   if (
-    sourceArguments.length !== relation.methodTypeParameters.length ||
-    relation.methodTypeParameters.length !== targetArity
+    relation.bindingTypeArgumentSource ===
+      "selected-operation-type-arguments"
+  ) {
+    return relation.methodTypeParameters.length === 0 &&
+        (relation.targetMember.typeParameters?.length ?? 0) === 0
+      ? []
+      : undefined;
+  }
+  const targetArity = relation.targetMember.typeParameters?.length ?? 0;
+  return resolveSelectedTypeArguments(
+    types,
+    sourceArguments,
+    relation.methodTypeParameters,
+    targetArity,
+    sourceFile,
+  );
+}
+
+function resolveSelectedTypeArguments(
+  types: CsharpTypePolicy,
+  sourceArguments: ReadonlyArray<NonNullable<
+    ResolvedSourceCallInfo["sourceSelectedMethodTypeArguments"]
+  >[number]>,
+  relations: CsharpProviderSignatureRelation[
+    "bindingTypeParameters"
+  ],
+  targetArity: number,
+  sourceFile: SourceFile,
+): readonly TargetTypeRef[] | undefined {
+  if (
+    sourceArguments.length !== relations.length ||
+    relations.length !== targetArity
   ) {
     return undefined;
   }
   const targetArguments: (TargetTypeRef | undefined)[] =
     Array.from({ length: targetArity });
-  for (const typeParameterRelation of relation.methodTypeParameters) {
+  for (const typeParameterRelation of relations) {
     const sourceArgument =
       sourceArguments[typeParameterRelation.sourceTypeParameterIndex];
     if (
@@ -325,13 +396,17 @@ function relateCallArguments(
   return Object.freeze(related);
 }
 
-function argumentsTargetSelectedParameters(
+type CsharpProviderArgumentValidation =
+  | { readonly kind: "accepted" }
+  | { readonly kind: "rejected"; readonly reason: string };
+
+function validateArgumentsTargetSelectedParameters(
   host: CsharpProviderCallInstantiationHost,
   targetMember: CsharpTargetMember,
   source: ResolvedSourceCallInfo,
   arguments_: readonly CsharpSelectedCallArgument[],
   sourceFile: SourceFile,
-): boolean {
+): CsharpProviderArgumentValidation {
   for (const argument of arguments_) {
     if (argument.targetParameter.csharpAcceptsCheckedSourceArgument === true) {
       continue;
@@ -339,20 +414,31 @@ function argumentsTargetSelectedParameters(
     const binding = source.sourceArgumentBindings.find((candidate) =>
       candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
     if (binding === undefined) {
-      return false;
+      return {
+        kind: "rejected",
+        reason:
+          `Effective source argument ${argument.effectiveArgumentIndex} has no exact checker-selected parameter binding.`,
+      };
     }
-    const sourceType = host.types.resolveType(
-      binding.selectedArgumentType,
-      sourceFile,
-    );
     const sourceExpression = source.sourceArguments[
       binding.sourceArgumentIndex
     ]?.expression;
+    const sourceType = host.types.resolveNode(
+      sourceExpression,
+      sourceFile,
+    ) ?? host.types.resolveType(
+      binding.selectedArgumentType,
+      sourceFile,
+    );
     if (
       sourceType === undefined ||
       sourceExpression === undefined
     ) {
-      return false;
+      return {
+        kind: "rejected",
+        reason:
+          `Source argument ${binding.sourceArgumentIndex} has no closed C# representation for its exact selected target parameter '${argument.targetParameter.name}'.`,
+      };
     }
     const conversion = selectCsharpExpressionConversion(
       host,
@@ -366,10 +452,25 @@ function argumentsTargetSelectedParameters(
       conversion.kind !== "implicit" &&
       conversion.kind !== "delegate-adapter"
     ) {
-      return false;
+      const detail = conversion.kind === "rejected" ||
+          conversion.kind === "ambiguous"
+        ? ` ${conversion.reason}`
+        : "";
+      return {
+        kind: "rejected",
+        reason:
+          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with representation '${targetTypeRefKey(argument.targetParameter.type)}' through an implicit conversion.${detail}`,
+      };
     }
   }
-  return everyRequiredTargetParameterIsSupplied(targetMember, arguments_);
+  if (!everyRequiredTargetParameterIsSupplied(targetMember, arguments_)) {
+    return {
+      kind: "rejected",
+      reason:
+        `The selected source call does not supply every required parameter of exact target member '${targetMember.id}'.`,
+    };
+  }
+  return { kind: "accepted" };
 }
 
 function everyRequiredTargetParameterIsSupplied(

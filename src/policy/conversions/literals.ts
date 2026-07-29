@@ -111,7 +111,10 @@ function bigintLiteralValue(
   input: Pick<CsharpTranslationContext, "ast">,
   node: Node,
 ): bigint | undefined {
-  if (input.ast.is.IsBigIntLiteral(node)) {
+  if (
+    input.ast.is.IsBigIntLiteral(node) ||
+    input.ast.is.IsNumericLiteral(node)
+  ) {
     return parseBigIntLiteral(input.ast.text(node));
   }
   if (!input.ast.is.IsPrefixUnaryExpression(node)) {
@@ -122,7 +125,10 @@ function bigintLiteralValue(
   if (
     (operator !== "KindPlusToken" && operator !== "KindMinusToken") ||
     operand === undefined ||
-    !input.ast.is.IsBigIntLiteral(operand)
+    (
+      !input.ast.is.IsBigIntLiteral(operand) &&
+      !input.ast.is.IsNumericLiteral(operand)
+    )
   ) {
     return undefined;
   }

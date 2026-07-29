@@ -14,6 +14,7 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpTypeofRuntimeKindForTargetType,
   isCsharpAnyRuntimeCarrier,
+  isCsharpIntegralTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
@@ -224,12 +225,16 @@ function validateBinaryTargetSemantics(
       : `C# relational operator '${operator}' requires numeric source-primitive operands.`;
   }
   if (isShift(operator)) {
-    return isIntegral(left) && isIntegral(right)
+    return isCsharpIntegralTargetType(left) &&
+        isCsharpIntegralTargetType(right)
       ? undefined
       : `C# shift operator '${operator}' requires integral source-primitive operands.`;
   }
   if (isBitwise(operator)) {
-    return (isIntegral(left) && isIntegral(right)) ||
+    return (
+      isCsharpIntegralTargetType(left) &&
+      isCsharpIntegralTargetType(right)
+    ) ||
       (isSourceEnum(left) && targetTypeRefEquals(left, right))
       ? undefined
       : `C# bitwise operator '${operator}' requires integral operands or one exact enum type.`;
@@ -268,7 +273,7 @@ function validateUnaryTargetSemantics(
       : "C# logical negation requires an exact bool operand.";
   }
   if (operator === "~") {
-    return isIntegral(operand) || isSourceEnum(operand)
+    return isCsharpIntegralTargetType(operand) || isSourceEnum(operand)
       ? undefined
       : "C# bitwise complement requires an integral or enum operand.";
   }
@@ -339,30 +344,6 @@ function isNumeric(type: TargetTypeRef): boolean {
   return type.kind === "source-primitive" &&
     type.name !== "bool" &&
     type.name !== "char";
-}
-
-function isIntegral(type: TargetTypeRef): boolean {
-  if (type.kind !== "source-primitive") {
-    return false;
-  }
-  switch (type.name) {
-    case "int8":
-    case "uint8":
-    case "int16":
-    case "uint16":
-    case "char":
-    case "int32":
-    case "uint32":
-    case "int64":
-    case "uint64":
-    case "native-int":
-    case "native-uint":
-    case "int128":
-    case "uint128":
-      return true;
-    default:
-      return false;
-  }
 }
 
 function isSourceEnum(type: TargetTypeRef): boolean {
