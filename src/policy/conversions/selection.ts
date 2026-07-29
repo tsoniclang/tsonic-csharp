@@ -80,6 +80,32 @@ export type CsharpConversionSelection =
       readonly reason: string;
     };
 
+export type CsharpConversionTargetPreference =
+  | "left"
+  | "right"
+  | "equivalent"
+  | "incomparable";
+
+export function compareCsharpImplicitConversionTargets(
+  input: Pick<CsharpTranslationContext, "providers" | "target">,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): CsharpConversionTargetPreference {
+  if (targetTypeRefEquals(left, right)) {
+    return "equivalent";
+  }
+  const leftToRight = conversionIsImplicitlyApplicable(
+    selectCsharpConversion(input, left, right, "implicit"),
+  );
+  const rightToLeft = conversionIsImplicitlyApplicable(
+    selectCsharpConversion(input, right, left, "implicit"),
+  );
+  if (leftToRight === rightToLeft) {
+    return leftToRight ? "equivalent" : "incomparable";
+  }
+  return leftToRight ? "left" : "right";
+}
+
 export function selectCsharpConversion(
   input: Pick<CsharpTranslationContext, "providers" | "target">,
   source: TargetTypeRef | undefined,
@@ -168,6 +194,14 @@ export function selectCsharpConversion(
     reason:
       `No exact C# ${mode} conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
   };
+}
+
+function conversionIsImplicitlyApplicable(
+  selection: CsharpConversionSelection,
+): boolean {
+  return selection.kind === "identity" ||
+    selection.kind === "implicit" ||
+    selection.kind === "delegate-adapter";
 }
 
 function targetTypeImplicitlyConvertsToObject(

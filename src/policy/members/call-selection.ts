@@ -13,9 +13,11 @@ import {
 } from "./provider-operations.js";
 import type {
   CsharpInstantiatedProviderCall,
+  CsharpProviderCallInstantiation,
   CsharpProviderCallInstantiationHost,
 } from "./instantiation.js";
 import {
+  compareInstantiatedProviderCalls,
   instantiateCsharpProviderCall,
 } from "./instantiation.js";
 
@@ -109,10 +111,12 @@ function selectResolvedProviderCall(
       sourceFile,
     ));
   const accepted = candidates
-    .filter((candidate) => candidate.kind === "resolved")
-    .map((candidate) => candidate.call);
+    .filter((candidate): candidate is Extract<
+      CsharpProviderCallInstantiation,
+      { readonly kind: "resolved" }
+    > => candidate.kind === "resolved");
   if (accepted.length === 1) {
-    return { kind: "resolved", source, call: accepted[0]! };
+    return { kind: "resolved", source, call: accepted[0]!.call };
   }
   if (accepted.length === 0) {
     return {
@@ -124,11 +128,19 @@ function selectResolvedProviderCall(
         .join(" "),
     };
   }
+  const best = accepted.filter((candidate) =>
+    !accepted.some((other) =>
+      other !== candidate &&
+      compareInstantiatedProviderCalls(host, other, candidate) === "left"
+    ));
+  if (best.length === 1) {
+    return { kind: "resolved", source, call: best[0]!.call };
+  }
   return {
     kind: "ambiguous",
     reason:
       "More than one C# target signature satisfies the same exact selected provider source signature.",
-    candidates: accepted.map((candidate) =>
-      `${candidate.relation.targetBinding.id}::${candidate.targetMember.id}`),
+    candidates: best.map((candidate) =>
+      `${candidate.call.relation.targetBinding.id}::${candidate.call.targetMember.id}`),
   };
 }

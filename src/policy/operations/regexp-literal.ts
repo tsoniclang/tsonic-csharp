@@ -128,7 +128,7 @@ type CsharpJsRegExpValidationResult =
   | { readonly kind: "syntax-error"; readonly message: string }
   | { readonly kind: "unsupported"; readonly message: string };
 
-function validateCsharpJsRegExpPatternAndFlags(
+export function validateCsharpJsRegExpPatternAndFlags(
   pattern: string,
   flags: string,
 ): CsharpJsRegExpValidationResult {

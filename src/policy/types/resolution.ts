@@ -384,14 +384,21 @@ export function createCsharpTypePolicy(
         queries.sourceFile,
       );
       if (selection.kind === "resolved") {
-        return selection.targetMember.returnType;
+        return optionalAccessTargetType(
+          selection.targetMember.returnType,
+          selection.source.optionalChain,
+        );
       }
       if (selection.kind === "source-owned") {
-        return resolveSelectedDeclarationResult(
-          selection.source.selectedDeclaration,
-          selection.source.sourceReadType ?? selection.source.sourceWriteType,
-          queries,
-          state,
+        return optionalAccessTargetType(
+          resolveSelectedDeclarationResult(
+            selection.source.selectedDeclaration,
+            selection.source.sourceReadType ??
+              selection.source.sourceWriteType,
+            queries,
+            state,
+          ),
+          selection.source.optionalChain,
         );
       }
       return undefined;
@@ -403,7 +410,10 @@ export function createCsharpTypePolicy(
         queries.sourceFile,
       );
       if (selection.kind === "resolved") {
-        return selection.targetMember.returnType;
+        return optionalAccessTargetType(
+          selection.targetMember.returnType,
+          selection.source.optionalChain,
+        );
       }
       if (selection.kind === "source-owned") {
         const receiver = resolveNodeWithState(
@@ -415,16 +425,26 @@ export function createCsharpTypePolicy(
           receiver?.kind === "tuple" &&
           selection.source.selectedElementIndex !== undefined
         ) {
-          return receiver.elements[selection.source.selectedElementIndex];
+          return optionalAccessTargetType(
+            receiver.elements[selection.source.selectedElementIndex],
+            selection.source.optionalChain,
+          );
         }
         if (receiver?.kind === "array") {
-          return receiver.element;
+          return optionalAccessTargetType(
+            receiver.element,
+            selection.source.optionalChain,
+          );
         }
-        return resolveSelectedDeclarationResult(
-          selection.source.selectedDeclaration,
-          selection.source.sourceReadType ?? selection.source.sourceWriteType,
-          queries,
-          state,
+        return optionalAccessTargetType(
+          resolveSelectedDeclarationResult(
+            selection.source.selectedDeclaration,
+            selection.source.sourceReadType ??
+              selection.source.sourceWriteType,
+            queries,
+            state,
+          ),
+          selection.source.optionalChain,
         );
       }
       return undefined;
@@ -447,6 +467,15 @@ export function createCsharpTypePolicy(
     );
   }
 
+  function optionalAccessTargetType(
+    type: TargetTypeRef | undefined,
+    optionalChain: boolean,
+  ): TargetTypeRef | undefined {
+    return type === undefined || !optionalChain
+      ? type
+      : csharpNullableTargetType(type);
+  }
+
   function resolveSelectedDeclarationResult(
     declaration: Node | undefined,
     semanticType: Type | undefined,
@@ -460,14 +489,12 @@ export function createCsharpTypePolicy(
     const declarationSourceFile = declarationType === undefined
       ? queries.sourceFile
       : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
-    return resolveNodeWithState(
+    return resolveAuthoredAndSelectedSourceType(
       declarationType,
       declarationSourceFile,
-      nextState(state),
-    ) ?? resolveTypeWithState(
       semanticType,
       queries.sourceFile,
-      nextState(state),
+      state,
     );
   }
 
@@ -567,13 +594,15 @@ export function createCsharpTypePolicy(
     const sourceFile = host.ast.getSourceFile(declaration) ?? queries.sourceFile;
     const syntax = sourceValueDeclarationSyntax(declaration);
     if (syntax.type !== undefined) {
-      const declared = resolveNodeWithState(
+      const resolved = resolveAuthoredAndSelectedSourceType(
         syntax.type,
         sourceFile,
-        nextState(state),
+        queries.checker.getTypeAtLocation(node),
+        queries.sourceFile,
+        state,
       );
-      if (declared !== undefined) {
-        return declared;
+      if (resolved !== undefined) {
+        return resolved;
       }
     }
     return syntax.initializer === undefined
@@ -583,6 +612,47 @@ export function createCsharpTypePolicy(
           sourceFile,
           nextState(state),
         );
+  }
+
+  function resolveAuthoredAndSelectedSourceType(
+    authoredTypeNode: Node | undefined,
+    authoredSourceFile: SourceFile,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const authored = resolveNodeWithState(
+      authoredTypeNode,
+      authoredSourceFile,
+      nextState(state),
+    );
+    const selected = resolveTypeWithState(
+      selectedType,
+      selectedSourceFile,
+      nextState(state),
+    );
+    if (authored === undefined || selectedType === undefined) {
+      return authored ?? selected;
+    }
+    const authoredSemanticType = host.queries(authoredSourceFile).checker
+      .getTypeFromTypeNode(authoredTypeNode);
+    if (authoredSemanticType === selectedType) {
+      return authored;
+    }
+    const selectedQueries = host.queries(selectedSourceFile);
+    if (!selectedQueries.typeShape.isUnion(selectedType)) {
+      return selected;
+    }
+    const selectedMembers = selectedQueries.typeShape
+      .getUnionOrIntersectionTypes(selectedType);
+    const selectedValueMembers = selectedMembers.filter(
+      (member) => !selectedQueries.typeShape.isNullish(member),
+    );
+    return selectedValueMembers.length === 1 &&
+        selectedValueMembers[0] === authoredSemanticType &&
+        selectedValueMembers.length !== selectedMembers.length
+      ? csharpNullableTargetType(authored)
+      : selected;
   }
 
   function sourceValueDeclaration(

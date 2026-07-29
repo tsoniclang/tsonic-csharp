@@ -1,10 +1,10 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import {
   validateCsharpJsRegExpPatternAndFlags,
-} from "../dist/source/csharp-source-semantics/surfaces/js/regexp/validation.js";
+} from "../dist/policy/operations/index.js";
 
-test("RegExp static validation accepts only the proven ECMAScript-compatible subset", () => {
+test("RegExp policy accepts only the proven ECMAScript-compatible subset", () => {
   for (const [pattern, flags] of [
     ["abc", "gimsy"],
     ["a.b", "s"],
@@ -12,21 +12,23 @@ test("RegExp static validation accepts only the proven ECMAScript-compatible sub
     ["a(?=b)", ""],
     ["[A-Z]+|\\d+", ""],
   ]) {
-    assert.deepEqual(validateCsharpJsRegExpPatternAndFlags(pattern, flags), { kind: "valid" });
+    assert.deepEqual(validateCsharpJsRegExpPatternAndFlags(pattern, flags), {
+      kind: "valid",
+    });
   }
 });
 
-test("RegExp static validation rejects unsupported ECMAScript and .NET-only features", () => {
+test("RegExp policy rejects unsupported ECMAScript and .NET-only features", () => {
   for (const [pattern, flags, message] of [
-    ["abc", "d", /hasIndices/],
-    ["abc", "u", /Unicode-mode/],
-    ["abc", "v", /Unicode-sets/],
-    ["(?<name>a)", "", /Named capture/],
-    ["(?<=a)b", "", /Lookbehind/],
-    ["\\p{Letter}", "", /Unicode property/],
-    ["(a)\\1", "", /Numeric backreferences/],
-    ["(?>a)", "", /atomic groups/],
-    ["(?i:a)", "", /inline option/],
+    ["abc", "d", /hasIndices/u],
+    ["abc", "u", /Unicode-mode/u],
+    ["abc", "v", /Unicode-sets/u],
+    ["(?<name>a)", "", /Named capture/u],
+    ["(?<=a)b", "", /Lookbehind/u],
+    ["\\p{Letter}", "", /Unicode property/u],
+    ["(a)\\1", "", /Numeric backreferences/u],
+    ["(?>a)", "", /atomic groups/u],
+    ["(?i:a)", "", /inline option/u],
   ]) {
     const result = validateCsharpJsRegExpPatternAndFlags(pattern, flags);
     assert.equal(result.kind, "unsupported");
@@ -34,13 +36,13 @@ test("RegExp static validation rejects unsupported ECMAScript and .NET-only feat
   }
 });
 
-test("RegExp static validation rejects invalid pattern and flag syntax", () => {
+test("RegExp policy rejects invalid pattern and flag syntax", () => {
   for (const [pattern, flags, message] of [
-    ["abc", "gg", /Duplicate/],
-    ["abc", "q", /Invalid/],
-    ["[abc", "", /Unterminated/],
-    ["\\", "", /incomplete escape/],
-    ["(?", "", /Incomplete/],
+    ["abc", "gg", /Duplicate/u],
+    ["abc", "q", /Invalid/u],
+    ["[abc", "", /Unterminated/u],
+    ["\\", "", /incomplete escape/u],
+    ["(?", "", /Incomplete/u],
   ]) {
     const result = validateCsharpJsRegExpPatternAndFlags(pattern, flags);
     assert.equal(result.kind, "syntax-error");

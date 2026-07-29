@@ -131,6 +131,46 @@ test("multiple exact target relations remain ambiguous instead of being ranked",
   ]);
 });
 
+test("collapsed source overloads select the uniquely best implicit C# target conversion", () => {
+  const declaration = providerDeclaration();
+  const exactMember = providerMethod({
+    id: "Fixture.Target.Member(System.Int32)",
+    parameters: [
+      targetParameter("value", csharpSourcePrimitiveTargetType("int32")),
+    ],
+  });
+  const widenedMember = providerMethod({
+    id: "Fixture.Target.Member(System.Double)",
+    parameters: [
+      targetParameter("value", csharpSourcePrimitiveTargetType("float64")),
+    ],
+  });
+  const fixture = createCallFixture({
+    declaration,
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
+    targetParameters: exactMember.parameters,
+    relations: [
+      signatureRelation({
+        declaration,
+        member: exactMember,
+      }),
+      signatureRelation({
+        declaration,
+        member: widenedMember,
+      }),
+    ],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.call.targetMember.id, exactMember.id);
+});
+
 test("exact selected signatures reject incompatible target argument representations", () => {
   const fixture = createCallFixture({
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],

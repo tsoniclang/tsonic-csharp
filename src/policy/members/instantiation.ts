@@ -25,7 +25,11 @@ import {
   targetTypeRefKey,
 } from "../types/index.js";
 import {
+  compareCsharpImplicitConversionTargets,
   selectCsharpExpressionConversion,
+} from "../conversions/index.js";
+import type {
+  CsharpConversionSelection,
 } from "../conversions/index.js";
 import {
   csharpTargetBindingSubstitutions,
@@ -54,11 +58,19 @@ export type CsharpProviderCallInstantiation =
   | {
       readonly kind: "resolved";
       readonly call: CsharpInstantiatedProviderCall;
+      readonly argumentConversions: readonly CsharpProviderArgumentConversion[];
     }
   | {
       readonly kind: "rejected";
       readonly reason: string;
     };
+
+export interface CsharpProviderArgumentConversion {
+  readonly effectiveArgumentIndex: number;
+  readonly sourceType: TargetTypeRef;
+  readonly targetType: TargetTypeRef;
+  readonly selection: CsharpConversionSelection;
+}
 
 export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
@@ -155,7 +167,48 @@ export function instantiateCsharpProviderCall(
       targetMethodTypeArguments: methodArguments,
       arguments: arguments_,
     },
+    argumentConversions: argumentValidation.argumentConversions,
   };
+}
+
+export function compareInstantiatedProviderCalls(
+  host: Pick<CsharpProviderCallInstantiationHost, "providers" | "target">,
+  left: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
+  right: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
+): "left" | "right" | "equivalent" | "incomparable" {
+  const rightByArgument = new Map(
+    right.argumentConversions.map((conversion) => [
+      conversion.effectiveArgumentIndex,
+      conversion,
+    ]),
+  );
+  let leftBetter = false;
+  let rightBetter = false;
+  for (const leftConversion of left.argumentConversions) {
+    const rightConversion = rightByArgument.get(
+      leftConversion.effectiveArgumentIndex,
+    );
+    if (rightConversion === undefined) {
+      return "incomparable";
+    }
+    const preference = compareCsharpImplicitConversionTargets(
+      host,
+      leftConversion.targetType,
+      rightConversion.targetType,
+    );
+    leftBetter ||= preference === "left";
+    rightBetter ||= preference === "right";
+    if (preference === "incomparable" || leftBetter && rightBetter) {
+      return "incomparable";
+    }
+  }
+  if (rightByArgument.size !== left.argumentConversions.length) {
+    return "incomparable";
+  }
+  if (leftBetter === rightBetter) {
+    return "equivalent";
+  }
+  return leftBetter ? "left" : "right";
 }
 
 function resolveProviderBindingTypeArguments(
@@ -398,7 +451,10 @@ function relateCallArguments(
 }
 
 type CsharpProviderArgumentValidation =
-  | { readonly kind: "accepted" }
+  | {
+      readonly kind: "accepted";
+      readonly argumentConversions: readonly CsharpProviderArgumentConversion[];
+    }
   | { readonly kind: "rejected"; readonly reason: string };
 
 function validateArgumentsTargetSelectedParameters(
@@ -408,6 +464,7 @@ function validateArgumentsTargetSelectedParameters(
   arguments_: readonly CsharpSelectedCallArgument[],
   sourceFile: SourceFile,
 ): CsharpProviderArgumentValidation {
+  const argumentConversions: CsharpProviderArgumentConversion[] = [];
   for (const argument of arguments_) {
     if (argument.targetParameter.csharpAcceptsCheckedSourceArgument === true) {
       continue;
@@ -466,6 +523,15 @@ function validateArgumentsTargetSelectedParameters(
           `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}' through an implicit conversion.${detail}`,
       };
     }
+    argumentConversions.push({
+      effectiveArgumentIndex: argument.effectiveArgumentIndex,
+      sourceType,
+      targetType: csharpTargetParameterValueType(
+        argument.targetParameter,
+        argument.sourceForm,
+      ),
+      selection: conversion,
+    });
   }
   if (!everyRequiredTargetParameterIsSupplied(targetMember, arguments_)) {
     return {
@@ -474,7 +540,10 @@ function validateArgumentsTargetSelectedParameters(
         `The selected source call does not supply every required parameter of exact target member '${targetMember.id}'.`,
     };
   }
-  return { kind: "accepted" };
+  return {
+    kind: "accepted",
+    argumentConversions: Object.freeze(argumentConversions),
+  };
 }
 
 function everyRequiredTargetParameterIsSupplied(

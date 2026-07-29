@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   csharpTypeFromTargetTypeRef,
-  targetTypeRefsMatch,
 } from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
 import {
@@ -14,7 +13,8 @@ import {
 import {
   csharpDelegateTargetType,
   csharpTargetTypeFromBinding,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+  targetTypeRefEquals,
+} from "../dist/policy/types/index.js";
 
 test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
@@ -173,8 +173,8 @@ test("source-global target refs remain source evidence until wrapped by a C# tar
   };
 
   assert.equal(csharpTypeFromTargetTypeRef(promiseOfString), undefined);
-  assert.equal(targetTypeRefsMatch(promiseOfString, { ...promiseOfString }), true);
-  assert.equal(targetTypeRefsMatch(promiseOfString, promiseOfNumber), false);
+  assert.equal(targetTypeRefEquals(promiseOfString, { ...promiseOfString }), true);
+  assert.equal(targetTypeRefEquals(promiseOfString, promiseOfNumber), false);
 
   const rendered = csharpTypeFromTargetTypeRef({
     kind: "target-named",

@@ -156,17 +156,13 @@ export function selectCsharpIteration(
       "TSTS did not retain an exact checked iteration selection for this statement.",
     );
   }
-  const iterableType = input.types.resolveType(
-    source.sourceIterableType,
+  const iterableType = input.types.resolveNode(
+    expression,
     sourceFile,
   );
-  const elementType = input.types.resolveType(
-    source.sourceElementType,
-    sourceFile,
-  );
-  if (iterableType === undefined || elementType === undefined) {
+  if (iterableType === undefined) {
     return rejected(
-      "Checked iteration source types do not have closed C# target representations.",
+      "The checked iterable expression does not have a closed C# target representation.",
     );
   }
   if (source.iterationKind === "for-await-of") {
@@ -175,7 +171,16 @@ export function selectCsharpIteration(
     );
   }
   if (source.iterationKind === "for-of") {
-    return selectForOf(source, iterableType, elementType);
+    return selectForOf(source, iterableType);
+  }
+  const elementType = input.types.resolveType(
+    source.sourceElementType,
+    sourceFile,
+  );
+  if (elementType === undefined) {
+    return rejected(
+      "The checked property-key type does not have a closed C# target representation.",
+    );
   }
   return selectForIn(input, source, expression, sourceFile, iterableType, elementType);
 }
@@ -183,7 +188,6 @@ export function selectCsharpIteration(
 function selectForOf(
   source: Extract<ResolvedSourceIterationInfo, { readonly iterationKind: "for-of" }>,
   iterableType: TargetTypeRef,
-  elementType: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedIteration> {
   if (isCsharpStringTargetType(iterableType)) {
     const policy = (iterableType as CsharpTargetNamedTypeRef)
@@ -197,17 +201,14 @@ function selectForOf(
           iterationKind: "for-of",
           source,
           iterableType,
-          elementType,
+          elementType: csharpStringTargetType(),
           lowering: { kind: "string-code-point", policy },
         };
   }
   const enumerableElement = getCsharpCollectionElementTargetType(iterableType);
-  if (
-    enumerableElement === undefined ||
-    !targetTypeRefEquals(enumerableElement, elementType)
-  ) {
+  if (enumerableElement === undefined) {
     return rejected(
-      "The selected C# iterable representation does not prove an enumerable element matching the checked source element type.",
+      "The selected C# iterable representation does not prove an enumerable target element.",
     );
   }
   return {
@@ -215,7 +216,7 @@ function selectForOf(
     iterationKind: "for-of",
     source,
     iterableType,
-    elementType,
+    elementType: enumerableElement,
     lowering: { kind: "foreach" },
   };
 }
