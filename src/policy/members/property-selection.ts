@@ -64,7 +64,7 @@ export function selectCsharpProviderProperty(
   sourceFile: SourceFile,
 ): CsharpProviderPropertySelection {
   const source = host.queries(sourceFile).checker
-    .getResolvedPropertyAccessInfo(propertyAccess, { sourceFile });
+    .getResolvedPropertyAccessInfo(propertyAccess);
   if (source === undefined) {
     return {
       kind: "missing",

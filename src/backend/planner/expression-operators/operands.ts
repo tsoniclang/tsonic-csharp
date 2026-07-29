@@ -51,7 +51,7 @@ function isNullishEqualityOperand(
   if (kind !== KindIdentifier || Node_Text(input.ast, AsIdentifier(operand)) !== "undefined") {
     return false;
   }
-  const type = input.queries(sourceFile).checker.getTypeAtLocation(operand, { sourceFile });
+  const type = input.queries(sourceFile).checker.getTypeAtLocation(operand);
   return type === undefined
     ? false
     : input.queries(sourceFile).typeShape.isNullish(type);

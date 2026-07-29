@@ -78,15 +78,15 @@ export function planCallArgumentCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argumentPassing.mode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
     return undefined;
   }
-  if (!isAstNode(input.ast, argumentPassing.targetExpression)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
+  if (!isAstNode(input.ast, argumentPassing.storageExpression)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
     return undefined;
   }
   const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
   if (argumentPassing.mode !== "by-value" && passing === undefined) {
     return undefined;
   }
-  const expression = planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
+  const expression = planCallArgumentExpression(argumentPassing.storageExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   if (expression === undefined) {
     return undefined;
   }

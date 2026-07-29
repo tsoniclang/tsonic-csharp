@@ -216,8 +216,8 @@ function localBindingKey(
   input: CsharpTranslationContext,
 ): object | undefined {
   const checker = input.queries(sourceFile).checker;
-  const symbol = checker.getSymbolAtLocation(node, { sourceFile }) ??
-    checker.getResolvedSymbol(node, { sourceFile });
+  const symbol = checker.getSymbolAtLocation(node) ??
+    checker.getResolvedSymbol(node);
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 

@@ -146,7 +146,7 @@ function getConstAssertionInitializerType(
     return undefined;
   }
   return getCsharpTypeFromSemanticType(
-    input.queries(sourceFile).checker.getTypeAtLocation(assertion.Expression, { sourceFile }),
+    input.queries(sourceFile).checker.getTypeAtLocation(assertion.Expression),
     sourceFile,
     input,
   );

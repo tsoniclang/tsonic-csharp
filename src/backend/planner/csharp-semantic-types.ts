@@ -126,7 +126,7 @@ function instantiateSemanticTargetNamedType(
   if (targetType?.kind !== "target-named" || !typeShape.isTypeReference(type)) {
     return undefined;
   }
-  const typeArguments = typeShape.getTypeArguments(type, { sourceFile });
+  const typeArguments = typeShape.getTypeArguments(type);
   if (typeArguments.length === 0) {
     return targetType;
   }

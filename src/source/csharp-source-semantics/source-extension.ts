@@ -47,10 +47,6 @@ export function createCsharpSourceSemanticsExtension(context: TargetProviderCont
     identity: {
       id: csharpSourceSemanticsExtensionId,
       version: csharpProviderVersion,
-      capabilityNamespace: "tsonic.csharp.source",
-    },
-    composition: {
-      kind: "source",
     },
     dependencies: {
       dependsOn: [sourceSemanticsExtensionId, tsonicCoreSourceExtensionId],

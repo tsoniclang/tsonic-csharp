@@ -25,7 +25,7 @@ test("C# target resolves source-core ptr and fnptr facts to target type refs", (
   });
   setFact(pointerSubject, pointerFactKey, {
     pointee: int32Subject,
-    mutability: "target-defined",
+    mutability: "unspecified",
     unsafeRequired: true,
   });
   setFact(functionPointerSubject, functionPointerFactKey, {
@@ -35,7 +35,7 @@ test("C# target resolves source-core ptr and fnptr facts to target type refs", (
   });
   setFact(unresolvedPointerSubject, pointerFactKey, {
     pointee: {},
-    mutability: "target-defined",
+    mutability: "unspecified",
     unsafeRequired: true,
   });
   setFact(unresolvedFunctionPointerSubject, functionPointerFactKey, {

@@ -104,11 +104,9 @@ function getInferredDeclarationReturnTargetType(
   const checker = input.queries(sourceFile).checker;
   const declarationType = checker.getTypeAtLocation(
     declarationNode,
-    { sourceFile },
   );
   const signatures = checker.getCallSignaturesOfType(
     declarationType,
-    { sourceFile },
   );
   const selected = signatures.filter((signature) => {
     const declaration = checker.getSignatureDeclaration(signature);
@@ -119,7 +117,7 @@ function getInferredDeclarationReturnTargetType(
     return undefined;
   }
   return input.types.resolveType(
-    checker.getReturnTypeOfSignature(selected[0]!, { sourceFile }),
+    checker.getReturnTypeOfSignature(selected[0]!),
     sourceFile,
   );
 }

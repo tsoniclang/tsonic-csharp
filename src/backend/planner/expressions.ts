@@ -123,10 +123,10 @@ function planExpressionCore(
   }
   const argumentPassing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
   if (
-    argumentPassing?.targetExpression !== undefined &&
-    !sourceNodesEqual(input.ast, argumentPassing.targetExpression, node)
+    argumentPassing?.storageExpression !== undefined &&
+    !sourceNodesEqual(input.ast, argumentPassing.storageExpression, node)
   ) {
-    return planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, state);
+    return planExpression(argumentPassing.storageExpression, sourceFile, input, diagnostics, state);
   }
   const scopedPlanExpression = (
     expressionNode: Node,

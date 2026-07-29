@@ -48,7 +48,7 @@ export function resolveCsharpProviderCallRelations(
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
   const queries = host.queries(sourceFile);
-  const source = queries.checker.getResolvedCallInfo(call, { sourceFile });
+  const source = queries.checker.getResolvedCallInfo(call);
   if (source === undefined) {
     return {
       kind: "missing",
@@ -82,7 +82,6 @@ export function resolveCsharpProviderPropertyRelations(
 ): CsharpProviderOperationResolution {
   const source = host.queries(sourceFile).checker.getResolvedPropertyAccessInfo(
     propertyAccess,
-    { sourceFile },
   );
   if (source === undefined) {
     return {
@@ -105,7 +104,6 @@ export function resolveCsharpProviderElementRelations(
 ): CsharpProviderOperationResolution {
   const source = host.queries(sourceFile).checker.getResolvedElementAccessInfo(
     elementAccess,
-    { sourceFile },
   );
   if (source === undefined) {
     return {

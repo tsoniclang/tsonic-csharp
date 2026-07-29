@@ -41,7 +41,7 @@ test("source-semantics records pointer marker facts from neutral type aliases", 
   assert.equal(pointerFacts.length, 2);
   assert.deepEqual(pointerFacts[0].fact, {
     pointee: pointerFacts[0].fact.pointee,
-    mutability: "target-defined",
+    mutability: "unspecified",
     unsafeRequired: true,
   });
   assert.equal(session.ast.kindName(pointerFacts[0].fact.pointee), "KindTypeReference");

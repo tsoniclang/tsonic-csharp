@@ -63,7 +63,6 @@ export function selectCsharpProviderCall(
 ): CsharpProviderCallSelection {
   const source = host.queries(sourceFile).checker.getResolvedCallInfo(
     call,
-    { sourceFile },
   );
   if (source === undefined) {
     return {

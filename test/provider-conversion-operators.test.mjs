@@ -556,7 +556,7 @@ test("assertion declaration provenance cannot override an incompatible flow-sele
   const { context, entries } = fakeContext();
   entries.set(factEntryKey(declarationType, pointerFactKey), {
     pointee: intType,
-    mutability: "target-defined",
+    mutability: "unspecified",
     unsafeRequired: true,
   });
 

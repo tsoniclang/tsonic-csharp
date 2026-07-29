@@ -51,7 +51,7 @@ test("planner rejects defaultof facts without AST type evidence", () => {
 test("planner emits byref arguments only from finalized argument-passing facts", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const markerCall = node(KindCallExpression);
-  const targetExpression = identifier("value");
+  const storageExpression = identifier("value");
   const diagnostics = [];
 
   const planned = planCallArgumentCore(
@@ -60,7 +60,7 @@ test("planner emits byref arguments only from finalized argument-passing facts",
     fakeInput(sourceFile, {
       argumentPassing: new Map([[markerCall, {
         mode: "byref-writeonly-must-init",
-        targetExpression,
+        storageExpression,
       }]]),
     }),
     diagnostics,
@@ -83,7 +83,7 @@ test("planner emits byref arguments only from finalized argument-passing facts",
 test("planner rejects byref markers when selected parameter mode is by-value", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const markerCall = node(KindCallExpression);
-  const targetExpression = identifier("value");
+  const storageExpression = identifier("value");
   const diagnostics = [];
 
   const planned = planCallArgumentCore(
@@ -92,7 +92,7 @@ test("planner rejects byref markers when selected parameter mode is by-value", (
     fakeInput(sourceFile, {
       argumentPassing: new Map([[markerCall, {
         mode: "byref-readwrite",
-        targetExpression,
+        storageExpression,
       }]]),
     }),
     diagnostics,
@@ -139,7 +139,7 @@ test("planner rejects argument-passing facts without AST target expressions", ()
     fakeInput(sourceFile, {
       argumentPassing: new Map([[markerCall, {
         mode: "byref-readwrite",
-        targetExpression: { kind: "target-specific", target: "csharp", name: "value" },
+        storageExpression: { kind: "target-specific", target: "csharp", name: "value" },
       }]]),
     }),
     diagnostics,
@@ -170,7 +170,7 @@ test("planner emits ptr and fnptr only from finalized nested type facts", () => 
     ]),
     pointerFacts: new Map([[pointerType, {
       pointee: intType,
-      mutability: "target-defined",
+      mutability: "unspecified",
       unsafeRequired: true,
     }]]),
     functionPointerFacts: new Map([[functionPointerType, {
@@ -188,7 +188,7 @@ test("planner emits ptr and fnptr only from finalized nested type facts", () => 
   const missingPointer = getCsharpTypeForNode(pointerType, sourceFile, fakeInput(sourceFile, {
     pointerFacts: new Map([[pointerType, {
       pointee: intType,
-      mutability: "target-defined",
+      mutability: "unspecified",
       unsafeRequired: true,
     }]]),
   }), undefined, missingDiagnostics);

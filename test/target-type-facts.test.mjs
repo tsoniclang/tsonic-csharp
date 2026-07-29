@@ -353,7 +353,7 @@ test("ptr and fnptr type references render only from finalized source-core type 
     ]),
     pointerFacts: new Map([[pointerType, {
       pointee: intType,
-      mutability: "target-defined",
+      mutability: "unspecified",
       unsafeRequired: true,
     }]]),
     functionPointerFacts: new Map([[functionPointerType, {
@@ -372,7 +372,7 @@ test("ptr and fnptr type references render only from finalized source-core type 
   const missing = getCsharpTypeForNode(pointerType, sourceFile, fakeTypeInput(sourceFile, {
     pointerFacts: new Map([[pointerType, {
       pointee: intType,
-      mutability: "target-defined",
+      mutability: "unspecified",
       unsafeRequired: true,
     }]]),
   }), undefined, missingDiagnostics);

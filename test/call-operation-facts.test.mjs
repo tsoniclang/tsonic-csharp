@@ -705,7 +705,7 @@ test("call argument emission rejects delegate conversions for non-source-owned c
 });
 test("call argument emission rejects unsupported finalized argument-passing modes", () => {
   const argument = identifier("borrow");
-  const targetExpression = identifier("value");
+  const storageExpression = identifier("value");
   const diagnostics = [];
   const planned = planCallArgumentCore(
     argument,
@@ -714,7 +714,7 @@ test("call argument emission rejects unsupported finalized argument-passing mode
       argumentPassingSubject: argument,
       argumentPassing: {
         mode: "borrow-shared",
-        targetExpression,
+        storageExpression,
       },
     }),
     diagnostics,

@@ -251,7 +251,7 @@ test("target member selection uses source marker target expression for byref par
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: value,
+      storageExpression: value,
     },
   });
   const resolveTargetTypeRef = (subject) => {
@@ -311,7 +311,7 @@ test("target member selection rejects byref parameter mode mismatches", () => {
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-readwrite",
-      targetExpression: value,
+      storageExpression: value,
     },
   });
   const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
@@ -342,7 +342,7 @@ test("target member selection accepts canonical source-marker passing facts for 
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: value,
+      storageExpression: value,
     },
   });
   const resolveTargetTypeRef = (subject) => {
@@ -499,7 +499,7 @@ test("C# provider rejects missing or mutated target parameter-mode facts before 
         argumentPassingSubject: outCall,
         argumentPassing: {
           mode: "out",
-          targetExpression: value,
+          storageExpression: value,
         },
       },
       member: {
@@ -560,7 +560,7 @@ test("target member selection rejects source marker wrappers for by-value parame
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: value,
+      storageExpression: value,
     },
   });
   const resolveTargetTypeRef = (subject) => subject === value ? int32 : undefined;

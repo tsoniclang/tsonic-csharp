@@ -65,7 +65,6 @@ function selectDelete(
   }
   const source = input.queries(sourceFile).checker.getResolvedElementAccessInfo(
     operand,
-    { sourceFile },
   );
   const identity = csharpSourceProfileDeclarationIdentity(
     input.ast,
@@ -120,7 +119,7 @@ function selectLengthAssignment(
     return { kind: "not-js-array-mutation" };
   }
   const source = input.queries(sourceFile).checker
-    .getResolvedPropertyAccessInfo(left, { sourceFile });
+    .getResolvedPropertyAccessInfo(left);
   const identity = csharpSourceProfileDeclarationIdentity(
     input.ast,
     source?.selectedDeclaration,

@@ -145,7 +145,7 @@ function isGlobalUndefinedExpression(
     return false;
   }
   const checker = input.queries(sourceFile).checker;
-  const type = checker.getTypeAtLocation(identifier, { sourceFile });
+  const type = checker.getTypeAtLocation(identifier);
   return type !== undefined && input.queries(sourceFile).typeShape.isNullish(type);
 }
 
@@ -249,8 +249,8 @@ function isProviderVirtualDeclarationIdentifier(
   input: CsharpTranslationContext,
 ): boolean {
   const symbols = [
-    input.queries(sourceFile).checker.getSymbolAtLocation(identifier, { sourceFile }),
-    input.queries(sourceFile).checker.getResolvedSymbol(identifier, { sourceFile }),
+    input.queries(sourceFile).checker.getSymbolAtLocation(identifier),
+    input.queries(sourceFile).checker.getResolvedSymbol(identifier),
   ];
   return symbols.some((symbol) => {
     if (symbol === undefined) {

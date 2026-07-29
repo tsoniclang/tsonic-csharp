@@ -323,7 +323,7 @@ test("C# source markers validate finalized facts before selected signature reuse
       passingMode: "by-value",
     }],
   };
-  const targetExpression = { Kind: 1, Text: "value" };
+  const storageExpression = { Kind: 1, Text: "value" };
   const outCall = {};
   const outDeclaration = {};
   const outRequest = checkedCallRequest({
@@ -331,7 +331,7 @@ test("C# source markers validate finalized facts before selected signature reuse
     call: outCall,
     callee: {},
     selectedDeclaration: outDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
   });
   const oneArgumentSlots = [{
     sourceArgumentIndex: 0,
@@ -356,7 +356,7 @@ test("C# source markers validate finalized facts before selected signature reuse
     call: borrowCall,
     callee: {},
     selectedDeclaration: borrowDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
   });
   const unsupportedBorrow = provider.mapCheckedCall(borrowRequest, fakeObservationContext({
     virtualDeclarationSubject: borrowDeclaration,
@@ -377,7 +377,7 @@ test("C# source markers validate finalized facts before selected signature reuse
     call: validOutCall,
     callee: {},
     selectedDeclaration: validOutDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
     sourceParameterTypes: [markerType],
   });
   const validOut = provider.mapCheckedCall(validOutRequest, fakeObservationContext({
@@ -388,7 +388,7 @@ test("C# source markers validate finalized facts before selected signature reuse
     argumentPassingSubject: validOutCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression,
+      storageExpression,
     },
   }));
 
@@ -397,7 +397,7 @@ test("C# source markers validate finalized facts before selected signature reuse
 });
 test("C# source markers reject malformed finalized facts", () => {
   const provider = getNativeSemanticProvider();
-  const targetExpression = { Kind: 1, Text: "value" };
+  const storageExpression = { Kind: 1, Text: "value" };
   const typeNode = { Kind: "KindTypeReference", Text: "int32" };
   const cases = [
     {
@@ -406,7 +406,7 @@ test("C# source markers reject malformed finalized facts", () => {
       options: {
         argumentPassing: {
           mode: "byref-readwrite",
-          targetExpression,
+          storageExpression,
         },
       },
     },
@@ -535,7 +535,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
   const fieldDeclaration = {};
   const structCall = {};
   const structDeclaration = {};
-  const targetExpression = { Kind: 1, Text: "value" };
+  const storageExpression = { Kind: 1, Text: "value" };
   const typeNode = { Kind: "KindTypeReference", Text: "int32" };
   const markerType = { kind: "source-primitive", name: "int32" };
 
@@ -544,7 +544,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     call: outCall,
     callee: {},
     selectedDeclaration: outDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
     sourceParameterTypes: [markerType],
   }), fakeObservationContext({
     virtualDeclarationSubject: outDeclaration,
@@ -552,7 +552,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression,
+      storageExpression,
     },
   }));
 
@@ -563,7 +563,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     call: refCall,
     callee: {},
     selectedDeclaration: refDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
     sourceParameterTypes: [markerType],
   }), fakeObservationContext({
     virtualDeclarationSubject: refDeclaration,
@@ -571,7 +571,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     argumentPassingSubject: refCall,
     argumentPassing: {
       mode: "byref-readwrite",
-      targetExpression,
+      storageExpression,
     },
   }));
 
@@ -582,7 +582,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     call: inrefCall,
     callee: {},
     selectedDeclaration: inrefDeclaration,
-    arguments: [targetExpression],
+    arguments: [storageExpression],
     sourceParameterTypes: [markerType],
   }), fakeObservationContext({
     virtualDeclarationSubject: inrefDeclaration,
@@ -590,7 +590,7 @@ test("C# erased source marker accepts supported markers only with finalized sour
     argumentPassingSubject: inrefCall,
     argumentPassing: {
       mode: "byref-readonly",
-      targetExpression,
+      storageExpression,
     },
   }));
 

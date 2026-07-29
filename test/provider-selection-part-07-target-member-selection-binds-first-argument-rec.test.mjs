@@ -550,7 +550,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: offset,
+      storageExpression: offset,
     },
     recordedFacts,
   }));

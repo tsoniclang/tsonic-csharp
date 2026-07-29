@@ -68,7 +68,7 @@ export function selectCsharpProviderElement(
   sourceFile: SourceFile,
 ): CsharpProviderElementSelection {
   const source = host.queries(sourceFile).checker
-    .getResolvedElementAccessInfo(elementAccess, { sourceFile });
+    .getResolvedElementAccessInfo(elementAccess);
   if (source === undefined) {
     return {
       kind: "missing",

@@ -42,7 +42,7 @@ test("C# provider maps constructor byref parameters from source marker target ex
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: value,
+      storageExpression: value,
     },
     sourcePrimitiveSubject: value,
     sourcePrimitive: {
@@ -113,15 +113,15 @@ test("C# provider closes ref out and in parameter modes from selected provider m
     argumentPassingBySubject: new Map([
       [refCall, {
         mode: "byref-readwrite",
-        targetExpression: int32,
+        storageExpression: int32,
       }],
       [outCall, {
         mode: "byref-writeonly-must-init",
-        targetExpression: bool,
+        storageExpression: bool,
       }],
       [inCall, {
         mode: "byref-readonly",
-        targetExpression: int64,
+        storageExpression: int64,
       }],
     ]),
     recordedFacts,
@@ -213,7 +213,7 @@ test("C# provider does not refine exact selected constructor signatures from byr
     argumentPassingSubject: refCall,
     argumentPassing: {
       mode: "byref-readwrite",
-      targetExpression: value,
+      storageExpression: value,
     },
     sourcePrimitiveSubject: value,
     sourcePrimitive: {
@@ -273,7 +273,7 @@ test("C# provider rejects argument-passing modes inconsistent with the exact sel
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-readwrite",
-      targetExpression: int32,
+      storageExpression: int32,
     },
     recordedFacts,
   }));

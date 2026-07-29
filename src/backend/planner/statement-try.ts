@@ -205,7 +205,6 @@ function catchVariableHasReferences(
 ): boolean {
   const symbol = input.queries(sourceFile).checker.getSymbolAtLocation(
     variableName,
-    { sourceFile },
   );
   if (symbol === undefined) {
     return true;

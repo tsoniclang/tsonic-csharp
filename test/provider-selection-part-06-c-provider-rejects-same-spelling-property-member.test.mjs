@@ -811,7 +811,7 @@ test("C# provider maps selected byref indexers from source marker target express
     argumentPassingSubject: outCall,
     argumentPassing: {
       mode: "byref-writeonly-must-init",
-      targetExpression: value,
+      storageExpression: value,
     },
     sourcePrimitiveSubject: value,
     sourcePrimitive: {

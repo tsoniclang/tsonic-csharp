@@ -207,7 +207,7 @@ export function argumentPassingFactForCall(sourceFile, ast, extensionHost, calle
   const fact = extensionHost.facts.get(call, argumentPassingFactKey);
   return {
     mode: fact?.mode,
-    targetKind: ast.kindName(fact?.targetExpression),
+    targetKind: ast.kindName(fact?.storageExpression),
   };
 }
 

@@ -1,6 +1,7 @@
 import type {
   ProviderParameterDeclaration,
   ProviderTypeExpression,
+  ProviderTypeParameterDeclaration,
 } from "@tsonic/tsts";
 import type {
   DotnetTypeParameterDeclaration,
@@ -123,13 +124,16 @@ export function tryDotnetTypeRefToProviderType(
 export function dotnetTypeParameterToProviderTypeParameter(
   typeParameter: DotnetTypeParameterDeclaration,
   identityPath = "$",
-) {
+): ProviderTypeParameterDeclaration {
   const defaultType = typeParameter.defaultType === undefined
     ? undefined
     : tryDotnetTypeRefToProviderType(typeParameter.defaultType, `${identityPath}.defaultType`);
+  const variance = typeParameter.variance === "target-defined"
+    ? undefined
+    : typeParameter.variance;
   return {
     name: typeParameter.name,
-    ...(typeParameter.variance !== undefined ? { variance: typeParameter.variance } : {}),
+    ...(variance !== undefined ? { variance } : {}),
     ...(defaultType !== undefined ? { defaultType } : {}),
   };
 }
