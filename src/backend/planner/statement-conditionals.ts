@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsDoStatement,
   AsIfStatement,
@@ -11,7 +12,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -37,7 +37,7 @@ import type {
 export function planIfStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -63,7 +63,7 @@ export function planIfStatement(
 export function planWhileStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -86,7 +86,7 @@ export function planWhileStatement(
 export function planDoStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -110,7 +110,7 @@ export function planConditionExpression(
   expression: Node | undefined,
   statementKind: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {

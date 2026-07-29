@@ -1,5 +1,5 @@
 import {
-  createSourceSemanticsExtension,
+  sourceSemanticsExtensionId,
 } from "@tsonic/tsts";
 import type {
   AstReader,
@@ -24,35 +24,55 @@ import {
 import {
   createCsharpSourceVirtualModulesProvider,
 } from "./source-virtual-modules.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+  createDotnetSourceDeclarationProvider,
+  dotnetModuleSpecifierPolicy,
+} from "../../providers/dotnet/index.js";
+import {
+  readCsharpReflectionReferencePaths,
+  readCsharpTargetFramework,
+  validateCsharpTargetOptions,
+} from "../../options/csharp-target-options.js";
 
-export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
-  const sourceSemantics = createSourceSemanticsExtension({
+export function createCsharpSourceSemanticsExtension(context: TargetProviderContext): CompilerExtension {
+  validateCsharpTargetOptions(context.target);
+  const references = readCsharpReflectionReferencePaths(context.target, context.projectDirectory);
+  const targetFramework = readCsharpTargetFramework(context.target);
+  const dotnetProvider = createDotnetReflectionTypeDataProvider({
+    references,
+    targetFramework,
+  });
+  return {
     identity: {
       id: csharpSourceSemanticsExtensionId,
       version: csharpProviderVersion,
       capabilityNamespace: "tsonic.csharp.source",
     },
-    modules: csharpSourceSemanticsModules(),
-  });
-  return {
-    ...sourceSemantics,
+    composition: {
+      kind: "source",
+    },
     dependencies: {
-      dependsOn: [tsonicCoreSourceExtensionId],
-      runsAfter: [tsonicCoreSourceExtensionId],
+      dependsOn: [sourceSemanticsExtensionId, tsonicCoreSourceExtensionId],
+      runsAfter: [sourceSemanticsExtensionId, tsonicCoreSourceExtensionId],
     },
     initialize(extensionContext): void {
-      extensionContext.registerTargetBindingProvider(createCsharpSourceVirtualModulesProvider());
-      sourceSemantics.initialize?.(extensionContext);
+      extensionContext.registerSourceDeclarationProvider(createCsharpSourceVirtualModulesProvider());
+      extensionContext.registerSourceDeclarationProvider(createDotnetSourceDeclarationProvider({
+        provider: dotnetProvider,
+        moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
+        references,
+        targetFramework,
+      }));
     },
     analyzeSource(context): void {
-      sourceSemantics.analyzeSource?.(context);
-      for (const sourceFile of context.sourceFiles) {
-        if (sourceFile === undefined || context.ast.getFileName(sourceFile).endsWith(".d.ts")) {
+      for (const sourceFile of context.source.getSourceFiles()) {
+        if (sourceFile === undefined || context.source.ast.getFileName(sourceFile).endsWith(".d.ts")) {
           continue;
         }
         recordUnsupportedCsharpLangReExportDiagnostics(
           sourceFile,
-          context.ast,
+          context.source.ast,
           context.diagnostics,
         );
       }

@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBinaryExpression,
   AsEnumDeclaration,
@@ -16,7 +17,9 @@ import {
   SourceTokenKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpBinaryOperatorToken,
   CsharpEnumDeclaration,
@@ -35,7 +38,7 @@ import {
 export function planEnumDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumDeclaration {
   const declaration = AsEnumDeclaration(node)!;
@@ -61,17 +64,17 @@ export function planEnumDeclaration(
 function planEnumMember(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
   const member = AsEnumMember(node)!;
-  const enumValue = input.analysis.getEnumMemberConstant(node, { sourceFile });
+  const enumValue = input.queries(sourceFile).checker.getConstantValue(node, { sourceFile });
   const enumExpressionValue = member.Initializer === undefined
     ? undefined
     : planEnumConstantExpression(member.Initializer, sourceFile, input, diagnostics);
   if (
     member.Initializer !== undefined &&
-    (enumValue === undefined || typeof enumValue.value !== "number" || !Number.isInteger(enumValue.value))
+    (typeof enumValue !== "number" || !Number.isInteger(enumValue))
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(member.Initializer!, "C# enum member initializers must be integer constants evaluated by TSTS; string or provider-owned enum carriers require finalized target facts."));
   }
@@ -82,14 +85,16 @@ function planEnumMember(
       ? {}
       : enumExpressionValue !== undefined
         ? { value: enumExpressionValue }
-        : enumValue?.value === undefined ? {} : { value: { kind: "LiteralExpression", value: enumValue.value } }),
+        : typeof enumValue !== "number"
+          ? {}
+          : { value: { kind: "LiteralExpression", value: enumValue } }),
   };
 }
 
 function planEnumConstantExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   switch (SourceKind(input.ast, node)) {
@@ -128,7 +133,7 @@ function planEnumConstantExpression(
   }
 }
 
-function sourceOperatorTokenKind(input: TargetCompileInput, operatorToken: unknown): string {
+function sourceOperatorTokenKind(input: CsharpTranslationContext, operatorToken: unknown): string {
   return SourceTokenKind(input.ast, operatorToken);
 }
 

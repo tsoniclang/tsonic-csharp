@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsIdentifier,
   AsVariableDeclaration,
@@ -7,7 +8,9 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -22,16 +25,8 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  getArrayBoundaryCoreCarrierForExpression,
-} from "./array-boundary-facts.js";
-import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
-import {
-  missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
-  resolveRuntimeCarrierForExpression,
-} from "./runtime-carriers.js";
 import {
   expressionStatement,
 } from "./statement-output.js";
@@ -39,11 +34,11 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  csharpTypeFromIterationElementFact,
-} from "./statement-iteration-facts.js";
+  type CsharpResolvedIteration,
+} from "../../policy/operations/index.js";
 import type {
-  CsharpTargetIterationFact,
-} from "../../source/csharp-facts.js";
+  CsharpPropertyKeyIterationPolicy,
+} from "../../policy/types/index.js";
 
 export interface PlannedForInBinding {
   readonly kind: "LocalDeclarationStatement" | "assignment";
@@ -55,7 +50,7 @@ export interface PlannedForInBinding {
 export function planForInBinding(
   initializer: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): PlannedForInBinding | undefined {
   if (initializer === undefined) {
@@ -107,15 +102,25 @@ export function planForInBinding(
 }
 
 export function getForInKeyType(
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-in" }
+  >,
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  const keyType = csharpTypeFromIterationElementFact(selectedIteration, diagnosticNode, diagnostics, "C# for-in key emission", "key");
+  const keyType = csharpTypeFromTargetTypeRef(selectedIteration.elementType);
   if (keyType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      "C# for-in key emission requires a renderable checked target key type.",
+    ));
     return undefined;
   }
-  if (selectedIteration.lowering.kind === "index-key" || selectedIteration.lowering.kind === "object-shape-keys") {
+  if (
+    selectedIteration.lowering.kind === "index" ||
+    selectedIteration.lowering.kind === "object-shape-keys"
+  ) {
     const stringType = predefined("string");
     if (!sameCsharpType(keyType, stringType)) {
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `C# for-in ${selectedIteration.lowering.kind} lowering requires finalized provider key type string.`));
@@ -126,20 +131,21 @@ export function getForInKeyType(
 }
 
 export function getCsharpTypeForForInCollection(
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-in" }
+  >,
   expression: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
-    probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, expression, sourceFile));
-  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  const type = csharpTypeFromTargetTypeRef(selectedIteration.iterableType);
   if (type !== undefined) {
     return type;
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the for-in collection expression.");
-  diagnostics.push(unsupportedNodeDiagnostic(expression, `For-in collection temp requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
+  diagnostics.push(unsupportedNodeDiagnostic(
+    expression,
+    "For-in collection temp requires a renderable checked target iterable type.",
+  ));
   return undefined;
 }
 
@@ -147,10 +153,18 @@ export function planForInKeyBindingStatement(
   binding: PlannedForInBinding,
   keyType: ReturnType<typeof getCsharpTypeForNode>,
   indexName: string,
-  selectedIteration: CsharpTargetIterationFact,
+  lowering: Extract<
+    CsharpPropertyKeyIterationPolicy,
+    { readonly kind: "index" }
+  >,
   diagnostics: TargetDiagnostic[],
 ): CsharpStatement | undefined {
-  const keyExpression = forInKeyExpression(indexName, selectedIteration, binding.node, diagnostics);
+  const keyExpression = forInKeyExpression(
+    indexName,
+    lowering,
+    binding.node,
+    diagnostics,
+  );
   return keyExpression === undefined
     ? undefined
     : planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression);
@@ -179,12 +193,15 @@ export function planForInKeyBindingStatementFromExpression(
 
 function forInKeyExpression(
   indexName: string,
-  selectedIteration: CsharpTargetIterationFact,
+  lowering: Extract<
+    CsharpPropertyKeyIterationPolicy,
+    { readonly kind: "index" }
+  >,
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  if (selectedIteration.lowering.kind !== "index-key" || selectedIteration.lowering.keyConversion !== "invariant-string") {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in index-key lowering requires finalized invariant-string key conversion facts."));
+  if (lowering.keyConversion !== "invariant-string") {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in index lowering requires an explicit invariant-string key conversion policy."));
     return undefined;
   }
   return {

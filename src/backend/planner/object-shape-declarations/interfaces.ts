@@ -6,7 +6,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../source/csharp-facts.js";
+} from "../../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

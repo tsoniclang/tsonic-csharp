@@ -1,8 +1,11 @@
 import { performance } from "node:perf_hooks";
 import type {
+  ExtensionDiagnostic,
   ProviderDeclarationModel,
-  TargetBindingFact,
 } from "@tsonic/tsts";
+import type {
+  TargetBindingFact,
+} from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
 } from "../model.js";
@@ -30,6 +33,9 @@ import type {
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
+} from "../provider.js";
+import {
+  resolveDotnetProviderDeclarationProjection,
 } from "../provider.js";
 import {
   createDotnetProviderCache,
@@ -76,6 +82,12 @@ import {
   createDotnetTargetBindingIndex,
 } from "./target-binding-index.js";
 import {
+  dotnetProviderTargetRelationTemplates,
+} from "../target-relations.js";
+import type {
+  DotnetProviderTargetRelationTemplate,
+} from "../target-relations.js";
+import {
   createDotnetReflectionCacheRequest,
   moduleMemoryCacheKey,
   pushDotnetReflectionReferenceArgs,
@@ -103,7 +115,17 @@ export interface DotnetReflectionTypeDataProviderOptions {
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
   findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined;
   findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
+  resolveTargetRelations(
+    request: DotnetProviderTargetRelationRequest,
+  ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic;
   getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot;
+}
+
+export interface DotnetProviderTargetRelationRequest {
+  readonly moduleSpecifier: string;
+  readonly providerModuleId: string;
+  readonly artifactFileName: string;
+  readonly exportName: string;
 }
 
 export function createDotnetReflectionTypeDataProvider(
@@ -315,7 +337,7 @@ export function createDotnetReflectionTypeDataProvider(
     return [...new Set(values)].sort();
   }
 
-  return {
+  const typeDataProvider: DotnetReflectionTypeDataProvider = {
     identity: providerIdentity,
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
@@ -366,10 +388,36 @@ export function createDotnetReflectionTypeDataProvider(
       }
       return targetBindingIndex.getUniqueByMetadataName(metadataName);
     },
+    resolveTargetRelations(
+      request: DotnetProviderTargetRelationRequest,
+    ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic {
+      const model = resolveDotnetProviderDeclarationProjection(
+        {
+          provider: typeDataProvider,
+          moduleSpecifierPolicy,
+          references: options.references,
+          targetFramework: options.targetFramework,
+        },
+        providerIdentity.id,
+        {
+          kind: "virtual",
+          moduleSpecifier: request.moduleSpecifier,
+          virtualFileName: request.artifactFileName,
+          providerModuleId: request.providerModuleId,
+        },
+        { requestedExports: [request.exportName] },
+        moduleSpecifierPolicy,
+      );
+      if ("extensionId" in model) {
+        return model;
+      }
+      return dotnetProviderTargetRelationTemplates(model, targetBindingIndex);
+    },
     getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot {
       return telemetry.snapshot();
     },
   };
+  return typeDataProvider;
 
   function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
     modules.set(memoryKey, module);

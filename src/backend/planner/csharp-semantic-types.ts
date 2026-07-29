@@ -1,11 +1,11 @@
 import type {
+  CsharpTranslationContext } from "../../translate/context/index.js";
+import type {
   SourceFile,
-  TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
-import type {
-  TargetCompileInput,
-} from "@tsonic/target-api";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+
 import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
@@ -21,23 +21,23 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function getCsharpTypeFromSemanticType(
   type: Type | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   seen: ReadonlySet<Type> = new Set(),
 ): CsharpTypeNode | undefined {
   if (
     type === undefined ||
     seen.has(type) ||
-    input.types.isAny(type) ||
-    input.types.isUnknown(type)
+    input.queries(sourceFile).typeShape.isAny(type) ||
+    input.queries(sourceFile).typeShape.isUnknown(type)
   ) {
     return undefined;
   }
-  const typeParameterName = getCsharpTypeParameterName(type, input);
+  const typeParameterName = getCsharpTypeParameterName(type, sourceFile, input);
   if (typeParameterName !== undefined) {
     return { kind: "IdentifierName", name: typeParameterName };
   }
@@ -56,7 +56,7 @@ export function getCsharpTypeFromSemanticType(
   if (directCsharpType !== undefined) {
     return directCsharpType;
   }
-  const intrinsicType = getCsharpIntrinsicTypeFromSemanticType(type, input);
+  const intrinsicType = getCsharpIntrinsicTypeFromSemanticType(type, sourceFile, input);
   if (intrinsicType !== undefined) {
     return intrinsicType;
   }
@@ -66,17 +66,19 @@ export function getCsharpTypeFromSemanticType(
 
 function getCsharpIntrinsicTypeFromSemanticType(
   type: Type,
-  input: TargetCompileInput,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
 ): CsharpTypeNode | undefined {
-  const targetType = input.types.isBooleanLike(type)
+  const typeShape = input.queries(sourceFile).typeShape;
+  const targetType = typeShape.isBooleanLike(type)
     ? csharpSourcePrimitiveTargetType("bool")
-    : input.types.isNumberLike(type)
+    : typeShape.isNumberLike(type)
       ? csharpSourcePrimitiveTargetType("float64")
-      : input.types.isStringLike(type)
+      : typeShape.isStringLike(type)
         ? csharpStringTargetType()
-        : input.types.isBigIntLike(type)
+        : typeShape.isBigIntLike(type)
           ? csharpBigIntegerTargetType()
-          : input.types.isVoidLike(type)
+          : typeShape.isVoidLike(type)
             ? csharpVoidTargetType()
             : undefined;
   return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
@@ -85,18 +87,18 @@ function getCsharpIntrinsicTypeFromSemanticType(
 function getCsharpTargetTypeRefFromSemanticType(
   type: Type | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   seen: ReadonlySet<Type>,
 ): TargetTypeRef | undefined {
   if (
     type === undefined ||
     seen.has(type) ||
-    input.types.isAny(type) ||
-    input.types.isUnknown(type)
+    input.queries(sourceFile).typeShape.isAny(type) ||
+    input.queries(sourceFile).typeShape.isUnknown(type)
   ) {
     return undefined;
   }
-  const typeParameterName = getCsharpTypeParameterName(type, input);
+  const typeParameterName = getCsharpTypeParameterName(type, sourceFile, input);
   if (typeParameterName !== undefined) {
     return { kind: "type-parameter", name: typeParameterName };
   }
@@ -117,13 +119,14 @@ function instantiateSemanticTargetNamedType(
   targetType: TargetTypeRef | undefined,
   type: Type,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   seen: ReadonlySet<Type>,
 ): TargetTypeRef | undefined {
-  if (targetType?.kind !== "target-named" || !input.types.isTypeReference(type)) {
+  const typeShape = input.queries(sourceFile).typeShape;
+  if (targetType?.kind !== "target-named" || !typeShape.isTypeReference(type)) {
     return undefined;
   }
-  const typeArguments = input.types.getTypeArguments(type, { sourceFile });
+  const typeArguments = typeShape.getTypeArguments(type, { sourceFile });
   if (typeArguments.length === 0) {
     return targetType;
   }
@@ -139,13 +142,18 @@ function instantiateSemanticTargetNamedType(
 }
 
 
-export function getCsharpTypeParameterName(type: Type, input: TargetCompileInput): string | undefined {
-  const symbol = input.analysis.getTypeSymbol(type);
-  const name = input.analysis.getSymbolName(symbol);
+export function getCsharpTypeParameterName(
+  type: Type,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+): string | undefined {
+  const checker = input.queries(sourceFile).checker;
+  const symbol = checker.getTypeSymbol(type);
+  const name = checker.getSymbolName(symbol);
   if (name === undefined || tryCsharpIdentifier(name) !== name) {
     return undefined;
   }
-  return input.analysis.getSymbolDeclarations(symbol).some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration))
+  return checker.getSymbolDeclarations(symbol).some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration))
     ? name
     : undefined;
 }

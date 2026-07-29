@@ -1,8 +1,8 @@
-import type { TargetTypeRef } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   isCsharpThrowableTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {

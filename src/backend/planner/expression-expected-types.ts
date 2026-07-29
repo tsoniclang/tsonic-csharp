@@ -1,13 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  AsAsExpression,
   AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
-  AsNonNullExpression,
   AsNumericLiteral,
   AsParenthesizedExpression,
   AsSatisfiesExpression,
   AsStringLiteral,
-  AsTypeAssertion,
   HasSourceKind,
   KindArrayLiteralExpression,
   KindArrowFunction,
@@ -29,8 +27,10 @@ import {
   KindNullKeyword,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
 import {
@@ -43,7 +43,6 @@ import {
 } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
-  targetTypeRefsMatch,
 } from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
@@ -69,10 +68,8 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
-  isTstsUndefinedType,
-} from "../../source/csharp-source-semantics/nullish-types.js";
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -82,7 +79,7 @@ export interface ExpectedTypeExpressionPlanners {
 export function planExpressionWithExpectedTypeCore(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
@@ -100,16 +97,16 @@ export function planExpressionWithExpectedTypeCore(
     return expectedTypeLiteral;
   }
   if (HasSourceKind(input.ast, node, KindAsExpression)) {
-    return planners.planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    return planners.planExpression(node, sourceFile, input, diagnostics);
   }
   if (HasSourceKind(input.ast, node, KindSatisfiesExpression)) {
     return planners.planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindNonNullExpression)) {
-    return planners.planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    return planners.planExpression(node, sourceFile, input, diagnostics);
   }
   if (HasSourceKind(input.ast, node, KindTypeAssertionExpression)) {
-    return planners.planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    return planners.planExpression(node, sourceFile, input, diagnostics);
   }
   if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
     const expression = AsParenthesizedExpression(node)!;
@@ -234,7 +231,7 @@ export function planExpressionWithExpectedTypeCore(
 function projectNullableValueForExpectedTarget(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expression: CsharpExpression | undefined,
   expectedTargetType: TargetTypeRef | undefined,
 ): CsharpExpression | undefined {
@@ -246,7 +243,7 @@ function projectNullableValueForExpectedTarget(
     return expression;
   }
   const nullableElementType = getCsharpNullableElementTargetType(expressionTargetType);
-  if (nullableElementType === undefined || !targetTypeRefsMatch(nullableElementType, expectedTargetType)) {
+  if (nullableElementType === undefined || !targetTypeRefEquals(nullableElementType, expectedTargetType)) {
     return expression;
   }
   return {
@@ -259,7 +256,7 @@ function projectNullableValueForExpectedTarget(
 function planExpectedRuntimeNullishLiteral(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expectedTargetType: TargetTypeRef | undefined,
   expectedTypeSubject: Node | undefined,
 ): CsharpExpression | undefined {
@@ -283,8 +280,8 @@ function planExpectedRuntimeNullishLiteral(
 }
 
 function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef): boolean {
-  return targetTypeRefsMatch(expectedTargetType, carrier) ||
-    (getCsharpRuntimeUnionArms(expectedTargetType)?.some((arm) => targetTypeRefsMatch(arm, carrier)) === true);
+  return targetTypeRefEquals(expectedTargetType, carrier) ||
+    (getCsharpRuntimeUnionArms(expectedTargetType)?.some((arm) => targetTypeRefEquals(arm, carrier)) === true);
 }
 
 function runtimeCarrierSingletonValue(carrier: TargetTypeRef): CsharpExpression | undefined {
@@ -301,23 +298,24 @@ function runtimeCarrierSingletonValue(carrier: TargetTypeRef): CsharpExpression 
 function isGlobalUndefinedLiteral(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   if (SourceKind(input.ast, node) !== KindIdentifier || Node_Text(input.ast, node) !== "undefined") {
     return false;
   }
   if (
-    input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) !== undefined ||
-    input.targetFacts.getTargetBindingForReference(node, { sourceFile }) !== undefined
+    input.navigation.referenceFor(node) !== undefined
   ) {
     return false;
   }
-  return isTstsUndefinedType(input.analysis.getTypeAtLocation(node, { sourceFile }), input.types);
+  const targetType = input.types.resolveNode(node, sourceFile);
+  return targetType !== undefined &&
+    targetTypeRefEquals(targetType, csharpRuntimeUndefinedTargetType());
 }
 
 function planExpectedTypeLiteral(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expectedType: CsharpTypeNode,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
@@ -347,7 +345,7 @@ function planExpectedTypeLiteral(
   return undefined;
 }
 
-function getStringLiteralText(node: Node, input: TargetCompileInput): string | undefined {
+function getStringLiteralText(node: Node, input: CsharpTranslationContext): string | undefined {
   switch (SourceKind(input.ast, node)) {
     case KindStringLiteral:
       return Node_Text(input.ast, AsStringLiteral(node));

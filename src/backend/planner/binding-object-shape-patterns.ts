@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingElement,
   AsBindingPattern,
@@ -7,7 +8,9 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
@@ -20,19 +23,22 @@ import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planObjectShapeDefaultProjection } from "./object-shape-defaults.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
-import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import {
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
-  resolveCsharpObjectShapeMemberByFinalizedSourceName,
-} from "../../source/csharp-facts.js";
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../policy/types/index.js";
 
 export function planObjectShapeBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
   objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -54,7 +60,7 @@ function planObjectShapeBindingElement(
   objectShape: CsharpObjectShapeFact,
   explicitlyExtractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -78,7 +84,11 @@ function planObjectShapeBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property must match a finalized provider object-shape member."));
     return [];
   }
-  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-binding-property");
+  const memberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+    objectShape,
+    sourceName,
+    "checked-object-binding-property",
+  );
   if (memberLookup.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(memberLookup, "Object destructuring property")));
     return [];
@@ -110,7 +120,7 @@ function planObjectShapeRestBindingElement(
   sourceShape: CsharpObjectShapeFact,
   explicitlyExtractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -131,20 +141,28 @@ function planObjectShapeRestBindingElement(
     return [];
   }
   for (const sourceName of explicitlyExtractedSourceNames) {
-    const staleRestMember = resolveCsharpObjectShapeMemberByFinalizedSourceName(restShape, sourceName, "finalized-object-rest-member");
+    const staleRestMember = resolveCsharpObjectShapeMemberBySourceContract(
+      restShape,
+      sourceName,
+      "finalized-object-rest-member",
+    );
     if (staleRestMember.kind === "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring rest shape must exclude explicitly extracted member '${staleRestMember.member.sourceName}'.`));
       return [];
     }
   }
   const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
-    const sourceMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(sourceShape, restMember.sourceName, "finalized-object-rest-member");
+    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+      sourceShape,
+      restMember.sourceName,
+      "finalized-object-rest-member",
+    );
     if (sourceMemberLookup.kind !== "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(sourceMemberLookup, "Object rest destructuring source shape")));
       return undefined;
     }
     const sourceMember = sourceMemberLookup.member;
-    if (!targetTypeRefsMatch(sourceMember.type, restMember.type)) {
+    if (!targetTypeRefEquals(sourceMember.type, restMember.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
       return undefined;
     }
@@ -170,7 +188,7 @@ function planObjectShapeRestBindingElement(
 
 function collectObjectShapeExtractedSourceNames(
   elements: readonly (Node | undefined)[],
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): ReadonlySet<string> {
   const sourceNames = new Set<string>();
   for (const elementNode of elements) {
@@ -191,7 +209,7 @@ function collectObjectShapeExtractedSourceNames(
 
 function getObjectShapeBindingPropertySourceName(
   elementNode: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);

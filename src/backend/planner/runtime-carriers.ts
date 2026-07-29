@@ -1,28 +1,41 @@
-import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
-import type { TargetCarrierResolution, TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import {
-  getTargetTypeRefFromDirectFacts,
-} from "./runtime-carrier-direct-facts.js";
-import {
-  csharpStringTargetType,
-  csharpTargetTypeFromBinding,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
-  csharpTargetOperationFactKey,
-} from "../../source/csharp-facts.js";
-import {
-  asNodeSubject,
-} from "../../source/fact-subjects.js";
+import type {
+  Node,
+  SourceFile,
+  Type,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+import type {
+  TargetTypeRef,
+} from "../../policy/types/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
 import {
   sourceLocationEvidence,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import {
-  getDirectTargetBindingForReference,
-} from "./provider-reference-facts.js";
+
+export type CsharpRuntimeCarrierResolution =
+  | {
+      readonly kind: "resolved";
+      readonly carrier: TargetTypeRef;
+      readonly evidence: readonly CsharpRuntimeCarrierEvidence[];
+    }
+  | {
+      readonly kind: "missing";
+      readonly reason: string;
+      readonly evidence: readonly CsharpRuntimeCarrierEvidence[];
+    };
+
+export interface CsharpRuntimeCarrierEvidence {
+  readonly message: string;
+  readonly subject?: Node;
+}
 
 export function getRuntimeCarrierForExpression(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
@@ -30,123 +43,53 @@ export function getRuntimeCarrierForExpression(
 }
 
 export function resolveRuntimeCarrierForExpression(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-): TargetCarrierResolution | undefined {
+): CsharpRuntimeCarrierResolution | undefined {
   if (sourceNode === undefined) {
     return undefined;
   }
-  const carrier = getTargetTypeRefForNode(input, sourceNode, sourceFile);
-  const targetResolution = carrier === undefined
-    ? input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })
-    : undefined;
-  if (targetResolution?.kind === "missing") {
-    return targetResolution;
-  }
+  const carrier = input.types.resolveNode(sourceNode, sourceFile);
   return carrier === undefined
     ? {
         kind: "missing",
-        reason: "C# runtime carrier is missing; no finalized C# carrier, operation, source-profile, or provider fact owns this expression.",
-        evidence: [{ message: "C# emission does not consume the canonical TSTS runtime-carrier fact as an enriched C# output fallback.", subject: sourceNode }],
+        reason:
+          "C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation.",
+        evidence: [{
+          message: "C# type policy found no exact runtime representation.",
+          subject: sourceNode,
+        }],
       }
     : {
         kind: "resolved",
         carrier,
-        evidence: [{ message: "C# runtime carrier resolved from finalized C# target-owned facts.", subject: sourceNode }],
+        evidence: [{
+          message:
+            "C# runtime representation resolved lazily from the checked source program and target policy.",
+          subject: sourceNode,
+        }],
       };
 }
 
 export function getTargetTypeRefForNode(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  if (sourceNode === undefined) {
-    return undefined;
-  }
-  const intrinsicLiteralType = getIntrinsicLiteralTargetType(input, sourceNode);
-  const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode);
-  if (input.ast.kindName(sourceNode) === "KindTypeReference") {
-    return getTargetTypeRefFromTargetBindingForReference(input, sourceNode, sourceFile) ??
-      getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      typeReferenceFact ??
-      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
-  }
-  const finalizedOperationResult = input.facts.getFact(sourceNode, csharpTargetOperationFactKey)?.resultType;
-  return typeReferenceFact ??
-    finalizedOperationResult ??
-    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-    intrinsicLiteralType ??
-    probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
-}
-
-function getIntrinsicLiteralTargetType(
-  input: TargetCompileInput,
-  sourceNode: Node,
-): TargetTypeRef | undefined {
-  return input.ast.is.IsStringLiteral(sourceNode) ||
-    input.ast.is.IsNoSubstitutionTemplateLiteral(sourceNode) ||
-    input.ast.is.IsTemplateExpression(sourceNode)
-    ? csharpStringTargetType()
-    : undefined;
-}
-
-function getTargetTypeRefFromTargetBindingForReference(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const binding = getDirectTargetBindingForReference(input, sourceNode);
-  if (binding === undefined) {
-    return undefined;
-  }
-  const typeArguments = input.ast.typeArguments(sourceNode)
-    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
-  return typeArguments.some((argument) => argument === undefined)
-    ? undefined
-    : csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
-}
-
-function getTargetTypeRefFromTypeReferenceName(
-  input: TargetCompileInput,
-  sourceNode: Node,
-): TargetTypeRef | undefined {
-  if (input.ast.kindName(sourceNode) !== "KindTypeReference") {
-    return undefined;
-  }
-  const typeName = asNodeSubject(getNodeField(sourceNode, "TypeName"));
-  return typeName === undefined
-    ? undefined
-    : getTargetTypeRefFromDirectFacts(input, typeName, { includeRuntimeCarrier: false });
-}
-
-function getNodeField(node: Node, field: string): unknown {
-  return Object.getOwnPropertyDescriptor(node, field)?.value;
+  return input.types.resolveNode(sourceNode, sourceFile);
 }
 
 export function getTargetTypeRefForType(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   type: Type | undefined,
   sourceFile: SourceFile,
-  seen: ReadonlySet<Type> = new Set(),
 ): TargetTypeRef | undefined {
-  void sourceFile;
-  void seen;
-  return type === undefined
-    ? undefined
-    : getTargetTypeRefFromSemanticTypeFacts(input, type);
-}
-
-function getTargetTypeRefFromSemanticTypeFacts(
-  input: TargetCompileInput,
-  subject: Type,
-): TargetTypeRef | undefined {
-  return getTargetTypeRefFromDirectFacts(input, subject);
+  return input.types.resolveType(type, sourceFile);
 }
 
 export function probeCarrierFromResolution(
-  resolution: TargetCarrierResolution | undefined,
+  resolution: CsharpRuntimeCarrierResolution | undefined,
 ): TargetTypeRef | undefined {
   return resolution?.kind === "resolved" ? resolution.carrier : undefined;
 }
@@ -157,7 +100,7 @@ export interface MissingCarrierDiagnosticDetail {
 }
 
 export function missingCarrierDiagnosticDetail(
-  resolution: TargetCarrierResolution | undefined,
+  resolution: CsharpRuntimeCarrierResolution | undefined,
   defaultReason: string,
 ): MissingCarrierDiagnosticDetail {
   if (resolution?.kind !== "missing") {
@@ -167,7 +110,7 @@ export function missingCarrierDiagnosticDetail(
     reason: resolution.reason,
     evidence: resolution.evidence.flatMap((entry) => [
       entry.message,
-      ...sourceLocationEvidence(asNodeSubject(entry.subject)),
+      ...sourceLocationEvidence(entry.subject),
     ]),
   };
 }
@@ -176,9 +119,15 @@ export function pushMissingCarrierDiagnostic(
   diagnostics: TargetDiagnostic[],
   node: Node,
   message: string,
-  resolution: TargetCarrierResolution | undefined,
+  resolution: CsharpRuntimeCarrierResolution | undefined,
   defaultReason: string,
 ): void {
   const detail = missingCarrierDiagnosticDetail(resolution, defaultReason);
-  diagnostics.push(unsupportedNodeDiagnostic(node, `${message} ${detail.reason}`, detail.evidence));
+  diagnostics.push(
+    unsupportedNodeDiagnostic(
+      node,
+      `${message} ${detail.reason}`,
+      detail.evidence,
+    ),
+  );
 }

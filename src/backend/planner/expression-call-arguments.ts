@@ -1,36 +1,28 @@
-import type { ArgumentPassingFact, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import {
+  argumentPassingFactKey,
+  type ArgumentPassingFact,
+  type Node,
+  type SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpArgument,
   CsharpExpression,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
-import {
-  getTargetTypeRefForNode,
-} from "./runtime-carriers.js";
-import {
-  getCsharpDelegateSignature,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
   isAstNode,
-  SourceKind,
   HasSourceKind,
   KindArrowFunction,
   KindFunctionExpression,
 } from "./source-ast.js";
-import {
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../../source/csharp-source-semantics/target-ref-utils.js";
-import {
-  isSourceOwnedCallableRuntimeCarrierSubject,
-} from "./semantic-source-ownership.js";
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
@@ -42,14 +34,14 @@ import {
 export type ExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ) => CsharpExpression | undefined;
 
 export type ExpectedExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
@@ -59,7 +51,7 @@ export type ExpectedExpressionPlanner = (
 export function planCallArgumentCore(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
@@ -69,7 +61,7 @@ export function planCallArgumentCore(
   expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
   state?: DestructuringPlannerState,
 ): CsharpArgument | undefined {
-  const argumentPassing = input.facts.getArgumentPassingFact(node);
+  const argumentPassing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
   if (argumentPassing === undefined) {
     if (expectedArgumentPassingMode !== "by-value") {
       diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission requires finalized argument-passing facts for selected ${expectedArgumentPassingMode} parameters.`));
@@ -86,7 +78,7 @@ export function planCallArgumentCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argumentPassing.mode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
     return undefined;
   }
-  if (!isAstNode(argumentPassing.targetExpression)) {
+  if (!isAstNode(input.ast, argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
     return undefined;
   }
@@ -108,7 +100,7 @@ export function planCallArgumentCore(
 function planCallArgumentExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
@@ -125,110 +117,10 @@ function planCallArgumentExpression(
       return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, conversionExpectedTargetType);
     }
   }
-  const conversion = input.facts.getTargetConversionFact(node);
-  if (conversion?.operation !== undefined) {
-    return planExpression(node, sourceFile, input, diagnostics);
-  }
-  if (conversion?.convertedType !== undefined) {
-    const delegateConversion = tryPlanSourceOwnedDelegateConversion(
-      node,
-      sourceFile,
-      input,
-      diagnostics,
-      planExpression,
-      conversion.convertedType,
-    );
-    if (delegateConversion.kind === "planned") {
-      return delegateConversion.expression;
-    }
-    if (delegateConversion.kind === "failed") {
-      return undefined;
-    }
-    const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
-    if (convertedType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
-      return undefined;
-    }
-    if (
-      conversionExpectedTargetType !== undefined &&
-      !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)
-    ) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, `Selected target argument conversion fact does not match the selected call parameter type. Node kind: ${SourceKind(input.ast, node)}. Conversion target: ${targetTypeRefKey(conversion.convertedType)}. Selected parameter target: ${targetTypeRefKey(conversionExpectedTargetType)}.`));
-      return undefined;
-    }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject, conversion.convertedType);
-  }
   if (expectedType !== undefined) {
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType);
   }
   return planExpression(node, sourceFile, input, diagnostics);
-}
-
-type DelegateConversionPlan =
-  | { readonly kind: "not-delegate" }
-  | { readonly kind: "planned"; readonly expression: CsharpExpression }
-  | { readonly kind: "failed" };
-
-function tryPlanSourceOwnedDelegateConversion(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
-  convertedType: TargetTypeRef,
-): DelegateConversionPlan {
-  const targetSignature = getCsharpDelegateSignature(convertedType);
-  if (targetSignature === undefined) {
-    return { kind: "not-delegate" };
-  }
-  const sourceType = getTargetTypeRefForNode(input, node, sourceFile);
-  const sourceSignature = getCsharpDelegateSignature(sourceType);
-  if (sourceType === undefined || sourceSignature === undefined || targetTypeRefEquals(sourceType, convertedType)) {
-    return { kind: "not-delegate" };
-  }
-  if (!delegateSignaturesMatch(sourceSignature, targetSignature)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target delegate conversion requires matching finalized source and target delegate signatures before C# emission."));
-    return { kind: "failed" };
-  }
-  if (!isSourceOwnedCallableRuntimeCarrierSubject(node, sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target delegate conversion requires a source-owned callable reference; provider-owned delegate values require explicit provider conversion metadata."));
-    return { kind: "failed" };
-  }
-  const callee = planExpression(node, sourceFile, input, diagnostics);
-  if (callee === undefined) {
-    return { kind: "failed" };
-  }
-  const parameters = targetSignature.parameters.map((_, index) => ({
-    kind: "Parameter" as const,
-    name: `__tsonic_arg${index}`,
-  }));
-  return {
-    kind: "planned",
-    expression: {
-      kind: "LambdaExpression",
-      parameters,
-      body: {
-        kind: "InvocationExpression",
-        callee,
-        arguments: parameters.map((parameter) => ({
-          kind: "Argument" as const,
-          expression: { kind: "IdentifierName" as const, name: parameter.name },
-        })),
-      },
-    },
-  };
-}
-
-function delegateSignaturesMatch(
-  source: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
-  target: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
-): boolean {
-  return source.parameters.length === target.parameters.length &&
-    source.parameters.every((parameter, index) => {
-      const targetParameter = target.parameters[index];
-      return targetParameter !== undefined && targetTypeRefEquals(parameter, targetParameter);
-    }) &&
-    targetTypeRefEquals(source.returnType, target.returnType);
 }
 
 function csharpSupportsArgumentPassingMode(

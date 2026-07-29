@@ -1,16 +1,17 @@
+import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
   AsSpreadElement,
   HasSourceKind,
   KindSpreadElement,
-} from "../source-ast.js";
+  } from "../source-ast.js";
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -35,14 +36,12 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  isCsharpJsArrayCarrierTargetType,
-} from "../../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
-import {
+  csharpCollectionUsesJsArraySemantics,
   getCsharpCollectionElementTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 import {
   targetTypeRefEquals,
-} from "../../../source/csharp-source-semantics/target-ref-utils.js";
+} from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -57,7 +56,7 @@ import {
 export function planArrayLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
@@ -85,12 +84,12 @@ export function planArrayLiteralExpression(
 export function plannedArrayElements(
   elements: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
   ) => CsharpExpression | undefined,
 ): readonly CsharpExpression[] | undefined {
@@ -111,7 +110,7 @@ export function plannedArrayElements(
 function planArraySpreadLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
@@ -138,7 +137,7 @@ function planArraySpreadLiteralExpression(
 function createArraySpreadChunks(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   expectedArrayType: CsharpTypeNode,
@@ -215,7 +214,7 @@ function createArraySpreadChunks(
       });
       continue;
     }
-    if (isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
+    if (csharpCollectionUsesJsArraySemantics(spreadCarrier)) {
       const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
       if (planned === undefined) {
         return undefined;

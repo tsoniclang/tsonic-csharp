@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsIdentifier,
   KindIdentifier,
@@ -11,7 +12,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -26,7 +26,7 @@ export function planBinaryOperand(
   operand: Node,
   operatorToken: CsharpBinaryOperatorToken,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
@@ -39,7 +39,7 @@ function isNullishEqualityOperand(
   operand: Node,
   operatorToken: CsharpBinaryOperatorToken,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   if (operatorToken.kind !== "EqualsEqualsToken" && operatorToken.kind !== "ExclamationEqualsToken") {
     return false;
@@ -51,6 +51,8 @@ function isNullishEqualityOperand(
   if (kind !== KindIdentifier || Node_Text(input.ast, AsIdentifier(operand)) !== "undefined") {
     return false;
   }
-  const type = input.analysis.getTypeAtLocation(operand, { sourceFile });
-  return type === undefined ? false : input.types.isNullish(type);
+  const type = input.queries(sourceFile).checker.getTypeAtLocation(operand, { sourceFile });
+  return type === undefined
+    ? false
+    : input.queries(sourceFile).typeShape.isNullish(type);
 }

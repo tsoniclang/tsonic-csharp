@@ -1,7 +1,7 @@
 import type {
   TargetConstraint,
   TargetTypeParameter,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   DotnetConstraint,
   DotnetTypeParameterDeclaration,

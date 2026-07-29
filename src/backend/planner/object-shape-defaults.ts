@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpTypeNode,
@@ -8,18 +11,18 @@ import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import {
   getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function planObjectShapeDefaultProjection(
   projected: CsharpExpression,
   member: CsharpObjectShapeFact["members"][number],
   initializer: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,

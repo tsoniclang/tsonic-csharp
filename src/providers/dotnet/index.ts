@@ -40,7 +40,7 @@ export type {
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
 } from "./provider.js";
-export { createDotnetTargetBindingProvider } from "./provider.js";
+export { createDotnetSourceDeclarationProvider } from "./provider.js";
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,

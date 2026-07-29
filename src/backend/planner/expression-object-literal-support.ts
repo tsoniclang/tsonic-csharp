@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   HasSourceKind,
   KindIdentifier,
@@ -8,10 +9,12 @@ import {
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  targetTypeRefEquals,
+  type TargetTypeRef,
+} from "../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -19,10 +22,10 @@ import type {
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 import {
-  resolveCsharpObjectShapeMemberByFinalizedSourceName,
-} from "../../source/csharp-facts.js";
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -30,14 +33,11 @@ import {
   getCsharpObjectShapeFactForNode,
   getCsharpObjectShapeFactForTargetType,
 } from "./csharp-fact-queries.js";
-import {
-  targetTypeRefsMatch,
-} from "./target-types.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expectedTargetType?: TargetTypeRef,
 ): CsharpObjectShapeFact | undefined {
   return getCsharpObjectShapeFactForTargetType(expectedTargetType, input) ??
@@ -48,7 +48,11 @@ export function findObjectShapeMember(
   objectShape: CsharpObjectShapeFact,
   sourceName: string,
 ): CsharpObjectShapeFact["members"][number] | undefined {
-  const lookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-literal-property");
+  const lookup = resolveCsharpObjectShapeMemberBySourceContract(
+    objectShape,
+    sourceName,
+    "checked-object-literal-property",
+  );
   return lookup.kind === "resolved" ? lookup.member : undefined;
 }
 
@@ -66,12 +70,12 @@ export function objectShapeMemberTypesMatch(
   left: CsharpObjectShapeFact["members"][number],
   right: CsharpObjectShapeFact["members"][number],
 ): boolean {
-  return targetTypeRefsMatch(left.type, right.type);
+  return targetTypeRefEquals(left.type, right.type);
 }
 
 export function getObjectLiteralPropertySourceName(
   property: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);

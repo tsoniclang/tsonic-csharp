@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsVariableDeclaration,
   AsVariableStatement,
@@ -5,8 +6,14 @@ import {
   KindArrayBindingPattern,
   KindObjectBindingPattern,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import {
+  structFactKey,
+  type Node,
+  type SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -22,7 +29,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 export function planTopLevelVariableStatement(
   statement: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   namespaceMembers: CsharpTypeDeclaration[],
   moduleMembers: CsharpTypeMember[],
@@ -48,7 +55,7 @@ export function planTopLevelVariableStatement(
     return;
   }
   for (const declaration of declarations) {
-    const valueType = input.facts.getStructFact(declaration);
+    const valueType = input.sourceFacts?.getFact(declaration, structFactKey);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
@@ -130,7 +137,7 @@ function topLevelFieldAssignment(
   };
 }
 
-function isBindingPattern(node: Node | undefined, input: TargetCompileInput): boolean {
+function isBindingPattern(node: Node | undefined, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, node, KindObjectBindingPattern) ||
     HasSourceKind(input.ast, node, KindArrayBindingPattern);
 }

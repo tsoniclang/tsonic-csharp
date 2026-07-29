@@ -1,4 +1,4 @@
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { CsharpModuleInitializationPlan } from "./csharp-module-initialization.js";
 import type { CsharpOutputSourceFile } from "./csharp-output-plan.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
@@ -9,7 +9,7 @@ import { readNamespace } from "./project-artifacts.js";
 export const csharpModuleInitMethodName = "__tsonic_module_init";
 
 export function planCsharpEntrypointSourceFile(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   plannedSources: readonly PlannedCsharpSourceFile[],
   moduleInitialization: CsharpModuleInitializationPlan,
 ): CsharpOutputSourceFile | undefined {

@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsCatchClause,
   AsTryStatement,
@@ -7,7 +8,9 @@ import {
   KindObjectBindingPattern,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
   CsharpStatement,
@@ -34,12 +37,12 @@ import {
 } from "./exception-flow.js";
 import {
   isCsharpTsValueTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export type BlockStatementPlanner = (
   blockNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ) => readonly CsharpStatement[];
@@ -47,7 +50,7 @@ export type BlockStatementPlanner = (
 export function planTryStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
@@ -71,7 +74,7 @@ export function planTryStatement(
 function planCatchClause(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
@@ -198,11 +201,14 @@ function planCatchClause(
 function catchVariableHasReferences(
   variableName: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
-  const symbol = input.analysis.getSymbolAtLocation(variableName, { sourceFile });
+  const symbol = input.queries(sourceFile).checker.getSymbolAtLocation(
+    variableName,
+    { sourceFile },
+  );
   if (symbol === undefined) {
     return true;
   }
-  return input.analysis.lazy.referencesOf(symbol).some((reference) => reference.node !== variableName);
+  return input.navigation.hasReferenceOutside(symbol, variableName);
 }

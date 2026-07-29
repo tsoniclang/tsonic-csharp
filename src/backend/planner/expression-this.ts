@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import {
   HasSourceKind,
@@ -27,7 +30,7 @@ import {
 export function planThisExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const binding = classifyThisBinding(node, input);
@@ -52,7 +55,7 @@ type ThisBindingClassification =
   | { readonly kind: "instance" }
   | { readonly kind: "unsupported"; readonly reason: string };
 
-function classifyThisBinding(node: Node, input: TargetCompileInput): ThisBindingClassification {
+function classifyThisBinding(node: Node, input: CsharpTranslationContext): ThisBindingClassification {
   for (let current = input.ast.parent(node); current !== undefined; current = input.ast.parent(current)) {
     if (HasSourceKind(input.ast, current, KindArrowFunction)) {
       continue;
@@ -90,7 +93,7 @@ function classifyThisBinding(node: Node, input: TargetCompileInput): ThisBinding
   return unsupportedThis("unknown receiver context");
 }
 
-function isClassInstanceMember(node: Node, input: TargetCompileInput): boolean {
+function isClassInstanceMember(node: Node, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, input.ast.parent(node), KindClassDeclaration);
 }
 

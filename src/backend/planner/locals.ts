@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsAsExpression,
   AsTypeReferenceNode,
@@ -6,17 +7,14 @@ import {
   HasSourceKind,
   KindArrowFunction,
   KindCallExpression,
-  KindBinaryExpression,
   KindFunctionExpression,
   KindNewExpression,
   KindTypeReference,
 } from "./source-ast.js";
-import {
-  targetOperationFactKey,
-} from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import {
@@ -33,17 +31,13 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import {
-  csharpByrefStorageFactKey,
-  csharpTargetOperationFactKey,
-} from "../../source/csharp-facts.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpLocalDeclaration {
@@ -60,12 +54,16 @@ export function planLocalDeclaration(
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
     : undefined;
-  const byrefStorageTargetType = getByrefStorageTargetType(variable.name, input);
-  const type = (byrefStorageTargetType === undefined ? undefined : csharpTypeFromTargetTypeRef(byrefStorageTargetType)) ??
-    inferredLambdaType ??
+  const inferredTargetType = input.types.resolveNode(
+    variable.Type ?? variable.Initializer ?? variable.name,
+    sourceFile,
+  );
+  const type = inferredLambdaType ??
     explicitType ??
     constAssertionType ??
-    getClosedInitializerInferredType(variable.Initializer, input) ??
+    (inferredTargetType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(inferredTargetType)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
@@ -78,41 +76,10 @@ export function planLocalDeclaration(
   };
 }
 
-function getByrefStorageTargetType(
-  variableName: Node | undefined,
-  input: TargetCompileInput,
-): TargetTypeRef | undefined {
-  return variableName === undefined
-    ? undefined
-    : input.facts.getFact(variableName, csharpByrefStorageFactKey)?.targetType;
-}
-
-function getClosedInitializerInferredType(
-  initializer: Node | undefined,
-  input: TargetCompileInput,
-): CsharpLocalDeclaration["type"] | undefined {
-  const csharpOperation = initializer === undefined
-    ? undefined
-    : input.facts.getFact(initializer, csharpTargetOperationFactKey);
-  const targetOperation = initializer === undefined
-    ? undefined
-    : input.facts.getFact(initializer, targetOperationFactKey);
-  if (
-    initializer === undefined ||
-    !HasSourceKind(input.ast, initializer, KindBinaryExpression) ||
-    (csharpOperation === undefined && targetOperation === undefined)
-  ) {
-    return undefined;
-  }
-  const resultType = csharpOperation?.resultType ?? targetOperation?.resultType;
-  return (resultType === undefined ? undefined : csharpTypeFromTargetTypeRef(resultType)) ??
-    { kind: "IdentifierName", name: "var" };
-}
-
 export function planLocalDeclarationStatements(
   declarationNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
@@ -133,7 +100,7 @@ export function planLocalDeclarationStatements(
 function getInitializerTypeSubject(
   initializer: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): Node | undefined {
   if (initializer === undefined) {
     return undefined;
@@ -142,12 +109,6 @@ function getInitializerTypeSubject(
   const assertedTarget = assertion?.Type;
   if (assertedTarget !== undefined && isConstAssertionType(assertedTarget, input)) {
     return assertion?.Expression;
-  }
-  if (
-    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
-    input.facts.getFact(initializer, csharpTargetOperationFactKey)?.resultType !== undefined
-  ) {
-    return initializer;
   }
   if (assertedTarget !== undefined) {
     return assertedTarget;
@@ -158,16 +119,14 @@ function getInitializerTypeSubject(
   if (HasSourceKind(input.ast, initializer, KindCallExpression) || HasSourceKind(input.ast, initializer, KindNewExpression)) {
     return initializer;
   }
-  return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined ||
-    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
-    input.facts.getFact(initializer, csharpTargetOperationFactKey) !== undefined
+  return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined
     ? initializer
     : undefined;
 }
 
 function isConstAssertionType(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   const name = input.ast.name(node) ?? (
     HasSourceKind(input.ast, node, KindTypeReference)
@@ -180,11 +139,15 @@ function isConstAssertionType(
 function getConstAssertionInitializerType(
   initializer: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): CsharpLocalDeclaration["type"] | undefined {
   const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
   if (assertion?.Type === undefined || assertion.Expression === undefined || !isConstAssertionType(assertion.Type, input)) {
     return undefined;
   }
-  return getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(assertion.Expression, { sourceFile }), sourceFile, input);
+  return getCsharpTypeFromSemanticType(
+    input.queries(sourceFile).checker.getTypeAtLocation(assertion.Expression, { sourceFile }),
+    sourceFile,
+    input,
+  );
 }

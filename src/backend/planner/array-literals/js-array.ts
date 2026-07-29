@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
   AsSpreadElement,
@@ -10,7 +11,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -26,8 +26,8 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  isCsharpJsArrayCarrierTargetType,
-} from "../../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+  csharpCollectionUsesJsArraySemantics,
+} from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -38,7 +38,7 @@ import {
 export function planJsArrayLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   collectionType: CsharpTypeNode,
   elementType: CsharpTypeNode,
@@ -79,7 +79,7 @@ export function planJsArrayLiteralExpression(
 function createJsArrayLiteralChunks(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   collectionType: CsharpTypeNode,
   elementType: CsharpTypeNode,
@@ -119,7 +119,7 @@ function createJsArrayLiteralChunks(
     }
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
-    if (!isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
+    if (!csharpCollectionUsesJsArraySemantics(spreadCarrier)) {
       const detail = spreadCarrier === undefined
         ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.")
         : {

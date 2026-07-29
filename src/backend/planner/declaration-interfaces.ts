@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsIndexSignatureDeclaration,
   AsInterfaceDeclaration,
@@ -9,7 +10,9 @@ import {
   KindPropertySignature,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpInterfaceDeclaration,
   CsharpInterfaceIndexerDeclaration,
@@ -33,17 +36,23 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "./csharp-fact-queries.js";
+import {
+  registerSourceObjectShape,
+} from "./object-shapes.js";
 
 export function planInterfaceDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(node, sourceFile, input, diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  if (objectShape !== undefined) {
+    registerSourceObjectShape(input, objectShape, diagnostics, node);
+  }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
     if (member === undefined) {
@@ -77,7 +86,7 @@ export function planInterfaceDeclaration(
 function planInterfaceMethodDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceMethodDeclaration {
   const declaration = AsMethodSignatureDeclaration(node)!;
@@ -95,7 +104,7 @@ function planInterfaceMethodDeclaration(
 function planInterfacePropertyDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
   const declaration = AsPropertySignatureDeclaration(node)!;
@@ -114,7 +123,7 @@ function planInterfacePropertyDeclaration(
 function planInterfaceIndexerDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
   const declaration = AsIndexSignatureDeclaration(node)!;

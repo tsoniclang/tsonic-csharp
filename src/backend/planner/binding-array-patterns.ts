@@ -1,9 +1,16 @@
+import type {
+  CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingElement,
   AsBindingPattern,
-} from "./source-ast.js";
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+  } from "./source-ast.js";
+import type { Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -25,13 +32,11 @@ import {
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpListTargetType,
+  csharpCollectionUsesJsArraySemantics,
+  getCsharpIndexableLengthMemberName,
   getCsharpNullableElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
-  getCsharpArrayLengthMember,
-  isCsharpJsArrayCarrierTargetType,
-} from "../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+} from "../../policy/types/index.js";
 
 type ArrayBindingCarrier =
   | { readonly kind: "array"; readonly carrier: TargetTypeRef; readonly element: TargetTypeRef; readonly lengthMember: string; readonly restSlice: "runtime-array-helper" | "instance-slice" | "js-array-helper"; readonly restCarrier: TargetTypeRef }
@@ -42,7 +47,7 @@ export function planArrayBindingPattern(
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -80,11 +85,11 @@ function arrayBindingCarrier(sourceCarrier: TargetTypeRef | undefined): ArrayBin
     return undefined;
   }
   const element = getCsharpReadOnlyIndexableCollectionElementTargetType(sourceCarrier);
-  const lengthMember = getCsharpArrayLengthMember(sourceCarrier);
+  const lengthMember = getCsharpIndexableLengthMemberName(sourceCarrier);
   if (element === undefined || lengthMember === undefined) {
     return undefined;
   }
-  return isCsharpJsArrayCarrierTargetType(sourceCarrier)
+  return csharpCollectionUsesJsArraySemantics(sourceCarrier)
     ? { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "instance-slice", restCarrier: sourceCarrier }
     : { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "js-array-helper", restCarrier: csharpListTargetType(element) };
 }
@@ -92,7 +97,7 @@ function arrayBindingCarrier(sourceCarrier: TargetTypeRef | undefined): ArrayBin
 export type BindingDefaultExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
@@ -106,7 +111,7 @@ function planArrayBindingElement(
   elementCarrier: TargetTypeRef | undefined,
   sourceCarrier: ArrayBindingCarrier,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -177,7 +182,7 @@ function planArrayBindingDefaultProjection(
   sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "array" }>,
   initializer: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   projectedType: CsharpTypeNode,
   state: DestructuringPlannerState,
@@ -200,7 +205,7 @@ function arrayBindingDefaultPresenceCondition(
   index: number,
   sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "array" }>,
 ): CsharpExpression {
-  if (isCsharpJsArrayCarrierTargetType(sourceCarrier.carrier)) {
+  if (csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)) {
     return {
       kind: "InvocationExpression",
       callee: {
@@ -230,7 +235,7 @@ function planArrayRestBindingElement(
   index: number,
   sourceCarrier: ArrayBindingCarrier,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -258,7 +263,7 @@ function planTupleRestBindingElement(
   index: number,
   sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "tuple" }>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,

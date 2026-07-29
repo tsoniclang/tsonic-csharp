@@ -1,6 +1,6 @@
 import type {
   TargetTypeRef,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   DotnetRenderShape,
   DotnetTypeDeclaration,
@@ -18,7 +18,7 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
   switch (type.kind) {

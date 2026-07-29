@@ -60,19 +60,7 @@ export function tryDotnetTypeRefToProviderType(
       if (type.sourceShape === undefined) {
         return undefined;
       }
-      const typeArguments = mapDotnetProviderTypes(type.typeArguments, `${identityPath}.typeArguments`);
-      const sourceShape = tryDotnetTypeRefToProviderType(type.sourceShape, `${identityPath}.sourceShape`);
-      if (typeArguments === undefined || sourceShape === undefined) {
-        return undefined;
-      }
-      return {
-        kind: "target-named",
-        target: "csharp",
-        id: type.targetId,
-        ...(type.displayName !== undefined ? { displayName: type.displayName } : {}),
-        ...(typeArguments.length > 0 ? { typeArguments } : {}),
-        sourceShape,
-      };
+      return tryDotnetTypeRefToProviderType(type.sourceShape, `${identityPath}.sourceShape`);
     }
     case "array": {
       if (type.rank !== undefined && type.rank !== 1) {
@@ -127,16 +115,7 @@ export function tryDotnetTypeRefToProviderType(
       if (type.sourceShape === undefined) {
         return undefined;
       }
-      const sourceShape = tryDotnetTypeRefToProviderType(type.sourceShape, `${identityPath}.sourceShape`);
-      if (sourceShape === undefined) {
-        return undefined;
-      }
-      return {
-        kind: "opaque",
-        id: type.id,
-        ...(type.displayName !== undefined ? { displayName: type.displayName } : {}),
-        sourceShape,
-      };
+      return tryDotnetTypeRefToProviderType(type.sourceShape, `${identityPath}.sourceShape`);
     }
   }
 }

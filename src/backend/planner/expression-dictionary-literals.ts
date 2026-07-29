@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsObjectLiteralExpression,
   AsPropertyAssignment,
@@ -18,10 +19,14 @@ import {
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import {
+  csharpSourcePrimitiveRuntimeKind,
+  isCsharpRecordDictionaryTargetType,
+  isCsharpStringTargetType,
+} from "../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -29,13 +34,6 @@ import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
-import {
-  isCsharpRecordDictionaryTargetType,
-} from "../../source/csharp-source-semantics/dictionaries.js";
-import {
-  isCsharpStringType,
-  sourcePrimitiveRuntimeKind,
-} from "../../source/csharp-source-semantics/target-rules.js";
 import {
   parseFiniteNumberLiteral,
 } from "../../source/source-literal-values.js";
@@ -52,7 +50,7 @@ import {
 type ExpectedExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
@@ -61,7 +59,7 @@ type ExpectedExpressionPlanner = (
 export function tryPlanRecordDictionaryLiteralWithExpectedType(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedTypeSubject: Node | undefined,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
@@ -79,7 +77,7 @@ export function tryPlanRecordDictionaryLiteralWithExpectedType(
 function planRecordDictionaryLiteral(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   dictionaryType: TargetTypeRef,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
@@ -127,7 +125,7 @@ function planRecordDictionaryInitializer(
   valueType: TargetTypeRef,
   valueCsharpType: CsharpTypeNode,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpCollectionInitializerElement | undefined {
@@ -191,7 +189,7 @@ function planRecordDictionaryValue(
   valueType: TargetTypeRef,
   valueCsharpType: CsharpTypeNode,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
@@ -204,12 +202,12 @@ function planRecordDictionaryValue(
 function planRecordDictionaryKey(
   property: Node,
   keyType: TargetTypeRef,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
   const sourceName = nameNode === undefined ? "" : Node_Text(input.ast, nameNode);
-  if (nameNode !== undefined && isCsharpStringType(keyType) && isStringKeyNameNode(nameNode, input)) {
+  if (nameNode !== undefined && isCsharpStringTargetType(keyType) && isStringKeyNameNode(nameNode, input)) {
     return { kind: "LiteralExpression", value: sourceName };
   }
   if (nameNode !== undefined && isNumericRecordKeyType(keyType) && HasSourceKind(input.ast, nameNode, KindNumericLiteral)) {
@@ -222,21 +220,22 @@ function planRecordDictionaryKey(
   return undefined;
 }
 
-function isStringKeyNameNode(node: Node, input: TargetCompileInput): boolean {
+function isStringKeyNameNode(node: Node, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, node, KindIdentifier) ||
     HasSourceKind(input.ast, node, KindStringLiteral) ||
     HasSourceKind(input.ast, node, KindNumericLiteral);
 }
 
 function isNumericRecordKeyType(type: TargetTypeRef): boolean {
-  return type.kind === "source-primitive" && sourcePrimitiveRuntimeKind(type.name) === "number";
+  return type.kind === "source-primitive" &&
+    csharpSourcePrimitiveRuntimeKind(type.name) === "number";
 }
 
 function getExpectedRecordDictionaryTargetType(
   node: Node,
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ) {
   const expectedType = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
   if (isCsharpRecordDictionaryTargetType(expectedType)) {

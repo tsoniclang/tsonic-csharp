@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsClassDeclaration,
   KindConstructor,
@@ -5,13 +6,12 @@ import {
   isAstNode,
 } from "../source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput } from "@tsonic/target-api";
-import {
-  csharpAttributeApplicationFactKey,
-} from "../../../source/csharp-facts.js";
 import type {
-  CsharpAttributeApplicationFact,
-} from "../../../source/csharp-facts.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core";
+import {
+  tsonicAttributeBuilderFactKey,
+} from "@tsonic/source-core";
 
 export interface AttributeApplicationResolution {
   readonly applicationTarget?: Node;
@@ -21,19 +21,18 @@ export interface AttributeApplicationResolution {
 }
 
 export function resolveAttributeApplication(
-  attribute: CsharpAttributeApplicationFact,
-  contextSourceFile: SourceFile,
-  input: TargetCompileInput,
+  attribute: TsonicAttributeApplicationFact,
+  _contextSourceFile: SourceFile,
+  input: CsharpTranslationContext,
 ): AttributeApplicationResolution {
-  const applicationTarget = isAstNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
+  const applicationTarget = isAstNode(input.ast, attribute.applicationTarget) ? attribute.applicationTarget : undefined;
   if (applicationTarget === undefined) {
     return {};
   }
-  const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? contextSourceFile;
-  const selectedDeclaration = isAstNode(attribute.selectedMember)
+  const selectedDeclaration = isAstNode(input.ast, attribute.selectedMember)
     ? attribute.selectedMember
-    : input.analysis.getProjectSourceReferenceForNode(applicationTarget, { sourceFile: applicationSourceFile })?.declaration ??
-      input.analysis.getProjectSourceDeclarationForNode(applicationTarget, { sourceFile: applicationSourceFile });
+    : input.navigation.referenceFor(applicationTarget)?.declaration ??
+      input.navigation.declarationFor(applicationTarget);
   if (attribute.applicationPlacement === "constructor") {
     const constructor = SourceKind(input.ast, selectedDeclaration) === KindConstructor
       ? selectedDeclaration
@@ -60,27 +59,28 @@ export function resolveAttributeApplication(
 
 export function attributeSubjectDescription(
   subject: Node | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): string {
   return subject === undefined ? "an unresolved source declaration" : input.ast.kindName(subject);
 }
 
 export function directAttributeFactAppliesToSubject(
-  attribute: CsharpAttributeApplicationFact | undefined,
-): attribute is CsharpAttributeApplicationFact {
-  return attribute !== undefined;
+  attribute: TsonicAttributeApplicationFact | undefined,
+): attribute is TsonicAttributeApplicationFact {
+  return attribute?.kind === "application";
 }
 
 export function attributeFactForNodeOrSymbol(
   subject: Node,
-  input: TargetCompileInput,
-): CsharpAttributeApplicationFact | undefined {
-  return input.facts.getFact(subject, csharpAttributeApplicationFactKey);
+  input: CsharpTranslationContext,
+): TsonicAttributeApplicationFact | undefined {
+  const fact = input.sourceFacts?.getFact(subject, tsonicAttributeBuilderFactKey);
+  return fact?.kind === "application" ? fact : undefined;
 }
 
 function findConstructorDeclaration(
   declaration: Node | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): Node | undefined {
   const classDeclaration = AsClassDeclaration(declaration);
   return classDeclaration?.Members?.Nodes
@@ -90,7 +90,7 @@ function findConstructorDeclaration(
 function findParameter(
   declaration: Node | undefined,
   parameterName: string,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): Node | undefined {
   return input.ast.parameters(declaration)
     .find((candidate): candidate is Node =>

@@ -1,7 +1,7 @@
 import type {
   TargetBindingFact,
   TargetTypeRef,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   DotnetExportDeclaration,
   DotnetTypeDeclaration,
@@ -10,7 +10,7 @@ import type {
 import {
   type CsharpTargetBindingFact,
   csharpTargetNamedType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 import type {
   DotnetUnsupportedConstraintDeclaration,
   DotnetUnsupportedMemberDeclaration,

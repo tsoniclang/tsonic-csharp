@@ -1,10 +1,11 @@
 import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
+import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -22,11 +23,9 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
+  csharpCollectionUsesJsArraySemantics,
   getCsharpArrayLiteralElementTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
-import {
-  isCsharpJsArrayCarrierTargetType,
-} from "../../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+} from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -60,26 +59,29 @@ export {
 export function planArrayLiteralExpressionFromFacts(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
   const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution) ??
-    input.facts.getContextualTargetTypeFact(node)?.targetType;
+    input.types.resolveNode(node, sourceFile);
   return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
 }
 
 export function planArrayLiteralExpressionWithCarrier(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   carrier: TargetTypeRef | undefined,
   planner: ArrayLiteralPlanner,
   carrierResolution?: ReturnType<typeof resolveRuntimeCarrierForExpression>,
 ): CsharpExpression | undefined {
-  if (arrayLiteralHasElision(node, input) && !isCsharpJsArrayCarrierTargetType(carrier)) {
+  if (
+    arrayLiteralHasElision(node, input) &&
+    !csharpCollectionUsesJsArraySemantics(carrier)
+  ) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
   if (carrier?.kind === "array") {
@@ -98,7 +100,7 @@ export function planArrayLiteralExpressionWithCarrier(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."));
       return undefined;
     }
-    if (isCsharpJsArrayCarrierTargetType(carrier)) {
+    if (csharpCollectionUsesJsArraySemantics(carrier)) {
       return planJsArrayLiteralExpression(node, sourceFile, input, diagnostics, collectionType, elementType, planner);
     }
     return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, carrier, collectionElementCarrier, planner);

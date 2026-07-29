@@ -1,5 +1,13 @@
-import type { FieldFact, Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import {
+  fieldFactKey,
+  type FieldFact,
+  type Node,
+  type SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpFieldDeclaration,
   CsharpParameter,
@@ -55,14 +63,14 @@ export function planPropertyDeclaration(
   node: Node,
   autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "property declaration", diagnostics);
   const fieldFact = getClassPropertyFieldFact(node, declaration, input);
   if (fieldFact !== undefined) {
-    const type = getCsharpTypeForFieldFact(fieldFact, node, "Class field", sourceFile, input, diagnostics);
+    const type = getCsharpTypeForFieldFact(fieldFact, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
       name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
@@ -103,10 +111,10 @@ function shouldEmitAutoProperty(
   node: Node,
   propertyName: string,
   autoPropertyNames: ReadonlySet<string>,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceFile: SourceFile,
+  input: CsharpTranslationContext,
 ): boolean {
-  const dispatch = input.analysis.getProjectSourceMemberDispatch(node, { sourceFile });
+  const dispatch = input.navigation.memberDispatch(node);
   return autoPropertyNames.has(propertyName) ||
     dispatch?.overridesBase === true ||
     dispatch?.hasDerivedOverride === true;
@@ -117,7 +125,7 @@ export function mergeAccessorProperty(
   planned: CsharpTypeMember[],
   accessorProperties: Map<string, CsharpPropertyDeclaration>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): void {
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "accessor declaration", diagnostics);
@@ -143,12 +151,12 @@ export function mergeAccessorProperty(
 function getClassPropertyFieldFact(
   node: Node,
   declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): FieldFact | undefined {
-  return input.facts.getFieldFact(node) ??
-    input.facts.getFieldFact(declaration.name) ??
-    input.facts.getFieldFact(declaration.Type) ??
-    input.facts.getFieldFact(declaration.Initializer);
+  return input.sourceFacts?.getFact(node, fieldFactKey) ??
+    input.sourceFacts?.getFact(declaration.name, fieldFactKey) ??
+    input.sourceFacts?.getFact(declaration.Type, fieldFactKey) ??
+    input.sourceFacts?.getFact(declaration.Initializer, fieldFactKey);
 }
 
 function mergeGetterAccessor(
@@ -156,7 +164,7 @@ function mergeGetterAccessor(
   node: Node,
   name: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(node)!;
@@ -182,7 +190,7 @@ function mergeSetterAccessor(
   node: Node,
   name: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsSetAccessorDeclaration(node)!;
@@ -234,7 +242,7 @@ function planSetAccessorStatements(
   parameter: Pick<CsharpParameter, "name" | "type"> | undefined,
   parameterPrelude: readonly CsharpStatement[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: ReturnType<typeof createDestructuringPlannerState>,
 ): readonly CsharpStatement[] {

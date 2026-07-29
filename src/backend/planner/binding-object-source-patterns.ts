@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingElement,
   AsParameterDeclaration,
@@ -10,7 +11,9 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -22,13 +25,13 @@ import {
   requireCsharpIdentifier,
   tryCsharpIdentifier,
 } from "./identifiers.js";
-import { isSourceOwnedProjectShapeSubject } from "./semantic-guards.js";
+import { isSourceOwnedProjectShapeSubject } from "../../policy/types/index.js";
 
 export function planObjectBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -66,7 +69,7 @@ export function planObjectBindingElement(
 export function isSourceOwnedBindingElement(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   if (!HasSourceKind(input.ast, sourceNode, KindBindingElement) && !HasSourceKind(input.ast, sourceNode, KindParameter)) {
     return false;
@@ -79,7 +82,7 @@ export function isSourceOwnedBindingElement(
 
 function getDirectSourcePropertyName(
   elementNode: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);

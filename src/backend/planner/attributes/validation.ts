@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
   collectAttributeApplicationFactsForSourceFile,
 } from "./collection.js";
@@ -12,7 +15,7 @@ import {
 
 export function diagnoseUnresolvedAttributeApplications(
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): void {
   const reported = new Set<ReturnType<typeof collectAttributeApplicationFactsForSourceFile>[number]>();

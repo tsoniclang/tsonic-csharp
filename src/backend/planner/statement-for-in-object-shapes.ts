@@ -1,8 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -26,13 +29,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
-import {
-  getCsharpObjectShapeFactForNode,
-} from "./csharp-fact-queries.js";
 import type {
-  CsharpObjectShapeFact,
-  CsharpTargetIterationFact,
-} from "../../source/csharp-facts.js";
+  CsharpResolvedIteration,
+} from "../../policy/operations/index.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -48,17 +47,19 @@ export function planObjectShapeForInStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedForInBinding,
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    {
+      readonly iterationKind: "for-in";
+      readonly lowering: { readonly kind: "object-shape-keys" };
+    }
+  >,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  if (selectedIteration.lowering.kind !== "object-shape-keys") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `Object-shape for-in received provider lowering '${selectedIteration.lowering.kind}'.`));
-    return [];
-  }
   const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];
@@ -76,11 +77,7 @@ export function planObjectShapeForInStatement(
     });
     return [];
   }
-  const objectShape = getObjectShapeForForInExpression(statement.Expression, sourceFile, input);
-  if (objectShape === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires finalized object-shape facts on the iterable expression."));
-    return [];
-  }
+  const objectShape = selectedIteration.lowering.objectShape;
   const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType);
   if (collectionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
@@ -151,12 +148,4 @@ export function planObjectShapeForInStatement(
       ],
     },
   }];
-}
-
-function getObjectShapeForForInExpression(
-  expression: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpObjectShapeFact | undefined {
-  return getCsharpObjectShapeFactForNode(expression, sourceFile, input);
 }

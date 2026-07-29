@@ -92,12 +92,6 @@ function substituteProviderTypeExpression(
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteProviderTypeExpression(argument, substitutions)) }),
       };
-    case "target-named":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteProviderTypeExpression(argument, substitutions)) }),
-        ...(type.sourceShape === undefined ? {} : { sourceShape: substituteProviderTypeExpression(type.sourceShape, substitutions) }),
-      };
     case "array":
       return { ...type, elementType: substituteProviderTypeExpression(type.elementType, substitutions) };
     case "tuple":
@@ -113,10 +107,6 @@ function substituteProviderTypeExpression(
         returnType: substituteProviderTypeExpression(type.returnType, scopedSubstitutions),
       };
     }
-    case "opaque":
-      return type.sourceShape === undefined
-        ? type
-        : { ...type, sourceShape: substituteProviderTypeExpression(type.sourceShape, substitutions) };
     case "any":
     case "unknown":
     case "void":

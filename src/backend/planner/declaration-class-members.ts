@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpPropertyDeclaration,
   CsharpTypeMember,
@@ -33,7 +36,7 @@ export function planClassMembers(
   className: string,
   autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const planned: CsharpTypeMember[] = [];

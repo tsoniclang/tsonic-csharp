@@ -1,0 +1,249 @@
+import type {
+  ExtensionDiagnostic,
+  Node,
+  SourceFile,
+  SourceFileQueries,
+} from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../types/index.js";
+import type {
+  CsharpTargetReceiverRelation,
+} from "../../provider/target-relations/index.js";
+import type {
+  CsharpProviderCallSelectionHost,
+} from "./call-selection.js";
+import {
+  selectCsharpProviderCall,
+} from "./call-selection.js";
+import {
+  selectCsharpProviderElement,
+} from "./element-selection.js";
+import {
+  selectCsharpProviderProperty,
+} from "./property-selection.js";
+import {
+  selectCsharpComposedSourceProfileCall,
+  selectCsharpComposedSourceProfileElement,
+  selectCsharpComposedSourceProfileProperty,
+} from "./source-profile-selection.js";
+import type {
+  CsharpSelectedTargetCall,
+  CsharpTargetElementInvocation,
+  ResolvedSourceCallInfo,
+} from "./selection-types.js";
+
+type ResolvedSourcePropertyAccessInfo = NonNullable<
+  ReturnType<SourceFileQueries["checker"]["getResolvedPropertyAccessInfo"]>
+>;
+type ResolvedSourceElementAccessInfo = NonNullable<
+  ReturnType<SourceFileQueries["checker"]["getResolvedElementAccessInfo"]>
+>;
+
+export type CsharpTargetCallSelection =
+  | {
+      readonly kind: "resolved";
+      readonly source: ResolvedSourceCallInfo;
+      readonly call: CsharpSelectedTargetCall;
+    }
+  | {
+      readonly kind: "source-owned";
+      readonly source: ResolvedSourceCallInfo;
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "missing" | "conflict";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "ambiguous";
+      readonly reason: string;
+      readonly candidates: readonly string[];
+    }
+  | {
+      readonly kind: "rejected";
+      readonly diagnostic: ExtensionDiagnostic;
+    };
+
+export type CsharpTargetPropertySelection =
+  | {
+      readonly kind: "resolved";
+      readonly source: ResolvedSourcePropertyAccessInfo;
+      readonly targetMember: CsharpTargetMember;
+      readonly receiver: CsharpTargetReceiverRelation;
+      readonly origin: "provider" | "source-profile";
+    }
+  | {
+      readonly kind: "source-owned";
+      readonly source: ResolvedSourcePropertyAccessInfo;
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "missing" | "conflict";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "ambiguous";
+      readonly reason: string;
+      readonly candidates: readonly string[];
+    }
+  | {
+      readonly kind: "rejected";
+      readonly diagnostic: ExtensionDiagnostic;
+    };
+
+export type CsharpTargetElementSelection =
+  | {
+      readonly kind: "resolved";
+      readonly source: ResolvedSourceElementAccessInfo;
+      readonly targetMember: CsharpTargetMember;
+      readonly targetParameterIndex: number;
+      readonly receiver: CsharpTargetReceiverRelation;
+      readonly invocation: CsharpTargetElementInvocation;
+      readonly origin: "provider" | "source-profile";
+    }
+  | {
+      readonly kind: "source-owned";
+      readonly source: ResolvedSourceElementAccessInfo;
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "missing" | "conflict";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "ambiguous";
+      readonly reason: string;
+      readonly candidates: readonly string[];
+    }
+  | {
+      readonly kind: "rejected";
+      readonly diagnostic: ExtensionDiagnostic;
+    };
+
+export function selectCsharpTargetCall(
+  host: CsharpProviderCallSelectionHost,
+  call: Node,
+  sourceFile: SourceFile,
+): CsharpTargetCallSelection {
+  const provider = selectCsharpProviderCall(host, call, sourceFile);
+  if (provider.kind === "resolved") {
+    return provider;
+  }
+  if (provider.kind !== "not-provider") {
+    return provider;
+  }
+  const profile = selectCsharpComposedSourceProfileCall(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (profile === undefined) {
+    return {
+      kind: "source-owned",
+      source: provider.source,
+      reason: provider.reason,
+    };
+  }
+  return profile.kind === "rejected"
+    ? profile
+    : {
+        kind: "resolved",
+        source: provider.source,
+        call: profile.call,
+      };
+}
+
+export function selectCsharpTargetProperty(
+  host: CsharpProviderCallSelectionHost,
+  propertyAccess: Node,
+  sourceFile: SourceFile,
+): CsharpTargetPropertySelection {
+  const provider = selectCsharpProviderProperty(
+    host,
+    propertyAccess,
+    sourceFile,
+  );
+  if (provider.kind === "resolved") {
+    return {
+      kind: "resolved",
+      source: provider.property.source,
+      targetMember: provider.property.targetMember,
+      receiver: provider.property.relation.receiver,
+      origin: "provider",
+    };
+  }
+  if (provider.kind !== "not-provider") {
+    return provider;
+  }
+  const profile = selectCsharpComposedSourceProfileProperty(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (profile === undefined) {
+    return {
+      kind: "source-owned",
+      source: provider.source,
+      reason: provider.reason,
+    };
+  }
+  return profile.kind === "rejected"
+    ? profile
+    : {
+        kind: "resolved",
+        source: provider.source,
+        targetMember: profile.targetMember,
+        receiver: profile.receiver,
+        origin: "source-profile",
+      };
+}
+
+export function selectCsharpTargetElement(
+  host: CsharpProviderCallSelectionHost,
+  elementAccess: Node,
+  sourceFile: SourceFile,
+): CsharpTargetElementSelection {
+  const provider = selectCsharpProviderElement(
+    host,
+    elementAccess,
+    sourceFile,
+  );
+  if (provider.kind === "resolved") {
+    return {
+      kind: "resolved",
+      source: provider.element.source,
+      targetMember: provider.element.targetMember,
+      targetParameterIndex: provider.element.targetParameterIndex,
+      receiver: provider.element.relation.receiver,
+      invocation: { kind: "indexer" },
+      origin: "provider",
+    };
+  }
+  if (provider.kind !== "not-provider") {
+    return provider;
+  }
+  const profile = selectCsharpComposedSourceProfileElement(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (profile === undefined) {
+    return {
+      kind: "source-owned",
+      source: provider.source,
+      reason: provider.reason,
+    };
+  }
+  return profile.kind === "rejected"
+    ? profile
+    : {
+        kind: "resolved",
+        source: provider.source,
+        targetMember: profile.targetMember,
+        targetParameterIndex: profile.targetParameterIndex,
+        receiver: profile.receiver,
+        invocation: profile.invocation,
+        origin: "source-profile",
+      };
+}

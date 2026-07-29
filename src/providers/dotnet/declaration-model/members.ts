@@ -7,7 +7,10 @@ import type {
 } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 import { dotnetMemberKindToProviderKind } from "./conversions.js";
-import { dotnetProviderMemberId } from "../provider-member-identity.js";
+import {
+  dotnetProviderMemberId,
+  dotnetProviderSourceMemberGroupId,
+} from "../provider-member-identity.js";
 import {
   dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
@@ -27,8 +30,8 @@ export function mergeOwnAndBaseProviderMembers(
   const members = [...baseMembers];
   for (const member of ownMembers) {
     const matchingBaseMembers = baseMembers.filter((baseMember) =>
-      baseMember.name === member.name &&
-      baseMember.static === member.static
+      providerMemberNamesEqual(baseMember, member) &&
+      providerMembersHaveSameStaticness(baseMember, member)
     );
     if (matchingBaseMembers.length === 0) {
       members.push(member);
@@ -47,8 +50,8 @@ export function mergeProviderMemberList(members: readonly ProviderMemberDeclarat
   for (const member of members) {
     const index = merged.findIndex((candidate) =>
       member.kind !== "indexer" &&
-      candidate.name === member.name &&
-      candidate.static === member.static &&
+      providerMemberNamesEqual(candidate, member) &&
+      providerMembersHaveSameStaticness(candidate, member) &&
       candidate.kind === member.kind &&
       candidate.signatures !== undefined &&
       member.signatures !== undefined
@@ -58,7 +61,7 @@ export function mergeProviderMemberList(members: readonly ProviderMemberDeclarat
       continue;
     }
     merged[index] = {
-      ...member,
+      ...merged[index]!,
       signatures: mergeProviderSignatures([
         ...(merged[index]!.signatures ?? []),
         ...(member.signatures ?? []),
@@ -84,10 +87,24 @@ export function dotnetMemberToProviderMember(
   if (member.kind === "indexer" && !isSourceVisibleProviderIndexer(member)) {
     return undefined;
   }
-  const providerMemberId = dotnetProviderMemberId(member);
+  const exactProviderMemberId = dotnetProviderMemberId(member);
+  const providerMemberId = dotnetProviderSourceMemberGroupId(
+    member,
+    declaringType,
+  );
+  if (declaringType.typeKind === "enum" && member.kind === "field") {
+    return {
+      id: providerMemberId,
+      name: member.sourceName,
+      kind: "field",
+    };
+  }
   const type = member.type === undefined
     ? undefined
-    : tryDotnetTypeRefToProviderType(member.type, `${providerMemberId}.type`);
+    : tryDotnetTypeRefToProviderType(
+        member.type,
+        `${exactProviderMemberId}.type`,
+      );
   if (member.type !== undefined && type === undefined) {
     return undefined;
   }
@@ -131,8 +148,8 @@ function mergeProviderMemberWithLocalBase(
   baseMembers: readonly ProviderMemberDeclaration[],
 ): readonly ProviderMemberDeclaration[] {
   const matchingBaseMembers = baseMembers.filter((baseMember) =>
-    baseMember.name === member.name &&
-    baseMember.static === member.static
+    providerMemberNamesEqual(baseMember, member) &&
+    providerMembersHaveSameStaticness(baseMember, member)
   );
   if (matchingBaseMembers.length === 0) {
     return [member];
@@ -147,6 +164,20 @@ function mergeProviderMemberWithLocalBase(
     }];
   }
   return [];
+}
+
+function providerMembersHaveSameStaticness(
+  left: ProviderMemberDeclaration,
+  right: ProviderMemberDeclaration,
+): boolean {
+  return (left.static === true) === (right.static === true);
+}
+
+function providerMemberNamesEqual(
+  left: ProviderMemberDeclaration,
+  right: ProviderMemberDeclaration,
+): boolean {
+  return JSON.stringify(left.name) === JSON.stringify(right.name);
 }
 
 function isSourceReadableMember(member: DotnetMemberDeclaration, declaringType: DotnetTypeDeclaration): boolean {

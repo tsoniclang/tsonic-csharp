@@ -1,6 +1,6 @@
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 
 export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
   if (member.memberKind !== "method") {

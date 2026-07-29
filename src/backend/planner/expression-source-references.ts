@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsIdentifier,
   AsPropertyAccessExpression,
@@ -16,11 +17,12 @@ import {
   KindVariableDeclaration,
   Node_Name,
   Node_Text,
-  SourceFile_FileName,
 } from "./source-ast.js";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier, sanitizeIdentifier } from "./identifiers.js";
@@ -36,34 +38,42 @@ import type {
 } from "./bindings.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
+import {
+  selectCsharpProviderValue,
+} from "../../policy/members/index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export function planIdentifierExpression(
   identifier: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const sourceName = Node_Text(input.ast, AsIdentifier(identifier));
-  const sourceReference = input.analysis.getProjectSourceReferenceForNode(identifier, { sourceFile });
-  const referenceTargetBinding = input.targetFacts.getTargetBindingForReference(identifier, { sourceFile });
-  if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference, referenceTargetBinding)) {
+  const sourceReference = input.navigation.referenceFor(identifier);
+  if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
     return { kind: "LiteralExpression", value: null };
+  }
+  const providerDiagnosticsStart = diagnostics.length;
+  const providerValue = planProviderValueReference(
+    identifier,
+    input,
+    diagnostics,
+  );
+  if (providerValue !== undefined) {
+    return providerValue;
+  }
+  if (diagnostics.length > providerDiagnosticsStart) {
+    return undefined;
   }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return undefined;
   }
-  if (referenceTargetBinding !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return undefined;
-  }
-  const directSymbol = input.analysis.getSymbolAtLocation(identifier, { sourceFile });
-  const resolvedSymbol = input.analysis.getResolvedSymbol(identifier, { sourceFile });
-  const directTargetBinding = input.facts.getTargetBindingFact(directSymbol) ??
-    input.facts.getTargetBindingFact(resolvedSymbol);
   if (
-    directTargetBinding !== undefined ||
     isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
@@ -81,27 +91,70 @@ export function planIdentifierExpression(
   return planRuntimeUnionUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);
 }
 
+function planProviderValueReference(
+  identifier: Node,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const selection = selectCsharpProviderValue(input, identifier);
+  if (selection.kind === "not-provider") {
+    return undefined;
+  }
+  if (selection.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, selection.reason));
+    return undefined;
+  }
+  const member = selection.relation.targetMember;
+  if (
+    member.static !== true ||
+    (
+      member.kind !== "property" &&
+      member.kind !== "field"
+    ) ||
+    member.declaringType === undefined
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      identifier,
+      `Selected provider value relation '${member.id}' is not a static C# property or field.`,
+    ));
+    return undefined;
+  }
+  const receiver = csharpTypeFromTargetTypeRef(member.declaringType);
+  if (receiver === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      identifier,
+      `Selected provider value relation '${member.id}' has no renderable C# declaring type.`,
+    ));
+    return undefined;
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver,
+    name: member.targetName,
+  };
+}
+
 function isGlobalUndefinedExpression(
   identifier: Node,
   sourceName: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
-  sourceReference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
-  targetBinding: ReturnType<TargetCompileInput["targetFacts"]["getTargetBindingForReference"]>,
+  input: CsharpTranslationContext,
+  sourceReference: ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]>,
 ): boolean {
-  if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined || targetBinding !== undefined) {
+  if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined) {
     return false;
   }
-  const type = input.analysis.getTypeAtLocation(identifier, { sourceFile });
-  return type !== undefined && input.types.isNullish(type);
+  const checker = input.queries(sourceFile).checker;
+  const type = checker.getTypeAtLocation(identifier, { sourceFile });
+  return type !== undefined && input.queries(sourceFile).typeShape.isNullish(type);
 }
 
 const nullLiteralGlobalSourceNames = new Set(["undefined"]);
 
 export function isExternalDeclarationReference(
-  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   return reference !== undefined &&
     reference.sourceFile !== sourceFile &&
@@ -111,7 +164,7 @@ export function isExternalDeclarationReference(
 export function planProjectSourceModuleMemberReference(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
@@ -142,7 +195,10 @@ export function planProjectSourceModuleMemberReference(
     kind: "SimpleMemberAccessExpression",
     receiver: {
       kind: "IdentifierName",
-      name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
+      name: sourceFileClassName(
+        input,
+        input.ast.getFileName(sourceReference.sourceFile),
+      ),
     },
     name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
@@ -151,7 +207,7 @@ export function planProjectSourceModuleMemberReference(
 export function tryPlanProjectSourceModuleStaticMemberReference(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
@@ -169,7 +225,10 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
     kind: "SimpleMemberAccessExpression",
     receiver: {
       kind: "IdentifierName",
-      name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
+      name: sourceFileClassName(
+        input,
+        input.ast.getFileName(sourceReference.sourceFile),
+      ),
     },
     name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
@@ -178,50 +237,58 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
 function getProjectSourceReferenceForModuleMemberNode(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
-): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
-  return input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+  input: CsharpTranslationContext,
+): ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]> {
+  return input.navigation.referenceFor(node) ??
     getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
 }
 
 function isProviderVirtualDeclarationIdentifier(
   identifier: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   const symbols = [
-    input.analysis.getSymbolAtLocation(identifier, { sourceFile }),
-    input.analysis.getResolvedSymbol(identifier, { sourceFile }),
+    input.queries(sourceFile).checker.getSymbolAtLocation(identifier, { sourceFile }),
+    input.queries(sourceFile).checker.getResolvedSymbol(identifier, { sourceFile }),
   ];
   return symbols.some((symbol) => {
     if (symbol === undefined) {
       return false;
     }
-    if (input.facts.getTargetBindingFact(symbol) !== undefined) {
+    if (
+      input.sourceFacts?.getFact(
+        symbol,
+        providerVirtualDeclarationFactKey,
+      ) !== undefined
+    ) {
       return true;
     }
-    const declarations = input.analysis.getSymbolDeclarations(symbol);
+    const declarations = input.queries(sourceFile).checker.getSymbolDeclarations(symbol);
     return declarations.some((declaration) =>
-      input.facts.getFact(declaration, providerVirtualDeclarationFactKey) !== undefined ||
+      input.sourceFacts?.getFact(
+        declaration,
+        providerVirtualDeclarationFactKey,
+      ) !== undefined ||
       isProviderVirtualSourceFile(input, input.ast.getSourceFile(declaration)));
   });
 }
 
-function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+function isModuleStaticValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
     HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
     HasSourceKind(input.ast, declaration, KindExportAssignment);
 }
 
-function isModuleTypeValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+function isModuleTypeValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, declaration, KindClassDeclaration) ||
     HasSourceKind(input.ast, declaration, KindEnumDeclaration);
 }
 
 function tryPlanProjectSourceTypeMemberReference(
   node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceFile: SourceFile,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
@@ -231,15 +298,15 @@ function tryPlanProjectSourceTypeMemberReference(
   if (propertyAccess?.Expression === undefined || propertyAccess.name === undefined) {
     return undefined;
   }
-  const receiverReference = input.analysis.getProjectSourceReferenceForNode(propertyAccess.Expression, { sourceFile });
+  const receiverReference = input.navigation.referenceFor(propertyAccess.Expression);
   if (receiverReference === undefined ||
     receiverReference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, receiverReference.sourceFile) ||
     !isModuleTypeValueDeclaration(receiverReference.declaration, input)) {
     return undefined;
   }
-  const selectedMemberReference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) ??
-    input.analysis.getProjectSourceReferenceForNode(propertyAccess.name, { sourceFile });
+  const selectedMemberReference = input.navigation.referenceFor(node) ??
+    input.navigation.referenceFor(propertyAccess.name);
   if (selectedMemberReference === undefined ||
     selectedMemberReference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, selectedMemberReference.sourceFile) ||
@@ -257,7 +324,7 @@ function tryPlanProjectSourceTypeMemberReference(
   };
 }
 
-function isProjectSourceTypeMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+function isProjectSourceTypeMemberDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, declaration, KindEnumMember) ||
     HasSourceKind(input.ast, declaration, KindGetAccessor) ||
     HasSourceKind(input.ast, declaration, KindMethodDeclaration) ||
@@ -265,7 +332,7 @@ function isProjectSourceTypeMemberDeclaration(declaration: Node, input: TargetCo
     HasSourceKind(input.ast, declaration, KindSetAccessor);
 }
 
-function isNestedProjectSourceMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+function isNestedProjectSourceMemberDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
   if (!isProjectSourceTypeMemberDeclaration(declaration, input)) {
     return false;
   }
@@ -277,7 +344,7 @@ function isNestedProjectSourceMemberDeclaration(declaration: Node, input: Target
 
 function planProjectSourceModuleMemberName(
   declaration: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): string {
   if (HasSourceKind(input.ast, declaration, KindExportAssignment)) {
@@ -294,14 +361,14 @@ function planProjectSourceModuleMemberName(
 
 function getProjectSourceReferenceForPropertyAccessName(
   node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
+  _sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+): ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]> {
   if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
     return undefined;
   }
   const name = AsPropertyAccessExpression(node)?.name;
   return name === undefined
     ? undefined
-    : input.analysis.getProjectSourceReferenceForNode(name, { sourceFile });
+    : input.navigation.referenceFor(name);
 }

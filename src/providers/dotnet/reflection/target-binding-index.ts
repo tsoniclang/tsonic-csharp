@@ -1,6 +1,7 @@
 import type {
+  CsharpTargetBindingFact,
   TargetBindingFact,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
 } from "../model.js";
@@ -10,8 +11,15 @@ import {
 import type {
   DotnetTargetBindingFact,
 } from "../model-target-conversion/index.js";
+import {
+  dotnetTypeTargetMemberProjections,
+} from "../target-relations.js";
+import type {
+  DotnetTargetMemberProjection,
+  DotnetTargetRelationLookup,
+} from "../target-relations.js";
 
-export interface DotnetTargetBindingIndex {
+export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
   readonly rememberModule: (module: DotnetModuleModel) => void;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getUniqueByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
@@ -20,6 +28,8 @@ export interface DotnetTargetBindingIndex {
 export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   const targetBindingsByTargetId = new Map<string, TargetBindingFact>();
   const targetBindingsByMetadataName = new Map<string, TargetBindingFact | "ambiguous">();
+  const memberProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
+  const signatureProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
 
   function rememberModule(module: DotnetModuleModel): void {
     for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
@@ -38,6 +48,17 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
           ? mergeTargetBindingFacts(existing, mergedTargetBinding)
           : "ambiguous",
       );
+      const projections = dotnetTypeTargetMemberProjections(declaration);
+      for (const [memberId, candidates] of projections.memberProjections) {
+        for (const candidate of candidates) {
+          rememberProjection(memberProjectionsByProviderId, memberId, candidate);
+        }
+      }
+      for (const [signatureId, candidates] of projections.signatureProjections) {
+        for (const candidate of candidates) {
+          rememberProjection(signatureProjectionsByProviderId, signatureId, candidate);
+        }
+      }
     }
   }
 
@@ -52,11 +73,34 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     getByTargetId(targetId: string): TargetBindingFact | undefined {
       return targetBindingsByTargetId.get(targetId);
     },
+    getTargetBinding(exportId: string): CsharpTargetBindingFact | undefined {
+      return targetBindingsByTargetId.get(exportId) as CsharpTargetBindingFact | undefined;
+    },
     getUniqueByMetadataName(metadataName: string): TargetBindingFact | undefined {
       const existing = targetBindingsByMetadataName.get(metadataName);
       return existing === "ambiguous" ? undefined : existing;
     },
+    getTargetMembersForProviderMember(memberId: string): readonly DotnetTargetMemberProjection[] {
+      return memberProjectionsByProviderId.get(memberId) ?? [];
+    },
+    getTargetMembersForProviderSignature(signatureId: string): readonly DotnetTargetMemberProjection[] {
+      return signatureProjectionsByProviderId.get(signatureId) ?? [];
+    },
   };
+}
+
+function rememberProjection(
+  index: Map<string, DotnetTargetMemberProjection[]>,
+  key: string,
+  projection: DotnetTargetMemberProjection,
+): void {
+  const existing = index.get(key) ?? [];
+  if (!existing.some((candidate) =>
+    candidate.targetBinding.id === projection.targetBinding.id &&
+    candidate.targetMember.id === projection.targetMember.id)) {
+    existing.push(projection);
+    index.set(key, existing);
+  }
 }
 
 function mergeTargetBindingFacts(

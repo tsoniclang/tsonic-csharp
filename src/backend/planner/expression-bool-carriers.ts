@@ -1,9 +1,9 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -30,7 +30,7 @@ export function requireCsharpBoolRuntimeCarrier(
   expression: Node,
   context: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): boolean {
   if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {

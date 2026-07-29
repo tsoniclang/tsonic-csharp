@@ -102,6 +102,10 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
             ],
             returnType: nativeArraySourceType,
             targetReturnType: nativeArrayType,
+            targetInvocation: {
+              kind: "array-creation",
+              lengthParameterIndex: 0,
+            },
           },
         ],
       },

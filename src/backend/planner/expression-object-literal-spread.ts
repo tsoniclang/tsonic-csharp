@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsSpreadAssignment,
   HasSourceKind,
@@ -8,7 +9,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -16,11 +16,11 @@ import type {
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
-  resolveCsharpObjectShapeMemberByFinalizedSourceName,
-} from "../../source/csharp-facts.js";
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -39,7 +39,7 @@ export function planObjectShapeSpreadAssignments(
   spreadNode: Node,
   targetShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): readonly CsharpObjectInitializerAssignment[] | undefined {
@@ -64,7 +64,11 @@ export function planObjectShapeSpreadAssignments(
   }
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const sourceMember of sourceShape.members) {
-    const targetMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(targetShape, sourceMember.sourceName, "finalized-object-spread-member");
+    const targetMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+      targetShape,
+      sourceMember.sourceName,
+      "finalized-object-spread-member",
+    );
     if (targetMemberLookup.kind !== "resolved") {
       const message = targetMemberLookup.reason === "not-in-finalized-shape"
         ? `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`

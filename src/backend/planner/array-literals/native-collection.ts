@@ -1,16 +1,17 @@
+import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
   AsSpreadElement,
   HasSourceKind,
   KindSpreadElement,
-} from "../source-ast.js";
+  } from "../source-ast.js";
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -34,7 +35,7 @@ import {
 import {
   getCsharpArrayLiteralConstructionTargetType,
   getCsharpCollectionElementTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -48,7 +49,7 @@ import {
 export function planNativeCollectionArrayLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   carrier: TargetTypeRef,
   elementCarrier: TargetTypeRef,
@@ -96,7 +97,7 @@ export function planNativeCollectionArrayLiteralExpression(
 function createNativeCollectionSpreadChunks(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementCarrier: TargetTypeRef,
   elementType: CsharpTypeNode,

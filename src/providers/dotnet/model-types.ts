@@ -180,7 +180,18 @@ export interface DotnetSignatureDeclaration {
   readonly targetReturnType?: DotnetTypeRef;
   readonly returnAttributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedReturnAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
+  readonly targetInvocation?: DotnetTargetInvocation;
 }
+
+export type DotnetTargetInvocation =
+  | {
+      readonly kind: "array-creation";
+      readonly lengthParameterIndex: number;
+    }
+  | {
+      readonly kind: "static-factory-construction";
+      readonly factoryType: DotnetTypeRef;
+    };
 
 export interface DotnetConversionOperatorDeclaration {
   readonly id: string;

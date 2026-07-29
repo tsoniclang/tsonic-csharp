@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
 } from "../source-ast.js";
@@ -6,7 +7,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -29,7 +29,7 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 export function planTupleLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planner: ArrayLiteralPlanner,
   tupleType: CsharpTypeNode | undefined,

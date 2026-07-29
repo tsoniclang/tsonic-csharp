@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsClassDeclaration,
   AsExpressionWithTypeArguments,
@@ -9,7 +10,9 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpClassDeclaration,
   CsharpMethodDeclaration,
@@ -36,6 +39,9 @@ import {
 import {
   getCsharpObjectShapeFactForNode,
 } from "./csharp-fact-queries.js";
+import {
+  registerSourceObjectShape,
+} from "./object-shapes.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -43,7 +49,7 @@ export { planInterfaceDeclaration } from "./declaration-interfaces.js";
 export function planClassDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
@@ -52,6 +58,9 @@ export function planClassDeclaration(
   const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
   const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  if (objectShape !== undefined) {
+    registerSourceObjectShape(input, objectShape, diagnostics, node);
+  }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
   return {
@@ -73,7 +82,7 @@ export function planClassDeclaration(
 function getImplementedInterfacePropertyNames(
   classDeclaration: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): ReadonlySet<string> {
   const names = new Set<string>();
   for (const heritageType of input.ast.implementsHeritageElements(classDeclaration)) {
@@ -87,14 +96,14 @@ function getImplementedInterfacePropertyNames(
 function collectImplementedInterfacePropertyNames(
   heritageType: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   names: Set<string>,
   seen: Set<Node>,
 ): void {
   const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-  const reference = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile });
+  const reference = input.navigation.referenceFor(referenceNode);
   const declaration = reference?.declaration ??
-    input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
+    input.navigation.declarationFor(referenceNode);
   if (declaration === undefined || seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
     return;
   }
@@ -124,7 +133,7 @@ function collectImplementedInterfacePropertyNames(
 export function planFunctionDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;

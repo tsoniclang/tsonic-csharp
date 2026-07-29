@@ -1,6 +1,9 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import { relative, resolve } from "node:path";
 import type { SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import { readCsharpOutputType } from "../../options/csharp-target-options.js";
 import {
   SourceFile_FileName,
@@ -18,11 +21,11 @@ interface ModuleInitializationEntry {
   readonly required: boolean;
 }
 
-export function planCsharpModuleInitialization(input: TargetCompileInput, diagnostics: TargetDiagnostic[]): CsharpModuleInitializationPlan {
+export function planCsharpModuleInitialization(input: CsharpTranslationContext, diagnostics: TargetDiagnostic[]): CsharpModuleInitializationPlan {
   const entries = new Map<string, ModuleInitializationEntry>();
   const runtimeImportTargets = new Set<string>();
   for (const sourceFile of input.sourceFiles) {
-    const dependencies = input.analysis.getProjectSourceModuleDependencies(sourceFile)
+    const dependencies = input.navigation.moduleDependencies(sourceFile)
       .map((dependency) => dependency.sourceFile);
     for (const dependency of dependencies) {
       runtimeImportTargets.add(normalizedFileName(dependency));
@@ -61,7 +64,7 @@ function normalizedPath(path: string): string {
 }
 
 function diagnoseRuntimeModuleCycles(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   entries: ReadonlyMap<string, ModuleInitializationEntry>,
   diagnostics: TargetDiagnostic[],
 ): void {
@@ -76,7 +79,7 @@ function diagnoseRuntimeModuleCycles(
 
 function visitModule(
   fileName: string,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   entries: ReadonlyMap<string, ModuleInitializationEntry>,
   visiting: Set<string>,
   visited: Set<string>,
@@ -110,7 +113,7 @@ function visitModule(
 }
 
 function reportRuntimeModuleCycle(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   cycle: readonly string[],
   closingFileName: string,
   reportedCycles: Set<string>,
@@ -137,7 +140,7 @@ function reportRuntimeModuleCycle(
   });
 }
 
-function projectRelativeFileName(input: TargetCompileInput, fileName: string): string {
+function projectRelativeFileName(input: CsharpTranslationContext, fileName: string): string {
   const projectRoot = normalizedPath(resolve(input.paths.projectRoot));
   const normalizedFileName = normalizedPath(resolve(fileName));
   const relativeName = normalizedPath(relative(projectRoot, normalizedFileName));

@@ -1,5 +1,6 @@
 import type {
   DotnetMemberDeclaration,
+  DotnetTypeDeclaration,
 } from "./model.js";
 
 /**
@@ -23,6 +24,39 @@ export function dotnetProviderMemberId(member: DotnetMemberDeclaration): string 
     return `${member.targetId}#${member.static === true ? "static" : "instance"}`;
   }
   return member.targetId;
+}
+
+/**
+ * The source-visible provider member-group identity within one declaring type.
+ *
+ * One source member can combine several CLR methods, including projected
+ * extension methods, while their signatures retain separate exact identities.
+ * This identity therefore follows the source surface rather than any one CLR
+ * member.
+ */
+export function dotnetProviderSourceMemberGroupId(
+  member: DotnetMemberDeclaration,
+  declaringType: DotnetTypeDeclaration,
+): string {
+  switch (member.kind) {
+    case "constructor":
+      return `${declaringType.targetId}#source-constructor`;
+    case "indexer":
+      return `${declaringType.targetId}#source-indexer`;
+    case "method":
+    case "property":
+    case "field":
+    case "event":
+    case "operator":
+      return [
+        declaringType.targetId,
+        "source-member",
+        member.sourceStatic === true || member.static === true
+          ? "static"
+          : "instance",
+        encodeURIComponent(member.sourceName),
+      ].join("#");
+  }
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {

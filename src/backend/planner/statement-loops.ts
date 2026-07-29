@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
   AsIdentifier,
@@ -11,7 +12,9 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpLocalDeclaration,
@@ -32,17 +35,19 @@ import { planLocalDeclaration } from "./locals.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
 import {
-  getRequiredCsharpTargetIterationFact,
-  targetTypeRefFromFactSubject,
-} from "./statement-iteration-facts.js";
-import type { CsharpTargetIterationFact } from "../../source/csharp-facts.js";
+  isCsharpStringCodePointIteration,
+  selectCsharpIteration,
+} from "../../policy/operations/index.js";
+import type {
+  CsharpResolvedIteration,
+} from "../../policy/operations/index.js";
 
 export { planForInStatement } from "./statement-for-in.js";
 
 type NestedStatementPlanner = (
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ) => readonly CsharpStatement[];
@@ -51,32 +56,38 @@ export function planForOfStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = getRequiredCsharpTargetIterationFact(
+  const selectedIteration = selectCsharpIteration(
     input,
     statementNode,
-    diagnosticNode,
-    diagnostics,
-    "C# for-of emission",
+    statement.Expression,
+    sourceFile,
   );
-  if (selectedIteration === undefined) {
+  if (selectedIteration.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      selectedIteration.reason,
+    ));
+    return [];
+  }
+  if (selectedIteration.iterationKind !== "for-of") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      "C# for-of emission received a non-for-of checked iteration selection.",
+    ));
     return [];
   }
   const binding = planForOfBinding(statement.Initializer, selectedIteration, sourceFile, input, diagnostics, state);
   if (binding === undefined) {
     return [];
   }
-  if (selectedIteration.iterationKind === "sync" && selectedIteration.lowering.kind === "string-code-point") {
+  if (isCsharpStringCodePointIteration(selectedIteration)) {
     return planStringCodePointForOfStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
-  }
-  if (selectedIteration.iterationKind !== "sync" || selectedIteration.lowering.kind !== "foreach") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support provider iteration lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
-    return [];
   }
   const collection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
   if (collection === undefined) {
@@ -101,7 +112,7 @@ function planForOfCollectionExpression(
   expression: Node | undefined,
   elementType: ReturnType<typeof getCsharpTypeForNode>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (expression === undefined) {
@@ -132,9 +143,12 @@ interface PlannedForOfBinding extends CsharpLocalDeclaration {
 
 function planForOfBinding(
   initializer: Node | undefined,
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-of" }
+  >,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): PlannedForOfBinding | undefined {
@@ -217,16 +231,18 @@ function planForOfBinding(
 }
 
 function getForOfElementType(
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-of" }
+  >,
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const targetElementType = selectedIteration.elementType === undefined
-    ? undefined
-    : targetTypeRefFromFactSubject(selectedIteration.elementType);
-  const elementType = targetElementType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetElementType);
+  const elementType = csharpTypeFromTargetTypeRef(
+    selectedIteration.elementType,
+  );
   if (elementType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of destructuring requires a provider iteration fact with a closed target element type."));
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of destructuring requires a checked iteration with a renderable target element type."));
     return undefined;
   }
   return elementType;

@@ -1,18 +1,13 @@
-import type {
-  TargetCompileInput,
-} from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   CsharpExpression,
   CsharpMethodDeclaration,
   CsharpStatement,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
-import {
-  csharpJsonSerializableShapeFactKey,
-} from "../../source/csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 import {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
@@ -20,11 +15,10 @@ import {
 export const csharpJsonValueWriterMethodName = "__tsonicWriteJson";
 
 export function objectShapeRequiresJsonSerialization(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   fact: CsharpObjectShapeFact,
 ): boolean {
-  return targetTypeRequiresJsonSerialization(input, fact.targetType) ||
-    (fact.implements ?? []).some((type) => targetTypeRequiresJsonSerialization(input, type));
+  return input.artifacts.objectShapeRequiresJsonSerialization(fact);
 }
 
 export function csharpJsonValueInterfaceType(): CsharpTypeNode {
@@ -69,13 +63,6 @@ export function renderJsonSerializableObjectShapeMethod(
     ],
     body: { kind: "Block", statements },
   };
-}
-
-function targetTypeRequiresJsonSerialization(
-  input: TargetCompileInput,
-  type: CsharpObjectShapeFact["targetType"],
-): boolean {
-  return input.facts.getFact(type, csharpJsonSerializableShapeFactKey)?.kind === "closed-object-shape";
 }
 
 function qualifiedType(namespace: string, name: string): CsharpTypeNode {

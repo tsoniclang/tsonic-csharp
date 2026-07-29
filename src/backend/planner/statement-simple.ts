@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBreakStatement,
   AsContinueStatement,
@@ -16,7 +17,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -67,7 +67,7 @@ import {
 export function planReturnStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
@@ -143,7 +143,7 @@ export function planContinueStatement(
 export function planThrowStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
@@ -206,7 +206,7 @@ export function planDebuggerStatement(): readonly CsharpStatement[] {
 export function planExpressionStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {

@@ -1,6 +1,9 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -14,7 +17,7 @@ export type BindingProjectionPlanner = (
   projectedType: CsharpTypeNode | undefined,
   projectionNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   projectedCarrier?: TargetTypeRef,

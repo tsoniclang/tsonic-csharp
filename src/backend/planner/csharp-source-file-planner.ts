@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsExportAssignment,
   AsFunctionDeclaration,
@@ -25,7 +26,9 @@ import {
   SourceFile_FileName,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpCompilationUnit,
   CsharpStatement,
@@ -43,13 +46,14 @@ import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, pla
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { beginObjectShapeSourceFilePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
 import { readNamespace } from "./project-artifacts.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
-import { compilationUnitRequiresUnsafe, markCompilationUnitUnsafe } from "./unsafe.js";
 import { createDestructuringPlannerState } from "./bindings.js";
+import {
+  finalizeCsharpCompilationUnit,
+} from "./csharp-compilation-unit.js";
 
 export interface PlannedCsharpSourceFile {
   readonly fileName: string;
@@ -61,7 +65,7 @@ export interface PlannedCsharpSourceFile {
 
 export function planSourceFile(
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   moduleInitialization: CsharpModuleInitializationPlan,
 ): PlannedCsharpSourceFile | undefined {
@@ -70,7 +74,6 @@ export function planSourceFile(
     return undefined;
   }
   const moduleClassName = sourceFileClassName(input, fileName);
-  beginObjectShapeSourceFilePlanning(input, fileName);
   const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input) ||
     moduleInitialization.requiresInitializer(sourceFile);
   const members: CsharpTypeMember[] = [];
@@ -164,8 +167,7 @@ export function planSourceFile(
       members,
     });
   }
-  const shapeDeclarations = takeObjectShapeDeclarations(input, fileName);
-  if (namespaceMembers.length === 0 && shapeDeclarations.length === 0) {
+  if (namespaceMembers.length === 0) {
     return undefined;
   }
   const unit: CsharpCompilationUnit = {
@@ -174,62 +176,17 @@ export function planSourceFile(
     members: [{
       kind: "NamespaceDeclaration",
       name: readNamespace(input),
-      members: [...shapeDeclarations, ...namespaceMembers],
+      members: namespaceMembers,
     }],
   };
-  const requiresUnsafe = compilationUnitRequiresUnsafe(unit);
-  const finalUnit = withRequiredExternAliases(requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit);
+  const finalized = finalizeCsharpCompilationUnit(unit);
   return {
     fileName,
     moduleClassName,
-    unit: finalUnit,
-    requiresUnsafe,
+    unit: finalized.unit,
+    requiresUnsafe: finalized.requiresUnsafe,
     hasModuleInitializer,
   };
-}
-
-function withRequiredExternAliases(unit: CsharpCompilationUnit): CsharpCompilationUnit {
-  const aliases = collectExternAliases(unit);
-  return aliases.length === 0
-    ? unit
-    : {
-        ...unit,
-        externAliases: aliases,
-      };
-}
-
-function collectExternAliases(value: unknown): readonly string[] {
-  const aliases = new Set<string>();
-  const seen = new WeakSet<object>();
-  visitCsharpAstValue(value, aliases, seen);
-  return Array.from(aliases).sort((left, right) => left.localeCompare(right));
-}
-
-function visitCsharpAstValue(
-  value: unknown,
-  aliases: Set<string>,
-  seen: WeakSet<object>,
-): void {
-  if (value === null || typeof value !== "object") {
-    return;
-  }
-  if (seen.has(value)) {
-    return;
-  }
-  seen.add(value);
-  if (Array.isArray(value)) {
-    for (const element of value) {
-      visitCsharpAstValue(element, aliases, seen);
-    }
-    return;
-  }
-  const record = value as Readonly<Record<string, unknown>>;
-  if (record.kind === "AliasQualifiedName" && typeof record.alias === "string") {
-    aliases.add(record.alias);
-  }
-  for (const field of Object.values(record)) {
-    visitCsharpAstValue(field, aliases, seen);
-  }
 }
 
 function createModuleInitializerCall(moduleClassName: string): CsharpStatement {
@@ -247,7 +204,7 @@ function createModuleInitializerCall(moduleClassName: string): CsharpStatement {
   };
 }
 
-function hasRuntimeTopLevel(sourceFile: SourceFile, input: TargetCompileInput): boolean {
+function hasRuntimeTopLevel(sourceFile: SourceFile, input: CsharpTranslationContext): boolean {
   for (const statement of sourceFile.Statements?.Nodes ?? []) {
     if (statement === undefined || isErasedAttributeExpressionStatement(statement, input)) {
       continue;
@@ -273,7 +230,7 @@ function hasRuntimeTopLevel(sourceFile: SourceFile, input: TargetCompileInput): 
 function planExportAssignment(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeMember | undefined {
   const assignment = AsExportAssignment(node)!;

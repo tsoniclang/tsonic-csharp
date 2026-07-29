@@ -74,12 +74,6 @@ function qualifyProviderTypeModuleRefs(
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
       };
-    case "target-named":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
-        ...(type.sourceShape === undefined ? {} : { sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, context) }),
-      };
     case "array":
       return { ...type, elementType: qualifyProviderTypeModuleRefs(type.elementType, context) };
     case "tuple":
@@ -93,10 +87,6 @@ function qualifyProviderTypeModuleRefs(
         parameters: type.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, context)),
         returnType: qualifyProviderTypeModuleRefs(type.returnType, context),
       };
-    case "opaque":
-      return type.sourceShape === undefined
-        ? type
-        : { ...type, sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, context) };
     case "any":
     case "unknown":
     case "void":
@@ -227,12 +217,6 @@ function collectProviderImportsFromType(
         collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
       }
       return;
-    case "target-named":
-      for (const argument of type.typeArguments ?? []) {
-        collectProviderImportsFromType(argument, currentModuleSpecifier, importsByModule);
-      }
-      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule, position);
-      return;
     case "array":
       collectProviderImportsFromType(type.elementType, currentModuleSpecifier, importsByModule);
       return;
@@ -258,9 +242,6 @@ function collectProviderImportsFromType(
           collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
         }
       }
-      return;
-    case "opaque":
-      collectProviderImportsFromType(type.sourceShape, currentModuleSpecifier, importsByModule, position);
       return;
     case "any":
     case "unknown":

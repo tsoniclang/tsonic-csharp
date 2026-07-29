@@ -10,7 +10,6 @@ import {
 import type { DotnetDeclarationContext } from "./context.js";
 import { dotnetProviderRefToTypeDeclaration } from "./context.js";
 import {
-  dotnetTargetIdentity,
   dotnetTypeKindToProviderKind,
   tryDotnetBaseTypeToProviderHeritage,
 } from "./conversions.js";
@@ -44,7 +43,6 @@ export function dotnetTypeToProviderExport(
     name: declaration.sourceName,
     kind,
     ...(declaration.sourceTypeFamily !== undefined ? { sourceTypeFamily: declaration.sourceTypeFamily } : {}),
-    targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
     ...(declaration.typeParameters !== undefined
       ? {

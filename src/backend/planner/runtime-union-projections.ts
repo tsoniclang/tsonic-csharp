@@ -1,45 +1,38 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
-  ExtensionFactSubject,
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  targetTypeRefEquals,
+  type TargetTypeRef,
+} from "../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
   CsharpExpression,
 } from "../roslyn/syntax.js";
 import {
-  Node_Name,
-} from "./source-ast.js";
-import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  getTargetTypeRefFromDirectFacts,
-} from "./runtime-carrier-direct-facts.js";
-import {
-  targetTypeRefsMatch,
-} from "./target-types.js";
-import {
   getCsharpRuntimeUnionArms,
   isCsharpRuntimeUnionTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function planRuntimeUnionUseSiteProjection(
   node: Node,
   baseExpression: CsharpExpression,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
   if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
     return baseExpression;
   }
-  const useSiteCarrier = getTargetTypeRefFromDirectFacts(input, node);
+  const useSiteCarrier = input.types.resolveNode(node, sourceFile);
   if (useSiteCarrier === undefined || isCsharpRuntimeUnionTargetType(useSiteCarrier)) {
     return baseExpression;
   }
@@ -58,7 +51,7 @@ export function tryPlanRuntimeUnionTypeTest(
   node: Node,
   targetType: TargetTypeRef,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   baseExpression: CsharpExpression,
   negated: boolean,
@@ -89,7 +82,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
   node: Node,
   targetType: TargetTypeRef,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   baseExpression: CsharpExpression,
 ): CsharpExpression | undefined {
@@ -111,53 +104,27 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
 function getRuntimeUnionStorageCarrier(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): TargetTypeRef | undefined {
-  const nodeCarrier = getTargetTypeRefFromDirectFacts(input, node);
+  const nodeCarrier = input.types.resolveNode(node, sourceFile);
   if (isCsharpRuntimeUnionTargetType(nodeCarrier)) {
     return nodeCarrier;
   }
-  for (const subject of storageCarrierSubjects(node, sourceFile, input)) {
-    const carrier = getTargetTypeRefFromDirectFacts(input, subject);
-    if (isCsharpRuntimeUnionTargetType(carrier)) {
-      return carrier;
-    }
-  }
-  return undefined;
-}
-
-function storageCarrierSubjects(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): readonly ExtensionFactSubject[] {
-  const subjects: ExtensionFactSubject[] = [];
-  const reference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile });
-  pushSubject(subjects, reference?.declaration);
-  pushSubject(subjects, reference?.declaration === undefined ? undefined : Node_Name(input.ast, reference.declaration));
-  for (const symbol of [
-    input.analysis.getSymbolAtLocation(node, { sourceFile }),
-    input.analysis.getResolvedSymbol(node, { sourceFile }),
-  ]) {
-    for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
-      pushSubject(subjects, declaration);
-      pushSubject(subjects, Node_Name(input.ast, declaration));
-    }
-  }
-  return subjects;
-}
-
-function pushSubject(subjects: ExtensionFactSubject[], subject: ExtensionFactSubject | undefined): void {
-  if (subject !== undefined && !subjects.includes(subject)) {
-    subjects.push(subject);
-  }
+  const reference = input.navigation.referenceFor(node);
+  const declarationCarrier = input.types.resolveNode(
+    reference?.declaration,
+    sourceFile,
+  );
+  return isCsharpRuntimeUnionTargetType(declarationCarrier)
+    ? declarationCarrier
+    : undefined;
 }
 
 function runtimeUnionArmIndex(
   unionCarrier: TargetTypeRef,
   targetType: TargetTypeRef,
 ): number | undefined {
-  const armIndex = getCsharpRuntimeUnionArms(unionCarrier)?.findIndex((arm) => targetTypeRefsMatch(arm, targetType));
+  const armIndex = getCsharpRuntimeUnionArms(unionCarrier)?.findIndex((arm) => targetTypeRefEquals(arm, targetType));
   return armIndex === undefined || armIndex < 0 ? undefined : armIndex;
 }
 

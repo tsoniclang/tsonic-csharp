@@ -1,10 +1,16 @@
-import { requireCsharpIdentifier, tryCsharpIdentifier } from "./identifiers.js";
+import type {
+  CsharpTranslationContext } from "../../translate/context/index.js";
+import { requireCsharpIdentifier,
+  tryCsharpIdentifier } from "./identifiers.js";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import type { AstReader, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import {
-  asNodeSubject,
-} from "../../source/fact-subjects.js";
+import type { AstReader,
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
   KindIdentifier,
   Node_Text,
@@ -48,7 +54,7 @@ export interface StringIterationSyntheticNames {
 
 export function createDestructuringPlannerState(root?: Node, ast?: AstReader): DestructuringPlannerState {
   const usedNames = new Set<string>();
-  collectReservedSourceNames(root, usedNames, new WeakSet<object>(), ast);
+  collectReservedSourceNames(root, usedNames, ast);
   return {
     nextTempIndex: 0,
     nextParameterIndex: 0,
@@ -67,7 +73,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
 export function declareCsharpLocalBindingName(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   description: string,
@@ -105,7 +111,7 @@ export function declareCsharpLocalBindingName(
 export function getCsharpLocalBindingName(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   state: DestructuringPlannerState | undefined,
 ): string | undefined {
   const key = state === undefined ? undefined : localBindingKey(node, sourceFile, input);
@@ -207,10 +213,11 @@ function allocateShadowedLocalName(
 function localBindingKey(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): object | undefined {
-  const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile }) ??
-    input.analysis.getResolvedSymbol(node, { sourceFile });
+  const checker = input.queries(sourceFile).checker;
+  const symbol = checker.getSymbolAtLocation(node, { sourceFile }) ??
+    checker.getResolvedSymbol(node, { sourceFile });
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 
@@ -218,28 +225,32 @@ function asObjectKey(value: unknown): object | undefined {
   return typeof value === "object" && value !== null ? value : undefined;
 }
 
-function collectReservedSourceNames(value: unknown, names: Set<string>, seen: WeakSet<object>, ast: AstReader | undefined): void {
-  if (typeof value !== "object" || value === null || seen.has(value)) {
+function collectReservedSourceNames(
+  root: Node | undefined,
+  names: Set<string>,
+  ast: AstReader | undefined,
+): void {
+  if (root === undefined || ast === undefined) {
     return;
   }
-  seen.add(value);
-  const node = asNodeSubject(value);
-  if (node !== undefined && ast?.kindName(node) === KindIdentifier) {
-    const identifier = tryCsharpIdentifier(Node_Text(ast, node));
-    if (identifier !== undefined) {
-      names.add(identifier);
-    }
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectReservedSourceNames(item, names, seen, ast);
-    }
-    return;
-  }
-  for (const [key, item] of Object.entries(value)) {
-    if (key === "Parent" || key === "Symbol" || key === "LocalSymbol" || key === "FlowNode") {
+  const pending = [root];
+  const seen = new Set<Node>();
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node === undefined || seen.has(node)) {
       continue;
     }
-    collectReservedSourceNames(item, names, seen, ast);
+    seen.add(node);
+    if (ast.kindName(node) === KindIdentifier) {
+      const identifier = tryCsharpIdentifier(Node_Text(ast, node));
+      if (identifier !== undefined) {
+        names.add(identifier);
+      }
+    }
+    for (const child of ast.children(node)) {
+      if (child !== undefined) {
+        pending.push(child);
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import {
   readOptionalStringOption,
@@ -11,11 +11,11 @@ export {
   readReferencesOption,
 } from "./project-reference-options.js";
 
-export function readNamespace(input: TargetCompileInput): string {
+export function readNamespace(input: CsharpTranslationContext): string {
   return formatNamespace(readOptionalStringOption(input, "namespace") ?? "Tsonic.Generated");
 }
 
-export function readAssemblyName(input: TargetCompileInput): string {
+export function readAssemblyName(input: CsharpTranslationContext): string {
   return formatAssemblyName(readOptionalStringOption(input, "assemblyName") ?? "TsonicGenerated");
 }
 

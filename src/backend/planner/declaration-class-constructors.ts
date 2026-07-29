@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
@@ -42,7 +45,7 @@ export function planClassStaticBlockDeclaration(
   node: Node,
   className: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsClassStaticBlockDeclaration(node)!;
@@ -63,7 +66,7 @@ export function planConstructorDeclaration(
   node: Node,
   className: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsConstructorDeclaration(node)!;
@@ -118,7 +121,7 @@ export function planConstructorDeclaration(
 function planBaseConstructorArguments(
   argumentNodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpArgument[] | undefined {
   const planned: CsharpArgument[] = [];
@@ -135,7 +138,7 @@ function planBaseConstructorArguments(
   return planned;
 }
 
-function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: TargetCompileInput): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
+function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: CsharpTranslationContext): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
   const first = statements[0];
   if (!HasSourceKind(input.ast, first, KindExpressionStatement)) {
     return undefined;

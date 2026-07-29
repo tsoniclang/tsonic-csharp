@@ -1,19 +1,19 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   Node,
-  SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  TargetCompileInput,
-} from "@tsonic/target-api";
+import {
+  sourcePrimitiveFactKey,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+
 
 export function targetTypePreservesSourcePrimitiveEvidence(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   node: Node,
-  sourceFile: SourceFile,
   targetType: TargetTypeRef,
 ): boolean {
-  const requiredPrimitives = collectSourcePrimitiveEvidence(input, node, sourceFile);
+  const requiredPrimitives = collectSourcePrimitiveEvidence(input, node);
   if (requiredPrimitives.size === 0) {
     return true;
   }
@@ -27,19 +27,17 @@ export function targetTypePreservesSourcePrimitiveEvidence(
 }
 
 export function describeSourcePrimitiveEvidence(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   node: Node,
-  sourceFile: SourceFile,
 ): readonly string[] {
-  return [...collectSourcePrimitiveEvidence(input, node, sourceFile)]
+  return [...collectSourcePrimitiveEvidence(input, node)]
     .sort()
     .map((primitive) => `sourcePrimitive=${primitive}`);
 }
 
 function collectSourcePrimitiveEvidence(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   node: Node,
-  sourceFile: SourceFile,
 ): ReadonlySet<string> {
   const found = new Set<string>();
   const visit = (current: Node | undefined): void => {
@@ -47,8 +45,6 @@ function collectSourcePrimitiveEvidence(
       return;
     }
     addSourcePrimitiveFact(found, input, current);
-    addSourcePrimitiveFact(found, input, input.analysis.getSymbolAtLocation(current, { sourceFile }));
-    addSourcePrimitiveFact(found, input, input.analysis.getResolvedSymbol(current, { sourceFile }));
     input.ast.forEachChild(current, (child): void => {
       visit(child);
     });
@@ -59,10 +55,10 @@ function collectSourcePrimitiveEvidence(
 
 function addSourcePrimitiveFact(
   found: Set<string>,
-  input: TargetCompileInput,
-  subject: Parameters<TargetCompileInput["facts"]["getSourcePrimitiveFact"]>[0],
+  input: CsharpTranslationContext,
+  subject: Node,
 ): void {
-  const primitive = input.facts.getSourcePrimitiveFact(subject);
+  const primitive = input.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
   if (primitive !== undefined) {
     found.add(primitive.kind);
   }

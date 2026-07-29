@@ -1,6 +1,4 @@
-import type {
-  TargetTypeRef,
-} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -13,7 +11,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../source/csharp-facts.js";
+} from "../../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -25,7 +23,7 @@ import {
 } from "../target-types.js";
 import {
   isCsharpVoidTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,

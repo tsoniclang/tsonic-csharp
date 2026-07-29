@@ -1,11 +1,11 @@
-import type { TargetTypeRef } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   csharpExceptionTargetType,
   csharpTsThrownValueExceptionTargetType,
   isCsharpAnyRuntimeCarrier,
   isCsharpClosedCompatRuntimeCarrier,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 const tsValueSupportedSourcePrimitives = new Set([

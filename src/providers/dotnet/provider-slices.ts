@@ -183,7 +183,6 @@ const nonSourceClosureMetadataKeys = new Set([
   "evidence",
   "implementedContracts",
   "targetDeclaringType",
-  "targetIdentity",
   "unsupportedAttributes",
   "unsupportedImplementedContracts",
   "unsupportedExports",

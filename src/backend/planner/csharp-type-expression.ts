@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsExpressionWithTypeArguments,
   KindExpressionWithTypeArguments,
@@ -9,7 +10,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -22,25 +22,16 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  getTargetTypeRefForNode,
-} from "./runtime-carriers.js";
-import {
-  csharpTargetTypeFromBinding,
-} from "../../source/csharp-source-semantics/target-types.js";
-import {
   getCsharpTypeForNode,
 } from "./csharp-type-node.js";
 import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
-import {
-  getCsharpTypeFromProjectSourceReferenceNode,
-} from "./project-source-types.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
@@ -75,28 +66,19 @@ export function expressionToCsharpType(
 function getCsharpTypeForExpressionReference(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const sourceReferenceType = getCsharpTypeFromProjectSourceReferenceNode(node, sourceFile, input, diagnostics);
-  if (sourceReferenceType !== undefined) {
-    return sourceReferenceType;
+  const targetType = input.types.resolveNode(node, sourceFile);
+  const csharpType = targetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(targetType);
+  if (csharpType !== undefined) {
+    return csharpType;
   }
-  const targetCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-  if (targetCarrier !== undefined) {
-    const csharpType = csharpTypeFromTargetTypeRef(targetCarrier);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
-  }
-  const targetBinding = input.targetFacts.getTargetBindingForReference(node, { sourceFile });
-  if (targetBinding !== undefined) {
-    const targetType = csharpTargetTypeFromBinding(targetBinding);
-    const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
-  }
-  diagnostics?.push(unsupportedNodeDiagnostic(node, "C# type expression emission requires a provider target binding or a project-source class/interface declaration."));
+  diagnostics?.push(unsupportedNodeDiagnostic(
+    node,
+    "C# type expression emission requires an exact provider, source-profile, or project type relation.",
+  ));
   return invalidCsharpType("unresolved type expression");
 }

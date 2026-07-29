@@ -1,12 +1,19 @@
+import type {
+  CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   HasSourceKind,
   KindArrayBindingPattern,
   KindIdentifier,
   KindObjectBindingPattern,
   Node_Text,
-} from "./source-ast.js";
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+  } from "./source-ast.js";
+import type { Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -41,7 +48,7 @@ export function planBindingPatternFromExpression(
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   sourceCarrier?: TargetTypeRef,
@@ -85,7 +92,7 @@ function planBindingNameFromProjection(
   projectedType: CsharpTypeNode | undefined,
   projectionNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   projectedCarrier?: TargetTypeRef,
@@ -96,7 +103,11 @@ function planBindingNameFromProjection(
       kind: "LocalDeclarationStatement",
       name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
       type: projectedType ??
-        getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(name, { sourceFile }), sourceFile, input) ??
+        getCsharpTypeFromSemanticType(
+          input.queries(sourceFile).checker.getTypeAtLocation(name, { sourceFile }),
+          sourceFile,
+          input,
+        ) ??
         getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];
@@ -122,7 +133,7 @@ function planBindingNameFromProjection(
 export function getCsharpTypeForExpressionCarrier(
   expression: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
   description: string,

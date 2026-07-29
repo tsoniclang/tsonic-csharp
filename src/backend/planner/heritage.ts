@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { expressionToCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -12,7 +15,7 @@ export interface CsharpClassHeritage {
 export function planClassHeritage(
   classDeclaration: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
   const interfaces: CsharpTypeNode[] = [];
@@ -39,7 +42,7 @@ export function planClassHeritage(
 export function planInterfaceHeritage(
   interfaceDeclaration: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
   const implementedTypes = input.ast.implementsHeritageElements(interfaceDeclaration);
@@ -52,7 +55,7 @@ export function planInterfaceHeritage(
 function planHeritageTypes(
   nodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
   return nodes
@@ -63,7 +66,7 @@ function planHeritageTypes(
 function planHeritageType(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
   return expressionToCsharpType(node, sourceFile, input, diagnostics);

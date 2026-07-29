@@ -1,10 +1,17 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsObjectLiteralExpression,
 } from "./source-ast.js";
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import type {
@@ -22,7 +29,7 @@ import {
 export function planObjectLiteralExpressionWithExpectedType(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
@@ -49,7 +56,7 @@ function isInterfaceObjectShape(objectShape: CsharpObjectShapeFact): boolean {
 function planObjectLiteralExpressionWithObjectShape(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   objectShape: CsharpObjectShapeFact,
   planExpression: ExpressionPlanner,

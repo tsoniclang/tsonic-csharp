@@ -8,6 +8,7 @@ import {
   tryDotnetTypeRefToProviderType,
 } from "../model.js";
 import { dotnetParameterToProviderParameter } from "./parameters.js";
+import { dotnetProviderMemberId } from "../provider-member-identity.js";
 
 export function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
@@ -209,11 +210,6 @@ function providerTypeExpressionSourceProjection(
           ? {}
           : { typeArguments: type.typeArguments.map((argument) => mergeProviderSourceSelectionTypes([argument])) }),
       }];
-    case "target-named":
-    case "opaque":
-      return type.sourceShape === undefined
-        ? [type]
-        : providerTypeExpressionSourceProjection(type.sourceShape);
     case "union":
       return type.types.flatMap(providerTypeExpressionSourceProjection);
     case "array":
@@ -351,12 +347,6 @@ export function renameProviderTypeExpressionTypeParameters(
       return type.typeArguments === undefined
         ? type
         : { ...type, typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) };
-    case "target-named":
-      return {
-        ...type,
-        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => renameProviderTypeExpressionTypeParameters(argument, renames)) }),
-        ...(type.sourceShape === undefined ? {} : { sourceShape: renameProviderTypeExpressionTypeParameters(type.sourceShape, renames) }),
-      };
     case "array":
       return { ...type, elementType: renameProviderTypeExpressionTypeParameters(type.elementType, renames) };
     case "tuple":
@@ -378,10 +368,6 @@ export function renameProviderTypeExpressionTypeParameters(
         returnType: renameProviderTypeExpressionTypeParameters(type.returnType, nestedRenames),
       };
     }
-    case "opaque":
-      return type.sourceShape === undefined
-        ? type
-        : { ...type, sourceShape: renameProviderTypeExpressionTypeParameters(type.sourceShape, renames) };
     case "any":
     case "unknown":
     case "void":
@@ -468,11 +454,6 @@ function providerTypeExpressionSourceShapeKey(
       };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
-    case "target-named":
-    case "opaque":
-      return type.sourceShape === undefined
-        ? { kind: type.kind, id: type.id }
-        : providerTypeExpressionSourceShapeKey(type.sourceShape, mode);
     case "array":
       return { kind: "array", elementType: providerTypeExpressionSourceShapeKey(type.elementType, mode) };
     case "tuple":
@@ -549,9 +530,6 @@ function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts
     case "union":
     case "intersection":
       return 2 + sumProviderTypeExpressionScores(type.types);
-    case "target-named":
-    case "opaque":
-      return 4 + (type.sourceShape === undefined ? 12 : providerTypeExpressionSourceSpecificityScore(type.sourceShape));
     case "provider-ref":
       return providerRefSourceSpecificityScore(type);
   }
@@ -586,15 +564,4 @@ function sourcePrimitiveSourceRuntimeKind(name: string): "boolean" | "string" | 
 
 function dotnetSourceProjectionSignatureId(member: DotnetMemberDeclaration, shapeKey: string): string {
   return `${dotnetProviderMemberId(member)}#source-signature:${encodeURIComponent(shapeKey)}`;
-}
-
-function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
-  return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.targetId)
-    : member.targetId;
-}
-
-function dotnetMetadataNameWithoutSignature(metadataName: string): string {
-  const signatureStart = metadataName.indexOf("(");
-  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }

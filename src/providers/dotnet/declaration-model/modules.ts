@@ -14,7 +14,6 @@ import type {
   DotnetProviderDeclarationModelOptions,
 } from "./context.js";
 import { createDotnetDeclarationContext } from "./context.js";
-import { dotnetTargetIdentity } from "./conversions.js";
 import { providerImportsForExternalRefs, qualifyProviderExportModuleRefs } from "./module-refs.js";
 import { dotnetExportToNamespaceMember } from "./namespace-members.js";
 import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
@@ -65,7 +64,6 @@ export function dotnetExportToProviderExport(
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "function",
-        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         signatures,
       };
     }
@@ -78,7 +76,6 @@ export function dotnetExportToProviderExport(
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "value",
-        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         type,
       };
     }

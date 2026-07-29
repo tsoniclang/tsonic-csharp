@@ -2,7 +2,7 @@ import {
   performance,
 } from "node:perf_hooks";
 import {
-  TstsProviderContractVersion,
+  TstsSourceProviderContractVersion,
 } from "@tsonic/tsts";
 import type {
   ExtensionDiagnostic,
@@ -11,7 +11,7 @@ import type {
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
-  TargetBindingProvider,
+  SourceDeclarationProvider,
 } from "@tsonic/tsts";
 import { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
 import {
@@ -93,15 +93,13 @@ export interface DotnetBindingProviderOptions {
   readonly references?: readonly string[];
 }
 
-export function createDotnetTargetBindingProvider(options: DotnetBindingProviderOptions): TargetBindingProvider {
+export function createDotnetSourceDeclarationProvider(options: DotnetBindingProviderOptions): SourceDeclarationProvider {
   const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
   const pendingResolutionContexts = new Map<string, DotnetProviderResolutionContext>();
   const identity: ProviderIdentity = {
     id: options.provider.identity.id,
     version: options.provider.identity.version,
-    target: "csharp",
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "binding",
+    extensionContractVersion: TstsSourceProviderContractVersion,
     displayName: options.provider.identity.displayName,
   };
   return {
@@ -145,44 +143,92 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       };
     },
     getDeclarationModel(resolution) {
-      const module = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
-      if (module === undefined) {
-        return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
-      }
       const resolutionContext = pendingResolutionContexts.get(resolution.moduleSpecifier);
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
       pendingResolutionContexts.delete(resolution.moduleSpecifier);
-      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options, resolution.virtualFileName, module));
-      if (isDotnetProviderDiagnostic(result)) {
-        return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
-      }
-      const augmentedModule = augmentDotnetModuleWithNativeArray(result, {
-        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
-        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
-      });
-      const unsupportedRequestedExports = requestedUnsupportedExports(augmentedModule, resolutionContext.requestedExports);
-      if (unsupportedRequestedExports.length > 0) {
-        return dotnetProviderRequestedExportUnsupportedDiagnostic(identity.id, module.moduleSpecifier, unsupportedRequestedExports);
-      }
-      const missingRequestedExports = missingDotnetRequestedExports(augmentedModule, resolutionContext);
-      if (missingRequestedExports.length > 0) {
-        return dotnetProviderRequestedExportMissingDiagnostic(identity.id, module.moduleSpecifier, missingRequestedExports);
-      }
-      const startedAt = performance.now();
-      const model = buildClosedProviderDeclarationModel(resolution, resolutionContext, augmentedModule, options, identity.id, module.moduleSpecifier, moduleSpecifierPolicy);
-      if ("extensionId" in model) {
-        return model;
-      }
-      const declarationContractDiagnostic = validateDotnetProviderDeclarationModelContract(model);
-      if (declarationContractDiagnostic !== undefined) {
-        return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, declarationContractDiagnostic);
-      }
-      options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
-      return model;
+      return resolveDotnetProviderDeclarationProjection(
+        options,
+        identity.id,
+        resolution,
+        resolutionContext,
+        moduleSpecifierPolicy,
+      );
     },
   };
+}
+
+export function resolveDotnetProviderDeclarationProjection(
+  options: DotnetBindingProviderOptions,
+  extensionId: string,
+  resolution: ProviderModuleResolution,
+  resolutionContext: DotnetProviderResolutionContext,
+  moduleSpecifierPolicy: DotnetModuleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy,
+): ProviderDeclarationModel | ExtensionDiagnostic {
+  const module = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
+  if (module === undefined || module.moduleSpecifier !== resolution.providerModuleId) {
+    return dotnetExtensionDiagnostic(
+      extensionId,
+      "DOTNET_MODULE_SPECIFIER_INVALID",
+      9200001,
+      `.NET provider resolution for '${resolution.moduleSpecifier}' does not match provider module '${resolution.providerModuleId}'.`,
+    );
+  }
+  const result = options.provider.getModule(
+    resolution.providerModuleId,
+    providerContext(resolutionContext, options, resolution.virtualFileName, module),
+  );
+  if (isDotnetProviderDiagnostic(result)) {
+    return dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, result);
+  }
+  const augmentedModule = augmentDotnetModuleWithNativeArray(result, {
+    ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
+    ...(resolutionContext.requestedExports !== undefined
+      ? { requestedExports: resolutionContext.requestedExports }
+      : {}),
+  });
+  const unsupportedRequestedExports = requestedUnsupportedExports(
+    augmentedModule,
+    resolutionContext.requestedExports,
+  );
+  if (unsupportedRequestedExports.length > 0) {
+    return dotnetProviderRequestedExportUnsupportedDiagnostic(
+      extensionId,
+      resolution.providerModuleId,
+      unsupportedRequestedExports,
+    );
+  }
+  const missingRequestedExports = missingDotnetRequestedExports(
+    augmentedModule,
+    resolutionContext,
+  );
+  if (missingRequestedExports.length > 0) {
+    return dotnetProviderRequestedExportMissingDiagnostic(
+      extensionId,
+      resolution.providerModuleId,
+      missingRequestedExports,
+    );
+  }
+  const startedAt = performance.now();
+  const model = buildClosedProviderDeclarationModel(
+    resolution,
+    resolutionContext,
+    augmentedModule,
+    options,
+    extensionId,
+    resolution.providerModuleId,
+    moduleSpecifierPolicy,
+  );
+  if ("extensionId" in model) {
+    return model;
+  }
+  const declarationContractDiagnostic = validateDotnetProviderDeclarationModelContract(model);
+  if (declarationContractDiagnostic !== undefined) {
+    return dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, declarationContractDiagnostic);
+  }
+  options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
+  return model;
 }
 
 function buildClosedProviderDeclarationModel(
@@ -348,7 +394,6 @@ function collectProviderDeclarationSameModuleRefs(
 const nonSourceClosureMetadataKeys = new Set([
   "attributes",
   "evidence",
-  "targetIdentity",
   "unsupportedAttributes",
 ]);
 

@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsArrowFunction,
   AsFunctionExpression,
@@ -10,15 +11,17 @@ import {
   KindIdentifier,
   Node_Text,
   ModifierFlagsAsync,
-  isAstNode,
 } from "./source-ast.js";
-import type { AstReader, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  AstReader,
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../roslyn/syntax.js";
-import {
-  asSemanticType,
-  asTargetTypeRef,
-} from "../../source/fact-subjects.js";
 import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -30,12 +33,12 @@ import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
-import { getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
+import { getTargetTypeRefForNode } from "./runtime-carriers.js";
 import { planBlockStatements } from "./statements.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type {
   CsharpDelegateSignatureShape,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 import type {
   ExpectedExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -44,7 +47,7 @@ import {
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -58,14 +61,14 @@ export interface LambdaTargetContext {
 type ExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ) => CsharpExpression | undefined;
 
 export function planArrowFunctionExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   expectedType?: CsharpTypeNode,
@@ -118,7 +121,7 @@ export function planArrowFunctionExpression(
 export function planFunctionExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
@@ -153,7 +156,7 @@ export function planLambdaBlockBody(
   lambdaNode: Node,
   bodyNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState | undefined,
   targetContext: LambdaTargetContext | undefined,
@@ -183,7 +186,7 @@ export function planLambdaBlockBody(
 function getLambdaReturnContext(
   node: Node,
   targetContext: LambdaTargetContext | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): LambdaReturnContext | undefined {
   if (targetContext === undefined) {
@@ -235,7 +238,7 @@ function getAuthoredLambdaReturnTypeNode(node: Node): Node | undefined {
 export function planLambdaParameters(
   parameterNodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
   expectedContext?: LambdaTargetContext,
@@ -283,7 +286,7 @@ export function planLambdaParameters(
 export function diagnoseMissingLambdaTargetContext(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedContext?: LambdaTargetContext,
 ): void {
@@ -296,7 +299,7 @@ export function diagnoseMissingLambdaTargetContext(
 export function getLambdaTargetContext(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expectedType?: CsharpTypeNode,
   expectedTargetType?: TargetTypeRef,
 ): LambdaTargetContext | undefined {
@@ -323,7 +326,7 @@ export function getLambdaTargetContext(
 function getExplicitLambdaSignatureTarget(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): LambdaTargetContext | undefined {
   const expression = AsArrowFunction(node) ?? AsFunctionExpression(node);
   if (expression === undefined) {
@@ -420,31 +423,15 @@ export function isAsyncExpression(ast: AstReader, node: Node): boolean {
 function getContextualTargetRef(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): TargetTypeRef | undefined {
-  const fact = input.facts.getContextualTargetTypeFact(node);
-  return fact?.targetType ?? getContextualTargetRefFromSubject(fact?.type, sourceFile, input);
+  return input.types.resolveType(
+    input.queries(sourceFile).checker.getContextualType(node),
+    sourceFile,
+  );
 }
 
-function getContextualTargetRefFromSubject(
-  subject: unknown,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): TargetTypeRef | undefined {
-  const targetRef = asTargetTypeRef(subject);
-  if (targetRef !== undefined) {
-    return targetRef;
-  }
-  const type = asSemanticType(subject);
-  if (type !== undefined) {
-    return getTargetTypeRefForType(input, type, sourceFile);
-  }
-  return isAstNode(subject)
-    ? getTargetTypeRefForNode(input, subject, sourceFile)
-    : undefined;
-}
-
-function getAsyncLambdaReturnExpressionSubject(node: Node, input: TargetCompileInput): Node | undefined {
+function getAsyncLambdaReturnExpressionSubject(node: Node, input: CsharpTranslationContext): Node | undefined {
   const expression = AsArrowFunction(node) ?? AsFunctionExpression(node);
   const typeArguments = expression?.Type === undefined ? [] : input.ast.typeArguments(expression.Type);
   return typeArguments[0];

@@ -1,5 +1,5 @@
 import {
-  TstsProviderContractVersion,
+  TstsSourceProviderContractVersion,
 } from "@tsonic/tsts";
 import type {
   ExtensionDiagnostic,
@@ -9,7 +9,7 @@ import type {
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
-  TargetBindingProvider,
+  SourceDeclarationProvider,
 } from "@tsonic/tsts";
 import {
   tsonicCoreLangModule,
@@ -18,21 +18,18 @@ import { csharpProviderDiagnostic } from "./diagnostics.js";
 import {
   csharpLangModule,
   csharpProviderVersion,
-  csharpTargetId,
 } from "./identity.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
 import {
   providerExportDeclarationsForCsharpSourceModule,
 } from "./source-virtual-declarations.js";
 
-export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvider {
+export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
   const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
   const identity: ProviderIdentity = {
     id: "tsonic.csharp.source-virtual-modules",
     version: csharpProviderVersion,
-    target: csharpTargetId,
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "binding",
+    extensionContractVersion: TstsSourceProviderContractVersion,
     displayName: "Tsonic C# source alias modules",
   };
   return {

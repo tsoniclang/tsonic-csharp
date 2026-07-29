@@ -1,11 +1,11 @@
 import type { TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpAttribute } from "../../roslyn/syntax.js";
 import type {
-  CsharpAttributeApplicationFact,
-} from "../../../source/csharp-facts.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core";
 
 export function unsupportedAttributeTarget(
-  _attribute: CsharpAttributeApplicationFact,
+  _attribute: TsonicAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute["type"] {
   diagnostics.push({
@@ -18,7 +18,7 @@ export function unsupportedAttributeTarget(
 }
 
 export function unsupportedAttributeArgument(
-  _attribute: CsharpAttributeApplicationFact,
+  _attribute: TsonicAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): void {
   diagnostics.push({
@@ -30,7 +30,7 @@ export function unsupportedAttributeArgument(
 }
 
 export function attributeApplicationDiagnostic(
-  _attribute: CsharpAttributeApplicationFact,
+  _attribute: TsonicAttributeApplicationFact,
   message: string,
 ): TargetDiagnostic {
   return {

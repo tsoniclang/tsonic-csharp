@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsPropertyAssignment,
   AsShorthandPropertyAssignment,
@@ -13,7 +14,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -21,7 +21,7 @@ import type {
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -50,7 +50,7 @@ export function planObjectShapeLiteralAssignment(
   property: Node,
   objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,

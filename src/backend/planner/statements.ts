@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBlock,
   AsForInOrOfStatement,
@@ -25,7 +26,9 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpStatement,
 } from "../roslyn/syntax.js";
@@ -60,7 +63,7 @@ import {
 export function planBlockStatements(
   blockNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
@@ -75,7 +78,7 @@ export function planBlockStatements(
 export function planStatements(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
@@ -153,7 +156,7 @@ export function planStatements(
 function planNestedStatementBody(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {

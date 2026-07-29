@@ -1,11 +1,11 @@
 import type {
   TargetTypeRef,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   CsharpTargetConversionOperatorFact,
   CsharpTargetMember,
   CsharpTargetParameter,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 import type {
   DotnetConversionOperatorDeclaration,
   DotnetMemberDeclaration,
@@ -13,7 +13,6 @@ import type {
   DotnetSignatureDeclaration,
   DotnetTypeRef,
 } from "../model-types.js";
-import { dotnetProviderMemberId } from "../provider-member-identity.js";
 import {
   dotnetAttributeToTargetAttribute,
   dotnetUnsupportedAttributeToTargetUnsupportedAttribute,
@@ -25,9 +24,6 @@ import {
 import {
   dotnetTypeRefToTargetTypeRef,
 } from "./type-ref.js";
-import {
-  dotnetProviderSignatureIdsForMember,
-} from "../declaration-model/signatures.js";
 
 export type DotnetTargetParameter = CsharpTargetParameter;
 
@@ -41,13 +37,11 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
     case "constructor":
     case "indexer":
     case "operator":
-      const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
-      const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName);
       const targetDeclaringType = member.targetDeclaringType === undefined
         ? declaringType
         : dotnetTypeRefToTargetTypeRef(member.targetDeclaringType);
       return (member.signatures ?? []).map((signature) =>
-        dotnetSignatureToTargetMember(member, signature, targetDeclaringType, signature.providerSourceSignatureId ?? providerSignatureIds.get(signature.id)));
+        dotnetSignatureToTargetMember(member, signature, targetDeclaringType));
     case "property":
     case "field":
     case "event":
@@ -55,7 +49,6 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
         ? []
         : [{
             id: member.targetId,
-            providerMemberId: dotnetProviderMemberId(member),
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
@@ -92,11 +85,9 @@ function dotnetSignatureToTargetMember(
   member: DotnetMemberDeclaration,
   signature: DotnetSignatureDeclaration,
   declaringType: TargetTypeRef,
-  providerSourceSignatureId: string | undefined,
 ): DotnetTargetMember {
   return {
     id: signature.id,
-    providerMemberId: dotnetProviderMemberId(member),
     sourceName: member.sourceName,
     targetName: signature.targetName ?? member.targetName,
     kind: member.kind,
@@ -120,11 +111,21 @@ function dotnetSignatureToTargetMember(
     ...(signature.unsupportedReturnAttributes !== undefined && signature.unsupportedReturnAttributes.length > 0
       ? { unsupportedReturnAttributes: signature.unsupportedReturnAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
       : {}),
+    ...(signature.targetInvocation === undefined
+      ? {}
+      : {
+          csharpInvocation: signature.targetInvocation.kind === "array-creation"
+            ? signature.targetInvocation
+            : {
+                ...signature.targetInvocation,
+                factoryType: dotnetTypeRefToTargetTypeRef(
+                  signature.targetInvocation.factoryType,
+                ),
+              },
+        }),
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
-    overloadGroup: dotnetTargetMemberOverloadGroup(member),
-    ...(providerSourceSignatureId !== undefined ? { providerSourceSignatureId } : {}),
   };
 }
 
@@ -206,15 +207,4 @@ function dotnetParameterTypeHasSourceProjection(type: DotnetTypeRef): boolean {
 
 function dotnetMemberIsReadonly(member: DotnetMemberDeclaration): boolean {
   return (member.kind === "property" || member.kind === "field" || member.kind === "indexer") && member.writable !== true;
-}
-
-function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {
-  return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.targetId)
-    : member.targetId;
-}
-
-function dotnetMetadataNameWithoutSignature(metadataName: string): string {
-  const signatureStart = metadataName.indexOf("(");
-  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }

@@ -1,4 +1,4 @@
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   readOptionalBooleanOption as readTargetOptionalBooleanOption,
   readOptionalStringOption as readTargetOptionalStringOption,
@@ -16,14 +16,14 @@ export {
   rejectUnknownKeys,
 } from "../../options/csharp-target-options.js";
 
-export function readStringOption(input: TargetCompileInput, key: string, defaultValue: string): string {
+export function readStringOption(input: CsharpTranslationContext, key: string, defaultValue: string): string {
   return readTargetStringOption(input.target, key, defaultValue);
 }
 
-export function readOptionalStringOption(input: TargetCompileInput, key: string): string | undefined {
+export function readOptionalStringOption(input: CsharpTranslationContext, key: string): string | undefined {
   return readTargetOptionalStringOption(input.target, key);
 }
 
-export function readOptionalBooleanOption(input: TargetCompileInput, key: string): boolean | undefined {
+export function readOptionalBooleanOption(input: CsharpTranslationContext, key: string): boolean | undefined {
   return readTargetOptionalBooleanOption(input.target, key);
 }

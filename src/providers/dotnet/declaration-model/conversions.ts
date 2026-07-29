@@ -2,7 +2,6 @@ import type {
   ProviderExportDeclaration,
   ProviderHeritageDeclaration,
   ProviderMemberDeclaration,
-  TargetIdentity,
 } from "@tsonic/tsts";
 import type {
   DotnetMemberDeclaration,
@@ -35,10 +34,10 @@ export function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKi
     case "enum":
       return kind;
     case "struct":
-    case "delegate":
       return "class";
+    case "delegate":
     case "opaque":
-      return "opaque";
+      return "type";
   }
 }
 
@@ -55,12 +54,4 @@ export function dotnetMemberKindToProviderKind(kind: DotnetMemberDeclaration["ki
     case "operator":
       throw new Error("C# operators are target-only until source operator semantics select them explicitly.");
   }
-}
-
-export function dotnetTargetIdentity(id: string, displayName: string): TargetIdentity {
-  return {
-    target: "csharp",
-    id,
-    displayName,
-  };
 }
