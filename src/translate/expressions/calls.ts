@@ -608,8 +608,11 @@ function translateSourceOwnedCall(
   }
   const typeArguments = source.sourceSelectedMethodTypeArguments?.map(
     (argument) =>
-      input.types.resolveNode(argument.explicitTypeNode, sourceFile) ??
-      input.types.resolveType(argument.selectedType, sourceFile),
+      input.types.resolveSelectedType(
+        argument.explicitTypeNode,
+        argument.selectedType,
+        sourceFile,
+      ),
   ) ?? [];
   if (typeArguments.some((argument) => argument === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -690,10 +693,11 @@ export function translateSourceOwnedArguments(
     const parameter = source.sourceSelectedSignatureParameters[
       first.sourceParameterIndex
     ];
-    const targetType = input.types.resolveNode(
+    const targetType = input.types.resolveSelectedType(
       parameter?.authoredTypeNode,
+      parameter?.selectedType,
       sourceFile,
-    ) ?? input.types.resolveType(parameter?.selectedType, sourceFile);
+    );
     if (parameter === undefined || targetType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

@@ -21,6 +21,9 @@ import type {
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import {
+  resolveCsharpSelectedSourceValue,
+} from "../source-profile-policy.js";
+import {
   instanceMethod,
   jsCallIdentity,
   jsCallPolicy,
@@ -250,9 +253,9 @@ export const csharpJsArrayPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "length"),
         (context) => {
-          const receiverType = context.host.types.resolveType(
-            context.source.receiver.type,
-            context.sourceFile,
+          const receiverType = resolveCsharpSelectedSourceValue(
+            context,
+            context.source.receiver,
           );
           return receiverType === undefined
             ? undefined
@@ -276,9 +279,9 @@ export const csharpJsArrayElementPolicies:
       jsElementPolicy(
         jsIndexerIdentity(declaringName),
         (context) => {
-          const receiverType = context.host.types.resolveType(
-            context.source.receiver.type,
-            context.sourceFile,
+          const receiverType = resolveCsharpSelectedSourceValue(
+            context,
+            context.source.receiver,
           );
           const resultType = context.host.types.resolveType(
             context.source.sourceReadType ?? context.source.sourceWriteType,
@@ -641,9 +644,9 @@ function arrayCallShape(
   readonly receiver: TargetTypeRef;
   readonly element: TargetTypeRef;
 } | undefined {
-  const receiver = context.host.types.resolveType(
-    context.source.sourceReceiver?.type,
-    context.sourceFile,
+  const receiver = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
   );
   const element = getCsharpJsArrayElementTargetType(receiver);
   return receiver === undefined || element === undefined
@@ -703,9 +706,9 @@ function arrayConstructionTypeArguments(
 function sourceIsString(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): boolean {
-  const source = context.host.types.resolveType(
-    context.source.sourceArguments[0]?.type,
-    context.sourceFile,
+  const source = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
   );
   return source?.kind === "target-named" && source.id === "System.String";
 }
@@ -715,10 +718,11 @@ function resolvedMethodTypeArguments(
 ): readonly TargetTypeRef[] {
   return (context.source.sourceSelectedMethodTypeArguments ?? []).flatMap(
     (argument) => {
-      const resolved = context.host.types.resolveNode(
+      const resolved = context.host.types.resolveSelectedType(
         argument.explicitTypeNode,
+        argument.selectedType,
         context.sourceFile,
-      ) ?? context.host.types.resolveType(argument.selectedType, context.sourceFile);
+      );
       return resolved === undefined ? [] : [resolved];
     },
   );

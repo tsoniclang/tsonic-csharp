@@ -28,7 +28,15 @@ export function dotnetModuleSpecifierForTargetId(
   if (syntheticModuleSpecifier !== undefined && policy.packageName === dotnetPackageName) {
     return syntheticModuleSpecifier;
   }
-  const metadataName = targetId.includes("::") ? targetId.slice(targetId.lastIndexOf("::") + 2) : targetId;
+  const identityParts = targetId.split("::");
+  if (
+    identityParts.length !== 2 ||
+    identityParts[0]?.length === 0 ||
+    identityParts[1]?.length === 0
+  ) {
+    return undefined;
+  }
+  const metadataName = identityParts[1]!;
   const typeMetadataName = metadataName.slice(0, firstSignatureDelimiter(metadataName));
   const declaringTypeName = typeMetadataName.includes("+")
     ? typeMetadataName.slice(0, typeMetadataName.indexOf("+"))
@@ -49,7 +57,11 @@ export function dotnetModuleSpecifierForMetadataName(
   const namespaceName = unqualifiedName.includes(".")
     ? unqualifiedName.slice(0, unqualifiedName.lastIndexOf("."))
     : "";
-  return namespaceName.length === 0 ? undefined : createDotnetModuleSpecifier(namespaceName, policy);
+  return namespaceName.length === 0 ||
+      namespaceName.includes("/") ||
+      namespaceName.split(".").some((segment) => segment.length === 0)
+    ? undefined
+    : createDotnetModuleSpecifier(namespaceName, policy);
 }
 
 function firstSignatureDelimiter(value: string): number {

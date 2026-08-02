@@ -1,7 +1,9 @@
 import type {
   ExtensionDiagnostic,
+  Node,
   SourceFile,
   SourceFileQueries,
+  Type,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetReceiverRelation,
@@ -115,6 +117,23 @@ export interface CsharpSourceProfileElementPolicy {
   select(
     context: CsharpSourceProfileElementPolicyContext,
   ): CsharpSourceProfileElementPolicyResult | undefined;
+}
+
+export function resolveCsharpSelectedSourceValue(
+  context: Pick<
+    CsharpSourceProfileCallPolicyContext,
+    "host" | "sourceFile"
+  >,
+  value: {
+    readonly expression: Node;
+    readonly type: Type;
+  } | undefined,
+): TargetTypeRef | undefined {
+  return context.host.types.resolveValue(
+    value?.expression,
+    value?.type,
+    context.sourceFile,
+  );
 }
 
 export function selectCsharpSourceProfileCallPolicy(

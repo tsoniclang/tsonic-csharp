@@ -9,6 +9,7 @@ import {
   csharpSourcePrimitiveTargetType,
   getCsharpJsMapTargetTypes,
   getCsharpJsSetElementTargetType,
+  isCsharpRecordDictionaryTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -17,22 +18,27 @@ import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfileCallPolicyContext,
   CsharpSourceProfileCallPolicyResult,
+  CsharpSourceProfileElementPolicy,
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,
+  resolveCsharpSelectedSourceValue,
 } from "../source-profile-policy.js";
 import {
   instanceMethod,
   jsCallPolicy,
   jsConstructIdentity,
+  jsElementPolicy,
+  jsIndexerIdentity,
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
   staticMethod,
   targetParameter,
   targetProperty,
+  targetIndexer,
 } from "./common.js";
 
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -103,9 +109,9 @@ export const csharpJsCollectionPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "size"),
         (context) => {
-          const receiver = context.host.types.resolveType(
-            context.source.receiver.type,
-            context.sourceFile,
+          const receiver = resolveCsharpSelectedSourceValue(
+            context,
+            context.source.receiver,
           );
           return getCsharpJsMapTargetTypes(receiver) === undefined
             ? undefined
@@ -125,9 +131,9 @@ export const csharpJsCollectionPropertyPolicies:
       jsPropertyPolicy(
         jsMemberIdentity(declaringName, "size"),
         (context) => {
-          const receiver = context.host.types.resolveType(
-            context.source.receiver.type,
-            context.sourceFile,
+          const receiver = resolveCsharpSelectedSourceValue(
+            context,
+            context.source.receiver,
           );
           return getCsharpJsSetElementTargetType(receiver) === undefined
             ? undefined
@@ -142,6 +148,59 @@ export const csharpJsCollectionPropertyPolicies:
         },
         instanceReceiver,
       )
+    ),
+  ]);
+
+export const csharpJsCollectionElementPolicies:
+  readonly CsharpSourceProfileElementPolicy[] = Object.freeze([
+    jsElementPolicy(
+      jsIndexerIdentity("Record"),
+      (context) => {
+        const receiver = resolveCsharpSelectedSourceValue(
+          context,
+          context.source.receiver,
+        );
+        const index = resolveCsharpSelectedSourceValue(
+          context,
+          context.source.argument,
+        );
+        const keyType = receiver?.kind === "target-named"
+          ? receiver.typeArguments?.[0]
+          : undefined;
+        const valueType = receiver?.kind === "target-named"
+          ? receiver.typeArguments?.[1]
+          : undefined;
+        const readType = context.source.sourceReadType === undefined
+          ? undefined
+          : context.host.types.resolveType(
+              context.source.sourceReadType,
+              context.sourceFile,
+            );
+        const writeType = context.source.sourceWriteType === undefined
+          ? undefined
+          : context.host.types.resolveType(
+              context.source.sourceWriteType,
+              context.sourceFile,
+            );
+        if (
+          !isCsharpRecordDictionaryTargetType(receiver) ||
+          keyType === undefined ||
+          valueType === undefined ||
+          index === undefined ||
+          !targetTypeRefEquals(index, keyType) ||
+          readType !== undefined && !targetTypeRefEquals(readType, valueType) ||
+          writeType !== undefined && !targetTypeRefEquals(writeType, valueType)
+        ) {
+          return undefined;
+        }
+        return targetIndexer(
+          `Tsonic.CSharp.Js.Record.indexer:${targetTypeRefKey(receiver)}`,
+          receiver,
+          keyType,
+          valueType,
+          false,
+        );
+      },
     ),
   ]);
 
@@ -369,9 +428,9 @@ function mapCallShape(
   readonly key: TargetTypeRef;
   readonly value: TargetTypeRef;
 } | undefined {
-  const receiver = context.host.types.resolveType(
-    context.source.sourceReceiver?.type,
-    context.sourceFile,
+  const receiver = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
   );
   const typeArguments = getCsharpJsMapTargetTypes(receiver);
   return receiver === undefined || typeArguments === undefined
@@ -385,9 +444,9 @@ function setCallShape(
   readonly receiver: TargetTypeRef;
   readonly element: TargetTypeRef;
 } | undefined {
-  const receiver = context.host.types.resolveType(
-    context.source.sourceReceiver?.type,
-    context.sourceFile,
+  const receiver = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
   );
   const element = getCsharpJsSetElementTargetType(receiver);
   return receiver === undefined || element === undefined

@@ -12,6 +12,9 @@ import type {
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import {
+  resolveCsharpSelectedSourceValue,
+} from "../source-profile-policy.js";
+import {
   closedObjectParameter,
   jsCallIdentity,
   jsCallPolicy,
@@ -115,9 +118,9 @@ export const csharpJsNumberCallPolicies:
         jsMemberIdentity("Number", row.sourceName),
         (context) =>
           numberReceiverMember(
-            context.host.types.resolveType(
-              context.source.sourceReceiver?.type,
-              context.sourceFile,
+            resolveCsharpSelectedSourceValue(
+              context,
+              context.source.sourceReceiver,
             ),
             row,
           ),
@@ -165,9 +168,9 @@ export const csharpJsNumberCallPolicies:
       jsMemberIdentity("Boolean", "toString"),
       (context) =>
         booleanReceiverMember(
-          context.host.types.resolveType(
-            context.source.sourceReceiver?.type,
-            context.sourceFile,
+          resolveCsharpSelectedSourceValue(
+            context,
+            context.source.sourceReceiver,
           ),
           "toString",
           stringType,
@@ -178,9 +181,9 @@ export const csharpJsNumberCallPolicies:
       jsMemberIdentity("Boolean", "valueOf"),
       (context) =>
         booleanReceiverMember(
-          context.host.types.resolveType(
-            context.source.sourceReceiver?.type,
-            context.sourceFile,
+          resolveCsharpSelectedSourceValue(
+            context,
+            context.source.sourceReceiver,
           ),
           "valueOf",
           boolType,

@@ -20,6 +20,9 @@ import type {
   CsharpSourceProfileCallPolicy,
 } from "../source-profile-policy.js";
 import {
+  resolveCsharpSelectedSourceValue,
+} from "../source-profile-policy.js";
+import {
   closedObjectParameter,
   jsCallIdentity,
   jsCallPolicy,
@@ -178,9 +181,9 @@ function objectCollectionMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
   name: string,
 ): CsharpTargetMember | undefined {
-  const argumentType = context.host.types.resolveType(
-    context.source.sourceArguments[0]?.type,
-    context.sourceFile,
+  const argumentType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
   );
   const resultType = context.host.types.resolveType(
     context.source.sourceResultType,
@@ -201,9 +204,9 @@ function objectCollectionMember(
 function objectHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const valueType = context.host.types.resolveType(
-    context.source.sourceArguments[0]?.type,
-    context.sourceFile,
+  const valueType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
   );
   return valueType === undefined
     ? undefined
@@ -223,9 +226,9 @@ function objectHasOwnMember(
 function objectAssignMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const targetType = context.host.types.resolveType(
-    context.source.sourceArguments[0]?.type,
-    context.sourceFile,
+  const targetType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
   );
   return targetType === undefined
     ? undefined
@@ -245,9 +248,9 @@ function objectAssignMember(
 function objectPrototypeHasOwnMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const receiverType = context.host.types.resolveType(
-    context.source.sourceReceiver?.type,
-    context.sourceFile,
+  const receiverType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
   );
   return receiverType === undefined
     ? undefined
@@ -265,9 +268,9 @@ function objectPrototypeHasOwnMember(
 function objectToStringMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const receiverType = context.host.types.resolveType(
-    context.source.sourceReceiver?.type,
-    context.sourceFile,
+  const receiverType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
   );
   return receiverType === undefined
     ? undefined
@@ -287,9 +290,9 @@ function objectToStringMember(
 function jsonStringifyMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const valueType = context.host.types.resolveType(
-    context.source.sourceArguments[0]?.type,
-    context.sourceFile,
+  const valueType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
   );
   return valueType === undefined
     ? undefined

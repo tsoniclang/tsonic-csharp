@@ -54,6 +54,16 @@ export function csharpSourceProfileDeclarationIdentity(
       ? undefined
       : { owner, kind: "type", name, declaration };
   }
+  if (
+    kind === "KindMappedType" &&
+    parent !== undefined &&
+    parentKind === "KindTypeAliasDeclaration"
+  ) {
+    const declaringName = declarationName(ast, parent);
+    return declaringName === undefined
+      ? undefined
+      : { owner, kind: "indexer", declaringName, declaration };
+  }
   if (parent === undefined || !sourceProfileTypeDeclarationKind(parentKind)) {
     return undefined;
   }

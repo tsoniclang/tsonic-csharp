@@ -260,10 +260,7 @@ function translateSourceOwnedConstruction(
     ));
     return undefined;
   }
-  const targetType = input.types.resolveType(
-    selection.source.sourceResultType,
-    sourceFile,
-  );
+  const targetType = input.types.resolveNode(node, sourceFile);
   const type = targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType);

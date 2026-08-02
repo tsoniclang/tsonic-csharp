@@ -315,6 +315,166 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# translation preserves explicit source-owned construction arguments", () => {
+  const compiled = cleanCompile(`
+    import type { int } from "@tsonic/csharp/types.js";
+    export class Counter<T> {
+      value: T;
+      constructor(value: T) { this.value = value; }
+    }
+    export function make(value: int): Counter<int> {
+      return new Counter<int>(value);
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Counter<int> make(int value)
+        {
+            return new Counter<int>(value);
+        }
+    }
+    public class Counter<T>
+    {
+        public T value;
+        public Counter(T value)
+        {
+            this.value = value;
+        }
+    }
+}
+`);
+});
+
+test("direct C# translation lowers homogeneous variadic tuples as array carriers", () => {
+  const compiled = cleanCompile(`
+    import type { int } from "@tsonic/csharp/types.js";
+    export function unpack(
+      [first, second = 2, ...tail]: [int, int?, ...int[]],
+    ): int {
+      const [head, ...rest] = tail;
+      return first + second + head + rest.Length;
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static int unpack(int[] __tsonic_param0)
+        {
+            int first = __tsonic_param0[0];
+            int second = __tsonic_param0.Length > 1 ? __tsonic_param0[1] : 2;
+            int[] tail = Tsonic.CSharp.Runtime.ArrayHelpers.Slice(__tsonic_param0, 2);
+            int[] __tsonic_destructure0 = tail;
+            int head = __tsonic_destructure0[0];
+            int[] rest = Tsonic.CSharp.Runtime.ArrayHelpers.Slice(__tsonic_destructure0, 1);
+            return first + second + head + rest.Length;
+        }
+    }
+}
+`);
+});
+
+test("direct JS translation retains an object literal's exact selected value shape", () => {
+  const compiled = cleanCompile(`
+    export function keys(text: string): string {
+      return Object.keys({ text }).join(",");
+    }
+  `, { surface: "js" });
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static string keys(string text)
+        {
+            return Tsonic.CSharp.Js.Object.keys(new __TsonicShape_b7e2a6248ebac22c1efb0929eb9d1515ba2979444966d0329c9d415858f064f3
+            {
+                text = text,
+            }).join(",");
+        }
+    }
+}
+`);
+  assert.equal(
+    compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
+    `using System;
+
+namespace Tsonic.Generated
+{
+    public class __TsonicShape_b7e2a6248ebac22c1efb0929eb9d1515ba2979444966d0329c9d415858f064f3
+    {
+        public required string text;
+    }
+}
+`,
+  );
+});
+
+test("direct C# translation retains a project interface as object-literal context", () => {
+  const compiled = cleanCompile(`
+    import type { int } from "@tsonic/csharp/types.js";
+    export interface User { name: string; age: int; }
+    export function make(age: int): User {
+      return { name: "Ada", age };
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static User make(int age)
+        {
+            return new __TsonicShape_b42abccfd13872c0718fc426ba1b18af7959dc10063d0004845ff5fdec29ed40
+            {
+                name = "Ada",
+                age = age,
+            };
+        }
+    }
+    public interface User
+    {
+        string name { get; }
+        int age { get; }
+    }
+}
+`);
+  assert.equal(
+    compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
+    `using System;
+
+namespace Tsonic.Generated
+{
+    public class __TsonicShape_b42abccfd13872c0718fc426ba1b18af7959dc10063d0004845ff5fdec29ed40 : User
+    {
+        public required string name
+        {
+            get;
+            set;
+        }
+        public required int age
+        {
+            get;
+            set;
+        }
+    }
+}
+`,
+  );
+});
+
 test("direct C# compat translation closes every supported any operation", () => {
   const compiled = cleanCompile(`
     export function use(value: any, key: string): any {

@@ -371,9 +371,11 @@ function resolveSelectedTypeArguments(
     ) {
       return undefined;
     }
-    const targetArgument =
-      types.resolveNode(sourceArgument.explicitTypeNode, sourceFile) ??
-      types.resolveType(sourceArgument.selectedType, sourceFile);
+    const targetArgument = types.resolveSelectedType(
+      sourceArgument.explicitTypeNode,
+      sourceArgument.selectedType,
+      sourceFile,
+    );
     if (targetArgument === undefined) {
       return undefined;
     }

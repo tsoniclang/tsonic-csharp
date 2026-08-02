@@ -20,4 +20,6 @@ export * from "./surface-types.js";
 export * from "./resolution.js";
 export * from "./object-shape-members.js";
 export * from "./object-shape-policy.js";
+export * from "./binding-projection-policy.js";
+export * from "./binding-array-carrier.js";
 export * from "./system.js";

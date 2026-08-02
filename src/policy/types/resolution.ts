@@ -45,6 +45,7 @@ import type {
 } from "./definitions.js";
 import {
   csharpEnumerableTargetType,
+  getCsharpCollectionElementTargetType,
 } from "./collections.js";
 import {
   csharpDelegateTargetType,
@@ -123,6 +124,16 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
 export interface CsharpTypePolicy {
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
+  resolveValue(
+    node: Node | undefined,
+    type: Type | undefined,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
+  resolveSelectedType(
+    authoredTypeNode: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
 }
 
 interface CsharpTypeResolutionState {
@@ -135,7 +146,12 @@ export function createCsharpTypePolicy(
   host: CsharpTypePolicyHost,
 ): CsharpTypePolicy {
   const activeNodes = new WeakSet<Node>();
-  const policy: CsharpTypePolicy = { resolveNode, resolveType };
+  const policy: CsharpTypePolicy = {
+    resolveNode,
+    resolveType,
+    resolveValue,
+    resolveSelectedType,
+  };
 
   function resolveNode(
     node: Node | undefined,
@@ -157,6 +173,30 @@ export function createCsharpTypePolicy(
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined {
     return resolveTypeWithState(type, sourceFile, { depth: 0 });
+  }
+
+  function resolveValue(
+    node: Node | undefined,
+    type: Type | undefined,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    return resolveNode(node, sourceFile) ?? resolveType(type, sourceFile);
+  }
+
+  function resolveSelectedType(
+    authoredTypeNode: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
+      selectedSourceFile;
+    return resolveAuthoredAndSelectedSourceType(
+      authoredTypeNode,
+      authoredSourceFile,
+      selectedType,
+      selectedSourceFile,
+      { depth: 0 },
+    );
   }
 
   function resolveNodeWithState(
@@ -207,19 +247,7 @@ export function createCsharpTypePolicy(
       );
     }
     if (host.ast.is.IsTupleTypeNode(node)) {
-      const elements = host.ast.elements(node).map((element) =>
-        resolveNodeWithState(
-          element,
-          queries.sourceFile,
-          nextState(state),
-        )
-      );
-      return elements.some((element) => element === undefined)
-        ? undefined
-        : {
-            kind: "tuple",
-            elements: elements as readonly TargetTypeRef[],
-          };
+      return resolveTupleTypeNode(node, queries, state);
     }
     if (host.ast.is.IsUnionTypeNode(node)) {
       const members = host.ast.children(node).map((member) =>
@@ -305,6 +333,68 @@ export function createCsharpTypePolicy(
       queries.sourceFile,
       nextState(state),
     );
+  }
+
+  function resolveTupleTypeNode(
+    node: Node,
+    queries: SourceFileQueries,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const syntaxElements = host.ast.elements(node);
+    const elements = syntaxElements.map((element) =>
+      resolveNodeWithState(
+        element,
+        queries.sourceFile,
+        nextState(state),
+      )
+    );
+    if (elements.some((element) => element === undefined)) {
+      return undefined;
+    }
+    const restIndexes = syntaxElements.flatMap((element, index) =>
+      tupleElementIsRest(element) ? [index] : []
+    );
+    if (restIndexes.length === 0) {
+      return {
+        kind: "tuple",
+        elements: elements as readonly TargetTypeRef[],
+      };
+    }
+    if (restIndexes.length !== 1) {
+      return undefined;
+    }
+    const restIndex = restIndexes[0]!;
+    const restElement = getCsharpCollectionElementTargetType(
+      elements[restIndex],
+    );
+    if (restElement === undefined) {
+      return undefined;
+    }
+    const homogeneous = elements.every((element, index) => {
+      const value = index === restIndex
+        ? restElement
+        : getCsharpNullableElementTargetType(element) ?? element;
+      return value !== undefined && targetTypeRefEquals(value, restElement);
+    });
+    if (!homogeneous) {
+      return undefined;
+    }
+    return selectedCsharpSourceProfileOwner(host.target) === "js"
+      ? csharpJsArrayTargetType(restElement)
+      : { kind: "array", element: restElement };
+  }
+
+  function tupleElementIsRest(
+    element: Node | undefined,
+  ): boolean {
+    if (element === undefined) {
+      return false;
+    }
+    if (host.ast.is.IsRestTypeNode(element)) {
+      return true;
+    }
+    return host.ast.is.IsNamedTupleMember(element) &&
+      host.ast.as.AsNamedTupleMember(element)?.DotDotDotToken !== undefined;
   }
 
   function resolveSelectedExpressionType(
@@ -421,7 +511,13 @@ export function createCsharpTypePolicy(
           : selection.call.targetMember.returnType;
       }
       if (selection.kind === "source-owned") {
-        return resolveSourceOwnedCallResult(selection.source, queries, state);
+        return host.ast.is.IsNewExpression(node)
+          ? resolveSourceOwnedConstructionResult(
+              selection.source,
+              queries,
+              state,
+            )
+          : resolveSourceOwnedCallResult(selection.source, queries, state);
       }
       return undefined;
     }
@@ -513,6 +609,42 @@ export function createCsharpTypePolicy(
       queries,
       state,
     );
+  }
+
+  function resolveSourceOwnedConstructionResult(
+    source: NonNullable<
+      ReturnType<SourceFileQueries["checker"]["getResolvedCallInfo"]>
+    >,
+    queries: SourceFileQueries,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const declaration = source.sourceCallee.selectedDeclaration;
+    if (
+      declaration === undefined ||
+      !host.ast.is.IsClassDeclaration(declaration) ||
+      !host.navigation.isProjectDeclaration(declaration)
+    ) {
+      return resolveSourceOwnedCallResult(source, queries, state);
+    }
+    const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+    const targetArguments = selectedArguments.map((argument) => {
+      const authoredSourceFile = host.ast.getSourceFile(
+        argument.explicitTypeNode,
+      ) ?? queries.sourceFile;
+      return resolveAuthoredAndSelectedSourceType(
+        argument.explicitTypeNode,
+        authoredSourceFile,
+        argument.selectedType,
+        queries.sourceFile,
+        nextState(state),
+      );
+    });
+    return targetArguments.some((argument) => argument === undefined)
+      ? undefined
+      : projectSourceDeclarationTargetType(
+          declaration,
+          targetArguments as readonly TargetTypeRef[],
+        );
   }
 
   function optionalAccessTargetType(
@@ -613,6 +745,16 @@ export function createCsharpTypePolicy(
     if (providerType !== undefined) {
       return providerType;
     }
+    const semanticType = queries.checker.getTypeFromTypeNode(node);
+    const sourceProfileType = semanticType === undefined
+      ? undefined
+      : resolveSourceProfileType(
+          classifyCsharpSourceProfileType(semanticType, queries),
+          typeArguments as readonly TargetTypeRef[],
+        );
+    if (sourceProfileType !== undefined) {
+      return sourceProfileType;
+    }
     const projectType = resolveProjectSourceType(
       typeName,
       queries.sourceFile,
@@ -623,7 +765,7 @@ export function createCsharpTypePolicy(
       return projectType;
     }
     return resolveTypeWithState(
-      queries.checker.getTypeFromTypeNode(node),
+      semanticType,
       queries.sourceFile,
       nextState(state),
     );

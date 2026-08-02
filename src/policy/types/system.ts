@@ -15,6 +15,12 @@ import type {
 import {
   createCsharpTypePolicy,
 } from "./resolution.js";
+import type {
+  CsharpBindingProjectionPolicy,
+} from "./binding-projection-policy.js";
+import {
+  createCsharpBindingProjectionPolicy,
+} from "./binding-projection-policy.js";
 
 export interface CsharpTypeSystem {
   readonly types: CsharpTypePolicy;
@@ -25,6 +31,7 @@ export function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
 ): CsharpTypeSystem {
   let objectShapes: CsharpObjectShapePolicy | undefined;
+  let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   const types = createCsharpTypePolicy({
     ...host,
     structuralTypes: {
@@ -37,7 +44,12 @@ export function createCsharpTypeSystem(
             "C# structural type resolution ran before the type system was fully initialized.",
           );
         }
-        return objectShapes.resolveProjectedType(node, sourceFile) ??
+        if (bindingProjections === undefined) {
+          throw new Error(
+            "C# binding projection ran before the type system was fully initialized.",
+          );
+        }
+        return bindingProjections.resolveNode(node, sourceFile) ??
           objectShapes.resolveNode(node, sourceFile)?.targetType;
       },
     },
@@ -45,6 +57,11 @@ export function createCsharpTypeSystem(
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
     types,
+  });
+  bindingProjections = createCsharpBindingProjectionPolicy({
+    ...host,
+    types,
+    objectShapes,
   });
   return Object.freeze({
     types,

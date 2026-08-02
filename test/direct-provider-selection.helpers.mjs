@@ -445,6 +445,13 @@ export function directProviderHost(options = {}) {
         resolveType(type) {
           return semanticTypes.get(type);
         },
+        resolveValue(node, type) {
+          return nodeTypes.get(node) ?? semanticTypes.get(type);
+        },
+        resolveSelectedType(authoredTypeNode, selectedType) {
+          return nodeTypes.get(authoredTypeNode) ??
+            semanticTypes.get(selectedType);
+        },
       }),
       queries(candidate) {
         assert.equal(candidate, sourceFile);

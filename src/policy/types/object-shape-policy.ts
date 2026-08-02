@@ -37,7 +37,6 @@ import {
   isCsharpVoidTargetType,
 } from "./identity.js";
 import {
-  getCsharpNullableElementTargetType,
   csharpNullableTargetType,
 } from "./nullable.js";
 import {
@@ -49,10 +48,6 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpObjectShapePolicy {
-  resolveProjectedType(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): TargetTypeRef | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,
@@ -71,7 +66,6 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpObjectShapePolicy {
   const activeNodes = new WeakSet<object>();
-  const activeProjections = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
 
@@ -105,11 +99,7 @@ export function createCsharpObjectShapePolicy(
         remember(node, selectedShape);
         return selectedShape;
       }
-      const contextualType = host.ast.is.IsObjectLiteralExpression(node)
-        ? queries.checker.getContextualType(node)
-        : undefined;
-      const semanticType = contextualType ??
-        queries.checker.getTypeAtLocation(node);
+      const semanticType = selectedObjectShapeSourceType(node, queries, host);
       const shape = resolveSemanticShape(
         semanticType,
         node,
@@ -126,112 +116,6 @@ export function createCsharpObjectShapePolicy(
     } finally {
       activeNodes.delete(node);
     }
-  }
-
-  function resolveProjectedType(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): TargetTypeRef | undefined {
-    if (node === undefined) {
-      return undefined;
-    }
-    const parent = host.ast.parent(node);
-    const referenced = host.navigation.referenceFor(node)?.declaration;
-    const bindingElement = host.ast.is.IsBindingElement(node)
-      ? node
-      : parent !== undefined && host.ast.is.IsBindingElement(parent)
-      ? parent
-      : referenced !== undefined && host.ast.is.IsBindingElement(referenced)
-      ? referenced
-      : undefined;
-    if (
-      bindingElement === undefined ||
-      activeProjections.has(bindingElement)
-    ) {
-      return undefined;
-    }
-    const bindingPattern = host.ast.parent(bindingElement);
-    if (
-      bindingPattern === undefined ||
-      !host.ast.is.IsObjectBindingPattern(bindingPattern)
-    ) {
-      return undefined;
-    }
-    const declaration = host.ast.as.AsBindingElement(bindingElement);
-    const propertyNode = declaration?.PropertyName ?? declaration?.name;
-    const sourceName = sourcePropertyName(propertyNode);
-    if (sourceName === undefined) {
-      return undefined;
-    }
-    activeProjections.add(bindingElement);
-    try {
-      const owner = host.ast.parent(bindingPattern);
-      const ownerType = bindingProjectionOwnerType(
-        owner,
-        bindingPattern,
-        sourceFile,
-      );
-      const ownerShape = resolveTarget(ownerType);
-      const selectedMembers = ownerShape?.members.filter(
-        (member) => member.sourceName === sourceName,
-      ) ?? [];
-      if (selectedMembers.length !== 1) {
-        return undefined;
-      }
-      const selectedType = selectedMembers[0]!.type;
-      return declaration?.Initializer === undefined
-        ? selectedType
-        : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
-    } finally {
-      activeProjections.delete(bindingElement);
-    }
-  }
-
-  function bindingProjectionOwnerType(
-    owner: Node | undefined,
-    bindingPattern: Node,
-    sourceFile: SourceFile | undefined,
-  ): TargetTypeRef | undefined {
-    if (owner === undefined) {
-      return undefined;
-    }
-    if (host.ast.is.IsVariableDeclaration(owner)) {
-      const declaration = host.ast.as.AsVariableDeclaration(owner);
-      const source = declaration?.Type ?? declaration?.Initializer;
-      return host.types.resolveNode(
-        source,
-        sourceFile ?? host.ast.getSourceFile(owner),
-      );
-    }
-    if (host.ast.is.IsParameterDeclaration(owner)) {
-      return host.types.resolveNode(
-        host.ast.as.AsParameterDeclaration(owner)?.Type,
-        sourceFile ?? host.ast.getSourceFile(owner),
-      );
-    }
-    if (
-      host.ast.is.IsBindingElement(owner) &&
-      host.ast.as.AsBindingElement(owner)?.name === bindingPattern
-    ) {
-      return resolveProjectedType(
-        owner,
-        sourceFile ?? host.ast.getSourceFile(owner),
-      );
-    }
-    return undefined;
-  }
-
-  function sourcePropertyName(
-    node: Node | undefined,
-  ): string | undefined {
-    return node !== undefined &&
-        (
-          host.ast.is.IsIdentifier(node) ||
-          host.ast.is.IsStringLiteral(node) ||
-          host.ast.is.IsNumericLiteral(node)
-        )
-      ? host.ast.text(node)
-      : undefined;
   }
 
   function resolveTarget(
@@ -534,10 +418,39 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
-    resolveProjectedType,
     resolveNode,
     resolveTarget,
   });
+}
+
+function selectedObjectShapeSourceType(
+  node: Node,
+  queries: SourceFileQueries,
+  host: CsharpObjectShapePolicyHost,
+): Type | undefined {
+  const semanticType = queries.checker.getTypeAtLocation(node);
+  if (!queries.ast.is.IsObjectLiteralExpression(node)) {
+    return semanticType;
+  }
+  const contextualType = queries.checker.getContextualType(node);
+  if (contextualType === undefined) {
+    return semanticType;
+  }
+  const contextualSymbol = queries.checker.getTypeAliasSymbol(contextualType) ??
+    queries.checker.getTypeSymbol(contextualType);
+  const contextualDeclarations = queries.checker.getSymbolDeclarations(
+    contextualSymbol,
+  );
+  return contextualDeclarations.some((declaration) =>
+      declaration !== undefined &&
+      host.navigation.isProjectDeclaration(declaration) &&
+      (
+        queries.ast.is.IsClassDeclaration(declaration) ||
+        queries.ast.is.IsInterfaceDeclaration(declaration)
+      )
+    )
+    ? contextualType
+    : semanticType;
 }
 
 function sourceSubjects(
