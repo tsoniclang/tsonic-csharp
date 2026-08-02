@@ -310,7 +310,8 @@ function translateSourceOwnedProperty(
   ) {
     return planned;
   }
-  const selectedReadType = input.types.resolveType(
+  const selectedReadType = input.types.resolveSelectedResult(
+    selection.source.selectedDeclaration,
     selection.source.sourceReadType,
     sourceFile,
   );

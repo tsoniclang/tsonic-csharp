@@ -86,3 +86,60 @@ namespace Tsonic.Generated
 `,
   );
 });
+
+test("direct C# translation preserves authored primitive aliases through structural property flow", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      const nextId: { value: int } = { value: 1 };
+      export function takeNext(): int {
+        const id = nextId.value;
+        nextId.value = id + 1;
+        return id;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static readonly __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77 nextId;
+        public static int takeNext()
+        {
+            int id = nextId.value;
+            nextId.value = id + 1;
+            return id;
+        }
+        static Index()
+        {
+            nextId = new __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77
+            {
+                value = 1,
+            };
+        }
+        public static void __tsonic_module_init()
+        {
+        }
+    }
+}
+`);
+  assert.equal(
+    compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
+    `using System;
+
+namespace Tsonic.Generated
+{
+    public class __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77
+    {
+        public required int value;
+    }
+}
+`,
+  );
+});

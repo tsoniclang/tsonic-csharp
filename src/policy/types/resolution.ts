@@ -144,6 +144,11 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveSelectedResult(
+    selectedDeclaration: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveDeclaredNamedType(
     reference: SourceDeclarationReference,
     typeArguments: readonly TargetTypeRef[],
@@ -166,6 +171,7 @@ export function createCsharpTypePolicy(
     resolveType,
     resolveValue,
     resolveSelectedType,
+    resolveSelectedResult,
     resolveDeclaredNamedType,
   };
 
@@ -229,6 +235,19 @@ export function createCsharpTypePolicy(
       authoredSourceFile,
       selectedType,
       selectedSourceFile,
+      { depth: 0 },
+    );
+  }
+
+  function resolveSelectedResult(
+    selectedDeclaration: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    return resolveSelectedDeclarationResult(
+      selectedDeclaration,
+      selectedType,
+      host.semantics(selectedSourceFile),
       { depth: 0 },
     );
   }
@@ -929,21 +948,32 @@ export function createCsharpTypePolicy(
       authoredTypeNode,
       selectedType,
     );
-    if (authoredSelection.kind === "authored-type") {
-      return authored;
-    }
-    if (authoredSelection.kind === "authored-union-members") {
+    if (authoredSelection.kind === "authored-members") {
       const selectedMembers = authoredSelection.nodes.map((node) =>
-        resolveNodeWithState(
-          node,
-          authoredSourceFile,
-          nextState(state),
-        )
+        node === authoredTypeNode
+          ? authored
+          : resolveNodeWithState(
+              node,
+              authoredSourceFile,
+              nextState(state),
+            )
       );
-      return selectedMembers.some((member) => member === undefined)
+      const selectedNullishMembers = authoredSelection.selectedNullishTypes.map(
+        (type) =>
+          resolveTypeWithState(
+            type,
+            selectedSourceFile,
+            nextState(state),
+          ),
+      );
+      const selectedTargets = [
+        ...selectedMembers,
+        ...selectedNullishMembers,
+      ];
+      return selectedTargets.some((member) => member === undefined)
         ? undefined
         : combineTargetUnionMembers(
-            selectedMembers as readonly TargetTypeRef[],
+            selectedTargets as readonly TargetTypeRef[],
           );
     }
     if (authoredSelection.kind === "ambiguous") {

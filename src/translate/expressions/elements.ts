@@ -256,8 +256,8 @@ function translateSourceOwnedElement(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const receiverType = input.types.resolveType(
-    selection.source.receiver.type,
+  const receiverType = input.types.resolveNode(
+    selection.source.receiver.expression,
     sourceFile,
   );
   if (
@@ -278,7 +278,8 @@ function translateSourceOwnedElement(
           name: `Item${selection.source.selectedElementIndex + 1}`,
         };
   }
-  const selectedResultType = input.types.resolveType(
+  const selectedResultType = input.types.resolveSelectedResult(
+    selection.source.selectedDeclaration,
     selection.source.sourceReadType ?? selection.source.sourceWriteType,
     sourceFile,
   );
