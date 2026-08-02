@@ -657,15 +657,11 @@ function translateSourceOwnedCall(
   if (callee === undefined) {
     return undefined;
   }
-  const typeArguments = source.sourceSelectedMethodTypeArguments?.map(
-    (argument) =>
-      input.types.resolveSelectedType(
-        argument.explicitTypeNode,
-        argument.selectedType,
-        sourceFile,
-      ),
-  ) ?? [];
-  if (typeArguments.some((argument) => argument === undefined)) {
+  const typeArguments = input.types.resolveSourceCallTypeArguments(
+    source,
+    sourceFile,
+  );
+  if (typeArguments === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "Source-owned generic call has a selected method type argument with no closed C# representation.",
@@ -674,7 +670,7 @@ function translateSourceOwnedCall(
   }
   callee = applyCalleeTypeArguments(
     callee,
-    typeArguments as readonly TargetTypeRef[],
+    typeArguments,
     node,
     diagnostics,
   );
@@ -746,9 +742,9 @@ export function translateSourceOwnedArguments(
     const parameter = source.sourceSelectedSignatureParameters[
       first.sourceParameterIndex
     ];
-    const targetType = input.types.resolveSelectedType(
-      parameter?.authoredTypeNode,
-      parameter?.selectedType,
+    const targetType = input.types.resolveSourceCallParameter(
+      source,
+      first.sourceParameterIndex,
       sourceFile,
     );
     if (parameter === undefined || targetType === undefined) {

@@ -5,8 +5,11 @@ import type {
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
+  csharpJsMapTargetType,
+  csharpJsSetTargetType,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpVoidTargetType,
   getCsharpJsMapTargetTypes,
   getCsharpJsSetElementTargetType,
   isCsharpRecordDictionaryTargetType,
@@ -50,28 +53,28 @@ const firstParameterReceiver = {
 } as const;
 
 const mapSharedMethodRows = [
-  { sourceName: "has", targetName: "has", parameterKind: "key" },
-  { sourceName: "keys", targetName: "keys", parameterKind: "none" },
-  { sourceName: "values", targetName: "values", parameterKind: "none" },
-  { sourceName: "entries", targetName: "entries", parameterKind: "none" },
+  { sourceName: "has", targetName: "has", parameterKind: "key", resultKind: "bool" },
+  { sourceName: "keys", targetName: "keys", parameterKind: "none", resultKind: "keys" },
+  { sourceName: "values", targetName: "values", parameterKind: "none", resultKind: "values" },
+  { sourceName: "entries", targetName: "entries", parameterKind: "none", resultKind: "entries" },
 ] as const;
 const mapMutableMethodRows = [
-  { sourceName: "set", targetName: "set", parameterKind: "key-value" },
-  { sourceName: "delete", targetName: "delete", parameterKind: "key" },
-  { sourceName: "clear", targetName: "clear", parameterKind: "none" },
-  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback" },
+  { sourceName: "set", targetName: "set", parameterKind: "key-value", resultKind: "receiver" },
+  { sourceName: "delete", targetName: "delete", parameterKind: "key", resultKind: "bool" },
+  { sourceName: "clear", targetName: "clear", parameterKind: "none", resultKind: "void" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
 ] as const;
 const setSharedMethodRows = [
-  { sourceName: "has", targetName: "has", parameterKind: "value" },
-  { sourceName: "keys", targetName: "keys", parameterKind: "none" },
-  { sourceName: "values", targetName: "values", parameterKind: "none" },
-  { sourceName: "entries", targetName: "entries", parameterKind: "none" },
+  { sourceName: "has", targetName: "has", parameterKind: "value", resultKind: "bool" },
+  { sourceName: "keys", targetName: "keys", parameterKind: "none", resultKind: "values" },
+  { sourceName: "values", targetName: "values", parameterKind: "none", resultKind: "values" },
+  { sourceName: "entries", targetName: "entries", parameterKind: "none", resultKind: "entries" },
 ] as const;
 const setMutableMethodRows = [
-  { sourceName: "add", targetName: "add", parameterKind: "value" },
-  { sourceName: "delete", targetName: "delete", parameterKind: "value" },
-  { sourceName: "clear", targetName: "clear", parameterKind: "none" },
-  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback" },
+  { sourceName: "add", targetName: "add", parameterKind: "value", resultKind: "receiver" },
+  { sourceName: "delete", targetName: "delete", parameterKind: "value", resultKind: "bool" },
+  { sourceName: "clear", targetName: "clear", parameterKind: "none", resultKind: "void" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
 ] as const;
 
 export const csharpJsCollectionCallPolicies:
@@ -224,7 +227,9 @@ function mapDirectMember(
   row: typeof mapSharedMethodRows[number] | typeof mapMutableMethodRows[number],
 ): CsharpTargetMember | undefined {
   const shape = mapCallShape(context);
-  const result = resolveCallResult(context);
+  const result = shape === undefined
+    ? undefined
+    : mapMethodResult(shape, row.resultKind);
   if (shape === undefined || result === undefined) {
     return undefined;
   }
@@ -260,7 +265,9 @@ function mapGetMember(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
   const shape = mapCallShape(context);
-  const result = resolveCallResult(context);
+  const result = shape === undefined
+    ? undefined
+    : csharpNullableTargetType(shape.value);
   if (
     shape === undefined ||
     result === undefined ||
@@ -299,7 +306,9 @@ function setDirectMember(
   row: typeof setSharedMethodRows[number] | typeof setMutableMethodRows[number],
 ): CsharpTargetMember | undefined {
   const shape = setCallShape(context);
-  const result = resolveCallResult(context);
+  const result = shape === undefined
+    ? undefined
+    : setMethodResult(shape, row.resultKind);
   if (shape === undefined || result === undefined) {
     return undefined;
   }
@@ -330,10 +339,13 @@ function mapConstructorPolicy(): CsharpSourceProfileCallPolicy {
   return {
     source: jsConstructIdentity("MapConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
-      const result = context.host.types.resolveType(
-        context.source.sourceResultType,
+      const typeArguments = context.host.types.resolveSourceCallTypeArguments(
+        context.source,
         context.sourceFile,
       );
+      const result = typeArguments?.length === 2
+        ? csharpJsMapTargetType(typeArguments[0]!, typeArguments[1]!)
+        : undefined;
       const shape = getCsharpJsMapTargetTypes(result);
       if (result === undefined || shape === undefined) {
         return rejectedCollectionConstruction(
@@ -374,10 +386,13 @@ function setConstructorPolicy(): CsharpSourceProfileCallPolicy {
   return {
     source: jsConstructIdentity("SetConstructor"),
     select(context): CsharpSourceProfileCallPolicyResult {
-      const result = context.host.types.resolveType(
-        context.source.sourceResultType,
+      const typeArguments = context.host.types.resolveSourceCallTypeArguments(
+        context.source,
         context.sourceFile,
       );
+      const result = typeArguments?.length === 1
+        ? csharpJsSetTargetType(typeArguments[0]!)
+        : undefined;
       const element = getCsharpJsSetElementTargetType(result);
       if (result === undefined || element === undefined) {
         return rejectedCollectionConstruction(
@@ -467,13 +482,57 @@ function setCallShape(
     : { receiver, element };
 }
 
-function resolveCallResult(
-  context: CsharpSourceProfileCallPolicyContext,
-): TargetTypeRef | undefined {
-  return context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+function mapMethodResult(
+  shape: {
+    readonly receiver: TargetTypeRef;
+    readonly key: TargetTypeRef;
+    readonly value: TargetTypeRef;
+  },
+  kind: typeof mapSharedMethodRows[number]["resultKind"] |
+    typeof mapMutableMethodRows[number]["resultKind"],
+): TargetTypeRef {
+  switch (kind) {
+    case "bool":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "keys":
+      return csharpEnumerableTargetType(shape.key);
+    case "values":
+      return csharpEnumerableTargetType(shape.value);
+    case "entries":
+      return csharpEnumerableTargetType({
+        kind: "tuple",
+        elements: [shape.key, shape.value],
+      });
+    case "receiver":
+      return shape.receiver;
+    case "void":
+      return csharpVoidTargetType();
+  }
+}
+
+function setMethodResult(
+  shape: {
+    readonly receiver: TargetTypeRef;
+    readonly element: TargetTypeRef;
+  },
+  kind: typeof setSharedMethodRows[number]["resultKind"] |
+    typeof setMutableMethodRows[number]["resultKind"],
+): TargetTypeRef {
+  switch (kind) {
+    case "bool":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "values":
+      return csharpEnumerableTargetType(shape.element);
+    case "entries":
+      return csharpEnumerableTargetType({
+        kind: "tuple",
+        elements: [shape.element, shape.element],
+      });
+    case "receiver":
+      return shape.receiver;
+    case "void":
+      return csharpVoidTargetType();
+  }
 }
 
 function mapTypeArguments(

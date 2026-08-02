@@ -1,6 +1,7 @@
 import type {
   AstReader,
   Node,
+  SourcePrimitiveKind,
 } from "@tsonic/tsts";
 import type {
   TargetSelection,
@@ -27,7 +28,7 @@ export function resolveCsharpSourceLiteralTargetType(
   host: CsharpSourceLiteralPolicyHost,
   node: Node,
 ): TargetTypeRef | undefined {
-  const value = numericLiteralValue(host.ast, node);
+  const value = csharpNumericLiteralValue(host.ast, node);
   if (value === undefined) {
     return undefined;
   }
@@ -42,7 +43,7 @@ export function resolveCsharpSourceLiteralTargetType(
   return csharpSourcePrimitiveTargetType("float64");
 }
 
-function numericLiteralValue(
+export function csharpNumericLiteralValue(
   ast: AstReader,
   node: Node,
 ): number | undefined {
@@ -68,4 +69,44 @@ function numericLiteralValue(
     : operator === "KindMinusToken"
       ? -value
       : value;
+}
+
+export function csharpNumericLiteralFitsSourcePrimitive(
+  ast: AstReader,
+  node: Node,
+  primitive: SourcePrimitiveKind,
+): boolean {
+  const value = csharpNumericLiteralValue(ast, node);
+  if (value === undefined) {
+    return false;
+  }
+  if (
+    primitive === "float16" ||
+    primitive === "float32" ||
+    primitive === "float64" ||
+    primitive === "decimal"
+  ) {
+    return Number.isFinite(value);
+  }
+  if (!Number.isInteger(value)) {
+    return false;
+  }
+  switch (primitive) {
+    case "int8":
+      return value >= -128 && value <= 127;
+    case "uint8":
+      return value >= 0 && value <= 255;
+    case "int16":
+      return value >= -32768 && value <= 32767;
+    case "uint16":
+      return value >= 0 && value <= 65535;
+    case "int32":
+    case "native-int":
+      return value >= -2147483648 && value <= 2147483647;
+    case "uint32":
+    case "native-uint":
+      return value >= 0 && value <= 4294967295;
+    default:
+      return false;
+  }
 }

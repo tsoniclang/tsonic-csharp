@@ -1,5 +1,8 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
+  createCsharpScopedTranslationContext,
+} from "../../translate/context/index.js";
+import {
   AsArrowFunction,
   AsFunctionExpression,
   AsParameterDeclaration,
@@ -48,12 +51,14 @@ import {
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
+  targetTypeRefEquals,
 } from "../../policy/types/index.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
   readonly signature: {
     readonly parameters: readonly CsharpTypeNode[];
+    readonly parameterTargetTypes: readonly TargetTypeRef[];
     readonly returnType?: CsharpTypeNode;
     readonly returnTargetType?: TargetTypeRef;
   };
@@ -84,9 +89,19 @@ export function planArrowFunctionExpression(
   if (isAsyncExpression(input.ast, node) && returnContext === undefined) {
     return undefined;
   }
-  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetContext);
+  const scopedInput = createLambdaTranslationContext(
+    expression.Parameters?.Nodes ?? [],
+    sourceFile,
+    input,
+    diagnostics,
+    targetContext,
+  );
+  if (scopedInput === undefined) {
+    return undefined;
+  }
+  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext);
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
-    const body = planLambdaBlockBody(node, expression.Body, sourceFile, input, diagnostics, state, targetContext, returnContext);
+    const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, state, targetContext, returnContext);
     if (body === undefined) {
       return undefined;
     }
@@ -101,13 +116,13 @@ export function planArrowFunctionExpression(
     ? planExpressionWithExpectedType(
       expression.Body!,
       sourceFile,
-      input,
+      scopedInput,
       diagnostics,
       returnContext.returnExpressionType,
       returnContext.returnExpressionTypeSubject,
       returnContext.returnExpressionTargetType,
     )
-    : planExpression(expression.Body!, sourceFile, input, diagnostics);
+    : planExpression(expression.Body!, sourceFile, scopedInput, diagnostics);
   if (body === undefined) {
     return undefined;
   }
@@ -135,14 +150,24 @@ export function planFunctionExpression(
   if (isAsyncExpression(input.ast, node) && returnContext === undefined) {
     return undefined;
   }
-  const body = planLambdaBlockBody(node, expression.Body, sourceFile, input, diagnostics, state, targetContext, returnContext);
+  const scopedInput = createLambdaTranslationContext(
+    expression.Parameters?.Nodes ?? [],
+    sourceFile,
+    input,
+    diagnostics,
+    targetContext,
+  );
+  if (scopedInput === undefined) {
+    return undefined;
+  }
+  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, state, targetContext, returnContext);
   if (body === undefined) {
     return undefined;
   }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetContext),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext),
     body,
   };
 }
@@ -342,6 +367,19 @@ function getExplicitLambdaSignatureTarget(
   if (!parameterTypes.every((parameterType): parameterType is CsharpTypeNode => parameterType !== undefined && parameterType.kind !== "InvalidType")) {
     return undefined;
   }
+  const parameterTargetTypes = (expression.Parameters?.Nodes ?? []).map(
+    (parameterNode) => {
+      const parameter = AsParameterDeclaration(parameterNode);
+      return parameter?.Type === undefined
+        ? undefined
+        : getTargetTypeRefForNode(input, parameter.Type, sourceFile);
+    },
+  );
+  if (!parameterTargetTypes.every(
+    (parameterType): parameterType is TargetTypeRef => parameterType !== undefined,
+  )) {
+    return undefined;
+  }
   const returnType = expression.Type === undefined
     ? undefined
     : getCsharpTypeForNode(expression.Type, sourceFile, input);
@@ -364,7 +402,11 @@ function getExplicitLambdaSignatureTarget(
         name: "Action",
         ...(parameterTypes.length === 0 ? {} : { typeArguments: parameterTypes }),
       },
-      signature: { parameters: parameterTypes, returnTargetType: csharpVoidTargetType() },
+      signature: {
+        parameters: parameterTypes,
+        parameterTargetTypes,
+        returnTargetType: csharpVoidTargetType(),
+      },
     };
   }
   const returnTargetType = expression.Type === undefined
@@ -378,6 +420,7 @@ function getExplicitLambdaSignatureTarget(
     },
     signature: {
       parameters: parameterTypes,
+      parameterTargetTypes,
       returnType,
       ...(returnTargetType === undefined ? {} : { returnTargetType }),
     },
@@ -411,10 +454,65 @@ export function lambdaTargetContextFromTargetRef(type: TargetTypeRef | undefined
     type: targetType,
     signature: {
       parameters: parameters as readonly CsharpTypeNode[],
+      parameterTargetTypes: signature.parameters,
       ...(isCsharpVoidTargetType(signature.returnType) ? {} : { returnType }),
       returnTargetType: signature.returnType,
     },
   };
+}
+
+function createLambdaTranslationContext(
+  parameterNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  targetContext: LambdaTargetContext | undefined,
+): CsharpTranslationContext | undefined {
+  if (targetContext === undefined) {
+    return input;
+  }
+  const sourceParameters = parameterNodes.filter(
+    (parameterNode): parameterNode is Node => parameterNode !== undefined,
+  );
+  if (
+    sourceParameters.length >
+      targetContext.signature.parameterTargetTypes.length
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      sourceParameters[targetContext.signature.parameterTargetTypes.length]!,
+      "The source lambda declares more parameters than its exact selected C# delegate representation.",
+    ));
+    return undefined;
+  }
+  const bindings = sourceParameters.map((parameterNode, index) => ({
+    declaration: parameterNode,
+    targetType: targetContext.signature.parameterTargetTypes[index]!,
+  }));
+  for (const binding of bindings) {
+    const parameter = AsParameterDeclaration(binding.declaration);
+    const authoredTarget = parameter?.Type === undefined
+      ? undefined
+      : input.types.resolveNode(parameter.Type, sourceFile);
+    if (
+      authoredTarget !== undefined &&
+      !targetTypeRefEquals(authoredTarget, binding.targetType)
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        binding.declaration,
+        "The authored source lambda parameter type conflicts with its exact selected C# delegate parameter representation.",
+      ));
+      return undefined;
+    }
+  }
+  const scoped = createCsharpScopedTranslationContext(input, bindings);
+  if (scoped.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      bindings[0]!.declaration,
+      scoped.reason,
+    ));
+    return undefined;
+  }
+  return scoped.context;
 }
 
 export function isAsyncExpression(ast: AstReader, node: Node): boolean {

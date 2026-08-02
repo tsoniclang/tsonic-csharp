@@ -24,10 +24,13 @@ import {
 import type {
   CsharpObjectShapePolicy,
   CsharpProjectTypePolicy,
+  CsharpSourceTargetTypeBinding,
   CsharpTypePolicy,
+  TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
   createCsharpTypeSystem,
+  targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import type {
   CsharpProviderCallSelectionHost,
@@ -62,6 +65,18 @@ export interface CsharpTranslationContext
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
 }
+
+export type { CsharpSourceTargetTypeBinding } from "../../policy/types/index.js";
+
+export type CsharpScopedTranslationContextResult =
+  | {
+      readonly kind: "resolved";
+      readonly context: CsharpTranslationContext;
+    }
+  | {
+      readonly kind: "rejected";
+      readonly reason: string;
+    };
 
 export function createCsharpTranslationContext(
   backend: TargetBackendContext,
@@ -117,4 +132,77 @@ export function createCsharpTranslationContext(
     semanticsFor,
     hasSemantics,
   });
+}
+
+export function createCsharpScopedTranslationContext(
+  input: CsharpTranslationContext,
+  bindings: readonly CsharpSourceTargetTypeBinding[],
+): CsharpScopedTranslationContextResult {
+  if (bindings.length === 0) {
+    return { kind: "resolved", context: input };
+  }
+  const scopedTypes = input.types.withSourceTargetBindings(bindings);
+  if (scopedTypes.kind === "rejected") {
+    return scopedTypes;
+  }
+  const targetTypes = new WeakMap<Node, TargetTypeRef>();
+  for (const binding of bindings) {
+    const current = targetTypes.get(binding.declaration);
+    if (
+      current !== undefined &&
+      !targetTypeRefEquals(current, binding.targetType)
+    ) {
+      return {
+        kind: "rejected",
+        reason:
+          "One exact source declaration is related to incompatible scoped C# target representations.",
+      };
+    }
+    targetTypes.set(binding.declaration, binding.targetType);
+  }
+  const scopedTargetType = (
+    node: Node | undefined,
+  ): TargetTypeRef | undefined => {
+    if (node === undefined) {
+      return undefined;
+    }
+    const reference = input.navigation.referenceFor(node);
+    return targetTypes.get(reference?.declaration ?? node) ??
+      targetTypes.get(node);
+  };
+  const objectShapes: CsharpObjectShapePolicy = {
+    resolveNode(node, sourceFile) {
+      const targetType = scopedTargetType(node);
+      return targetType === undefined
+        ? input.objectShapes.resolveNode(node, sourceFile)
+        : input.objectShapes.resolveTarget(targetType);
+    },
+    resolveTarget(type) {
+      return input.objectShapes.resolveTarget(type);
+    },
+    resolveProjectConstructibleSelectedType(
+      targetType,
+      explicitTypeNode,
+      selectedType,
+      contextNode,
+      sourceFile,
+    ) {
+      return input.objectShapes.resolveProjectConstructibleSelectedType(
+        targetType,
+        explicitTypeNode,
+        selectedType,
+        contextNode,
+        sourceFile,
+      );
+    },
+  };
+  Object.freeze(objectShapes);
+  return {
+    kind: "resolved",
+    context: Object.freeze({
+      ...input,
+      types: scopedTypes.policy,
+      objectShapes,
+    }),
+  };
 }

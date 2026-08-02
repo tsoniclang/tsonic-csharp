@@ -88,6 +88,7 @@ import {
   selectedCsharpSourceProfileOwner,
 } from "./source-profile.js";
 import {
+  csharpNumericLiteralFitsSourcePrimitive,
   resolveCsharpSourceLiteralTargetType,
 } from "./source-literal-policy.js";
 import {
@@ -107,6 +108,13 @@ import {
 import {
   csharpTargetNamedType,
 } from "./target-refs.js";
+import {
+  substituteTargetTypeParameters,
+} from "./substitution.js";
+
+type ResolvedSourceCallInfo = NonNullable<
+  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+>;
 
 export interface CsharpTypePolicyBaseHost {
   readonly ast: AstReader;
@@ -129,7 +137,25 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       sourceFile: SourceFile,
     ): TargetTypeRef | undefined;
   };
+  readonly scopedTargetType?: (
+    node: Node,
+  ) => TargetTypeRef | undefined;
 }
+
+export interface CsharpSourceTargetTypeBinding {
+  readonly declaration: Node;
+  readonly targetType: TargetTypeRef;
+}
+
+export type CsharpScopedTypePolicyResult =
+  | {
+      readonly kind: "resolved";
+      readonly policy: CsharpTypePolicy;
+    }
+  | {
+      readonly kind: "rejected";
+      readonly reason: string;
+    };
 
 export interface CsharpTypePolicy {
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
@@ -150,10 +176,26 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveSourceCallTypeArguments(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): readonly TargetTypeRef[] | undefined;
+  resolveSourceCallParameter(
+    source: ResolvedSourceCallInfo,
+    parameterIndex: number,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
+  resolveSourceCallResult(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveDeclaredNamedType(
     reference: SourceDeclarationReference,
     typeArguments: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
+  withSourceTargetBindings(
+    bindings: readonly CsharpSourceTargetTypeBinding[],
+  ): CsharpScopedTypePolicyResult;
 }
 
 interface CsharpTypeResolutionState {
@@ -173,7 +215,11 @@ export function createCsharpTypePolicy(
     resolveValue,
     resolveSelectedType,
     resolveSelectedResult,
+    resolveSourceCallTypeArguments,
+    resolveSourceCallParameter,
+    resolveSourceCallResult,
     resolveDeclaredNamedType,
+    withSourceTargetBindings,
   };
 
   function resolveNode(
@@ -276,6 +322,49 @@ export function createCsharpTypePolicy(
     );
   }
 
+  function resolveSourceCallTypeArguments(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): readonly TargetTypeRef[] | undefined {
+    return resolveSourceCallInstantiation(source, sourceFile)?.arguments;
+  }
+
+  function resolveSourceCallParameter(
+    source: ResolvedSourceCallInfo,
+    parameterIndex: number,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
+    return parameter === undefined
+      ? undefined
+      : resolveSourceCallSelectedType(
+          source,
+          parameter.authoredTypeNode,
+          parameter.selectedType,
+          sourceFile,
+          { depth: 0 },
+        );
+  }
+
+  function resolveSourceCallResult(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    const queries = host.semantics(sourceFile);
+    const declaration = queries.getSignatureDeclaration(
+      source.selectedSignature,
+    );
+    return resolveSourceCallSelectedType(
+      source,
+      declaration === undefined
+        ? undefined
+        : declarationResultTypeNode(declaration),
+      source.sourceResultType,
+      sourceFile,
+      { depth: 0 },
+    );
+  }
+
   function resolveDeclaredNamedType(
     reference: SourceDeclarationReference,
     typeArguments: readonly TargetTypeRef[],
@@ -291,6 +380,41 @@ export function createCsharpTypePolicy(
         );
   }
 
+  function withSourceTargetBindings(
+    bindings: readonly CsharpSourceTargetTypeBinding[],
+  ): CsharpScopedTypePolicyResult {
+    if (bindings.length === 0) {
+      return { kind: "resolved", policy };
+    }
+    const targetTypes = new WeakMap<Node, TargetTypeRef>();
+    for (const binding of bindings) {
+      const current = targetTypes.get(binding.declaration);
+      if (
+        current !== undefined &&
+        !targetTypeRefEquals(current, binding.targetType)
+      ) {
+        return {
+          kind: "rejected",
+          reason:
+            "One exact source declaration is related to incompatible scoped C# target representations.",
+        };
+      }
+      targetTypes.set(binding.declaration, binding.targetType);
+    }
+    return {
+      kind: "resolved",
+      policy: createCsharpTypePolicy({
+        ...host,
+        scopedTargetType(node) {
+          const reference = host.navigation.referenceFor(node);
+          return targetTypes.get(reference?.declaration ?? node) ??
+            targetTypes.get(node) ??
+            host.scopedTargetType?.(node);
+        },
+      }),
+    };
+  }
+
   function resolveNodeWithState(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -298,6 +422,10 @@ export function createCsharpTypePolicy(
   ): TargetTypeRef | undefined {
     if (node === undefined || state.depth > maximumTypeResolutionDepth) {
       return undefined;
+    }
+    const scopedTargetType = host.scopedTargetType?.(node);
+    if (scopedTargetType !== undefined) {
+      return scopedTargetType;
     }
     const queries = sourceFile === undefined
       ? host.semanticsFor(node)
@@ -548,12 +676,15 @@ export function createCsharpTypePolicy(
     if (host.ast.is.IsBinaryExpression(node)) {
       const binary = host.ast.as.AsBinaryExpression(node);
       return resolveBinaryTargetRepresentation(
+        host.ast,
         sourceOperatorFromKindName(host.ast.operatorKindName(node)),
+        binary?.Left,
         resolveNodeWithState(
           binary?.Left,
           queries.sourceFile,
           nextState(state),
         ),
+        binary?.Right,
         resolveNodeWithState(
           binary?.Right,
           queries.sourceFile,
@@ -695,10 +826,13 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    return resolveSelectedDeclarationResult(
-      queries.getSignatureDeclaration(source.selectedSignature),
+    return resolveSourceCallSelectedType(
+      source,
+      declarationResultTypeNode(
+        queries.getSignatureDeclaration(source.selectedSignature),
+      ),
       source.sourceResultType,
-      queries,
+      queries.sourceFile,
       state,
     );
   }
@@ -754,6 +888,10 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
+    const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
+    if (enumMemberTarget !== undefined) {
+      return enumMemberTarget;
+    }
     const declarationType = declaration === undefined ||
         !host.navigation.isProjectDeclaration(declaration)
       ? undefined
@@ -770,9 +908,24 @@ export function createCsharpTypePolicy(
     );
   }
 
+  function resolveProjectEnumMemberTarget(
+    declaration: Node | undefined,
+  ): TargetTypeRef | undefined {
+    if (declaration === undefined || !host.ast.is.IsEnumMember(declaration)) {
+      return undefined;
+    }
+    const parent = host.ast.parent(declaration);
+    return parent !== undefined && host.ast.is.IsEnumDeclaration(parent)
+      ? projectSourceDeclarationTargetType(parent, [])
+      : undefined;
+  }
+
   function declarationResultTypeNode(
-    declaration: Node,
+    declaration: Node | undefined,
   ): Node | undefined {
+    if (declaration === undefined) {
+      return undefined;
+    }
     if (host.ast.is.IsFunctionDeclaration(declaration)) {
       return host.ast.as.AsFunctionDeclaration(declaration)?.Type;
     }
@@ -852,6 +1005,14 @@ export function createCsharpTypePolicy(
     if (sourceProfileType !== undefined) {
       return sourceProfileType;
     }
+    const sourceAlias = resolveSourceTypeAlias(
+      typeName,
+      typeArguments as readonly TargetTypeRef[],
+      state,
+    );
+    if (sourceAlias !== undefined) {
+      return sourceAlias;
+    }
     const projectType = resolveProjectSourceType(
       typeName,
       queries.sourceFile,
@@ -866,6 +1027,50 @@ export function createCsharpTypePolicy(
       queries.sourceFile,
       nextState(state),
     );
+  }
+
+  function resolveSourceTypeAlias(
+    typeName: Node,
+    typeArguments: readonly TargetTypeRef[],
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const reference = host.navigation.referenceFor(typeName);
+    if (
+      reference === undefined ||
+      !host.ast.is.IsTypeAliasDeclaration(reference.declaration)
+    ) {
+      return undefined;
+    }
+    const declaration = host.ast.as.AsTypeAliasDeclaration(
+      reference.declaration,
+    );
+    const target = declaration?.Type;
+    const parameters = host.ast.typeParameters(reference.declaration);
+    if (target === undefined || parameters.length !== typeArguments.length) {
+      return undefined;
+    }
+    const substitutions = new Map<string, TargetTypeRef>();
+    for (let index = 0; index < parameters.length; index += 1) {
+      const parameter = parameters[index];
+      const name = host.ast.name(parameter);
+      const argument = typeArguments[index];
+      if (parameter === undefined || name === undefined || argument === undefined) {
+        return undefined;
+      }
+      const key = host.ast.text(name);
+      if (substitutions.has(key)) {
+        return undefined;
+      }
+      substitutions.set(key, argument);
+    }
+    const resolved = resolveNodeWithState(
+      target,
+      reference.sourceFile,
+      nextState(state),
+    );
+    return resolved === undefined
+      ? undefined
+      : substituteTargetTypeParameters(resolved, substitutions);
   }
 
   function resolveSourceValueDeclaration(
@@ -901,20 +1106,27 @@ export function createCsharpTypePolicy(
       sourceFile,
       nextState(state),
     );
+    if (syntax.initializer === undefined) {
+      return declaredTarget;
+    }
+    const selectedInitializerTarget = resolveSelectedExpressionType(
+      syntax.initializer,
+      declarationQueries,
+      nextState(state),
+    );
     if (
       host.ast.variableDeclarationKind(declaration) !== "const" &&
+      selectedInitializerTarget === undefined &&
       declaredTarget !== undefined
     ) {
       return declaredTarget;
     }
-    if (syntax.initializer === undefined) {
-      return declaredTarget;
-    }
-    const initializerTarget = resolveNodeWithState(
-      syntax.initializer,
-      sourceFile,
-      nextState(state),
-    );
+    const initializerTarget = selectedInitializerTarget ??
+      resolveNodeWithState(
+        syntax.initializer,
+        sourceFile,
+        nextState(state),
+      );
     if (initializerTarget === undefined) {
       return declaredTarget;
     }
@@ -1025,6 +1237,115 @@ export function createCsharpTypePolicy(
         nextState(state),
       ),
       authoredQueries.getTypeRelationship(authoredSemanticType, selectedType),
+    );
+  }
+
+  function resolveSourceCallInstantiation(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ):
+    | {
+        readonly arguments: readonly TargetTypeRef[];
+        readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
+      }
+    | undefined {
+    const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+    if (selectedArguments.length === 0) {
+      return {
+        arguments: Object.freeze([]),
+        substitutions: new Map(),
+      };
+    }
+    const queries = host.semantics(sourceFile);
+    const selectedParameters = new Set<Type>();
+    const arguments_: TargetTypeRef[] = [];
+    const substitutions = new Map<string, TargetTypeRef>();
+    for (const selected of selectedArguments) {
+      const parameterSymbol = queries.getTypeSymbol(selected.typeParameter);
+      const parameterDeclarations = parameterSymbol === undefined
+        ? []
+        : definedValues(queries.getSymbolDeclarations(parameterSymbol)).filter(
+            (declaration) =>
+              host.ast.is.IsTypeParameterDeclaration(declaration),
+          );
+      const parameter = parameterDeclarations.length === 1
+        ? parameterDeclarations[0]
+        : undefined;
+      const nameNode = host.ast.name(parameter);
+      if (
+        parameter === undefined ||
+        nameNode === undefined ||
+        selectedParameters.has(selected.typeParameter)
+      ) {
+        return undefined;
+      }
+      const name = host.ast.text(nameNode);
+      if (
+        name !== selected.typeParameterName ||
+        substitutions.has(name)
+      ) {
+        return undefined;
+      }
+      const targetArgument = resolveSelectedType(
+        selected.explicitTypeNode,
+        selected.selectedType,
+        sourceFile,
+      );
+      if (targetArgument === undefined) {
+        return undefined;
+      }
+      selectedParameters.add(selected.typeParameter);
+      substitutions.set(name, targetArgument);
+      arguments_.push(targetArgument);
+    }
+    return {
+      arguments: Object.freeze(arguments_),
+      substitutions,
+    };
+  }
+
+  function resolveSourceCallSelectedType(
+    source: ResolvedSourceCallInfo,
+    authoredTypeNode: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const instantiation = resolveSourceCallInstantiation(
+      source,
+      selectedSourceFile,
+    );
+    if (instantiation === undefined) {
+      return undefined;
+    }
+    const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
+      selectedSourceFile;
+    const authored = authoredTypeNode === undefined
+      ? undefined
+      : resolveNodeWithState(
+          authoredTypeNode,
+          authoredSourceFile,
+          nextState(state),
+        );
+    const instantiated = authored === undefined
+      ? undefined
+      : substituteTargetTypeParameters(
+          authored,
+          instantiation.substitutions,
+        );
+    if (
+      authored !== undefined &&
+      instantiated !== undefined &&
+      !targetTypeRefEquals(authored, instantiated)
+    ) {
+      return instantiated;
+    }
+    return resolveAuthoredAndSelectedSourceType(
+      authoredTypeNode,
+      authoredSourceFile,
+      selectedType,
+      selectedSourceFile,
+      state,
     );
   }
 
@@ -1640,13 +1961,34 @@ export function createCsharpTypePolicy(
 }
 
 function resolveBinaryTargetRepresentation(
+  ast: AstReader,
   operator: ReturnType<typeof sourceOperatorFromKindName>,
+  leftNode: Node | undefined,
   left: TargetTypeRef | undefined,
+  rightNode: Node | undefined,
   right: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
   if (operator === undefined || left === undefined || right === undefined) {
     return undefined;
   }
+  const alignedLeft = right.kind === "source-primitive" &&
+      leftNode !== undefined &&
+      csharpNumericLiteralFitsSourcePrimitive(
+        ast,
+        leftNode,
+        right.name,
+      )
+    ? right
+    : left;
+  const alignedRight = alignedLeft.kind === "source-primitive" &&
+      rightNode !== undefined &&
+      csharpNumericLiteralFitsSourcePrimitive(
+        ast,
+        rightNode,
+        alignedLeft.name,
+      )
+    ? alignedLeft
+    : right;
   switch (operator) {
     case "===":
     case "==":
@@ -1665,23 +2007,23 @@ function resolveBinaryTargetRepresentation(
     case "&&=":
     case "||=":
     case "??=":
-      return left;
+      return alignedLeft;
     case ",":
-      return right;
+      return alignedRight;
     case "<<":
     case ">>":
     case ">>>":
     case "<<=":
     case ">>=":
     case ">>>=":
-      return left;
+      return alignedLeft;
     case "??":
       return commonTargetRepresentation(
-        getNonNullableTargetRepresentation(left),
-        right,
+        getNonNullableTargetRepresentation(alignedLeft),
+        alignedRight,
       );
     default:
-      return commonTargetRepresentation(left, right);
+      return commonTargetRepresentation(alignedLeft, alignedRight);
   }
 }
 

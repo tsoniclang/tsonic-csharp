@@ -256,7 +256,9 @@ function projectTypeDefinition(
   ) {
     return undefined;
   }
-  const rawTypeParameters = host.ast.typeParameters(declaration);
+  const rawTypeParameters = kind === "enum"
+    ? []
+    : host.ast.typeParameters(declaration);
   const typeParameters = rawTypeParameters.filter(
     (parameter): parameter is Node => parameter !== undefined,
   );

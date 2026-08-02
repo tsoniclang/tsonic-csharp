@@ -105,8 +105,15 @@ function resolveConstraint(
       : resolveConstraint(inner, typeParameterName, sourceFile, host);
   }
   if (host.ast.is.IsIntersectionTypeNode(constraint)) {
+    const parts = host.ast.as.AsIntersectionTypeNode(constraint)?.Types?.Nodes;
+    if (parts === undefined) {
+      return {
+        kind: "unsupported",
+        reason: "Intersection generic constraint has no type elements.",
+      };
+    }
     const resolved: CsharpTypeParameterConstraint[] = [];
-    for (const part of host.ast.elements(constraint)) {
+    for (const part of parts) {
       if (part === undefined) {
         continue;
       }

@@ -4,7 +4,6 @@ import type {
 } from "@tsonic/tsts";
 import {
   parseBigIntLiteral,
-  parseFiniteNumberLiteral,
 } from "../../source/source-literal-values.js";
 import type {
   CsharpTranslationContext,
@@ -17,6 +16,10 @@ import {
   getCsharpNullableElementTargetType,
   isCsharpStringTargetType,
 } from "../types/index.js";
+import {
+  csharpNumericLiteralFitsSourcePrimitive,
+  csharpNumericLiteralValue,
+} from "../types/source-literal-policy.js";
 
 export function csharpLiteralIsRepresentableAs(
   input: Pick<CsharpTranslationContext, "ast">,
@@ -58,15 +61,17 @@ export function csharpLiteralIsRepresentableAs(
     case "uint32":
     case "native-int":
     case "native-uint": {
-      const value = numericLiteralValue(input, node);
-      return value !== undefined &&
-        numberFitsSourcePrimitive(value, target.name);
+      return csharpNumericLiteralFitsSourcePrimitive(
+        input.ast,
+        node,
+        target.name,
+      );
     }
     case "float16":
     case "float32":
     case "float64":
     case "decimal": {
-      const value = numericLiteralValue(input, node);
+      const value = csharpNumericLiteralValue(input.ast, node);
       return value !== undefined && Number.isFinite(value);
     }
     case "int64":
@@ -78,33 +83,6 @@ export function csharpLiteralIsRepresentableAs(
         bigintFitsSourcePrimitive(value, target.name);
     }
   }
-}
-
-function numericLiteralValue(
-  input: Pick<CsharpTranslationContext, "ast">,
-  node: Node,
-): number | undefined {
-  if (input.ast.is.IsNumericLiteral(node)) {
-    return parseFiniteNumberLiteral(input.ast.text(node));
-  }
-  if (!input.ast.is.IsPrefixUnaryExpression(node)) {
-    return undefined;
-  }
-  const operator = input.ast.operatorKindName(node);
-  const operand = input.ast.as.AsPrefixUnaryExpression(node)?.Operand;
-  if (
-    (operator !== "KindPlusToken" && operator !== "KindMinusToken") ||
-    operand === undefined ||
-    !input.ast.is.IsNumericLiteral(operand)
-  ) {
-    return undefined;
-  }
-  const value = parseFiniteNumberLiteral(input.ast.text(operand));
-  return value === undefined
-    ? undefined
-    : operator === "KindMinusToken"
-      ? -value
-      : value;
 }
 
 function bigintLiteralValue(
@@ -138,33 +116,6 @@ function bigintLiteralValue(
     : operator === "KindMinusToken"
       ? -value
       : value;
-}
-
-function numberFitsSourcePrimitive(
-  value: number,
-  primitive: SourcePrimitiveKind,
-): boolean {
-  if (!Number.isInteger(value)) {
-    return false;
-  }
-  switch (primitive) {
-    case "int8":
-      return value >= -128 && value <= 127;
-    case "uint8":
-      return value >= 0 && value <= 255;
-    case "int16":
-      return value >= -32768 && value <= 32767;
-    case "uint16":
-      return value >= 0 && value <= 65535;
-    case "int32":
-    case "native-int":
-      return value >= -2147483648 && value <= 2147483647;
-    case "uint32":
-    case "native-uint":
-      return value >= 0 && value <= 4294967295;
-    default:
-      return false;
-  }
 }
 
 function bigintFitsSourcePrimitive(

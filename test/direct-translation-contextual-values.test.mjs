@@ -185,6 +185,50 @@ namespace Tsonic.Generated
 `);
 });
 
+test("direct C# translation scopes exact delegate parameter representations through callback bodies", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      function visit(callback: (value: int) => void): void {
+        callback(1);
+      }
+      export function run(): int {
+        let result: int = 0;
+        visit((value) => {
+          result = value + 1;
+        });
+        return result;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static void visit(Action<int> callback)
+        {
+            callback(1);
+        }
+        public static int run()
+        {
+            int result = 0;
+            visit((int value) =>
+            {
+                result = value + 1;
+            });
+            return result;
+        }
+    }
+}
+`);
+});
+
 test("direct C# translation preserves the exact JS array receiver element carrier for index access", () => {
   const compiled = compileCsharpSource({
     surface: "js",
