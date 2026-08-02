@@ -15,6 +15,7 @@ import {
   dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
   mergeProviderSignatures,
+  providerSignatureCallShapeKey,
 } from "./signatures.js";
 
 export function mergeOwnAndBaseProviderMembers(
@@ -134,6 +135,99 @@ export function dotnetMemberToProviderMember(
     ...(type !== undefined ? { type } : {}),
     ...(signatures !== undefined ? { signatures: mergeProviderSignatures(signatures) } : {}),
   };
+}
+
+export function dotnetMembersToProviderMembers(
+  members: readonly DotnetMemberDeclaration[],
+  declaringType: DotnetTypeDeclaration,
+  options: {
+    readonly inheritedConcreteMethodCallShapes?: ReadonlyMap<string, ReadonlySet<string>>;
+  } = {},
+): readonly ProviderMemberDeclaration[] {
+  const projections = members
+    .filter((source) =>
+      declaringType.typeKind !== "enum" ||
+      source.sourceProjection !== "extension-method")
+    .map((source) => ({
+      source,
+      declaration: dotnetMemberToProviderMember(source, declaringType),
+    }))
+    .filter((projection): projection is {
+      readonly source: DotnetMemberDeclaration;
+      readonly declaration: ProviderMemberDeclaration;
+    } => projection.declaration !== undefined);
+  const concreteNonMethodIdentities = new Set(
+    projections
+      .filter((projection) =>
+        projection.source.sourceProjection !== "extension-method" &&
+        projection.declaration.kind !== "method")
+      .map((projection) => projection.declaration.id),
+  );
+  const concreteMethodCallShapes = new Map<string, Set<string>>(
+    [...(options.inheritedConcreteMethodCallShapes ?? new Map()).entries()]
+      .map(([key, shapes]) => [key, new Set(shapes)]),
+  );
+  for (const projection of projections) {
+    if (
+      projection.source.sourceProjection === "extension-method" ||
+      projection.declaration.kind !== "method"
+    ) {
+      continue;
+    }
+    const memberKey = providerMemberInheritanceKey(projection.declaration);
+    if (memberKey === undefined) {
+      continue;
+    }
+    const callShapes = concreteMethodCallShapes.get(memberKey) ?? new Set<string>();
+    for (const signature of projection.declaration.signatures ?? []) {
+      callShapes.add(providerSignatureCallShapeKey(signature));
+    }
+    concreteMethodCallShapes.set(memberKey, callShapes);
+  }
+  return projections
+    .filter((projection) =>
+      projection.source.sourceProjection !== "extension-method" ||
+      !concreteNonMethodIdentities.has(projection.declaration.id))
+    .map((projection) => {
+      if (
+        projection.source.sourceProjection !== "extension-method" ||
+        projection.declaration.kind !== "method"
+      ) {
+        return projection;
+      }
+      const memberKey = providerMemberInheritanceKey(projection.declaration);
+      const concreteCallShapes = memberKey === undefined
+        ? undefined
+        : concreteMethodCallShapes.get(memberKey);
+      if (concreteCallShapes === undefined) {
+        return projection;
+      }
+      const signatures = (projection.declaration.signatures ?? []).filter((signature) =>
+        !concreteCallShapes.has(providerSignatureCallShapeKey(signature)));
+      return signatures.length === 0
+        ? undefined
+        : {
+            ...projection,
+            declaration: {
+              ...projection.declaration,
+              signatures,
+            },
+          };
+    })
+    .filter((projection): projection is NonNullable<typeof projection> => projection !== undefined)
+    .sort((left, right) =>
+      Number(left.source.sourceProjection === "extension-method") -
+      Number(right.source.sourceProjection === "extension-method"))
+    .map((projection) => projection.declaration);
+}
+
+export function providerMemberInheritanceKey(
+  member: ProviderMemberDeclaration,
+): string | undefined {
+  if (member.static === true || member.kind === "constructor") {
+    return undefined;
+  }
+  return `${member.kind}:${JSON.stringify(member.name)}`;
 }
 
 export function filterTsCompatibleProviderMembers(

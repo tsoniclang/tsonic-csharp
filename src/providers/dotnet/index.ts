@@ -40,7 +40,10 @@ export type {
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
 } from "./provider.js";
-export { createDotnetSourceDeclarationProvider } from "./provider.js";
+export {
+  createDotnetSourceDeclarationProvider,
+  createDotnetSourceDeclarationProviderSet,
+} from "./provider.js";
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,

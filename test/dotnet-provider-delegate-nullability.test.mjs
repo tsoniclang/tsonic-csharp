@@ -153,7 +153,10 @@ test(".NET provider separates nullable object inputs from non-null object inputs
     kind: "array",
     elementType: { kind: "object" },
   });
-  assert.equal(nonNullableRest.sourceType, undefined);
+  assert.deepEqual(nonNullableRest.sourceType, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
   assert.equal(nonNullableRest.rest, true);
 
   const nullableRest = requireRawMethod(rawHost, "NullableObjects").signatures[0].parameters[0];
@@ -180,7 +183,7 @@ test(".NET provider separates nullable object inputs from non-null object inputs
   assert.deepEqual(requireMethod(host, "NullableObject").signatures[0].parameters[0].type, { kind: "unknown" });
   assert.deepEqual(requireMethod(host, "NonNullableObjects").signatures[0].parameters[0].type, {
     kind: "array",
-    elementType: { kind: "object" },
+    elementType: { kind: "unknown" },
   });
   assert.deepEqual(requireMethod(host, "NullableObjects").signatures[0].parameters[0].type, {
     kind: "array",

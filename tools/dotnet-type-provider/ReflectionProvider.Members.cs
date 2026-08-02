@@ -560,6 +560,7 @@ sealed partial class ReflectionProvider
                 metadataName = $"{MetadataName(first.DeclaringType!)}.{first.Name}",
                 @static = true,
                 sourceStatic = false,
+                sourceProjection = "extension-method",
                 receiverPassing = "first-argument",
                 sourceParameterOffset = 1,
                 targetDeclaringType,

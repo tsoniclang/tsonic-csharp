@@ -417,6 +417,10 @@ export function providerSignatureShapeKey(signature: ProviderSignatureDeclaratio
   return providerSignatureKey(signature, "exact");
 }
 
+export function providerSignatureCallShapeKey(signature: ProviderSignatureDeclaration): string {
+  return providerSignatureKey(signature, "selection", false);
+}
+
 function providerSignatureSelectionKey(signature: ProviderSignatureDeclaration): string {
   return providerSignatureKey(signature, "selection");
 }
@@ -424,8 +428,9 @@ function providerSignatureSelectionKey(signature: ProviderSignatureDeclaration):
 function providerSignatureKey(
   signature: ProviderSignatureDeclaration,
   mode: "exact" | "selection",
+  includeReturnType: boolean = true,
 ): string {
-  return JSON.stringify({
+  const callShape = {
     typeParameters: signature.typeParameters?.map((parameter) => ({
       variance: parameter.variance,
       constraints: parameter.constraints?.map((constraint) => providerTypeExpressionSourceShapeKey(constraint, mode)),
@@ -437,8 +442,15 @@ function providerSignatureKey(
       rest: parameter.rest,
       type: providerTypeExpressionSourceShapeKey(parameter.type, mode),
     })),
-    returnType: signature.returnType === undefined ? undefined : providerTypeExpressionSourceShapeKey(signature.returnType),
-  });
+  };
+  return JSON.stringify(includeReturnType
+    ? {
+        ...callShape,
+        returnType: signature.returnType === undefined
+          ? undefined
+          : providerTypeExpressionSourceShapeKey(signature.returnType),
+      }
+    : callShape);
 }
 
 function providerTypeExpressionSourceShapeKey(

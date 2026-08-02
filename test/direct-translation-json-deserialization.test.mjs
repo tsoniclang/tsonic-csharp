@@ -54,3 +54,26 @@ namespace Tsonic.Generated
 `,
   );
 });
+
+test("provider collection values do not become project-owned object shapes", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { List } from "@tsonic/dotnet/System.Collections.Generic.js";
+      import { JsonSerializer } from "@tsonic/dotnet/System.Text.Json.js";
+      import type { int } from "@tsonic/csharp/types.js";
+      export interface Item { id: int; }
+      export function serialize(items: List<Item>): string {
+        return JsonSerializer.Serialize<List<Item>>(items);
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /System\.Text\.Json\.JsonSerializer\.Serialize<System\.Collections\.Generic\.List<Item>>\(items\)/,
+  );
+  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
+});

@@ -450,6 +450,9 @@ export function createCsharpObjectShapePolicy(
     queries: SourceFileSemantics,
   ): TargetTypeRef | undefined {
     const authoredTypeNodes = declarations
+      .filter((declaration) =>
+        host.navigation.isProjectDeclaration(declaration)
+      )
       .map(propertyDeclarationTypeNode)
       .filter((typeNode): typeNode is Node => typeNode !== undefined);
     if (authoredTypeNodes.length === 0) {
@@ -643,9 +646,7 @@ function typeHasProjectOwnedShapeDeclaration(
   if (host.ast.is.IsObjectLiteralExpression(node)) {
     return true;
   }
-  const reference = host.navigation.referenceFor(node);
   if (
-    host.navigation.isProjectDeclaration(reference?.declaration) ||
     host.navigation.isProjectDeclaration(
       host.navigation.declarationFor(node),
     )

@@ -26,7 +26,7 @@ import {
 } from "./source-virtual-modules.js";
 import {
   createDotnetReflectionTypeDataProvider,
-  createDotnetSourceDeclarationProvider,
+  createDotnetSourceDeclarationProviderSet,
   dotnetModuleSpecifierPolicy,
 } from "../../providers/dotnet/index.js";
 import {
@@ -34,6 +34,10 @@ import {
   readCsharpTargetFramework,
   validateCsharpTargetOptions,
 } from "../../options/csharp-target-options.js";
+import {
+  collectCsharpCapabilityContributions,
+  createCapabilityDotnetProviders,
+} from "../../provider/contributions.js";
 
 export function createCsharpSourceSemanticsExtension(context: TargetProviderContext): CompilerExtension {
   validateCsharpTargetOptions(context.target);
@@ -43,6 +47,23 @@ export function createCsharpSourceSemanticsExtension(context: TargetProviderCont
     references,
     targetFramework,
   });
+  const capabilityProviders = createCapabilityDotnetProviders(
+    context,
+    collectCsharpCapabilityContributions(context),
+  );
+  const sourceDeclarationProviders = createDotnetSourceDeclarationProviderSet([
+    {
+      provider: dotnetProvider,
+      moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
+      references,
+      targetFramework,
+    },
+    ...capabilityProviders.map((capabilityProvider) => ({
+      provider: capabilityProvider.provider,
+      moduleSpecifierPolicy: capabilityProvider.moduleSpecifierPolicy,
+      targetFramework: capabilityProvider.targetFramework,
+    })),
+  ]);
   return {
     identity: {
       id: csharpSourceSemanticsExtensionId,
@@ -54,12 +75,11 @@ export function createCsharpSourceSemanticsExtension(context: TargetProviderCont
     },
     initialize(extensionContext): void {
       extensionContext.registerSourceDeclarationProvider(createCsharpSourceVirtualModulesProvider());
-      extensionContext.registerSourceDeclarationProvider(createDotnetSourceDeclarationProvider({
-        provider: dotnetProvider,
-        moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
-        references,
-        targetFramework,
-      }));
+      for (const sourceDeclarationProvider of sourceDeclarationProviders) {
+        extensionContext.registerSourceDeclarationProvider(
+          sourceDeclarationProvider,
+        );
+      }
     },
     analyzeSource(context): void {
       for (const sourceFile of context.source.getSourceFiles()) {

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type {
-  TargetBackendContext,
   TargetCapabilityContribution,
+  TargetProviderContext,
 } from "@tsonic/target-api";
 import type {
   DotnetAssemblySourcePackage,
@@ -50,6 +50,12 @@ export interface CollectedCsharpCapabilityContributions {
   readonly providerRelations: readonly CsharpProviderRelationsContribution[];
 }
 
+export interface CsharpCapabilityDotnetProvider {
+  readonly provider: DotnetReflectionTypeDataProvider;
+  readonly moduleSpecifierPolicy: DotnetModuleSpecifierPolicy;
+  readonly targetFramework?: string;
+}
+
 export function csharpProviderRelationsContribution(
   providerId: string,
   providerVersion: string,
@@ -64,7 +70,7 @@ export function csharpProviderRelationsContribution(
 }
 
 export function collectCsharpCapabilityContributions(
-  context: TargetBackendContext,
+  context: TargetProviderContext,
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerRelations: CsharpProviderRelationsContribution[] = [];
@@ -105,11 +111,11 @@ export function collectCsharpCapabilityContributions(
 }
 
 export function createCapabilityDotnetProviders(
-  context: TargetBackendContext,
+  context: TargetProviderContext,
   contributions: CollectedCsharpCapabilityContributions =
     collectCsharpCapabilityContributions(context),
-): readonly DotnetReflectionTypeDataProvider[] {
-  const providers: DotnetReflectionTypeDataProvider[] = [];
+): readonly CsharpCapabilityDotnetProvider[] {
+  const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();
   for (const contribution of contributions.dotnetProviders) {
     const identity = providerIdentityKey(contribution.providerIdentity);
@@ -119,12 +125,18 @@ export function createCapabilityDotnetProviders(
       );
     }
     identities.add(identity);
-    providers.push(createDotnetReflectionTypeDataProvider({
-      providerIdentity: contribution.providerIdentity,
+    providers.push(Object.freeze({
+      provider: createDotnetReflectionTypeDataProvider({
+        providerIdentity: contribution.providerIdentity,
+        moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
+        referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
+        assemblySourcePackages: contribution.assemblySourcePackages,
+        targetFramework: contribution.targetFramework,
+      }),
       moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
-      referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
-      assemblySourcePackages: contribution.assemblySourcePackages,
-      targetFramework: contribution.targetFramework,
+      ...(contribution.targetFramework === undefined
+        ? {}
+        : { targetFramework: contribution.targetFramework }),
     }));
   }
   return Object.freeze(providers);

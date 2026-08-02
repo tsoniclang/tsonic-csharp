@@ -146,6 +146,7 @@ export interface DotnetMemberDeclaration {
   readonly metadataName: string;
   readonly static?: boolean;
   readonly sourceStatic?: boolean;
+  readonly sourceProjection?: "extension-method";
   readonly receiverPassing?: "instance" | "first-argument";
   readonly sourceParameterOffset?: number;
   readonly targetDeclaringType?: DotnetTypeRef;

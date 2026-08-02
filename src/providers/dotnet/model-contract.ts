@@ -386,6 +386,7 @@ function validateDotnetMemberList(
     if (member.sourceParameterOffset !== undefined && (!Number.isSafeInteger(member.sourceParameterOffset) || member.sourceParameterOffset < 0)) {
       collector.add(`${memberPath}.sourceParameterOffset`, "Source parameter offset must be a non-negative safe integer.", member.sourceParameterOffset);
     }
+    validateDotnetSourceProjection(member, memberPath, collector);
     validateOptionalDotnetTypeRef(member.targetDeclaringType, `${memberPath}.targetDeclaringType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     switch (member.kind) {
       case "constructor":
@@ -420,6 +421,43 @@ function validateDotnetMemberList(
         }
         break;
     }
+  }
+}
+
+function validateDotnetSourceProjection(
+  member: DotnetMemberDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (
+    member.sourceProjection !== undefined &&
+    member.sourceProjection !== "extension-method"
+  ) {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Unsupported .NET source projection kind.",
+      member.sourceProjection,
+    );
+    return;
+  }
+  const hasExtensionMethodShape = member.kind === "method" &&
+    member.static === true &&
+    member.sourceStatic === false &&
+    member.receiverPassing === "first-argument" &&
+    member.sourceParameterOffset === 1;
+  if (member.sourceProjection === "extension-method" && !hasExtensionMethodShape) {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Extension-method source projections require a static target method, an instance source member, first-argument receiver passing, and one omitted source parameter.",
+      member.sourceProjection,
+    );
+  }
+  if (hasExtensionMethodShape && member.sourceProjection !== "extension-method") {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Extension-method projection metadata must be explicit.",
+      member.sourceProjection,
+    );
   }
 }
 

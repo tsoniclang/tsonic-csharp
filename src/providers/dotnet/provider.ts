@@ -94,6 +94,34 @@ export interface DotnetBindingProviderOptions {
 }
 
 export function createDotnetSourceDeclarationProvider(options: DotnetBindingProviderOptions): SourceDeclarationProvider {
+  return createDotnetSourceDeclarationProviderWithDependencies(
+    options,
+    resolveDotnetDependencyModuleFrom([options]),
+  );
+}
+
+export function createDotnetSourceDeclarationProviderSet(
+  registrations: readonly DotnetBindingProviderOptions[],
+): readonly SourceDeclarationProvider[] {
+  validateDotnetProviderRegistrations(registrations);
+  const resolveDependencyModule = resolveDotnetDependencyModuleFrom(registrations);
+  return Object.freeze(registrations.map((registration) =>
+    createDotnetSourceDeclarationProviderWithDependencies(
+      registration,
+      resolveDependencyModule,
+    )));
+}
+
+type ResolveDotnetDependencyModule = (
+  specifier: string,
+  requestedExports: readonly string[],
+  containingFile: string,
+) => DotnetModuleModel | undefined;
+
+function createDotnetSourceDeclarationProviderWithDependencies(
+  options: DotnetBindingProviderOptions,
+  resolveDependencyModule: ResolveDotnetDependencyModule,
+): SourceDeclarationProvider {
   const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
   const pendingResolutionContexts = new Map<string, DotnetProviderResolutionContext>();
   const identity: ProviderIdentity = {
@@ -154,6 +182,7 @@ export function createDotnetSourceDeclarationProvider(options: DotnetBindingProv
         resolution,
         resolutionContext,
         moduleSpecifierPolicy,
+        resolveDependencyModule,
       );
     },
   };
@@ -165,6 +194,7 @@ export function resolveDotnetProviderDeclarationProjection(
   resolution: ProviderModuleResolution,
   resolutionContext: DotnetProviderResolutionContext,
   moduleSpecifierPolicy: DotnetModuleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy,
+  resolveDependencyModule: ResolveDotnetDependencyModule = resolveDotnetDependencyModuleFrom([options]),
 ): ProviderDeclarationModel | ExtensionDiagnostic {
   const module = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
   if (module === undefined || module.moduleSpecifier !== resolution.providerModuleId) {
@@ -219,6 +249,7 @@ export function resolveDotnetProviderDeclarationProjection(
     extensionId,
     resolution.providerModuleId,
     moduleSpecifierPolicy,
+    resolveDependencyModule,
   );
   if ("extensionId" in model) {
     return model;
@@ -239,11 +270,18 @@ function buildClosedProviderDeclarationModel(
   extensionId: string,
   providerModuleSpecifier: string,
   moduleSpecifierPolicy: DotnetModuleSpecifierPolicy,
+  resolveDependencyModule: ResolveDotnetDependencyModule,
 ): ProviderDeclarationModel | ExtensionDiagnostic {
   let currentContext = resolutionContext;
   let currentModule = initialModule;
   for (;;) {
-    const model = buildProviderDeclarationModel(resolution, currentContext, currentModule, options, extensionId);
+    const model = buildProviderDeclarationModel(
+      resolution,
+      currentContext,
+      currentModule,
+      extensionId,
+      resolveDependencyModule,
+    );
     if ("extensionId" in model || currentContext.broadImport === true) {
       return model;
     }
@@ -280,8 +318,8 @@ function buildProviderDeclarationModel(
   resolution: ProviderModuleResolution,
   resolutionContext: DotnetProviderResolutionContext,
   module: DotnetModuleModel,
-  options: DotnetBindingProviderOptions,
   extensionId: string,
+  resolveDependencyModule: ResolveDotnetDependencyModule,
 ): ProviderDeclarationModel | ExtensionDiagnostic {
   const resolvedModule = {
     ...sliceDotnetModuleExports(module, resolutionContext),
@@ -291,22 +329,105 @@ function buildProviderDeclarationModel(
     return dotnetModuleToProviderDeclarationModel(resolvedModule, {
       providerModuleId: resolution.providerModuleId,
       resolveModule(specifier, requestedExports) {
-        const dependencyResolutionContext = dotnetProviderModuleContext({ containingFile: resolution.virtualFileName }, { moduleSpecifier: specifier, requestedExports });
-        if (dependencyResolutionContext === undefined) {
-          return undefined;
-        }
-        const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
-        if (isDotnetProviderDiagnostic(resolved)) {
-          return undefined;
-        }
-        const augmentedDependencyModule = augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
-        return missingDotnetRequestedExports(augmentedDependencyModule, dependencyResolutionContext).length > 0
-          ? undefined
-          : sliceDotnetModuleExports(augmentedDependencyModule, dependencyResolutionContext);
+        return resolveDependencyModule(
+          specifier,
+          requestedExports,
+          resolution.virtualFileName,
+        );
       },
     });
   } catch (error) {
     return dotnetProviderDeclarationModelInvalidDiagnostic(extensionId, resolution.moduleSpecifier, error);
+  }
+}
+
+function resolveDotnetDependencyModuleFrom(
+  registrations: readonly DotnetBindingProviderOptions[],
+): ResolveDotnetDependencyModule {
+  return (specifier, requestedExports, containingFile) => {
+    const matches = registrations
+      .map((registration) => ({
+        registration,
+        moduleSpecifierPolicy:
+          registration.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy,
+      }))
+      .map((entry) => ({
+        ...entry,
+        module: dotnetProviderModuleRequest(specifier, entry.moduleSpecifierPolicy),
+      }))
+      .filter((entry): entry is typeof entry & {
+        readonly module: NonNullable<typeof entry.module>;
+      } => entry.module !== undefined);
+    if (matches.length === 0) {
+      return undefined;
+    }
+    if (matches.length !== 1) {
+      throw new Error(
+        `.NET provider dependency module '${specifier}' has ${matches.length} registered owners.`,
+      );
+    }
+    const { registration, module } = matches[0]!;
+    const resolutionContext: DotnetProviderResolutionContext = {
+      requestedExports,
+    };
+    const context = providerContext(
+      resolutionContext,
+      registration,
+      containingFile,
+      module,
+    );
+    const ownership = registration.provider.ownsModule(
+      module.moduleSpecifier,
+      context,
+    );
+    if (ownership.kind !== "owned") {
+      if (ownership.kind === "rejected") {
+        throw new Error(
+          `.NET provider '${registration.provider.identity.id}' rejected dependency module '${specifier}': ${ownership.diagnostic.message}`,
+        );
+      }
+      return undefined;
+    }
+    const resolved = registration.provider.getModule(
+      module.moduleSpecifier,
+      context,
+    );
+    if (isDotnetProviderDiagnostic(resolved)) {
+      throw new Error(
+        `.NET provider '${registration.provider.identity.id}' rejected dependency module '${specifier}': ${resolved.message}`,
+      );
+    }
+    const augmented = augmentDotnetModuleWithNativeArray(
+      resolved,
+      resolutionContext,
+    );
+    return missingDotnetRequestedExports(augmented, resolutionContext).length > 0
+      ? undefined
+      : sliceDotnetModuleExports(augmented, resolutionContext);
+  };
+}
+
+function validateDotnetProviderRegistrations(
+  registrations: readonly DotnetBindingProviderOptions[],
+): void {
+  const identities = new Set<string>();
+  const prefixes = new Set<string>();
+  for (const registration of registrations) {
+    const identity = JSON.stringify([
+      registration.provider.identity.id,
+      registration.provider.identity.version,
+    ]);
+    if (!identities.add(identity)) {
+      throw new Error(
+        `.NET source provider registration duplicates '${registration.provider.identity.id}@${registration.provider.identity.version}'.`,
+      );
+    }
+    const prefix = (registration.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy).modulePrefix;
+    if (!prefixes.add(prefix)) {
+      throw new Error(
+        `.NET source provider registration duplicates module prefix '${prefix}'.`,
+      );
+    }
   }
 }
 

@@ -375,7 +375,7 @@ sealed partial class ReflectionProvider
         var elementNullabilityMetadata = elementType is null
             ? null
             : (genericNullability ?? GenericNullabilityContext.Empty).ResolveMetadata(elementType, parameterNullabilityMetadata.ElementType);
-        if (elementType is null || elementNullability is null || elementNullabilityMetadata is null || !AllowsSourceUndefined(elementType, elementNullability, elementNullabilityMetadata))
+        if (elementType is null || elementNullability is null || elementNullabilityMetadata is null)
         {
             return null;
         }
@@ -388,10 +388,20 @@ sealed partial class ReflectionProvider
             genericParameters: genericParameters,
             typeNullability: elementNullability,
             typeNullabilityMetadata: elementNullabilityMetadata,
-            genericNullability: genericNullability);
+            genericNullability: genericNullability,
+            includeTopLevelReferenceNullability: false);
         return sourceElementType is null
             ? null
-            : new { kind = "array", elementType = SourceUndefinedUnionTypeRef(sourceElementType) };
+            : new
+            {
+                kind = "array",
+                elementType = AllowsSourceUndefined(
+                    elementType,
+                    elementNullability,
+                    elementNullabilityMetadata)
+                        ? SourceUndefinedUnionTypeRef(sourceElementType)
+                        : sourceElementType,
+            };
     }
 
     static bool ParameterAllowsSourceUndefined(

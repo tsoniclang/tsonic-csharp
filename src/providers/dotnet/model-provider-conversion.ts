@@ -76,8 +76,15 @@ export function tryDotnetTypeRefToProviderType(
         ? undefined
         : { kind: "union", types: [elementType, { kind: "literal", value: null }] };
     }
-    case "nullable-reference":
-      return tryDotnetTypeRefToProviderType(type.elementType, `${identityPath}.elementType`);
+    case "nullable-reference": {
+      const elementType = tryDotnetTypeRefToProviderType(
+        type.elementType,
+        `${identityPath}.elementType`,
+      );
+      return elementType === undefined
+        ? undefined
+        : { kind: "union", types: [elementType, { kind: "undefined" }] };
+    }
     case "tuple": {
       const elementTypes = mapDotnetProviderTypes(type.elements, `${identityPath}.elements`);
       return elementTypes === undefined ? undefined : { kind: "tuple", elementTypes };

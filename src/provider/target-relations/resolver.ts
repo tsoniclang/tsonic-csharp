@@ -82,7 +82,9 @@ export function createCsharpProviderRelationResolver(
   });
   const providers = Object.freeze([
     builtIn,
-    ...createCapabilityDotnetProviders(context, contributions),
+    ...createCapabilityDotnetProviders(context, contributions).map(
+      (registration) => registration.provider,
+    ),
   ]);
   const staticCatalogs = contributions.providerRelations.map((contribution) => ({
     providerId: contribution.providerId,
