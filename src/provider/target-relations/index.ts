@@ -1,5 +1,6 @@
 import type {
   ArgumentPassingMode,
+  ExtensionDiagnostic,
   ProviderMemberKey,
   ProviderVirtualDeclarationFact,
 } from "@tsonic/tsts";
@@ -112,6 +113,20 @@ export type CsharpProviderTargetRelation =
       readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
     };
+
+export interface CsharpProviderTargetRejection {
+  readonly source: CsharpProviderSourceIdentity;
+  readonly diagnostic: CsharpProviderTargetRejectionDiagnostic;
+}
+
+export interface CsharpProviderTargetRejectionDiagnostic
+  extends Pick<
+    ExtensionDiagnostic,
+    "extensionId" | "extensionCode" | "numericCode" | "message"
+  > {
+  readonly category: "error";
+  readonly evidence?: readonly { readonly message: string }[];
+}
 
 export type CsharpProviderIdentityResult<
   TIdentity extends CsharpProviderSourceIdentity = CsharpProviderSourceIdentity,
@@ -257,9 +272,72 @@ export function createCsharpProviderRelationCatalog(
   });
 }
 
+export interface CsharpProviderRejectionCatalog {
+  resolve(
+    source: CsharpProviderSourceIdentity,
+  ): CsharpProviderTargetRejectionDiagnostic | undefined;
+  readonly rejections: readonly CsharpProviderTargetRejection[];
+}
+
+export function createCsharpProviderRejectionCatalog(
+  slices: readonly (readonly CsharpProviderTargetRejection[])[],
+): CsharpProviderRejectionCatalog {
+  const rejectionsByIdentity = new Map<string, CsharpProviderTargetRejection>();
+  for (const rejection of slices.flat()) {
+    assertCsharpProviderTargetRejectionContract(rejection);
+    const key = providerSourceIdentityKey(rejection.source);
+    const existing = rejectionsByIdentity.get(key);
+    if (existing === undefined) {
+      rejectionsByIdentity.set(key, rejection);
+      continue;
+    }
+    if (!providerTargetRejectionsEqual(existing, rejection)) {
+      throw new Error(
+        `C# provider rejection conflict for ${formatProviderSourceIdentity(rejection.source)}.`,
+      );
+    }
+  }
+  const rejections = Object.freeze(
+    [...rejectionsByIdentity.values()].sort((left, right) =>
+      providerSourceIdentityKey(left.source).localeCompare(
+        providerSourceIdentityKey(right.source),
+      )),
+  );
+  return Object.freeze({
+    resolve(
+      source: CsharpProviderSourceIdentity,
+    ): CsharpProviderTargetRejectionDiagnostic | undefined {
+      return rejectionsByIdentity.get(providerSourceIdentityKey(source))
+        ?.diagnostic;
+    },
+    rejections,
+  });
+}
+
+export function assertCsharpProviderPolicyIsNonContradictory(
+  relationCatalog: CsharpProviderRelationCatalog,
+  rejectionCatalog: CsharpProviderRejectionCatalog,
+): void {
+  for (const rejection of rejectionCatalog.rejections) {
+    const relations = rejection.source.kind === "type"
+      ? relationCatalog.resolveType(rejection.source)
+      : rejection.source.kind === "value"
+        ? relationCatalog.resolveValue(rejection.source)
+        : rejection.source.kind === "member"
+          ? relationCatalog.resolveMember(rejection.source)
+          : relationCatalog.resolveSignature(rejection.source);
+    if (relations.length > 0) {
+      throw new Error(
+        `C# provider policy maps and rejects the same exact ${formatProviderSourceIdentity(rejection.source)}.`,
+      );
+    }
+  }
+}
+
 export function assertCsharpProviderTargetRelationContract(
   relation: CsharpProviderTargetRelation,
 ): void {
+  assertCsharpProviderSourceIdentityContract(relation.source);
   if (
     relation.source.kind !== relation.kind ||
     relation.targetBinding.target !== "csharp" ||
@@ -331,6 +409,84 @@ export function assertCsharpProviderTargetRelationContract(
   );
   assertMethodTypeArgumentProjections(relation.targetMember);
   assertParameterRelations(relation);
+}
+
+export function assertCsharpProviderTargetRejectionContract(
+  rejection: CsharpProviderTargetRejection,
+): void {
+  assertCsharpProviderSourceIdentityContract(rejection.source);
+  if (
+    rejection.diagnostic.category !== "error" ||
+    rejection.diagnostic.extensionId.length === 0 ||
+    rejection.diagnostic.extensionCode.length === 0 ||
+    !Number.isSafeInteger(rejection.diagnostic.numericCode) ||
+    rejection.diagnostic.numericCode <= 0
+  ) {
+    throw new Error(
+      "C# provider rejection requires one exact error diagnostic.",
+    );
+  }
+}
+
+function assertCsharpProviderSourceIdentityContract(
+  source: CsharpProviderSourceIdentity,
+): void {
+  if (
+    source.providerId.length === 0 ||
+    source.providerVersion.length === 0 ||
+    source.providerModuleId.length === 0 ||
+    source.moduleSpecifier.length === 0 ||
+    source.exportId.length === 0 ||
+    source.exportName.length === 0
+  ) {
+    throw new Error("C# provider source identity is incomplete.");
+  }
+  if (source.kind === "member") {
+    if (
+      source.memberId.length === 0 ||
+      typeof source.memberStatic !== "boolean" ||
+      !providerMemberKeyIsValid(source.memberKey)
+    ) {
+      throw new Error("C# provider member source identity is incomplete.");
+    }
+    return;
+  }
+  if (source.kind === "signature") {
+    if (source.signatureId.length === 0) {
+      throw new Error("C# provider signature source identity is incomplete.");
+    }
+    const memberFields = [
+      source.memberId,
+      source.memberStatic,
+      source.memberKey,
+    ];
+    const memberFieldCount = memberFields.filter((field) =>
+      field !== undefined
+    ).length;
+    if (memberFieldCount !== 0 && memberFieldCount !== memberFields.length) {
+      throw new Error(
+        "C# provider signature source identity has partial member provenance.",
+      );
+    }
+    if (
+      memberFieldCount > 0 &&
+      (
+        source.memberId?.length === 0 ||
+        typeof source.memberStatic !== "boolean" ||
+        !providerMemberKeyIsValid(source.memberKey)
+      )
+    ) {
+      throw new Error(
+        "C# provider signature source identity has invalid member provenance.",
+      );
+    }
+  }
+}
+
+function providerMemberKeyIsValid(key: ProviderMemberKey | undefined): boolean {
+  return key !== undefined &&
+    (key.kind === "property-key" || key.kind === "well-known-symbol") &&
+    key.name.length > 0;
 }
 
 function assertMethodTypeArgumentProjections(
@@ -552,10 +708,21 @@ function providerTargetRelationsEqual(
     canonicalRelationValue(left) === canonicalRelationValue(right);
 }
 
+function providerTargetRejectionsEqual(
+  left: CsharpProviderTargetRejection,
+  right: CsharpProviderTargetRejection,
+): boolean {
+  return canonicalPolicyValue(left) === canonicalPolicyValue(right);
+}
+
 function canonicalRelationValue(
   relation: CsharpProviderTargetRelation,
 ): string {
-  return JSON.stringify(canonicalizeRelationValue(relation));
+  return canonicalPolicyValue(relation);
+}
+
+function canonicalPolicyValue(value: unknown): string {
+  return JSON.stringify(canonicalizeRelationValue(value));
 }
 
 function canonicalizeRelationValue(value: unknown): unknown {

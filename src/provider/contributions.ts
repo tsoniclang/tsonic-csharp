@@ -21,12 +21,13 @@ import type {
   DotnetReflectionTypeDataProvider,
 } from "../providers/dotnet/reflection/provider.js";
 import type {
+  CsharpProviderTargetRejection,
   CsharpProviderTargetRelation,
 } from "./target-relations/index.js";
 
 export const csharpDotnetProviderContributionKind = "csharp-dotnet-provider";
-export const csharpProviderRelationsContributionKind =
-  "csharp-provider-relations";
+export const csharpProviderPolicyContributionKind =
+  "csharp-provider-policy";
 
 export interface CsharpDotnetProviderContribution extends TargetCapabilityContribution {
   readonly kind: typeof csharpDotnetProviderContributionKind;
@@ -37,17 +38,18 @@ export interface CsharpDotnetProviderContribution extends TargetCapabilityContri
   readonly targetFramework?: string;
 }
 
-export interface CsharpProviderRelationsContribution
+export interface CsharpProviderPolicyContribution
   extends TargetCapabilityContribution {
-  readonly kind: typeof csharpProviderRelationsContributionKind;
+  readonly kind: typeof csharpProviderPolicyContributionKind;
   readonly providerId: string;
   readonly providerVersion: string;
   readonly relations: readonly CsharpProviderTargetRelation[];
+  readonly rejections: readonly CsharpProviderTargetRejection[];
 }
 
 export interface CollectedCsharpCapabilityContributions {
   readonly dotnetProviders: readonly CsharpDotnetProviderContribution[];
-  readonly providerRelations: readonly CsharpProviderRelationsContribution[];
+  readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
 }
 
 export interface CsharpCapabilityDotnetProvider {
@@ -56,16 +58,18 @@ export interface CsharpCapabilityDotnetProvider {
   readonly targetFramework?: string;
 }
 
-export function csharpProviderRelationsContribution(
+export function csharpProviderPolicyContribution(
   providerId: string,
   providerVersion: string,
   relations: readonly CsharpProviderTargetRelation[],
-): CsharpProviderRelationsContribution {
+  rejections: readonly CsharpProviderTargetRejection[],
+): CsharpProviderPolicyContribution {
   return freezeValue({
-    kind: csharpProviderRelationsContributionKind,
+    kind: csharpProviderPolicyContributionKind,
     providerId,
     providerVersion,
     relations,
+    rejections,
   });
 }
 
@@ -73,7 +77,7 @@ export function collectCsharpCapabilityContributions(
   context: TargetProviderContext,
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
-  const providerRelations: CsharpProviderRelationsContribution[] = [];
+  const providerPolicies: CsharpProviderPolicyContribution[] = [];
   for (const capability of context.selectedCapabilities) {
     const contributions = capability.createTargetContributions?.({
       project: context.project,
@@ -95,8 +99,8 @@ export function collectCsharpCapabilityContributions(
           capability.moduleOwnership,
           contribution,
         ));
-      } else if (contribution.kind === csharpProviderRelationsContributionKind) {
-        providerRelations.push(validateCsharpProviderRelationsContribution(
+      } else if (contribution.kind === csharpProviderPolicyContributionKind) {
+        providerPolicies.push(validateCsharpProviderPolicyContribution(
           capability.id,
           capability.moduleOwnership,
           contribution,
@@ -106,7 +110,7 @@ export function collectCsharpCapabilityContributions(
   }
   return Object.freeze({
     dotnetProviders: Object.freeze(dotnetProviders),
-    providerRelations: Object.freeze(providerRelations),
+    providerPolicies: Object.freeze(providerPolicies),
   });
 }
 
@@ -142,11 +146,11 @@ export function createCapabilityDotnetProviders(
   return Object.freeze(providers);
 }
 
-function validateCsharpProviderRelationsContribution(
+function validateCsharpProviderPolicyContribution(
   capabilityId: string,
   moduleOwnership: readonly { readonly specifierPrefix: string }[],
   contribution: TargetCapabilityContribution,
-): CsharpProviderRelationsContribution {
+): CsharpProviderPolicyContribution {
   if (
     !isRecord(contribution) ||
     !hasExactFields(contribution, [
@@ -154,17 +158,19 @@ function validateCsharpProviderRelationsContribution(
       "providerId",
       "providerVersion",
       "relations",
+      "rejections",
     ]) ||
     !nonEmptyString(contribution.providerId) ||
     !nonEmptyString(contribution.providerVersion) ||
-    !Array.isArray(contribution.relations)
+    !Array.isArray(contribution.relations) ||
+    !Array.isArray(contribution.rejections)
   ) {
     throw new Error(
-      `C# target capability '${capabilityId}' supplied an invalid '${csharpProviderRelationsContributionKind}' contribution.`,
+      `C# target capability '${capabilityId}' supplied an invalid '${csharpProviderPolicyContributionKind}' contribution.`,
     );
   }
   const snapshot = freezeValue(contribution) as unknown as
-    CsharpProviderRelationsContribution;
+    CsharpProviderPolicyContribution;
   for (const relation of snapshot.relations) {
     validateCsharpProviderRelation(
       capabilityId,
@@ -174,7 +180,74 @@ function validateCsharpProviderRelationsContribution(
       relation,
     );
   }
+  for (const rejection of snapshot.rejections) {
+    validateCsharpProviderRejection(
+      capabilityId,
+      moduleOwnership,
+      snapshot.providerId,
+      snapshot.providerVersion,
+      rejection,
+    );
+  }
   return snapshot;
+}
+
+function validateCsharpProviderRejection(
+  capabilityId: string,
+  moduleOwnership: readonly { readonly specifierPrefix: string }[],
+  providerId: string,
+  providerVersion: string,
+  rejection: CsharpProviderTargetRejection,
+): void {
+  if (
+    !isRecord(rejection) ||
+    !hasExactFields(rejection, ["source", "diagnostic"]) ||
+    !isValidCsharpProviderSource(
+      rejection.source,
+      moduleOwnership,
+      providerId,
+      providerVersion,
+    ) ||
+    !isValidProviderRejectionDiagnostic(rejection.diagnostic)
+  ) {
+    throw new Error(
+      `C# target capability '${capabilityId}' supplied an invalid provider rejection.`,
+    );
+  }
+}
+
+function isValidProviderRejectionDiagnostic(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !hasExactFields(value, [
+      "extensionId",
+      "extensionCode",
+      "numericCode",
+      "category",
+      "message",
+      "evidence",
+    ]) ||
+    value.category !== "error" ||
+    !nonEmptyString(value.extensionId) ||
+    !nonEmptyString(value.extensionCode) ||
+    !Number.isSafeInteger(value.numericCode) ||
+    Number(value.numericCode) <= 0 ||
+    !nonEmptyString(value.message) ||
+    (
+      value.evidence !== undefined &&
+      (
+        !Array.isArray(value.evidence) ||
+        !value.evidence.every((entry) =>
+          isRecord(entry) &&
+          hasExactFields(entry, ["message"]) &&
+          nonEmptyString(entry.message)
+        )
+      )
+    )
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function validateCsharpProviderRelation(
@@ -189,16 +262,13 @@ function validateCsharpProviderRelation(
     !["type", "value", "member", "signature"].includes(
       String(relation.kind),
     ) ||
-    !isRecord(relation.source) ||
+    !isValidCsharpProviderSource(
+      relation.source,
+      moduleOwnership,
+      providerId,
+      providerVersion,
+    ) ||
     relation.source.kind !== relation.kind ||
-    relation.source.providerId !== providerId ||
-    relation.source.providerVersion !== providerVersion ||
-    !nonEmptyString(relation.source.providerModuleId) ||
-    !nonEmptyString(relation.source.moduleSpecifier) ||
-    !nonEmptyString(relation.source.exportId) ||
-    !nonEmptyString(relation.source.exportName) ||
-    !moduleOwnership.some((ownership) =>
-      relation.source.moduleSpecifier.startsWith(ownership.specifierPrefix)) ||
     !isRecord(relation.targetBinding) ||
     relation.targetBinding.target !== "csharp" ||
     !nonEmptyString(relation.targetBinding.id)
@@ -218,6 +288,24 @@ function validateCsharpProviderRelation(
       `C# target capability '${capabilityId}' supplied a provider ${relation.kind} relation without an exact target member.`,
     );
   }
+}
+
+function isValidCsharpProviderSource(
+  source: unknown,
+  moduleOwnership: readonly { readonly specifierPrefix: string }[],
+  providerId: string,
+  providerVersion: string,
+): source is CsharpProviderTargetRelation["source"] {
+  return isRecord(source) &&
+    ["type", "value", "member", "signature"].includes(String(source.kind)) &&
+    source.providerId === providerId &&
+    source.providerVersion === providerVersion &&
+    nonEmptyString(source.providerModuleId) &&
+    nonEmptyString(source.moduleSpecifier) &&
+    nonEmptyString(source.exportId) &&
+    nonEmptyString(source.exportName) &&
+    moduleOwnership.some((ownership) =>
+      String(source.moduleSpecifier).startsWith(ownership.specifierPrefix));
 }
 
 function validateCsharpDotnetProviderContribution(

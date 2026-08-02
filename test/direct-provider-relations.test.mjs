@@ -7,10 +7,25 @@ import {
   test,
 } from "./direct-provider-selection.helpers.mjs";
 import {
+  assertCsharpProviderPolicyIsNonContradictory,
+  createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
 } from "../dist/provider/target-relations/index.js";
+
+function providerRejection(source, message = "unsupported provider operation") {
+  return {
+    source,
+    diagnostic: {
+      extensionId: source.providerId,
+      extensionCode: "FIXTURE_PROVIDER_OPERATION_UNSUPPORTED",
+      numericCode: 9190001,
+      category: "error",
+      message,
+    },
+  };
+}
 
 test("provider relation lookup uses the complete selected signature identity", () => {
   const declaration = providerDeclaration({
@@ -178,6 +193,63 @@ test("contradictory duplicate provider relations fail closed", () => {
   assert.throws(
     () => createCsharpProviderRelationCatalog([[relation, conflicting]]),
     /provider relation conflict/u,
+  );
+});
+
+test("provider rejections resolve only from the complete selected identity", () => {
+  const declaration = providerDeclaration();
+  const identity = providerSignatureSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  const rejection = providerRejection(identity.identity);
+  const catalog = createCsharpProviderRejectionCatalog([[rejection]]);
+
+  assert.deepEqual(catalog.resolve(identity.identity), rejection.diagnostic);
+  assert.equal(catalog.rejections.length, 1);
+
+  const different = providerSignatureSourceIdentity({
+    ...declaration,
+    signatureId: "provider.signature.other",
+  });
+  assert.equal(different.kind, "resolved");
+  assert.equal(catalog.resolve(different.identity), undefined);
+});
+
+test("provider rejection slices deduplicate exact repeats and reject conflicts", () => {
+  const identity = providerSignatureSourceIdentity(providerDeclaration());
+  assert.equal(identity.kind, "resolved");
+  const rejection = providerRejection(identity.identity);
+  const catalog = createCsharpProviderRejectionCatalog([
+    [rejection],
+    [{ ...rejection, diagnostic: { ...rejection.diagnostic } }],
+  ]);
+  assert.equal(catalog.rejections.length, 1);
+
+  assert.throws(
+    () => createCsharpProviderRejectionCatalog([[
+      rejection,
+      providerRejection(identity.identity, "contradictory rejection"),
+    ]]),
+    /provider rejection conflict/u,
+  );
+});
+
+test("one exact provider identity cannot be both mapped and rejected", () => {
+  const declaration = providerDeclaration();
+  const identity = providerSignatureSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  const relationCatalog = createCsharpProviderRelationCatalog([[
+    signatureRelation({ declaration }),
+  ]]);
+  const rejectionCatalog = createCsharpProviderRejectionCatalog([[
+    providerRejection(identity.identity),
+  ]]);
+
+  assert.throws(
+    () => assertCsharpProviderPolicyIsNonContradictory(
+      relationCatalog,
+      rejectionCatalog,
+    ),
+    /maps and rejects the same exact provider/u,
   );
 });
 

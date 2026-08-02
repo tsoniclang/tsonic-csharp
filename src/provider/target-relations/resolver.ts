@@ -28,6 +28,8 @@ import type {
   CsharpProviderTargetRelation,
 } from "./index.js";
 import {
+  assertCsharpProviderPolicyIsNonContradictory,
+  createCsharpProviderRejectionCatalog,
   createCsharpProviderRelationCatalog,
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
@@ -86,14 +88,26 @@ export function createCsharpProviderRelationResolver(
       (registration) => registration.provider,
     ),
   ]);
-  const staticCatalogs = contributions.providerRelations.map((contribution) => ({
+  const staticCatalogs = contributions.providerPolicies.map((contribution) => ({
     providerId: contribution.providerId,
     providerVersion: contribution.providerVersion,
-    catalog: createCsharpProviderRelationCatalog([contribution.relations]),
-  }));
+    relationCatalog: createCsharpProviderRelationCatalog([
+      contribution.relations,
+    ]),
+    rejectionCatalog: createCsharpProviderRejectionCatalog([
+      contribution.rejections,
+    ]),
+  })).map((policy) => {
+    assertCsharpProviderPolicyIsNonContradictory(
+      policy.relationCatalog,
+      policy.rejectionCatalog,
+    );
+    return policy;
+  });
   const staticBindings = uniqueStaticBindings(
     staticCatalogs.flatMap((entry) =>
-      entry.catalog.relations.map((relation) => relation.targetBinding)),
+      entry.relationCatalog.relations.map((relation) =>
+        relation.targetBinding)),
   );
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
@@ -128,39 +142,43 @@ export function createCsharpProviderRelationResolver(
         const source = providerTypeSourceIdentity(declaration);
         return source.kind === "missing"
           ? source
-          : {
-              kind: "resolved",
-              relations: staticCatalog.catalog.resolveType(source.identity),
-            };
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveType(source.identity),
+            );
       }
       case "value": {
         const source = providerValueSourceIdentity(declaration);
         return source.kind === "missing"
           ? source
-          : {
-              kind: "resolved",
-              relations: staticCatalog.catalog.resolveValue(source.identity),
-            };
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveValue(source.identity),
+            );
       }
       case "member": {
         const source = providerMemberSourceIdentity(declaration);
         return source.kind === "missing"
           ? source
-          : {
-              kind: "resolved",
-              relations: staticCatalog.catalog.resolveMember(source.identity),
-            };
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveMember(source.identity),
+            );
       }
       case "signature": {
         const source = providerSignatureSourceIdentity(declaration);
         return source.kind === "missing"
           ? source
-          : {
-              kind: "resolved",
-              relations: staticCatalog.catalog.resolveSignature(
+          : resolveStaticProviderPolicy(
+              staticCatalog,
+              source.identity,
+              staticCatalog.relationCatalog.resolveSignature(
                 source.identity,
               ),
-            };
+            );
       }
     }
   };
@@ -205,6 +223,28 @@ export function createCsharpProviderRelationResolver(
       );
     },
   });
+}
+
+type StaticProviderPolicy = {
+  readonly providerId: string;
+  readonly providerVersion: string;
+  readonly relationCatalog: ReturnType<
+    typeof createCsharpProviderRelationCatalog
+  >;
+  readonly rejectionCatalog: ReturnType<
+    typeof createCsharpProviderRejectionCatalog
+  >;
+};
+
+function resolveStaticProviderPolicy(
+  policy: StaticProviderPolicy,
+  source: Parameters<StaticProviderPolicy["rejectionCatalog"]["resolve"]>[0],
+  relations: readonly CsharpProviderTargetRelation[],
+): CsharpProviderRelationResolution {
+  const diagnostic = policy.rejectionCatalog.resolve(source);
+  return diagnostic === undefined
+    ? { kind: "resolved", relations }
+    : { kind: "rejected", diagnostic };
 }
 
 function uniqueStaticBindings(
