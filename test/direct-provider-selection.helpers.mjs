@@ -461,6 +461,17 @@ export function directProviderHost(options = {}) {
             : [...options.projectConstructors.get(declaration).values()];
         },
       }),
+      objectShapes: options.objectShapes ?? Object.freeze({
+        resolveNode() {
+          return undefined;
+        },
+        resolveTarget() {
+          return undefined;
+        },
+        resolveProjectConstructibleSelectedType() {
+          return { kind: "unchanged" };
+        },
+      }),
       target: options.target ?? { id: "csharp" },
       types: Object.freeze({
         resolveNode(node) {

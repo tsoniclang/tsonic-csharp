@@ -19,6 +19,9 @@ import {
   targetParameter,
   test,
 } from "./direct-provider-selection.helpers.mjs";
+import {
+  instantiateCsharpProviderCall,
+} from "../dist/policy/members/index.js";
 
 test("an exact selected provider signature closes one target call", () => {
   const fixture = createCallFixture({
@@ -764,6 +767,51 @@ test("representable numeric literals satisfy exact integral target parameters", 
   assert.equal(selected.kind, "resolved");
 });
 
+test("exact generated object-shape contracts satisfy their implemented target interface", () => {
+  const sourceInterface = {
+    kind: "target-named",
+    id: "tsonic.source:Input",
+    csharpSourceDeclarationKind: "interface",
+  };
+  const generatedShape = {
+    kind: "target-named",
+    id: "tsonic.shape:Input",
+  };
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [generatedShape],
+    targetParameters: [targetParameter("value", sourceInterface)],
+    objectShapes: Object.freeze({
+      resolveNode() {
+        return {
+          targetType: generatedShape,
+          members: [],
+          implements: [sourceInterface],
+        };
+      },
+      resolveTarget() {
+        return undefined;
+      },
+    }),
+  });
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  const instantiated = instantiateCsharpProviderCall(
+    fixture.host,
+    fixture.relation,
+    fixture.source,
+    fixture.sourceFile,
+  );
+  assert.equal(instantiated.kind, "resolved");
+  assert.equal(
+    instantiated.argumentConversions[0]?.selection.proof,
+    "object-shape-interface",
+  );
+});
+
 function createCallFixture(options = {}) {
   const declaration = options.declaration ?? providerDeclaration();
   const binding = options.binding ?? providerBinding();
@@ -858,6 +906,9 @@ function createCallFixture(options = {}) {
     ]],
     nodeTypes,
     semanticTypes,
+    ...(options.objectShapes === undefined
+      ? {}
+      : { objectShapes: options.objectShapes }),
     ...(options.projectDeclarations === undefined
       ? {}
       : { projectDeclarations: options.projectDeclarations }),

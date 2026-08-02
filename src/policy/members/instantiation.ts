@@ -18,6 +18,7 @@ import type {
 import type {
   CsharpTargetMember,
   CsharpProjectTypePolicy,
+  CsharpObjectShapePolicy,
   CsharpTypePolicy,
   TargetTypeRef,
 } from "../types/index.js";
@@ -81,6 +82,7 @@ export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;
+  readonly objectShapes?: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly target: TargetSelection;
   readonly types: CsharpTypePolicy;

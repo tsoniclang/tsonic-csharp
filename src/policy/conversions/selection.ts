@@ -51,6 +51,7 @@ export type CsharpConversionSelection =
         | "literal"
         | "nullable"
         | "reference"
+        | "object-shape-interface"
         | "collection-interface"
         | "provider-operator";
       readonly providerOperatorId?: string;
@@ -255,7 +256,7 @@ export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpTranslationContext,
     "ast" | "projectTypes" | "providers" | "target"
-  >,
+  > & Pick<Partial<CsharpTranslationContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -264,6 +265,18 @@ export function selectCsharpExpressionConversion(
   const selected = selectCsharpConversion(input, source, target, mode);
   if (selected.kind !== "rejected" || target === undefined) {
     return selected;
+  }
+  const objectShape = input.objectShapes?.resolveNode(expression) ??
+    input.objectShapes?.resolveTarget(source);
+  if (
+    source !== undefined &&
+    objectShape !== undefined &&
+    targetTypeRefEquals(objectShape.targetType, source) &&
+    objectShape.implements?.some((implemented) =>
+      targetTypeRefEquals(implemented, target)
+    ) === true
+  ) {
+    return { kind: "implicit", proof: "object-shape-interface" };
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
   if (runtimeUnionArms !== undefined) {
