@@ -2,8 +2,10 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpProviderTargetRelation,
 } from "../../provider/target-relations/index.js";
@@ -21,7 +23,7 @@ import {
 } from "./provider-operations.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
 >;
 type CsharpProviderMemberRelation = Extract<
   CsharpProviderTargetRelation,
@@ -63,7 +65,7 @@ export function selectCsharpProviderProperty(
   propertyAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderPropertySelection {
-  const source = host.queries(sourceFile).checker
+  const source = host.semantics(sourceFile)
     .getResolvedPropertyAccessInfo(propertyAccess);
   if (source === undefined) {
     return {

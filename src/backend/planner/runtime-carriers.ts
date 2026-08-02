@@ -12,10 +12,7 @@ import type {
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
-import {
-  sourceLocationEvidence,
-  unsupportedNodeDiagnostic,
-} from "./diagnostics.js";
+import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
 export type CsharpRuntimeCarrierResolution =
   | {
@@ -31,7 +28,6 @@ export type CsharpRuntimeCarrierResolution =
 
 export interface CsharpRuntimeCarrierEvidence {
   readonly message: string;
-  readonly subject?: Node;
 }
 
 export function getRuntimeCarrierForExpression(
@@ -58,7 +54,6 @@ export function resolveRuntimeCarrierForExpression(
           "C# runtime representation is not proven by authored source facts, the selected source profile, project declarations, or an exact provider relation.",
         evidence: [{
           message: "C# type policy found no exact runtime representation.",
-          subject: sourceNode,
         }],
       }
     : {
@@ -67,7 +62,6 @@ export function resolveRuntimeCarrierForExpression(
         evidence: [{
           message:
             "C# runtime representation resolved lazily from the checked source program and target policy.",
-          subject: sourceNode,
         }],
       };
 }
@@ -108,10 +102,7 @@ export function missingCarrierDiagnosticDetail(
   }
   return {
     reason: resolution.reason,
-    evidence: resolution.evidence.flatMap((entry) => [
-      entry.message,
-      ...sourceLocationEvidence(entry.subject),
-    ]),
+    evidence: resolution.evidence.map((entry) => entry.message),
   };
 }
 

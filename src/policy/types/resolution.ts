@@ -11,15 +11,12 @@ import type {
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
-  SourceFileQueries,
   Symbol,
   Type,
 } from "@tsonic/tsts";
-import {
-  sourceFileIdentity,
-  sourceNodeIdentity,
-} from "@tsonic/target-api";
 import type {
+  SourceDeclarationReference,
+  SourceFileSemantics,
   SourceProgramNavigation,
   TargetSelection,
 } from "@tsonic/target-api";
@@ -91,6 +88,10 @@ import {
 import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
+import type {
+  CsharpProjectTypeCatalog,
+  CsharpProjectTypePolicy,
+} from "./project-types.js";
 import {
   csharpJsArrayTargetType,
   csharpJsDateTargetType,
@@ -109,11 +110,14 @@ export interface CsharpTypePolicyBaseHost {
   readonly navigation: SourceProgramNavigation;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
-  queries(sourceFile: SourceFile): SourceFileQueries;
-  queriesFor(node: Node): SourceFileQueries;
+  semantics(sourceFile: SourceFile): SourceFileSemantics;
+  semanticsFor(node: Node): SourceFileSemantics;
+  hasSemantics(sourceFile: SourceFile): boolean;
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly projectTypeCatalog: CsharpProjectTypeCatalog;
+  projectTypes(): CsharpProjectTypePolicy;
   readonly structuralTypes: {
     resolveNode(
       node: Node,
@@ -135,6 +139,10 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveDeclaredNamedType(
+    reference: SourceDeclarationReference,
+    typeArguments: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined;
 }
 
 interface CsharpTypeResolutionState {
@@ -152,6 +160,7 @@ export function createCsharpTypePolicy(
     resolveType,
     resolveValue,
     resolveSelectedType,
+    resolveDeclaredNamedType,
   };
 
   function resolveNode(
@@ -200,6 +209,21 @@ export function createCsharpTypePolicy(
     );
   }
 
+  function resolveDeclaredNamedType(
+    reference: SourceDeclarationReference,
+    typeArguments: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined {
+    return reference.project
+      ? projectSourceDeclarationTargetType(
+          reference.declaration,
+          typeArguments,
+        )
+      : resolveProviderType(
+          [reference.symbol, reference.declaration],
+          typeArguments,
+        );
+  }
+
   function resolveNodeWithState(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -209,8 +233,8 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     const queries = sourceFile === undefined
-      ? host.queriesFor(node)
-      : host.queries(sourceFile);
+      ? host.semanticsFor(node)
+      : host.semantics(sourceFile);
     const direct = resolveDirectSourceFacts(
       sourceFactSubjectsForNode(node, queries),
       queries.sourceFile,
@@ -242,7 +266,7 @@ export function createCsharpTypePolicy(
           : { kind: "array", element };
       }
       return resolveTypeWithState(
-        queries.checker.getTypeFromTypeNode(node),
+        queries.getTypeFromTypeNode(node),
         queries.sourceFile,
         nextState(state),
       );
@@ -330,7 +354,7 @@ export function createCsharpTypePolicy(
       return structuralType;
     }
     return resolveTypeWithState(
-      queries.checker.getTypeAtLocation(node),
+      queries.getTypeAtLocation(node),
       queries.sourceFile,
       nextState(state),
     );
@@ -338,7 +362,7 @@ export function createCsharpTypePolicy(
 
   function resolveTupleTypeNode(
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const syntaxElements = host.ast.elements(node);
@@ -400,7 +424,7 @@ export function createCsharpTypePolicy(
 
   function resolveSelectedExpressionType(
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     if (
@@ -501,7 +525,7 @@ export function createCsharpTypePolicy(
       host.ast.is.IsNewExpression(node)
     ) {
       const selection = selectCsharpTargetCall(
-        { ...host, types: policy },
+        { ...host, projectTypes: host.projectTypes(), types: policy },
         node,
         queries.sourceFile,
       );
@@ -524,7 +548,7 @@ export function createCsharpTypePolicy(
     }
     if (host.ast.is.IsPropertyAccessExpression(node)) {
       const selection = selectCsharpTargetProperty(
-        { ...host, types: policy },
+        { ...host, projectTypes: host.projectTypes(), types: policy },
         node,
         queries.sourceFile,
       );
@@ -550,7 +574,7 @@ export function createCsharpTypePolicy(
     }
     if (host.ast.is.IsElementAccessExpression(node)) {
       const selection = selectCsharpTargetElement(
-        { ...host, types: policy },
+        { ...host, projectTypes: host.projectTypes(), types: policy },
         node,
         queries.sourceFile,
       );
@@ -599,13 +623,13 @@ export function createCsharpTypePolicy(
 
   function resolveSourceOwnedCallResult(
     source: NonNullable<
-      ReturnType<SourceFileQueries["checker"]["getResolvedCallInfo"]>
+      ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
     >,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     return resolveSelectedDeclarationResult(
-      queries.checker.getSignatureDeclaration(source.selectedSignature),
+      queries.getSignatureDeclaration(source.selectedSignature),
       source.sourceResultType,
       queries,
       state,
@@ -614,9 +638,9 @@ export function createCsharpTypePolicy(
 
   function resolveSourceOwnedConstructionResult(
     source: NonNullable<
-      ReturnType<SourceFileQueries["checker"]["getResolvedCallInfo"]>
+      ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
     >,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const declaration = source.sourceCallee.selectedDeclaration;
@@ -660,7 +684,7 @@ export function createCsharpTypePolicy(
   function resolveSelectedDeclarationResult(
     declaration: Node | undefined,
     semanticType: Type | undefined,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const declarationType = declaration === undefined ||
@@ -720,7 +744,7 @@ export function createCsharpTypePolicy(
 
   function resolveTypeReferenceNode(
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const reference = host.ast.as.AsTypeReferenceNode(node)!;
@@ -746,11 +770,11 @@ export function createCsharpTypePolicy(
     if (providerType !== undefined) {
       return providerType;
     }
-    const semanticType = queries.checker.getTypeFromTypeNode(node);
+    const semanticType = queries.getTypeFromTypeNode(node);
     const sourceProfileType = semanticType === undefined
       ? undefined
       : resolveSourceProfileType(
-          classifyCsharpSourceProfileType(semanticType, queries),
+          classifyCsharpSourceProfileType(semanticType, queries, host.ast),
           typeArguments as readonly TargetTypeRef[],
         );
     if (sourceProfileType !== undefined) {
@@ -774,7 +798,7 @@ export function createCsharpTypePolicy(
 
   function resolveSourceValueDeclaration(
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const reference = host.navigation.referenceFor(node);
@@ -788,7 +812,7 @@ export function createCsharpTypePolicy(
       const resolved = resolveAuthoredAndSelectedSourceType(
         syntax.type,
         sourceFile,
-        queries.checker.getTypeAtLocation(node),
+        queries.getTypeAtLocation(node),
         queries.sourceFile,
         state,
       );
@@ -812,11 +836,13 @@ export function createCsharpTypePolicy(
     selectedSourceFile: SourceFile,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const authored = resolveNodeWithState(
-      authoredTypeNode,
-      authoredSourceFile,
-      nextState(state),
-    );
+    const authored = host.hasSemantics(authoredSourceFile)
+      ? resolveNodeWithState(
+          authoredTypeNode,
+          authoredSourceFile,
+          nextState(state),
+        )
+      : undefined;
     const selected = resolveTypeWithState(
       selectedType,
       selectedSourceFile,
@@ -825,19 +851,19 @@ export function createCsharpTypePolicy(
     if (authored === undefined || selectedType === undefined) {
       return authored ?? selected;
     }
-    const authoredSemanticType = host.queries(authoredSourceFile).checker
+    const authoredSemanticType = host.semantics(authoredSourceFile)
       .getTypeFromTypeNode(authoredTypeNode);
     if (authoredSemanticType === selectedType) {
       return authored;
     }
-    const selectedQueries = host.queries(selectedSourceFile);
-    if (!selectedQueries.typeShape.isUnion(selectedType)) {
+    const selectedQueries = host.semantics(selectedSourceFile);
+    if (!selectedQueries.isUnion(selectedType)) {
       return selected;
     }
-    const selectedMembers = selectedQueries.typeShape
+    const selectedMembers = selectedQueries
       .getUnionOrIntersectionTypes(selectedType);
     const selectedValueMembers = selectedMembers.filter(
-      (member) => !selectedQueries.typeShape.isNullish(member),
+      (member) => !selectedQueries.isNullish(member),
     );
     return selectedValueMembers.length === 1 &&
         selectedValueMembers[0] === authoredSemanticType &&
@@ -916,7 +942,7 @@ export function createCsharpTypePolicy(
     if (type === undefined || state.depth > maximumTypeResolutionDepth) {
       return undefined;
     }
-    const queries = host.queries(sourceFile);
+    const queries = host.semantics(sourceFile);
     const subjects = sourceFactSubjectsForType(type, queries);
     const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
     if (direct !== undefined) {
@@ -930,31 +956,31 @@ export function createCsharpTypePolicy(
     if (providerType !== undefined) {
       return providerType;
     }
-    const typeParameter = resolveTypeParameter(type, queries);
+    const typeParameter = resolveTypeParameter(type, queries, host.ast);
     if (typeParameter !== undefined) {
       return typeParameter;
     }
-    if (queries.typeShape.isAny(type)) {
+    if (queries.isAny(type)) {
       return csharpAnyTargetType(
         readCsharpTypescriptCompatibilityMode(host.target),
       );
     }
-    if (queries.typeShape.isUnknown(type)) {
+    if (queries.isUnknown(type)) {
       return { kind: "opaque", id: "unknown" };
     }
-    if (queries.typeShape.isNever(type)) {
+    if (queries.isNever(type)) {
       return { kind: "opaque", id: "never" };
     }
-    if (queries.typeShape.isNullish(type)) {
+    if (queries.isNullish(type)) {
       return isUndefinedType(type, queries)
         ? csharpRuntimeUndefinedTargetType()
         : csharpRuntimeNullTargetType();
     }
-    if (queries.typeShape.isUnion(type)) {
+    if (queries.isUnion(type)) {
       return resolveUnionType(type, queries, state);
     }
-    if (queries.typeShape.isTuple(type)) {
-      const rawSourceElements = queries.typeShape.getTupleElementTypes(type);
+    if (queries.isTuple(type)) {
+      const rawSourceElements = queries.getTupleElementTypes(type);
       const sourceElements = definedValues(
         rawSourceElements,
       );
@@ -971,7 +997,7 @@ export function createCsharpTypePolicy(
             elements: elements as readonly TargetTypeRef[],
           };
     }
-    const profileType = classifyCsharpSourceProfileType(type, queries);
+    const profileType = classifyCsharpSourceProfileType(type, queries, host.ast);
     if (profileType !== undefined) {
       const resolvedProfileType = resolveSourceProfileType(
         profileType,
@@ -993,19 +1019,19 @@ export function createCsharpTypePolicy(
     if (callable !== undefined) {
       return callable;
     }
-    if (queries.typeShape.isBooleanLike(type)) {
+    if (queries.isBooleanLike(type)) {
       return csharpSourcePrimitiveTargetType("bool");
     }
-    if (queries.typeShape.isNumberLike(type)) {
+    if (queries.isNumberLike(type)) {
       return csharpSourcePrimitiveTargetType("float64");
     }
-    if (queries.typeShape.isStringLike(type)) {
+    if (queries.isStringLike(type)) {
       return csharpStringTargetType();
     }
-    if (queries.typeShape.isBigIntLike(type)) {
+    if (queries.isBigIntLike(type)) {
       return csharpBigIntegerTargetType();
     }
-    if (queries.typeShape.isVoidLike(type)) {
+    if (queries.isVoidLike(type)) {
       return csharpVoidTargetType();
     }
     return undefined;
@@ -1129,18 +1155,17 @@ export function createCsharpTypePolicy(
 
   function resolveSemanticTypeArguments(
     type: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): readonly TargetTypeRef[] | undefined {
-    if (!queries.typeShape.isTypeReference(type)) {
+    if (!queries.isTypeReference(type)) {
       return [];
     }
-    const sourceArguments = queries.typeShape.getTypeArguments(type);
-    const presentArguments = definedValues(sourceArguments);
-    if (presentArguments.length !== sourceArguments.length) {
+    const sourceArguments = queries.getEffectiveTypeArguments(type);
+    if (sourceArguments === undefined) {
       return undefined;
     }
-    const resolved = presentArguments.map((argument) =>
+    const resolved = sourceArguments.map((argument) =>
       resolveTypeWithState(argument, queries.sourceFile, nextState(state))
     );
     return resolved.some((argument) => argument === undefined)
@@ -1246,16 +1271,16 @@ export function createCsharpTypePolicy(
 
   function resolveUnionType(
     type: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const rawSourceMembers = queries.typeShape.getUnionOrIntersectionTypes(type);
+    const rawSourceMembers = queries.getUnionOrIntersectionTypes(type);
     const sourceMembers = definedValues(rawSourceMembers);
     if (sourceMembers.length !== rawSourceMembers.length) {
       return undefined;
     }
     const nonNullish = sourceMembers.filter(
-      (member) => !queries.typeShape.isNullish(member),
+      (member) => !queries.isNullish(member),
     );
     const resolved = nonNullish.map((member) =>
       resolveTypeWithState(member, queries.sourceFile, nextState(state))
@@ -1307,10 +1332,10 @@ export function createCsharpTypePolicy(
 
   function resolveCallableType(
     type: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const rawSignatures = queries.typeShape.getCallSignatures(type);
+    const rawSignatures = queries.getCallSignatures(type);
     const signatures = definedValues(rawSignatures);
     if (signatures.length !== rawSignatures.length) {
       return undefined;
@@ -1319,7 +1344,7 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     const signature = signatures[0]!;
-    const rawParameters = queries.checker.getSignatureParameters(signature);
+    const rawParameters = queries.getSignatureParameters(signature);
     const parameters = definedValues(rawParameters);
     if (parameters.length !== rawParameters.length) {
       return undefined;
@@ -1331,8 +1356,8 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     const returnType = resolveSelectedDeclarationResult(
-      queries.checker.getSignatureDeclaration(signature),
-      queries.typeShape.getReturnTypeOfSignature(signature),
+      queries.getSignatureDeclaration(signature),
+      queries.getReturnTypeOfSignature(signature),
       queries,
       state,
     );
@@ -1354,13 +1379,13 @@ export function createCsharpTypePolicy(
 
   function resolveSymbolType(
     symbol: Symbol,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const direct = resolveDirectSourceFacts(
       [
         symbol,
-        ...definedValues(queries.checker.getSymbolDeclarations(symbol)),
+        ...definedValues(queries.getSymbolDeclarations(symbol)),
       ],
       queries.sourceFile,
       state,
@@ -1369,7 +1394,7 @@ export function createCsharpTypePolicy(
       return direct;
     }
     for (const declaration of definedValues(
-      queries.checker.getSymbolDeclarations(symbol),
+      queries.getSymbolDeclarations(symbol),
     )) {
       if (host.ast.is.IsParameterDeclaration(declaration)) {
         const typeNode = host.ast.as.AsParameterDeclaration(declaration)!.Type;
@@ -1386,7 +1411,7 @@ export function createCsharpTypePolicy(
       }
     }
     return resolveTypeWithState(
-      queries.checker.getTypeOfSymbol(symbol),
+      queries.getTypeOfSymbol(symbol),
       queries.sourceFile,
       nextState(state),
     );
@@ -1394,19 +1419,19 @@ export function createCsharpTypePolicy(
 
   function resolveProjectSourceSemanticType(
     type: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     typeArguments: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined {
     const symbols = [
-      queries.checker.getTypeAliasSymbol(type),
-      queries.checker.getTypeSymbol(type),
+      queries.getTypeAliasSymbol(type),
+      queries.getTypeSymbol(type),
     ];
     for (const symbol of symbols) {
       if (symbol === undefined) {
         continue;
       }
       for (const declaration of definedValues(
-        queries.checker.getSymbolDeclarations(symbol),
+        queries.getSymbolDeclarations(symbol),
       )) {
         const targetType = projectSourceDeclarationTargetType(
           declaration,
@@ -1447,46 +1472,9 @@ export function createCsharpTypePolicy(
     declaration: Node,
     typeArguments: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined {
-    const sourceFile = host.ast.getSourceFile(declaration);
-    if (
-      sourceFile === undefined ||
-      sourceFile.IsDeclarationFile ||
-      !host.sourceFiles.some(
-        (candidate) =>
-          sourceFileIdentity(host.ast, candidate) ===
-          sourceFileIdentity(host.ast, sourceFile),
-      )
-    ) {
-      return undefined;
-    }
-    const kind = host.ast.kindName(declaration);
-    if (
-      kind !== "KindClassDeclaration" &&
-      kind !== "KindInterfaceDeclaration" &&
-      kind !== "KindEnumDeclaration"
-    ) {
-      return undefined;
-    }
-    const nameNode = host.ast.name(declaration);
-    if (nameNode === undefined) {
-      return undefined;
-    }
-    const sourceName = host.ast.text(nameNode);
-    const declarationIdentity = sourceNodeIdentity(host.ast, declaration);
-    if (declarationIdentity === undefined) {
-      return undefined;
-    }
-    const sourceDeclarationKind =
-      kind === "KindClassDeclaration"
-        ? "class"
-        : kind === "KindInterfaceDeclaration"
-          ? "interface"
-          : "enum";
-    return csharpTargetNamedType(
-      `tsonic.source:${declarationIdentity}`,
+    return host.projectTypeCatalog.targetTypeForDeclaration(
+      declaration,
       typeArguments,
-      { kind: "named", name: sourceName },
-      { sourceDeclarationKind },
     );
   }
 
@@ -1604,12 +1592,12 @@ function relateTypeArguments(
 
 function sourceFactSubjectsForNode(
   node: Node,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
   parent?: Node,
 ): readonly ExtensionFactSubject[] {
   const symbols = definedValues([
-    queries.checker.getResolvedSymbolOrNil(node),
-    queries.checker.getSymbolAtLocation(node),
+    queries.getResolvedSymbolOrNil(node),
+    queries.getSymbolAtLocation(node),
   ]);
   const subjects: ExtensionFactSubject[] = [];
   if (parent !== undefined) {
@@ -1618,7 +1606,7 @@ function sourceFactSubjectsForNode(
   subjects.push(node, ...symbols);
   for (const symbol of symbols) {
     subjects.push(
-      ...definedValues(queries.checker.getSymbolDeclarations(symbol)),
+      ...definedValues(queries.getSymbolDeclarations(symbol)),
     );
   }
   return subjects;
@@ -1626,16 +1614,16 @@ function sourceFactSubjectsForNode(
 
 function sourceFactSubjectsForType(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
 ): readonly ExtensionFactSubject[] {
   const symbols = definedValues([
-    queries.checker.getTypeAliasSymbol(type),
-    queries.checker.getTypeSymbol(type),
+    queries.getTypeAliasSymbol(type),
+    queries.getTypeSymbol(type),
   ]);
   const subjects: ExtensionFactSubject[] = [type, ...symbols];
   for (const symbol of symbols) {
     subjects.push(
-      ...definedValues(queries.checker.getSymbolDeclarations(symbol)),
+      ...definedValues(queries.getSymbolDeclarations(symbol)),
     );
   }
   return subjects;
@@ -1643,23 +1631,24 @@ function sourceFactSubjectsForType(
 
 function resolveTypeParameter(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
+  ast: AstReader,
 ): TargetTypeRef | undefined {
-  const symbol = queries.checker.getTypeSymbol(type);
+  const symbol = queries.getTypeSymbol(type);
   if (symbol === undefined) {
     return undefined;
   }
   for (const declaration of definedValues(
-    queries.checker.getSymbolDeclarations(symbol),
+    queries.getSymbolDeclarations(symbol),
   )) {
-    if (!queries.ast.is.IsTypeParameterDeclaration(declaration)) {
+    if (!ast.is.IsTypeParameterDeclaration(declaration)) {
       continue;
     }
-    const nameNode = queries.ast.name(declaration);
+    const nameNode = ast.name(declaration);
     if (nameNode !== undefined) {
       return {
         kind: "type-parameter",
-        name: queries.ast.text(nameNode),
+        name: ast.text(nameNode),
       };
     }
   }
@@ -1712,11 +1701,11 @@ function resolveKeywordType(
 
 function isUndefinedType(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
 ): boolean {
-  return queries.typeShape.isNullish(type) &&
-    queries.typeShape.isNever(
-      queries.typeShape.removeMissingOrUndefined(type),
+  return queries.isNullish(type) &&
+    queries.isNever(
+      queries.removeMissingOrUndefined(type),
     );
 }
 

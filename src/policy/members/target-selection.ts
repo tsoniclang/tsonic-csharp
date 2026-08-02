@@ -2,8 +2,10 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpTargetMember,
 } from "../types/index.js";
@@ -34,10 +36,10 @@ import type {
 } from "./selection-types.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
 >;
 
 export type CsharpTargetCallSelection =

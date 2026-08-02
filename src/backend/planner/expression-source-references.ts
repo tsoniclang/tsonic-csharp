@@ -144,9 +144,9 @@ function isGlobalUndefinedExpression(
   if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined) {
     return false;
   }
-  const checker = input.queries(sourceFile).checker;
-  const type = checker.getTypeAtLocation(identifier);
-  return type !== undefined && input.queries(sourceFile).typeShape.isNullish(type);
+  const semantics = input.semantics(sourceFile);
+  const type = semantics.getTypeAtLocation(identifier);
+  return type !== undefined && semantics.isNullish(type);
 }
 
 const nullLiteralGlobalSourceNames = new Set(["undefined"]);
@@ -249,8 +249,8 @@ function isProviderVirtualDeclarationIdentifier(
   input: CsharpTranslationContext,
 ): boolean {
   const symbols = [
-    input.queries(sourceFile).checker.getSymbolAtLocation(identifier),
-    input.queries(sourceFile).checker.getResolvedSymbol(identifier),
+    input.semantics(sourceFile).getSymbolAtLocation(identifier),
+    input.semantics(sourceFile).getResolvedSymbol(identifier),
   ];
   return symbols.some((symbol) => {
     if (symbol === undefined) {
@@ -264,7 +264,7 @@ function isProviderVirtualDeclarationIdentifier(
     ) {
       return true;
     }
-    const declarations = input.queries(sourceFile).checker.getSymbolDeclarations(symbol);
+    const declarations = input.semantics(sourceFile).getSymbolDeclarations(symbol);
     return declarations.some((declaration) =>
       input.sourceFacts?.getFact(
         declaration,

@@ -92,6 +92,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
         signatures: [
           {
             id: dotnetNativeArrayCreateMemberId,
+            sourceId: dotnetNativeArrayCreateMemberId,
             typeParameters: [{ name: "T" }],
             parameters: [
               {
@@ -130,6 +131,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
         signatures: [
           {
             id: dotnetNativeArrayIndexerMemberId,
+            sourceId: dotnetNativeArrayIndexerMemberId,
             parameters: [
               {
                 name: "index",

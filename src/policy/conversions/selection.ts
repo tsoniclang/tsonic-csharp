@@ -93,7 +93,10 @@ export type CsharpConversionTargetPreference =
   | "incomparable";
 
 export function compareCsharpImplicitConversionTargets(
-  input: Pick<CsharpTranslationContext, "providers" | "target">,
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
   left: TargetTypeRef,
   right: TargetTypeRef,
 ): CsharpConversionTargetPreference {
@@ -113,7 +116,10 @@ export function compareCsharpImplicitConversionTargets(
 }
 
 export function selectCsharpConversion(
-  input: Pick<CsharpTranslationContext, "providers" | "target">,
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
@@ -244,7 +250,10 @@ function selectCollectionInterfaceConversion(
 }
 
 export function selectCsharpExpressionConversion(
-  input: Pick<CsharpTranslationContext, "ast" | "providers" | "target">,
+  input: Pick<
+    CsharpTranslationContext,
+    "ast" | "projectTypes" | "providers" | "target"
+  >,
   expression: Node,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -365,7 +374,10 @@ function selectRuntimeUnionConversion(
 }
 
 function selectNullableConversion(
-  input: Pick<CsharpTranslationContext, "providers" | "target">,
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
@@ -438,7 +450,7 @@ function delegateSignaturesEqual(
 }
 
 function namedTargetTypesAreRelated(
-  input: Pick<CsharpTranslationContext, "providers">,
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): boolean {
@@ -447,7 +459,7 @@ function namedTargetTypesAreRelated(
 }
 
 function namedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpTranslationContext, "providers">,
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   visited: Set<string>,
@@ -470,6 +482,19 @@ function namedTargetTypeImplicitlyAccepts(
       target,
       visited,
     );
+  }
+  const projectSupertypes = input.projectTypes.directSupertypes(source);
+  if (
+    projectSupertypes?.some((supertype) =>
+      namedTargetTypeImplicitlyAccepts(
+        input,
+        supertype,
+        target,
+        visited,
+      )
+    ) === true
+  ) {
+    return true;
   }
   const sourceBinding = csharpTargetBindingFact(
     input.providers.findTargetBindingByTargetId(source.id),
@@ -502,7 +527,7 @@ function namedTargetTypeImplicitlyAccepts(
 }
 
 function constructedNamedTargetTypeImplicitlyAccepts(
-  input: Pick<CsharpTranslationContext, "providers">,
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
   source: CsharpTargetNamedTypeRef,
   target: CsharpTargetNamedTypeRef,
   visited: Set<string>,
@@ -533,7 +558,7 @@ function constructedNamedTargetTypeImplicitlyAccepts(
 }
 
 function typeArgumentImplicitlyAccepts(
-  input: Pick<CsharpTranslationContext, "providers">,
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   parameter: TargetTypeParameter | undefined,

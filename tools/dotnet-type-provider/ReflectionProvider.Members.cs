@@ -218,6 +218,7 @@ sealed partial class ReflectionProvider
                         new
                         {
                             id = targetId,
+                            sourceId = targetId,
                             targetName = property.Name,
                             parameters,
                             returnType,
@@ -789,11 +790,11 @@ sealed partial class ReflectionProvider
         var typeParameters = MethodTypeParameters(method, genericParameters);
         var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
         var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
-        var providerSourceSignatureId = ProviderSourceSignatureId(method, id);
+        var sourceId = SourceSignatureId(method, id);
         return new
         {
             id,
-            providerSourceSignatureId,
+            sourceId,
             targetName = method.Name,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -805,21 +806,20 @@ sealed partial class ReflectionProvider
         };
     }
 
-    string? ProviderSourceSignatureId(MethodInfo method, string id)
+    string SourceSignatureId(MethodInfo method, string id)
     {
         if (method.IsStatic || !method.IsVirtual)
         {
-            return null;
+            return id;
         }
         var baseDefinition = MetadataBaseDefinition(method);
         if (baseDefinition == method ||
             baseDefinition.DeclaringType == method.DeclaringType ||
             !baseDefinition.IsPublic)
         {
-            return null;
+            return id;
         }
-        var sourceId = MethodId(baseDefinition);
-        return sourceId == id ? null : sourceId;
+        return MethodId(baseDefinition);
     }
 
     static MethodInfo MetadataBaseDefinition(MethodInfo method)
@@ -887,6 +887,7 @@ sealed partial class ReflectionProvider
         return new
         {
             id,
+            sourceId = id,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             parameters,

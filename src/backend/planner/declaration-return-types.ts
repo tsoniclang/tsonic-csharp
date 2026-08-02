@@ -102,15 +102,15 @@ function getInferredDeclarationReturnTargetType(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): TargetTypeRef | undefined {
-  const checker = input.queries(sourceFile).checker;
-  const declarationType = checker.getTypeAtLocation(
+  const semantics = input.semantics(sourceFile);
+  const declarationType = semantics.getTypeAtLocation(
     declarationNode,
   );
-  const signatures = checker.getCallSignaturesOfType(
+  const signatures = semantics.getCallSignaturesOfType(
     declarationType,
   );
   const selected = signatures.filter((signature) => {
-    const declaration = checker.getSignatureDeclaration(signature);
+    const declaration = semantics.getSignatureDeclaration(signature);
     return declaration !== undefined &&
       sourceNodesEqual(input.ast, declaration, declarationNode);
   });
@@ -118,7 +118,7 @@ function getInferredDeclarationReturnTargetType(
     return undefined;
   }
   return input.types.resolveType(
-    checker.getReturnTypeOfSignature(selected[0]!),
+    semantics.getReturnTypeOfSignature(selected[0]!),
     sourceFile,
   );
 }

@@ -127,6 +127,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
             static: true,
             signatures: [{
               id: "Example.Assembly::Example.Widget.Create()",
+              sourceId: "Example.Assembly::Example.Widget.Create()",
               targetName: "Create",
               parameters: [],
               returnType: { kind: "void" },

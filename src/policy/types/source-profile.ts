@@ -1,9 +1,9 @@
 import type {
   AstReader,
-  SourceFileQueries,
   Type,
 } from "@tsonic/tsts";
 import type {
+  SourceFileSemantics,
   TargetSelection,
 } from "@tsonic/target-api";
 import {
@@ -76,21 +76,22 @@ const sourceProfileTypePolicies = Object.freeze([
 
 export function classifyCsharpSourceProfileType(
   type: Type,
-  queries: SourceFileQueries,
+  semantics: SourceFileSemantics,
+  ast: AstReader,
 ): CsharpSourceProfileTypeIdentity | undefined {
   const symbols = [
-    queries.checker.getTypeAliasSymbol(type),
-    queries.checker.getTypeSymbol(type),
-    ...(queries.typeShape.isTypeReference(type)
-      ? [queries.checker.getTypeSymbol(queries.typeShape.getTypeReferenceTarget(type))]
+    semantics.getTypeAliasSymbol(type),
+    semantics.getTypeSymbol(type),
+    ...(semantics.isTypeReference(type)
+      ? [semantics.getTypeSymbol(semantics.getTypeReferenceTarget(type))]
       : []),
   ];
   for (const symbol of symbols) {
     if (symbol === undefined) {
       continue;
     }
-    for (const declaration of queries.checker.getSymbolDeclarations(symbol)) {
-      const identity = classifySourceProfileDeclaration(declaration, queries.ast);
+    for (const declaration of semantics.getSymbolDeclarations(symbol)) {
+      const identity = classifySourceProfileDeclaration(declaration, ast);
       if (identity !== undefined) {
         return identity;
       }

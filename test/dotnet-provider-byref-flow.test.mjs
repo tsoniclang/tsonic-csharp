@@ -25,6 +25,7 @@ test(".NET target parameters preserve MaybeNull output flow as explicit C# metad
       metadataName: "System.Collections.Generic.Dictionary`2.TryGetValue",
       signatures: [{
         id: testTargetId("System.Collections.Generic.Dictionary`2.TryGetValue(TKey,out TValue)"),
+        sourceId: testTargetId("System.Collections.Generic.Dictionary`2.TryGetValue(TKey,out TValue)"),
         parameters: [{
           name: "key",
           type: { kind: "type-parameter", name: "TKey" },
@@ -93,6 +94,7 @@ test(".NET target parameters do not infer output nullability from unrelated attr
       metadataName: "Example.Host.Read",
       signatures: [{
         id: testTargetId("Example.Host.Read(out System.String)"),
+        sourceId: testTargetId("Example.Host.Read(out System.String)"),
         parameters: [parameter],
         returnType: { kind: "void" },
       }],

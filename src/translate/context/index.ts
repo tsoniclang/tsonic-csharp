@@ -1,22 +1,19 @@
 import type {
   AstReader,
-  CheckedSourceProgram,
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
 import type {
+  SourceFileSemantics,
   SourceProgramNavigation,
   TargetBackendContext,
   TargetCompilationPaths,
   TargetCompileInput,
   TargetRuntimeReference,
   TargetSelection,
+  TargetSourceProgram,
   TsonicProjectConfig,
-} from "@tsonic/target-api";
-import {
-  createSourceProgramNavigation,
 } from "@tsonic/target-api";
 import type {
   CsharpProviderRelationResolver,
@@ -26,6 +23,7 @@ import {
 } from "../../provider/target-relations/resolver.js";
 import type {
   CsharpObjectShapePolicy,
+  CsharpProjectTypePolicy,
   CsharpTypePolicy,
 } from "../../policy/types/index.js";
 import {
@@ -45,7 +43,7 @@ import {
 
 export interface CsharpTranslationContext
   extends CsharpProviderCallSelectionHost {
-  readonly source: CheckedSourceProgram;
+  readonly source: TargetSourceProgram;
   readonly ast: AstReader;
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
@@ -57,10 +55,12 @@ export interface CsharpTranslationContext
   readonly providers: CsharpProviderRelationResolver;
   readonly types: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
+  readonly projectTypes: CsharpProjectTypePolicy;
   readonly artifacts: CsharpTranslationArtifactGraph;
   readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
-  queries(sourceFile: SourceFile): SourceFileQueries;
-  queriesFor(node: Node): SourceFileQueries;
+  semantics(sourceFile: SourceFile): SourceFileSemantics;
+  semanticsFor(node: Node): SourceFileSemantics;
+  hasSemantics(sourceFile: SourceFile): boolean;
 }
 
 export function createCsharpTranslationContext(
@@ -71,26 +71,23 @@ export function createCsharpTranslationContext(
     (sourceFile): sourceFile is SourceFile => sourceFile !== undefined,
   );
   const providers = createCsharpProviderRelationResolver(backend);
-  const queries = (sourceFile: SourceFile): SourceFileQueries =>
-    input.source.getSourceFileQueries(sourceFile);
-  const queriesFor = (node: Node): SourceFileQueries => {
-    const sourceFile = input.source.ast.getSourceFile(node);
-    if (sourceFile === undefined) {
-      throw new Error("C# translation requires every source node to belong to the checked program.");
-    }
-    return input.source.getSourceFileQueries(sourceFile);
-  };
+  const semantics = input.source.semantics.forFile;
+  const semanticsFor = input.source.semantics.forNode;
+  const hasSemantics = input.source.semantics.includes;
   const typePolicyHost = {
     ast: input.source.ast,
     sourceFiles,
     sourceFacts: input.source.sourceFacts,
-    navigation: createSourceProgramNavigation(input.source),
+    navigation: input.source.navigation,
     providers,
     target: input.target,
-    queries,
-    queriesFor,
+    semantics,
+    semanticsFor,
+    hasSemantics,
   };
-  const { types, objectShapes } = createCsharpTypeSystem(typePolicyHost);
+  const { types, objectShapes, projectTypes } = createCsharpTypeSystem(
+    typePolicyHost,
+  );
   const artifacts = createCsharpTranslationArtifactGraph({ objectShapes });
   const outputIdentities = createCsharpSourceOutputIdentityPlanner({
     ast: input.source.ast,
@@ -110,9 +107,11 @@ export function createCsharpTranslationContext(
     providers,
     types,
     objectShapes,
+    projectTypes,
     artifacts,
     outputIdentities,
-    queries,
-    queriesFor,
+    semantics,
+    semanticsFor,
+    hasSemantics,
   });
 }

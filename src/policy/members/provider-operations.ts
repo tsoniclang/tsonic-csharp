@@ -4,8 +4,10 @@ import type {
   ProviderVirtualDeclarationFact,
   ReadonlySourceFactResolver,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpProviderRelationResolver,
 } from "../../provider/target-relations/resolver.js";
@@ -14,7 +16,7 @@ import type {
 } from "../../provider/target-relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
-} from "./provider-evidence.js";
+} from "../../provider/target-relations/evidence.js";
 
 export type CsharpProviderOperationResolution =
   | {
@@ -39,7 +41,7 @@ export type CsharpProviderOperationResolution =
 export interface CsharpProviderOperationHost {
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;
-  queries(sourceFile: SourceFile): SourceFileQueries;
+  semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
 export function resolveCsharpProviderCallRelations(
@@ -47,8 +49,8 @@ export function resolveCsharpProviderCallRelations(
   call: Node,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const queries = host.queries(sourceFile);
-  const source = queries.checker.getResolvedCallInfo(call);
+  const semantics = host.semantics(sourceFile);
+  const source = semantics.getResolvedCallInfo(call);
   if (source === undefined) {
     return {
       kind: "missing",
@@ -63,7 +65,7 @@ export function resolveCsharpProviderCallRelations(
   }
   const declaration = resolveCsharpProviderDeclarationEvidence(
     host.sourceFacts,
-    [queries.checker.getSignatureDeclaration(source.selectedSignature)],
+    [semantics.getSignatureDeclaration(source.selectedSignature)],
     "signature",
   );
   return resolveProviderRelations(host, declaration, "signature");
@@ -74,7 +76,7 @@ export function resolveCsharpProviderPropertyRelations(
   propertyAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.queries(sourceFile).checker.getResolvedPropertyAccessInfo(
+  const source = host.semantics(sourceFile).getResolvedPropertyAccessInfo(
     propertyAccess,
   );
   if (source === undefined) {
@@ -96,7 +98,7 @@ export function resolveCsharpProviderElementRelations(
   elementAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.queries(sourceFile).checker.getResolvedElementAccessInfo(
+  const source = host.semantics(sourceFile).getResolvedElementAccessInfo(
     elementAccess,
   );
   if (source === undefined) {

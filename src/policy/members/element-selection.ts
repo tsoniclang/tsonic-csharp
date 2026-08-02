@@ -2,8 +2,10 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpProviderTargetRelation,
 } from "../../provider/target-relations/index.js";
@@ -24,7 +26,7 @@ import {
 } from "./provider-operations.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
 >;
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -67,7 +69,7 @@ export function selectCsharpProviderElement(
   elementAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderElementSelection {
-  const source = host.queries(sourceFile).checker
+  const source = host.semantics(sourceFile)
     .getResolvedElementAccessInfo(elementAccess);
   if (source === undefined) {
     return {

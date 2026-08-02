@@ -2,8 +2,11 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  SourceFileQueries,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+  SourceProgramNavigation,
+} from "@tsonic/target-api";
 import type {
   CsharpProviderOperationHost,
   CsharpProviderOperationResolution,
@@ -22,7 +25,7 @@ import {
 } from "./instantiation.js";
 
 type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedCallInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
 >;
 
 export type CsharpProviderCallSelection =
@@ -56,14 +59,16 @@ export type CsharpProviderCallSelection =
 
 export interface CsharpProviderCallSelectionHost
   extends CsharpProviderOperationHost,
-    CsharpProviderCallInstantiationHost {}
+    CsharpProviderCallInstantiationHost {
+  readonly navigation: SourceProgramNavigation;
+}
 
 export function selectCsharpProviderCall(
   host: CsharpProviderCallSelectionHost,
   call: Node,
   sourceFile: SourceFile,
 ): CsharpProviderCallSelection {
-  const source = host.queries(sourceFile).checker.getResolvedCallInfo(
+  const source = host.semantics(sourceFile).getResolvedCallInfo(
     call,
   );
   if (source === undefined) {
@@ -72,6 +77,11 @@ export function selectCsharpProviderCall(
       reason: "The checker did not resolve an exact source call.",
     };
   }
+  const projectCallee = host.navigation.isProjectDeclaration(
+      source.sourceCallee.selectedDeclaration,
+    )
+    ? source.sourceCallee.selectedDeclaration
+    : undefined;
   const resolution = resolveCsharpProviderCallRelations(
     host,
     call,
@@ -90,7 +100,38 @@ export function selectCsharpProviderCall(
   if (resolution.kind === "rejected") {
     return resolution;
   }
-  return selectResolvedProviderCall(host, source, sourceFile, resolution);
+  const selected = selectResolvedProviderCall(
+    host,
+    source,
+    sourceFile,
+    resolution,
+  );
+  if (selected.kind !== "resolved" || projectCallee === undefined) {
+    return selected;
+  }
+  const forwarding = host.projectTypes.implicitConstructorForSignature(
+    projectCallee,
+    source.selectedSignature,
+  );
+  if (
+    forwarding === undefined ||
+    selected.call.targetMember.kind !== "constructor" ||
+    forwarding.providerBaseMemberId !== selected.call.targetMember.id
+  ) {
+    return {
+      kind: "missing",
+      reason:
+        "The project-owned callee has no exact implicit constructor relation for the selected provider signature.",
+    };
+  }
+  return {
+    kind: "resolved",
+    source,
+    call: {
+      ...selected.call,
+      targetMember: forwarding.targetMember,
+    },
+  };
 }
 
 function selectResolvedProviderCall(

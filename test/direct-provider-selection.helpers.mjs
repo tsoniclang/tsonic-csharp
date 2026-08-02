@@ -253,6 +253,9 @@ export function callEvidence(options = {}) {
       sourceCallee: Object.freeze({
         expression: calleeExpression,
         type: calleeType,
+        ...(options.selectedCalleeDeclaration === undefined
+          ? {}
+          : { selectedDeclaration: options.selectedCalleeDeclaration }),
       }),
       sourceArguments: argumentExpressions.map((expression, index) =>
         Object.freeze({
@@ -431,12 +434,31 @@ export function directProviderHost(options = {}) {
   const elementEvidenceByNode = new Map(options.elements ?? []);
   const providers = providerResolver(catalog, bindings);
   const ast = options.ast ?? fixtureAst();
+  const projectDeclarations = new Set(options.projectDeclarations ?? []);
   return {
     sourceFile,
     host: Object.freeze({
       ast,
       sourceFacts,
       providers,
+      navigation: Object.freeze({
+        isProjectDeclaration(node) {
+          return projectDeclarations.has(node);
+        },
+      }),
+      projectTypes: Object.freeze({
+        directSupertypes() {
+          return undefined;
+        },
+        implicitConstructorForSignature(declaration, signature) {
+          return options.projectConstructors?.get(declaration)?.get(signature);
+        },
+        implicitConstructorsForDeclaration(declaration) {
+          return options.projectConstructors?.get(declaration) === undefined
+            ? []
+            : [...options.projectConstructors.get(declaration).values()];
+        },
+      }),
       target: options.target ?? { id: "csharp" },
       types: Object.freeze({
         resolveNode(node) {
@@ -453,27 +475,23 @@ export function directProviderHost(options = {}) {
             semanticTypes.get(selectedType);
         },
       }),
-      queries(candidate) {
+      semantics(candidate) {
         assert.equal(candidate, sourceFile);
-        return {
+        return Object.freeze({
           sourceFile,
-          ast,
-          checker: {
-            getResolvedCallInfo(node) {
-              return callEvidenceByNode.get(node);
-            },
-            getResolvedPropertyAccessInfo(node) {
-              return propertyEvidenceByNode.get(node);
-            },
-            getResolvedElementAccessInfo(node) {
-              return elementEvidenceByNode.get(node);
-            },
-            getSignatureDeclaration(signature) {
-              return signatureDeclarations.get(signature);
-            },
+          getResolvedCallInfo(node) {
+            return callEvidenceByNode.get(node);
           },
-          typeShape: {},
-        };
+          getResolvedPropertyAccessInfo(node) {
+            return propertyEvidenceByNode.get(node);
+          },
+          getResolvedElementAccessInfo(node) {
+            return elementEvidenceByNode.get(node);
+          },
+          getSignatureDeclaration(signature) {
+            return signatureDeclarations.get(signature);
+          },
+        });
       },
     }),
   };

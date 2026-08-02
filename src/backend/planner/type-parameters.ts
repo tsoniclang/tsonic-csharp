@@ -34,9 +34,6 @@ function planTypeParameter(
   const declaration = AsTypeParameterDeclaration(node)!;
   const name = planIdentifierName(declaration.name, "T", input, diagnostics, "Type parameter name");
   const constraints = planTypeParameterConstraints(node, sourceFile, input, diagnostics);
-  if (declaration.DefaultType !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Defaulted generic type parameters have no direct C# source equivalent."));
-  }
   if (declaration.Expression !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Expression-based generic type parameters are outside the current C# planning surface."));
   }

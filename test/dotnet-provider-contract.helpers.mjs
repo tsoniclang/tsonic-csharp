@@ -134,6 +134,8 @@ export function assertTargetBindingContractInvariants(provider, module) {
 }
 
 export function assertRawSignatureInvariant(signature, path) {
+  assert.equal(typeof signature.sourceId, "string", `${path}.sourceId`);
+  assert.notEqual(signature.sourceId.length, 0, `${path}.sourceId`);
   for (const [index, parameter] of signature.parameters.entries()) {
     assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${path}.parameters[${index}].passingMode`);
     walkDotnetTypeRef(parameter.type, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].type.${typePath}`));

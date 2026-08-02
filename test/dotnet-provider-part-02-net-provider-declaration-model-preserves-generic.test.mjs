@@ -178,6 +178,7 @@ test(".NET provider declaration model exposes namespace members as fact-backed p
             signatures: [
               {
                 id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+                sourceId: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
                 parameters: [
                   { name: "text", type: { kind: "string" }, passingMode: "by-value" },
                 ],
@@ -629,6 +630,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
         signatures: [
           {
             id: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
+            sourceId: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
             typeParameters: [{ name: "T" }],
             parameters: [
               { name: "span", type: spanOfT, passingMode: "by-value" },

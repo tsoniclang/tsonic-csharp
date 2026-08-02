@@ -148,7 +148,7 @@ export function selectCsharpIteration(
   if (expression === undefined) {
     return rejected("Checked iteration has no iterable expression.");
   }
-  const source = input.queries(sourceFile).checker.getResolvedIterationInfo(
+  const source = input.semantics(sourceFile).getResolvedIterationInfo(
     statement,
   );
   if (source === undefined) {

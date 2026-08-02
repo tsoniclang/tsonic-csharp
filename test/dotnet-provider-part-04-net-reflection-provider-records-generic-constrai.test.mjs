@@ -175,6 +175,7 @@ test(".NET provider source declarations expose readonly TS-compatible string ind
             signatures: [
               {
                 id: testTargetId("Example.Headers.Item(System.String)"),
+                sourceId: testTargetId("Example.Headers.Item(System.String)"),
                 targetName: "Item",
                 parameters: [
                   { name: "name", type: { kind: "string" } },
@@ -511,7 +512,11 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     artifactFileName: "tsts-provider://test/ProviderSignatureFixtures.ParameterModeTarget.d.ts",
     exportName: "ParameterModeTarget",
   });
-  assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
+  assert.equal(
+    Array.isArray(relations),
+    true,
+    Array.isArray(relations) ? undefined : JSON.stringify(relations),
+  );
   const optionalRelation = relations.find((relation) =>
     relation.kind === "signature" &&
     relation.signatureId === sourceOptionalDefaults.id

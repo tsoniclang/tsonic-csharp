@@ -134,8 +134,7 @@ export function dotnetTypeTargetMemberProjections(
       },
     );
     for (const signature of member.signatures ?? []) {
-      const signatureId = signature.providerSourceSignatureId ??
-        providerSignatureIds.get(signature.id);
+      const signatureId = providerSignatureIds.get(signature.id);
       const targetMember = targetMembers.find((candidate) => candidate.id === signature.id);
       if (signatureId === undefined || targetMember === undefined) {
         continue;

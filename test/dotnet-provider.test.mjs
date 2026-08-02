@@ -23,6 +23,7 @@ test(".NET provider declaration model preserves explicit target parameter passin
             signatures: [
               {
                 id: testTargetId("System.Collections.Generic.Dictionary`2.TryGetValue(TKey,TValue)"),
+                sourceId: testTargetId("System.Collections.Generic.Dictionary`2.TryGetValue(TKey,TValue)"),
                 parameters: [
                   {
                     name: "key",
@@ -492,7 +493,11 @@ test(".NET target bindings preserve inherited source signature identity for over
     artifactFileName: "tsts-provider://test/System.IO.StreamReader.d.ts",
     exportName: "StreamReader",
   });
-  assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
+  assert.equal(
+    Array.isArray(relations),
+    true,
+    Array.isArray(relations) ? undefined : JSON.stringify(relations),
+  );
   const inherited = relations.filter((relation) =>
     relation.kind === "signature" &&
     relation.memberId.includes("System.IO.StreamReader#source-member#instance#") &&
@@ -744,6 +749,7 @@ test(".NET provider declaration model omits source members without truthful sour
             signatures: [
               {
                 id: testTargetId("System.Example.UnsafeMethod(System.Environment.SpecialFolder)"),
+                sourceId: testTargetId("System.Example.UnsafeMethod(System.Environment.SpecialFolder)"),
                 parameters: [
                   {
                     name: "folder",

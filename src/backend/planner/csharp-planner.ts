@@ -13,6 +13,9 @@ import {
 import {
   planCsharpObjectShapeSourceFile,
 } from "./object-shapes.js";
+import {
+  targetPolicyDiagnostic,
+} from "./diagnostics.js";
 
 export interface CsharpPlanningResult {
   readonly artifacts: readonly TargetArtifact[];
@@ -20,7 +23,19 @@ export interface CsharpPlanningResult {
 }
 
 export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlanningResult {
-  const diagnostics: TargetDiagnostic[] = [];
+  const diagnostics: TargetDiagnostic[] = input.projectTypes.issues.map(
+    (issue) => targetPolicyDiagnostic(
+      issue.node,
+      issue.code,
+      issue.message,
+    ),
+  );
+  if (diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
   validateSourceFileOutputIdentities(input, diagnostics);
   if (diagnostics.length > 0) {
     return {

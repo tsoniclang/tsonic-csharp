@@ -16,6 +16,13 @@ import {
   createCsharpTypePolicy,
 } from "./resolution.js";
 import type {
+  CsharpProjectTypePolicy,
+} from "./project-types.js";
+import {
+  createCsharpProjectTypeCatalog,
+  createCsharpProjectTypePolicy,
+} from "./project-types.js";
+import type {
   CsharpBindingProjectionPolicy,
 } from "./binding-projection-policy.js";
 import {
@@ -25,6 +32,7 @@ import {
 export interface CsharpTypeSystem {
   readonly types: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
+  readonly projectTypes: CsharpProjectTypePolicy;
 }
 
 export function createCsharpTypeSystem(
@@ -32,8 +40,19 @@ export function createCsharpTypeSystem(
 ): CsharpTypeSystem {
   let objectShapes: CsharpObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
+  let projectTypes: CsharpProjectTypePolicy | undefined;
+  const projectTypeCatalog = createCsharpProjectTypeCatalog(host);
   const types = createCsharpTypePolicy({
     ...host,
+    projectTypeCatalog,
+    projectTypes() {
+      if (projectTypes === undefined) {
+        throw new Error(
+          "C# project heritage was requested before the type system was fully initialized.",
+        );
+      }
+      return projectTypes;
+    },
     structuralTypes: {
       resolveNode(
         node: Node,
@@ -63,8 +82,13 @@ export function createCsharpTypeSystem(
     types,
     objectShapes,
   });
+  projectTypes = createCsharpProjectTypePolicy(
+    { ...host, types },
+    projectTypeCatalog,
+  );
   return Object.freeze({
     types,
     objectShapes,
+    projectTypes,
   });
 }

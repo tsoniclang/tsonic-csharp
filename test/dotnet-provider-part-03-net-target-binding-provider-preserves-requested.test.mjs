@@ -187,7 +187,13 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
     artifactFileName: "tsts-provider://test/ProviderConstructorFixtures.ConstructorTarget.d.ts",
     exportName: "ConstructorTarget",
   });
-  assert.equal(Array.isArray(constructorRelations), true, JSON.stringify(constructorRelations));
+  assert.equal(
+    Array.isArray(constructorRelations),
+    true,
+    Array.isArray(constructorRelations)
+      ? undefined
+      : JSON.stringify(constructorRelations),
+  );
   assert.equal(
     constructorRelations.some((relation) =>
       relation.kind === "signature" &&

@@ -169,3 +169,4 @@ function providerMemberKeysCompatible(
     right === undefined ||
     left.kind === right.kind && left.name === right.name;
 }
+

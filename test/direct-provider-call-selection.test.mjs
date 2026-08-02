@@ -57,6 +57,57 @@ test("same-spelling source calls without provider evidence remain source-owned",
   assert.match(selected.reason, /no provider declaration evidence/u);
 });
 
+test("project-owned implicit constructors adapt an exact inherited provider signature", () => {
+  const selectedCalleeDeclaration = {};
+  const selectedSignature = {};
+  const baseMember = providerConstructor();
+  const projectMember = {
+    ...baseMember,
+    id: "tsonic.source:project::forward-constructor",
+    declaringType: {
+      kind: "target-named",
+      id: "tsonic.source:project",
+    },
+  };
+  const projectConstructors = new Map([[selectedCalleeDeclaration, new Map([[
+    selectedSignature,
+    {
+      targetMember: projectMember,
+      providerBaseMemberId: baseMember.id,
+    },
+  ]])]]);
+  const fixture = createCallFixture({
+    selectedCalleeDeclaration,
+    projectDeclarations: [selectedCalleeDeclaration],
+    selectedSignature,
+    member: baseMember,
+    projectConstructors,
+  });
+  const selected = selectCsharpTargetCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.call.targetMember.id, projectMember.id);
+  assert.equal(selected.call.targetMember.declaringType.id, "tsonic.source:project");
+});
+
+test("project-owned inherited provider signatures fail closed without an exact forwarding constructor", () => {
+  const selectedCalleeDeclaration = {};
+  const fixture = createCallFixture({
+    selectedCalleeDeclaration,
+    projectDeclarations: [selectedCalleeDeclaration],
+  });
+  const selected = selectCsharpTargetCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "missing");
+  assert.match(selected.reason, /no exact implicit constructor relation/u);
+});
+
 test("selected provider signatures do not search sibling overload identities", () => {
   const selectedDeclaration = providerDeclaration({
     signatureId: "provider.signature.string",
@@ -717,6 +768,9 @@ function createCallFixture(options = {}) {
     static: options.static ?? false,
   });
   const source = callEvidence({
+    ...(options.selectedSignature === undefined
+      ? {}
+      : { selectedSignature: options.selectedSignature }),
     ...(options.sourceParameters === undefined
       ? {}
       : { parameters: options.sourceParameters }),
@@ -730,6 +784,11 @@ function createCallFixture(options = {}) {
       ? {}
       : { methodTypeArguments: options.methodTypeArguments }),
     ...(options.receiver === false ? { receiver: false } : {}),
+    ...(options.selectedCalleeDeclaration === undefined
+      ? {}
+      : {
+          selectedCalleeDeclaration: options.selectedCalleeDeclaration,
+        }),
   });
   const relation = signatureRelation({
     declaration,
@@ -794,6 +853,12 @@ function createCallFixture(options = {}) {
     ]],
     nodeTypes,
     semanticTypes,
+    ...(options.projectDeclarations === undefined
+      ? {}
+      : { projectDeclarations: options.projectDeclarations }),
+    ...(options.projectConstructors === undefined
+      ? {}
+      : { projectConstructors: options.projectConstructors }),
   });
   return {
     ...direct,

@@ -274,15 +274,12 @@ test("element selection rejects absent TSTS selected evidence", () => {
   const fixture = createElementFixture();
   const host = {
     ...fixture.host,
-    queries(sourceFile) {
-      const queries = fixture.host.queries(sourceFile);
+    semantics(sourceFile) {
+      const semantics = fixture.host.semantics(sourceFile);
       return {
-        ...queries,
-        checker: {
-          ...queries.checker,
-          getResolvedElementAccessInfo() {
-            return undefined;
-          },
+        ...semantics,
+        getResolvedElementAccessInfo() {
+          return undefined;
         },
       };
     },

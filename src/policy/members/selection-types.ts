@@ -1,6 +1,6 @@
 import type {
-  SourceFileQueries,
-} from "@tsonic/tsts";
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpTargetReceiverRelation,
 } from "../../provider/target-relations/index.js";
@@ -11,7 +11,7 @@ import type {
 } from "../types/index.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedCallInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
 >;
 
 export interface CsharpSelectedCallArgument {

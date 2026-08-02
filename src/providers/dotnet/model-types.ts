@@ -170,7 +170,7 @@ export interface DotnetUnsupportedMemberDeclaration {
 
 export interface DotnetSignatureDeclaration {
   readonly id: string;
-  readonly providerSourceSignatureId?: string;
+  readonly sourceId: string;
   readonly targetName?: string;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];

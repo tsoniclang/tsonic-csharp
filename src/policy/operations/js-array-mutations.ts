@@ -63,7 +63,7 @@ function selectDelete(
         "C# delete requires an exact selected JS Array element access.",
     };
   }
-  const source = input.queries(sourceFile).checker.getResolvedElementAccessInfo(
+  const source = input.semantics(sourceFile).getResolvedElementAccessInfo(
     operand,
   );
   const identity = csharpSourceProfileDeclarationIdentity(
@@ -118,7 +118,7 @@ function selectLengthAssignment(
   ) {
     return { kind: "not-js-array-mutation" };
   }
-  const source = input.queries(sourceFile).checker
+  const source = input.semantics(sourceFile)
     .getResolvedPropertyAccessInfo(left);
   const identity = csharpSourceProfileDeclarationIdentity(
     input.ast,

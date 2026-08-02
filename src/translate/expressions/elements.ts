@@ -112,7 +112,6 @@ export function translateCsharpElementAccess(
       diagnostics.push(selectedPolicyDiagnostic(
         node,
         selection.diagnostic,
-        sourceFile,
       ));
       return undefined;
     case "missing":
@@ -120,7 +119,6 @@ export function translateCsharpElementAccess(
         node,
         "CSHARP_TARGET_ELEMENT_NOT_CLOSED",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "conflict":
@@ -128,7 +126,6 @@ export function translateCsharpElementAccess(
         node,
         "CSHARP_TARGET_ELEMENT_IDENTITY_CONFLICT",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "ambiguous":
@@ -136,7 +133,6 @@ export function translateCsharpElementAccess(
         node,
         "CSHARP_TARGET_ELEMENT_AMBIGUOUS",
         selection.reason,
-        sourceFile,
         selection.candidates.map((candidate) =>
           `candidate=${candidate}`),
       ));

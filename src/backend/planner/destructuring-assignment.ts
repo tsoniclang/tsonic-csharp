@@ -28,8 +28,6 @@ import {
   KindStringLiteral,
   Node_Text,
   Node_Expression,
-  SourceKind,
-  SourceTokenKind,
 } from "./source-ast.js";
 import type {
   CsharpExpression,
@@ -105,7 +103,7 @@ export function isDestructuringAssignmentExpression(
     return false;
   }
   const expression = AsBinaryExpression(node);
-  if (sourceTokenKind(expression?.OperatorToken, input) !== KindEqualsToken) {
+  if (input.ast.operatorKindName(node) !== KindEqualsToken) {
     return false;
   }
   const left = expression?.Left;
@@ -975,7 +973,7 @@ function destructuringAssignmentDefaultTarget(
     return undefined;
   }
   const expression = AsBinaryExpression(node);
-  if (sourceTokenKind(expression?.OperatorToken, input) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
+  if (input.ast.operatorKindName(node) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
     return undefined;
   }
   return {
@@ -989,15 +987,5 @@ function hasDestructuringAssignmentKind(
   input: CsharpTranslationContext,
   expected: string,
 ): boolean {
-  return (node as { readonly Kind?: unknown } | undefined)?.Kind === expected ||
-    HasSourceKind(input.ast, node, expected);
-}
-
-function sourceTokenKind(
-  token: unknown,
-  input: CsharpTranslationContext,
-): string {
-  return typeof token === "number"
-    ? SourceTokenKind(input.ast, token)
-    : SourceKind(input.ast, token as Node | undefined);
+  return HasSourceKind(input.ast, node, expected);
 }

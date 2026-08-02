@@ -30,6 +30,54 @@ test(".NET provider model contract rejects legacy and incomplete provider refs",
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.moduleSpecifier"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.exportName"), true);
 });
+test(".NET provider model requires an explicit source identity for every target signature", () => {
+  const model = {
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [{
+      kind: "type",
+      typeKind: "class",
+      sourceName: "Derived",
+      namespaceName: "ProviderContractFixtures",
+      targetId: testTargetId("ProviderContractFixtures.Derived"),
+      metadataName: "ProviderContractFixtures.Derived",
+      members: [{
+        kind: "method",
+        sourceName: "run",
+        targetName: "Run",
+        targetId: testTargetId("ProviderContractFixtures.Derived.Run"),
+        metadataName: "ProviderContractFixtures.Derived.Run",
+        signatures: [{
+          id: testTargetId("ProviderContractFixtures.Derived.Run()"),
+          parameters: [],
+          returnType: { kind: "void" },
+        }],
+      }],
+    }],
+  };
+  const diagnostic = validateDotnetModuleModelContract(model);
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(
+    hasEvidencePath(
+      diagnostic,
+      "$.exports[0].members[0].signatures[0].sourceId",
+    ),
+    true,
+  );
+  const signature = model.exports[0].members[0].signatures[0];
+  signature.sourceId = testTargetId("ProviderContractFixtures.Base.Run()");
+  signature.providerSourceSignatureId = signature.sourceId;
+  const legacyDiagnostic = validateDotnetModuleModelContract(model);
+  assert.equal(legacyDiagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(
+    hasEvidencePath(
+      legacyDiagnostic,
+      "$.exports[0].members[0].signatures[0].providerSourceSignatureId",
+    ),
+    true,
+  );
+});
 test(".NET provider model contract rejects malformed identities and type refs before conversion", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -52,6 +100,7 @@ test(".NET provider model contract rejects malformed identities and type refs be
             signatures: [
               {
                 id: testTargetId("ProviderContractFixtures.Box.Broken(System.Int32,System.String)"),
+                sourceId: testTargetId("ProviderContractFixtures.Box.Broken(System.Int32,System.String)"),
                 parameters: [
                   {
                     name: "values",
@@ -106,6 +155,7 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
             signatures: [
               {
                 id: testTargetId("ProviderContractFixtures.BadShapes.Bad(System.String,System.Int32[])"),
+                sourceId: testTargetId("ProviderContractFixtures.BadShapes.Bad(System.String,System.Int32[])"),
                 parameters: [
                   {
                     name: "text",
@@ -173,6 +223,7 @@ test(".NET provider model contract accepts nullable CLR params-array targets wit
             signatures: [
               {
                 id: testTargetId("ProviderContractFixtures.ParamsTarget.Values(System.Object[])"),
+                sourceId: testTargetId("ProviderContractFixtures.ParamsTarget.Values(System.Object[])"),
                 parameters: [
                   {
                     name: "values",
@@ -390,6 +441,7 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
             signatures: [
               {
                 id: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.AcceptMatrix(System.Int32[,])"),
+                sourceId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.AcceptMatrix(System.Int32[,])"),
                 parameters: [
                   {
                     name: "matrix",
@@ -414,6 +466,7 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
             signatures: [
               {
                 id: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.Choose(System.Object)"),
+                sourceId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.Choose(System.Object)"),
                 parameters: [
                   {
                     name: "value",
@@ -607,7 +660,11 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
     artifactFileName: "tsts-provider://contract/System.Console.d.ts",
     exportName: "Console",
   });
-  assert.equal(Array.isArray(consoleRelations), true, JSON.stringify(consoleRelations));
+  assert.equal(
+    Array.isArray(consoleRelations),
+    true,
+    Array.isArray(consoleRelations) ? undefined : JSON.stringify(consoleRelations),
+  );
   assert.deepEqual(
     consoleRelations
       .filter((relation) =>

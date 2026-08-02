@@ -8,10 +8,12 @@ import type {
   ExtensionFactSubject,
   Node,
   SourceFile,
-  SourceFileQueries,
   Symbol,
   Type,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import {
   isPlainCsharpIdentifier,
 } from "../../csharp-identifiers.js";
@@ -86,8 +88,8 @@ export function createCsharpObjectShapePolicy(
     activeNodes.add(node);
     try {
       const queries = sourceFile === undefined
-        ? host.queriesFor(node)
-        : host.queries(sourceFile);
+        ? host.semanticsFor(node)
+        : host.semantics(sourceFile);
       const directStruct = resolveStructShape(node, queries);
       if (directStruct !== undefined) {
         remember(node, directStruct);
@@ -157,7 +159,7 @@ export function createCsharpObjectShapePolicy(
 
   function resolveStructShape(
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
   ): CsharpObjectShapeFact | undefined {
     for (const subject of sourceSubjects(node, queries)) {
       const fact = host.sourceFacts?.getFact(subject, structFactKey);
@@ -195,7 +197,7 @@ export function createCsharpObjectShapePolicy(
   function resolveSemanticShape(
     type: Type | undefined,
     node: Node,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: ShapeResolutionState,
   ): CsharpObjectShapeFact | undefined {
     if (
@@ -217,12 +219,22 @@ export function createCsharpObjectShapePolicy(
         isProjectSourceTargetType(targetType)
       ? targetType
       : undefined;
+    const objectLiteral = host.ast.is.IsObjectLiteralExpression(node);
+    const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
+    if (
+      contextualProjectType !== undefined &&
+      declaredKind === "class" &&
+      !objectLiteral
+    ) {
+      return undefined;
+    }
+    if (declaredKind === "enum") {
+      return undefined;
+    }
     const members = deriveMembers(type, queries, nextState);
     if (members === undefined) {
       return undefined;
     }
-    const objectLiteral = host.ast.is.IsObjectLiteralExpression(node);
-    const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
     if (
       contextualProjectType !== undefined &&
       declaredKind === "class"
@@ -234,12 +246,10 @@ export function createCsharpObjectShapePolicy(
             constructible: projectClassIsObjectInitializable(
               type,
               queries,
+              host,
             ),
           }
         : undefined;
-    }
-    if (declaredKind === "enum") {
-      return undefined;
     }
     if (
       contextualProjectType !== undefined &&
@@ -264,10 +274,10 @@ export function createCsharpObjectShapePolicy(
 
   function deriveMembers(
     ownerType: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: ShapeResolutionState,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const rawProperties = queries.typeShape.getProperties(ownerType);
+    const rawProperties = queries.getProperties(ownerType);
     const properties = rawProperties.filter(
       (property): property is Symbol => property !== undefined,
     );
@@ -285,16 +295,16 @@ export function createCsharpObjectShapePolicy(
   function deriveMember(
     ownerType: Type,
     property: Symbol,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: ShapeResolutionState,
   ): CsharpObjectShapeMemberFact | undefined {
-    const sourceName = queries.checker.getSymbolName(property);
+    const sourceName = queries.getSymbolName(property);
     if (sourceName.length === 0) {
       return undefined;
     }
-    const declarations = queries.checker.getSymbolDeclarations(property)
+    const declarations = queries.getSymbolDeclarations(property)
       .filter((declaration): declaration is Node => declaration !== undefined);
-    const sourceType = queries.typeShape.getPropertyType(ownerType, sourceName);
+    const sourceType = queries.getPropertyType(ownerType, sourceName);
     if (sourceType === undefined) {
       return undefined;
     }
@@ -331,7 +341,7 @@ export function createCsharpObjectShapePolicy(
   function resolvePropertyType(
     declarations: readonly Node[],
     sourceType: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
   ): TargetTypeRef | undefined {
     const authoredTypeNodes = declarations
       .map(propertyDeclarationTypeNode)
@@ -373,15 +383,15 @@ export function createCsharpObjectShapePolicy(
 
   function resolveMethodType(
     sourceType: Type,
-    queries: SourceFileQueries,
+    queries: SourceFileSemantics,
     state: ShapeResolutionState,
   ): TargetTypeRef | undefined {
-    const signatures = queries.typeShape.getCallSignatures(sourceType);
+    const signatures = queries.getCallSignatures(sourceType);
     if (signatures.length !== 1 || signatures[0] === undefined) {
       return undefined;
     }
     const signature = signatures[0];
-    const rawParameters = queries.checker.getSignatureParameters(signature);
+    const rawParameters = queries.getSignatureParameters(signature);
     const parameters = rawParameters.filter(
       (parameter): parameter is Symbol => parameter !== undefined,
     );
@@ -390,12 +400,12 @@ export function createCsharpObjectShapePolicy(
     }
     const parameterTypes = parameters.map((parameter) =>
       host.types.resolveType(
-        queries.checker.getTypeOfSymbol(parameter),
+        queries.getTypeOfSymbol(parameter),
         queries.sourceFile,
       )
     );
     const returnType = host.types.resolveType(
-      queries.typeShape.getReturnTypeOfSignature(signature),
+      queries.getReturnTypeOfSignature(signature),
       queries.sourceFile,
     );
     if (
@@ -425,28 +435,28 @@ export function createCsharpObjectShapePolicy(
 
 function selectedObjectShapeSourceType(
   node: Node,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): Type | undefined {
-  const semanticType = queries.checker.getTypeAtLocation(node);
-  if (!queries.ast.is.IsObjectLiteralExpression(node)) {
+  const semanticType = queries.getTypeAtLocation(node);
+  if (!host.ast.is.IsObjectLiteralExpression(node)) {
     return semanticType;
   }
-  const contextualType = queries.checker.getContextualType(node);
+  const contextualType = queries.getContextualType(node);
   if (contextualType === undefined) {
     return semanticType;
   }
-  const contextualSymbol = queries.checker.getTypeAliasSymbol(contextualType) ??
-    queries.checker.getTypeSymbol(contextualType);
-  const contextualDeclarations = queries.checker.getSymbolDeclarations(
+  const contextualSymbol = queries.getTypeAliasSymbol(contextualType) ??
+    queries.getTypeSymbol(contextualType);
+  const contextualDeclarations = queries.getSymbolDeclarations(
     contextualSymbol,
   );
   return contextualDeclarations.some((declaration) =>
       declaration !== undefined &&
       host.navigation.isProjectDeclaration(declaration) &&
       (
-        queries.ast.is.IsClassDeclaration(declaration) ||
-        queries.ast.is.IsInterfaceDeclaration(declaration)
+        host.ast.is.IsClassDeclaration(declaration) ||
+        host.ast.is.IsInterfaceDeclaration(declaration)
       )
     )
     ? contextualType
@@ -455,17 +465,17 @@ function selectedObjectShapeSourceType(
 
 function sourceSubjects(
   node: Node,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
 ): readonly ExtensionFactSubject[] {
   const subjects: ExtensionFactSubject[] = [node];
-  const referenceSymbol = queries.checker.getResolvedSymbolOrNil(node);
-  const locationSymbol = queries.checker.getSymbolAtLocation(node);
+  const referenceSymbol = queries.getResolvedSymbolOrNil(node);
+  const locationSymbol = queries.getSymbolAtLocation(node);
   for (const symbol of [referenceSymbol, locationSymbol]) {
     if (symbol === undefined || subjects.includes(symbol)) {
       continue;
     }
     subjects.push(symbol);
-    for (const declaration of queries.checker.getSymbolDeclarations(symbol)) {
+    for (const declaration of queries.getSymbolDeclarations(symbol)) {
       if (declaration !== undefined && !subjects.includes(declaration)) {
         subjects.push(declaration);
       }
@@ -476,31 +486,31 @@ function sourceSubjects(
 
 function typeIsExcludedFromObjectShape(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
 ): boolean {
-  return queries.typeShape.isAny(type) ||
-    queries.typeShape.isUnknown(type) ||
-    queries.typeShape.isNever(type) ||
-    queries.typeShape.isVoidLike(type) ||
-    queries.typeShape.isNullish(type) ||
-    queries.typeShape.isStringLike(type) ||
-    queries.typeShape.isNumberLike(type) ||
-    queries.typeShape.isBooleanLike(type) ||
-    queries.typeShape.isBigIntLike(type) ||
-    queries.typeShape.isUnion(type) ||
-    queries.typeShape.isTuple(type) ||
-    queries.typeShape.getCallSignatures(type).length > 0;
+  return queries.isAny(type) ||
+    queries.isUnknown(type) ||
+    queries.isNever(type) ||
+    queries.isVoidLike(type) ||
+    queries.isNullish(type) ||
+    queries.isStringLike(type) ||
+    queries.isNumberLike(type) ||
+    queries.isBooleanLike(type) ||
+    queries.isBigIntLike(type) ||
+    queries.isUnion(type) ||
+    queries.isTuple(type) ||
+    queries.getCallSignatures(type).length > 0;
 }
 
 function typeIncludesNullish(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
 ): boolean {
-  return queries.typeShape.isNullish(type) ||
+  return queries.isNullish(type) ||
     (
-      queries.typeShape.isUnion(type) &&
-      queries.typeShape.getUnionOrIntersectionTypes(type).some((member) =>
-        member !== undefined && queries.typeShape.isNullish(member)
+      queries.isUnion(type) &&
+      queries.getUnionOrIntersectionTypes(type).some((member) =>
+        member !== undefined && queries.isNullish(member)
       )
     );
 }
@@ -514,47 +524,27 @@ function isProjectSourceTargetType(
 
 function projectClassIsObjectInitializable(
   type: Type,
-  queries: SourceFileQueries,
+  queries: SourceFileSemantics,
+  host: CsharpObjectShapePolicyHost,
 ): boolean {
-  const symbol = queries.checker.getTypeSymbol(type);
+  const symbol = queries.getTypeSymbol(type);
   if (symbol === undefined) {
     return false;
   }
-  const declarations = queries.checker.getSymbolDeclarations(symbol)
+  const declarations = queries.getSymbolDeclarations(symbol)
     .filter((declaration): declaration is Node =>
       declaration !== undefined &&
-      queries.ast.is.IsClassDeclaration(declaration)
+      host.ast.is.IsClassDeclaration(declaration) &&
+      host.navigation.isProjectDeclaration(declaration)
     );
   if (declarations.length !== 1) {
     return false;
   }
-  const constructors = queries.ast.members(declarations[0]!)
-    .filter((member): member is Node =>
-      member !== undefined &&
-      queries.ast.is.IsConstructorDeclaration(member)
+  const constructors = host.navigation.classConstructors(declarations[0]!);
+  return constructors.kind === "resolved" &&
+    constructors.signatures.some((signature) =>
+      signature.parameters.every((parameter) => parameter.acceptsOmission)
     );
-  return constructors.length === 0 ||
-    constructors.some((constructor) =>
-      queries.ast.parameters(constructor).every((parameter) =>
-        parameter !== undefined &&
-        (
-          queries.ast.questionToken(parameter) !== undefined ||
-          parameterAcceptsOmission(parameter, queries)
-        )
-      )
-    );
-}
-
-function parameterAcceptsOmission(
-  parameter: Node,
-  queries: SourceFileQueries,
-): boolean {
-  if (!queries.ast.is.IsParameterDeclaration(parameter)) {
-    return false;
-  }
-  const declaration = queries.ast.as.AsParameterDeclaration(parameter);
-  return declaration?.Initializer !== undefined ||
-    declaration?.DotDotDotToken !== undefined;
 }
 
 function createStructuralObjectShapeTarget(

@@ -427,7 +427,7 @@ function getContextualTargetRef(
   input: CsharpTranslationContext,
 ): TargetTypeRef | undefined {
   return input.types.resolveType(
-    input.queries(sourceFile).checker.getContextualType(node),
+    input.semantics(sourceFile).getContextualType(node),
     sourceFile,
   );
 }

@@ -1,4 +1,3 @@
-export * from "./provider-evidence.js";
 export * from "./provider-operations.js";
 export * from "./selection-types.js";
 export * from "./binding-instantiation.js";

@@ -13,7 +13,7 @@ import { dotnetProviderMemberId } from "../provider-member-identity.js";
 export function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
-  signatureId: string = signature.id,
+  signatureId: string = signature.sourceId,
   options: {
     readonly sourceParameterOffset?: number;
     readonly parentTypeParameterNames?: readonly string[];
@@ -64,7 +64,7 @@ export function dotnetProviderSignatureIdsForMember(
     signature.id,
     (shapeCounts.get(shapeKey) ?? 0) > 1
       ? dotnetSourceProjectionSignatureId(member, shapeKey)
-      : signature.id,
+      : signature.sourceId,
   ]));
 }
 
@@ -76,7 +76,7 @@ export function dotnetProviderSignatureSelectionKey(
     readonly parentTypeParameterNames?: readonly string[];
   } = {},
 ): string | undefined {
-  const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName, signature.id, options);
+  const providerSignature = dotnetSignatureToProviderSignature(signature, memberTargetName, signature.sourceId, options);
   return providerSignature === undefined ? undefined : providerSignatureSelectionKey(providerSignature);
 }
 

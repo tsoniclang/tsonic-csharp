@@ -8,6 +8,9 @@ import {
   getTargetRequiredProviderModules,
 } from "../../../tsonic/packages/host/dist/index.js";
 import {
+  createTargetSourceProgram,
+} from "../../../tsonic/packages/target-api/dist/index.js";
+import {
   createCsharpTargetPack,
 } from "../../dist/descriptor/csharp-target-pack.js";
 
@@ -86,7 +89,7 @@ export function compileCsharpSource(options) {
   const result = checked.targetContext.targetPack
     .createBackend(checked.targetContext)
     .compile({
-      source: checked.source,
+      source: createTargetSourceProgram(checked.source),
       project: checked.targetContext.project,
       target: checked.targetContext.target,
       runtimeReferences: options.runtimeReferences ?? [],

@@ -642,16 +642,21 @@ test("direct C# strict-native translation rejects opaque any declarations and op
     [{
       code: "CSHARP_UNSUPPORTED_AST",
       message:
-        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax. Node kind: 132.",
+        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax.",
     }, {
       code: "CSHARP_UNSUPPORTED_AST",
       message:
-        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax. Node kind: 132.",
+        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax.",
     }, {
       code: "CSHARP_UNSUPPORTED_AST",
       message:
-        "C# property read uses TypeScript any in strict-native mode. Node kind: 212.",
+        "C# property read uses TypeScript any in strict-native mode.",
     }],
+  );
+  assert.deepEqual(
+    compiled.result.diagnostics.map((diagnostic) =>
+      compiled.source.ast.kindName(diagnostic.sourceNode)),
+    ["KindAnyKeyword", "KindAnyKeyword", "KindPropertyAccessExpression"],
   );
   assert.deepEqual([...compiled.artifacts], []);
 });

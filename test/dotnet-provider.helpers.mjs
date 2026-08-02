@@ -52,6 +52,7 @@ export function methodMember(ownerMetadataName, sourceName, targetName, paramete
     signatures: [
       {
         id: testTargetId(signatureMetadataName),
+        sourceId: testTargetId(signatureMetadataName),
         targetName,
         parameters,
         returnType,

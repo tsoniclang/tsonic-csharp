@@ -203,7 +203,7 @@ function catchVariableHasReferences(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): boolean {
-  const symbol = input.queries(sourceFile).checker.getSymbolAtLocation(
+  const symbol = input.semantics(sourceFile).getSymbolAtLocation(
     variableName,
   );
   if (symbol === undefined) {

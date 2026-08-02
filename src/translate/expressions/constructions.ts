@@ -118,7 +118,6 @@ export function translateCsharpConstruction(
       diagnostics.push(selectedPolicyDiagnostic(
         node,
         selection.diagnostic,
-        sourceFile,
       ));
       return undefined;
     case "missing":
@@ -126,7 +125,6 @@ export function translateCsharpConstruction(
         node,
         "CSHARP_TARGET_CONSTRUCTION_NOT_CLOSED",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "conflict":
@@ -134,7 +132,6 @@ export function translateCsharpConstruction(
         node,
         "CSHARP_TARGET_CONSTRUCTION_IDENTITY_CONFLICT",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "ambiguous":
@@ -142,7 +139,6 @@ export function translateCsharpConstruction(
         node,
         "CSHARP_TARGET_CONSTRUCTION_AMBIGUOUS",
         selection.reason,
-        sourceFile,
         selection.candidates.map((candidate) =>
           `candidate=${candidate}`),
       ));
@@ -246,7 +242,7 @@ function translateSourceOwnedConstruction(
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const declaration = input.queries(sourceFile).checker
+  const declaration = input.semantics(sourceFile)
     .getSignatureDeclaration(selection.source.selectedSignature);
   if (
     !input.navigation.isProjectDeclaration(declaration) &&

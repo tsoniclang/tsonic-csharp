@@ -36,6 +36,7 @@ test(".NET provider source closure excludes target-only metadata dependencies", 
           targetDeclaringType: providerRef("TargetDeclaringType"),
           signatures: [{
             id: "Example::Root.Read()",
+            sourceId: "Example::Root.Read()",
             parameters: [],
             returnType: {
               kind: "named",

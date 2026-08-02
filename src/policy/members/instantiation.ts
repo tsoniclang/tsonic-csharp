@@ -17,11 +17,14 @@ import type {
 } from "../../provider/target-relations/index.js";
 import type {
   CsharpTargetMember,
+  CsharpProjectTypePolicy,
   CsharpTypePolicy,
   TargetTypeRef,
 } from "../types/index.js";
 import {
+  csharpTargetBindingSubstitutions,
   csharpTargetParameterValueType,
+  substituteCsharpTargetMember,
   targetTypeRefKey,
 } from "../types/index.js";
 import {
@@ -32,10 +35,8 @@ import type {
   CsharpConversionSelection,
 } from "../conversions/index.js";
 import {
-  csharpTargetBindingSubstitutions,
   mergeCsharpTypeParameterSubstitutions,
   resolveCsharpTargetBindingArguments,
-  substituteCsharpTargetMember,
 } from "./binding-instantiation.js";
 import {
   selectCsharpSourceArgument,
@@ -79,6 +80,7 @@ export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly providers: CsharpProviderRelationResolver;
+  readonly projectTypes: CsharpProjectTypePolicy;
   readonly target: TargetSelection;
   readonly types: CsharpTypePolicy;
 }
@@ -175,7 +177,10 @@ export function instantiateCsharpProviderCall(
 }
 
 export function compareInstantiatedProviderCalls(
-  host: Pick<CsharpProviderCallInstantiationHost, "providers" | "target">,
+  host: Pick<
+    CsharpProviderCallInstantiationHost,
+    "projectTypes" | "providers" | "target"
+  >,
   left: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
   right: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
 ): "left" | "right" | "equivalent" | "incomparable" {

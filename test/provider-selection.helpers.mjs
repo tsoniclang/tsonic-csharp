@@ -355,7 +355,6 @@ export function method(id, parameterType, options = {}) {
     }],
     returnType: csharpVoidType(),
     overloadGroup: options.overloadGroup ?? "Example.Target.m",
-    ...(options.providerSourceSignatureId === undefined ? {} : { providerSourceSignatureId: options.providerSourceSignatureId }),
   };
 }
 

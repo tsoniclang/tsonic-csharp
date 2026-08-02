@@ -4,7 +4,6 @@ import {
   HasSourceKind,
   KindIdentifier,
   KindPrivateIdentifier,
-  KindString,
   Node_Text,
 } from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
@@ -45,7 +44,7 @@ export function planIdentifierName(
     code: "CSHARP_UNSUPPORTED_NAME",
     category: "error",
     source: "tsonic-csharp",
-    message: `${description} must be an identifier for direct C# source emission. Node kind: ${KindString(node.Kind)}.`,
+    message: `${description} must be an identifier for direct C# source emission. Node kind: ${input.ast.kindName(node)}.`,
   });
   return errorName;
 }

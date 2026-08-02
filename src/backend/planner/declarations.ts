@@ -1,7 +1,6 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsClassDeclaration,
-  AsExpressionWithTypeArguments,
   AsFunctionDeclaration,
   AsInterfaceDeclaration,
   AsPropertySignatureDeclaration,
@@ -42,6 +41,9 @@ import {
 import {
   registerSourceObjectShape,
 } from "./object-shapes.js";
+import {
+  planImplicitForwardingConstructors,
+} from "./project-type-constructors.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -55,14 +57,20 @@ export function planClassDeclaration(
   const declaration = AsClassDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
-  const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
-  const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
+  const heritage = planClassHeritage(node, input, diagnostics);
+  const autoPropertyNames = getImplementedInterfacePropertyNames(node, input);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
   const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
+  const implicitConstructors = planImplicitForwardingConstructors(
+    node,
+    className,
+    input,
+    diagnostics,
+  );
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -74,37 +82,44 @@ export function planClassDeclaration(
       ? {}
       : { interfaces: jsonSerializable ? [...heritage.interfaces, csharpJsonValueInterfaceType()] : heritage.interfaces }),
     members: jsonSerializable && objectShape !== undefined
-      ? [...members, renderJsonSerializableObjectShapeMethod(objectShape)]
-      : members,
+      ? [
+          ...implicitConstructors,
+          ...members,
+          renderJsonSerializableObjectShapeMethod(objectShape),
+        ]
+      : [...implicitConstructors, ...members],
   };
 }
 
 function getImplementedInterfacePropertyNames(
   classDeclaration: Node,
-  sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  for (const heritageType of input.ast.implementsHeritageElements(classDeclaration)) {
-    if (heritageType !== undefined) {
-      collectImplementedInterfacePropertyNames(heritageType, sourceFile, input, names, new Set<Node>());
+  const heritage = input.navigation.declaredHeritage(classDeclaration);
+  if (heritage.kind !== "resolved") {
+    return names;
+  }
+  for (const edge of heritage.edges) {
+    if (edge.kind === "implements") {
+      collectImplementedInterfacePropertyNames(
+        edge.target.declaration,
+        input,
+        names,
+        new Set<Node>(),
+      );
     }
   }
   return names;
 }
 
 function collectImplementedInterfacePropertyNames(
-  heritageType: Node,
-  sourceFile: SourceFile,
+  declaration: Node,
   input: CsharpTranslationContext,
   names: Set<string>,
   seen: Set<Node>,
 ): void {
-  const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-  const reference = input.navigation.referenceFor(referenceNode);
-  const declaration = reference?.declaration ??
-    input.navigation.declarationFor(referenceNode);
-  if (declaration === undefined || seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
+  if (seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
     return;
   }
   seen.add(declaration);
@@ -122,10 +137,18 @@ function collectImplementedInterfacePropertyNames(
       names.add(name);
     }
   }
-  const declarationSourceFile = reference?.sourceFile ?? input.ast.getSourceFile(declaration) ?? sourceFile;
-  for (const baseType of input.ast.extendsHeritageElements(declaration)) {
-    if (baseType !== undefined) {
-      collectImplementedInterfacePropertyNames(baseType, declarationSourceFile, input, names, seen);
+  const heritage = input.navigation.declaredHeritage(declaration);
+  if (heritage.kind !== "resolved") {
+    return;
+  }
+  for (const edge of heritage.edges) {
+    if (edge.kind === "extends") {
+      collectImplementedInterfacePropertyNames(
+        edge.target.declaration,
+        input,
+        names,
+        seen,
+      );
     }
   }
 }

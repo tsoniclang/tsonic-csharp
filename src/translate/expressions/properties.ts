@@ -100,7 +100,6 @@ export function translateCsharpPropertyAccess(
       diagnostics.push(selectedPolicyDiagnostic(
         node,
         selection.diagnostic,
-        sourceFile,
       ));
       return undefined;
     case "missing":
@@ -108,7 +107,6 @@ export function translateCsharpPropertyAccess(
         node,
         "CSHARP_TARGET_PROPERTY_NOT_CLOSED",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "conflict":
@@ -116,7 +114,6 @@ export function translateCsharpPropertyAccess(
         node,
         "CSHARP_TARGET_PROPERTY_IDENTITY_CONFLICT",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "ambiguous":
@@ -124,7 +121,6 @@ export function translateCsharpPropertyAccess(
         node,
         "CSHARP_TARGET_PROPERTY_AMBIGUOUS",
         selection.reason,
-        sourceFile,
         selection.candidates.map((candidate) =>
           `candidate=${candidate}`),
       ));

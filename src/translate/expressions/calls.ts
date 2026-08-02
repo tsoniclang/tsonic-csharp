@@ -62,7 +62,7 @@ export function translateCsharpCallExpression(
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
   const expression = input.ast.as.AsCallExpression(node);
-  const sourceCall = input.queries(sourceFile).checker.getResolvedCallInfo(node);
+  const sourceCall = input.semantics(sourceFile).getResolvedCallInfo(node);
   const calleeNode = sourceCall?.sourceCallee.expression ??
     expression?.Expression;
   const compatShape = compatCallShape(input, sourceCall);
@@ -155,7 +155,6 @@ export function translateCsharpCallExpression(
       diagnostics.push(selectedPolicyDiagnostic(
         node,
         selection.diagnostic,
-        sourceFile,
       ));
       return undefined;
     case "missing":
@@ -163,7 +162,6 @@ export function translateCsharpCallExpression(
         node,
         "CSHARP_TARGET_CALL_NOT_CLOSED",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "conflict":
@@ -171,7 +169,6 @@ export function translateCsharpCallExpression(
         node,
         "CSHARP_TARGET_CALL_IDENTITY_CONFLICT",
         selection.reason,
-        sourceFile,
       ));
       return undefined;
     case "ambiguous":
@@ -179,7 +176,6 @@ export function translateCsharpCallExpression(
         node,
         "CSHARP_TARGET_CALL_AMBIGUOUS",
         selection.reason,
-        sourceFile,
         selection.candidates.map((candidate) =>
           `candidate=${candidate}`),
       ));
@@ -588,7 +584,7 @@ function translateSourceOwnedCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const declaration = input.queries(sourceFile).checker
+  const declaration = input.semantics(sourceFile)
     .getSignatureDeclaration(source.selectedSignature);
   if (!isProjectSourceDeclaration(input, declaration)) {
     diagnostics.push(unsupportedNodeDiagnostic(

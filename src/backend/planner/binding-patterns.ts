@@ -104,7 +104,7 @@ function planBindingNameFromProjection(
       name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
       type: projectedType ??
         getCsharpTypeFromSemanticType(
-          input.queries(sourceFile).checker.getTypeAtLocation(name),
+          input.semantics(sourceFile).getTypeAtLocation(name),
           sourceFile,
           input,
         ) ??

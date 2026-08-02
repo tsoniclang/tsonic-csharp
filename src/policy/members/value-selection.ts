@@ -13,7 +13,7 @@ import type {
 } from "../../provider/target-relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
-} from "./provider-evidence.js";
+} from "../../provider/target-relations/evidence.js";
 
 type CsharpProviderValueRelation = Extract<
   CsharpProviderTargetRelation,

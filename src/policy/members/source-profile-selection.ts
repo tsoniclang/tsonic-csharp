@@ -2,6 +2,9 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
+import type {
   CsharpProviderCallSelectionHost,
 } from "./call-selection.js";
 import {
@@ -27,15 +30,11 @@ import {
 import type {
   ResolvedSourceCallInfo,
 } from "./selection-types.js";
-import type {
-  SourceFileQueries,
-} from "@tsonic/tsts";
-
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
 >;
 
 const callPolicies = Object.freeze([

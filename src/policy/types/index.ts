@@ -1,5 +1,6 @@
 export * from "./definitions.js";
 export * from "./member-facts.js";
+export * from "./member-substitution.js";
 export * from "./target-refs.js";
 export * from "./bindings.js";
 export * from "./substitution.js";
@@ -15,6 +16,8 @@ export * from "./equality.js";
 export * from "./source-profile.js";
 export * from "./source-literal-policy.js";
 export * from "./source-syntax.js";
+export * from "./project-types.js";
+export * from "./project-type-constructors.js";
 export * from "./source-ownership.js";
 export * from "./surface-types.js";
 export * from "./resolution.js";

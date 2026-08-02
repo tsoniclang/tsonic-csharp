@@ -578,7 +578,7 @@ function arrayConstructionMember(
     return undefined;
   }
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.queries(context.sourceFile).typeShape.isNumberLike(
+    context.host.semantics(context.sourceFile).isNumberLike(
       context.source.sourceArguments[0]?.type,
     );
   if (numericLength) {
@@ -620,7 +620,7 @@ function arrayCallMember(
     return undefined;
   }
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.queries(context.sourceFile).typeShape.isNumberLike(
+    context.host.semantics(context.sourceFile).isNumberLike(
       context.source.sourceArguments[0]?.type,
     );
   return staticMethod(
@@ -697,7 +697,7 @@ function arrayConstructionTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.queries(context.sourceFile).typeShape.isNumberLike(
+    context.host.semantics(context.sourceFile).isNumberLike(
       context.source.sourceArguments[0]?.type,
     );
   return numericLength ? [] : arrayResultElementTypeArguments(context);

@@ -149,6 +149,21 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["opaque", new Set(["kind", "id", "displayName", "sourceShape"])],
 ]);
 
+const dotnetSignatureFields = new Set([
+  "id",
+  "sourceId",
+  "targetName",
+  "attributes",
+  "unsupportedAttributes",
+  "typeParameters",
+  "parameters",
+  "returnType",
+  "targetReturnType",
+  "returnAttributes",
+  "unsupportedReturnAttributes",
+  "targetInvocation",
+]);
+
 export function validateDotnetModuleModelContract(module: DotnetModuleModel): DotnetProviderDiagnostic | undefined {
   const collector = createContractCollector("DOTNET_PROVIDER_MODEL_CONTRACT_INVALID", "Invalid .NET provider model contract.");
   requireNonEmptyString(module.moduleSpecifier, "$.moduleSpecifier", collector);
@@ -443,11 +458,10 @@ function validateDotnetSignatureList(
   const signatureIds = new Set<string>();
   for (const [index, signature] of signatures.entries()) {
     const signaturePath = `${path}[${index}]`;
+    validateDotnetSignatureFields(signature, signaturePath, collector);
     requireNonEmptyString(signature.id, `${signaturePath}.id`, collector);
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
-    if (signature.providerSourceSignatureId !== undefined) {
-      requireNonEmptyString(signature.providerSourceSignatureId, `${signaturePath}.providerSourceSignatureId`, collector);
-    }
+    requireNonEmptyString(signature.sourceId, `${signaturePath}.sourceId`, collector);
     validateDotnetTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
     validateDotnetParameters(signature.parameters, `${signaturePath}.parameters`, collector);
     if (signature.returnType === undefined) {
@@ -468,6 +482,23 @@ function validateDotnetSignatureList(
       signaturePath,
       collector,
     );
+  }
+}
+
+function validateDotnetSignatureFields(
+  signature: DotnetSignatureDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  const record = signature as unknown as Readonly<Record<string, unknown>>;
+  for (const key of Object.keys(record)) {
+    if (!dotnetSignatureFields.has(key)) {
+      collector.add(
+        `${path}.${key}`,
+        "Field is not valid for a .NET signature declaration.",
+        record[key],
+      );
+    }
   }
 }
 

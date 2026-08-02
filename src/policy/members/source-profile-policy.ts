@@ -2,9 +2,11 @@ import type {
   ExtensionDiagnostic,
   Node,
   SourceFile,
-  SourceFileQueries,
   Type,
 } from "@tsonic/tsts";
+import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
 import type {
   CsharpTargetReceiverRelation,
 } from "../../provider/target-relations/index.js";
@@ -30,10 +32,10 @@ import type {
 } from "./selection-types.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileQueries["checker"]["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
 >;
 
 export interface CsharpSourceProfileIdentitySelector {
@@ -142,10 +144,10 @@ export function selectCsharpSourceProfileCallPolicy(
   sourceFile: SourceFile,
   policies: readonly CsharpSourceProfileCallPolicy[],
 ): CsharpSourceProfileCallPolicyResult | undefined {
-  const declaration = host.queries(sourceFile).checker
+  const declaration = host.semantics(sourceFile)
     .getSignatureDeclaration(source.selectedSignature);
   const identity = csharpSourceProfileDeclarationIdentity(
-    host.queries(sourceFile).ast,
+    host.ast,
     declaration,
   );
   if (identity === undefined) {
@@ -169,7 +171,7 @@ export function selectCsharpSourceProfilePropertyPolicy(
   policies: readonly CsharpSourceProfilePropertyPolicy[],
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
   const identity = csharpSourceProfileDeclarationIdentity(
-    host.queries(sourceFile).ast,
+    host.ast,
     source.selectedDeclaration,
   );
   if (identity === undefined) {
@@ -193,7 +195,7 @@ export function selectCsharpSourceProfileElementPolicy(
   policies: readonly CsharpSourceProfileElementPolicy[],
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const identity = csharpSourceProfileDeclarationIdentity(
-    host.queries(sourceFile).ast,
+    host.ast,
     source.selectedDeclaration,
   );
   if (identity === undefined) {
