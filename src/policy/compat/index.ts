@@ -3,7 +3,9 @@ export {
   selectCsharpCompatAnyCallOperation,
   selectCsharpCompatAnyCondition,
   selectCsharpCompatAnyReceiverOperation,
-  selectCsharpCompatAnyTypeofOperation,
+  selectCsharpCompatValueReceiverOperation,
+  selectCsharpCompatObjectLiteralOperation,
+  selectCsharpCompatTypeofOperation,
   selectCsharpCompatAnyUnaryOperation,
   selectCsharpCompatAnyVoidOperation,
 } from "./selection.js";

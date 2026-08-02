@@ -31,7 +31,11 @@ export function getCsharpNullableElementTargetType(type: TargetTypeRef | undefin
 }
 
 export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
-  if (getCsharpNullableElementTargetType(type) !== undefined) {
+  if (
+    getCsharpNullableElementTargetType(type) !== undefined ||
+    type.kind === "target-named" &&
+      (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true
+  ) {
     return type;
   }
   if (isCsharpValueTypeTargetType(type)) {

@@ -29,11 +29,25 @@ export function csharpCompatAnyTargetType(): CsharpTargetNamedTypeRef {
     "tsonic.csharp.compat:any",
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"),
+    {
+      valueType: true,
+      absorbsNullish: true,
+      compatValueCarrier: true,
+    },
   );
 }
 
-export function csharpTsValueTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"));
+export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.TsValue",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"),
+    {
+      valueType: true,
+      absorbsNullish: true,
+      compatValueCarrier: true,
+    },
+  );
 }
 
 export function csharpTsUnionTargetType(): TargetTypeRef {
@@ -84,29 +98,25 @@ export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): bool
     );
 }
 
-export function isCsharpTsValueTargetType(type: TargetTypeRef | undefined): boolean {
+export function isCsharpCompatValueTargetType(
+  type: TargetTypeRef | undefined,
+): boolean {
   return type?.kind === "target-named" &&
-    (
-      type.id === "Tsonic.CSharp.Js.TsValue" ||
-      type.id === "tsonic.csharp.compat:any"
-    );
+    (type as CsharpTargetNamedTypeRef).csharpCompatValueCarrier === true;
 }
 
 export function isCsharpClosedJsonRuntimeLeaf(
   type: TargetTypeRef | undefined,
 ): boolean {
-  return type?.kind === "target-named" &&
-    (
-      type.id === "Tsonic.CSharp.Js.JSObject" ||
-      type.id === "Tsonic.CSharp.Js.TsValue"
-    );
+  return isCsharpCompatValueTargetType(type) ||
+    type?.kind === "target-named" &&
+      type.id === "Tsonic.CSharp.Js.JSObject";
 }
 
 export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" &&
+  return isCsharpCompatValueTargetType(type) ||
+    type?.kind === "target-named" &&
     (
-      type.id === "Tsonic.CSharp.Js.TsValue" ||
-      type.id === "tsonic.csharp.compat:any" ||
       type.id === "Tsonic.CSharp.Js.TsObject" ||
       type.id === "Tsonic.CSharp.Js.TsArray" ||
       type.id === "Tsonic.CSharp.Js.TsUnion" ||

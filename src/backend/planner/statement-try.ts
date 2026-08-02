@@ -36,7 +36,7 @@ import {
   csharpThrownValueToValueExpression,
 } from "./exception-flow.js";
 import {
-  isCsharpTsValueTargetType,
+  isCsharpCompatValueTargetType,
 } from "../../policy/types/index.js";
 
 export type BlockStatementPlanner = (
@@ -102,7 +102,7 @@ function planCatchClause(
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (
       !isCsharpThrowableCarrier(carrier) &&
-      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpTsValueTargetType(carrier))
+      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatValueTargetType(carrier))
     ) {
       const detail = carrier === undefined
         ? missingCarrierDiagnosticDetail(declarationCarrierResolution ?? primaryCarrierResolution, "Runtime carrier fact is missing for the catch variable.")
@@ -145,7 +145,7 @@ function planCatchClause(
         },
       };
     }
-    if (isCsharpTsValueTargetType(carrier)) {
+    if (isCsharpCompatValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
       const catchExceptionName = allocateCatchValue(state);
       const sourceVariableName = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Catch variable", "catchValue");

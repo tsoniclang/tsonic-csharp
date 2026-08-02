@@ -69,6 +69,7 @@ import {
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   csharpRuntimeUnionTargetType,
+  csharpTsValueTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
 } from "./runtime-carriers.js";
@@ -1053,7 +1054,9 @@ export function createCsharpTypePolicy(
       );
     }
     if (queries.isUnknown(type)) {
-      return { kind: "opaque", id: "unknown" };
+      return readCsharpTypescriptCompatibilityMode(host.target) === "compat"
+        ? csharpTsValueTargetType()
+        : { kind: "opaque", id: "unknown" };
     }
     if (queries.isNever(type)) {
       return { kind: "opaque", id: "never" };
@@ -1761,7 +1764,9 @@ function resolveKeywordType(
         readCsharpTypescriptCompatibilityMode(target),
       );
     case "KindUnknownKeyword":
-      return { kind: "opaque", id: "unknown" };
+      return readCsharpTypescriptCompatibilityMode(target) === "compat"
+        ? csharpTsValueTargetType()
+        : { kind: "opaque", id: "unknown" };
     case "KindNeverKeyword":
       return { kind: "opaque", id: "never" };
     default:

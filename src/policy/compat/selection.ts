@@ -10,6 +10,10 @@ import type {
 } from "../../translate/context/index.js";
 import {
   isCsharpAnyRuntimeCarrier,
+  isCsharpCompatValueTargetType,
+} from "../types/index.js";
+import type {
+  TargetTypeRef,
 } from "../types/index.js";
 
 export type CsharpCompatAnySelection =
@@ -35,6 +39,18 @@ export type CsharpCompatAnyCallKind =
   | "property"
   | "element";
 
+export function selectCsharpCompatObjectLiteralOperation(): Extract<
+  CsharpCompatAnySelection,
+  { readonly kind: "resolved" }
+> {
+  return {
+    kind: "resolved",
+    runtimeMember: "CreateCompatObject",
+    dispatch: "static",
+    result: "value",
+  };
+}
+
 export function selectCsharpCompatAnyReceiverOperation(
   input: CsharpTranslationContext,
   receiver: Node | undefined,
@@ -45,6 +61,21 @@ export function selectCsharpCompatAnyReceiverOperation(
   const mode = selectAnyMode(input, [receiver], sourceFile, operationLabel(operation));
   if (mode.kind !== "compat") {
     return mode;
+  }
+  return selectCsharpCompatValueReceiverOperation(
+    input.types.resolveNode(receiver, sourceFile),
+    operation,
+    optional,
+  );
+}
+
+export function selectCsharpCompatValueReceiverOperation(
+  receiverType: TargetTypeRef | undefined,
+  operation: CsharpCompatAnyReceiverOperation,
+  optional = false,
+): CsharpCompatAnySelection {
+  if (!isCsharpCompatValueTargetType(receiverType)) {
+    return { kind: "not-any" };
   }
   const runtimeMember = receiverRuntimeMember(operation, optional);
   return runtimeMember === undefined
@@ -107,7 +138,7 @@ export function selectCsharpCompatAnyBinaryOperation(
   sourceFile: SourceFile,
   operator: string,
 ): CsharpCompatAnySelection {
-  const mode = selectAnyMode(
+  const mode = selectCompatValueMode(
     input,
     [left, right],
     sourceFile,
@@ -153,7 +184,7 @@ export function selectCsharpCompatAnyUnaryOperation(
   sourceFile: SourceFile,
   operator: string,
 ): CsharpCompatAnySelection {
-  const mode = selectAnyMode(
+  const mode = selectCompatValueMode(
     input,
     [operand],
     sourceFile,
@@ -184,20 +215,28 @@ export function selectCsharpCompatAnyUnaryOperation(
       };
 }
 
-export function selectCsharpCompatAnyTypeofOperation(
+export function selectCsharpCompatTypeofOperation(
   input: CsharpTranslationContext,
   operand: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
-  const mode = selectAnyMode(input, [operand], sourceFile, "typeof");
-  return mode.kind !== "compat"
-    ? mode
-    : {
+  const type = operand === undefined
+    ? undefined
+    : input.types.resolveNode(operand, sourceFile);
+  if (isCsharpCompatValueTargetType(type)) {
+    return {
         kind: "resolved",
         runtimeMember: "ApplyCompatTypeof",
         dispatch: "static",
         result: "string",
       };
+  }
+  return isCsharpAnyRuntimeCarrier(type)
+    ? {
+        kind: "rejected",
+        reason: "C# typeof uses TypeScript any in strict-native mode.",
+      }
+    : { kind: "not-any" };
 }
 
 export function selectCsharpCompatAnyVoidOperation(
@@ -205,7 +244,7 @@ export function selectCsharpCompatAnyVoidOperation(
   operand: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
-  const mode = selectAnyMode(input, [operand], sourceFile, "void");
+  const mode = selectCompatValueMode(input, [operand], sourceFile, "void");
   return mode.kind !== "compat"
     ? mode
     : {
@@ -221,7 +260,12 @@ export function selectCsharpCompatAnyCondition(
   expression: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
-  const mode = selectAnyMode(input, [expression], sourceFile, "condition");
+  const mode = selectCompatValueMode(
+    input,
+    [expression],
+    sourceFile,
+    "condition",
+  );
   return mode.kind !== "compat"
     ? mode
     : {
@@ -253,6 +297,37 @@ function selectAnyMode(
         kind: "rejected",
         reason:
           `C# ${operation} uses TypeScript any in strict-native mode.`,
+      };
+}
+
+function selectCompatValueMode(
+  input: CsharpTranslationContext,
+  nodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  operation: string,
+):
+  | Extract<CsharpCompatAnySelection, { readonly kind: "not-any" | "rejected" }>
+  | { readonly kind: "compat" } {
+  const types = nodes.map((node) =>
+    node === undefined ? undefined : input.types.resolveNode(node, sourceFile)
+  );
+  if (types.some((type) => isCsharpAnyRuntimeCarrier(type))) {
+    return readCsharpTypescriptCompatibilityMode(input.target) === "compat"
+      ? { kind: "compat" }
+      : {
+          kind: "rejected",
+          reason: `C# ${operation} uses TypeScript any in strict-native mode.`,
+        };
+  }
+  if (!types.some((type) => isCsharpCompatValueTargetType(type))) {
+    return { kind: "not-any" };
+  }
+  return readCsharpTypescriptCompatibilityMode(input.target) === "compat"
+    ? { kind: "compat" }
+    : {
+        kind: "rejected",
+        reason:
+          `C# ${operation} requires a compatibility-value carrier outside compatibility mode.`,
       };
 }
 

@@ -23,6 +23,9 @@ import type {
   CsharpObjectShapeFact,
 } from "../../policy/types/index.js";
 import {
+  isCsharpCompatObjectShapeTargetType,
+} from "../../policy/types/index.js";
+import {
   objectShapeDeclarationMatches,
   renderObjectShapeInterfaces,
   renderObjectShapeMembers,
@@ -67,11 +70,22 @@ export function csharpTypeFromObjectShapeFact(
   diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
 ): CsharpTypeNode | undefined {
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
-  if (targetType === undefined || targetType.kind !== "IdentifierName") {
+  if (targetType === undefined) {
     reportObjectShapeFailure(
       diagnostics,
       diagnosticSubject,
       "Object-shape fact must carry a renderable named target carrier type before C# emission.",
+    );
+    return undefined;
+  }
+  if (isCsharpCompatObjectShapeTargetType(fact.targetType)) {
+    return targetType;
+  }
+  if (targetType.kind !== "IdentifierName") {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Generated object-shape declarations require one exact unqualified compiler-owned target type name.",
     );
     return undefined;
   }

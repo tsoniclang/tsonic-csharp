@@ -9,7 +9,7 @@ import {
   getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
 import {
-  selectCsharpCompatAnyTypeofOperation,
+  selectCsharpCompatTypeofOperation,
 } from "../../policy/compat/index.js";
 import {
   getCsharpTypeofRuntimeKind,
@@ -51,7 +51,7 @@ export function planTypeofExpression(
     return undefined;
   }
   const operand = input.ast.as.AsTypeOfExpression(node)?.Expression;
-  const compat = selectCsharpCompatAnyTypeofOperation(
+  const compat = selectCsharpCompatTypeofOperation(
     input,
     operand,
     sourceFile,
@@ -156,6 +156,41 @@ export function tryPlanTypeofComparisonExpression(
     sourceFile,
   );
   const negated = sourceOperator === "!==" || sourceOperator === "!=";
+  const compat = selectCsharpCompatTypeofOperation(
+    input,
+    comparison.operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  if (compat.kind === "resolved") {
+    const planned = planExpression(
+      comparison.operand,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    const runtimeTypeof = planned === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(compat, undefined, [planned]);
+    return runtimeTypeof === undefined
+      ? undefined
+      : {
+          kind: "BinaryExpression",
+          left: runtimeTypeof,
+          operatorToken: {
+            kind: negated
+              ? "ExclamationEqualsToken"
+              : "EqualsEqualsToken",
+          },
+          right: {
+            kind: "LiteralExpression",
+            value: comparison.runtimeKind,
+          },
+        };
+  }
   const exactRuntimeKind = getCsharpTypeofRuntimeKind(operandType);
   if (exactRuntimeKind !== undefined) {
     return {

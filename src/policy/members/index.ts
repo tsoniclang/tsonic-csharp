@@ -13,3 +13,4 @@ export * from "./native-source-profile.js";
 export * from "./source-profile-selection.js";
 export * from "./js-source-profile/index.js";
 export * from "./target-selection.js";
+export * from "./compat-object-shape-property.js";

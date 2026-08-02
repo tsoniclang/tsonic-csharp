@@ -29,6 +29,7 @@ import {
   isCsharpNullableReferenceTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
+  isCsharpCompatValueTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -136,6 +137,14 @@ export function selectCsharpConversion(
   }
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
+  }
+  const compatValueConversion = selectCompatValueConversion(
+    source,
+    target,
+    mode,
+  );
+  if (compatValueConversion !== undefined) {
+    return compatValueConversion;
   }
   const anyConversion = selectAnyConversion(input, source, target);
   if (anyConversion !== undefined) {
@@ -314,6 +323,36 @@ export function selectCsharpExpressionConversion(
     : selected;
 }
 
+export function selectCsharpFlowReadConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  storageType: TargetTypeRef,
+  selectedReadType: TargetTypeRef,
+): CsharpConversionSelection {
+  if (targetTypeRefEquals(storageType, selectedReadType)) {
+    return { kind: "identity" };
+  }
+  if (isCsharpCompatValueTargetType(storageType)) {
+    return selectCsharpConversion(
+      input,
+      storageType,
+      selectedReadType,
+      "explicit",
+    );
+  }
+  const nullableElement = getCsharpNullableElementTargetType(storageType);
+  return nullableElement !== undefined &&
+      targetTypeRefEquals(nullableElement, selectedReadType)
+    ? { kind: "nullable-value" }
+    : {
+        kind: "rejected",
+        reason:
+          `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', but C# has no closed storage-read projection for that relation.`,
+      };
+}
+
 function conversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
@@ -325,6 +364,32 @@ function conversionIsApplicable(
     selection.kind === "compat-box" ||
     selection.kind === "compat-cast" ||
     mode === "explicit" && selection.kind === "cast";
+}
+
+function selectCompatValueConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  const sourceCompatValue = isCsharpCompatValueTargetType(source);
+  const targetCompatValue = isCsharpCompatValueTargetType(target);
+  if (!sourceCompatValue && !targetCompatValue) {
+    return undefined;
+  }
+  if (sourceCompatValue && targetCompatValue) {
+    return { kind: "identity" };
+  }
+  if (targetCompatValue) {
+    return { kind: "compat-box" };
+  }
+  return mode === "explicit"
+    ? {
+        kind: "compat-cast",
+        ...(getCsharpRuntimeUnionArms(target) === undefined
+          ? {}
+          : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
+      }
+    : undefined;
 }
 
 function selectAnyConversion(

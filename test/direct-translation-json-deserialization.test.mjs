@@ -77,3 +77,79 @@ test("provider collection values do not become project-owned object shapes", () 
   );
   assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
 });
+
+test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    targetOptions: { typescriptCompatibility: "compat" },
+    sourceText: `
+      export function parse(json: string): string | undefined {
+        const obj = JSON.parse(json) as { title?: unknown };
+        if (typeof obj.title !== "string") return undefined;
+        return obj.title;
+      }
+      export function update(json: string): string {
+        const obj = JSON.parse(json) as { title?: unknown };
+        obj.title = 1;
+        return typeof obj.title;
+      }
+      export function identity(json: string): boolean {
+        const raw = JSON.parse(json);
+        const left = raw as { title?: unknown };
+        const right = raw as { title?: unknown };
+        return left === right;
+      }
+      export function create(): string {
+        const obj: { title?: unknown } = {
+          title: JSON.parse("\\\"created\\\""),
+        };
+        return typeof obj.title;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.ok(source);
+  assert.equal(source, `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static string? parse(string json)
+        {
+            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
+            if (Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title")) != "string")
+            {
+                return null;
+            }
+            return Tsonic.CSharp.Js.TsValue.CastCompat<string>(obj.ReadCompatSlot("title"));
+        }
+        public static string update(string json)
+        {
+            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
+            obj.WriteCompatSlot("title", Tsonic.CSharp.Js.TsValue.from(1));
+            return Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title"));
+        }
+        public static bool identity(string json)
+        {
+            Tsonic.CSharp.Js.TsValue raw = Tsonic.CSharp.Js.JSON.parse(json);
+            Tsonic.CSharp.Js.TsValue left = Tsonic.CSharp.Js.TsValue.from(raw);
+            Tsonic.CSharp.Js.TsValue right = Tsonic.CSharp.Js.TsValue.from(raw);
+            return Tsonic.CSharp.Js.TsValue.ApplyCompatBinaryBoolean(left, "===", right);
+        }
+        public static string create()
+        {
+            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.CreateCompatObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
+            return Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title"));
+        }
+    }
+}
+`);
+  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
+  assert.equal(source.includes("dynamic"), false);
+  assert.equal(source.includes("System.Reflection"), false);
+});

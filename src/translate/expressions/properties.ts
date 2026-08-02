@@ -6,10 +6,12 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
+  resolveCsharpCompatObjectShapeProperty,
   selectCsharpTargetProperty,
 } from "../../policy/members/index.js";
 import {
   selectCsharpCompatAnyReceiverOperation,
+  selectCsharpCompatValueReceiverOperation,
 } from "../../policy/compat/index.js";
 import type {
   CsharpTargetPropertySelection,
@@ -31,12 +33,21 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../backend/planner/target-types.js";
+import {
+  resolveCsharpObjectShapeMemberBySelectedSubject,
+} from "../../policy/types/index.js";
+import {
+  selectCsharpFlowReadConversion,
+} from "../../policy/conversions/index.js";
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
 import {
   translateCsharpCompatInvocation,
 } from "./compat.js";
+import {
+  applyCsharpConversionSelection,
+} from "./conversions.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -200,15 +211,49 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
+  const objectShape = input.objectShapes.resolveNode(
+    selection.source.receiver.expression,
+    sourceFile,
+  );
+  const selectedSubjects = [
+    selection.source.selectedSymbol,
+    selection.source.selectedDeclaration,
+  ];
+  const compatProperty = resolveCsharpCompatObjectShapeProperty(
+    input.objectShapes,
+    selection,
+    sourceFile,
+  );
+  if (compatProperty.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compatProperty.reason));
+    return undefined;
+  }
+  const shapeMember = compatProperty.kind === "resolved"
+    ? compatProperty
+    : objectShape === undefined
+    ? undefined
+    : resolveCsharpObjectShapeMemberBySelectedSubject(
+        objectShape,
+        selectedSubjects,
+      );
+  if (objectShape !== undefined && shapeMember?.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact selected source property is absent from its finalized object-shape contract.",
+    ));
+    return undefined;
+  }
   const expression = input.ast.as.AsPropertyAccessExpression(node);
   const nameNode = input.ast.name(declaration) ?? expression?.name;
-  const name = nameNode === undefined
-    ? undefined
-    : requireCsharpIdentifier(
-        input.ast.text(nameNode),
-        diagnostics,
-        "Source-owned property name",
-      );
+  const name = shapeMember?.kind === "resolved"
+    ? shapeMember.member.targetName
+    : nameNode === undefined
+      ? undefined
+      : requireCsharpIdentifier(
+          input.ast.text(nameNode),
+          diagnostics,
+          "Source-owned property name",
+        );
   if (name === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -222,15 +267,75 @@ function translateSourceOwnedProperty(
     input,
     diagnostics,
   );
-  return receiver === undefined
-    ? undefined
+  if (receiver === undefined) {
+    return undefined;
+  }
+  const compat = compatProperty.kind === "resolved"
+    ? selectCsharpCompatValueReceiverOperation(
+        compatProperty.shape.targetType,
+        "property-read",
+        selection.source.optionalChain,
+      )
+    : { kind: "not-any" as const };
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    return undefined;
+  }
+  const compatSourceName = compatProperty.kind === "resolved"
+    ? compatProperty.member.sourceName
+    : undefined;
+  const planned = compat.kind === "resolved" && compatSourceName !== undefined
+    ? translateCsharpCompatInvocation(
+        compat,
+        receiver,
+        [{ kind: "LiteralExpression", value: compatSourceName }],
+      )
     : {
         kind: selection.source.optionalChain
           ? "ConditionalAccessExpression"
-          : "SimpleMemberAccessExpression",
+          : "SimpleMemberAccessExpression" as const,
         receiver,
         name,
-      };
+      } as CsharpExpression;
+  if (planned === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected compatibility object-shape property read has no closed runtime operation.",
+    ));
+    return undefined;
+  }
+  if (
+    shapeMember?.kind !== "resolved" ||
+    selection.source.accessMode !== "read"
+  ) {
+    return planned;
+  }
+  const selectedReadType = input.types.resolveType(
+    selection.source.sourceReadType,
+    sourceFile,
+  );
+  if (selectedReadType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact selected source property read has no closed C# flow representation.",
+    ));
+    return undefined;
+  }
+  const conversion = selectCsharpFlowReadConversion(
+    input,
+    shapeMember.member.type,
+    selectedReadType,
+  );
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    shapeMember.member.type,
+    selectedReadType,
+    conversion,
+    planned,
+  );
 }
 
 function targetStaticReceiver(

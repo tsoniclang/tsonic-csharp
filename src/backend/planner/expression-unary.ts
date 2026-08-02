@@ -12,6 +12,10 @@ import {
 import {
   selectCsharpCompatAnyUnaryOperation,
 } from "../../policy/compat/index.js";
+import {
+  resolveCsharpCompatObjectShapeProperty,
+  selectCsharpTargetProperty,
+} from "../../policy/members/index.js";
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
@@ -43,6 +47,18 @@ export function planPrefixUnaryExpression(
   const sourceOperator = sourceOperatorFromKindName(
     input.ast.operatorKindName(node),
   );
+  if (
+    rejectUnloweredCompatObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      sourceFile,
+      input,
+      diagnostics,
+    )
+  ) {
+    return undefined;
+  }
   if (sourceOperator !== undefined) {
     const compat = selectCsharpCompatAnyUnaryOperation(
       input,
@@ -111,6 +127,18 @@ export function planPostfixUnaryExpression(
   const sourceOperator = sourceOperatorFromKindName(
     input.ast.operatorKindName(node),
   );
+  if (
+    rejectUnloweredCompatObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      sourceFile,
+      input,
+      diagnostics,
+    )
+  ) {
+    return undefined;
+  }
   if (sourceOperator !== undefined) {
     const compat = selectCsharpCompatAnyUnaryOperation(
       input,
@@ -166,4 +194,40 @@ export function planPostfixUnaryExpression(
         operand,
         operatorToken,
       };
+}
+
+function rejectUnloweredCompatObjectShapeUpdate(
+  node: Node,
+  operand: Node | undefined,
+  sourceOperator: string | undefined,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): boolean {
+  if (
+    (sourceOperator !== "++" && sourceOperator !== "--") ||
+    operand === undefined ||
+    !input.ast.is.IsPropertyAccessExpression(operand)
+  ) {
+    return false;
+  }
+  const selection = selectCsharpTargetProperty(input, operand, sourceFile);
+  if (selection.kind !== "source-owned") {
+    return false;
+  }
+  const compatProperty = resolveCsharpCompatObjectShapeProperty(
+    input.objectShapes,
+    selection,
+    sourceFile,
+  );
+  if (compatProperty.kind === "not-compat-object-shape") {
+    return false;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    node,
+    compatProperty.kind === "rejected"
+      ? compatProperty.reason
+      : `Closed compatibility object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
+  ));
+  return true;
 }

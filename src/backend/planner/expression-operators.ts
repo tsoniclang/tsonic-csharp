@@ -12,7 +12,12 @@ import {
 import {
   selectCsharpCompatAnyBinaryOperation,
   selectCsharpCompatAnyReceiverOperation,
+  selectCsharpCompatValueReceiverOperation,
 } from "../../policy/compat/index.js";
+import {
+  resolveCsharpCompatObjectShapeProperty,
+  selectCsharpTargetProperty,
+} from "../../policy/members/index.js";
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
@@ -110,18 +115,21 @@ export function tryPlanBinaryExpression(
     input.ast.operatorKindName(node),
   );
   if (
-    sourceOperator === "=" &&
+    sourceOperator !== undefined &&
+    csharpAssignmentOperatorTokenFromText(sourceOperator) !== undefined &&
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const compatAssignment = tryPlanCompatAnyAssignment(
+    const compatAssignment = tryPlanCompatAssignment(
       node,
       expression.Left,
       expression.Right,
+      sourceOperator,
       sourceFile,
       input,
       diagnostics,
       planExpression,
+      planExpressionWithExpectedType,
     );
     if (compatAssignment.handled) {
       return compatAssignment.expression;
@@ -235,17 +243,54 @@ export function tryPlanBinaryExpression(
           left,
           operatorToken: assignmentToken,
           right,
-  };
+        };
+  }
+  const binaryToken = csharpBinaryOperatorTokenFromText(
+    targetOperator,
+  );
+  if (binaryToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected C# operator '${targetOperator}' has no target AST token.`,
+    ));
+    return undefined;
+  }
+  const left = planBinaryOperand(
+    selection.left,
+    binaryToken,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  const right = planBinaryOperand(
+    selection.right,
+    binaryToken,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  return left === undefined || right === undefined
+    ? undefined
+    : {
+        kind: "BinaryExpression",
+        left,
+        operatorToken: binaryToken,
+        right,
+      };
 }
 
-function tryPlanCompatAnyAssignment(
+function tryPlanCompatAssignment(
   node: Node,
   left: Node,
   right: Node,
+  sourceOperator: string,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): {
   readonly handled: boolean;
   readonly expression?: CsharpExpression;
@@ -253,6 +298,88 @@ function tryPlanCompatAnyAssignment(
   if (input.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.ast.as.AsPropertyAccessExpression(left);
     const receiverNode = property?.Expression;
+    const targetProperty = selectCsharpTargetProperty(input, left, sourceFile);
+    if (
+      targetProperty.kind === "source-owned" &&
+      receiverNode !== undefined
+    ) {
+      const compatProperty = resolveCsharpCompatObjectShapeProperty(
+        input.objectShapes,
+        targetProperty,
+        sourceFile,
+      );
+      if (compatProperty.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(left, compatProperty.reason));
+        return { handled: true };
+      }
+      if (compatProperty.kind === "resolved") {
+        if (sourceOperator !== "=") {
+          diagnostics.push(unsupportedNodeDiagnostic(
+            node,
+            `Closed compatibility object-shape assignment '${sourceOperator}' requires an exact read-modify-write runtime operation.`,
+          ));
+          return { handled: true };
+        }
+        const selection = selectCsharpCompatValueReceiverOperation(
+          compatProperty.shape.targetType,
+          "property-write",
+          property?.QuestionDotToken !== undefined,
+        );
+        if (selection.kind !== "resolved") {
+          diagnostics.push(unsupportedNodeDiagnostic(
+            left,
+            selection.kind === "rejected"
+              ? selection.reason
+              : "The exact compatibility object-shape property has no closed write operation.",
+          ));
+          return { handled: true };
+        }
+        const receiver = planExpression(
+          receiverNode,
+          sourceFile,
+          input,
+          diagnostics,
+        );
+        const memberType = csharpTypeFromTargetTypeRef(
+          compatProperty.member.type,
+        );
+        const value = memberType === undefined
+          ? undefined
+          : planExpressionWithExpectedType(
+              right,
+              sourceFile,
+              input,
+              diagnostics,
+              memberType,
+              undefined,
+              compatProperty.member.type,
+            );
+        if (receiver === undefined || value === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(
+            node,
+            "C# compatibility object-shape property write requires an exact receiver and closed value conversion.",
+          ));
+          return { handled: true };
+        }
+        return {
+          handled: true,
+          expression: translateCsharpCompatInvocation(
+            selection,
+            receiver,
+            [
+              {
+                kind: "LiteralExpression",
+                value: compatProperty.member.sourceName,
+              },
+              value,
+            ],
+          ),
+        };
+      }
+    }
+    if (sourceOperator !== "=") {
+      return { handled: false };
+    }
     const selection = selectCsharpCompatAnyReceiverOperation(
       input,
       receiverNode,
@@ -337,39 +464,4 @@ function tryPlanCompatAnyAssignment(
     };
   }
   return { handled: false };
-}
-  const binaryToken = csharpBinaryOperatorTokenFromText(
-    targetOperator,
-  );
-  if (binaryToken === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Selected C# operator '${targetOperator}' has no target AST token.`,
-    ));
-    return undefined;
-  }
-  const left = planBinaryOperand(
-    selection.left,
-    binaryToken,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
-  const right = planBinaryOperand(
-    selection.right,
-    binaryToken,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
-  return left === undefined || right === undefined
-    ? undefined
-    : {
-        kind: "BinaryExpression",
-        left,
-        operatorToken: binaryToken,
-        right,
-      };
 }

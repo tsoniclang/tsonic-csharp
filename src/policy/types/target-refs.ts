@@ -26,6 +26,9 @@ export function csharpTargetNamedType(
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
+    readonly absorbsNullish?: true;
+    readonly compatValueCarrier?: true;
+    readonly compatObjectShape?: true;
   } = {},
 ): CsharpTargetNamedTypeRef {
   return {
@@ -51,5 +54,12 @@ export function csharpTargetNamedType(
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
+    ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
+    ...(metadata.compatValueCarrier === true
+      ? { csharpCompatValueCarrier: true }
+      : {}),
+    ...(metadata.compatObjectShape === true
+      ? { csharpCompatObjectShape: true }
+      : {}),
   } satisfies CsharpTargetNamedTypeRef;
 }

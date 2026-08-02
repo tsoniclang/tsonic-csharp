@@ -18,6 +18,9 @@ import type {
 import {
   isPlainCsharpIdentifier,
 } from "../../csharp-identifiers.js";
+import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
 import type {
   CsharpTypePolicy,
   CsharpTypePolicyBaseHost,
@@ -29,6 +32,9 @@ import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "./definitions.js";
+import {
+  canUseCsharpCompatObjectShapeCarrier,
+} from "./compat-object-shapes.js";
 import {
   csharpDelegateTargetType,
 } from "./delegates.js";
@@ -42,6 +48,9 @@ import {
 import {
   csharpNullableTargetType,
 } from "./nullable.js";
+import {
+  csharpTsValueTargetType,
+} from "./runtime-carriers.js";
 import {
   csharpTargetNamedType,
 } from "./target-refs.js";
@@ -239,7 +248,11 @@ export function createCsharpObjectShapePolicy(
       };
     }
     const shape = {
-      targetType: createStructuralObjectShapeTarget(members, [targetType]),
+      targetType: createStructuralObjectShapeTarget(
+        members,
+        [targetType],
+        host,
+      ),
       members,
       implements: [targetType],
     } satisfies CsharpObjectShapeFact;
@@ -372,7 +385,7 @@ export function createCsharpObjectShapePolicy(
       ? [contextualProjectType]
       : undefined;
     return {
-      targetType: createStructuralObjectShapeTarget(members, implemented),
+      targetType: createStructuralObjectShapeTarget(members, implemented, host),
       members,
       ...(implemented === undefined ? {} : { implements: implemented }),
     };
@@ -708,6 +721,7 @@ function projectClassIsObjectInitializable(
 function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
+  host: CsharpObjectShapePolicyHost,
 ): TargetTypeRef {
   const key = [
     ...members.map((member) => [
@@ -725,10 +739,24 @@ function createStructuralObjectShapeTarget(
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
   const typeParameters = collectObjectShapeTypeParameters(members, implemented);
+  const compatValueCarrier =
+    readCsharpTypescriptCompatibilityMode(host.target) === "compat" &&
+    canUseCsharpCompatObjectShapeCarrier(members, implemented);
+  const compatValueType = csharpTsValueTargetType();
   return csharpTargetNamedType(
     `tsonic.shape:${identity}`,
     typeParameters.length === 0 ? undefined : typeParameters,
-    { kind: "named", name },
+    compatValueCarrier && compatValueType.kind === "target-named"
+      ? compatValueType.csharpRender
+      : { kind: "named", name },
+    compatValueCarrier
+      ? {
+          valueType: true,
+          absorbsNullish: true,
+          compatValueCarrier: true,
+          compatObjectShape: true,
+        }
+      : {},
   );
 }
 
