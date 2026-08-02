@@ -892,8 +892,23 @@ export function createCsharpTypePolicy(
         return resolved;
       }
     }
-    if (syntax.initializer === undefined) {
+    if (host.ast.is.IsBindingElement(declaration)) {
       return undefined;
+    }
+    const declarationQueries = host.semantics(sourceFile);
+    const declaredTarget = resolveTypeWithState(
+      declarationQueries.getDeclaredValueType(declaration),
+      sourceFile,
+      nextState(state),
+    );
+    if (
+      host.ast.variableDeclarationKind(declaration) !== "const" &&
+      declaredTarget !== undefined
+    ) {
+      return declaredTarget;
+    }
+    if (syntax.initializer === undefined) {
+      return declaredTarget;
     }
     const initializerTarget = resolveNodeWithState(
       syntax.initializer,
@@ -901,9 +916,8 @@ export function createCsharpTypePolicy(
       nextState(state),
     );
     if (initializerTarget === undefined) {
-      return undefined;
+      return declaredTarget;
     }
-    const declarationQueries = host.semantics(sourceFile);
     const declaredType = declarationQueries.getTypeAtLocation(
       syntax.initializer,
     );

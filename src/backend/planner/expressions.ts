@@ -91,6 +91,9 @@ import {
 import {
   applyCsharpConversionSelection,
 } from "../../translate/expressions/conversions.js";
+import {
+  sourceOperatorFromKindName,
+} from "../../policy/operations/index.js";
 
 export function planExpression(
   node: Node,
@@ -391,6 +394,9 @@ function expressionIsConstructedInExpectedRepresentation(
     case KindFunctionExpression:
     case KindConditionalExpression:
       return true;
+    case KindBinaryExpression:
+      return sourceOperatorFromKindName(input.ast.operatorKindName(node)) ===
+        "??";
     default:
       return false;
   }

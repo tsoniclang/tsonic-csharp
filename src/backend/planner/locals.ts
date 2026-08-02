@@ -58,8 +58,8 @@ export function planLocalDeclaration(
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
     : undefined;
-  const inferredTargetType = input.types.resolveNode(
-    variable.Type ?? variable.Initializer ?? variable.name,
+  const inferredTargetType = input.types.resolveStorage(
+    declarationNode,
     sourceFile,
   );
   const storageType = inferredTargetType === undefined

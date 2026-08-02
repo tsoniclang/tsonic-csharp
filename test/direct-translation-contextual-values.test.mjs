@@ -151,6 +151,136 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# translation uses checker-declared mutable storage instead of literal initializer storage", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function sum(...values: number[]): number {
+        let total = 0;
+        for (const value of values) total = total + value;
+        return total;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static double sum(params double[] values)
+        {
+            double total = 0;
+            foreach (double value in values)
+            {
+                total = total + value;
+            }
+            return total;
+        }
+    }
+}
+`);
+});
+
+test("direct C# translation preserves the exact JS array receiver element carrier for index access", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function replace(values: int[], index: int, value: int): int {
+        values[index] = value;
+        return values[index];
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static int replace(Tsonic.CSharp.Js.JSArray<int> values, int index, int value)
+        {
+            values[index] = value;
+            return values[index];
+        }
+    }
+}
+`);
+});
+
+test("direct C# translation preserves the expected primitive carrier across nullish array reads", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function atOr(values: int[], index: int): int {
+        return values.at(index) ?? -1;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static int atOr(Tsonic.CSharp.Js.JSArray<int> values, int index)
+        {
+            return Tsonic.CSharp.Js.Array.atValue(values, index) ?? -1;
+        }
+    }
+}
+`);
+});
+
+test("direct C# translation derives generic JS array factories from exact source argument carriers", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function copy(values: int[]): int[] {
+        return Array.from(values);
+      }
+      export function make(left: int, right: int): int[] {
+        return Array.of(left, right);
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Tsonic.CSharp.Js.JSArray<int> copy(Tsonic.CSharp.Js.JSArray<int> values)
+        {
+            return Tsonic.CSharp.Js.JSArrayStatics.from<int>(values);
+        }
+        public static Tsonic.CSharp.Js.JSArray<int> make(int left, int right)
+        {
+            return Tsonic.CSharp.Js.JSArrayStatics.of<int>(left, right);
+        }
+    }
+}
+`);
+});
+
 test("direct C# translation preserves explicit void discard intent", () => {
   const compiled = compileCsharpSource({
     sourceText: `

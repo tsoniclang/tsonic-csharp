@@ -6,14 +6,18 @@ import type {
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
+  csharpJsArrayTargetType,
   csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
+  getCsharpCollectionElementTargetType,
+  getCsharpDelegateSignature,
   getCsharpJsArrayElementTargetType,
   isCsharpValueTypeTargetType,
+  targetTypeRefEquals,
 } from "../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -233,7 +237,7 @@ export const csharpJsArrayCallPolicies:
       jsMemberIdentity("ArrayConstructor", "of"),
       (context) => arrayOfMember(context),
       noReceiver,
-      { targetMethodTypeArguments: arrayResultElementTypeArguments },
+      { targetMethodTypeArguments: arrayOfTypeArguments },
     ),
     jsCallPolicy(
       jsMemberIdentity("ArrayConstructor", "from"),
@@ -291,10 +295,7 @@ export const csharpJsArrayElementPolicies:
             context,
             context.source.receiver,
           );
-          const resultType = context.host.types.resolveType(
-            context.source.sourceReadType ?? context.source.sourceWriteType,
-            context.sourceFile,
-          );
+          const resultType = getCsharpJsArrayElementTargetType(receiverType);
           return receiverType === undefined || resultType === undefined
             ? undefined
             : targetIndexer(
@@ -516,39 +517,25 @@ function nullableArrayParameters(
 function arrayOfMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
-  const element = getCsharpJsArrayElementTargetType(resultType);
-  return resultType === undefined || element === undefined
+  const element = arrayOfElementType(context);
+  return element === undefined
     ? undefined
     : staticMethod(
         "Tsonic.CSharp.Js.JSArrayStatics.of",
         "of",
         "of",
         arrayStaticsType,
-      [targetParameter("items", element, { paramsArray: true })],
-      resultType,
-      { typeParameters: [{ name: "T" }] },
+        [targetParameter("items", element, { paramsArray: true })],
+        csharpJsArrayTargetType(element),
+        { typeParameters: [{ name: "T" }] },
       );
 }
 
 function arrayFromMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const typeArguments = resolvedMethodTypeArguments(context);
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
-  const resultElement = getCsharpJsArrayElementTargetType(resultType);
-  const sourceElement = typeArguments[0];
-  if (
-    resultType === undefined ||
-    resultElement === undefined ||
-    sourceElement === undefined
-  ) {
+  const shape = arrayFromShape(context);
+  if (shape === undefined) {
     return undefined;
   }
   const parameters: CsharpTargetParameter[] = [
@@ -556,7 +543,7 @@ function arrayFromMember(
       "arrayLike",
       sourceIsString(context)
         ? stringType
-        : csharpEnumerableTargetType(sourceElement),
+        : csharpEnumerableTargetType(shape.sourceElement),
     ),
   ];
   if (context.source.sourceSelectedSignatureParameters.length === 2) {
@@ -564,8 +551,8 @@ function arrayFromMember(
       "mapfn",
       csharpDelegateTargetType(
         "System.Func",
-        [sourceElement, intType],
-        resultElement,
+        [shape.sourceElement, intType],
+        shape.resultElement,
       ),
     ));
   }
@@ -575,7 +562,7 @@ function arrayFromMember(
     "from",
     arrayStaticsType,
     parameters,
-    resultType,
+    shape.resultType,
     {
       typeParameters: arrayFromTypeParameterNames(context)
         .map((name) => ({ name })),
@@ -682,20 +669,91 @@ function arrayResultElementTypeArguments(
   return element === undefined ? undefined : [element];
 }
 
+function arrayOfTypeArguments(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): readonly TargetTypeRef[] | undefined {
+  const element = arrayOfElementType(context);
+  return element === undefined ? undefined : [element];
+}
+
+function arrayOfElementType(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): TargetTypeRef | undefined {
+  const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
+  const explicit = selected.length === 1 &&
+      selected[0]?.explicitTypeNode !== undefined
+    ? context.host.types.resolveSelectedType(
+        selected[0].explicitTypeNode,
+        selected[0].selectedType,
+        context.sourceFile,
+      )
+    : undefined;
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  const argumentTypes = context.source.sourceArguments.map((argument) =>
+    resolveCsharpSelectedSourceValue(context, argument)
+  );
+  if (
+    argumentTypes.length > 0 &&
+    argumentTypes[0] !== undefined &&
+    argumentTypes.every((argument) =>
+      argument !== undefined && targetTypeRefEquals(argument, argumentTypes[0]!)
+    )
+  ) {
+    return argumentTypes[0];
+  }
+  return resolvedMethodTypeArguments(context)[0];
+}
+
+function arrayFromShape(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): {
+  readonly sourceElement: TargetTypeRef;
+  readonly resultElement: TargetTypeRef;
+  readonly resultType: TargetTypeRef;
+} | undefined {
+  const sourceArgument = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
+  );
+  const sourceElement = sourceIsString(context)
+    ? stringType
+    : getCsharpCollectionElementTargetType(sourceArgument);
+  if (sourceElement === undefined) {
+    return undefined;
+  }
+  const mapper = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[1],
+  );
+  const mappedResult = getCsharpDelegateSignature(mapper)?.returnType;
+  const selectedArguments = resolvedMethodTypeArguments(context);
+  const resultElement = context.source.sourceArguments.length === 1
+    ? sourceElement
+    : mappedResult ?? selectedArguments[selectedArguments.length - 1];
+  return resultElement === undefined
+    ? undefined
+    : {
+        sourceElement,
+        resultElement,
+        resultType: csharpJsArrayTargetType(resultElement),
+      };
+}
+
 function arrayFromTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
-  const selected = resolvedMethodTypeArguments(context);
-  const result = arrayResultElementTypeArguments(context);
-  return selected.length === 0 || result === undefined
+  const shape = arrayFromShape(context);
+  return shape === undefined
     ? undefined
     : sourceIsString(context)
       ? context.source.sourceSelectedSignatureParameters.length === 1
         ? []
-        : [result[0]!]
+        : [shape.resultElement]
       : context.source.sourceSelectedSignatureParameters.length === 1
-        ? [selected[0]!]
-        : [selected[0]!, result[0]!];
+        ? [shape.sourceElement]
+        : [shape.sourceElement, shape.resultElement];
 }
 
 function arrayFromTypeParameterNames(
