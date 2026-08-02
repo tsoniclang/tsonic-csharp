@@ -11,13 +11,17 @@ import {
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
   createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   dotnetProviderTelemetryCounters,
   formatDotnetProviderTelemetrySnapshot,
 } from "../dist/providers/dotnet/index.js";
 import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
+import {
+  csharpSourceProfileContributions,
+  csharpSourceProfileOwnerId,
+} from "../dist/source/csharp-source-semantics/source-profile-declarations.js";
 
 function providerRefExportNames(value, moduleSpecifier, refs = new Set()) {
   if (value === null || typeof value !== "object") {
@@ -135,7 +139,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
       telemetry.virtualDeclarations(3, JSON.stringify(model).length, elapsedMs);
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { broadImport: true });
   assert.equal(resolution.kind, "virtual");
 
@@ -177,7 +181,7 @@ test(".NET target binding provider preserves requested export slices for virtual
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
   assert.equal(resolution.kind, "virtual");
 
@@ -239,6 +243,13 @@ test(".NET target binding provider receives requested export slices from TSTS na
       };
     },
   };
+  const sourceProfileDeclarations = csharpSourceProfileContributions({
+    project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    target: { id: "csharp" },
+    targetPack: { id: "csharp", displayName: "C#" },
+    selectedCapabilities: [],
+    selectedSurfaces: [],
+  }).declarations ?? [];
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
@@ -257,6 +268,10 @@ test(".NET target binding provider receives requested export slices from TSTS na
           },
         },
       })],
+      ...sourceProfileDeclarations.map((declaration) => [
+        `/src/.tsonic/source-profiles/${csharpSourceProfileOwnerId}/${declaration.fileName}`,
+        declaration.text,
+      ]),
     ]),
     compilerOptions: {
       noLib: true,
@@ -268,11 +283,11 @@ test(".NET target binding provider receives requested export slices from TSTS na
       extensions: [createDotnetBindingTestExtension(provider)],
     },
   });
-  const sourceFile = session.getSourceFile("/src/index.ts");
+  const checked = session.checkSource();
+  const sourceFile = checked.getSourceFile("/src/index.ts");
   assert.ok(sourceFile);
 
-  const diagnostics = session.ensureChecked(sourceFile);
-  assert.equal(formatDiagnostics(diagnostics), "");
+  assert.equal(formatDiagnostics(checked.diagnostics), "");
   assert.equal(observedContexts.length, 1);
 });
 
@@ -293,7 +308,7 @@ test(".NET target binding provider rejects implicit broad virtual module request
       throw new Error("getModule must not run for an unsliced virtual module request.");
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", {});
 
   assert.equal(resolution.extensionCode, "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED", JSON.stringify(resolution));
@@ -317,7 +332,7 @@ test(".NET target binding provider rejects unsliced declaration model requests",
       throw new Error("getModule must not run for an unsliced declaration model request.");
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const declarationModel = bindingProvider.getDeclarationModel({
     kind: "virtual",
     moduleSpecifier: "@tsonic/dotnet/Example.js",
@@ -359,7 +374,7 @@ test(".NET target binding provider fails closed when a requested export is unpro
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
   assert.equal(resolution.kind, "virtual");
 
@@ -426,7 +441,7 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
     disablePersistentCache: true,
     telemetry,
   });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
@@ -634,7 +649,7 @@ function createDotnetBindingTestExtension(provider) {
       capabilityNamespace: provider.identity.id,
     },
     initialize(context) {
-      context.registerTargetBindingProvider(createDotnetTargetBindingProvider({ provider }));
+      context.registerSourceDeclarationProvider(createDotnetSourceDeclarationProvider({ provider }));
     },
   };
 }

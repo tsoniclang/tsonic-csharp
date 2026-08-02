@@ -1,4 +1,4 @@
-import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "./dotnet-provider-contract.helpers.mjs";
+import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "./dotnet-provider-contract.helpers.mjs";
 
 test(".NET provider model contract rejects legacy and incomplete provider refs", () => {
   const diagnostic = validateDotnetModuleModelContract({
@@ -459,7 +459,7 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[2].signatures[0].parameters[0].type"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), true);
 });
-test(".NET provider declaration contract rejects provider refs missing public TSTS identity", () => {
+test(".NET provider declaration contract rejects provider refs missing public module identity", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     providerModuleId: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -482,7 +482,6 @@ test(".NET provider declaration contract rejects provider refs missing public TS
   });
 
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_DECLARATION_CONTRACT_INVALID");
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetIdentity"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].heritage[0].type.moduleSpecifier"), true);
 });
 test(".NET provider declaration contract rejects invalid provider parameter passing and rest facts", () => {
@@ -602,8 +601,25 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   const targetCharWriteLine = consoleBinding.members?.find((member) => member.id === rawCharSignature.id);
   assert.ok(targetStringWriteLine);
   assert.ok(targetCharWriteLine);
-  assert.equal(targetStringWriteLine.providerSourceSignatureId, sourceStringWriteLineSignatures[0]?.id);
-  assert.equal(targetCharWriteLine.providerSourceSignatureId, sourceStringWriteLineSignatures[0]?.id);
+  const consoleRelations = provider.resolveTargetRelations({
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    providerModuleId: "@tsonic/dotnet/System.js",
+    artifactFileName: "tsts-provider://contract/System.Console.d.ts",
+    exportName: "Console",
+  });
+  assert.equal(Array.isArray(consoleRelations), true, JSON.stringify(consoleRelations));
+  assert.deepEqual(
+    consoleRelations
+      .filter((relation) =>
+        relation.kind === "signature" &&
+        relation.signatureId === sourceStringWriteLineSignatures[0]?.id &&
+        (relation.targetMember.id === targetStringWriteLine.id ||
+          relation.targetMember.id === targetCharWriteLine.id)
+      )
+      .map((relation) => relation.targetMember.id)
+      .sort(),
+    [targetCharWriteLine.id, targetStringWriteLine.id].sort(),
+  );
 
   const clsCompliantAttribute = rawType(systemModule, "CLSCompliantAttribute");
   assert.deepEqual(clsCompliantAttribute.baseType.sourceShape, {
@@ -625,7 +641,7 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
 });
 test(".NET target binding provider emits contract-valid virtual declaration models", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
     containingFile: "provider-contract.ts",
     requestedExports: ["Console", "CLSCompliantAttribute"],
@@ -701,7 +717,7 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
   ));
 });
 test(".NET target binding provider reports unsupported requested exports with provider evidence", () => {
-  const bindingProvider = createDotnetTargetBindingProvider({
+  const bindingProvider = createDotnetSourceDeclarationProvider({
     provider: {
       identity: {
         id: "test.dotnet",

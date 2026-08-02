@@ -2,28 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  formatDiagnostics,
-  runtimeCarrierFactKey,
-  targetBindingFactKey,
-} from "@tsonic/tsts";
-import {
-  csharpRuntimeCarrierFactKey,
-} from "../dist/source/csharp-facts.js";
-import {
-  createCsharpSourceSemanticsExtension,
-  createCsharpTargetSemanticsExtension,
-} from "../dist/index.js";
-import {
   createDotnetReflectionTypeDataProvider,
 } from "../dist/providers/dotnet/index.js";
 import {
-  collectTypeReferencesByText,
-  csharpProviderContext,
-  csharpSourceProfileFiles,
-  csharpTestExtensions,
-  createCompilerSessionFromFiles,
-  packageJson,
-} from "./source-semantics.helpers.mjs";
+  checkCsharpSource,
+  compileCsharpSource,
+} from "./helpers/direct-csharp-session.mjs";
 
 test(".NET provider source refs use public type-family exports for every concrete arity", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
@@ -65,115 +49,57 @@ test(".NET provider source refs use public type-family exports for every concret
   assert.equal(new Set(taskVariants.map((declaration) => declaration.targetId)).size, 2);
 });
 
-for (const [order, declarations] of [
-  ["plain-first", ["declare const plain: Task;", "declare const closed: Task<string>;"]],
-  ["closed-first", ["declare const closed: Task<string>;", "declare const plain: Task;"]],
-]) {
-  test(`C# runtime carriers keep provider-family instantiations on exact type uses (${order})`, () => {
-    assertProviderFamilyRuntimeCarriers(declarations);
+test("direct C# translation keeps plain and generic provider-family variants separate", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { Task } from "@tsonic/dotnet/System.Threading.Tasks.js";
+      export function select(
+        plain: Task,
+        generic: Task<string>,
+      ): Task<string> {
+        return generic;
+      }
+    `,
   });
-}
 
-function assertProviderFamilyRuntimeCarriers(declarations) {
-  const context = csharpProviderContext();
-  const session = createCompilerSessionFromFiles({
-      currentDirectory: "/src",
-      files: new Map([
-        ["/src/index.ts", [
-          'import type { Task } from "@tsonic/dotnet/System.Threading.Tasks.js";',
-          ...declarations,
-          "plain;",
-          "closed;",
-          "",
-        ].join("\n")],
-        ["/src/node_modules/@tsonic/dotnet/package.json", packageJson("@tsonic/dotnet", {
-          "./System.Threading.Tasks.js": "./System.Threading.Tasks.js",
-        })],
-        ...csharpSourceProfileFiles().map((file) => [file.path, file.text]),
-      ]),
-      compilerOptions: {
-        noLib: true,
-        module: "esnext",
-        moduleResolution: "bundler",
-        strict: true,
-      },
-      extensionHostOptions: {
-        activeTarget: "csharp",
-        extensions: csharpTestExtensions(
-          createCsharpSourceSemanticsExtension(context),
-          createCsharpTargetSemanticsExtension(context),
-        ),
-      },
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static System.Threading.Tasks.Task<string> select(System.Threading.Tasks.Task plain, System.Threading.Tasks.Task<string> generic)
+        {
+            return generic;
+        }
+    }
+}
+`);
+});
+
+test("plain provider-family variants do not expose generic-only members", () => {
+  const checked = checkCsharpSource({
+    sourceText: `
+      import type { Task } from "@tsonic/dotnet/System.Threading.Tasks.js";
+      export function read(plain: Task): unknown {
+        return plain.Result;
+      }
+    `,
   });
-  const sourceFile = session.getSourceFile("/src/index.ts");
-  assert.ok(sourceFile);
-  assert.equal(formatDiagnostics(runTestStage("ensureChecked", () => session.ensureChecked(sourceFile))), "");
 
-  const references = collectTypeReferencesByText(sourceFile, session.ast, "Task");
-  assert.equal(references.length, 2);
-  const plainReference = references.find((reference) => session.ast.typeArguments(reference).length === 0);
-  const closedReference = references.find((reference) => session.ast.typeArguments(reference).length === 1);
-  assert.ok(plainReference);
-  assert.ok(closedReference);
-  const extensionHost = runTestStage("finalizeExtensions", () => session.finalizeExtensions());
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
-  const plainType = runTestStage("plain getTypeFromTypeNode", () => session.checker.getTypeFromTypeNode(plainReference, { sourceFile }));
-  const closedType = runTestStage("closed getTypeFromTypeNode", () => session.checker.getTypeFromTypeNode(closedReference, { sourceFile }));
-  assert.ok(plainType);
-  assert.ok(closedType);
-  assert.notEqual(plainType, closedType);
-
-  assert.equal(session.ast.is.IsTypeReferenceNode(plainReference), true);
-  assert.equal(session.ast.is.IsTypeReferenceNode(closedReference), true);
-  const plainTypeName = session.ast.as.AsTypeReferenceNode(plainReference).TypeName;
-  const closedTypeName = session.ast.as.AsTypeReferenceNode(closedReference).TypeName;
-  const plainAlias = session.checker.getSymbolAtLocation(plainTypeName, { sourceFile });
-  const closedAlias = session.checker.getSymbolAtLocation(closedTypeName, { sourceFile });
-  assert.ok(plainAlias);
-  assert.equal(plainAlias, closedAlias);
-  const plainSymbol = session.checker.getAliasedSymbol(plainAlias, { sourceFile });
-  const closedSymbol = session.checker.getAliasedSymbol(closedAlias, { sourceFile });
-  assert.ok(plainSymbol);
-  assert.equal(plainSymbol, closedSymbol);
-
-  assert.deepEqual(extensionHost.diagnostics.all(), []);
-  assertTaskCarrier(extensionHost.facts.get(plainReference, runtimeCarrierFactKey)?.carrier, 0);
-  assertTaskCarrier(extensionHost.facts.get(plainType, runtimeCarrierFactKey)?.carrier, 0);
-  assertTaskCarrier(extensionHost.facts.get(plainReference, csharpRuntimeCarrierFactKey)?.carrier, 0);
-  assertTaskCarrier(extensionHost.facts.get(plainType, csharpRuntimeCarrierFactKey)?.carrier, 0);
-  assertTaskCarrier(extensionHost.facts.get(closedReference, runtimeCarrierFactKey)?.carrier, 1);
-  assertTaskCarrier(extensionHost.facts.get(closedType, runtimeCarrierFactKey)?.carrier, 1);
-  assertTaskCarrier(extensionHost.facts.get(closedReference, csharpRuntimeCarrierFactKey)?.carrier, 1);
-  assertTaskCarrier(extensionHost.facts.get(closedType, csharpRuntimeCarrierFactKey)?.carrier, 1);
-  assert.ok(extensionHost.facts.get(plainSymbol, targetBindingFactKey));
-  assert.equal(extensionHost.facts.get(plainAlias, runtimeCarrierFactKey), undefined);
-  assert.equal(extensionHost.facts.get(plainAlias, csharpRuntimeCarrierFactKey), undefined);
-  assert.equal(extensionHost.facts.get(plainSymbol, runtimeCarrierFactKey), undefined);
-  assert.equal(extensionHost.facts.get(plainSymbol, csharpRuntimeCarrierFactKey), undefined);
-}
+  assert.equal(
+    checked.sourceDiagnosticsText,
+    "/project/index.ts(4,22): error TS2339: Property 'Result' does not exist on type '__TstsProvider_Task_0'.\n",
+  );
+  assert.deepEqual(checked.extensionDiagnostics, []);
+});
 
 function requireModule(result) {
   assert.equal("exports" in result, true, JSON.stringify(result));
   return result;
-}
-
-function assertTaskCarrier(carrier, arity) {
-  assert.ok(carrier);
-  assert.equal(carrier.kind, "target-named");
-  assert.equal(carrier.id, arity === 0 ? "System.Threading.Tasks.Task" : "System.Threading.Tasks.Task`1");
-  assert.equal(carrier.typeArguments?.length ?? 0, arity);
-  if (arity === 1) {
-    assert.equal(carrier.typeArguments[0].kind, "target-named");
-    assert.equal(carrier.typeArguments[0].id, "System.String");
-  }
-}
-
-function runTestStage(stage, action) {
-  try {
-    return action();
-  } catch (cause) {
-    throw new Error(`Provider-family runtime-carrier proof failed during ${stage}.`, { cause });
-  }
 }
 
 function collectProviderRefs(value, refs = [], visited = new WeakSet()) {

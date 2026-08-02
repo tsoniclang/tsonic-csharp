@@ -1,4 +1,5 @@
 import {
+  defaultValueFactKey,
   functionPointerFactKey,
   pointerFactKey,
   providerVirtualDeclarationFactKey,
@@ -1016,6 +1017,20 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     for (const subject of subjects) {
+      const defaultValue = host.sourceFacts?.getFact(
+        subject,
+        defaultValueFactKey,
+      );
+      if (defaultValue !== undefined) {
+        const type = resolveNodeWithState(
+          defaultValue.type,
+          sourceFile,
+          nextState(state),
+        );
+        if (type !== undefined) {
+          return type;
+        }
+      }
       const primitive = host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);

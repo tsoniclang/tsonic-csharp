@@ -7,7 +7,7 @@ import {
   csharpApplyExternAliasToTargetBinding,
   createDotnetModuleSpecifierPolicy,
   createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   parseDotnetModuleSpecifier,
   printCsharpType,
 } from "../dist/index.js";
@@ -90,7 +90,7 @@ test("installed .NET provider packages separate same-namespace same-name types b
   assert.deepEqual(acmeModule.exports.filter(isSharedWidgetDeclaration).map((declaration) => assemblySimpleNameFromTargetId(declaration.targetId)), ["Acme.Contracts"]);
   assert.deepEqual(contosoModule.exports.filter(isSharedWidgetDeclaration).map((declaration) => assemblySimpleNameFromTargetId(declaration.targetId)), ["Contoso.Contracts"]);
 
-  const acmeBindingProvider = createDotnetTargetBindingProvider({ provider: acmeProvider, moduleSpecifierPolicy: acmePolicy });
+  const acmeBindingProvider = createDotnetSourceDeclarationProvider({ provider: acmeProvider, moduleSpecifierPolicy: acmePolicy });
   const acmeResolution = acmeBindingProvider.resolveModule("@acme/native/Shared.js", { requestedExports: ["Widget"] });
   assert.equal(acmeResolution.kind, "virtual", JSON.stringify(acmeResolution));
   assert.equal(acmeResolution.packageName, "@acme/native");
@@ -100,7 +100,7 @@ test("installed .NET provider packages separate same-namespace same-name types b
 test(".NET target binding provider reports assembly-qualified unsupported export diagnostics", () => {
   const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Shared.js", {
     containingFile: "assembly-collision.ts",
     requestedExports: ["Widget"],
@@ -221,7 +221,7 @@ test(".NET reflection provider never synthesizes source aliases for invalid CLR 
     }],
   );
 
-  const binding = createDotnetTargetBindingProvider({ provider });
+  const binding = createDotnetSourceDeclarationProvider({ provider });
   const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
     containingFile: "record.ts",
     requestedExports: ["RecordValue"],
@@ -244,7 +244,7 @@ test(".NET reflection provider never synthesizes source aliases for invalid CLR 
 test(".NET provider type families normalize positional type-parameter identity across CLR arities", () => {
   const { firstDll } = buildLoadContextFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
-  const binding = createDotnetTargetBindingProvider({ provider });
+  const binding = createDotnetSourceDeclarationProvider({ provider });
   const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
     containingFile: "family.ts",
     requestedExports: ["Family"],

@@ -1,4 +1,4 @@
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
 
 test(".NET reflection provider records generic constraints and variance as target facts", () => {
   const reference = buildConstraintFixture();
@@ -324,7 +324,7 @@ test(".NET reflection provider exposes delegates with source shells and target d
   const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const predicate = declarationModel.exports.find((declaration) => declaration.name === "Predicate");
   assert.ok(predicate);
-  assert.equal(predicate.kind, "class");
+  assert.equal(predicate.kind, "type");
   assert.deepEqual(predicate.typeParameters?.map((parameter) => parameter.name), ["T"]);
   assert.equal(predicate.type?.kind, "function");
   assert.deepEqual(predicate.type?.kind === "function"
@@ -471,7 +471,15 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
   assert.deepEqual(parameterFacts(sourceOptionalDefaults.parameters), [
     { name: "required", type: { kind: "string" } },
     { name: "count", type: { kind: "source-primitive", name: "int32" }, optional: true },
-    { name: "mode", type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" }, optional: true },
+    {
+      name: "mode",
+      type: {
+        kind: "provider-ref",
+        moduleSpecifier: "@tsonic/dotnet/ProviderSignatureFixtures.js",
+        exportName: "SignatureMode",
+      },
+      optional: true,
+    },
     {
       name: "label",
       type: { kind: "union" },
@@ -497,7 +505,41 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
   assert.ok(targetOptionalDefaults);
   assert.ok(targetParamsRest);
   assert.ok(targetByRefModes);
-  assert.equal(stripAssemblyQualifiers(targetOptionalDefaults.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.OptionalDefaults");
+  const relations = provider.resolveTargetRelations({
+    moduleSpecifier: "@tsonic/dotnet/ProviderSignatureFixtures.js",
+    providerModuleId: "@tsonic/dotnet/ProviderSignatureFixtures.js",
+    artifactFileName: "tsts-provider://test/ProviderSignatureFixtures.ParameterModeTarget.d.ts",
+    exportName: "ParameterModeTarget",
+  });
+  assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
+  const optionalRelation = relations.find((relation) =>
+    relation.kind === "signature" &&
+    relation.signatureId === sourceOptionalDefaults.id
+  );
+  const restRelation = relations.find((relation) =>
+    relation.kind === "signature" &&
+    relation.signatureId === sourceParamsRest.id
+  );
+  const byRefRelation = relations.find((relation) =>
+    relation.kind === "signature" &&
+    relation.signatureId === sourceByRefModes.id
+  );
+  assert.equal(optionalRelation?.targetMember.id, targetOptionalDefaults.id);
+  assert.equal(restRelation?.targetMember.id, targetParamsRest.id);
+  assert.equal(byRefRelation?.targetMember.id, targetByRefModes.id);
+  assert.deepEqual(
+    byRefRelation?.parameters.map((parameter) => [
+      parameter.sourceParameterIndex,
+      parameter.targetParameterIndex,
+      parameter.sourcePassingMode,
+      parameter.targetPassingMode,
+    ]),
+    [
+      [0, 0, "byref-readwrite", "byref-readwrite"],
+      [1, 1, "byref-writeonly-must-init", "byref-writeonly-must-init"],
+      [2, 2, "byref-readonly", "byref-readonly"],
+    ],
+  );
   assert.deepEqual(parameterFacts(targetOptionalDefaults.parameters), [
     { name: "required", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
     {
@@ -522,7 +564,28 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
       defaultValue: { kind: "null" },
     },
   ]);
-  assert.equal(stripAssemblyQualifiers(targetParamsRest.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest");
+  assert.deepEqual(
+    restRelation?.parameters.map((parameter) => ({
+      sourceParameterIndex: parameter.sourceParameterIndex,
+      targetParameterIndex: parameter.targetParameterIndex,
+      sourceRest: parameter.sourceRest,
+      targetParamsArray: parameter.targetParamsArray,
+    })),
+    [
+      {
+        sourceParameterIndex: 0,
+        targetParameterIndex: 0,
+        sourceRest: false,
+        targetParamsArray: false,
+      },
+      {
+        sourceParameterIndex: 1,
+        targetParameterIndex: 1,
+        sourceRest: true,
+        targetParamsArray: true,
+      },
+    ],
+  );
   assert.deepEqual(parameterFacts(targetParamsRest.parameters), [
     { name: "label", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
     {
@@ -532,7 +595,6 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
       paramsArray: true,
     },
   ]);
-  assert.equal(stripAssemblyQualifiers(targetByRefModes.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes");
   assert.deepEqual(parameterFacts(targetByRefModes.parameters), [
     { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
     { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },

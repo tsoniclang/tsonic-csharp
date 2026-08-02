@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
-import { instantiateSelectedTargetMember } from "../dist/source/csharp-source-semantics/selected-target-member-instantiation.js";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -91,8 +90,9 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   const create = providerArray.members.find((member) => member.name === "Create");
   const length = providerArray.members.find((member) => member.name === "Length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
-  assert.equal(create.id, `${dotnetNativeArrayCreateMemberId}#static`);
+  assert.equal(create.id, `${dotnetNativeArrayTypeId}#source-member#static#Create`);
   assert.equal(create.static, true);
+  assert.equal(create.signatures[0].id, dotnetNativeArrayCreateMemberId);
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "TMethod" }]);
   assert.deepEqual(create.signatures[0].returnType, {
     kind: "provider-ref",
@@ -100,9 +100,10 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
     exportName: "Array",
     typeArguments: [{ kind: "type-parameter", name: "TMethod" }],
   });
-  assert.equal(length.id, dotnetNativeArrayLengthMemberId);
+  assert.equal(length.id, `${dotnetNativeArrayTypeId}#source-member#instance#Length`);
   assert.equal(length.readonly, true);
-  assert.equal(indexer.id, dotnetNativeArrayIndexerMemberId);
+  assert.equal(indexer.id, `${dotnetNativeArrayTypeId}#source-indexer`);
+  assert.equal(indexer.signatures[0].id, dotnetNativeArrayIndexerMemberId);
   assert.equal(indexer.readonly, undefined);
 
   const binding = dotnetExportToTargetBinding(nativeArray);
@@ -322,35 +323,6 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
     csharpNullableReference: true,
   });
   assert.equal(targetContinueWithState.parameters[1].csharpAcceptsCheckedSourceArgument, true);
-  const stringTargetType = {
-    kind: "target-named",
-    id: "System.String",
-    csharpRender: { kind: "predefined", name: "string" },
-  };
-  const closedContinueWithState = instantiateSelectedTargetMember(
-    { member: targetContinueWithState, targetTypeArguments: [stringTargetType] },
-    {
-      getCsharpTargetBindingByTargetId: (targetId) => provider.findTargetBindingByTargetId(targetId),
-      getCsharpTargetBindingByMetadataName: (metadataName) => provider.findTargetBindingByMetadataName(metadataName),
-    },
-    {
-      declaringTargetType: {
-        ...targetTaskOfT.csharpType,
-        typeArguments: [stringTargetType],
-      },
-    },
-  );
-  assert.ok(closedContinueWithState);
-  assert.deepEqual(closedContinueWithState.parameters[0].type.csharpDelegateSignature?.returnType, stringTargetType);
-  assert.deepEqual(
-    closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[0].typeArguments,
-    [stringTargetType],
-  );
-  assert.equal(
-    closedContinueWithState.parameters[0].type.csharpDelegateSignature?.parameters[1].csharpNullableReference,
-    true,
-  );
-
   const model = dotnetModuleToProviderDeclarationModel(module);
   const sourceTask = model.exports.find((declaration) =>
     declaration.kind === "class" && declaration.name === "Task"
@@ -401,10 +373,9 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
   assert.deepEqual(funcStateContinueWith.parameters[1].type, {
     kind: "unknown",
   });
-  const callbackSourceShape = funcStateContinueWith.parameters[0].type.sourceShape;
-  assert.equal(callbackSourceShape?.kind, "function");
-  assert.equal(callbackSourceShape.parameters[0].type.kind, "target-named");
-  assert.deepEqual(callbackSourceShape.parameters[0].type.sourceShape, {
+  const callbackSourceShape = funcStateContinueWith.parameters[0].type;
+  assert.equal(callbackSourceShape.kind, "function");
+  assert.deepEqual(callbackSourceShape.parameters[0].type, {
     kind: "provider-ref",
     moduleSpecifier: "@tsonic/dotnet/System.Threading.Tasks.js",
     exportName: "Task",
@@ -515,13 +486,34 @@ test(".NET reflection provider exposes members on source-visible returned closur
 });
 test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.IO.js", "System.IO.StreamReader");
-
-  const readToEnd = findByIdSuffix(binding.members ?? [], "System.IO.StreamReader.ReadToEnd()");
-  const close = findByIdSuffix(binding.members ?? [], "System.IO.StreamReader.Close()");
-
-  assert.equal(stripAssemblyQualifiers(readToEnd?.providerSourceSignatureId), "System.IO.TextReader.ReadToEnd()");
-  assert.equal(stripAssemblyQualifiers(close?.providerSourceSignatureId), "System.IO.TextReader.Close()");
+  const relations = provider.resolveTargetRelations({
+    moduleSpecifier: "@tsonic/dotnet/System.IO.js",
+    providerModuleId: "@tsonic/dotnet/System.IO.js",
+    artifactFileName: "tsts-provider://test/System.IO.StreamReader.d.ts",
+    exportName: "StreamReader",
+  });
+  assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
+  const inherited = relations.filter((relation) =>
+    relation.kind === "signature" &&
+    relation.memberId.includes("System.IO.StreamReader#source-member#instance#") &&
+    (
+      idEndsWith(relation.targetMember.id, "System.IO.StreamReader.ReadToEnd()") ||
+      idEndsWith(relation.targetMember.id, "System.IO.StreamReader.Close()")
+    )
+  );
+  assert.deepEqual(
+    inherited.map((relation) => ({
+      source: stripAssemblyQualifiers(relation.signatureId),
+      target: stripAssemblyQualifiers(relation.targetMember.id),
+    })),
+    [{
+      source: "System.IO.TextReader.Close()",
+      target: "System.IO.StreamReader.Close()",
+    }, {
+      source: "System.IO.TextReader.ReadToEnd()",
+      target: "System.IO.StreamReader.ReadToEnd()",
+    }],
+  );
 });
 test(".NET reflection provider exposes conflicted nested closure types through stable provider-owned source names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -553,7 +545,7 @@ test(".NET reflection provider exposes conflicted nested closure types through s
   const sourceValueCollection = model.exports.find((declaration) => declaration.name === "Dictionary_ValueCollection");
   requireProviderDeclarationMember(sourceValueCollection, "method", "GetEnumerator");
   assert.deepEqual(
-    sourceDictionary?.members?.find((member) => member.kind === "property" && member.name === "Values")?.type?.sourceShape,
+    sourceDictionary?.members?.find((member) => member.kind === "property" && member.name === "Values")?.type,
     {
       kind: "provider-ref",
       moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
@@ -567,7 +559,7 @@ test(".NET reflection provider exposes conflicted nested closure types through s
 });
 test(".NET provider virtual declaration slices retain same-module provider-ref closure exports", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Collections.Generic.js", {
     requestedExports: ["Dictionary", "List"],
   });
@@ -690,7 +682,7 @@ test(".NET reflection provider keeps requested-export memory slices isolated fro
 });
 test(".NET reflection provider target-binding cache preserves member-complete bindings after virtual declaration slicing", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Exception"] });
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
@@ -699,14 +691,14 @@ test(".NET reflection provider target-binding cache preserves member-complete bi
   const exception = model.exports.find((declaration) => declaration.name === "Exception");
   assert.ok(exception);
 
-  const binding = provider.findTargetBindingByTargetId(exception.targetIdentity.id);
+  const binding = provider.findTargetBindingByMetadataName("System.Exception");
   assert.ok(binding);
   assert.equal(
-    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}..ctor(System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e::System.String)`),
+    binding.members?.some((member) => member.id === `${binding.id}..ctor(System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e::System.String)`),
     true,
   );
   assert.equal(
-    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}.ToString()`),
+    binding.members?.some((member) => member.id === `${binding.id}.ToString()`),
     true,
   );
 });

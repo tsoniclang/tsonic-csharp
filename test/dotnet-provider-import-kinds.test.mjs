@@ -1,6 +1,6 @@
 import {
   assert,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
   namedDotnetTypeRef,
   test,
@@ -36,7 +36,7 @@ test(".NET provider preserves exact synthetic export slices used by provider her
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", {
     importSlice: {
       moduleSpecifier: "@tsonic/dotnet/Acme.js",
@@ -92,7 +92,7 @@ test(".NET provider rejects overlapping declaration transactions instead of repl
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const request = (exportedName) => bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", {
     importSlice: {
       moduleSpecifier: "@tsonic/dotnet/Acme.js",
