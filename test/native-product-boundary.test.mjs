@@ -98,6 +98,25 @@ test("native product boundary scanner ignores fixture strings", () => {
   assert.deepEqual(findings.map(formatNativeProductBoundaryFinding), []);
 });
 
+test("native product boundary scanner distinguishes CommonJS require from method APIs", () => {
+  const findings = collectNativeProductBoundaryFindingsFromSources([
+    {
+      file: "src/requirements.ts",
+      text: [
+        "interface Registry { readonly require(value: string): void; }",
+        "const registry = {} as Registry;",
+        "registry.require(\"value\");",
+        "const local = require(\"legacy\");",
+      ].join("\n"),
+    },
+  ]);
+
+  assert.deepEqual(
+    findings.map((finding) => `${finding.file}:${finding.ruleId}:${finding.line}`),
+    ["src/requirements.ts:commonjs-require-call:4"],
+  );
+});
+
 test("native product boundary scanner rejects runtime reflection and dynamic semantics", () => {
   const findings = collectNativeProductBoundaryFindingsFromSources([
     {

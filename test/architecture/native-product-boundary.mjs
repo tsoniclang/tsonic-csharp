@@ -14,9 +14,10 @@ export const approvedProductPackages = Object.freeze([
 export const nativeProductBoundaryCodeRules = Object.freeze([
   {
     id: "commonjs-require-call",
-    pattern: new RegExp("\\b" + "require" + "\\s*\\(", "g"),
+    pattern: new RegExp("(?<![.\\w$])\\b" + "require" + "\\s*\\(", "g"),
     replacement: "Use static ESM imports or explicit provider metadata instead of CommonJS require.",
     text: "code",
+    acceptMatch: isCommonJsRequireCall,
   },
   {
     id: "commonjs-import-equals-require",
@@ -276,13 +277,61 @@ function collectSpecifierFindings(file, text, index, specifier) {
 
 function collectPatternFindings(file, rawText, searchText, rule) {
   rule.pattern.lastIndex = 0;
-  return [...searchText.matchAll(rule.pattern)].map((match) => ({
-    file,
-    ruleId: rule.id,
-    line: lineNumberAt(rawText, match.index ?? 0),
-    snippet: lineAt(rawText, match.index ?? 0).trim(),
-    replacement: rule.replacement,
-  }));
+  return [...searchText.matchAll(rule.pattern)]
+    .filter((match) =>
+      rule.acceptMatch?.(searchText, match) !== false)
+    .map((match) => ({
+      file,
+      ruleId: rule.id,
+      line: lineNumberAt(rawText, match.index ?? 0),
+      snippet: lineAt(rawText, match.index ?? 0).trim(),
+      replacement: rule.replacement,
+    }));
+}
+
+function isCommonJsRequireCall(searchText, match) {
+  const index = match.index ?? 0;
+  const prefix = searchText.slice(0, index);
+  if (/\b(?:function|readonly|public|private|protected|static|abstract|declare)\s*$/.test(prefix)) {
+    return false;
+  }
+  const openParenthesis = searchText.indexOf("(", index);
+  const closeParenthesis = matchingCloseParenthesis(
+    searchText,
+    openParenthesis,
+  );
+  if (closeParenthesis === undefined) {
+    return true;
+  }
+  const next = nextNonWhitespaceCharacter(searchText, closeParenthesis + 1);
+  return next !== ":" && next !== "{";
+}
+
+function matchingCloseParenthesis(text, openIndex) {
+  if (openIndex < 0) {
+    return undefined;
+  }
+  let depth = 0;
+  for (let index = openIndex; index < text.length; index += 1) {
+    if (text[index] === "(") {
+      depth += 1;
+    } else if (text[index] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return undefined;
+}
+
+function nextNonWhitespaceCharacter(text, startIndex) {
+  for (let index = startIndex; index < text.length; index += 1) {
+    if (!/\s/.test(text[index])) {
+      return text[index];
+    }
+  }
+  return undefined;
 }
 
 function collectFileRuleFinding(file, rule) {
