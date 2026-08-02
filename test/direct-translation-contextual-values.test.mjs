@@ -143,3 +143,40 @@ namespace Tsonic.Generated
 `,
   );
 });
+
+test("direct C# translation preserves explicit void discard intent", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      async function work(): Promise<void> {}
+      function finish(): void {}
+      export function run(): void {
+        void work();
+        void finish();
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static async System.Threading.Tasks.Task work()
+        {
+        }
+        public static void finish()
+        {
+        }
+        public static void run()
+        {
+            _ = work();
+            finish();
+        }
+    }
+}
+`);
+});

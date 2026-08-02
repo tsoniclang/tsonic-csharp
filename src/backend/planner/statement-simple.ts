@@ -62,6 +62,7 @@ import {
   isCsharpThrowableCarrier,
   isVoidCsharpType,
   planDiscardedExpression,
+  planExplicitlyDiscardedExpression,
 } from "./statement-output.js";
 
 export function planReturnStatement(
@@ -82,8 +83,21 @@ export function planReturnStatement(
     if (discarded === undefined) {
       return [];
     }
+    const discardedType = input.types.resolveNode(
+      voidExpression.Expression,
+      sourceFile,
+    );
+    if (discardedType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        voidExpression.Expression!,
+        "The explicit void operand has no closed C# target representation.",
+      ));
+      return [];
+    }
     return [
-      expressionStatement(planDiscardedExpression(discarded)),
+      expressionStatement(
+        planExplicitlyDiscardedExpression(discarded, discardedType),
+      ),
       { kind: "ReturnStatement" },
     ];
   }
@@ -221,7 +235,22 @@ export function planExpressionStatement(
   if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(expression!)!;
     const planned = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
-    return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
+    const discardedType = input.types.resolveNode(
+      voidExpression.Expression,
+      sourceFile,
+    );
+    if (planned === undefined || discardedType === undefined) {
+      if (planned !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(
+          voidExpression.Expression!,
+          "The explicit void operand has no closed C# target representation.",
+        ));
+      }
+      return [];
+    }
+    return [expressionStatement(
+      planExplicitlyDiscardedExpression(planned, discardedType),
+    )];
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
   return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
