@@ -105,6 +105,7 @@ export function translateCsharpConstruction(
         sourceFile,
         input,
         diagnostics,
+        planExpression,
         planCallArgument,
       );
     case "source-owned":
@@ -114,6 +115,7 @@ export function translateCsharpConstruction(
         sourceFile,
         input,
         diagnostics,
+        planExpression,
         planCallArgument,
       );
     case "rejected":
@@ -157,6 +159,7 @@ function translateSelectedConstruction(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
   const member = selection.call.targetMember;
@@ -177,6 +180,7 @@ function translateSelectedConstruction(
     sourceFile,
     input,
     diagnostics,
+    planExpression,
     planCallArgument,
   );
   if (arguments_ === undefined) {
@@ -244,6 +248,7 @@ function translateSourceOwnedConstruction(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
   const declaration = input.semantics(sourceFile)
@@ -277,6 +282,7 @@ function translateSourceOwnedConstruction(
     sourceFile,
     input,
     diagnostics,
+    planExpression,
     planCallArgument,
   );
   return arguments_ === undefined

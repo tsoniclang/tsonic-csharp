@@ -244,6 +244,60 @@ test("exact selected signatures reject incompatible target argument representati
   );
 });
 
+test("exact provider argument adapters close otherwise invalid target conversions", () => {
+  const adapter = {
+    kind: "static-method",
+    id: "System.Convert.ToInt32(System.Double)",
+    declaringType: {
+      kind: "target-named",
+      id: "System.Convert",
+      csharpRender: {
+        kind: "named",
+        namespace: ["System"],
+        name: "Convert",
+      },
+    },
+    targetName: "ToInt32",
+    inputType: csharpSourcePrimitiveTargetType("float64"),
+    resultType: csharpSourcePrimitiveTargetType("int32"),
+  };
+  const withoutAdapter = createCallFixture({
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("float64")],
+    targetParameters: [
+      targetParameter("value", csharpSourcePrimitiveTargetType("int32")),
+    ],
+  });
+  const withAdapter = createCallFixture({
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("float64")],
+    targetParameters: [
+      targetParameter("value", csharpSourcePrimitiveTargetType("int32")),
+    ],
+    sourceParametersRelations: [parameterRelation({ argumentAdapter: adapter })],
+  });
+
+  const rejected = selectCsharpProviderCall(
+    withoutAdapter.host,
+    withoutAdapter.call,
+    withoutAdapter.sourceFile,
+  );
+  const selected = selectCsharpProviderCall(
+    withAdapter.host,
+    withAdapter.call,
+    withAdapter.sourceFile,
+  );
+
+  assert.equal(rejected.kind, "missing");
+  assert.equal(selected.kind, "resolved");
+  assert.equal(
+    selected.call.argumentConversions[0]?.selection.kind,
+    "provider-argument-adapter",
+  );
+  assert.deepEqual(
+    selected.call.argumentConversions[0]?.selection.adapter,
+    adapter,
+  );
+});
+
 test("checked-source parameter acceptance is scoped to the exact provider relation", () => {
   const fixture = createCallFixture({
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
@@ -939,5 +993,8 @@ function parameterRelation(options = {}) {
       options.targetAcceptsOmission ?? options.targetParamsArray ?? false,
     sourceRest: options.sourceRest ?? false,
     targetParamsArray: options.targetParamsArray ?? false,
+    ...(options.argumentAdapter === undefined
+      ? {}
+      : { argumentAdapter: options.argumentAdapter }),
   };
 }

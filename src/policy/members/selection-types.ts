@@ -6,8 +6,12 @@ import type {
   SourceFileSemantics,
 } from "@tsonic/target-api";
 import type {
+  CsharpProviderTargetRelation,
   CsharpTargetReceiverRelation,
 } from "../../provider/target-relations/index.js";
+import type {
+  CsharpConversionSelection,
+} from "../conversions/index.js";
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
@@ -27,13 +31,32 @@ export interface CsharpSelectedCallArgument {
   readonly targetParameter: CsharpTargetParameter;
 }
 
-export interface CsharpSelectedTargetCall {
-  readonly origin: "provider" | "source-profile";
+interface CsharpSelectedTargetCallBase {
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
   readonly targetMethodTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
   readonly arguments: readonly CsharpSelectedCallArgument[];
 }
+
+export interface CsharpProviderArgumentConversion {
+  readonly effectiveArgumentIndex: number;
+  readonly sourceType: TargetTypeRef;
+  readonly targetType: TargetTypeRef;
+  readonly selection: CsharpConversionSelection;
+}
+
+export type CsharpSelectedTargetCall =
+  | CsharpSelectedTargetCallBase & {
+      readonly origin: "provider";
+      readonly relation: Extract<
+        CsharpProviderTargetRelation,
+        { readonly kind: "signature" }
+      >;
+      readonly argumentConversions: readonly CsharpProviderArgumentConversion[];
+    }
+  | CsharpSelectedTargetCallBase & {
+      readonly origin: "source-profile";
+    };
 
 export type CsharpSelectedTargetMethodTypeArgument =
   | {

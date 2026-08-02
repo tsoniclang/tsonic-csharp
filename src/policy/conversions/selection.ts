@@ -2,6 +2,9 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import type {
+  CsharpProviderArgumentAdapter,
+} from "../../provider/target-relations/index.js";
+import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
 import {
@@ -75,6 +78,12 @@ export type CsharpConversionSelection =
     }
   | { readonly kind: "nullable-value" }
   | { readonly kind: "delegate-adapter" }
+  | {
+      readonly kind: "provider-argument-adapter";
+      readonly adapter: CsharpProviderArgumentAdapter;
+      readonly sourceToInput: CsharpConversionSelection;
+      readonly resultToTarget: CsharpConversionSelection;
+    }
   | { readonly kind: "compat-box" }
   | {
       readonly kind: "compat-cast";
@@ -323,6 +332,57 @@ export function selectCsharpExpressionConversion(
     : selected;
 }
 
+export function selectCsharpProviderArgumentConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "ast" | "projectTypes" | "providers" | "target"
+  > & Pick<Partial<CsharpTranslationContext>, "objectShapes">,
+  expression: Node,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef,
+  adapter: CsharpProviderArgumentAdapter | undefined,
+): CsharpConversionSelection {
+  const direct = selectCsharpExpressionConversion(
+    input,
+    expression,
+    source,
+    target,
+    "implicit",
+  );
+  if (conversionIsApplicable(direct, "implicit") || adapter === undefined) {
+    return direct;
+  }
+  const sourceToInput = selectCsharpExpressionConversion(
+    input,
+    expression,
+    source,
+    adapter.inputType,
+    "implicit",
+  );
+  const resultToTarget = selectCsharpConversion(
+    input,
+    adapter.resultType,
+    target,
+    "implicit",
+  );
+  if (
+    conversionIsApplicable(sourceToInput, "implicit") &&
+    conversionIsApplicable(resultToTarget, "implicit")
+  ) {
+    return {
+      kind: "provider-argument-adapter",
+      adapter,
+      sourceToInput,
+      resultToTarget,
+    };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      `Exact provider argument adapter '${adapter.id}' cannot relate '${source === undefined ? "<unresolved>" : targetTypeRefKey(source)}' through '${targetTypeRefKey(adapter.inputType)}' and '${targetTypeRefKey(adapter.resultType)}' to '${targetTypeRefKey(target)}'.`,
+  };
+}
+
 export function selectCsharpFlowReadConversion(
   input: Pick<
     CsharpTranslationContext,
@@ -360,6 +420,7 @@ function conversionIsApplicable(
   return selection.kind === "identity" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
+    selection.kind === "provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
     selection.kind === "compat-box" ||
     selection.kind === "compat-cast" ||

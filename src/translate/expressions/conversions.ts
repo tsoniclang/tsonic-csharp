@@ -88,6 +88,17 @@ export function applyCsharpConversionSelection(
         targetType,
         expression,
       );
+    case "provider-argument-adapter":
+      return applyProviderArgumentAdapter(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        sourceType,
+        targetType,
+        selection,
+        expression,
+      );
     case "compat-box":
       return invokeStaticGeneric(
         csharpTsValueTargetType(),
@@ -119,6 +130,67 @@ export function applyCsharpConversionSelection(
       diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
       return undefined;
   }
+}
+
+function applyProviderArgumentAdapter(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  selection: Extract<
+    CsharpConversionSelection,
+    { readonly kind: "provider-argument-adapter" }
+  >,
+  expression: CsharpExpression,
+): CsharpExpression | undefined {
+  const adapterInput = applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceType,
+    selection.adapter.inputType,
+    selection.sourceToInput,
+    expression,
+  );
+  if (adapterInput === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Exact provider argument adapter '${selection.adapter.id}' requires a renderable input.`,
+    ));
+    return undefined;
+  }
+  const declaringType = csharpTypeFromTargetTypeRef(
+    selection.adapter.declaringType,
+  );
+  if (declaringType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Exact provider argument adapter '${selection.adapter.id}' requires a renderable declaring type.`,
+    ));
+    return undefined;
+  }
+  const adapted: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: declaringType,
+      name: selection.adapter.targetName,
+    },
+    arguments: [{ kind: "Argument", expression: adapterInput }],
+  };
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    selection.adapter.resultType,
+    targetType,
+    selection.resultToTarget,
+    adapted,
+  );
 }
 
 function applyRuntimeUnionArmConversion(

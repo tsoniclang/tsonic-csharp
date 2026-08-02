@@ -17,6 +17,7 @@ import {
 import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
+  CsharpProviderArgumentConversion,
   ResolvedSourceCallInfo,
 } from "../../policy/members/index.js";
 import type {
@@ -55,6 +56,9 @@ import {
 import {
   renderSelectedCsharpTargetMethodTypeArguments,
 } from "./selected-method-type-arguments.js";
+import {
+  applyCsharpConversionSelection,
+} from "./conversions.js";
 
 export function translateCsharpCallExpression(
   node: Node,
@@ -316,6 +320,7 @@ function translateSelectedTargetCall(
     sourceFile,
     input,
     diagnostics,
+    planExpression,
     planCallArgument,
   );
   if (arguments_ === undefined) {
@@ -454,6 +459,7 @@ export function translateSelectedTargetArguments(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): readonly CsharpArgument[] | undefined {
   const planned: {
@@ -480,6 +486,7 @@ export function translateSelectedTargetArguments(
       sourceFile,
       input,
       diagnostics,
+      planExpression,
       planCallArgument,
     );
     if (argument === undefined) {
@@ -509,7 +516,13 @@ export function translateSelectedTargetArguments(
       sourceFile,
       input,
       diagnostics,
+      planExpression,
       planCallArgument,
+      selection.origin === "provider"
+        ? selection.argumentConversions.find((conversion) =>
+            conversion.effectiveArgumentIndex ===
+              argumentSelection.effectiveArgumentIndex)
+        : undefined,
     );
     if (argument === undefined) {
       return undefined;
@@ -543,7 +556,9 @@ function translateCallArgument(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  selectedConversion?: CsharpProviderArgumentConversion,
 ): CsharpArgument | undefined {
   if (sourceForm === "spread-element") {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -567,6 +582,37 @@ function translateCallArgument(
       `Selected target parameter '${parameter.name}' has no renderable C# type.`,
     ));
     return undefined;
+  }
+  if (selectedConversion?.selection.kind === "provider-argument-adapter") {
+    if (
+      sourceForm !== "value" ||
+      parameter.passingMode !== "by-value"
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        `Exact provider argument adapter '${selectedConversion.selection.adapter.id}' requires an ordinary by-value source argument.`,
+      ));
+      return undefined;
+    }
+    const sourceExpression = planExpression(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    const adapted = applyCsharpConversionSelection(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      selectedConversion.sourceType,
+      selectedConversion.targetType,
+      selectedConversion.selection,
+      sourceExpression,
+    );
+    return adapted === undefined
+      ? undefined
+      : { kind: "Argument", expression: adapted };
   }
   return planCallArgument(
     expression,
@@ -641,6 +687,7 @@ function translateSourceOwnedCall(
     sourceFile,
     input,
     diagnostics,
+    planExpression,
     planCallArgument,
   );
   return arguments_ === undefined
@@ -654,6 +701,7 @@ export function translateSourceOwnedArguments(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): readonly CsharpArgument[] | undefined {
   const bindingsBySourceArgument = new Map<
@@ -724,6 +772,7 @@ export function translateSourceOwnedArguments(
       sourceFile,
       input,
       diagnostics,
+      planExpression,
       planCallArgument,
     );
     if (plannedArgument === undefined) {

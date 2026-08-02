@@ -7,6 +7,7 @@ import type {
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
+  TargetTypeRef,
 } from "../../policy/types/index.js";
 
 export interface CsharpProviderSourceIdentityBase {
@@ -55,6 +56,16 @@ export type CsharpTargetReceiverRelation =
       readonly targetParameterIndex: number;
     };
 
+export type CsharpProviderArgumentAdapter =
+  | {
+      readonly kind: "static-method";
+      readonly id: string;
+      readonly declaringType: TargetTypeRef;
+      readonly targetName: string;
+      readonly inputType: TargetTypeRef;
+      readonly resultType: TargetTypeRef;
+    };
+
 export interface CsharpProviderParameterRelation {
   readonly sourceParameterIndex: number;
   readonly targetParameterIndex: number;
@@ -64,6 +75,7 @@ export interface CsharpProviderParameterRelation {
   readonly targetAcceptsOmission: boolean;
   readonly sourceRest: boolean;
   readonly targetParamsArray: boolean;
+  readonly argumentAdapter?: CsharpProviderArgumentAdapter;
 }
 
 export interface CsharpProviderTypeParameterRelation {
@@ -631,7 +643,8 @@ function assertParameterRelations(
           target.csharpOmittableOptionalArgument === true ||
           target.paramsArray === true
         ) ||
-      parameter.targetParamsArray !== (target.paramsArray === true)
+      parameter.targetParamsArray !== (target.paramsArray === true) ||
+      !providerArgumentAdapterIsValid(parameter)
     ) {
       throw new Error(
         "C# provider parameter relation is incomplete, contradictory, duplicated, or out of range.",
@@ -639,6 +652,24 @@ function assertParameterRelations(
     }
     sourceIndexes.add(parameter.sourceParameterIndex);
     targetIndexes.add(parameter.targetParameterIndex);
+  }
+}
+
+function providerArgumentAdapterIsValid(
+  parameter: CsharpProviderParameterRelation,
+): boolean {
+  const adapter = parameter.argumentAdapter;
+  if (adapter === undefined) {
+    return true;
+  }
+  switch (adapter.kind) {
+    case "static-method":
+      return parameter.sourcePassingMode === "by-value" &&
+        parameter.targetPassingMode === "by-value" &&
+        adapter.id.length > 0 &&
+        adapter.targetName.length > 0;
+    default:
+      return false;
   }
 }
 

@@ -360,6 +360,44 @@ test("rest and params parameter relations preserve effective omission semantics"
   );
 });
 
+test("provider argument adapters require ordinary by-value parameter relations", () => {
+  const declaration = providerDeclaration();
+  const member = providerMethod({
+    parameters: [{
+      name: "value",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "byref-readwrite",
+    }],
+  });
+  const relation = signatureRelation({
+    declaration,
+    member,
+    sourceParameters: [{
+      sourceParameterIndex: 0,
+      targetParameterIndex: 0,
+      sourcePassingMode: "byref-readwrite",
+      targetPassingMode: "byref-readwrite",
+      sourceAcceptsOmission: false,
+      targetAcceptsOmission: false,
+      sourceRest: false,
+      targetParamsArray: false,
+      argumentAdapter: {
+        kind: "static-method",
+        id: "System.Convert.ToInt32(System.Double)",
+        declaringType: { kind: "target-named", id: "System.Convert" },
+        targetName: "ToInt32",
+        inputType: { kind: "source-primitive", name: "float64" },
+        resultType: { kind: "source-primitive", name: "int32" },
+      },
+    }],
+  });
+
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /parameter relation is incomplete, contradictory/u,
+  );
+});
+
 test("provider type-parameter relations must cover exact target arity", () => {
   const declaration = providerDeclaration();
   const binding = providerBinding({

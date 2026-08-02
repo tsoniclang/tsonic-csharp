@@ -30,10 +30,7 @@ import {
 } from "../types/index.js";
 import {
   compareCsharpImplicitConversionTargets,
-  selectCsharpExpressionConversion,
-} from "../conversions/index.js";
-import type {
-  CsharpConversionSelection,
+  selectCsharpProviderArgumentConversion,
 } from "../conversions/index.js";
 import {
   mergeCsharpTypeParameterSubstitutions,
@@ -44,6 +41,7 @@ import {
 } from "./argument-selection.js";
 import type {
   CsharpSelectedCallArgument,
+  CsharpProviderArgumentConversion,
   CsharpSelectedTargetMethodTypeArgument,
   CsharpSelectedTargetCall,
   ResolvedSourceCallInfo,
@@ -54,11 +52,10 @@ type CsharpProviderSignatureRelation = Extract<
   { readonly kind: "signature" }
 >;
 
-export interface CsharpInstantiatedProviderCall
-  extends CsharpSelectedTargetCall {
-  readonly origin: "provider";
-  readonly relation: CsharpProviderSignatureRelation;
-}
+export type CsharpInstantiatedProviderCall = Extract<
+  CsharpSelectedTargetCall,
+  { readonly origin: "provider" }
+>;
 
 export type CsharpProviderCallInstantiation =
   | {
@@ -70,13 +67,6 @@ export type CsharpProviderCallInstantiation =
       readonly kind: "rejected";
       readonly reason: string;
     };
-
-export interface CsharpProviderArgumentConversion {
-  readonly effectiveArgumentIndex: number;
-  readonly sourceType: TargetTypeRef;
-  readonly targetType: TargetTypeRef;
-  readonly selection: CsharpConversionSelection;
-}
 
 export interface CsharpProviderCallInstantiationHost {
   readonly ast: AstReader;
@@ -154,6 +144,7 @@ export function instantiateCsharpProviderCall(
   }
   const argumentValidation = validateArgumentsTargetSelectedParameters(
     host,
+    relation,
     targetMember,
     source,
     arguments_,
@@ -174,6 +165,7 @@ export function instantiateCsharpProviderCall(
       receiver: relation.receiver,
       targetMethodTypeArguments: methodArguments,
       arguments: arguments_,
+      argumentConversions: argumentValidation.argumentConversions,
     },
     argumentConversions: argumentValidation.argumentConversions,
   };
@@ -480,6 +472,7 @@ type CsharpProviderArgumentValidation =
 
 function validateArgumentsTargetSelectedParameters(
   host: CsharpProviderCallInstantiationHost,
+  relation: CsharpProviderSignatureRelation,
   targetMember: CsharpTargetMember,
   source: ResolvedSourceCallInfo,
   arguments_: readonly CsharpSelectedCallArgument[],
@@ -549,21 +542,25 @@ function validateArgumentsTargetSelectedParameters(
           `Source argument ${binding.sourceArgumentIndex} has no closed C# representation for its exact selected target parameter '${argument.targetParameter.name}'.`,
       };
     }
-    const conversion = selectCsharpExpressionConversion(
+    const targetType = csharpTargetParameterValueType(
+      argument.targetParameter,
+      argument.sourceForm,
+    );
+    const parameterRelation = relation.parameters.find((candidate) =>
+      candidate.targetParameterIndex === argument.targetParameterIndex);
+    const conversion = selectCsharpProviderArgumentConversion(
       host,
       sourceArgument.argument.storageExpression,
       sourceType,
-      csharpTargetParameterValueType(
-        argument.targetParameter,
-        argument.sourceForm,
-      ),
-      "implicit",
+      targetType,
+      parameterRelation?.argumentAdapter,
     );
     const conversionAccepted = sourceArgument.argument.passingMode ===
         "by-value"
       ? conversion.kind === "identity" ||
         conversion.kind === "implicit" ||
-        conversion.kind === "delegate-adapter"
+        conversion.kind === "delegate-adapter" ||
+        conversion.kind === "provider-argument-adapter"
       : conversion.kind === "identity";
     if (!conversionAccepted) {
       const detail = conversion.kind === "rejected" ||
