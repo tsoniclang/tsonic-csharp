@@ -148,15 +148,45 @@ namespace Tsonic.Generated
 `);
 });
 
-test("direct C# translation selects the best collapsed provider overload from target conversions", () => {
+test("direct C# translation selects exact provider overloads and source-core attribute applications in one provider session", () => {
   const compiled = cleanCompile(`
-    import { Console } from "@tsonic/dotnet/System.js";
+    import { attribute } from "@tsonic/core/lang.js";
+    import { out } from "@tsonic/csharp/lang.js";
+    import type { int } from "@tsonic/csharp/types.js";
+    import {
+      Console,
+      Int32,
+      ObsoleteAttribute,
+      SerializableAttribute,
+    } from "@tsonic/dotnet/System.js";
+
+    export class User {
+      constructor(id: string) {}
+      name = "";
+      get display(): string { return this.name; }
+      save(route: string): void {}
+    }
+
+    attribute<User>().add(SerializableAttribute);
+    attribute<User>().add(ObsoleteAttribute, "class");
+    attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
+    attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
+    attribute<User>().property((target) => target.name).add(ObsoleteAttribute, "field");
+    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+
     export function report(path: string): number {
       const parts = path.Split("/");
       const ok = path.StartsWith("/");
       Console.WriteLine(parts.Length);
       return ok ? parts.Length : 0;
     }
+
+    export function parse(text: string): int {
+      let value: int = 0;
+      Int32.TryParse(text, out(value));
+      return value;
+    }
+
   `);
 
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
@@ -171,6 +201,34 @@ namespace Tsonic.Generated
             bool ok = path.StartsWith("/");
             System.Console.WriteLine(parts.Length);
             return ok ? parts.Length : 0;
+        }
+        public static int parse(string text)
+        {
+            int value = 0;
+            System.Int32.TryParse(text, out value);
+            return value;
+        }
+    }
+    [System.SerializableAttribute]
+    [System.ObsoleteAttribute("class")]
+    public class User
+    {
+        [System.ObsoleteAttribute("constructor")]
+        public User([System.ObsoleteAttribute("id")] string id)
+        {
+        }
+        [System.ObsoleteAttribute("field")]
+        public string name = "";
+        public string display
+        {
+            get
+            {
+                return this.name;
+            }
+        }
+        [System.ObsoleteAttribute("method")]
+        public void save(string route)
+        {
         }
     }
 }

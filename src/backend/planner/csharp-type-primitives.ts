@@ -9,3 +9,9 @@ export function invalidCsharpType(reason: string): CsharpTypeNode {
 export function predefined(name: string): CsharpTypeNode {
   return { kind: "PredefinedType", name };
 }
+
+export function nullableCsharpType(type: CsharpTypeNode): CsharpTypeNode {
+  return type.kind === "NullableType" || type.kind === "InvalidType"
+    ? type
+    : { kind: "NullableType", inner: type };
+}

@@ -1,6 +1,5 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  argumentPassingFactKey,
   type ArgumentPassingFact,
   type Node,
   type SourceFile,
@@ -30,6 +29,9 @@ import {
   planArrowFunctionExpression,
   planFunctionExpression,
 } from "./expression-lambdas.js";
+import {
+  selectCsharpSourceArgument,
+} from "../../policy/members/argument-selection.js";
 
 export type ExpressionPlanner = (
   node: Node,
@@ -61,32 +63,29 @@ export function planCallArgumentCore(
   expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
   state?: DestructuringPlannerState,
 ): CsharpArgument | undefined {
-  const argumentPassing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
-  if (argumentPassing === undefined) {
-    if (expectedArgumentPassingMode !== "by-value") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission requires finalized argument-passing facts for selected ${expectedArgumentPassingMode} parameters.`));
-      return undefined;
-    }
-    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
-    return expression === undefined ? undefined : { kind: "Argument", expression };
-  }
-  if (!csharpSupportsArgumentPassingMode(argumentPassing.mode)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${argumentPassing.mode}'.`));
+  const selected = selectCsharpSourceArgument(input.sourceFacts, node);
+  if (selected.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selected.reason));
     return undefined;
   }
-  if (argumentPassing.mode !== expectedArgumentPassingMode) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argumentPassing.mode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
+  const argument = selected.argument;
+  if (!csharpSupportsArgumentPassingMode(argument.passingMode)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${argument.passingMode}'.`));
     return undefined;
   }
-  if (!isAstNode(input.ast, argumentPassing.storageExpression)) {
+  if (argument.passingMode !== expectedArgumentPassingMode) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argument.passingMode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
+    return undefined;
+  }
+  if (!isAstNode(input.ast, argument.storageExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
     return undefined;
   }
-  const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
-  if (argumentPassing.mode !== "by-value" && passing === undefined) {
+  const passing = getCsharpArgumentPassing(argument.passingMode, node, diagnostics);
+  if (argument.passingMode !== "by-value" && passing === undefined) {
     return undefined;
   }
-  const expression = planCallArgumentExpression(argumentPassing.storageExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
+  const expression = planCallArgumentExpression(argument.storageExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   if (expression === undefined) {
     return undefined;
   }

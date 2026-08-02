@@ -19,7 +19,11 @@ import {
 } from "./bindings.js";
 import { planAttributesForSubject } from "./attributes.js";
 import type { DestructuringPlannerState } from "./bindings.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import {
+  getCsharpTypeForNode,
+  invalidCsharpType,
+  nullableCsharpType,
+} from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -124,9 +128,7 @@ function getParameterType(
   errorType?: CsharpTypeNode,
 ): CsharpTypeNode {
   const type = getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics);
-  return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
-    ? type
-    : { kind: "NullableType", inner: type };
+  return questionToken === undefined ? type : nullableCsharpType(type);
 }
 
 function planParameterDefaultValue(

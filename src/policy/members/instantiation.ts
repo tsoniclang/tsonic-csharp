@@ -37,6 +37,9 @@ import {
   resolveCsharpTargetBindingArguments,
   substituteCsharpTargetMember,
 } from "./binding-instantiation.js";
+import {
+  selectCsharpSourceArgument,
+} from "./argument-selection.js";
 import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
@@ -468,9 +471,6 @@ function validateArgumentsTargetSelectedParameters(
 ): CsharpProviderArgumentValidation {
   const argumentConversions: CsharpProviderArgumentConversion[] = [];
   for (const argument of arguments_) {
-    if (argument.targetParameter.csharpAcceptsCheckedSourceArgument === true) {
-      continue;
-    }
     const binding = source.sourceArgumentBindings.find((candidate) =>
       candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
     if (binding === undefined) {
@@ -483,17 +483,50 @@ function validateArgumentsTargetSelectedParameters(
     const sourceExpression = source.sourceArguments[
       binding.sourceArgumentIndex
     ]?.expression;
-    const sourceType = host.types.resolveNode(
+    if (sourceExpression === undefined) {
+      return {
+        kind: "rejected",
+        reason:
+          `Source argument ${binding.sourceArgumentIndex} has no exact checker-owned expression.`,
+      };
+    }
+    const sourceArgument = selectCsharpSourceArgument(
+      host.sourceFacts,
       sourceExpression,
-      sourceFile,
-    ) ?? host.types.resolveType(
-      binding.selectedArgumentType,
-      sourceFile,
     );
+    if (sourceArgument.kind === "rejected") {
+      return {
+        kind: "rejected",
+        reason:
+          `Source argument ${binding.sourceArgumentIndex} is invalid. ${sourceArgument.reason}`,
+      };
+    }
     if (
-      sourceType === undefined ||
-      sourceExpression === undefined
+      sourceArgument.argument.passingMode !==
+        argument.targetParameter.passingMode
     ) {
+      return {
+        kind: "rejected",
+        reason:
+          `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
+      };
+    }
+    if (
+      argument.targetParameter.csharpAcceptsCheckedSourceArgument === true &&
+      sourceArgument.argument.passingMode === "by-value"
+    ) {
+      continue;
+    }
+    const sourceType = host.types.resolveNode(
+      sourceArgument.argument.storageExpression,
+      sourceFile,
+    ) ?? (sourceArgument.argument.passingMode === "by-value"
+      ? host.types.resolveType(
+          binding.selectedArgumentType,
+          sourceFile,
+        )
+      : undefined);
+    if (sourceType === undefined) {
       return {
         kind: "rejected",
         reason:
@@ -502,7 +535,7 @@ function validateArgumentsTargetSelectedParameters(
     }
     const conversion = selectCsharpExpressionConversion(
       host,
-      sourceExpression,
+      sourceArgument.argument.storageExpression,
       sourceType,
       csharpTargetParameterValueType(
         argument.targetParameter,
@@ -510,11 +543,13 @@ function validateArgumentsTargetSelectedParameters(
       ),
       "implicit",
     );
-    if (
-      conversion.kind !== "identity" &&
-      conversion.kind !== "implicit" &&
-      conversion.kind !== "delegate-adapter"
-    ) {
+    const conversionAccepted = sourceArgument.argument.passingMode ===
+        "by-value"
+      ? conversion.kind === "identity" ||
+        conversion.kind === "implicit" ||
+        conversion.kind === "delegate-adapter"
+      : conversion.kind === "identity";
+    if (!conversionAccepted) {
       const detail = conversion.kind === "rejected" ||
           conversion.kind === "ambiguous"
         ? ` ${conversion.reason}`
@@ -522,7 +557,7 @@ function validateArgumentsTargetSelectedParameters(
       return {
         kind: "rejected",
         reason:
-          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}' through an implicit conversion.${detail}`,
+          `Source argument ${binding.sourceArgumentIndex} with C# representation '${targetTypeRefKey(sourceType)}' cannot satisfy exact target parameter '${argument.targetParameter.name}' with passing mode '${sourceArgument.argument.passingMode}' and representation '${targetTypeRefKey(csharpTargetParameterValueType(argument.targetParameter, argument.sourceForm))}'.${detail}`,
       };
     }
     argumentConversions.push({

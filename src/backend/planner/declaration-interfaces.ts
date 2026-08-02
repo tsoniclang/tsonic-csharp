@@ -21,7 +21,11 @@ import type {
   CsharpInterfacePropertyDeclaration,
 } from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import {
+  getCsharpTypeForNode,
+  invalidCsharpType,
+  nullableCsharpType,
+} from "./csharp-types.js";
 import { getExplicitReturnType } from "./declaration-return-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planInterfaceHeritage } from "./heritage.js";
@@ -112,11 +116,20 @@ function planInterfacePropertyDeclaration(
   if (declaration.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
+  const type = getCsharpTypeForNode(
+    declaration.Type ?? declaration.name,
+    sourceFile,
+    input,
+    invalidCsharpType("interface property type"),
+    diagnostics,
+  );
   return {
     kind: "PropertyDeclaration",
     name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("interface property type"), diagnostics),
+    type: input.ast.questionToken(node) === undefined
+      ? type
+      : nullableCsharpType(type),
   };
 }
 

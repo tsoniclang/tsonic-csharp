@@ -15,7 +15,6 @@ import {
   isAstNode,
 } from "../source-ast.js";
 import {
-  attributeFactKey,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
@@ -25,6 +24,9 @@ import type {
 import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../roslyn/syntax.js";
 import type {
   TsonicAttributeApplicationFact,
+} from "@tsonic/source-core";
+import {
+  tsonicAttributeBuilderFactKey,
 } from "@tsonic/source-core";
 import { expressionToCsharpType } from "../csharp-types.js";
 import { planExpression } from "../expressions.js";
@@ -65,7 +67,10 @@ export function isErasedAttributeExpressionStatement(
     return false;
   }
   const expression = AsExpressionStatement(statement)?.Expression;
-  return input.sourceFacts?.getFact(expression, attributeFactKey) !== undefined;
+  return input.sourceFacts?.getFact(
+    expression,
+    tsonicAttributeBuilderFactKey,
+  ) !== undefined;
 }
 
 function planAttribute(

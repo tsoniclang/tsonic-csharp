@@ -336,9 +336,11 @@ test("rest arguments retain one declared parameter identity and target params sl
 
 test("byref parameter modes require the exact finalized source parameter fact", () => {
   const parameterDeclaration = {};
+  const sourceArgument = {};
+  const storageExpression = {};
   const target = {
     ...targetParameter("value", csharpStringTargetType()),
-    passingMode: "ref",
+    passingMode: "byref-readwrite",
   };
   const fixture = createCallFixture({
     sourceParameters: [
@@ -347,15 +349,20 @@ test("byref parameter modes require the exact finalized source parameter fact", 
         selectedType: {},
       }),
     ],
-    sourceArgumentTargets: [csharpStringTargetType()],
+    argumentExpressions: [sourceArgument],
+    sourceArgumentTargets: [csharpObjectTargetType()],
     targetParameters: [target],
     sourceParametersRelations: [
       parameterRelation({
-        sourcePassingMode: "ref",
-        targetPassingMode: "ref",
+        sourcePassingMode: "byref-readwrite",
+        targetPassingMode: "byref-readwrite",
       }),
     ],
-    additionalFacts: [passingFact(parameterDeclaration, "ref")],
+    additionalFacts: [
+      passingFact(parameterDeclaration, "byref-readwrite"),
+      passingFact(sourceArgument, "byref-readwrite", storageExpression),
+    ],
+    additionalNodeTypes: [[storageExpression, csharpStringTargetType()]],
   });
   const selected = selectCsharpProviderCall(
     fixture.host,
@@ -365,23 +372,28 @@ test("byref parameter modes require the exact finalized source parameter fact", 
   assert.equal(selected.kind, "resolved");
   assert.equal(
     selected.call.targetMember.parameters[0].passingMode,
-    "ref",
+    "byref-readwrite",
   );
 });
 
 test("missing byref source facts cannot be inferred from target parameter mode", () => {
   const target = {
     ...targetParameter("value", csharpStringTargetType()),
-    passingMode: "ref",
+    passingMode: "byref-readwrite",
   };
+  const parameterDeclaration = {};
   const fixture = createCallFixture({
+    sourceParameters: [sourceParameter({ parameterDeclaration })],
     sourceArgumentTargets: [csharpStringTargetType()],
     targetParameters: [target],
     sourceParametersRelations: [
       parameterRelation({
-        sourcePassingMode: "ref",
-        targetPassingMode: "ref",
+        sourcePassingMode: "byref-readwrite",
+        targetPassingMode: "byref-readwrite",
       }),
+    ],
+    additionalFacts: [
+      passingFact(parameterDeclaration, "byref-readwrite"),
     ],
   });
   const selected = selectCsharpProviderCall(
@@ -390,7 +402,56 @@ test("missing byref source facts cannot be inferred from target parameter mode",
     fixture.sourceFile,
   );
   assert.equal(selected.kind, "missing");
-  assert.match(selected.reason, /contradicts selected source or target parameter semantics/u);
+  assert.match(selected.reason, /uses 'by-value'.*requires 'byref-readwrite'/u);
+});
+
+test("byref arguments reject implicit storage conversions", () => {
+  const parameterDeclaration = {};
+  const sourceArgument = {};
+  const storageExpression = {};
+  const target = {
+    ...targetParameter(
+      "value",
+      csharpSourcePrimitiveTargetType("int32"),
+    ),
+    passingMode: "byref-writeonly-must-init",
+  };
+  const fixture = createCallFixture({
+    sourceParameters: [sourceParameter({ parameterDeclaration })],
+    argumentExpressions: [sourceArgument],
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("float64")],
+    targetParameters: [target],
+    sourceParametersRelations: [
+      parameterRelation({
+        sourcePassingMode: "byref-writeonly-must-init",
+        targetPassingMode: "byref-writeonly-must-init",
+      }),
+    ],
+    additionalFacts: [
+      passingFact(parameterDeclaration, "byref-writeonly-must-init"),
+      passingFact(
+        sourceArgument,
+        "byref-writeonly-must-init",
+        storageExpression,
+      ),
+    ],
+    additionalNodeTypes: [[
+      storageExpression,
+      csharpSourcePrimitiveTargetType("uint8"),
+    ]],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "missing");
+  assert.match(
+    selected.reason,
+    /cannot satisfy exact target parameter 'value' with passing mode 'byref-writeonly-must-init'/u,
+  );
 });
 
 test("selected method type arguments close generic target methods directly", () => {

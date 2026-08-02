@@ -2,6 +2,7 @@ export * from "./provider-evidence.js";
 export * from "./provider-operations.js";
 export * from "./selection-types.js";
 export * from "./binding-instantiation.js";
+export * from "./argument-selection.js";
 export * from "./instantiation.js";
 export * from "./call-selection.js";
 export * from "./property-selection.js";

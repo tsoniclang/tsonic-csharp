@@ -32,6 +32,7 @@ import {
 import {
   getCsharpTypeForNode,
   invalidCsharpType,
+  nullableCsharpType,
 } from "./csharp-types.js";
 import {
   unsupportedNodeDiagnostic,
@@ -79,7 +80,16 @@ export function planPropertyDeclaration(
       type,
     };
   }
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
+  const declaredType = getCsharpTypeForNode(
+    declaration.Type ?? declaration.name,
+    sourceFile,
+    input,
+    invalidCsharpType("property type"),
+    diagnostics,
+  );
+  const type = input.ast.questionToken(node) === undefined
+    ? declaredType
+    : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   if (!shouldEmitAutoProperty(node, propertyName, autoPropertyNames, sourceFile, input)) {
     return {
