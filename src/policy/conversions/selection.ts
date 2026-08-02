@@ -27,6 +27,8 @@ import {
   getCsharpTaskResultTargetType,
   isCsharpAnyRuntimeCarrier,
   isCsharpNullableReferenceTargetType,
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -384,6 +386,12 @@ function selectNullableConversion(
 ): CsharpConversionSelection | undefined {
   const targetElement = getCsharpNullableElementTargetType(target);
   if (targetElement !== undefined) {
+    if (
+      isCsharpRuntimeNullTargetType(source) ||
+      isCsharpRuntimeUndefinedTargetType(source)
+    ) {
+      return { kind: "implicit", proof: "nullable" };
+    }
     const elementConversion = selectCsharpConversion(
       input,
       source,

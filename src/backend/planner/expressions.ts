@@ -28,6 +28,7 @@ import {
   type SourceFile,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -144,6 +145,7 @@ function planExpressionCore(
     expectedTypeSubject?: Node,
     conversionExpectedTargetType?: TargetTypeRef,
     expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+    selectedTargetParameter?: CsharpTargetParameter,
   ): CsharpArgument | undefined => planCallArgument(
     argumentNode,
     argumentSourceFile,
@@ -154,6 +156,7 @@ function planExpressionCore(
     conversionExpectedTargetType,
     state,
     expectedArgumentPassingMode,
+    selectedTargetParameter,
   );
   const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
@@ -218,6 +221,7 @@ function planExpressionCore(
           expectedTypeSubject,
           conversionExpectedTargetType,
           expectedArgumentPassingMode,
+          selectedTargetParameter,
         ) =>
           planCallArgument(
             argumentNode,
@@ -229,6 +233,7 @@ function planExpressionCore(
             conversionExpectedTargetType,
             state,
             expectedArgumentPassingMode,
+            selectedTargetParameter,
           ),
       );
     case KindArrowFunction:
@@ -255,12 +260,12 @@ function planExpressionCore(
         diagnostics,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
           planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode) =>
-          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode),
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter),
       );
     case KindNewExpression:
-      return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode) =>
-        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode));
+      return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
+        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
     case KindPrefixUnaryExpression: {
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
@@ -307,6 +312,7 @@ export function planCallArgument(
   conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
   expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+  selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
   return planCallArgumentCore(
     node,
@@ -322,6 +328,7 @@ export function planCallArgument(
     conversionExpectedTargetType,
     expectedArgumentPassingMode,
     state,
+    selectedTargetParameter,
   );
 }
 

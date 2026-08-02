@@ -131,6 +131,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
 
 export interface CsharpTypePolicy {
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
+  resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
   resolveValue(
     node: Node | undefined,
@@ -160,6 +161,7 @@ export function createCsharpTypePolicy(
   const activeNodes = new WeakSet<Node>();
   const policy: CsharpTypePolicy = {
     resolveNode,
+    resolveStorage,
     resolveType,
     resolveValue,
     resolveSelectedType,
@@ -186,6 +188,24 @@ export function createCsharpTypePolicy(
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined {
     return resolveTypeWithState(type, sourceFile, { depth: 0 });
+  }
+
+  function resolveStorage(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (node === undefined) {
+      return undefined;
+    }
+    const reference = host.navigation.referenceFor(node);
+    const declaration = sourceValueDeclaration(node, reference?.declaration);
+    if (declaration === undefined) {
+      return resolveNode(node, sourceFile);
+    }
+    return resolveNode(
+      declaration,
+      reference?.sourceFile ?? host.ast.getSourceFile(declaration) ?? sourceFile,
+    );
   }
 
   function resolveValue(
@@ -828,13 +848,41 @@ export function createCsharpTypePolicy(
         return resolved;
       }
     }
-    return syntax.initializer === undefined
-      ? undefined
-      : resolveNodeWithState(
-          syntax.initializer,
-          sourceFile,
-          nextState(state),
-        );
+    if (syntax.initializer === undefined) {
+      return undefined;
+    }
+    const initializerTarget = resolveNodeWithState(
+      syntax.initializer,
+      sourceFile,
+      nextState(state),
+    );
+    if (initializerTarget === undefined) {
+      return undefined;
+    }
+    const declarationQueries = host.semantics(sourceFile);
+    const declaredType = declarationQueries.getTypeAtLocation(
+      syntax.initializer,
+    );
+    const selectedType = queries.getTypeAtLocation(node);
+    if (declaredType === undefined || selectedType === undefined) {
+      return initializerTarget;
+    }
+    const refinement = declarationQueries.selectTypeRefinement(
+      declaredType,
+      selectedType,
+    );
+    if (refinement.kind === "ambiguous") {
+      return undefined;
+    }
+    if (
+      refinement.kind === "members" &&
+      refinement.types.length > 0 &&
+      refinement.types.every((member) => !declarationQueries.isNullish(member))
+    ) {
+      return getCsharpNullableElementTargetType(initializerTarget) ??
+        initializerTarget;
+    }
+    return initializerTarget;
   }
 
   function resolveAuthoredAndSelectedSourceType(
@@ -854,10 +902,10 @@ export function createCsharpTypePolicy(
           authoredSourceFile,
           nextState(state),
         );
-    const selectedQueries = host.semantics(selectedSourceFile);
     if (
       authored === undefined ||
       authoredQueries === undefined ||
+      authoredTypeNode === undefined ||
       selectedType === undefined
     ) {
       return authored ?? resolveTypeWithState(
@@ -876,33 +924,29 @@ export function createCsharpTypePolicy(
         nextState(state),
       );
     }
-    if (selectedQueries.isUnion(selectedType)) {
-      const selectedMembers = selectedQueries
-        .getUnionOrIntersectionTypes(selectedType);
-      const selectedValueMembers = selectedMembers.filter(
-        (member) => !selectedQueries.isNullish(member),
+    const authoredSelection = authoredQueries.selectAuthoredType(
+      authoredTypeNode,
+      selectedType,
+    );
+    if (authoredSelection.kind === "authored-type") {
+      return authored;
+    }
+    if (authoredSelection.kind === "authored-union-members") {
+      const selectedMembers = authoredSelection.nodes.map((node) =>
+        resolveNodeWithState(
+          node,
+          authoredSourceFile,
+          nextState(state),
+        )
       );
-      if (
-        selectedValueMembers.length === 1 &&
-        selectedValueMembers.length !== selectedMembers.length
-      ) {
-        const selectedValue = selectedValueMembers[0]!;
-        const reconciled = reconcileCsharpSelectedTargetType(
-          authored,
-          resolveTypeWithState(
-            selectedValue,
-            selectedSourceFile,
-            nextState(state),
-          ),
-          authoredQueries.getTypeRelationship(
-            authoredSemanticType,
-            selectedValue,
-          ),
-        );
-        return reconciled === undefined
-          ? undefined
-          : csharpNullableTargetType(reconciled);
-      }
+      return selectedMembers.some((member) => member === undefined)
+        ? undefined
+        : combineTargetUnionMembers(
+            selectedMembers as readonly TargetTypeRef[],
+          );
+    }
+    if (authoredSelection.kind === "ambiguous") {
+      return undefined;
     }
     return reconcileCsharpSelectedTargetType(
       authored,

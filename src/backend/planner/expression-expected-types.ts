@@ -146,21 +146,6 @@ export function planExpressionWithExpectedTypeCore(
       expectedTargetType,
     );
   }
-  if (
-    expectedType.kind === "NullableType" &&
-    !HasSourceKind(input.ast, node, KindNullKeyword) &&
-    HasSourceKind(input.ast, node, KindObjectLiteralExpression)
-  ) {
-    return planners.planExpressionWithExpectedType(
-      node,
-      sourceFile,
-      input,
-      diagnostics,
-      expectedType.inner,
-      expectedTypeSubject,
-      getCsharpNullableElementTargetType(effectiveExpectedTargetType) ?? effectiveExpectedTargetType,
-    );
-  }
   if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
     const binaryDiagnosticsStart = diagnostics.length;
     const binaryExpression = tryPlanBinaryExpressionWithExpectedType(
@@ -242,12 +227,21 @@ function projectNullableValueForExpectedTarget(
   if (expression === undefined || expectedTargetType === undefined) {
     return expression;
   }
-  const expressionTargetType = getTargetTypeRefForNode(input, node, sourceFile);
-  if (expressionTargetType === undefined || isCsharpNullableReferenceTargetType(expressionTargetType)) {
+  const selectedTargetType = getTargetTypeRefForNode(input, node, sourceFile);
+  const storageTargetType = input.types.resolveStorage(node, sourceFile);
+  if (
+    selectedTargetType === undefined ||
+    storageTargetType === undefined ||
+    isCsharpNullableReferenceTargetType(storageTargetType)
+  ) {
     return expression;
   }
-  const nullableElementType = getCsharpNullableElementTargetType(expressionTargetType);
-  if (nullableElementType === undefined || !targetTypeRefEquals(nullableElementType, expectedTargetType)) {
+  const nullableElementType = getCsharpNullableElementTargetType(storageTargetType);
+  if (
+    nullableElementType === undefined ||
+    !targetTypeRefEquals(nullableElementType, selectedTargetType) ||
+    !targetTypeRefEquals(selectedTargetType, expectedTargetType)
+  ) {
     return expression;
   }
   return {

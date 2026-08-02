@@ -182,8 +182,27 @@ export function tryPlanBinaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
+  if (selection.targetOperation.kind === "nullish-test") {
+    const operandNode = selection.targetOperation.operand === "left"
+      ? selection.left
+      : selection.right;
+    const operand = planExpression(
+      operandNode,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    return operand === undefined
+      ? undefined
+      : {
+          kind: "NullPatternExpression",
+          expression: operand,
+          negated: selection.targetOperation.negated,
+        };
+  }
+  const targetOperator = selection.targetOperation.operator;
   const assignmentToken = csharpAssignmentOperatorTokenFromText(
-    selection.targetOperator,
+    targetOperator,
   );
   if (assignmentToken !== undefined) {
     const left = planExpression(
@@ -320,12 +339,12 @@ function tryPlanCompatAnyAssignment(
   return { handled: false };
 }
   const binaryToken = csharpBinaryOperatorTokenFromText(
-    selection.targetOperator,
+    targetOperator,
   );
   if (binaryToken === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      `Selected C# operator '${selection.targetOperator}' has no target AST token.`,
+      `Selected C# operator '${targetOperator}' has no target AST token.`,
     ));
     return undefined;
   }

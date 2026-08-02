@@ -5,6 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -33,6 +34,7 @@ export type CallArgumentPlanner = (
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
   expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+  selectedTargetParameter?: CsharpTargetParameter,
 ) => PlannedArgument;
 
 export type ExpectedExpressionPlanner = (

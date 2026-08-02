@@ -572,6 +572,7 @@ function translateCallArgument(
     undefined,
     targetType,
     parameter.passingMode,
+    parameter,
   );
 }
 

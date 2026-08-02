@@ -5,6 +5,7 @@ import {
   type SourceFile,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -62,6 +63,7 @@ export function planCallArgumentCore(
   conversionExpectedTargetType?: TargetTypeRef,
   expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
   state?: DestructuringPlannerState,
+  selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
   const selected = selectCsharpSourceArgument(input.sourceFacts, node);
   if (selected.kind === "rejected") {
@@ -77,9 +79,38 @@ export function planCallArgumentCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argument.passingMode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
     return undefined;
   }
+  if (
+    selectedTargetParameter?.csharpOutputMayBeNull === true &&
+    (
+      argument.passingMode === "by-value" ||
+      argument.passingMode === "byref-readonly"
+    )
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected target parameter '${selectedTargetParameter.name}' declares nullable output on non-writing passing mode '${argument.passingMode}'.`,
+    ));
+    return undefined;
+  }
   if (!isAstNode(input.ast, argument.storageExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
     return undefined;
+  }
+  if (selectedTargetParameter?.csharpOutputMayBeNull === true) {
+    const requirement = input.artifacts.requireStorage(
+      argument.storageExpression,
+      {
+        kind: "nullable-reference-write",
+        writtenType: selectedTargetParameter.type,
+      },
+    );
+    if (requirement.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        requirement.reason,
+      ));
+      return undefined;
+    }
   }
   const passing = getCsharpArgumentPassing(argument.passingMode, node, diagnostics);
   if (argument.passingMode !== "by-value" && passing === undefined) {

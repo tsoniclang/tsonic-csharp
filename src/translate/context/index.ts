@@ -88,7 +88,10 @@ export function createCsharpTranslationContext(
   const { types, objectShapes, projectTypes } = createCsharpTypeSystem(
     typePolicyHost,
   );
-  const artifacts = createCsharpTranslationArtifactGraph({ objectShapes });
+  const artifacts = createCsharpTranslationArtifactGraph({
+    objectShapes,
+    navigation: input.source.navigation,
+  });
   const outputIdentities = createCsharpSourceOutputIdentityPlanner({
     ast: input.source.ast,
     sourceFiles,

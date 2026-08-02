@@ -106,17 +106,9 @@ function getRuntimeUnionStorageCarrier(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): TargetTypeRef | undefined {
-  const nodeCarrier = input.types.resolveNode(node, sourceFile);
-  if (isCsharpRuntimeUnionTargetType(nodeCarrier)) {
-    return nodeCarrier;
-  }
-  const reference = input.navigation.referenceFor(node);
-  const declarationCarrier = input.types.resolveNode(
-    reference?.declaration,
-    sourceFile,
-  );
-  return isCsharpRuntimeUnionTargetType(declarationCarrier)
-    ? declarationCarrier
+  const storageCarrier = input.types.resolveStorage(node, sourceFile);
+  return isCsharpRuntimeUnionTargetType(storageCarrier)
+    ? storageCarrier
     : undefined;
 }
 

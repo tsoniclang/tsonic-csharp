@@ -31,6 +31,12 @@ import type { DestructuringPlannerState } from "./bindings.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -56,7 +62,25 @@ export function planLocalDeclaration(
     variable.Type ?? variable.Initializer ?? variable.name,
     sourceFile,
   );
-  const type = inferredLambdaType ??
+  const storageType = inferredTargetType === undefined
+    ? undefined
+    : input.artifacts.resolveStorageType(
+        declarationNode,
+        inferredTargetType,
+      );
+  if (storageType?.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      declarationNode,
+      storageType.reason,
+    ));
+  }
+  const requiredStorageType = storageType?.kind === "resolved" &&
+      inferredTargetType !== undefined &&
+      !targetTypeRefEquals(storageType.type, inferredTargetType)
+    ? csharpTypeFromTargetTypeRef(storageType.type)
+    : undefined;
+  const type = requiredStorageType ??
+    inferredLambdaType ??
     explicitType ??
     constAssertionType ??
     (inferredTargetType === undefined

@@ -444,10 +444,11 @@ function selectedObjectShapeSourceType(
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
     return semanticType;
   }
-  const contextualType = queries.getContextualType(node);
-  if (contextualType === undefined) {
+  const contextual = queries.selectContextualValueType(node);
+  if (contextual.kind !== "selected") {
     return semanticType;
   }
+  const contextualType = contextual.type;
   const contextualSymbol = queries.getTypeAliasSymbol(contextualType) ??
     queries.getTypeSymbol(contextualType);
   const contextualDeclarations = queries.getSymbolDeclarations(

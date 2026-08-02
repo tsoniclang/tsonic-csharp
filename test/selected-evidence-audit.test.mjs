@@ -44,7 +44,13 @@ test("every low-level source query site is explicitly inventoried", () => {
 test("every inventoried source query has an architecture classification", () => {
   const rows = buildSelectedEvidenceAuditRows(repoRoot)
     .filter((row) => row.ruleId.startsWith("source-query."));
-  assert.equal(rows.length, 27);
+  assert.equal(
+    rows.length,
+    [...expectedSharedSourceQuerySites.values()].reduce(
+      (count, site) => count + site.count,
+      0,
+    ),
+  );
   assert.deepEqual(
     rows.filter((row) =>
       row.classification !== "shared-source-semantics-query" ||

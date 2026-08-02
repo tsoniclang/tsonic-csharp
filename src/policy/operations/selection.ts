@@ -30,13 +30,24 @@ import {
 export interface CsharpResolvedBinaryOperation {
   readonly kind: "resolved";
   readonly sourceOperator: CsharpSourceOperator;
-  readonly targetOperator: string;
+  readonly targetOperation: CsharpTargetBinaryOperation;
   readonly left: Node;
   readonly right: Node;
   readonly leftType: TargetTypeRef;
   readonly rightType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
 }
+
+export type CsharpTargetBinaryOperation =
+  | {
+      readonly kind: "operator";
+      readonly operator: string;
+    }
+  | {
+      readonly kind: "nullish-test";
+      readonly operand: "left" | "right";
+      readonly negated: boolean;
+    };
 
 export interface CsharpResolvedUnaryOperation {
   readonly kind: "resolved";
@@ -81,23 +92,29 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
   }
+  const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
   const targetOperator = targetBinaryOperator(sourceOperator);
-  if (targetOperator === undefined) {
+  if (nullishTest === undefined && targetOperator === undefined) {
     return rejected(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
   }
-  const incompatibility = validateBinaryTargetSemantics(
-    sourceOperator,
-    leftType,
-    rightType,
-    input,
-  );
+  const incompatibility = nullishTest === undefined
+    ? validateBinaryTargetSemantics(
+        sourceOperator,
+        leftType,
+        rightType,
+        input,
+      )
+    : undefined;
   return incompatibility === undefined
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperator,
+        targetOperation: nullishTest ?? {
+          kind: "operator",
+          operator: targetOperator!,
+        },
         left,
         right,
         leftType,
@@ -105,6 +122,32 @@ export function selectCsharpBinaryOperation(
         resultType,
       }
     : rejected(incompatibility);
+}
+
+function selectNullishTest(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): CsharpTargetBinaryOperation | undefined {
+  if (!isEquality(operator)) {
+    return undefined;
+  }
+  const leftNullish = isCsharpRuntimeNullTargetType(left) ||
+    isCsharpRuntimeUndefinedTargetType(left);
+  const rightNullish = isCsharpRuntimeNullTargetType(right) ||
+    isCsharpRuntimeUndefinedTargetType(right);
+  if (leftNullish === rightNullish) {
+    return undefined;
+  }
+  const testedType = leftNullish ? right : left;
+  if (getCsharpNullableElementTargetType(testedType) === undefined) {
+    return undefined;
+  }
+  return {
+    kind: "nullish-test",
+    operand: leftNullish ? "right" : "left",
+    negated: operator === "!==" || operator === "!=",
+  };
 }
 
 export function selectCsharpUnaryOperation(

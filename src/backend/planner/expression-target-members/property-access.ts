@@ -14,6 +14,9 @@ import type {
 import {
   translateCsharpPropertyAccess,
 } from "../../../translate/expressions/properties.js";
+import {
+  tryPlanProjectSourceModuleStaticMemberReference,
+} from "../expression-source-references.js";
 import type {
   ExpressionPlanner,
 } from "../expression-planner-types.js";
@@ -25,6 +28,15 @@ export function planPropertyAccessExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
+  const projectModuleMember = tryPlanProjectSourceModuleStaticMemberReference(
+    propertyAccess,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  if (projectModuleMember !== undefined) {
+    return projectModuleMember;
+  }
   return translateCsharpPropertyAccess(
     propertyAccess,
     sourceFile,

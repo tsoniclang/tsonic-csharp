@@ -15,6 +15,7 @@ import {
 } from "./object-shapes.js";
 import {
   targetPolicyDiagnostic,
+  unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 
 export interface CsharpPlanningResult {
@@ -56,6 +57,20 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
     diagnostics,
   );
   if (plannedSources === undefined || diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
+  const unfulfilledStorageRequirements =
+    input.artifacts.unfulfilledStorageRequirements();
+  if (unfulfilledStorageRequirements.length > 0) {
+    diagnostics.push(...unfulfilledStorageRequirements.map((requirement) =>
+      unsupportedNodeDiagnostic(
+        requirement.expression,
+        requirement.reason,
+      )
+    ));
     return {
       artifacts: [],
       diagnostics,

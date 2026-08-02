@@ -227,7 +227,8 @@ function planDestructuringAssignmentCore(
   if (
     selectedOperator.kind !== "resolved" ||
     selectedOperator.sourceOperator !== "=" ||
-    selectedOperator.targetOperator !== "="
+    selectedOperator.targetOperation.kind !== "operator" ||
+    selectedOperator.targetOperation.operator !== "="
   ) {
     pushMissingDestructuringAssignmentFactsDiagnostic(left, diagnostics);
     return undefined;

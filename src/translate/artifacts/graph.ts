@@ -3,10 +3,21 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
+  SourceProgramNavigation,
+} from "@tsonic/target-api";
+import type {
   CsharpObjectShapeFact,
   CsharpObjectShapePolicy,
   TargetTypeRef,
 } from "../../policy/types/index.js";
+import type {
+  CsharpStorageRequirement,
+  CsharpStorageTypeResult,
+  CsharpUnfulfilledStorageRequirement,
+} from "./storage-requirements.js";
+import {
+  createCsharpStorageRequirementRegistry,
+} from "./storage-requirements.js";
 import {
   csharpObjectShapesEqual,
   getCsharpJsArrayElementTargetType,
@@ -48,10 +59,20 @@ export interface CsharpTranslationArtifactGraph {
     fact: CsharpObjectShapeFact,
   ): boolean;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
+  requireStorage(
+    storageExpression: Node,
+    requirement: CsharpStorageRequirement,
+  ): CsharpArtifactRequestResult;
+  resolveStorageType(
+    declaration: Node,
+    sourceType: TargetTypeRef,
+  ): CsharpStorageTypeResult;
+  unfulfilledStorageRequirements(): readonly CsharpUnfulfilledStorageRequirement[];
 }
 
 export interface CsharpTranslationArtifactGraphHost {
   readonly objectShapes: CsharpObjectShapePolicy;
+  readonly navigation: SourceProgramNavigation;
 }
 
 interface MutableObjectShapeArtifact {
@@ -81,6 +102,7 @@ export function createCsharpTranslationArtifactGraph(
   host: CsharpTranslationArtifactGraphHost,
 ): CsharpTranslationArtifactGraph {
   const records = new Map<string, MutableObjectShapeArtifact>();
+  const storage = createCsharpStorageRequirementRegistry(host);
   let revision = 0;
 
   function registerObjectShape(
@@ -597,12 +619,15 @@ export function createCsharpTranslationArtifactGraph(
 
   return Object.freeze({
     get revision(): number {
-      return revision;
+      return revision + storage.revision;
     },
     registerObjectShape,
     requireJsonSerialization,
     objectShapeRequiresJsonSerialization,
     objectShapeArtifacts,
+    requireStorage: storage.require,
+    resolveStorageType: storage.resolve,
+    unfulfilledStorageRequirements: storage.unfulfilled,
   });
 }
 

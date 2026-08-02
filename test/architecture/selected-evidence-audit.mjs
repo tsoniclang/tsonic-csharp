@@ -49,11 +49,10 @@ export const selectedEvidenceRiskRules = Object.freeze([
 
 export const expectedSharedSourceQuerySites = Object.freeze(new Map([
   ...querySite("src/translate/expressions/constructions.ts", "source-query.getSignatureDeclaration", 1, "Read the declaration of the checker-selected constructor signature."),
-  ...querySite("src/translate/expressions/calls.ts", "source-query.getSignatureDeclaration", 1, "Read the declaration of the checker-selected call signature."),
   ...querySite("src/policy/members/provider-operations.ts", "source-query.getSignatureDeclaration", 1, "Resolve provider evidence for an already-selected source signature."),
   ...querySite("src/policy/members/source-profile-policy.ts", "source-query.getSignatureDeclaration", 1, "Resolve source-profile evidence for an already-selected source signature."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getTypeFromTypeNode", 3, "Resolve canonical source types from authored type syntax."),
-  ...querySite("src/policy/types/resolution.ts", "source-query.getTypeAtLocation", 2, "Resolve canonical source types for target type policy."),
+  ...querySite("src/policy/types/resolution.ts", "source-query.getTypeAtLocation", 4, "Resolve canonical source types and compare exact declaration, initializer, and flow-selected types through shared refinement policy."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getSignatureDeclaration", 2, "Read declarations from already-selected source signatures."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getResolvedSymbolOrNil", 1, "Resolve canonical source declaration identity for type policy."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getSymbolAtLocation", 1, "Resolve canonical source declaration identity for type policy."),
