@@ -15,7 +15,11 @@ import {
   csharpVoidTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpDelegateSignature,
+  getCsharpIndexableLengthMemberName,
   getCsharpJsArrayElementTargetType,
+  getCsharpJsArrayMutationPolicy,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
+  isCsharpDenseMutableCollectionTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
@@ -269,15 +273,19 @@ export const csharpJsArrayPropertyPolicies:
             context,
             context.source.receiver,
           );
-          return receiverType === undefined
+          const targetName = getCsharpIndexableLengthMemberName(receiverType);
+          return receiverType === undefined || targetName === undefined
             ? undefined
             : targetProperty(
                 `Tsonic.CSharp.Js.JSArray.length:${declaringName}`,
                 "length",
-                "length",
+                targetName,
                 receiverType,
                 intType,
-                { readonly: declaringName === "ReadonlyArray" },
+                {
+                  readonly: declaringName === "ReadonlyArray" ||
+                    getCsharpJsArrayMutationPolicy(receiverType) === undefined,
+                },
               );
         },
         instanceReceiver,
@@ -295,7 +303,13 @@ export const csharpJsArrayElementPolicies:
             context,
             context.source.receiver,
           );
-          const resultType = getCsharpJsArrayElementTargetType(receiverType);
+          const resultType =
+            getCsharpReadOnlyIndexableCollectionElementTargetType(receiverType);
+          const readonly = declaringName === "ReadonlyArray" ||
+            !(
+              receiverType?.kind === "array" ||
+              isCsharpDenseMutableCollectionTargetType(receiverType)
+            );
           return receiverType === undefined || resultType === undefined
             ? undefined
             : targetIndexer(
@@ -303,7 +317,7 @@ export const csharpJsArrayElementPolicies:
                 receiverType,
                 intType,
                 resultType,
-                declaringName === "ReadonlyArray",
+                readonly,
               );
         },
       )
