@@ -313,7 +313,12 @@ export function csharpSourceProfileCall(
     origin: "source-profile",
     targetMember,
     receiver,
-    targetMethodTypeArguments,
+    targetMethodTypeArguments: Object.freeze(
+      targetMethodTypeArguments.map((targetType) => ({
+        kind: "target-derived" as const,
+        targetType,
+      })),
+    ),
     arguments: Object.freeze(arguments_),
   };
 }

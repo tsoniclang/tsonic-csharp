@@ -56,7 +56,19 @@ export interface CsharpObjectShapePolicy {
     sourceFile?: SourceFile,
   ): CsharpObjectShapeFact | undefined;
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
+  resolveProjectConstructibleSelectedType(
+    targetType: TargetTypeRef,
+    explicitTypeNode: Node | undefined,
+    selectedType: Type,
+    contextNode: Node,
+    sourceFile: SourceFile,
+  ): CsharpProjectConstructibleTypeProjection;
 }
+
+export type CsharpProjectConstructibleTypeProjection =
+  | { readonly kind: "unchanged" }
+  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
+  | { readonly kind: "rejected"; readonly reason: string };
 
 interface ShapeResolutionState {
   readonly depth: number;
@@ -146,8 +158,100 @@ export function createCsharpObjectShapePolicy(
     return present.length === 1 ? present[0] : undefined;
   }
 
+  function resolveProjectConstructibleSelectedType(
+    targetType: TargetTypeRef,
+    explicitTypeNode: Node | undefined,
+    selectedType: Type,
+    contextNode: Node,
+    sourceFile: SourceFile,
+  ): CsharpProjectConstructibleTypeProjection {
+    if (!isProjectSourceTargetType(targetType)) {
+      return { kind: "unchanged" };
+    }
+    const selectedTarget = host.types.resolveSelectedType(
+      explicitTypeNode,
+      selectedType,
+      sourceFile,
+    );
+    if (
+      selectedTarget === undefined ||
+      !targetTypeRefEquals(selectedTarget, targetType)
+    ) {
+      return {
+        kind: "rejected",
+        reason:
+          "The exact selected source type does not agree with its selected C# project type argument.",
+      };
+    }
+    if (
+      targetType.csharpSourceDeclarationKind === "struct" ||
+      targetType.csharpSourceDeclarationKind === "enum"
+    ) {
+      return { kind: "unchanged" };
+    }
+    const queries = host.semantics(sourceFile);
+    if (
+      !typeHasProjectOwnedShapeDeclaration(
+        selectedType,
+        contextNode,
+        queries,
+        host,
+      )
+    ) {
+      return {
+        kind: "rejected",
+        reason:
+          "The selected C# project type argument has no exact project-owned source declaration.",
+      };
+    }
+    const members = deriveMembers(
+      selectedType,
+      queries,
+      { depth: 1, activeTypes: new Set([selectedType]) },
+    );
+    if (members === undefined) {
+      return {
+        kind: "rejected",
+        reason:
+          "The selected C# project type argument has no closed object-shape member projection.",
+      };
+    }
+    if (targetType.csharpSourceDeclarationKind === "class") {
+      if (!projectClassIsObjectInitializable(selectedType, queries, host)) {
+        return {
+          kind: "rejected",
+          reason:
+            "The selected C# project class is not constructible through an exact omittable-parameter constructor.",
+        };
+      }
+      const shape = {
+        targetType,
+        members,
+        constructible: true,
+      } satisfies CsharpObjectShapeFact;
+      return { kind: "resolved", shape };
+    }
+    if (targetType.csharpSourceDeclarationKind !== "interface") {
+      return {
+        kind: "rejected",
+        reason:
+          "The selected C# project type argument is not a class, interface, struct, or enum.",
+      };
+    }
+    const shape = {
+      targetType: createStructuralObjectShapeTarget(members, [targetType]),
+      members,
+      implements: [targetType],
+    } satisfies CsharpObjectShapeFact;
+    return { kind: "resolved", shape };
+  }
+
   function remember(node: Node, shape: CsharpObjectShapeFact): void {
     nodeShapes.set(node, shape);
+    rememberTargetShape(shape);
+  }
+
+  function rememberTargetShape(shape: CsharpObjectShapeFact): void {
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -432,6 +536,7 @@ export function createCsharpObjectShapePolicy(
   return Object.freeze({
     resolveNode,
     resolveTarget,
+    resolveProjectConstructibleSelectedType,
   });
 }
 

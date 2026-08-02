@@ -1,4 +1,8 @@
 import type {
+  Node,
+  Type,
+} from "@tsonic/tsts";
+import type {
   SourceFileSemantics,
 } from "@tsonic/target-api";
 import type {
@@ -27,9 +31,21 @@ export interface CsharpSelectedTargetCall {
   readonly origin: "provider" | "source-profile";
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
-  readonly targetMethodTypeArguments: readonly TargetTypeRef[];
+  readonly targetMethodTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
   readonly arguments: readonly CsharpSelectedCallArgument[];
 }
+
+export type CsharpSelectedTargetMethodTypeArgument =
+  | {
+      readonly kind: "target-derived";
+      readonly targetType: TargetTypeRef;
+    }
+  | {
+      readonly kind: "selected-source";
+      readonly targetType: TargetTypeRef;
+      readonly selectedType: Type;
+      readonly explicitTypeNode?: Node;
+    };
 
 export type CsharpTargetElementInvocation =
   | { readonly kind: "indexer" }

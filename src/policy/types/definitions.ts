@@ -225,6 +225,11 @@ export type CsharpCallFinalizationRequirement =
       readonly argumentIndex: number;
     };
 
+export interface CsharpMethodTypeArgumentProjection {
+  readonly kind: "project-constructible-object-shape";
+  readonly targetTypeParameterIndex: number;
+}
+
 export interface CsharpTargetTypeParameter extends TargetTypeParameter {
   readonly unsupportedConstraints?: readonly unknown[];
 }
@@ -240,6 +245,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly csharpCallFinalization?: CsharpCallFinalizationRequirement;
+  readonly csharpMethodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjection[];
   readonly csharpInvocation?: CsharpTargetInvocation;
 }
 

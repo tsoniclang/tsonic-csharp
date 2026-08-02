@@ -52,6 +52,9 @@ import {
   translateCsharpCompatInvocation,
   translateCsharpCompatValueFactory,
 } from "./compat.js";
+import {
+  renderSelectedCsharpTargetMethodTypeArguments,
+} from "./selected-method-type-arguments.js";
 
 export function translateCsharpCallExpression(
   node: Node,
@@ -389,9 +392,11 @@ function translateSelectedTargetCallee(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const typeArguments = renderCsharpTargetTypeArguments(
-    selection.targetMethodTypeArguments,
+  const typeArguments = renderSelectedCsharpTargetMethodTypeArguments(
+    selection,
     node,
+    sourceFile,
+    input,
     diagnostics,
   );
   if (typeArguments === undefined) {

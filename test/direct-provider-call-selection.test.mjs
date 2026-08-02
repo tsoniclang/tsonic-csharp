@@ -537,7 +537,12 @@ test("selected method type arguments close generic target methods directly", () 
     fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
-  assert.deepEqual(selected.call.targetMethodTypeArguments, [int32]);
+  assert.deepEqual(selected.call.targetMethodTypeArguments, [{
+    kind: "selected-source",
+    targetType: int32,
+    selectedType,
+    explicitTypeNode,
+  }]);
   assert.deepEqual(selected.call.targetMember.parameters[0].type, int32);
   assert.deepEqual(selected.call.targetMember.returnType, int32);
 });

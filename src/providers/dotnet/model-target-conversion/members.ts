@@ -24,6 +24,9 @@ import {
 import {
   dotnetTypeRefToTargetTypeRef,
 } from "./type-ref.js";
+import {
+  dotnetMethodTypeArgumentProjections,
+} from "./method-type-argument-policy.js";
 
 export type DotnetTargetParameter = CsharpTargetParameter;
 
@@ -119,6 +122,8 @@ function dotnetSignatureToTargetMember(
   signature: DotnetSignatureDeclaration,
   declaringType: TargetTypeRef,
 ): DotnetTargetMember {
+  const methodTypeArgumentProjections =
+    dotnetMethodTypeArgumentProjections(member, signature);
   return {
     id: signature.id,
     sourceName: member.sourceName,
@@ -159,6 +164,9 @@ function dotnetSignatureToTargetMember(
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
+    ...(methodTypeArgumentProjections.length === 0
+      ? {}
+      : { csharpMethodTypeArgumentProjections: methodTypeArgumentProjections }),
   };
 }
 

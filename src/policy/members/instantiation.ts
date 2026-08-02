@@ -43,6 +43,7 @@ import {
 } from "./argument-selection.js";
 import type {
   CsharpSelectedCallArgument,
+  CsharpSelectedTargetMethodTypeArgument,
   CsharpSelectedTargetCall,
   ResolvedSourceCallInfo,
 } from "./selection-types.js";
@@ -253,7 +254,7 @@ function resolveProviderBindingTypeArguments(
     relation.bindingTypeParameters,
     relation.targetBinding.typeParameters?.length ?? 0,
     sourceFile,
-  );
+  )?.map((argument) => argument.targetType);
 }
 
 function validateProviderCallRelation(
@@ -330,7 +331,7 @@ function resolveMethodTypeArguments(
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-): readonly TargetTypeRef[] | undefined {
+): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
   if (
     relation.bindingTypeArgumentSource ===
@@ -361,14 +362,14 @@ function resolveSelectedTypeArguments(
   ],
   targetArity: number,
   sourceFile: SourceFile,
-): readonly TargetTypeRef[] | undefined {
+): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     sourceArguments.length !== relations.length ||
     relations.length !== targetArity
   ) {
     return undefined;
   }
-  const targetArguments: (TargetTypeRef | undefined)[] =
+  const targetArguments: (CsharpSelectedTargetMethodTypeArgument | undefined)[] =
     Array.from({ length: targetArity });
   for (const typeParameterRelation of relations) {
     const sourceArgument =
@@ -388,11 +389,18 @@ function resolveSelectedTypeArguments(
     if (targetArgument === undefined) {
       return undefined;
     }
-    targetArguments[typeParameterRelation.targetTypeParameterIndex] =
-      targetArgument;
+    targetArguments[typeParameterRelation.targetTypeParameterIndex] = {
+      kind: "selected-source",
+      targetType: targetArgument,
+      selectedType: sourceArgument.selectedType,
+      ...(sourceArgument.explicitTypeNode === undefined
+        ? {}
+        : { explicitTypeNode: sourceArgument.explicitTypeNode }),
+    };
   }
   return targetArguments.every(
-      (argument): argument is TargetTypeRef => argument !== undefined,
+      (argument): argument is CsharpSelectedTargetMethodTypeArgument =>
+        argument !== undefined,
     )
     ? targetArguments
     : undefined;
@@ -401,7 +409,7 @@ function resolveSelectedTypeArguments(
 function targetTypeParameterSubstitutions(
   relation: CsharpProviderSignatureRelation,
   bindingArguments: readonly TargetTypeRef[],
-  methodArguments: readonly TargetTypeRef[],
+  methodArguments: readonly CsharpSelectedTargetMethodTypeArgument[],
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const bindingSubstitutions = csharpTargetBindingSubstitutions(
     relation.targetBinding,
@@ -417,7 +425,7 @@ function targetTypeParameterSubstitutions(
     if (argument === undefined || methodSubstitutions.has(parameter.name)) {
       return undefined;
     }
-    methodSubstitutions.set(parameter.name, argument);
+    methodSubstitutions.set(parameter.name, argument.targetType);
   }
   return mergeCsharpTypeParameterSubstitutions(
     bindingSubstitutions,

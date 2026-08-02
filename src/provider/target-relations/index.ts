@@ -329,7 +329,29 @@ export function assertCsharpProviderTargetRelationContract(
     relation.targetMember.typeParameters?.length ?? 0,
     "method",
   );
+  assertMethodTypeArgumentProjections(relation.targetMember);
   assertParameterRelations(relation);
+}
+
+function assertMethodTypeArgumentProjections(
+  member: CsharpTargetMember,
+): void {
+  const projections = member.csharpMethodTypeArgumentProjections ?? [];
+  const targetArity = member.typeParameters?.length ?? 0;
+  const seen = new Set<number>();
+  for (const projection of projections) {
+    if (
+      !Number.isSafeInteger(projection.targetTypeParameterIndex) ||
+      projection.targetTypeParameterIndex < 0 ||
+      projection.targetTypeParameterIndex >= targetArity ||
+      seen.has(projection.targetTypeParameterIndex)
+    ) {
+      throw new Error(
+        "C# provider method type-argument projections contain a duplicate or out-of-range target type parameter.",
+      );
+    }
+    seen.add(projection.targetTypeParameterIndex);
+  }
 }
 
 function assertReceiverRelation(

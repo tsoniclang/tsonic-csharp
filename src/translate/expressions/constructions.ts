@@ -33,10 +33,12 @@ import type {
   CsharpTranslationContext,
 } from "../context/index.js";
 import {
-  renderCsharpTargetTypeArguments,
   translateSelectedTargetArguments,
   translateSourceOwnedArguments,
 } from "./calls.js";
+import {
+  renderSelectedCsharpTargetMethodTypeArguments,
+} from "./selected-method-type-arguments.js";
 import {
   translateCsharpCompatInvocation,
 } from "./compat.js";
@@ -184,9 +186,11 @@ function translateSelectedConstruction(
     const factoryType = csharpTypeFromTargetTypeRef(
       member.csharpInvocation.factoryType,
     );
-    const typeArguments = renderCsharpTargetTypeArguments(
-      selection.call.targetMethodTypeArguments,
+    const typeArguments = renderSelectedCsharpTargetMethodTypeArguments(
+      selection.call,
       node,
+      sourceFile,
+      input,
       diagnostics,
     );
     if (factoryType === undefined || typeArguments === undefined) {
