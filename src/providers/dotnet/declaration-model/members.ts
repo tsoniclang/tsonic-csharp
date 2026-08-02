@@ -113,7 +113,12 @@ export function dotnetMemberToProviderMember(
     sourceParameterOffset: member.sourceParameterOffset,
     parentTypeParameterNames: declaringType.typeParameters?.map((parameter) => parameter.name) ?? [],
   };
-  const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName, sourceParameterOptions);
+  const providerSignatureIds = dotnetProviderSignatureIdsForMember(
+    member,
+    providerMemberId,
+    memberTargetName,
+    sourceParameterOptions,
+  );
   const signatures = member.signatures
     ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id), sourceParameterOptions))
     .filter((signature): signature is NonNullable<typeof signature> => signature !== undefined);

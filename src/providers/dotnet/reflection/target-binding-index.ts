@@ -13,6 +13,7 @@ import type {
 } from "../model-target-conversion/index.js";
 import {
   dotnetTypeTargetMemberProjections,
+  providerSignatureProjectionKey,
 } from "../target-relations.js";
 import type {
   DotnetTargetMemberProjection,
@@ -30,6 +31,10 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   const targetBindingsByMetadataName = new Map<string, TargetBindingFact | "ambiguous">();
   const memberProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
   const signatureProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
+  const canonicalSignatureProjectionsByProviderId = new Map<
+    string,
+    DotnetTargetMemberProjection[]
+  >();
 
   function rememberModule(module: DotnetModuleModel): void {
     for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
@@ -59,6 +64,18 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
           rememberProjection(signatureProjectionsByProviderId, signatureId, candidate);
         }
       }
+      for (
+        const [signatureId, candidates] of
+          projections.canonicalSignatureProjections
+      ) {
+        for (const candidate of candidates) {
+          rememberProjection(
+            canonicalSignatureProjectionsByProviderId,
+            signatureId,
+            candidate,
+          );
+        }
+      }
     }
   }
 
@@ -83,8 +100,16 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     getTargetMembersForProviderMember(memberId: string): readonly DotnetTargetMemberProjection[] {
       return memberProjectionsByProviderId.get(memberId) ?? [];
     },
-    getTargetMembersForProviderSignature(signatureId: string): readonly DotnetTargetMemberProjection[] {
-      return signatureProjectionsByProviderId.get(signatureId) ?? [];
+    getTargetMembersForProviderSignature(
+      memberId: string,
+      signatureId: string,
+    ): readonly DotnetTargetMemberProjection[] {
+      const direct = signatureProjectionsByProviderId.get(
+        providerSignatureProjectionKey(memberId, signatureId),
+      );
+      return direct !== undefined && direct.length > 0
+        ? direct
+        : canonicalSignatureProjectionsByProviderId.get(signatureId) ?? [];
     },
   };
 }

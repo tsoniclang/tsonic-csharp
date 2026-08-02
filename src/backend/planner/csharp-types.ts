@@ -14,4 +14,5 @@ export {
   invalidCsharpType,
   nullableCsharpType,
   predefined,
+  qualifiedCsharpType,
 } from "./csharp-type-primitives.js";

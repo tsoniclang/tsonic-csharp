@@ -98,6 +98,84 @@ test("direct C# executable translation emits one exact generated entrypoint", ()
 `);
 });
 
+test("direct C# translation awaits async module dependencies and project-owned contextual callbacks", () => {
+  const compiled = cleanCompile({
+    surface: "js",
+    targetOptions: { outputType: "Exe" },
+    sourceText: [
+      "import \"./worker.js\";",
+      "export const done = true;",
+      "",
+    ].join("\n"),
+    files: {
+      "worker.ts": [
+        "export function delay(): Promise<void> {",
+        "  return new Promise<void>((resolve) => { resolve(); });",
+        "}",
+        "await delay();",
+        "",
+      ].join("\n"),
+    },
+  });
+
+  assert.equal(compiled.artifacts.get("src/Worker.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Worker
+    {
+        public static System.Threading.Tasks.Task delay()
+        {
+            return Tsonic.CSharp.Js.PromiseRuntime.Create((Tsonic.CSharp.Js.PromiseResolve resolve, Tsonic.CSharp.Js.PromiseReject _) =>
+            {
+                resolve();
+            });
+        }
+        private static readonly System.Threading.Tasks.Task __tsonic_module_initialization = __tsonic_module_init_core();
+        private static async System.Threading.Tasks.Task __tsonic_module_init_core()
+        {
+            await delay();
+        }
+        public static System.Threading.Tasks.Task __tsonic_module_init()
+        {
+            return __tsonic_module_initialization;
+        }
+    }
+}
+`);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static readonly bool done;
+        private static readonly System.Threading.Tasks.Task __tsonic_module_initialization = __tsonic_module_init_core();
+        private static async System.Threading.Tasks.Task __tsonic_module_init_core()
+        {
+            await Worker.__tsonic_module_init();
+            done = true;
+        }
+        public static System.Threading.Tasks.Task __tsonic_module_init()
+        {
+            return __tsonic_module_initialization;
+        }
+    }
+}
+`);
+  assert.equal(compiled.artifacts.get("generated/TsonicEntrypoint.cs"), `namespace Tsonic.Generated
+{
+    public static class TsonicEntrypoint
+    {
+        public static async System.Threading.Tasks.Task Main()
+        {
+            await Index.__tsonic_module_init();
+        }
+    }
+}
+`);
+});
+
 test("direct C# translation rejects runtime ES module cycles before publishing artifacts", () => {
   const compiled = compileCsharpSource({
     sourceText: `

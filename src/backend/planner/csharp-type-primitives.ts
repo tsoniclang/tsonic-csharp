@@ -10,6 +10,21 @@ export function predefined(name: string): CsharpTypeNode {
   return { kind: "PredefinedType", name };
 }
 
+export function qualifiedCsharpType(
+  namespace: string,
+  name: string,
+): CsharpTypeNode {
+  const parts = namespace.split(".");
+  let current: CsharpTypeNode = {
+    kind: "IdentifierName",
+    name: parts[0] ?? namespace,
+  };
+  for (const part of parts.slice(1)) {
+    current = { kind: "QualifiedName", left: current, name: part };
+  }
+  return { kind: "QualifiedName", left: current, name };
+}
+
 export function nullableCsharpType(type: CsharpTypeNode): CsharpTypeNode {
   return type.kind === "NullableType" || type.kind === "InvalidType"
     ? type

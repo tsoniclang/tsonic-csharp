@@ -11,6 +11,9 @@ import type {
 import {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
+import {
+  qualifiedCsharpType,
+} from "./csharp-types.js";
 
 export const csharpJsonValueWriterMethodName = "__tsonicWriteJson";
 
@@ -22,7 +25,7 @@ export function objectShapeRequiresJsonSerialization(
 }
 
 export function csharpJsonValueInterfaceType(): CsharpTypeNode {
-  return qualifiedType("Tsonic.CSharp.Js", "IJsonValue");
+  return qualifiedCsharpType("Tsonic.CSharp.Js", "IJsonValue");
 }
 
 export function renderJsonSerializableObjectShapeMethod(
@@ -43,7 +46,7 @@ export function renderJsonSerializableObjectShapeMethod(
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
-          receiver: qualifiedType("Tsonic.CSharp.Js", "JSON"),
+          receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "JSON"),
           name: "writeValue",
         },
         arguments: [writer, { kind: "IdentifierName" as const, name: objectShapeStorageMemberName(fact, member) }, context]
@@ -58,20 +61,11 @@ export function renderJsonSerializableObjectShapeMethod(
     modifiers: ["public"],
     returnType: { kind: "PredefinedType", name: "void" },
     parameters: [
-      { name: "writer", type: qualifiedType("System.Text.Json", "Utf8JsonWriter") },
-      { name: "context", type: qualifiedType("Tsonic.CSharp.Js", "JsonWriteContext") },
+      { name: "writer", type: qualifiedCsharpType("System.Text.Json", "Utf8JsonWriter") },
+      { name: "context", type: qualifiedCsharpType("Tsonic.CSharp.Js", "JsonWriteContext") },
     ],
     body: { kind: "Block", statements },
   };
-}
-
-function qualifiedType(namespace: string, name: string): CsharpTypeNode {
-  const parts = namespace.split(".");
-  let current: CsharpTypeNode = { kind: "IdentifierName", name: parts[0] ?? namespace };
-  for (const part of parts.slice(1)) {
-    current = { kind: "QualifiedName", left: current, name: part };
-  }
-  return { kind: "QualifiedName", left: current, name };
 }
 
 function invokeMember(

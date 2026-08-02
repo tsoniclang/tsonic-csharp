@@ -8,7 +8,6 @@ import {
   tryDotnetTypeRefToProviderType,
 } from "../model.js";
 import { dotnetParameterToProviderParameter } from "./parameters.js";
-import { dotnetProviderMemberId } from "../provider-member-identity.js";
 
 export function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
@@ -44,6 +43,7 @@ export function dotnetSignatureToProviderSignature(
 
 export function dotnetProviderSignatureIdsForMember(
   member: DotnetMemberDeclaration,
+  providerMemberId: string,
   memberTargetName?: string,
   options: {
     readonly sourceParameterOffset?: number;
@@ -60,12 +60,27 @@ export function dotnetProviderSignatureIdsForMember(
   for (const { shapeKey } of shapeEntries) {
     shapeCounts.set(shapeKey, (shapeCounts.get(shapeKey) ?? 0) + 1);
   }
-  return new Map(shapeEntries.map(({ signature, shapeKey }) => [
-    signature.id,
-    (shapeCounts.get(shapeKey) ?? 0) > 1
-      ? dotnetSourceProjectionSignatureId(member, shapeKey)
-      : signature.sourceId,
-  ]));
+  const changesSourceOperationRole =
+    (member.sourceParameterOffset ?? 0) !== 0 ||
+    (
+      member.sourceStatic !== undefined &&
+      member.sourceStatic !== (member.static === true)
+    );
+  const ids = new Map<string, string>();
+  for (const { signature, shapeKey } of shapeEntries) {
+    const projectedId = changesSourceOperationRole ||
+        (shapeCounts.get(shapeKey) ?? 0) > 1
+      ? dotnetSourceProjectionSignatureId(providerMemberId, shapeKey)
+      : signature.sourceId;
+    const existing = ids.get(signature.id);
+    if (existing !== undefined && existing !== projectedId) {
+      throw new Error(
+        `.NET target signature '${signature.id}' projects to contradictory source signature identities '${existing}' and '${projectedId}'.`,
+      );
+    }
+    ids.set(signature.id, projectedId);
+  }
+  return ids;
 }
 
 export function dotnetProviderSignatureSelectionKey(
@@ -562,6 +577,9 @@ function sourcePrimitiveSourceRuntimeKind(name: string): "boolean" | "string" | 
   return "number";
 }
 
-function dotnetSourceProjectionSignatureId(member: DotnetMemberDeclaration, shapeKey: string): string {
-  return `${dotnetProviderMemberId(member)}#source-signature:${encodeURIComponent(shapeKey)}`;
+function dotnetSourceProjectionSignatureId(
+  providerMemberId: string,
+  shapeKey: string,
+): string {
+  return `${providerMemberId}#source-signature:${encodeURIComponent(shapeKey)}`;
 }

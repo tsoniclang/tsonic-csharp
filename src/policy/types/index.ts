@@ -16,6 +16,7 @@ export * from "./equality.js";
 export * from "./source-profile.js";
 export * from "./source-literal-policy.js";
 export * from "./source-syntax.js";
+export * from "./selected-type-evidence.js";
 export * from "./project-types.js";
 export * from "./project-type-constructors.js";
 export * from "./source-ownership.js";

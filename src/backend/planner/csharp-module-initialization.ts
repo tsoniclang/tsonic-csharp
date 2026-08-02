@@ -12,6 +12,7 @@ import {
 export interface CsharpModuleInitializationPlan {
   readonly dependenciesFor: (sourceFile: SourceFile) => readonly SourceFile[];
   readonly requiresInitializer: (sourceFile: SourceFile) => boolean;
+  readonly isAsync: (sourceFile: SourceFile) => boolean;
   readonly entrypointInitializer: () => SourceFile | undefined;
 }
 
@@ -39,6 +40,15 @@ export function planCsharpModuleInitialization(input: CsharpTranslationContext, 
   diagnoseRuntimeModuleCycles(input, entries, diagnostics);
   const entrypointFileName = normalizedPath(resolve(input.paths.projectRoot, input.project.entryPoint));
   const entrypointRequiresInitializer = readCsharpOutputType(input.target) === "Exe";
+  const asyncModules = new Map<string, boolean>();
+  const isAsync = (sourceFile: SourceFile): boolean =>
+    moduleRequiresAsyncInitialization(
+      normalizedFileName(sourceFile),
+      input,
+      entries,
+      asyncModules,
+      new Set(),
+    );
   return {
     dependenciesFor(sourceFile) {
       return entries.get(normalizedFileName(sourceFile))?.dependencies ?? [];
@@ -49,10 +59,41 @@ export function planCsharpModuleInitialization(input: CsharpTranslationContext, 
         runtimeImportTargets.has(fileName) ||
         entries.get(fileName)?.required === true;
     },
+    isAsync,
     entrypointInitializer() {
       return entries.get(entrypointFileName)?.sourceFile;
     },
   };
+}
+
+function moduleRequiresAsyncInitialization(
+  fileName: string,
+  input: CsharpTranslationContext,
+  entries: ReadonlyMap<string, ModuleInitializationEntry>,
+  cache: Map<string, boolean>,
+  visiting: Set<string>,
+): boolean {
+  const cached = cache.get(fileName);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const entry = entries.get(fileName);
+  if (entry === undefined || visiting.has(fileName)) {
+    return false;
+  }
+  visiting.add(fileName);
+  const result = input.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
+    entry.dependencies.some((dependency) =>
+      moduleRequiresAsyncInitialization(
+        normalizedFileName(dependency),
+        input,
+        entries,
+        cache,
+        visiting,
+      ));
+  visiting.delete(fileName);
+  cache.set(fileName, result);
+  return result;
 }
 
 function normalizedFileName(sourceFile: SourceFile): string {

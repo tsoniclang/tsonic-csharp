@@ -3,7 +3,10 @@ import type { CsharpModuleInitializationPlan } from "./csharp-module-initializat
 import type { CsharpOutputSourceFile } from "./csharp-output-plan.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
 import { readCsharpOutputType } from "../../options/csharp-target-options.js";
-import { predefined } from "./csharp-types.js";
+import {
+  predefined,
+  qualifiedCsharpType,
+} from "./csharp-types.js";
 import { readNamespace } from "./project-artifacts.js";
 
 export const csharpModuleInitMethodName = "__tsonic_module_init";
@@ -21,6 +24,8 @@ export function planCsharpEntrypointSourceFile(
   const entrypointPlannedSource = entrypointSourceFile === undefined
     ? undefined
     : plannedSourcesByFileName.get(input.ast.getFileName(entrypointSourceFile));
+  const asyncEntrypoint =
+    entrypointPlannedSource?.asyncModuleInitializer === true;
   return {
     path: "generated/TsonicEntrypoint.cs",
     unit: {
@@ -36,8 +41,15 @@ export function planCsharpEntrypointSourceFile(
           members: [{
             kind: "MethodDeclaration",
             name: "Main",
-            modifiers: ["public", "static"],
-            returnType: predefined("void"),
+            modifiers: asyncEntrypoint
+              ? ["public", "static", "async"]
+              : ["public", "static"],
+            returnType: asyncEntrypoint
+              ? qualifiedCsharpType(
+                  "System.Threading.Tasks",
+                  "Task",
+                )
+              : predefined("void"),
             parameters: [],
             body: {
               kind: "Block",
@@ -45,7 +57,23 @@ export function planCsharpEntrypointSourceFile(
                 .filter((source) => source === entrypointPlannedSource && source.hasModuleInitializer)
                 .map((source) => ({
                   kind: "ExpressionStatement",
-                  expression: {
+                  expression: asyncEntrypoint
+                    ? {
+                        kind: "AwaitExpression",
+                        expression: {
+                          kind: "InvocationExpression",
+                          callee: {
+                            kind: "SimpleMemberAccessExpression",
+                            receiver: {
+                              kind: "IdentifierName",
+                              name: source.moduleClassName,
+                            },
+                            name: csharpModuleInitMethodName,
+                          },
+                          arguments: [],
+                        },
+                      }
+                    : {
                     kind: "InvocationExpression",
                     callee: {
                       kind: "SimpleMemberAccessExpression",

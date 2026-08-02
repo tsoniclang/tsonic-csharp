@@ -52,12 +52,19 @@ test(".NET provider source refs use public type-family exports for every concret
 test("direct C# translation keeps plain and generic provider-family variants separate", () => {
   const compiled = compileCsharpSource({
     sourceText: `
+      import type { Span } from "@tsonic/dotnet/System.js";
       import type { Task } from "@tsonic/dotnet/System.Threading.Tasks.js";
+      import type { int } from "@tsonic/csharp/types.js";
       export function select(
         plain: Task,
         generic: Task<string>,
       ): Task<string> {
         return generic;
+      }
+      export function preserveAuthoredTypeArgument(
+        value: Span<int>,
+      ): Span<int> {
+        return value;
       }
     `,
   });
@@ -74,6 +81,10 @@ namespace Tsonic.Generated
         public static System.Threading.Tasks.Task<string> select(System.Threading.Tasks.Task plain, System.Threading.Tasks.Task<string> generic)
         {
             return generic;
+        }
+        public static System.Span<int> preserveAuthoredTypeArgument(System.Span<int> value)
+        {
+            return value;
         }
     }
 }

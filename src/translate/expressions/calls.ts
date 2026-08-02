@@ -584,12 +584,15 @@ function translateSourceOwnedCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const declaration = input.semantics(sourceFile)
-    .getSignatureDeclaration(source.selectedSignature);
-  if (!isProjectSourceDeclaration(input, declaration)) {
+  if (
+    !isProjectSourceDeclaration(
+      input,
+      source.sourceCallee.selectedDeclaration,
+    )
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "The exact selected source call is external to the project and has no C# target relation.",
+      "The exact selected source callee is external to the project and has no C# target relation.",
     ));
     return undefined;
   }

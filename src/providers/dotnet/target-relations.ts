@@ -41,7 +41,10 @@ export interface DotnetTargetMemberProjection {
 export interface DotnetTargetRelationLookup {
   getTargetBinding(exportId: string): CsharpTargetBindingFact | undefined;
   getTargetMembersForProviderMember(memberId: string): readonly DotnetTargetMemberProjection[];
-  getTargetMembersForProviderSignature(signatureId: string): readonly DotnetTargetMemberProjection[];
+  getTargetMembersForProviderSignature(
+    memberId: string,
+    signatureId: string,
+  ): readonly DotnetTargetMemberProjection[];
 }
 
 export type DotnetProviderTargetRelationTemplate =
@@ -95,10 +98,15 @@ export function dotnetTypeTargetMemberProjections(
 ): {
   readonly memberProjections: ReadonlyMap<string, readonly DotnetTargetMemberProjection[]>;
   readonly signatureProjections: ReadonlyMap<string, readonly DotnetTargetMemberProjection[]>;
+  readonly canonicalSignatureProjections: ReadonlyMap<string, readonly DotnetTargetMemberProjection[]>;
 } {
   const targetBinding = dotnetExportToTargetBinding(declaration) as CsharpTargetBindingFact;
   const memberProjections = new Map<string, DotnetTargetMemberProjection[]>();
   const signatureProjections = new Map<string, DotnetTargetMemberProjection[]>();
+  const canonicalSignatureProjections = new Map<
+    string,
+    DotnetTargetMemberProjection[]
+  >();
   for (const member of declaration.members ?? []) {
     const providerMember = dotnetMemberToProviderMember(member, declaration);
     if (providerMember === undefined) {
@@ -131,12 +139,16 @@ export function dotnetTypeTargetMemberProjections(
     }
     const providerSignatureIds = dotnetProviderSignatureIdsForMember(
       member,
+      providerMember.id,
       member.kind === "constructor" ? undefined : member.targetName,
       {
         sourceParameterOffset: member.sourceParameterOffset,
         parentTypeParameterNames:
           declaration.typeParameters?.map((parameter) => parameter.name) ?? [],
       },
+    );
+    const signaturesByTargetId = new Map(
+      (member.signatures ?? []).map((signature) => [signature.id, signature]),
     );
     for (const record of targetMemberRecords) {
       if (record.kind !== "signature") {
@@ -148,16 +160,37 @@ export function dotnetTypeTargetMemberProjections(
       if (signatureId === undefined) {
         continue;
       }
-      appendProjection(signatureProjections, signatureId, {
+      const projection = {
         targetBinding,
         targetMember: record.targetMember,
         sourceParameterOffset: member.sourceParameterOffset ?? 0,
-      });
+      };
+      appendProjection(
+        signatureProjections,
+        providerSignatureProjectionKey(providerMember.id, signatureId),
+        projection,
+      );
+      const sourceSignature = signaturesByTargetId.get(
+        record.sourceSignatureId,
+      );
+      if (
+        sourceSignature !== undefined &&
+        sourceSignature.id === sourceSignature.sourceId
+      ) {
+        appendProjection(
+          canonicalSignatureProjections,
+          signatureId,
+          projection,
+        );
+      }
     }
   }
   return {
     memberProjections: freezeProjectionMap(memberProjections),
     signatureProjections: freezeProjectionMap(signatureProjections),
+    canonicalSignatureProjections: freezeProjectionMap(
+      canonicalSignatureProjections,
+    ),
   };
 }
 
@@ -215,7 +248,10 @@ function dotnetProviderMemberTargetRelationTemplates(
     }));
   }
   return member.signatures.flatMap((signature) =>
-    lookup.getTargetMembersForProviderSignature(signature.id).map((projection) => {
+    lookup.getTargetMembersForProviderSignature(
+      member.id,
+      signature.id,
+    ).map((projection) => {
       const parameters = providerParameterRelations(
         signature.parameters,
         projection,
@@ -244,6 +280,13 @@ function dotnetProviderMemberTargetRelationTemplates(
         methodTypeParameters,
       };
     }));
+}
+
+export function providerSignatureProjectionKey(
+  memberId: string,
+  signatureId: string,
+): string {
+  return JSON.stringify([memberId, signatureId]);
 }
 
 function providerBindingTypeArgumentSource(

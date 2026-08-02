@@ -51,7 +51,7 @@ export function dotnetProviderSourceMemberGroupId(
       return [
         declaringType.targetId,
         "source-member",
-        member.sourceStatic === true || member.static === true
+        (member.sourceStatic ?? member.static) === true
           ? "static"
           : "instance",
         encodeURIComponent(member.sourceName),

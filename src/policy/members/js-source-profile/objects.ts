@@ -7,6 +7,7 @@ import {
   csharpObjectTargetType,
   csharpJsArrayTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -328,13 +329,23 @@ function promiseConstructorMember(
     return undefined;
   }
   const voidPromise = isCsharpVoidTargetType(resultType);
+  const resolveValueType = voidPromise
+    ? undefined
+    : csharpRuntimeUnionTargetType([resultType, taskType]);
+  if (!voidPromise && resolveValueType === undefined) {
+    return undefined;
+  }
   const resolveType = voidPromise
     ? promiseDelegate(
         "PromiseResolve",
         [],
         [csharpNullableTargetType(objectType)],
       )
-    : promiseDelegate("PromiseResolve", [resultType], [resultType]);
+    : promiseDelegate(
+        "PromiseResolve",
+        [resultType],
+        [resolveValueType!],
+      );
   const rejectType = promiseDelegate(
     "PromiseReject",
     [],

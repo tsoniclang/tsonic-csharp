@@ -6,6 +6,7 @@ import {
   csharpReadOnlyListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  reconcileCsharpSelectedTargetType,
   resolveCsharpArrayBindingCarrier,
 } from "../dist/policy/types/index.js";
 
@@ -64,4 +65,35 @@ test("array binding policy states the concrete rest carrier for read-only lists"
   );
   assert.equal(carrier?.restCarrier.kind, "target-named");
   assert.equal(carrier?.restCarrier.id, "System.Collections.Generic.List`1");
+});
+
+test("selected type reconciliation preserves closed authored aliases only for the same source declaration", () => {
+  const authored = {
+    kind: "target-named",
+    id: "Example.Box`1",
+    typeArguments: [int32],
+  };
+  const erased = {
+    kind: "target-named",
+    id: "Example.Box`1",
+    typeArguments: [csharpSourcePrimitiveTargetType("float64")],
+  };
+  const open = {
+    kind: "target-named",
+    id: "Example.Box`1",
+    typeArguments: [{ kind: "type-parameter", name: "T" }],
+  };
+
+  assert.strictEqual(
+    reconcileCsharpSelectedTargetType(authored, erased, "same-declaration"),
+    authored,
+  );
+  assert.strictEqual(
+    reconcileCsharpSelectedTargetType(open, erased, "same-declaration"),
+    erased,
+  );
+  assert.strictEqual(
+    reconcileCsharpSelectedTargetType(authored, erased, "unrelated"),
+    erased,
+  );
 });

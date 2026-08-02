@@ -62,6 +62,9 @@ import {
   targetTypeRefEquals,
 } from "./equality.js";
 import {
+  reconcileCsharpSelectedTargetType,
+} from "./selected-type-evidence.js";
+import {
   csharpAnyTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
@@ -752,7 +755,13 @@ export function createCsharpTypePolicy(
     if (typeName === undefined) {
       return undefined;
     }
-    const subjects = sourceFactSubjectsForNode(typeName, queries, node);
+    const semanticType = queries.getTypeFromTypeNode(node);
+    const subjects = [
+      ...sourceFactSubjectsForNode(typeName, queries, node),
+      ...(semanticType === undefined
+        ? []
+        : queries.getTypeFactSubjects(semanticType)),
+    ];
     const direct = resolveDirectSourceFacts(subjects, queries.sourceFile, state);
     if (direct !== undefined) {
       return direct;
@@ -770,7 +779,6 @@ export function createCsharpTypePolicy(
     if (providerType !== undefined) {
       return providerType;
     }
-    const semanticType = queries.getTypeFromTypeNode(node);
     const sourceProfileType = semanticType === undefined
       ? undefined
       : resolveSourceProfileType(
@@ -836,40 +844,75 @@ export function createCsharpTypePolicy(
     selectedSourceFile: SourceFile,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const authored = host.hasSemantics(authoredSourceFile)
-      ? resolveNodeWithState(
+    const authoredQueries = host.hasSemantics(authoredSourceFile)
+      ? host.semantics(authoredSourceFile)
+      : undefined;
+    const authored = authoredQueries === undefined
+      ? undefined
+      : resolveNodeWithState(
           authoredTypeNode,
           authoredSourceFile,
           nextState(state),
-        )
-      : undefined;
-    const selected = resolveTypeWithState(
-      selectedType,
-      selectedSourceFile,
-      nextState(state),
-    );
-    if (authored === undefined || selectedType === undefined) {
-      return authored ?? selected;
-    }
-    const authoredSemanticType = host.semantics(authoredSourceFile)
-      .getTypeFromTypeNode(authoredTypeNode);
-    if (authoredSemanticType === selectedType) {
-      return authored;
-    }
+        );
     const selectedQueries = host.semantics(selectedSourceFile);
-    if (!selectedQueries.isUnion(selectedType)) {
-      return selected;
+    if (
+      authored === undefined ||
+      authoredQueries === undefined ||
+      selectedType === undefined
+    ) {
+      return authored ?? resolveTypeWithState(
+        selectedType,
+        selectedSourceFile,
+        nextState(state),
+      );
     }
-    const selectedMembers = selectedQueries
-      .getUnionOrIntersectionTypes(selectedType);
-    const selectedValueMembers = selectedMembers.filter(
-      (member) => !selectedQueries.isNullish(member),
+    const authoredSemanticType = authoredQueries?.getTypeFromTypeNode(
+      authoredTypeNode,
     );
-    return selectedValueMembers.length === 1 &&
-        selectedValueMembers[0] === authoredSemanticType &&
+    if (authoredSemanticType === undefined) {
+      return resolveTypeWithState(
+        selectedType,
+        selectedSourceFile,
+        nextState(state),
+      );
+    }
+    if (selectedQueries.isUnion(selectedType)) {
+      const selectedMembers = selectedQueries
+        .getUnionOrIntersectionTypes(selectedType);
+      const selectedValueMembers = selectedMembers.filter(
+        (member) => !selectedQueries.isNullish(member),
+      );
+      if (
+        selectedValueMembers.length === 1 &&
         selectedValueMembers.length !== selectedMembers.length
-      ? csharpNullableTargetType(authored)
-      : selected;
+      ) {
+        const selectedValue = selectedValueMembers[0]!;
+        const reconciled = reconcileCsharpSelectedTargetType(
+          authored,
+          resolveTypeWithState(
+            selectedValue,
+            selectedSourceFile,
+            nextState(state),
+          ),
+          authoredQueries.getTypeRelationship(
+            authoredSemanticType,
+            selectedValue,
+          ),
+        );
+        return reconciled === undefined
+          ? undefined
+          : csharpNullableTargetType(reconciled);
+      }
+    }
+    return reconcileCsharpSelectedTargetType(
+      authored,
+      resolveTypeWithState(
+        selectedType,
+        selectedSourceFile,
+        nextState(state),
+      ),
+      authoredQueries.getTypeRelationship(authoredSemanticType, selectedType),
+    );
   }
 
   function sourceValueDeclaration(
@@ -943,7 +986,7 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     const queries = host.semantics(sourceFile);
-    const subjects = sourceFactSubjectsForType(type, queries);
+    const subjects = queries.getTypeFactSubjects(type);
     const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
     if (direct !== undefined) {
       return direct;
@@ -1604,23 +1647,6 @@ function sourceFactSubjectsForNode(
     subjects.push(parent);
   }
   subjects.push(node, ...symbols);
-  for (const symbol of symbols) {
-    subjects.push(
-      ...definedValues(queries.getSymbolDeclarations(symbol)),
-    );
-  }
-  return subjects;
-}
-
-function sourceFactSubjectsForType(
-  type: Type,
-  queries: SourceFileSemantics,
-): readonly ExtensionFactSubject[] {
-  const symbols = definedValues([
-    queries.getTypeAliasSymbol(type),
-    queries.getTypeSymbol(type),
-  ]);
-  const subjects: ExtensionFactSubject[] = [type, ...symbols];
   for (const symbol of symbols) {
     subjects.push(
       ...definedValues(queries.getSymbolDeclarations(symbol)),

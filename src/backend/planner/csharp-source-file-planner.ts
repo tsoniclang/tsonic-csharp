@@ -36,7 +36,11 @@ import type {
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
 import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "./attributes.js";
-import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import {
+  getCsharpTypeForNode,
+  predefined,
+  qualifiedCsharpType,
+} from "./csharp-types.js";
 import { planTopLevelVariableStatement } from "./csharp-top-level-variables.js";
 import {
   csharpModuleInitMethodName,
@@ -61,7 +65,13 @@ export interface PlannedCsharpSourceFile {
   readonly unit: CsharpCompilationUnit;
   readonly requiresUnsafe: boolean;
   readonly hasModuleInitializer: boolean;
+  readonly asyncModuleInitializer: boolean;
 }
+
+const csharpModuleInitializationFieldName =
+  "__tsonic_module_initialization";
+const csharpModuleInitializationCoreMethodName =
+  "__tsonic_module_init_core";
 
 export function planSourceFile(
   sourceFile: SourceFile,
@@ -76,6 +86,8 @@ export function planSourceFile(
   const moduleClassName = sourceFileClassName(input, fileName);
   const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input) ||
     moduleInitialization.requiresInitializer(sourceFile);
+  const asyncModuleInitializer = hasModuleInitializer &&
+    moduleInitialization.isAsync(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
@@ -137,27 +149,84 @@ export function planSourceFile(
   }
   diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
-    members.push({
-      kind: "StaticConstructorDeclaration",
-      name: moduleClassName,
-      body: {
-        kind: "Block",
-        statements: [
-          ...moduleInitialization.dependenciesFor(sourceFile)
-            .filter((dependency) => dependency !== sourceFile)
-            .map((dependency) => createModuleInitializerCall(sourceFileClassName(input, SourceFile_FileName(dependency)))),
-          ...topLevelStatements,
-        ],
-      },
-    });
-    members.push({
-      kind: "MethodDeclaration",
-      name: csharpModuleInitMethodName,
-      modifiers: ["public", "static"],
-      returnType: predefined("void"),
-      parameters: [],
-      body: { kind: "Block", statements: [] },
-    });
+    const initializationStatements = [
+      ...moduleInitialization.dependenciesFor(sourceFile)
+        .filter((dependency) => dependency !== sourceFile)
+        .map((dependency) =>
+          createModuleInitializerCall(
+            sourceFileClassName(
+              input,
+              SourceFile_FileName(dependency),
+            ),
+            moduleInitialization.isAsync(dependency),
+          )),
+      ...topLevelStatements,
+    ];
+    if (asyncModuleInitializer) {
+      const taskType = qualifiedCsharpType(
+        "System.Threading.Tasks",
+        "Task",
+      );
+      members.push({
+        kind: "FieldDeclaration",
+        name: csharpModuleInitializationFieldName,
+        modifiers: ["private", "static", "readonly"],
+        type: taskType,
+        initializer: {
+          kind: "InvocationExpression",
+          callee: {
+            kind: "IdentifierName",
+            name: csharpModuleInitializationCoreMethodName,
+          },
+          arguments: [],
+        },
+      });
+      members.push({
+        kind: "MethodDeclaration",
+        name: csharpModuleInitializationCoreMethodName,
+        modifiers: ["private", "static", "async"],
+        returnType: taskType,
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: initializationStatements,
+        },
+      });
+      members.push({
+        kind: "MethodDeclaration",
+        name: csharpModuleInitMethodName,
+        modifiers: ["public", "static"],
+        returnType: taskType,
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: [{
+            kind: "ReturnStatement",
+            expression: {
+              kind: "IdentifierName",
+              name: csharpModuleInitializationFieldName,
+            },
+          }],
+        },
+      });
+    } else {
+      members.push({
+        kind: "StaticConstructorDeclaration",
+        name: moduleClassName,
+        body: {
+          kind: "Block",
+          statements: initializationStatements,
+        },
+      });
+      members.push({
+        kind: "MethodDeclaration",
+        name: csharpModuleInitMethodName,
+        modifiers: ["public", "static"],
+        returnType: predefined("void"),
+        parameters: [],
+        body: { kind: "Block", statements: [] },
+      });
+    }
   }
   if (members.length > 0) {
     namespaceMembers.unshift({
@@ -186,21 +255,28 @@ export function planSourceFile(
     unit: finalized.unit,
     requiresUnsafe: finalized.requiresUnsafe,
     hasModuleInitializer,
+    asyncModuleInitializer,
   };
 }
 
-function createModuleInitializerCall(moduleClassName: string): CsharpStatement {
+function createModuleInitializerCall(
+  moduleClassName: string,
+  async: boolean,
+): CsharpStatement {
+  const invocation = {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: moduleClassName },
+      name: csharpModuleInitMethodName,
+    },
+    arguments: [],
+  } as const;
   return {
     kind: "ExpressionStatement",
-    expression: {
-      kind: "InvocationExpression",
-      callee: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: moduleClassName },
-        name: csharpModuleInitMethodName,
-      },
-      arguments: [],
-    },
+    expression: async
+      ? { kind: "AwaitExpression", expression: invocation }
+      : invocation,
   };
 }
 
