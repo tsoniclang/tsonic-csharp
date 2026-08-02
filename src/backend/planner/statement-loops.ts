@@ -206,7 +206,7 @@ function planForOfBinding(
       }
       return {
         kind: "VariableDeclarator",
-        name: declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "For-of binding name", "forOfItem"),
+        name: declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "For-of binding name", "forOfItem"),
         type: inferredItemType,
         prelude: [],
       };

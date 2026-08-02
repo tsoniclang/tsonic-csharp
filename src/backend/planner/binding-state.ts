@@ -5,7 +5,6 @@ import { requireCsharpIdentifier,
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import type { AstReader,
   Node,
-  SourceFile,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
 import type {
@@ -72,7 +71,6 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
 
 export function declareCsharpLocalBindingName(
   node: Node | undefined,
-  sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
@@ -88,7 +86,7 @@ export function declareCsharpLocalBindingName(
     });
     return fallbackName;
   }
-  const key = localBindingKey(node, sourceFile, input);
+  const key = localBindingKey(node, input);
   const existing = key === undefined ? undefined : state.localBindingNames.get(key);
   if (existing !== undefined) {
     return existing;
@@ -110,11 +108,10 @@ export function declareCsharpLocalBindingName(
 
 export function getCsharpLocalBindingName(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpTranslationContext,
   state: DestructuringPlannerState | undefined,
 ): string | undefined {
-  const key = state === undefined ? undefined : localBindingKey(node, sourceFile, input);
+  const key = state === undefined ? undefined : localBindingKey(node, input);
   return key === undefined ? undefined : state!.localBindingNames.get(key);
 }
 
@@ -212,12 +209,9 @@ function allocateShadowedLocalName(
 
 function localBindingKey(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): object | undefined {
-  const semantics = input.semantics(sourceFile);
-  const symbol = semantics.getSymbolAtLocation(node) ??
-    semantics.getResolvedSymbol(node);
+  const symbol = input.navigation.referenceFor(node)?.symbol;
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 

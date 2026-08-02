@@ -1,4 +1,12 @@
+import {
+  argumentPassingFactKey,
+  type Node,
+} from "@tsonic/tsts";
+import {
+  sourceNodesEqual,
+} from "@tsonic/target-api";
 import type { TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   csharpExceptionTargetType,
@@ -91,4 +99,118 @@ export function csharpThrownValueToValueExpression(expression: CsharpExpression)
         },
         arguments: [{ kind: "Argument", expression }],
       };
+}
+
+export function isExactUnmodifiedCatchRethrow(
+  throwStatement: Node,
+  expression: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  const reference = input.navigation.referenceFor(expression);
+  const declaration = reference?.declaration;
+  if (
+    reference === undefined ||
+    declaration === undefined ||
+    !input.ast.is.IsVariableDeclaration(declaration)
+  ) {
+    return false;
+  }
+  const catchClauseNode = input.ast.parent(declaration);
+  if (
+    catchClauseNode === undefined ||
+    !input.ast.is.IsCatchClause(catchClauseNode)
+  ) {
+    return false;
+  }
+  const catchClause = input.ast.as.AsCatchClause(catchClauseNode);
+  if (
+    !sourceNodesEqual(
+      input.ast,
+      catchClause?.VariableDeclaration,
+      declaration,
+    ) ||
+    catchClause?.Block === undefined ||
+    !isLexicallyWithinExactCatch(throwStatement, catchClauseNode, input)
+  ) {
+    return false;
+  }
+  if (
+    input.navigation.bindingWritesWithin(reference.symbol, catchClause.Block)
+      .length > 0
+  ) {
+    return false;
+  }
+  return !sourceFactsWriteBindingWithin(
+    declaration,
+    catchClause.Block,
+    input,
+  );
+}
+
+function isLexicallyWithinExactCatch(
+  node: Node,
+  catchClause: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  for (
+    let current = input.ast.parent(node);
+    current !== undefined;
+    current = input.ast.parent(current)
+  ) {
+    if (sourceNodesEqual(input.ast, current, catchClause)) {
+      return true;
+    }
+    if (
+      input.ast.is.IsCatchClause(current) ||
+      isFunctionBoundary(current, input)
+    ) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isFunctionBoundary(
+  node: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  return input.ast.is.IsArrowFunction(node) ||
+    input.ast.is.IsFunctionExpression(node) ||
+    input.ast.is.IsFunctionDeclaration(node) ||
+    input.ast.is.IsMethodDeclaration(node) ||
+    input.ast.is.IsGetAccessorDeclaration(node) ||
+    input.ast.is.IsSetAccessorDeclaration(node) ||
+    input.ast.is.IsConstructorDeclaration(node) ||
+    input.ast.is.IsClassStaticBlockDeclaration(node);
+}
+
+function sourceFactsWriteBindingWithin(
+  declaration: Node,
+  root: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  let found = false;
+  const visit = (node: Node | undefined): void => {
+    if (node === undefined || found) {
+      return;
+    }
+    const passing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
+    if (
+      passing !== undefined &&
+      passing.mode !== "by-value" &&
+      passing.mode !== "byref-readonly" &&
+      passing.mode !== "borrow-shared"
+    ) {
+      const storageDeclaration = input.navigation.referenceFor(
+        passing.storageExpression,
+      )?.declaration;
+      if (sourceNodesEqual(input.ast, storageDeclaration, declaration)) {
+        found = true;
+        return;
+      }
+    }
+    input.ast.forEachChild(node, visit);
+  };
+  visit(root);
+  return found;
 }

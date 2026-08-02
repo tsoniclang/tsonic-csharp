@@ -244,6 +244,17 @@ function validateBinaryTargetSemantics(
   if (left.kind === "type-parameter" || right.kind === "type-parameter") {
     return `Source operator '${operator}' over a type parameter requires an exact target constraint policy.`;
   }
+  if (isEquality(operator)) {
+    if (supportsIntrinsicEquality(left, right, input)) {
+      return undefined;
+    }
+    return isProviderOwned(left, input) || isProviderOwned(right, input)
+      ? `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`
+      : `C# equality for '${operator}' is not proven equivalent for the selected target operand types.`;
+  }
+  if (isBitwise(operator) && supportsIntrinsicBitwise(left, right, input)) {
+    return undefined;
+  }
   if (isProviderOwned(left, input) || isProviderOwned(right, input)) {
     return `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
   }
@@ -257,11 +268,6 @@ function validateBinaryTargetSemantics(
       ? undefined
       : `C# nullish operator '${operator}' requires a nullable or runtime-union left operand.`;
   }
-  if (isEquality(operator)) {
-    return supportsIntrinsicEquality(left, right)
-      ? undefined
-      : `C# equality for '${operator}' is not proven equivalent for the selected target operand types.`;
-  }
   if (isRelational(operator)) {
     return isNumeric(left) && isNumeric(right)
       ? undefined
@@ -274,13 +280,7 @@ function validateBinaryTargetSemantics(
       : `C# shift operator '${operator}' requires integral source-primitive operands.`;
   }
   if (isBitwise(operator)) {
-    return (
-      isCsharpIntegralTargetType(left) &&
-      isCsharpIntegralTargetType(right)
-    ) ||
-      (isSourceEnum(left) && targetTypeRefEquals(left, right))
-      ? undefined
-      : `C# bitwise operator '${operator}' requires integral operands or one exact enum type.`;
+    return `C# bitwise operator '${operator}' requires integral operands or one exact enum type.`;
   }
   if (isArithmetic(operator)) {
     if (
@@ -307,6 +307,9 @@ function validateUnaryTargetSemantics(
   if (operand.kind === "type-parameter") {
     return `Source unary operator '${operator}' over a type parameter requires an exact target constraint policy.`;
   }
+  if (operator === "~" && isCsharpEnumTargetType(operand, input)) {
+    return undefined;
+  }
   if (isProviderOwned(operand, input)) {
     return `Source unary operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
   }
@@ -316,7 +319,8 @@ function validateUnaryTargetSemantics(
       : "C# logical negation requires an exact bool operand.";
   }
   if (operator === "~") {
-    return isCsharpIntegralTargetType(operand) || isSourceEnum(operand)
+    return isCsharpIntegralTargetType(operand) ||
+        isCsharpEnumTargetType(operand, input)
       ? undefined
       : "C# bitwise complement requires an integral or enum operand.";
   }
@@ -389,9 +393,15 @@ function isNumeric(type: TargetTypeRef): boolean {
     type.name !== "char";
 }
 
-function isSourceEnum(type: TargetTypeRef): boolean {
+function isCsharpEnumTargetType(
+  type: TargetTypeRef,
+  input: CsharpTranslationContext,
+): boolean {
   return type.kind === "target-named" &&
-    (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum";
+    (
+      (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" ||
+      input.providers.findTargetBindingByTargetId(type.id)?.kind === "enum"
+    );
 }
 
 function isNullishCapable(type: TargetTypeRef): boolean {
@@ -407,6 +417,7 @@ function isNullishCapable(type: TargetTypeRef): boolean {
 function supportsIntrinsicEquality(
   left: TargetTypeRef,
   right: TargetTypeRef,
+  input: CsharpTranslationContext,
 ): boolean {
   if (
     isCsharpRuntimeNullTargetType(left) ||
@@ -423,11 +434,25 @@ function supportsIntrinsicEquality(
     left.kind === "source-primitive" &&
     right.kind === "source-primitive"
   ) || (
-    isSourceEnum(left) &&
+    isCsharpEnumTargetType(left, input) &&
     targetTypeRefEquals(left, right)
   ) || (
     left.kind === "array" &&
     right.kind === "array" &&
+    targetTypeRefEquals(left, right)
+  );
+}
+
+function supportsIntrinsicBitwise(
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+  input: CsharpTranslationContext,
+): boolean {
+  return (
+    isCsharpIntegralTargetType(left) &&
+    isCsharpIntegralTargetType(right)
+  ) || (
+    isCsharpEnumTargetType(left, input) &&
     targetTypeRefEquals(left, right)
   );
 }

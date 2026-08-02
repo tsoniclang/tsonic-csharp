@@ -5,6 +5,74 @@ import {
   compileCsharpSource,
 } from "./helpers/direct-csharp-session.mjs";
 
+test("provider-owned CLR enums retain intrinsic C# equality and bitwise operations", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { JsonValueKind } from "@tsonic/dotnet/System.Text.Json.js";
+      export function isObject(kind: JsonValueKind): boolean {
+        return kind === JsonValueKind.Object;
+      }
+      export function isNotObject(kind: JsonValueKind): boolean {
+        return kind !== JsonValueKind.Object;
+      }
+      export function combine(left: JsonValueKind, right: JsonValueKind): JsonValueKind {
+        return left | right;
+      }
+      export function complement(kind: JsonValueKind): JsonValueKind {
+        return ~kind;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static bool isObject(System.Text.Json.JsonValueKind kind)
+        {
+            return kind == System.Text.Json.JsonValueKind.Object;
+        }
+        public static bool isNotObject(System.Text.Json.JsonValueKind kind)
+        {
+            return kind != System.Text.Json.JsonValueKind.Object;
+        }
+        public static System.Text.Json.JsonValueKind combine(System.Text.Json.JsonValueKind left, System.Text.Json.JsonValueKind right)
+        {
+            return left | right;
+        }
+        public static System.Text.Json.JsonValueKind complement(System.Text.Json.JsonValueKind kind)
+        {
+            return ~kind;
+        }
+    }
+}
+`);
+});
+
+test("provider-returned CLR enums retain intrinsic equality with enum constants", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { DateTime, DayOfWeek } from "@tsonic/dotnet/System.js";
+      export function isMonday(value: DateTime): boolean {
+        return value.DayOfWeek === DayOfWeek.Monday;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /return value\.DayOfWeek == System\.DayOfWeek\.Monday;/,
+  );
+});
+
 test("provider-selected JSON deserialization uses an exact constructible project shape", () => {
   const compiled = compileCsharpSource({
     sourceText: `

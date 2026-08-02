@@ -32,7 +32,9 @@ export function printCsharpStatement(
         ? "goto default;"
         : `goto case ${context.printExpression(statement.label.expression)};`;
     case "ThrowStatement":
-      return `throw ${context.printExpression(statement.expression)};`;
+      return statement.expression === undefined
+        ? "throw;"
+        : `throw ${context.printExpression(statement.expression)};`;
     case "LabeledStatement":
       return [`${statement.name}:`, ...indentLines(context.printStatement(statement.statement).split("\n"))].join("\n");
     case "SwitchStatement":

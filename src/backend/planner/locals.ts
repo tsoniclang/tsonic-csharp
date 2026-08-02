@@ -87,7 +87,7 @@ export function planLocalDeclaration(
       ? undefined
       : csharpTypeFromTargetTypeRef(inferredTargetType)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
-  const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
+  const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
     kind: "VariableDeclarator",
     name,

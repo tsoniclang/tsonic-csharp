@@ -37,7 +37,7 @@ function statementRequiresUnsafe(statement: CsharpStatement): boolean {
     case "Block":
       return blockRequiresUnsafe(statement.body);
     case "ThrowStatement":
-      return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+      return optionalExpressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
     case "LabeledStatement":
       return statementRequiresUnsafe(statement.statement);
     case "SwitchStatement":

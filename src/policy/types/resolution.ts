@@ -78,6 +78,7 @@ import {
 } from "../../options/csharp-target-options.js";
 import {
   csharpBigIntegerTargetType,
+  csharpExceptionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
@@ -209,10 +210,33 @@ export function createCsharpTypePolicy(
     if (declaration === undefined) {
       return resolveNode(node, sourceFile);
     }
+    const catchCarrier = catchVariableStorageCarrier(declaration);
+    if (catchCarrier !== undefined) {
+      return catchCarrier;
+    }
     return resolveNode(
       declaration,
       reference?.sourceFile ?? host.ast.getSourceFile(declaration) ?? sourceFile,
     );
+  }
+
+  function catchVariableStorageCarrier(
+    declaration: Node,
+  ): TargetTypeRef | undefined {
+    if (!host.ast.is.IsVariableDeclaration(declaration)) {
+      return undefined;
+    }
+    const parent = host.ast.parent(declaration);
+    if (
+      parent === undefined ||
+      !host.ast.is.IsCatchClause(parent) ||
+      host.ast.as.AsCatchClause(parent)?.VariableDeclaration !== declaration
+    ) {
+      return undefined;
+    }
+    return readCsharpTypescriptCompatibilityMode(host.target) === "compat"
+      ? csharpTsValueTargetType()
+      : csharpExceptionTargetType();
   }
 
   function resolveValue(

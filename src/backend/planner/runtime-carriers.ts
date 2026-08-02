@@ -43,10 +43,29 @@ export function resolveRuntimeCarrierForExpression(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpRuntimeCarrierResolution | undefined {
+  return resolveRuntimeCarrier(input, sourceNode, sourceFile, "value");
+}
+
+export function resolveRuntimeCarrierForStorage(
+  input: CsharpTranslationContext,
+  sourceNode: Node | undefined,
+  sourceFile: SourceFile,
+): CsharpRuntimeCarrierResolution | undefined {
+  return resolveRuntimeCarrier(input, sourceNode, sourceFile, "storage");
+}
+
+function resolveRuntimeCarrier(
+  input: CsharpTranslationContext,
+  sourceNode: Node | undefined,
+  sourceFile: SourceFile,
+  mode: "value" | "storage",
+): CsharpRuntimeCarrierResolution | undefined {
   if (sourceNode === undefined) {
     return undefined;
   }
-  const carrier = input.types.resolveNode(sourceNode, sourceFile);
+  const carrier = mode === "storage"
+    ? input.types.resolveStorage(sourceNode, sourceFile)
+    : input.types.resolveNode(sourceNode, sourceFile);
   return carrier === undefined
     ? {
         kind: "missing",

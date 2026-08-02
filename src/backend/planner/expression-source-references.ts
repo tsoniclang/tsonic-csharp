@@ -85,7 +85,7 @@ export function planIdentifierExpression(
   }
   const expression: CsharpExpression = {
     kind: "IdentifierName",
-    name: getCsharpLocalBindingName(identifier, sourceFile, input, state) ??
+    name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
   return planRuntimeUnionUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);

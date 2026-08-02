@@ -43,12 +43,14 @@ import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
   resolveRuntimeCarrierForExpression,
+  resolveRuntimeCarrierForStorage,
 } from "./runtime-carriers.js";
 import {
   readCsharpTypescriptCompatibilityMode,
 } from "../../options/csharp-target-options.js";
 import {
   csharpThrownValueFromExpression,
+  isExactUnmodifiedCatchRethrow,
   isCsharpCompatThrowableValueCarrier,
 } from "./exception-flow.js";
 import {
@@ -166,10 +168,13 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+  const compatibilityMode = readCsharpTypescriptCompatibilityMode(input.target);
+  const carrierResolution = compatibilityMode === "compat"
+    ? resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile)
+    : resolveRuntimeCarrierForStorage(input, statement.Expression, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier)) {
-    if (readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
+    if (compatibilityMode === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
       const wrapped = expression === undefined ? undefined : csharpThrownValueFromExpression(expression);
       if (wrapped === undefined) {
@@ -186,6 +191,12 @@ export function planThrowStatement(
       : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
     return [];
+  }
+  if (
+    compatibilityMode === "strict-native" &&
+    isExactUnmodifiedCatchRethrow(node, statement.Expression, input)
+  ) {
+    return [{ kind: "ThrowStatement" }];
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {

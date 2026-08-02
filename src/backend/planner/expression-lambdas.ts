@@ -263,7 +263,7 @@ export function planLambdaParameters(
       return {
         kind: "Parameter",
         name: HasSourceKind(input.ast, parameter.name, KindIdentifier) && state !== undefined
-          ? declareCsharpLocalBindingName(parameter.name, sourceFile, input, diagnostics, state, "Lambda parameter", "arg")
+          ? declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg")
           : HasSourceKind(input.ast, parameter.name, KindIdentifier)
             ? requireCsharpIdentifier(Node_Text(input.ast, parameter.name), diagnostics, "Lambda parameter")
             : "arg",
