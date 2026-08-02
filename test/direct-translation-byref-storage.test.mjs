@@ -42,7 +42,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static readonly System.Collections.Generic.Dictionary<int, Todo> todos;
+        public static System.Collections.Generic.Dictionary<int, Todo> todos
+        {
+            get;
+            private set;
+        } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
         public static Todo? getById(int id)
         {
             Todo? value = default(Todo)!;
@@ -52,12 +56,15 @@ namespace Tsonic.Generated
             }
             return null;
         }
-        static Index()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             todos = new System.Collections.Generic.Dictionary<int, Todo>();
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
     public interface Todo

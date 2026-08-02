@@ -27,11 +27,14 @@ namespace Tsonic.Generated
 {
     public static class Models
     {
-        static Models()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
     public class Base<T>
@@ -64,12 +67,15 @@ namespace Tsonic.Generated
         {
             consume(new Derived());
         }
-        static Index()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             Models.__tsonic_module_init();
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }

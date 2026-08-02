@@ -31,11 +31,14 @@ namespace Tsonic.Generated
 {
     public static class Models_user
     {
-        static Models_user()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
     public class User
@@ -58,12 +61,15 @@ namespace Tsonic.Generated
         {
             return user.name;
         }
-        static Index()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             Models_user.__tsonic_module_init();
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }
@@ -92,6 +98,49 @@ test("direct C# executable translation emits one exact generated entrypoint", ()
         public static void Main()
         {
             Index.__tsonic_module_init();
+        }
+    }
+}
+`);
+});
+
+test("direct C# module bindings remain internally mutable and externally read-only", () => {
+  const compiled = cleanCompile({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export let count: int = 0;
+      export function increment(): int {
+        count++;
+        return count;
+      }
+    `,
+  });
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static int count
+        {
+            get;
+            private set;
+        } = default(int)!;
+        public static int increment()
+        {
+            count++;
+            return count;
+        }
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
+            count = 0;
+            return null;
+        }
+        public static void __tsonic_module_init()
+        {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }
@@ -131,14 +180,14 @@ namespace Tsonic.Generated
                 resolve();
             });
         }
-        private static readonly System.Threading.Tasks.Task __tsonic_module_initialization = __tsonic_module_init_core();
+        private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()
         {
             await delay();
         }
         public static System.Threading.Tasks.Task __tsonic_module_init()
         {
-            return __tsonic_module_initialization;
+            return __tsonic_module_initialization.Value;
         }
     }
 }
@@ -149,8 +198,12 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static readonly bool done;
-        private static readonly System.Threading.Tasks.Task __tsonic_module_initialization = __tsonic_module_init_core();
+        public static bool done
+        {
+            get;
+            private set;
+        } = default(bool)!;
+        private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()
         {
             await Worker.__tsonic_module_init();
@@ -158,7 +211,7 @@ namespace Tsonic.Generated
         }
         public static System.Threading.Tasks.Task __tsonic_module_init()
         {
-            return __tsonic_module_initialization;
+            return __tsonic_module_initialization.Value;
         }
     }
 }

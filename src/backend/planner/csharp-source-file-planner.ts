@@ -31,9 +31,11 @@ import type {
 } from "@tsonic/target-api";
 import type {
   CsharpCompilationUnit,
+  CsharpExpression,
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "./attributes.js";
 import {
@@ -167,18 +169,23 @@ export function planSourceFile(
         "System.Threading.Tasks",
         "Task",
       );
+      const lazyTaskType = lazyType(taskType);
       members.push({
         kind: "FieldDeclaration",
         name: csharpModuleInitializationFieldName,
         modifiers: ["private", "static", "readonly"],
-        type: taskType,
+        type: lazyTaskType,
         initializer: {
-          kind: "InvocationExpression",
-          callee: {
-            kind: "IdentifierName",
-            name: csharpModuleInitializationCoreMethodName,
-          },
-          arguments: [],
+          kind: "ObjectCreationExpression",
+          type: lazyTaskType,
+          arguments: [{
+            kind: "Argument",
+            expression: {
+              kind: "LambdaExpression",
+              parameters: [],
+              body: moduleInitializationCoreCall(),
+            },
+          }],
         },
       });
       members.push({
@@ -202,20 +209,49 @@ export function planSourceFile(
           kind: "Block",
           statements: [{
             kind: "ReturnStatement",
-            expression: {
-              kind: "IdentifierName",
-              name: csharpModuleInitializationFieldName,
-            },
+            expression: moduleInitializationValue(),
           }],
         },
       });
     } else {
+      const nullableObjectType = {
+        kind: "NullableType",
+        inner: predefined("object"),
+      } as const satisfies CsharpTypeNode;
+      const lazyObjectType = lazyType(nullableObjectType);
       members.push({
-        kind: "StaticConstructorDeclaration",
-        name: moduleClassName,
+        kind: "FieldDeclaration",
+        name: csharpModuleInitializationFieldName,
+        modifiers: ["private", "static", "readonly"],
+        type: lazyObjectType,
+        initializer: {
+          kind: "ObjectCreationExpression",
+          type: lazyObjectType,
+          arguments: [{
+            kind: "Argument",
+            expression: {
+              kind: "LambdaExpression",
+              parameters: [],
+              body: moduleInitializationCoreCall(),
+            },
+          }],
+        },
+      });
+      members.push({
+        kind: "MethodDeclaration",
+        name: csharpModuleInitializationCoreMethodName,
+        modifiers: ["private", "static"],
+        returnType: nullableObjectType,
+        parameters: [],
         body: {
           kind: "Block",
-          statements: initializationStatements,
+          statements: [
+            ...initializationStatements,
+            {
+              kind: "ReturnStatement",
+              expression: { kind: "LiteralExpression", value: null },
+            },
+          ],
         },
       });
       members.push({
@@ -224,7 +260,18 @@ export function planSourceFile(
         modifiers: ["public", "static"],
         returnType: predefined("void"),
         parameters: [],
-        body: { kind: "Block", statements: [] },
+        body: {
+          kind: "Block",
+          statements: [{
+            kind: "ExpressionStatement",
+            expression: {
+              kind: "AssignmentExpression",
+              left: { kind: "IdentifierName", name: "_" },
+              operatorToken: { kind: "EqualsToken" },
+              right: moduleInitializationValue(),
+            },
+          }],
+        },
       });
     }
   }
@@ -256,6 +303,37 @@ export function planSourceFile(
     requiresUnsafe: finalized.requiresUnsafe,
     hasModuleInitializer,
     asyncModuleInitializer,
+  };
+}
+
+function lazyType(valueType: CsharpTypeNode): CsharpTypeNode {
+  return {
+    kind: "QualifiedName",
+    left: { kind: "IdentifierName", name: "System" },
+    name: "Lazy",
+    typeArguments: [valueType],
+  };
+}
+
+function moduleInitializationCoreCall(): CsharpExpression {
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "IdentifierName",
+      name: csharpModuleInitializationCoreMethodName,
+    },
+    arguments: [],
+  };
+}
+
+function moduleInitializationValue(): CsharpExpression {
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: {
+      kind: "IdentifierName",
+      name: csharpModuleInitializationFieldName,
+    },
+    name: "Value",
   };
 }
 

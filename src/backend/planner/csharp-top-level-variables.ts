@@ -19,6 +19,7 @@ import type {
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { planStatements } from "./statements.js";
@@ -49,7 +50,6 @@ export function planTopLevelVariableStatement(
   }
   const declarations = input.ast.children(declarationList)
     .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
-  const isConst = declarationKind === "const";
   if (declarations.length === 0) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
@@ -65,18 +65,13 @@ export function planTopLevelVariableStatement(
       ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
       : undefined;
     if (destructured !== undefined) {
-      const planned = topLevelBindingFields(destructured, isConst, diagnostics, declaration);
+      const planned = topLevelBindingFields(destructured, diagnostics, declaration);
       moduleMembers.push(...planned.fields);
       topLevelStatements.push(...planned.statements);
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
-    moduleMembers.push({
-      kind: "FieldDeclaration",
-      name: field.name,
-      type: field.type,
-      modifiers: isConst ? ["public", "static", "readonly"] : ["public", "static"],
-    });
+    moduleMembers.push(topLevelBindingMember(field.name, field.type, "public"));
     if (field.initializer !== undefined) {
       topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
     }
@@ -90,7 +85,6 @@ interface TopLevelBindingPlan {
 
 function topLevelBindingFields(
   statements: readonly CsharpStatement[],
-  isConst: boolean,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
 ): TopLevelBindingPlan {
@@ -102,16 +96,11 @@ function topLevelBindingFields(
       continue;
     }
     const synthetic = statement.name.startsWith("__tsonic_destructure");
-    fields.push({
-      kind: "FieldDeclaration",
-      name: statement.name,
-      type: statement.type,
-      modifiers: [
-        synthetic ? "private" : "public",
-        "static",
-        ...(isConst ? ["readonly" as const] : []),
-      ],
-    });
+    fields.push(topLevelBindingMember(
+      statement.name,
+      statement.type,
+      synthetic ? "private" : "public",
+    ));
     if (statement.initializer !== undefined) {
       initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));
     }
@@ -119,6 +108,28 @@ function topLevelBindingFields(
   return {
     fields,
     statements: initializers,
+  };
+}
+
+function topLevelBindingMember(
+  name: string,
+  type: CsharpTypeNode,
+  accessibility: "public" | "private",
+): CsharpTypeMember {
+  const initializer = {
+    kind: "DefaultExpression",
+    type,
+    nullForgiving: true,
+  } as const;
+  return {
+    kind: "PropertyDeclaration",
+    name,
+    type,
+    modifiers: [accessibility, "static"],
+    initializer,
+    autoGetter: true,
+    autoSetter: true,
+    autoSetterModifiers: ["private"],
   };
 }
 

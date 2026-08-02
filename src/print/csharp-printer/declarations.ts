@@ -211,7 +211,10 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
     accessors.push("get", "{", ...indentLines(context.printStatements(property.getter.statements)), "}");
   }
   if (property.autoSetter === true) {
-    accessors.push("set;");
+    const setterModifiers = property.autoSetterModifiers === undefined || property.autoSetterModifiers.length === 0
+      ? ""
+      : `${property.autoSetterModifiers.join(" ")} `;
+    accessors.push(`${setterModifiers}set;`);
   } else if (property.setter !== undefined) {
     accessors.push("set", "{", ...indentLines(context.printStatements(property.setter.statements)), "}");
   }

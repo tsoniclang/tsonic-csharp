@@ -109,22 +109,29 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static readonly __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77 nextId;
+        public static __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77 nextId
+        {
+            get;
+            private set;
+        } = default(__TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77)!;
         public static int takeNext()
         {
             int id = nextId.value;
             nextId.value = id + 1;
             return id;
         }
-        static Index()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             nextId = new __TsonicShape_c365ef61ecc767cb701e433a9cc80d7757ffb839a3414c0a44cd65c90438ea77
             {
                 value = 1,
             };
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }

@@ -17,15 +17,26 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static readonly int[] tail;
-        public static readonly int[] values;
-        static Index()
+        public static int[] tail
+        {
+            get;
+            private set;
+        } = default(int[])!;
+        public static int[] values
+        {
+            get;
+            private set;
+        } = default(int[])!;
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             tail = new int[] { 2, 3 };
             values = Tsonic.CSharp.Runtime.ArrayHelpers.Concat(new int[] { 1 }, tail);
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }
@@ -253,7 +264,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static readonly double one;
+        public static double one
+        {
+            get;
+            private set;
+        } = default(double)!;
         public static int second((string, int) pair)
         {
             return pair.Item2;
@@ -262,12 +277,15 @@ namespace Tsonic.Generated
         {
             return values[index++] += next();
         }
-        static Index()
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
         {
             one = 1;
+            return null;
         }
         public static void __tsonic_module_init()
         {
+            _ = __tsonic_module_initialization.Value;
         }
     }
 }

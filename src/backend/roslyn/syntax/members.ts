@@ -93,9 +93,12 @@ export interface CsharpPropertyDeclaration {
   readonly initializer?: CsharpExpression;
   readonly autoGetter?: boolean;
   readonly autoSetter?: boolean;
+  readonly autoSetterModifiers?: readonly CsharpAccessorModifier[];
   readonly getter?: CsharpBlock;
   readonly setter?: CsharpBlock;
 }
+
+export type CsharpAccessorModifier = "private" | "protected" | "internal";
 
 export interface CsharpParameter {
   readonly name: string;
