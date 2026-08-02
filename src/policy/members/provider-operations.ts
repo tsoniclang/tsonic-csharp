@@ -16,6 +16,7 @@ import type {
 } from "../../provider/target-relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
+  resolveCsharpProviderDeclarationEvidenceKinds,
 } from "../../provider/target-relations/evidence.js";
 
 export type CsharpProviderOperationResolution =
@@ -85,12 +86,21 @@ export function resolveCsharpProviderPropertyRelations(
       reason: "The checker did not resolve an exact source property access.",
     };
   }
-  const declaration = resolveCsharpProviderDeclarationEvidence(
+  const declaration = resolveCsharpProviderDeclarationEvidenceKinds(
     host.sourceFacts,
     [source.selectedDeclaration, source.selectedSymbol],
-    "member",
+    ["export", "member"],
   );
-  return resolveProviderRelations(host, declaration, "member");
+  if (declaration.kind !== "resolved") {
+    return declaration;
+  }
+  return resolveProviderRelations(
+    host,
+    declaration,
+    declaration.declarationKind === "export"
+      ? "value"
+      : "member",
+  );
 }
 
 export function resolveCsharpProviderElementRelations(
@@ -132,11 +142,13 @@ function resolveProviderRelations(
   if (declaration.kind !== "resolved") {
     return declaration;
   }
-  const resolution = expectedKind === "member"
-    ? host.providers.resolveMember(declaration.declaration)
-    : expectedKind === "signature"
-      ? host.providers.resolveSignature(declaration.declaration)
-      : host.providers.resolveType(declaration.declaration);
+  const resolution = expectedKind === "type"
+    ? host.providers.resolveType(declaration.declaration)
+    : expectedKind === "value"
+      ? host.providers.resolveValue(declaration.declaration)
+      : expectedKind === "member"
+        ? host.providers.resolveMember(declaration.declaration)
+        : host.providers.resolveSignature(declaration.declaration);
   if (resolution.kind !== "resolved") {
     return resolution;
   }

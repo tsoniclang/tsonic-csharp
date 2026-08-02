@@ -18,6 +18,7 @@ import {
   signatureRelation,
   targetParameter,
   test,
+  valueRelation,
 } from "./direct-provider-selection.helpers.mjs";
 
 test("property selection uses the exact provider member identity, not its spelling", () => {
@@ -51,6 +52,38 @@ test("property selection accepts exact declaration evidence without a selected s
     fixture.sourceFile,
   );
   assert.equal(selected.kind, "resolved");
+});
+
+test("namespace property selection consumes an exact provider export value", () => {
+  const declaration = providerDeclaration({
+    memberId: null,
+    memberKey: null,
+    memberStatic: null,
+    signatureId: null,
+  });
+  const binding = providerBinding();
+  const member = providerField({
+    id: "Fixture.Module.Value",
+    targetName: "Value",
+    declaringTypeId: binding.id,
+    static: true,
+  });
+  const relation = valueRelation({ declaration, binding, member });
+  const fixture = createPropertyFixture({
+    declaration,
+    binding,
+    member,
+    relation,
+  });
+  const selected = selectCsharpProviderProperty(
+    fixture.host,
+    fixture.expression,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.property.relation.kind, "value");
+  assert.deepEqual(selected.property.receiver, { kind: "none" });
+  assert.equal(selected.property.targetMember.id, member.id);
 });
 
 test("contradictory selected property subjects fail closed", () => {
@@ -312,7 +345,7 @@ function createPropertyFixture(options = {}) {
       : { selectedDeclaration: options.selectedDeclaration }),
     accessMode: options.accessMode ?? "read",
   });
-  const relation = memberRelation({
+  const relation = options.relation ?? memberRelation({
     declaration,
     binding,
     member,

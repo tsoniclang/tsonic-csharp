@@ -171,7 +171,7 @@ export function selectCsharpTargetProperty(
       kind: "resolved",
       source: provider.property.source,
       targetMember: provider.property.targetMember,
-      receiver: provider.property.relation.receiver,
+      receiver: provider.property.receiver,
       origin: "provider",
     };
   }

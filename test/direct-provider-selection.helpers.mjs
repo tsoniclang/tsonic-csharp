@@ -422,6 +422,17 @@ export function memberRelation(options) {
   });
 }
 
+export function valueRelation(options) {
+  const identity = providerValueSourceIdentity(options.declaration);
+  assert.equal(identity.kind, "resolved");
+  return Object.freeze({
+    kind: "value",
+    source: identity.identity,
+    targetBinding: options.binding ?? providerBinding(),
+    targetMember: options.member ?? providerField({ static: true }),
+  });
+}
+
 export function directProviderHost(options = {}) {
   const sourceFile = options.sourceFile ?? { kind: "source-file" };
   const relations = options.relations ?? [];

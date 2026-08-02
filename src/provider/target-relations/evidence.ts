@@ -11,6 +11,7 @@ export type CsharpProviderDeclarationEvidenceResolution =
   | {
       readonly kind: "resolved";
       readonly declaration: ProviderVirtualDeclarationFact;
+      readonly declarationKind: CsharpProviderDeclarationKind;
     }
   | {
       readonly kind: "missing";
@@ -22,10 +23,27 @@ export type CsharpProviderDeclarationEvidenceResolution =
       readonly declarations: readonly ProviderVirtualDeclarationFact[];
     };
 
+export type CsharpProviderDeclarationKind = "export" | "member" | "signature";
+
 export function resolveCsharpProviderDeclarationEvidence(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subjects: readonly (ExtensionFactSubject | undefined)[],
-  requiredKind: "export" | "member" | "signature",
+  requiredKind: CsharpProviderDeclarationKind,
+): CsharpProviderDeclarationEvidenceResolution {
+  return resolveCsharpProviderDeclarationEvidenceKinds(
+    sourceFacts,
+    subjects,
+    [requiredKind],
+  );
+}
+
+export function resolveCsharpProviderDeclarationEvidenceKinds(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  requiredKinds: readonly [
+    CsharpProviderDeclarationKind,
+    ...CsharpProviderDeclarationKind[],
+  ],
 ): CsharpProviderDeclarationEvidenceResolution {
   if (sourceFacts === undefined) {
     return {
@@ -57,26 +75,36 @@ export function resolveCsharpProviderDeclarationEvidence(
     };
   }
   const candidates = declarations.filter((declaration) =>
-    providerDeclarationKind(declaration) === requiredKind);
+    requiredKinds.includes(providerDeclarationKind(declaration)));
   if (candidates.length === 0) {
     return {
       kind: "missing",
       reason:
-        `The selected provider evidence does not contain an exact ${requiredKind} identity.`,
+        `The selected provider evidence does not contain an exact ${formatRequiredKinds(requiredKinds)} identity.`,
     };
   }
   if (candidates.length > 1) {
     return {
       kind: "conflict",
       reason:
-        `The selected source operation has more than one exact provider ${requiredKind} identity.`,
+        `The selected source operation has more than one exact provider ${formatRequiredKinds(requiredKinds)} identity.`,
       declarations: candidates,
     };
   }
   return {
     kind: "resolved",
     declaration: candidates[0]!,
+    declarationKind: providerDeclarationKind(candidates[0]!),
   };
+}
+
+function formatRequiredKinds(
+  requiredKinds: readonly [
+    CsharpProviderDeclarationKind,
+    ...CsharpProviderDeclarationKind[],
+  ],
+): string {
+  return requiredKinds.join(" or ");
 }
 
 function providerDeclarationsArePairwiseCompatible(
@@ -113,7 +141,7 @@ function uniqueProviderDeclarations(
 
 function providerDeclarationKind(
   declaration: ProviderVirtualDeclarationFact,
-): "export" | "member" | "signature" {
+): CsharpProviderDeclarationKind {
   if (declaration.signatureId !== undefined) {
     return "signature";
   }
@@ -169,4 +197,3 @@ function providerMemberKeysCompatible(
     right === undefined ||
     left.kind === right.kind && left.name === right.name;
 }
-
