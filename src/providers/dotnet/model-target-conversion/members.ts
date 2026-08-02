@@ -31,7 +31,30 @@ export type DotnetTargetMember = CsharpTargetMember & {
   readonly typeParameters?: readonly DotnetTargetTypeParameter[];
 };
 
-export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringType: TargetTypeRef): readonly DotnetTargetMember[] {
+export type DotnetTargetMemberRecord =
+  | {
+      readonly kind: "member";
+      readonly targetMember: DotnetTargetMember;
+    }
+  | {
+      readonly kind: "signature";
+      readonly sourceSignatureId: string;
+      readonly targetMember: DotnetTargetMember;
+    };
+
+export function dotnetMemberToTargetMembers(
+  member: DotnetMemberDeclaration,
+  declaringType: TargetTypeRef,
+): readonly DotnetTargetMember[] {
+  return dotnetMemberToTargetMemberRecords(member, declaringType).map(
+    (record) => record.targetMember,
+  );
+}
+
+export function dotnetMemberToTargetMemberRecords(
+  member: DotnetMemberDeclaration,
+  declaringType: TargetTypeRef,
+): readonly DotnetTargetMemberRecord[] {
   switch (member.kind) {
     case "method":
     case "constructor":
@@ -40,30 +63,40 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
       const targetDeclaringType = member.targetDeclaringType === undefined
         ? declaringType
         : dotnetTypeRefToTargetTypeRef(member.targetDeclaringType);
-      return (member.signatures ?? []).map((signature) =>
-        dotnetSignatureToTargetMember(member, signature, targetDeclaringType));
+      return (member.signatures ?? []).map((signature) => ({
+        kind: "signature",
+        sourceSignatureId: signature.id,
+        targetMember: dotnetSignatureToTargetMember(
+          member,
+          signature,
+          targetDeclaringType,
+        ),
+      }));
     case "property":
     case "field":
     case "event":
       return member.type === undefined
         ? []
         : [{
-            id: member.targetId,
-            sourceName: member.sourceName,
-            targetName: member.targetName,
-            kind: member.kind,
-            declaringType,
-            ...(member.static === true ? { static: true } : {}),
-            ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
-            ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
-            parameters: [],
-            returnType: dotnetTypeRefToTargetTypeRef(member.type),
-            ...(member.attributes !== undefined && member.attributes.length > 0
-              ? { attributes: member.attributes.map(dotnetAttributeToTargetAttribute) }
-              : {}),
-            ...(member.unsupportedAttributes !== undefined && member.unsupportedAttributes.length > 0
-              ? { unsupportedAttributes: member.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
-              : {}),
+            kind: "member",
+            targetMember: {
+              id: member.targetId,
+              sourceName: member.sourceName,
+              targetName: member.targetName,
+              kind: member.kind,
+              declaringType,
+              ...(member.static === true ? { static: true } : {}),
+              ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
+              ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
+              parameters: [],
+              returnType: dotnetTypeRefToTargetTypeRef(member.type),
+              ...(member.attributes !== undefined && member.attributes.length > 0
+                ? { attributes: member.attributes.map(dotnetAttributeToTargetAttribute) }
+                : {}),
+              ...(member.unsupportedAttributes !== undefined && member.unsupportedAttributes.length > 0
+                ? { unsupportedAttributes: member.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+                : {}),
+            },
           }];
   }
 }

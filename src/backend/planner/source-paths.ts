@@ -19,12 +19,12 @@ export function sourceFileClassName(
   input: CsharpTranslationContext,
   fileName: string,
 ): string {
-  return input.outputIdentities.require(fileName).className;
+  return input.outputIdentities.resolveRequired(fileName).className;
 }
 
 export function sourceFileArtifactPath(
   input: CsharpTranslationContext,
   fileName: string,
 ): string {
-  return input.outputIdentities.require(fileName).artifactPath;
+  return input.outputIdentities.resolveRequired(fileName).artifactPath;
 }

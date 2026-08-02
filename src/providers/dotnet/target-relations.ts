@@ -29,7 +29,7 @@ import {
   dotnetProviderSignatureIdsForMember,
 } from "./declaration-model/signatures.js";
 import {
-  dotnetMemberToTargetMembers,
+  dotnetMemberToTargetMemberRecords,
 } from "./model-target-conversion/members.js";
 
 export interface DotnetTargetMemberProjection {
@@ -104,7 +104,7 @@ export function dotnetTypeTargetMemberProjections(
     if (providerMember === undefined) {
       continue;
     }
-    const targetMembers = dotnetMemberToTargetMembers(
+    const targetMemberRecords = dotnetMemberToTargetMemberRecords(
       member,
       targetBinding.csharpType ?? {
         kind: "target-named",
@@ -112,14 +112,19 @@ export function dotnetTypeTargetMemberProjections(
       },
     );
     if (providerMember.signatures === undefined) {
-      if (targetMembers.length !== 1 || targetMembers[0] === undefined) {
+      const record = targetMemberRecords[0];
+      if (
+        targetMemberRecords.length !== 1 ||
+        record === undefined ||
+        record.kind !== "member"
+      ) {
         throw new Error(
           `.NET provider member '${providerMember.id}' did not produce exactly one target member.`,
         );
       }
       appendProjection(memberProjections, providerMember.id, {
         targetBinding,
-        targetMember: targetMembers[0],
+        targetMember: record.targetMember,
         sourceParameterOffset: member.sourceParameterOffset ?? 0,
       });
       continue;
@@ -133,15 +138,19 @@ export function dotnetTypeTargetMemberProjections(
           declaration.typeParameters?.map((parameter) => parameter.name) ?? [],
       },
     );
-    for (const signature of member.signatures ?? []) {
-      const signatureId = providerSignatureIds.get(signature.id);
-      const targetMember = targetMembers.find((candidate) => candidate.id === signature.id);
-      if (signatureId === undefined || targetMember === undefined) {
+    for (const record of targetMemberRecords) {
+      if (record.kind !== "signature") {
+        throw new Error(
+          `.NET provider member '${providerMember.id}' produced a non-signature target record for a callable declaration.`,
+        );
+      }
+      const signatureId = providerSignatureIds.get(record.sourceSignatureId);
+      if (signatureId === undefined) {
         continue;
       }
       appendProjection(signatureProjections, signatureId, {
         targetBinding,
-        targetMember,
+        targetMember: record.targetMember,
         sourceParameterOffset: member.sourceParameterOffset ?? 0,
       });
     }

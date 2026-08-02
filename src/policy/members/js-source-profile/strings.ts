@@ -213,18 +213,26 @@ const stringHelperRows = [
   },
 ] as const;
 
-const parameterlessStringHelpers = [
-  "trim",
-  "trimStart",
-  "trimEnd",
-  "trimLeft",
-  "trimRight",
-  "toLowerCase",
-  "toUpperCase",
-  "toLocaleLowerCase",
-  "toLocaleUpperCase",
-  "toWellFormed",
-  "valueOf",
+const parameterlessStringHelperRows = [
+  { sourceName: "trim", targetName: "trim" },
+  { sourceName: "trimStart", targetName: "trimStart" },
+  { sourceName: "trimEnd", targetName: "trimEnd" },
+  { sourceName: "trimLeft", targetName: "trimLeft" },
+  { sourceName: "trimRight", targetName: "trimRight" },
+  { sourceName: "toLowerCase", targetName: "toLowerCase" },
+  { sourceName: "toUpperCase", targetName: "toUpperCase" },
+  {
+    sourceName: "toLocaleLowerCase",
+    targetName: "toLocaleLowerCase",
+    targetParameterBySourceParameter: [undefined],
+  },
+  {
+    sourceName: "toLocaleUpperCase",
+    targetName: "toLocaleUpperCase",
+    targetParameterBySourceParameter: [undefined],
+  },
+  { sourceName: "toWellFormed", targetName: "toWellFormed" },
+  { sourceName: "valueOf", targetName: "valueOf" },
 ] as const;
 
 export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[] =
@@ -249,23 +257,25 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
         stringReceiver,
       )
     ),
-    ...parameterlessStringHelpers.map((sourceName) =>
+    ...parameterlessStringHelperRows.map((row) =>
       jsCallPolicy(
-        jsMemberIdentity("String", sourceName),
+        jsMemberIdentity("String", row.sourceName),
         () =>
           receiverHelperMethod(
-            `Tsonic.CSharp.Js.String.${sourceName}`,
-            sourceName,
-            sourceName,
+            `Tsonic.CSharp.Js.String.${row.targetName}`,
+            row.sourceName,
+            row.targetName,
             stringHelperType,
             stringType,
             [],
             stringType,
           ),
         stringReceiver,
-        sourceName === "toLocaleLowerCase" ||
-            sourceName === "toLocaleUpperCase"
-          ? { targetParameterBySourceParameter: [undefined] }
+        "targetParameterBySourceParameter" in row
+          ? {
+              targetParameterBySourceParameter:
+                row.targetParameterBySourceParameter,
+            }
           : {},
       )
     ),

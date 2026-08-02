@@ -113,7 +113,7 @@ test("product analysis code has no unclassified source-family or target-member a
 
   assert.deepEqual({ unclassified, drift }, { unclassified: [], drift: [] });
 });
-test("architecture validator rejects procedural policy module names", () => {
+test("architecture validator rejects catch-all policy modules while permitting named policy abstractions", () => {
   const proceduralPolicyRule = analysisAbstractionFileRules.find((rule) => rule.id === "procedural-policy-file");
   assert.notEqual(proceduralPolicyRule, undefined);
   assert.deepEqual(
@@ -127,12 +127,27 @@ test("architecture validator rejects procedural policy module names", () => {
   );
   assert.deepEqual(
     [
-      "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/index.ts",
-      "src/source/csharp-source-semantics/surfaces/js/calls/target-selection.ts",
-      "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
-      "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/index.ts",
+      "src/policy/members/source-profile-policy.ts",
+      "src/policy/types/binding-projection-policy.ts",
+      "src/policy/types/object-shape-policy.ts",
+      "src/policy/types/source-literal-policy.ts",
     ].map((file) => proceduralPolicyRule.pattern.test(file)),
     [false, false, false, false],
+  );
+});
+
+test("architecture validator scans semantic recovery code but ignores diagnostic prose", () => {
+  assertFindings(
+    "src/policy/example.ts",
+    "function fallback() { return undefined; }",
+    ["semantic-fallback-word"],
+  );
+  assert.deepEqual(
+    findingIds(
+      "src/policy/example.ts",
+      'const message = "No target fallback is permitted.";',
+    ),
+    [],
   );
 });
 test("architecture validator rejects ad hoc source-member matcher calls", () => {

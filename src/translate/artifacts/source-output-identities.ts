@@ -26,7 +26,7 @@ export type CsharpSourceOutputIdentityPlan =
 
 export interface CsharpSourceOutputIdentityPlanner {
   prepare(): CsharpSourceOutputIdentityPlan;
-  require(fileName: string): CsharpSourceFileOutputIdentity;
+  resolveRequired(fileName: string): CsharpSourceFileOutputIdentity;
 }
 
 export interface CsharpSourceOutputIdentityPlannerHost {
@@ -45,7 +45,7 @@ export function createCsharpSourceOutputIdentityPlanner(
     return prepared;
   }
 
-  function require(fileName: string): CsharpSourceFileOutputIdentity {
+  function resolveRequired(fileName: string): CsharpSourceFileOutputIdentity {
     const plan = prepare();
     if (plan.kind === "rejected") {
       throw new Error(
@@ -61,7 +61,7 @@ export function createCsharpSourceOutputIdentityPlanner(
     return identity;
   }
 
-  return Object.freeze({ prepare, require });
+  return Object.freeze({ prepare, resolveRequired });
 }
 
 function buildSourceOutputIdentityPlan(

@@ -147,8 +147,9 @@ test("architecture validator rejects source-usage declaration filtering channels
     ["source-usage-member-scan-channel"],
   );
 });
-test("architecture validator rejects policy-shaped filenames", () => {
-  assertFindings(
+test("architecture validator permits specifically named declarative policy modules", () => {
+  assert.deepEqual(
+    findingIds(
     "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
     `
       export const csharpJsMapCollectionPolicy = {
@@ -156,7 +157,8 @@ test("architecture validator rejects policy-shaped filenames", () => {
         target: { id: "Tsonic.CSharp.Js.Map" },
       };
     `,
-    ["policy-shaped-file"],
+    ),
+    [],
   );
 
   assert.deepEqual(
@@ -244,7 +246,6 @@ test("architecture validator rejects executable selectors in metadata-policy fil
       };
     `,
     [
-      "policy-shaped-file",
       "collection-target-metadata-executable-policy-file",
       "collection-target-metadata-executable-policy-file",
     ],

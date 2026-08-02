@@ -49,15 +49,30 @@ const firstParameterReceiver = {
   targetParameterIndex: 0,
 } as const;
 
-const mapSharedMethods = [
-  "has",
-  "keys",
-  "values",
-  "entries",
+const mapSharedMethodRows = [
+  { sourceName: "has", targetName: "has", parameterKind: "key" },
+  { sourceName: "keys", targetName: "keys", parameterKind: "none" },
+  { sourceName: "values", targetName: "values", parameterKind: "none" },
+  { sourceName: "entries", targetName: "entries", parameterKind: "none" },
 ] as const;
-const mapMutableMethods = ["set", "delete", "clear", "forEach"] as const;
-const setSharedMethods = ["has", "keys", "values", "entries"] as const;
-const setMutableMethods = ["add", "delete", "clear", "forEach"] as const;
+const mapMutableMethodRows = [
+  { sourceName: "set", targetName: "set", parameterKind: "key-value" },
+  { sourceName: "delete", targetName: "delete", parameterKind: "key" },
+  { sourceName: "clear", targetName: "clear", parameterKind: "none" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback" },
+] as const;
+const setSharedMethodRows = [
+  { sourceName: "has", targetName: "has", parameterKind: "value" },
+  { sourceName: "keys", targetName: "keys", parameterKind: "none" },
+  { sourceName: "values", targetName: "values", parameterKind: "none" },
+  { sourceName: "entries", targetName: "entries", parameterKind: "none" },
+] as const;
+const setMutableMethodRows = [
+  { sourceName: "add", targetName: "add", parameterKind: "value" },
+  { sourceName: "delete", targetName: "delete", parameterKind: "value" },
+  { sourceName: "clear", targetName: "clear", parameterKind: "none" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback" },
+] as const;
 
 export const csharpJsCollectionCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
@@ -68,35 +83,35 @@ export const csharpJsCollectionCallPolicies:
         firstParameterReceiver,
         { targetMethodTypeArguments: mapTypeArguments },
       ),
-      ...mapSharedMethods.map((sourceName) =>
+      ...mapSharedMethodRows.map((row) =>
         jsCallPolicy(
-          jsMemberIdentity(declaringName, sourceName),
-          (context) => mapDirectMember(context, sourceName),
+          jsMemberIdentity(declaringName, row.sourceName),
+          (context) => mapDirectMember(context, row),
           instanceReceiver,
         )
       ),
     ]),
-    ...mapMutableMethods.map((sourceName) =>
+    ...mapMutableMethodRows.map((row) =>
       jsCallPolicy(
-        jsMemberIdentity("Map", sourceName),
-        (context) => mapDirectMember(context, sourceName),
+        jsMemberIdentity("Map", row.sourceName),
+        (context) => mapDirectMember(context, row),
         instanceReceiver,
       )
     ),
     mapConstructorPolicy(),
     ...["Set", "ReadonlySet"].flatMap((declaringName) =>
-      setSharedMethods.map((sourceName) =>
+      setSharedMethodRows.map((row) =>
         jsCallPolicy(
-          jsMemberIdentity(declaringName, sourceName),
-          (context) => setDirectMember(context, sourceName),
+          jsMemberIdentity(declaringName, row.sourceName),
+          (context) => setDirectMember(context, row),
           instanceReceiver,
         )
       )
     ),
-    ...setMutableMethods.map((sourceName) =>
+    ...setMutableMethodRows.map((row) =>
       jsCallPolicy(
-        jsMemberIdentity("Set", sourceName),
-        (context) => setDirectMember(context, sourceName),
+        jsMemberIdentity("Set", row.sourceName),
+        (context) => setDirectMember(context, row),
         instanceReceiver,
       )
     ),
@@ -206,21 +221,21 @@ export const csharpJsCollectionElementPolicies:
 
 function mapDirectMember(
   context: CsharpSourceProfileCallPolicyContext,
-  sourceName: typeof mapSharedMethods[number] | typeof mapMutableMethods[number],
+  row: typeof mapSharedMethodRows[number] | typeof mapMutableMethodRows[number],
 ): CsharpTargetMember | undefined {
   const shape = mapCallShape(context);
   const result = resolveCallResult(context);
   if (shape === undefined || result === undefined) {
     return undefined;
   }
-  const parameters = sourceName === "set"
+  const parameters = row.parameterKind === "key-value"
     ? [
         targetParameter("key", shape.key),
         targetParameter("value", shape.value),
       ]
-    : sourceName === "has" || sourceName === "delete"
+    : row.parameterKind === "key"
       ? [targetParameter("key", shape.key)]
-      : sourceName === "forEach"
+      : row.parameterKind === "callback"
         ? [
             targetParameter(
               "callbackfn",
@@ -232,9 +247,9 @@ function mapDirectMember(
           ]
         : [];
   return instanceMethod(
-    `Tsonic.CSharp.Js.Map.${sourceName}`,
-    sourceName,
-    sourceName,
+    `Tsonic.CSharp.Js.Map.${row.targetName}`,
+    row.sourceName,
+    row.targetName,
     shape.receiver,
     parameters,
     result,
@@ -281,18 +296,16 @@ function mapGetMember(
 
 function setDirectMember(
   context: CsharpSourceProfileCallPolicyContext,
-  sourceName: typeof setSharedMethods[number] | typeof setMutableMethods[number],
+  row: typeof setSharedMethodRows[number] | typeof setMutableMethodRows[number],
 ): CsharpTargetMember | undefined {
   const shape = setCallShape(context);
   const result = resolveCallResult(context);
   if (shape === undefined || result === undefined) {
     return undefined;
   }
-  const parameters = sourceName === "add" ||
-      sourceName === "has" ||
-      sourceName === "delete"
+  const parameters = row.parameterKind === "value"
     ? [targetParameter("value", shape.element)]
-    : sourceName === "forEach"
+    : row.parameterKind === "callback"
       ? [
           targetParameter(
             "callbackfn",
@@ -304,9 +317,9 @@ function setDirectMember(
         ]
       : [];
   return instanceMethod(
-    `Tsonic.CSharp.Js.Set.${sourceName}`,
-    sourceName,
-    sourceName,
+    `Tsonic.CSharp.Js.Set.${row.targetName}`,
+    row.sourceName,
+    row.targetName,
     shape.receiver,
     parameters,
     result,

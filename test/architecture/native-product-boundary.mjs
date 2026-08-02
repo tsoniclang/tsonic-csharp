@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join, relative, sep } from "node:path";
+import { maskNonCode } from "./source-code-mask.mjs";
 
 export const approvedProductPackages = Object.freeze([
   "@tsonic/csharp-js",
@@ -324,31 +325,6 @@ function filesUnder(directory) {
     });
 }
 
-function maskNonCode(text) {
-  const characters = text.split("");
-  for (let index = 0; index < text.length; index += 1) {
-    const current = text[index];
-    const next = text[index + 1];
-
-    if (current === "/" && next === "/") {
-      index = maskUntilLineEnd(characters, text, index);
-      continue;
-    }
-    if (current === "/" && next === "*") {
-      index = maskBlockComment(characters, text, index);
-      continue;
-    }
-    if (current === "\"" || current === "'") {
-      index = maskQuotedString(characters, text, index, current);
-      continue;
-    }
-    if (current === "`") {
-      index = maskTemplate(characters, text, index);
-    }
-  }
-  return characters.join("");
-}
-
 function maskStringsAndBlockComments(text) {
   const characters = text.split("");
   for (let index = 0; index < text.length; index += 1) {
@@ -372,15 +348,6 @@ function maskStringsAndBlockComments(text) {
     }
   }
   return characters.join("");
-}
-
-function maskUntilLineEnd(characters, text, startIndex) {
-  let index = startIndex;
-  while (index < text.length && text[index] !== "\n") {
-    characters[index] = " ";
-    index += 1;
-  }
-  return index - 1;
 }
 
 function skipUntilLineEnd(text, startIndex) {

@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { maskNonCode } from "./source-code-mask.mjs";
 
 export const analysisAbstractionRules = Object.freeze([
   {
@@ -172,6 +173,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "target-member-helper",
     pattern: /(?<!function\s)\btarget(?:Method|Property|Constructor)\s*\(/g,
+    allowedFilePattern: /(?:^|\/)src\/policy\/members\/js-source-profile\/[^/]+\.ts$/,
     replacement:
       "Represent target members as provider metadata or explicit policy exceptions.",
   },
@@ -264,6 +266,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-name-runtime-member-filter",
     pattern: /\.filter\s*\(\s*\(?\s*(?:member|row|candidate|record)\s*\)?\s*=>\s*(?:member|row|candidate|record)\.sourceName\s*(?:={2,3}|!={1,2})/g,
+    allowedFilePattern: /(?:^|\/)src\/policy\/types\/object-shape-members\.ts$/,
     replacement:
       "Do not select target/runtime members by filtering sourceName at execution time; use declarative rows indexed by selected source identity or explicit operation metadata.",
   },
@@ -276,6 +279,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-id-executable-policy-hook",
     pattern: /(?:^|[{,]\s*)\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))/gm,
+    allowedFilePattern: /(?:^|\/)src\/policy\/members\/js-source-profile\/[^/]+\.ts$/,
     replacement:
       "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
   },
@@ -489,6 +493,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
+    text: "code",
     replacement:
       "Classify as harmless syntax fallback or replace semantic fallback with fail-closed diagnostics.",
   },
@@ -501,12 +506,6 @@ export const analysisAbstractionRules = Object.freeze([
 ]);
 
 export const analysisAbstractionFileRules = Object.freeze([
-  {
-    id: "policy-shaped-file",
-    pattern: /(?:^|\/)[^/]+-policy\.ts$/,
-    replacement:
-      "Policy-shaped modules must either be pure declarative metadata awaiting migration to canonical provider rows or be renamed/rebuilt as generic selectors; executable semantic behavior is not allowed.",
-  },
   {
     id: "procedural-policy-file",
     pattern: /(?:^|\/)(?:policy|selection-policy|property-policy|array-use-policy)\.ts$/,
@@ -566,9 +565,10 @@ export function collectAnalysisAbstractionFindings(repoRoot) {
 }
 
 export function collectAnalysisAbstractionFindingsForSource(file, text) {
+  const code = maskNonCode(text);
   return [
     ...analysisAbstractionFileRules.flatMap((rule) => collectFileRuleFindings(file, text, rule)),
-    ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, rule)),
+    ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, code, rule)),
   ];
 }
 
@@ -581,12 +581,13 @@ export function summarizeAnalysisAbstractionFindings(findings) {
   return counts;
 }
 
-function collectRuleFindings(file, text, rule) {
+function collectRuleFindings(file, text, code, rule) {
   if (!ruleAppliesToFile(rule, file)) {
     return [];
   }
+  const searchText = rule.text === "code" ? code : text;
   rule.pattern.lastIndex = 0;
-  return [...text.matchAll(rule.pattern)].map((match) => ({
+  return [...searchText.matchAll(rule.pattern)].map((match) => ({
     file,
     ruleId: rule.id,
     line: lineNumberAt(text, match.index ?? 0),

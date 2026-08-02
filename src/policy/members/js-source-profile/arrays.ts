@@ -159,6 +159,14 @@ const predicateArrayRows = [
   { sourceName: "findLastIndex", returnKind: "int" },
 ] as const;
 
+const nullableArrayRows = [
+  { sourceName: "pop", targetName: "pop", parameterKind: "none" },
+  { sourceName: "shift", targetName: "shift", parameterKind: "none" },
+  { sourceName: "at", targetName: "at", parameterKind: "index" },
+  { sourceName: "find", targetName: "find", parameterKind: "predicate" },
+  { sourceName: "findLast", targetName: "findLast", parameterKind: "predicate" },
+] as const;
+
 export const csharpJsArrayCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
     ...["Array", "ReadonlyArray"].flatMap((declaringName) => [
@@ -196,10 +204,10 @@ export const csharpJsArrayCallPolicies:
         (context) => sortArrayMember(context),
         instanceReceiver,
       ),
-      ...["pop", "shift", "at", "find", "findLast"].map((sourceName) =>
+      ...nullableArrayRows.map((row) =>
         jsCallPolicy(
-          jsMemberIdentity(declaringName, sourceName),
-          (context) => nullableArrayMember(context, sourceName),
+          jsMemberIdentity(declaringName, row.sourceName),
+          (context) => nullableArrayMember(context, row),
           firstParameterReceiver,
         )
       ),
@@ -457,36 +465,23 @@ function sortArrayMember(
 
 function nullableArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-  sourceName: string,
+  row: typeof nullableArrayRows[number],
 ): CsharpTargetMember | undefined {
   const shape = arrayCallShape(context);
   if (shape === undefined || shape.element.kind === "type-parameter") {
     return undefined;
   }
   const targetName = isCsharpValueTypeTargetType(shape.element)
-    ? `${sourceName}Value`
-    : `${sourceName}Reference`;
-  const parameters = sourceName === "at"
-    ? [targetParameter("index", intType)]
-    : sourceName === "find" || sourceName === "findLast"
-      ? [
-          targetParameter(
-            "callbackfn",
-            csharpDelegateTargetType(
-              "System.Func",
-              [shape.element, intType, shape.receiver],
-              boolType,
-            ),
-          ),
-        ]
-      : [];
+    ? `${row.targetName}Value`
+    : `${row.targetName}Reference`;
+  const parameters = nullableArrayParameters(row.parameterKind, shape);
   const returnType = isCsharpValueTypeTargetType(shape.element)
     ? csharpNullableValueTargetType(shape.element)
     : csharpNullableTargetType(shape.element);
   return Object.freeze({
     ...staticMethod(
       `Tsonic.CSharp.Js.Array.${targetName}`,
-      sourceName,
+      row.sourceName,
       targetName,
       arrayHelperType,
       [targetParameter("array", shape.receiver), ...parameters],
@@ -494,6 +489,28 @@ function nullableArrayMember(
     ),
     receiverPassing: "first-argument",
   });
+}
+
+function nullableArrayParameters(
+  parameterKind: typeof nullableArrayRows[number]["parameterKind"],
+  shape: NonNullable<ReturnType<typeof arrayCallShape>>,
+): readonly CsharpTargetParameter[] {
+  if (parameterKind === "index") {
+    return [targetParameter("index", intType)];
+  }
+  if (parameterKind === "predicate") {
+    return [
+      targetParameter(
+        "callbackfn",
+        csharpDelegateTargetType(
+          "System.Func",
+          [shape.element, intType, shape.receiver],
+          boolType,
+        ),
+      ),
+    ];
+  }
+  return [];
 }
 
 function arrayOfMember(
