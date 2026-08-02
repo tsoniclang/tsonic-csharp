@@ -47,6 +47,39 @@ test("provider relation lookup uses the complete selected signature identity", (
   assert.deepEqual(catalog.resolveSignature(differentMember.identity), []);
 });
 
+test("module-export signatures relate directly to static target methods", () => {
+  const declaration = providerDeclaration({
+    memberId: null,
+    memberStatic: null,
+    memberKey: null,
+  });
+  const relation = signatureRelation({
+    declaration,
+    member: providerMethod({ static: true }),
+  });
+  const catalog = createCsharpProviderRelationCatalog([[relation]]);
+  const identity = providerSignatureSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  assert.deepEqual(catalog.resolveSignature(identity.identity), [relation]);
+});
+
+test("module-export signatures cannot select instance target methods", () => {
+  const declaration = providerDeclaration({
+    memberId: null,
+    memberStatic: null,
+    memberKey: null,
+  });
+  const relation = signatureRelation({
+    declaration,
+    member: providerMethod({ static: false }),
+    receiver: { kind: "none" },
+  });
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[relation]]),
+    /module-export signature, or an exact static/u,
+  );
+});
+
 test("same-spelling static and instance provider members remain separate", () => {
   const instanceDeclaration = providerDeclaration({
     memberId: "provider.instance",
@@ -221,6 +254,37 @@ test("provider parameter relations must cover each exact target slot once", () =
   assert.throws(
     () => createCsharpProviderRelationCatalog([[relation]]),
     /does not cover the exact target signature/u,
+  );
+});
+
+test("rest and params parameter relations preserve effective omission semantics", () => {
+  const declaration = providerDeclaration();
+  const member = providerMethod({
+    parameters: [{
+      name: "values",
+      type: { kind: "source-primitive", name: "string" },
+      passingMode: "by-value",
+      paramsArray: true,
+    }],
+  });
+  const relation = signatureRelation({ declaration, member });
+  assert.equal(relation.parameters[0].sourceRest, true);
+  assert.equal(relation.parameters[0].sourceAcceptsOmission, true);
+  assert.equal(relation.parameters[0].targetParamsArray, true);
+  assert.equal(relation.parameters[0].targetAcceptsOmission, true);
+  assert.doesNotThrow(() =>
+    createCsharpProviderRelationCatalog([[relation]]));
+
+  const contradictory = {
+    ...relation,
+    parameters: [{
+      ...relation.parameters[0],
+      targetAcceptsOmission: false,
+    }],
+  };
+  assert.throws(
+    () => createCsharpProviderRelationCatalog([[contradictory]]),
+    /parameter relation is incomplete, contradictory/u,
   );
 });
 

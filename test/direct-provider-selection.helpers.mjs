@@ -183,7 +183,7 @@ export function sourceParameter(options = {}) {
     ...(options.authoredTypeNode === undefined
       ? {}
       : { authoredTypeNode: options.authoredTypeNode }),
-    acceptsOmission: options.acceptsOmission ?? false,
+    acceptsOmission: options.acceptsOmission ?? options.rest ?? false,
     rest: options.rest ?? false,
   });
 }
@@ -362,10 +362,12 @@ export function signatureRelation(options) {
       targetParameterIndex: index,
       sourcePassingMode: parameter.passingMode,
       targetPassingMode: parameter.passingMode,
-      sourceAcceptsOmission: parameter.optional === true,
+      sourceAcceptsOmission:
+        parameter.optional === true || parameter.paramsArray === true,
       targetAcceptsOmission:
         parameter.optional === true ||
-        parameter.csharpOmittableOptionalArgument === true,
+        parameter.csharpOmittableOptionalArgument === true ||
+        parameter.paramsArray === true,
       sourceRest: parameter.paramsArray === true,
       targetParamsArray: parameter.paramsArray === true,
     }));

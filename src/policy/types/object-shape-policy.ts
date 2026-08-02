@@ -2,6 +2,7 @@ import {
   createHash,
 } from "node:crypto";
 import {
+  providerVirtualDeclarationFactKey,
   structFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -204,7 +205,8 @@ export function createCsharpObjectShapePolicy(
       type === undefined ||
       state.depth > maximumObjectShapeDepth ||
       state.activeTypes.has(type) ||
-      typeIsExcludedFromObjectShape(type, queries)
+      typeIsExcludedFromObjectShape(type, queries) ||
+      !typeHasProjectOwnedShapeDeclaration(type, node, queries, host)
     ) {
       return undefined;
     }
@@ -500,6 +502,55 @@ function typeIsExcludedFromObjectShape(
     queries.isUnion(type) ||
     queries.isTuple(type) ||
     queries.getCallSignatures(type).length > 0;
+}
+
+function typeHasProjectOwnedShapeDeclaration(
+  type: Type,
+  node: Node,
+  queries: SourceFileSemantics,
+  host: CsharpObjectShapePolicyHost,
+): boolean {
+  const typeSymbols = [
+    queries.getTypeAliasSymbol(type),
+    queries.getTypeSymbol(type),
+  ];
+  const typeSubjects: ExtensionFactSubject[] = [type];
+  for (const symbol of typeSymbols) {
+    if (symbol === undefined) {
+      continue;
+    }
+    typeSubjects.push(symbol);
+    for (const declaration of queries.getSymbolDeclarations(symbol)) {
+      if (declaration !== undefined) {
+        typeSubjects.push(declaration);
+      }
+    }
+  }
+  if (typeSubjects.some((subject) =>
+    host.sourceFacts?.getFact(
+      subject,
+      providerVirtualDeclarationFactKey,
+    ) !== undefined
+  )) {
+    return false;
+  }
+  if (host.ast.is.IsObjectLiteralExpression(node)) {
+    return true;
+  }
+  const reference = host.navigation.referenceFor(node);
+  if (
+    host.navigation.isProjectDeclaration(reference?.declaration) ||
+    host.navigation.isProjectDeclaration(
+      host.navigation.declarationFor(node),
+    )
+  ) {
+    return true;
+  }
+  return typeSymbols.some((symbol) =>
+    queries.getSymbolDeclarations(symbol).some((declaration) =>
+      host.navigation.isProjectDeclaration(declaration)
+    )
+  );
 }
 
 function typeIncludesNullish(

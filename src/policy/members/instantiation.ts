@@ -296,7 +296,8 @@ function validateProviderCallRelation(
       sourceParameter.acceptsOmission !==
         parameterRelation.sourceAcceptsOmission ||
       (targetParameter.optional === true ||
-        targetParameter.csharpOmittableOptionalArgument === true) !==
+        targetParameter.csharpOmittableOptionalArgument === true ||
+        targetParameter.paramsArray === true) !==
         parameterRelation.targetAcceptsOmission ||
       sourceParameter.rest !== parameterRelation.sourceRest ||
       (targetParameter.paramsArray === true) !==

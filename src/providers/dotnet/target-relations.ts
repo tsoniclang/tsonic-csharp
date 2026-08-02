@@ -317,10 +317,12 @@ function providerParameterRelations(
         targetPassingMode: targetParameter.passingMode,
         sourceAcceptsOmission:
           sourceParameter.optional === true ||
-          sourceParameter.defaultType !== undefined,
+          sourceParameter.defaultType !== undefined ||
+          sourceParameter.rest === true,
         targetAcceptsOmission:
           targetParameter.optional === true ||
-          targetParameter.csharpOmittableOptionalArgument === true,
+          targetParameter.csharpOmittableOptionalArgument === true ||
+          targetParameter.paramsArray === true,
         sourceRest: sourceParameter.rest === true,
         targetParamsArray: targetParameter.paramsArray === true,
       };

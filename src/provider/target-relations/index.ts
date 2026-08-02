@@ -338,16 +338,20 @@ function assertReceiverRelation(
     { readonly kind: "type" | "value" }
   >,
 ): void {
+  const sourceIsExport = relation.source.memberId === undefined;
   const sourceStatic = relation.source.memberStatic;
   const targetStatic = relation.targetMember.static === true;
   switch (relation.receiver.kind) {
     case "none":
       if (
         relation.targetMember.kind !== "constructor" &&
-        (!targetStatic || sourceStatic !== true)
+        (
+          !targetStatic ||
+          (!sourceIsExport && sourceStatic !== true)
+        )
       ) {
         throw new Error(
-          "C# provider receiver relation 'none' requires a constructor or an exact static source-to-target member relation.",
+          "C# provider receiver relation 'none' requires a constructor, a module-export signature, or an exact static source-to-target member relation.",
         );
       }
       return;
@@ -446,7 +450,8 @@ function assertParameterRelations(
       parameter.targetAcceptsOmission !==
         (
           target.optional === true ||
-          target.csharpOmittableOptionalArgument === true
+          target.csharpOmittableOptionalArgument === true ||
+          target.paramsArray === true
         ) ||
       parameter.targetParamsArray !== (target.paramsArray === true)
     ) {

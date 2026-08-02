@@ -877,8 +877,10 @@ function parameterRelation(options = {}) {
     targetParameterIndex: options.targetParameterIndex ?? 0,
     sourcePassingMode: options.sourcePassingMode ?? "by-value",
     targetPassingMode: options.targetPassingMode ?? "by-value",
-    sourceAcceptsOmission: options.sourceAcceptsOmission ?? false,
-    targetAcceptsOmission: options.targetAcceptsOmission ?? false,
+    sourceAcceptsOmission:
+      options.sourceAcceptsOmission ?? options.sourceRest ?? false,
+    targetAcceptsOmission:
+      options.targetAcceptsOmission ?? options.targetParamsArray ?? false,
     sourceRest: options.sourceRest ?? false,
     targetParamsArray: options.targetParamsArray ?? false,
   };
