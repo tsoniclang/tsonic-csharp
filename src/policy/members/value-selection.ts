@@ -43,7 +43,7 @@ export function selectCsharpProviderValue(
   host: CsharpProviderValueSelectionHost,
   node: Node,
 ): CsharpProviderValueSelection {
-  const reference = host.navigation.referenceFor(node);
+  const reference = host.navigation.sourceReferenceFor(node);
   const declaration = resolveCsharpProviderDeclarationEvidence(
     host.sourceFacts,
     [

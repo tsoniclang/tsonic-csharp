@@ -54,6 +54,7 @@ export function planIdentifierExpression(
 ): CsharpExpression | undefined {
   const sourceName = Node_Text(input.ast, AsIdentifier(identifier));
   const sourceReference = input.navigation.referenceFor(identifier);
+  const declarationReference = input.navigation.sourceReferenceFor(identifier);
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
     return { kind: "LiteralExpression", value: null };
   }
@@ -69,7 +70,7 @@ export function planIdentifierExpression(
   if (diagnostics.length > providerDiagnosticsStart) {
     return undefined;
   }
-  if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
+  if (isExternalDeclarationReference(declarationReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return undefined;
   }
@@ -152,7 +153,7 @@ function isGlobalUndefinedExpression(
 const nullLiteralGlobalSourceNames = new Set(["undefined"]);
 
 export function isExternalDeclarationReference(
-  reference: ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]>,
+  reference: { readonly sourceFile: SourceFile } | undefined,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): boolean {
