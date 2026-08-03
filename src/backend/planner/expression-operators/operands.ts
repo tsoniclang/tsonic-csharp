@@ -17,10 +17,15 @@ import type {
 import type {
   CsharpBinaryOperatorToken,
   CsharpExpression,
+  CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import type {
+  ExpectedExpressionPlanner,
   ExpressionPlanner,
 } from "../expression-planner-types.js";
+import type {
+  TargetTypeRef,
+} from "../../../policy/types/index.js";
 
 export function planBinaryOperand(
   operand: Node,
@@ -29,10 +34,24 @@ export function planBinaryOperand(
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  expectedType: CsharpTypeNode | undefined,
+  expectedTargetType: TargetTypeRef,
 ): CsharpExpression | undefined {
-  return isNullishEqualityOperand(operand, operatorToken, sourceFile, input)
-    ? { kind: "LiteralExpression", value: null }
-    : planExpression(operand, sourceFile, input, diagnostics);
+  if (isNullishEqualityOperand(operand, operatorToken, sourceFile, input)) {
+    return { kind: "LiteralExpression", value: null };
+  }
+  return expectedType === undefined
+    ? planExpression(operand, sourceFile, input, diagnostics)
+    : planExpressionWithExpectedType(
+        operand,
+        sourceFile,
+        input,
+        diagnostics,
+        expectedType,
+        undefined,
+        expectedTargetType,
+      );
 }
 
 function isNullishEqualityOperand(

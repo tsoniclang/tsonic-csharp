@@ -262,6 +262,9 @@ export function tryPlanBinaryExpression(
     input,
     diagnostics,
     planExpression,
+    planExpressionWithExpectedType,
+    csharpTypeFromTargetTypeRef(selection.leftInputType),
+    selection.leftInputType,
   );
   const right = planBinaryOperand(
     selection.right,
@@ -270,6 +273,9 @@ export function tryPlanBinaryExpression(
     input,
     diagnostics,
     planExpression,
+    planExpressionWithExpectedType,
+    csharpTypeFromTargetTypeRef(selection.rightInputType),
+    selection.rightInputType,
   );
   return left === undefined || right === undefined
     ? undefined
@@ -305,6 +311,7 @@ function tryPlanCompatAssignment(
     ) {
       const compatProperty = resolveCsharpCompatObjectShapeProperty(
         input.objectShapes,
+        input.semantics(sourceFile),
         targetProperty,
         sourceFile,
       );

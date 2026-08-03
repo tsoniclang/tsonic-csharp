@@ -47,6 +47,7 @@ import {
 } from "./identity.js";
 import {
   csharpNullableTargetType,
+  getCsharpNullableElementTargetType,
 } from "./nullable.js";
 import {
   csharpTsValueTargetType,
@@ -119,10 +120,6 @@ export function createCsharpObjectShapePolicy(
       }
       const selectedTarget = host.types.resolveNode(node, queries.sourceFile);
       const selectedShape = resolveTarget(selectedTarget);
-      if (selectedShape !== undefined) {
-        remember(node, selectedShape);
-        return selectedShape;
-      }
       const semanticType = selectedObjectShapeSourceType(node, queries, host);
       const shape = resolveSemanticShape(
         semanticType,
@@ -132,11 +129,15 @@ export function createCsharpObjectShapePolicy(
           depth: 0,
           activeTypes: new Set(),
         },
+        selectedTarget,
       );
       if (shape !== undefined) {
-        remember(node, shape);
+        return remember(node, shape);
       }
-      return shape;
+      if (selectedShape !== undefined) {
+        return remember(node, selectedShape);
+      }
+      return undefined;
     } finally {
       activeNodes.delete(node);
     }
@@ -147,6 +148,10 @@ export function createCsharpObjectShapePolicy(
   ): CsharpObjectShapeFact | undefined {
     if (type === undefined) {
       return undefined;
+    }
+    const nullableElement = getCsharpNullableElementTargetType(type);
+    if (nullableElement !== undefined) {
+      return resolveTarget(nullableElement);
     }
     const direct = targetShapes.get(targetTypeRefKey(type));
     if (direct !== undefined) {
@@ -259,12 +264,18 @@ export function createCsharpObjectShapePolicy(
     return { kind: "resolved", shape };
   }
 
-  function remember(node: Node, shape: CsharpObjectShapeFact): void {
-    nodeShapes.set(node, shape);
-    rememberTargetShape(shape);
+  function remember(
+    node: Node,
+    shape: CsharpObjectShapeFact,
+  ): CsharpObjectShapeFact {
+    const canonical = rememberTargetShape(shape);
+    nodeShapes.set(node, canonical);
+    return canonical;
   }
 
-  function rememberTargetShape(shape: CsharpObjectShapeFact): void {
+  function rememberTargetShape(
+    shape: CsharpObjectShapeFact,
+  ): CsharpObjectShapeFact {
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -272,7 +283,11 @@ export function createCsharpObjectShapePolicy(
         `C# object-shape target '${key}' resolved to contradictory structural contracts.`,
       );
     }
-    targetShapes.set(key, shape);
+    const canonical = existing === undefined
+      ? shape
+      : mergeCsharpObjectShapeSubjects(existing, shape);
+    targetShapes.set(key, canonical);
+    return canonical;
   }
 
   function resolveStructShape(
@@ -317,6 +332,7 @@ export function createCsharpObjectShapePolicy(
     node: Node,
     queries: SourceFileSemantics,
     state: ShapeResolutionState,
+    selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
@@ -333,7 +349,8 @@ export function createCsharpObjectShapePolicy(
       depth: state.depth + 1,
       activeTypes: nextActive,
     };
-    const targetType = host.types.resolveType(type, queries.sourceFile);
+    const targetType = selectedTarget ??
+      host.types.resolveType(type, queries.sourceFile);
     const contextualProjectType = targetType !== undefined &&
         isProjectSourceTargetType(targetType)
       ? targetType
@@ -472,9 +489,10 @@ export function createCsharpObjectShapePolicy(
       return host.types.resolveType(sourceType, queries.sourceFile);
     }
     const authoredTypes = authoredTypeNodes.map((typeNode) =>
-      host.types.resolveNode(
+      host.types.resolveSelectedType(
         typeNode,
-        host.ast.getSourceFile(typeNode) ?? queries.sourceFile,
+        sourceType,
+        queries.sourceFile,
       )
     );
     if (authoredTypes.some((type) => type === undefined)) {
@@ -666,11 +684,24 @@ function typeHasProjectOwnedShapeDeclaration(
   ) {
     return true;
   }
-  return typeSymbols.some((symbol) =>
+  if (typeSymbols.some((symbol) =>
     queries.getSymbolDeclarations(symbol).some((declaration) =>
       host.navigation.isProjectDeclaration(declaration)
     )
-  );
+  )) {
+    return true;
+  }
+  const properties = queries.getProperties(type);
+  return properties.length > 0 && properties.every((property) => {
+    if (property === undefined) {
+      return false;
+    }
+    const declarations = queries.getSymbolDeclarations(property);
+    return declarations.length > 0 && declarations.every((declaration) =>
+      declaration !== undefined &&
+      host.navigation.isProjectDeclaration(declaration)
+    );
+  });
 }
 
 function typeIncludesNullish(
@@ -731,7 +762,7 @@ function createStructuralObjectShapeTarget(
       member.optional === true ? "optional" : "required",
       member.readonly === true ? "readonly" : "mutable",
       targetTypeRefKey(member.type),
-    ].join(":")).sort(),
+    ].join(":")),
     ...(implemented ?? [])
       .map((type) => `implements:${targetTypeRefKey(type)}`)
       .sort(),
@@ -812,6 +843,25 @@ function objectShapeMemberTargetName(sourceName: string): string {
     : `__tsonic_member_${
       createHash("sha256").update(sourceName).digest("hex")
     }`;
+}
+
+function mergeCsharpObjectShapeSubjects(
+  left: CsharpObjectShapeFact,
+  right: CsharpObjectShapeFact,
+): CsharpObjectShapeFact {
+  return {
+    ...left,
+    members: left.members.map((member, index) => {
+      const other = right.members[index]!;
+      const subjects = new Set([
+        ...(member.sourceSubjects ?? []),
+        ...(other.sourceSubjects ?? []),
+      ]);
+      return subjects.size === 0
+        ? member
+        : { ...member, sourceSubjects: Object.freeze([...subjects]) };
+    }),
+  };
 }
 
 export function csharpObjectShapesEqual(

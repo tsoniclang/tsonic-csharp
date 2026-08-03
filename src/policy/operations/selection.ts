@@ -11,6 +11,7 @@ import type {
   TargetTypeRef,
 } from "../types/index.js";
 import {
+  csharpSourcePrimitiveTargetType,
   getCsharpNullableElementTargetType,
   getCsharpTypeofRuntimeKindForTargetType,
   isCsharpAnyRuntimeCarrier,
@@ -20,6 +21,10 @@ import {
   isCsharpStringTargetType,
   targetTypeRefEquals,
 } from "../types/index.js";
+import {
+  csharpUnaryNumericPromotion,
+  selectCsharpNumericBinaryPromotion,
+} from "./numeric-promotion.js";
 import type {
   CsharpSourceOperator,
 } from "./syntax.js";
@@ -35,6 +40,8 @@ export interface CsharpResolvedBinaryOperation {
   readonly right: Node;
   readonly leftType: TargetTypeRef;
   readonly rightType: TargetTypeRef;
+  readonly leftInputType: TargetTypeRef;
+  readonly rightInputType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
 }
 
@@ -86,8 +93,8 @@ export function selectCsharpBinaryOperation(
   }
   const leftType = input.types.resolveNode(left, sourceFile);
   const rightType = input.types.resolveNode(right, sourceFile);
-  const resultType = input.types.resolveNode(node, sourceFile);
-  if (leftType === undefined || rightType === undefined || resultType === undefined) {
+  const selectedResultType = input.types.resolveNode(node, sourceFile);
+  if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
@@ -99,11 +106,35 @@ export function selectCsharpBinaryOperation(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
   }
+  const numericPromotion = selectCsharpNumericBinaryPromotion(
+    input,
+    left,
+    leftType,
+    right,
+    rightType,
+  );
+  const numericPromotionRequired = operatorRequiresNumericPromotion(
+    sourceOperator,
+    leftType,
+    rightType,
+  );
+  if (numericPromotionRequired && numericPromotion === undefined) {
+    return rejected(
+      `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
+    );
+  }
+  const operationTypes = selectBinaryOperationTypes(
+    sourceOperator,
+    leftType,
+    rightType,
+    selectedResultType,
+    numericPromotion,
+  );
   const incompatibility = nullishTest === undefined
     ? validateBinaryTargetSemantics(
         sourceOperator,
-        leftType,
-        rightType,
+        operationTypes.leftInputType,
+        operationTypes.rightInputType,
         input,
       )
     : undefined;
@@ -119,9 +150,116 @@ export function selectCsharpBinaryOperation(
         right,
         leftType,
         rightType,
-        resultType,
+        ...operationTypes,
       }
     : rejected(incompatibility);
+}
+
+function selectBinaryOperationTypes(
+  operator: CsharpSourceOperator,
+  leftType: TargetTypeRef,
+  rightType: TargetTypeRef,
+  selectedResultType: TargetTypeRef,
+  numericPromotion: ReturnType<typeof selectCsharpNumericBinaryPromotion>,
+): Pick<
+  CsharpResolvedBinaryOperation,
+  "leftInputType" | "rightInputType" | "resultType"
+> {
+  if (isAssignment(operator)) {
+    return {
+      leftInputType: leftType,
+      rightInputType: rightType,
+      resultType: leftType,
+    };
+  }
+  if (isEquality(operator) || isRelational(operator)) {
+    return {
+      leftInputType: numericPromotion?.leftType ?? leftType,
+      rightInputType: numericPromotion?.rightType ?? rightType,
+      resultType: csharpSourcePrimitiveTargetType("bool"),
+    };
+  }
+  if (operator === "&&" || operator === "||") {
+    return {
+      leftInputType: leftType,
+      rightInputType: rightType,
+      resultType: csharpSourcePrimitiveTargetType("bool"),
+    };
+  }
+  if (isShift(operator)) {
+    const promotedLeft = csharpUnaryNumericPromotion(leftType) ?? leftType;
+    return {
+      leftInputType: promotedLeft,
+      rightInputType: rightType,
+      resultType: promotedLeft,
+    };
+  }
+  if (numericPromotion !== undefined) {
+    return {
+      leftInputType: numericPromotion.leftType,
+      rightInputType: numericPromotion.rightType,
+      resultType: numericPromotion.resultType,
+    };
+  }
+  if (
+    operator === "+" &&
+    (isCsharpStringTargetType(leftType) || isCsharpStringTargetType(rightType))
+  ) {
+    return {
+      leftInputType: leftType,
+      rightInputType: rightType,
+      resultType: isCsharpStringTargetType(leftType) ? leftType : rightType,
+    };
+  }
+  return {
+    leftInputType: leftType,
+    rightInputType: rightType,
+    resultType: selectedResultType,
+  };
+}
+
+function operatorRequiresNumericPromotion(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): boolean {
+  if (
+    isAssignment(operator) ||
+    operator === "&&" ||
+    operator === "||" ||
+    operator === "??" ||
+    isShift(operator) ||
+    (
+      operator === "+" &&
+      (isCsharpStringTargetType(left) || isCsharpStringTargetType(right))
+    )
+  ) {
+    return false;
+  }
+  return isSourceNumericPrimitive(left) && isSourceNumericPrimitive(right) &&
+    (isEquality(operator) || isRelational(operator) || isBitwise(operator) || isArithmetic(operator));
+}
+
+function isSourceNumericPrimitive(type: TargetTypeRef): boolean {
+  return type.kind === "source-primitive" && type.name !== "bool";
+}
+
+function isAssignment(operator: CsharpSourceOperator): boolean {
+  return operator === "=" ||
+    operator === "+=" ||
+    operator === "-=" ||
+    operator === "*=" ||
+    operator === "/=" ||
+    operator === "%=" ||
+    operator === "&=" ||
+    operator === "|=" ||
+    operator === "^=" ||
+    operator === "<<=" ||
+    operator === ">>=" ||
+    operator === ">>>=" ||
+    operator === "&&=" ||
+    operator === "||=" ||
+    operator === "??=";
 }
 
 function selectNullishTest(

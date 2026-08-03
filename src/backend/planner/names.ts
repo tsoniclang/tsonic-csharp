@@ -1,16 +1,10 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  AsIdentifier,
-  HasSourceKind,
-  KindIdentifier,
-  KindPrivateIdentifier,
-  Node_Text,
 } from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
-import { requireCsharpIdentifier } from "./identifiers.js";
 
 export function planIdentifierName(
   node: Node | undefined,
@@ -28,23 +22,15 @@ export function planIdentifierName(
     });
     return errorName;
   }
-  if (HasSourceKind(input.ast, node, KindIdentifier)) {
-    return requireCsharpIdentifier(Node_Text(input.ast, AsIdentifier(node)), diagnostics, description);
-  }
-  if (HasSourceKind(input.ast, node, KindPrivateIdentifier)) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_NAME",
-      category: "error",
-      source: "tsonic-csharp",
-      message: `${description} is a private JavaScript identifier and requires a finalized C# target-name fact before emission.`,
-    });
-    return errorName;
+  const resolution = input.names.resolve(node);
+  if (resolution.kind === "resolved") {
+    return resolution.name;
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_NAME",
     category: "error",
     source: "tsonic-csharp",
-    message: `${description} must be an identifier for direct C# source emission. Node kind: ${input.ast.kindName(node)}.`,
+    message: `${description} cannot be represented as an exact C# target name. ${resolution.reason}`,
   });
   return errorName;
 }

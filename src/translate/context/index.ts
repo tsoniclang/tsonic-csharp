@@ -43,6 +43,12 @@ import {
   createCsharpTranslationArtifactGraph,
   createCsharpSourceOutputIdentityPlanner,
 } from "../artifacts/index.js";
+import type {
+  CsharpSourceNameResolver,
+} from "../names/index.js";
+import {
+  createCsharpSourceNameResolver,
+} from "../names/index.js";
 
 export interface CsharpTranslationContext
   extends CsharpProviderCallSelectionHost {
@@ -61,6 +67,7 @@ export interface CsharpTranslationContext
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly artifacts: CsharpTranslationArtifactGraph;
   readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
+  readonly names: CsharpSourceNameResolver;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -112,6 +119,11 @@ export function createCsharpTranslationContext(
     sourceFiles,
     paths: input.paths,
   });
+  const names = createCsharpSourceNameResolver({
+    ast: input.source.ast,
+    navigation: input.source.navigation,
+    outputIdentities,
+  });
   return Object.freeze({
     source: input.source,
     ast: input.source.ast,
@@ -128,6 +140,7 @@ export function createCsharpTranslationContext(
     projectTypes,
     artifacts,
     outputIdentities,
+    names,
     semantics,
     semanticsFor,
     hasSemantics,

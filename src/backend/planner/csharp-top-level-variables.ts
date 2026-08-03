@@ -129,7 +129,9 @@ function topLevelBindingMember(
     initializer,
     autoGetter: true,
     autoSetter: true,
-    autoSetterModifiers: ["private"],
+    ...(accessibility === "public"
+      ? { autoSetterModifiers: ["private"] as const }
+      : {}),
   };
 }
 

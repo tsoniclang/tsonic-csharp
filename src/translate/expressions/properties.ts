@@ -28,9 +28,6 @@ import type {
   ExpressionPlanner,
 } from "../../backend/planner/expression-planner-types.js";
 import {
-  requireCsharpIdentifier,
-} from "../../backend/planner/identifiers.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "../../backend/planner/target-types.js";
 import {
@@ -201,26 +198,18 @@ function translateSourceOwnedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const declaration = selection.source.selectedDeclaration;
-  if (
-    declaration === undefined ||
-    !input.navigation.isProjectDeclaration(declaration)
-  ) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project.",
-    ));
-    return undefined;
-  }
+  const semantics = input.semantics(sourceFile);
   const objectShape = input.objectShapes.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
   );
-  const selectedSubjects = [
+  const selectedSubjects = semantics.getSelectedFactSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,
-  ];
+  );
   const compatProperty = resolveCsharpCompatObjectShapeProperty(
     input.objectShapes,
+    semantics,
     selection,
     sourceFile,
   );
@@ -243,21 +232,37 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
+  if (
+    shapeMember?.kind !== "resolved" &&
+    (
+      declaration === undefined ||
+      !input.navigation.isProjectDeclaration(declaration)
+    )
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact selected property is neither provider-owned, source-profile-owned, nor declared by this project.",
+    ));
+    return undefined;
+  }
   const expression = input.ast.as.AsPropertyAccessExpression(node);
   const nameNode = input.ast.name(declaration) ?? expression?.name;
   const name = shapeMember?.kind === "resolved"
     ? shapeMember.member.targetName
     : nameNode === undefined
       ? undefined
-      : requireCsharpIdentifier(
-          input.ast.text(nameNode),
-          diagnostics,
-          "Source-owned property name",
-        );
-  if (name === undefined) {
+      : input.names.resolve(nameNode, declaration);
+  const resolvedName = typeof name === "string"
+    ? name
+    : name?.kind === "resolved"
+      ? name.name
+      : undefined;
+  if (resolvedName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "The exact selected source property has no C#-representable declaration name.",
+      typeof name === "object" && name?.kind === "rejected"
+        ? `The exact selected source property has no C#-representable declaration name. ${name.reason}`
+        : "The exact selected source property has no C#-representable declaration name.",
     ));
     return undefined;
   }
@@ -295,7 +300,7 @@ function translateSourceOwnedProperty(
           ? "ConditionalAccessExpression"
           : "SimpleMemberAccessExpression" as const,
         receiver,
-        name,
+        name: resolvedName,
       } as CsharpExpression;
   if (planned === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

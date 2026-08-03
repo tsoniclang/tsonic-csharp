@@ -217,6 +217,7 @@ function rejectUnloweredCompatObjectShapeUpdate(
   }
   const compatProperty = resolveCsharpCompatObjectShapeProperty(
     input.objectShapes,
+    input.semantics(sourceFile),
     selection,
     sourceFile,
   );

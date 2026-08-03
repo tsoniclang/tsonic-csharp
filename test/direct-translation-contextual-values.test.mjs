@@ -37,7 +37,7 @@ namespace Tsonic.Generated
             {
                 return null;
             }
-            return new __TsonicShape_1c0b90e5a00cb4bdeca7d1ab67551f02e0e40e230d3cad6be8948fbf72c7987a
+            return new __TsonicShape_0f2e30d9603281282899e6ca54b01dd79fa5d159dfedbaece1b6e09a96c39c4f
             {
                 title = title,
                 id = id.Value,
@@ -69,7 +69,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_1c0b90e5a00cb4bdeca7d1ab67551f02e0e40e230d3cad6be8948fbf72c7987a : TodoCreateInput
+    public class __TsonicShape_0f2e30d9603281282899e6ca54b01dd79fa5d159dfedbaece1b6e09a96c39c4f : TodoCreateInput
     {
         public required string title
         {
@@ -149,6 +149,125 @@ namespace Tsonic.Generated
 }
 `,
   );
+});
+
+test("direct C# translation specializes generic object-shape members from exact selected types", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export interface Box<T> {
+        value: T;
+        label: string;
+      }
+      export function create(): Box<number> {
+        return { value: 1, label: "one" };
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Box<double> create()
+        {
+            return new __TsonicShape_09a6ae607c166ae782bbe53d49ca294b367678e045477752098b3c2670de1f1e
+            {
+                value = 1,
+                label = "one",
+            };
+        }
+    }
+    public interface Box<T>
+    {
+        T value { get; }
+        string label { get; }
+    }
+}
+`);
+  assert.equal(
+    compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
+    `using System;
+
+namespace Tsonic.Generated
+{
+    public class __TsonicShape_09a6ae607c166ae782bbe53d49ca294b367678e045477752098b3c2670de1f1e : Box<double>
+    {
+        public required double value
+        {
+            get;
+            set;
+        }
+        public required string label
+        {
+            get;
+            set;
+        }
+    }
+}
+`,
+  );
+});
+
+test("direct C# translation instantiates inherited generic member types from exact project heritage", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      class Box<T> {
+        value: T;
+        constructor(value: T) { this.value = value; }
+        getValue(): T { return this.value; }
+      }
+      class IntBox extends Box<int> {
+        constructor(value: int) { super(value); }
+        double(): int { return this.getValue() * 2; }
+      }
+      export function run(): int { return new IntBox(4).double(); }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static int run()
+        {
+            return new IntBox(4).@double();
+        }
+    }
+    public class Box<T>
+    {
+        public T value;
+        public Box(T value)
+        {
+            this.value = value;
+        }
+        public T getValue()
+        {
+            return this.value;
+        }
+    }
+    public class IntBox : Box<int>
+    {
+        public IntBox(int value) : base(value)
+        {
+        }
+        public int @double()
+        {
+            return this.getValue() * 2;
+        }
+    }
+}
+`);
 });
 
 test("direct C# translation uses checker-declared mutable storage instead of literal initializer storage", () => {

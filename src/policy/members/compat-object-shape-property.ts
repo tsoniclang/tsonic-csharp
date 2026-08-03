@@ -2,6 +2,9 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
+  SourceFileSemantics,
+} from "@tsonic/target-api";
+import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
   CsharpObjectShapePolicy,
@@ -24,6 +27,7 @@ export type CsharpCompatObjectShapePropertyResolution =
 
 export function resolveCsharpCompatObjectShapeProperty(
   objectShapes: CsharpObjectShapePolicy,
+  semantics: SourceFileSemantics,
   selection: Extract<
     CsharpTargetPropertySelection,
     { readonly kind: "source-owned" }
@@ -39,10 +43,10 @@ export function resolveCsharpCompatObjectShapeProperty(
   }
   const member = resolveCsharpCompatObjectShapeMember(
     shape,
-    [
+    semantics.getSelectedFactSubjects(
       selection.source.selectedSymbol,
       selection.source.selectedDeclaration,
-    ],
+    ),
   );
   switch (member.kind) {
     case "not-compat-object-shape":

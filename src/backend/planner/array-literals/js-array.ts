@@ -11,6 +11,9 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
+  TargetTypeRef,
+} from "../../../policy/types/index.js";
+import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -42,6 +45,7 @@ export function planJsArrayLiteralExpression(
   diagnostics: TargetDiagnostic[],
   collectionType: CsharpTypeNode,
   elementType: CsharpTypeNode,
+  elementTargetType: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(node)!;
@@ -49,10 +53,27 @@ export function planJsArrayLiteralExpression(
   const hasSpread = elements.some((element) => HasSourceKind(input.ast, element, KindSpreadElement));
   const hasElision = elements.some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));
   if (!hasSpread && !hasElision) {
-    const arrayExpression = planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
+    const arrayExpression = planArrayLiteralExpression(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      elementType,
+      planner,
+      elementTargetType,
+    );
     return arrayExpression === undefined ? undefined : jsArrayFromNativeArray(arrayExpression, collectionType);
   }
-  const chunks = createJsArrayLiteralChunks(node, sourceFile, input, diagnostics, collectionType, elementType, planner);
+  const chunks = createJsArrayLiteralChunks(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    collectionType,
+    elementType,
+    elementTargetType,
+    planner,
+  );
   if (chunks === undefined) {
     return undefined;
   }
@@ -83,6 +104,7 @@ function createJsArrayLiteralChunks(
   diagnostics: TargetDiagnostic[],
   collectionType: CsharpTypeNode,
   elementType: CsharpTypeNode,
+  elementTargetType: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): readonly CsharpExpression[] | undefined {
   const literal = AsArrayLiteralExpression(node)!;
@@ -104,7 +126,15 @@ function createJsArrayLiteralChunks(
       continue;
     }
     if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
-      const planned = planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType);
+      const planned = planner.planExpressionWithExpectedType(
+        element,
+        sourceFile,
+        input,
+        diagnostics,
+        elementType,
+        undefined,
+        elementTargetType,
+      );
       if (planned === undefined) {
         return undefined;
       }

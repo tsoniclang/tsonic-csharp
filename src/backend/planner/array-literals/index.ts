@@ -101,7 +101,16 @@ export function planArrayLiteralExpressionWithCarrier(
       return undefined;
     }
     if (csharpCollectionUsesJsArraySemantics(carrier)) {
-      return planJsArrayLiteralExpression(node, sourceFile, input, diagnostics, collectionType, elementType, planner);
+      return planJsArrayLiteralExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        collectionType,
+        elementType,
+        collectionElementCarrier,
+        planner,
+      );
     }
     return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, carrier, collectionElementCarrier, planner);
   }

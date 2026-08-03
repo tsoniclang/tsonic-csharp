@@ -339,6 +339,7 @@ export function createCsharpTypePolicy(
       ? undefined
       : resolveSourceCallSelectedType(
           source,
+          parameter.parameterDeclaration,
           parameter.authoredTypeNode,
           parameter.selectedType,
           sourceFile,
@@ -356,6 +357,7 @@ export function createCsharpTypePolicy(
     );
     return resolveSourceCallSelectedType(
       source,
+      declaration,
       declaration === undefined
         ? undefined
         : declarationResultTypeNode(declaration),
@@ -532,6 +534,10 @@ export function createCsharpTypePolicy(
     );
     if (selectedExpression !== undefined) {
       return selectedExpression;
+    }
+    const projectThis = resolveProjectThisTargetType(node);
+    if (projectThis !== undefined) {
+      return projectThis;
     }
     const declaredValue = resolveSourceValueDeclaration(node, queries, state);
     if (declaredValue !== undefined) {
@@ -757,6 +763,11 @@ export function createCsharpTypePolicy(
         );
       }
       if (selection.kind === "source-owned") {
+        const receiverType = resolveSelectedReceiverTargetType(
+          selection.source.receiver,
+          queries,
+          state,
+        );
         return optionalAccessTargetType(
           resolveSelectedDeclarationResult(
             selection.source.selectedDeclaration,
@@ -764,6 +775,7 @@ export function createCsharpTypePolicy(
               selection.source.sourceWriteType,
             queries,
             state,
+            receiverType,
           ),
           selection.source.optionalChain,
         );
@@ -783,10 +795,10 @@ export function createCsharpTypePolicy(
         );
       }
       if (selection.kind === "source-owned") {
-        const receiver = resolveNodeWithState(
-          selection.source.receiver.expression,
-          queries.sourceFile,
-          nextState(state),
+        const receiver = resolveSelectedReceiverTargetType(
+          selection.source.receiver,
+          queries,
+          state,
         );
         if (
           receiver?.kind === "tuple" &&
@@ -810,11 +822,66 @@ export function createCsharpTypePolicy(
               selection.source.sourceWriteType,
             queries,
             state,
+            receiver,
           ),
           selection.source.optionalChain,
         );
       }
       return undefined;
+    }
+    return undefined;
+  }
+
+  function resolveProjectThisTargetType(
+    node: Node,
+  ): TargetTypeRef | undefined {
+    if (host.ast.kindName(node) !== "KindThisKeyword") {
+      return undefined;
+    }
+    let current = host.ast.parent(node);
+    while (current !== undefined) {
+      if (host.ast.is.IsArrowFunction(current)) {
+        current = host.ast.parent(current);
+        continue;
+      }
+      if (
+        host.ast.is.IsFunctionDeclaration(current) ||
+        host.ast.is.IsFunctionExpression(current)
+      ) {
+        return undefined;
+      }
+      if (
+        host.ast.is.IsMethodDeclaration(current) ||
+        host.ast.is.IsGetAccessorDeclaration(current) ||
+        host.ast.is.IsSetAccessorDeclaration(current) ||
+        host.ast.is.IsConstructorDeclaration(current) ||
+        host.ast.is.IsPropertyDeclaration(current)
+      ) {
+        const ownerNode = host.ast.parent(current);
+        if (
+          ownerNode === undefined ||
+          !host.ast.is.IsClassDeclaration(ownerNode) ||
+          host.ast.hasModifierKind(current, "static")
+        ) {
+          return undefined;
+        }
+        const owner = host.projectTypeCatalog.definitionForDeclaration(
+          ownerNode,
+        );
+        return owner === undefined
+          ? undefined
+          : host.projectTypeCatalog.targetTypeForDeclaration(
+              owner.declaration,
+              owner.typeParameterNames.map((name) => ({
+                kind: "type-parameter" as const,
+                name,
+              })),
+            );
+      }
+      if (host.ast.kindName(current) === "KindClassStaticBlockDeclaration") {
+        return undefined;
+      }
+      current = host.ast.parent(current);
     }
     return undefined;
   }
@@ -826,15 +893,61 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
+    const declaration = queries.getSignatureDeclaration(
+      source.selectedSignature,
+    );
     return resolveSourceCallSelectedType(
       source,
-      declarationResultTypeNode(
-        queries.getSignatureDeclaration(source.selectedSignature),
-      ),
+      declaration,
+      declarationResultTypeNode(declaration),
       source.sourceResultType,
       queries.sourceFile,
       state,
     );
+  }
+
+  function resolveSelectedReceiverTargetType(
+    receiver: {
+      readonly expression?: Node;
+      readonly type?: Type;
+    } | undefined,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const expressionTarget = resolveNodeWithState(
+      receiver?.expression,
+      queries.sourceFile,
+      nextState(state),
+    );
+    if (expressionTarget !== undefined) {
+      return expressionTarget;
+    }
+    const semanticTarget = resolveTypeWithState(
+      receiver?.type,
+      queries.sourceFile,
+      nextState(state),
+    );
+    if (semanticTarget !== undefined) {
+      return semanticTarget;
+    }
+    if (
+      receiver?.expression === undefined ||
+      host.ast.kindName(receiver.expression) !== "KindThisKeyword"
+    ) {
+      return undefined;
+    }
+    const owner = host.projectTypeCatalog.definitionContainingDeclaration(
+      receiver.expression,
+    );
+    return owner === undefined
+      ? undefined
+      : host.projectTypeCatalog.targetTypeForDeclaration(
+          owner.declaration,
+          owner.typeParameterNames.map((name) => ({
+            kind: "type-parameter" as const,
+            name,
+          })),
+        );
   }
 
   function resolveSourceOwnedConstructionResult(
@@ -887,6 +1000,7 @@ export function createCsharpTypePolicy(
     semanticType: Type | undefined,
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
+    receiverType?: TargetTypeRef,
   ): TargetTypeRef | undefined {
     const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
     if (enumMemberTarget !== undefined) {
@@ -899,6 +1013,26 @@ export function createCsharpTypePolicy(
     const declarationSourceFile = declarationType === undefined
       ? queries.sourceFile
       : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
+    const authored = declarationType === undefined
+      ? undefined
+      : resolveNodeWithState(
+          declarationType,
+          declarationSourceFile,
+          nextState(state),
+        );
+    if (authored !== undefined) {
+      const instantiated = host.projectTypes().instantiateMemberType(
+        declaration,
+        receiverType,
+        authored,
+      );
+      if (instantiated.kind === "unresolved") {
+        return undefined;
+      }
+      if (instantiated.kind === "resolved") {
+        return instantiated.type;
+      }
+    }
     return resolveAuthoredAndSelectedSourceType(
       declarationType,
       declarationSourceFile,
@@ -1306,6 +1440,7 @@ export function createCsharpTypePolicy(
 
   function resolveSourceCallSelectedType(
     source: ResolvedSourceCallInfo,
+    declaration: Node | undefined,
     authoredTypeNode: Node | undefined,
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
@@ -1333,6 +1468,39 @@ export function createCsharpTypePolicy(
           authored,
           instantiation.substitutions,
         );
+    const queries = host.semantics(selectedSourceFile);
+    const selectedCalleeDeclaration = source.sourceCallee.selectedDeclaration;
+    const constructorOwner = selectedCalleeDeclaration !== undefined &&
+        host.ast.is.IsClassDeclaration(selectedCalleeDeclaration)
+      ? host.projectTypeCatalog.definitionForDeclaration(
+          selectedCalleeDeclaration,
+        )
+      : undefined;
+    const receiverType = constructorOwner !== undefined &&
+        instantiation.arguments.length ===
+          constructorOwner.typeParameterNames.length
+      ? host.projectTypeCatalog.targetTypeForDeclaration(
+          constructorOwner.declaration,
+          instantiation.arguments,
+        )
+      : resolveSelectedReceiverTargetType(
+          source.sourceReceiver,
+          queries,
+          state,
+        );
+    const receiverInstantiation = instantiated === undefined
+      ? { kind: "not-project-member" as const }
+      : host.projectTypes().instantiateMemberType(
+          declaration,
+          receiverType,
+          instantiated,
+        );
+    if (receiverInstantiation.kind === "unresolved") {
+      return undefined;
+    }
+    if (receiverInstantiation.kind === "resolved") {
+      return receiverInstantiation.type;
+    }
     if (
       authored !== undefined &&
       instantiated !== undefined &&
@@ -1788,14 +1956,15 @@ export function createCsharpTypePolicy(
   function combineTargetUnionMembers(
     members: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined {
-    const valueMembers = uniqueTargetTypes(
-      members.filter(
-        (member) =>
-          !isCsharpRuntimeNullTargetType(member) &&
-          !isCsharpRuntimeUndefinedTargetType(member),
-      ),
+    const nonNullishMembers = members.filter(
+      (member) =>
+        !isCsharpRuntimeNullTargetType(member) &&
+        !isCsharpRuntimeUndefinedTargetType(member),
     );
-    const containsNullish = valueMembers.length !== members.length;
+    const valueMembers = uniqueTargetTypes(
+      nonNullishMembers,
+    );
+    const containsNullish = nonNullishMembers.length !== members.length;
     if (valueMembers.length === 0) {
       return members.some(isCsharpRuntimeUndefinedTargetType)
         ? csharpRuntimeUndefinedTargetType()

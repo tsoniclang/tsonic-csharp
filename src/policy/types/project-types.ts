@@ -27,6 +27,9 @@ import {
   substituteTargetTypeParameters,
 } from "./substitution.js";
 import {
+  targetTypeRefKey,
+} from "./equality.js";
+import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 import type {
@@ -58,6 +61,9 @@ export interface CsharpProjectTypeCatalog {
   definitionForDeclaration(
     declaration: Node | undefined,
   ): CsharpProjectTypeDefinition | undefined;
+  definitionContainingDeclaration(
+    declaration: Node | undefined,
+  ): CsharpProjectTypeDefinition | undefined;
   definitionForTarget(
     type: TargetTypeRef | undefined,
   ): CsharpProjectTypeDefinition | undefined;
@@ -82,6 +88,11 @@ export interface CsharpProjectTypePolicy {
   directSupertypes(
     type: TargetTypeRef,
   ): readonly TargetTypeRef[] | undefined;
+  instantiateMemberType(
+    declaration: Node | undefined,
+    receiver: TargetTypeRef | undefined,
+    memberType: TargetTypeRef,
+  ): CsharpProjectMemberTypeInstantiation;
   implicitConstructorsForDeclaration(
     declaration: Node,
   ): readonly CsharpProjectForwardingConstructor[] | undefined;
@@ -90,6 +101,11 @@ export interface CsharpProjectTypePolicy {
     signature: import("@tsonic/tsts").Signature,
   ): CsharpProjectForwardingConstructor | undefined;
 }
+
+export type CsharpProjectMemberTypeInstantiation =
+  | { readonly kind: "not-project-member" }
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+  | { readonly kind: "unresolved"; readonly reason: string };
 
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
@@ -141,6 +157,17 @@ export function createCsharpProjectTypeCatalog(
     definitionForDeclaration(declaration: Node | undefined) {
       return declaration === undefined ? undefined : byDeclaration.get(declaration);
     },
+    definitionContainingDeclaration(declaration: Node | undefined) {
+      let current = declaration;
+      while (current !== undefined) {
+        const definition = byDeclaration.get(current);
+        if (definition !== undefined) {
+          return definition;
+        }
+        current = host.ast.parent(current);
+      }
+      return undefined;
+    },
     definitionForTarget(type: TargetTypeRef | undefined) {
       return type?.kind === "target-named" ? byId.get(type.id) : undefined;
     },
@@ -190,6 +217,42 @@ export function createCsharpProjectTypePolicy(
     );
   issues.push(...constructors.issues);
 
+  const directSupertypes = (
+    type: TargetTypeRef,
+  ): readonly TargetTypeRef[] | undefined => {
+    const definition = catalog.definitionForTarget(type);
+    if (definition === undefined) {
+      return undefined;
+    }
+    const arguments_ = type.kind === "target-named"
+      ? type.typeArguments ?? []
+      : [];
+    if (arguments_.length !== definition.typeParameterNames.length) {
+      return Object.freeze([]);
+    }
+    const heritage = heritageById.get(definition.id);
+    if (heritage === undefined) {
+      return Object.freeze([]);
+    }
+    const substitutions = new Map(
+      definition.typeParameterNames.map((name, index) => [
+        name,
+        arguments_[index]!,
+      ]),
+    );
+    return Object.freeze([
+      ...(heritage.baseType === undefined
+        ? []
+        : [substituteTargetTypeParameters(
+            heritage.baseType,
+            substitutions,
+          )]),
+      ...heritage.interfaces.map((candidate) =>
+        substituteTargetTypeParameters(candidate, substitutions)
+      ),
+    ]);
+  };
+
   return Object.freeze({
     catalog,
     issues: Object.freeze(issues),
@@ -199,44 +262,107 @@ export function createCsharpProjectTypePolicy(
         ? undefined
         : heritageById.get(definition.id);
     },
-    directSupertypes(type: TargetTypeRef) {
-      const definition = catalog.definitionForTarget(type);
-      if (definition === undefined) {
-        return undefined;
+    directSupertypes,
+    instantiateMemberType(
+      declaration: Node | undefined,
+      receiver: TargetTypeRef | undefined,
+      memberType: TargetTypeRef,
+    ): CsharpProjectMemberTypeInstantiation {
+      const owner = projectMemberOwner(host.ast, catalog, declaration);
+      if (owner === undefined) {
+        return { kind: "not-project-member" };
       }
-      const arguments_ = type.kind === "target-named"
-        ? type.typeArguments ?? []
+      if (owner.typeParameterNames.length === 0) {
+        return { kind: "resolved", type: memberType };
+      }
+      if (receiver === undefined) {
+        return {
+          kind: "unresolved",
+          reason:
+            `Project member '${owner.sourceName}' requires an exact receiver target type to instantiate its declaring type parameters.`,
+        };
+      }
+      const pending: TargetTypeRef[] = [receiver];
+      const visited = new Set<string>();
+      const matches = new Map<string, TargetTypeRef>();
+      while (pending.length > 0) {
+        const candidate = pending.shift()!;
+        const key = targetTypeRefKey(candidate);
+        if (visited.has(key)) {
+          continue;
+        }
+        visited.add(key);
+        const definition = catalog.definitionForTarget(candidate);
+        if (definition?.id === owner.id) {
+          matches.set(key, candidate);
+          continue;
+        }
+        pending.push(...(directSupertypes(candidate) ?? []));
+      }
+      if (matches.size !== 1) {
+        return {
+          kind: "unresolved",
+          reason: matches.size === 0
+            ? `The selected receiver has no exact target heritage path to project member owner '${owner.sourceName}'.`
+            : `The selected receiver has more than one target instantiation of project member owner '${owner.sourceName}'.`,
+        };
+      }
+      const selectedOwner = [...matches.values()][0]!;
+      const arguments_ = selectedOwner.kind === "target-named"
+        ? selectedOwner.typeArguments ?? []
         : [];
-      if (arguments_.length !== definition.typeParameterNames.length) {
-        return Object.freeze([]);
+      if (arguments_.length !== owner.typeParameterNames.length) {
+        return {
+          kind: "unresolved",
+          reason:
+            `The selected receiver instantiates project member owner '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterNames.length}.`,
+        };
       }
-      const heritage = heritageById.get(definition.id);
-      if (heritage === undefined) {
-        return Object.freeze([]);
-      }
-      const substitutions = new Map(
-        definition.typeParameterNames.map((name, index) => [
-          name,
-          arguments_[index]!,
-        ]),
-      );
-      return Object.freeze([
-        ...(heritage.baseType === undefined
-          ? []
-          : [substituteTargetTypeParameters(
-              heritage.baseType,
-              substitutions,
-            )]),
-        ...heritage.interfaces.map((type) =>
-          substituteTargetTypeParameters(type, substitutions)
+      return {
+        kind: "resolved",
+        type: substituteTargetTypeParameters(
+          memberType,
+          new Map(owner.typeParameterNames.map((name, index) => [
+            name,
+            arguments_[index]!,
+          ])),
         ),
-      ]);
+      };
     },
     implicitConstructorsForDeclaration:
       constructors.implicitConstructorsForDeclaration,
     implicitConstructorForSignature:
       constructors.implicitConstructorForSignature,
   });
+}
+
+function projectMemberOwner(
+  ast: AstReader,
+  catalog: CsharpProjectTypeCatalog,
+  declaration: Node | undefined,
+): CsharpProjectTypeDefinition | undefined {
+  const member = declaration !== undefined &&
+      ast.is.IsParameterDeclaration(declaration)
+    ? ast.parent(declaration)
+    : declaration;
+  if (
+    member === undefined ||
+    !(
+      ast.is.IsMethodDeclaration(member) ||
+      ast.is.IsMethodSignatureDeclaration(member) ||
+      ast.is.IsPropertyDeclaration(member) ||
+      ast.is.IsPropertySignatureDeclaration(member) ||
+      ast.is.IsGetAccessorDeclaration(member) ||
+      ast.is.IsSetAccessorDeclaration(member) ||
+      ast.is.IsConstructorDeclaration(member) ||
+      ast.is.IsCallSignatureDeclaration(member) ||
+      ast.is.IsConstructSignatureDeclaration(member) ||
+      ast.is.IsIndexSignatureDeclaration(member)
+    )
+  ) {
+    return undefined;
+  }
+  return catalog.definitionForDeclaration(ast.parent(member));
 }
 
 function projectTypeDefinition(
