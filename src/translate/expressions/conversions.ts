@@ -77,6 +77,16 @@ export function applyCsharpConversionSelection(
         receiver: expression,
         name: "Value",
       };
+    case "runtime-union-projection":
+      return {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: expression,
+          name: `As${selection.armIndex + 1}`,
+        },
+        arguments: [],
+      };
     case "cast": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       return type === undefined

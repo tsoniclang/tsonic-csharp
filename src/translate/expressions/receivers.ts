@@ -15,15 +15,9 @@ import type {
 import {
   unsupportedNodeDiagnostic,
 } from "../../backend/planner/diagnostics.js";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../policy/conversions/index.js";
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
-import {
-  applyCsharpConversionSelection,
-} from "./conversions.js";
 
 export interface CsharpSelectedReceiverEvidence {
   readonly expression: Node;
@@ -37,41 +31,22 @@ export function translateCsharpSelectedReceiver(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const storageType = input.types.resolveStorage(
-    receiver.expression,
-    sourceFile,
-  );
   const selectedType = input.types.resolveSelectedValue(
     receiver.expression,
     receiver.type,
     sourceFile,
   );
-  if (storageType === undefined || selectedType === undefined) {
+  if (selectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       receiver.expression,
-      "The exact checker-selected member receiver has no closed C# storage and selected-flow representations.",
+      "The exact checker-selected member receiver has no closed C# selected-flow representation.",
     ));
     return undefined;
   }
-  const expression = planExpression(
+  return planExpression(
     receiver.expression,
     sourceFile,
     input,
     diagnostics,
-  );
-  const conversion = selectCsharpFlowReadConversion(
-    input,
-    storageType,
-    selectedType,
-  );
-  return applyCsharpConversionSelection(
-    receiver.expression,
-    sourceFile,
-    input,
-    diagnostics,
-    storageType,
-    selectedType,
-    conversion,
-    expression,
   );
 }

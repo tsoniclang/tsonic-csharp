@@ -4,6 +4,12 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
+  selectCsharpFlowReadConversion,
+} from "../../policy/conversions/index.js";
+import {
+  applyCsharpConversionSelection,
+} from "../../translate/expressions/conversions.js";
+import {
   targetTypeRefEquals,
   type TargetTypeRef,
 } from "../../policy/types/index.js";
@@ -36,15 +42,21 @@ export function planRuntimeUnionUseSiteProjection(
   if (useSiteCarrier === undefined || isCsharpRuntimeUnionTargetType(useSiteCarrier)) {
     return baseExpression;
   }
-  const armIndex = runtimeUnionArmIndex(storageCarrier, useSiteCarrier);
-  if (armIndex === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "Runtime union use-site projection requires the TSTS-narrowed use-site carrier to match a finalized runtime-union arm.",
-    ));
-    return undefined;
-  }
-  return runtimeUnionArmProjection(baseExpression, armIndex);
+  const selection = selectCsharpFlowReadConversion(
+    input,
+    storageCarrier,
+    useSiteCarrier,
+  );
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    storageCarrier,
+    useSiteCarrier,
+    selection,
+    baseExpression,
+  );
 }
 
 export function tryPlanRuntimeUnionTypeTest(

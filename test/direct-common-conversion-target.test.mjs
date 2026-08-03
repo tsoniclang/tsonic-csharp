@@ -4,11 +4,13 @@ import test from "node:test";
 import {
   selectCsharpCommonImplicitTarget,
   selectCsharpConversion,
+  selectCsharpFlowReadConversion,
 } from "../dist/policy/conversions/index.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpNullableTargetType,
   csharpTargetNamedType,
+  csharpRuntimeUnionTargetType,
 } from "../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -136,6 +138,23 @@ test("native arrays convert only through explicit target input capability", () =
       ),
       "implicit",
     ).kind,
+    "rejected",
+  );
+});
+
+test("flow reads project one exact runtime-union arm", () => {
+  const union = csharpRuntimeUnionTargetType([int32, string]);
+  assert.ok(union);
+  assert.deepEqual(
+    selectCsharpFlowReadConversion(host, union, string),
+    {
+      kind: "runtime-union-projection",
+      armIndex: 1,
+      armType: string,
+    },
+  );
+  assert.equal(
+    selectCsharpFlowReadConversion(host, union, float64).kind,
     "rejected",
   );
 });

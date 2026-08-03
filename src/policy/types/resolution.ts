@@ -2217,56 +2217,47 @@ export function createCsharpTypePolicy(
     if (sourceMembers.length !== rawSourceMembers.length) {
       return undefined;
     }
-    const nonNullish = sourceMembers.filter(
-      (member) => !queries.isNullish(member),
-    );
-    const resolved = nonNullish.map((member) =>
+    const resolved = sourceMembers.map((member) =>
       resolveTypeWithState(member, queries.sourceFile, nextState(state))
     );
     if (resolved.some((member) => member === undefined)) {
       return undefined;
     }
-    if (resolved.length === 0) {
-      return sourceMembers.some((member) => isUndefinedType(member, queries))
-        ? csharpRuntimeUndefinedTargetType()
-        : csharpRuntimeNullTargetType();
-    }
-    const targetMembers = uniqueTargetTypes(
+    return combineTargetUnionMembers(
       resolved as readonly TargetTypeRef[],
     );
-    if (nonNullish.length !== sourceMembers.length) {
-      return targetMembers.length === 1
-        ? csharpNullableTargetType(targetMembers[0]!)
-        : csharpRuntimeUnionTargetType(targetMembers);
-    }
-    return targetMembers.length === 1
-      ? targetMembers[0]
-      : csharpRuntimeUnionTargetType(targetMembers);
   }
 
   function combineTargetUnionMembers(
     members: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined {
-    const nonNullishMembers = members.filter(
+    const canonicalMembers = uniqueTargetTypes(members);
+    const nonNullishMembers = canonicalMembers.filter(
       (member) =>
         !isCsharpRuntimeNullTargetType(member) &&
         !isCsharpRuntimeUndefinedTargetType(member),
     );
-    const valueMembers = uniqueTargetTypes(
-      nonNullishMembers,
+    const nullishMembers = canonicalMembers.filter(
+      (member) =>
+        isCsharpRuntimeNullTargetType(member) ||
+        isCsharpRuntimeUndefinedTargetType(member),
     );
-    const containsNullish = nonNullishMembers.length !== members.length;
-    if (valueMembers.length === 0) {
-      return members.some(isCsharpRuntimeUndefinedTargetType)
-        ? csharpRuntimeUndefinedTargetType()
-        : csharpRuntimeNullTargetType();
+    if (nonNullishMembers.length === 0) {
+      return nullishMembers.length === 1
+        ? nullishMembers[0]
+        : csharpRuntimeUnionTargetType(nullishMembers);
     }
-    const valueType = valueMembers.length === 1
-      ? valueMembers[0]!
-      : csharpRuntimeUnionTargetType(valueMembers);
-    return valueType === undefined || !containsNullish
-      ? valueType
-      : csharpNullableTargetType(valueType);
+    if (nullishMembers.length === 0) {
+      return nonNullishMembers.length === 1
+        ? nonNullishMembers[0]
+        : csharpRuntimeUnionTargetType(nonNullishMembers);
+    }
+    return nonNullishMembers.length === 1
+      ? csharpNullableTargetType(nonNullishMembers[0]!)
+      : csharpRuntimeUnionTargetType([
+          ...nonNullishMembers,
+          ...nullishMembers,
+        ]);
   }
 
   function resolveCallableType(

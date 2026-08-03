@@ -80,6 +80,11 @@ export type CsharpConversionSelection =
       readonly providerOperatorId?: string;
     }
   | { readonly kind: "nullable-value" }
+  | {
+      readonly kind: "runtime-union-projection";
+      readonly armIndex: number;
+      readonly armType: TargetTypeRef;
+    }
   | { readonly kind: "delegate-adapter" }
   | {
       readonly kind: "provider-argument-adapter";
@@ -534,6 +539,27 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
 ): CsharpConversionSelection {
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(storageType);
+  if (runtimeUnionArms !== undefined) {
+    const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
+      targetTypeRefEquals(armType, selectedReadType)
+        ? [{ armIndex, armType }]
+        : []
+    );
+    if (matchingArms.length === 1) {
+      return {
+        kind: "runtime-union-projection",
+        ...matchingArms[0]!,
+      };
+    }
+    return {
+      kind: "rejected",
+      reason:
+        matchingArms.length === 0
+          ? `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which is not an exact runtime-union arm.`
+          : `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which matches more than one runtime-union arm.`,
+    };
+  }
   const selected = selectCsharpConversion(
     input,
     storageType,
@@ -559,6 +585,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "provider-argument-adapter" ||
     selection.kind === "lifted-provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
+    selection.kind === "runtime-union-projection" ||
     selection.kind === "compat-box" ||
     selection.kind === "compat-cast" ||
     mode === "explicit" && selection.kind === "cast";

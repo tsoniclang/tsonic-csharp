@@ -11,6 +11,7 @@ export * from "./nullable.js";
 export * from "./delegates.js";
 export * from "./collections.js";
 export * from "./runtime-carriers.js";
+export * from "./runtime-union-object-shapes.js";
 export * from "./identity.js";
 export * from "./extern-aliases.js";
 export * from "./equality.js";

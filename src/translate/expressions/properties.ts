@@ -33,6 +33,7 @@ import {
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
   resolveCsharpObjectShapeMemberReadTargetType,
+  resolveCsharpRuntimeUnionObjectShapeProperty,
 } from "../../policy/types/index.js";
 import {
   selectCsharpFlowReadConversion,
@@ -212,6 +213,34 @@ function translateSourceOwnedProperty(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,
   );
+  const selectedReceiverType = input.types.resolveSelectedValue(
+    selection.source.receiver.expression,
+    selection.source.receiver.type,
+    sourceFile,
+  );
+  const runtimeUnionProperty = resolveCsharpRuntimeUnionObjectShapeProperty(
+    input.objectShapes,
+    selectedReceiverType,
+    selectedSubjects,
+  );
+  if (runtimeUnionProperty.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      runtimeUnionProperty.reason,
+    ));
+    return undefined;
+  }
+  if (runtimeUnionProperty.kind === "resolved") {
+    return translateRuntimeUnionObjectShapeProperty(
+      node,
+      selection,
+      runtimeUnionProperty,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+    );
+  }
   const compatProperty = resolveCsharpCompatObjectShapeProperty(
     input.objectShapes,
     semantics,
@@ -350,6 +379,93 @@ function translateSourceOwnedProperty(
     selectedReadType,
     conversion,
     planned,
+  );
+}
+
+function translateRuntimeUnionObjectShapeProperty(
+  node: Node,
+  selection: Extract<
+    CsharpTargetPropertySelection,
+    { readonly kind: "source-owned" }
+  >,
+  property: Extract<
+    ReturnType<typeof resolveCsharpRuntimeUnionObjectShapeProperty>,
+    { readonly kind: "resolved" }
+  >,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (selection.source.optionalChain) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Optional runtime-union object-shape property projection requires an explicit nullable-union policy.",
+    ));
+    return undefined;
+  }
+  const receiver = translateCsharpSelectedReceiver(
+    selection.source.receiver,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  if (receiver === undefined) {
+    return undefined;
+  }
+  const projected: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver,
+      name: "Match",
+    },
+    arguments: property.members.map((entry) => {
+      const parameterName = `__tsonic_union_arm${entry.armIndex + 1}`;
+      return {
+        kind: "Argument" as const,
+        expression: {
+          kind: "LambdaExpression" as const,
+          parameters: [{ kind: "Parameter" as const, name: parameterName }],
+          body: {
+            kind: "SimpleMemberAccessExpression" as const,
+            receiver: {
+              kind: "IdentifierName" as const,
+              name: parameterName,
+            },
+            name: entry.member.targetName,
+          },
+        },
+      };
+    }),
+  };
+  const selectedReadType = input.types.resolveSelectedResult(
+    selection.source.selectedDeclaration,
+    selection.source.sourceReadType,
+    sourceFile,
+  );
+  if (selectedReadType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact runtime-union object-shape property read has no closed C# selected result representation.",
+    ));
+    return undefined;
+  }
+  const conversion = selectCsharpFlowReadConversion(
+    input,
+    property.resultType,
+    selectedReadType,
+  );
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    property.resultType,
+    selectedReadType,
+    conversion,
+    projected,
   );
 }
 
