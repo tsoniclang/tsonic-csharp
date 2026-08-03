@@ -36,15 +36,9 @@ import {
   canUseCsharpCompatObjectShapeCarrier,
 } from "./compat-object-shapes.js";
 import {
-  csharpDelegateTargetType,
-} from "./delegates.js";
-import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./equality.js";
-import {
-  isCsharpVoidTargetType,
-} from "./identity.js";
 import {
   csharpNullableTargetType,
   getCsharpNullableElementTargetType,
@@ -79,13 +73,6 @@ export type CsharpProjectConstructibleTypeProjection =
   | { readonly kind: "unchanged" }
   | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
   | { readonly kind: "rejected"; readonly reason: string };
-
-interface ShapeResolutionState {
-  readonly depth: number;
-  readonly activeTypes: ReadonlySet<Type>;
-}
-
-const maximumObjectShapeDepth = 64;
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
@@ -125,10 +112,6 @@ export function createCsharpObjectShapePolicy(
         semanticType,
         node,
         queries,
-        {
-          depth: 0,
-          activeTypes: new Set(),
-        },
         selectedTarget,
       );
       if (shape !== undefined) {
@@ -221,7 +204,6 @@ export function createCsharpObjectShapePolicy(
     const members = deriveMembers(
       selectedType,
       queries,
-      { depth: 1, activeTypes: new Set([selectedType]) },
     );
     if (members === undefined) {
       return {
@@ -305,11 +287,15 @@ export function createCsharpObjectShapePolicy(
       }
       const members = (fact.fields ?? []).map((field) => {
         const type = host.types.resolveNode(field.type, queries.sourceFile);
+        const sourceType = queries.getTypeFromTypeNode(field.type);
         return type === undefined
           ? undefined
           : {
               sourceName: field.name,
               sourceSubjects: [field.type],
+              ...(sourceType === undefined
+                ? {}
+                : { sourceTypes: [sourceType] }),
               targetName: objectShapeMemberTargetName(field.name),
               memberKind: "property" as const,
               type,
@@ -331,24 +317,15 @@ export function createCsharpObjectShapePolicy(
     type: Type | undefined,
     node: Node,
     queries: SourceFileSemantics,
-    state: ShapeResolutionState,
     selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
-      state.depth > maximumObjectShapeDepth ||
-      state.activeTypes.has(type) ||
       typeIsExcludedFromObjectShape(type, queries) ||
       !typeHasProjectOwnedShapeDeclaration(type, node, queries, host)
     ) {
       return undefined;
     }
-    const nextActive = new Set(state.activeTypes);
-    nextActive.add(type);
-    const nextState = {
-      depth: state.depth + 1,
-      activeTypes: nextActive,
-    };
     const targetType = selectedTarget ??
       host.types.resolveType(type, queries.sourceFile);
     const contextualProjectType = targetType !== undefined &&
@@ -367,7 +344,7 @@ export function createCsharpObjectShapePolicy(
     if (declaredKind === "enum") {
       return undefined;
     }
-    const members = deriveMembers(type, queries, nextState);
+    const members = deriveMembers(type, queries);
     if (members === undefined) {
       return undefined;
     }
@@ -411,7 +388,6 @@ export function createCsharpObjectShapePolicy(
   function deriveMembers(
     ownerType: Type,
     queries: SourceFileSemantics,
-    state: ShapeResolutionState,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const rawProperties = queries.getProperties(ownerType);
     const properties = rawProperties.filter(
@@ -421,7 +397,7 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const members = properties.map((property) =>
-      deriveMember(ownerType, property, queries, state)
+      deriveMember(ownerType, property, queries)
     );
     return members.some((member) => member === undefined)
       ? undefined
@@ -432,7 +408,6 @@ export function createCsharpObjectShapePolicy(
     ownerType: Type,
     property: Symbol,
     queries: SourceFileSemantics,
-    state: ShapeResolutionState,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourceName = queries.getSymbolName(property);
     if (sourceName.length === 0) {
@@ -449,7 +424,7 @@ export function createCsharpObjectShapePolicy(
       host.ast.is.IsMethodSignatureDeclaration(declaration)
     );
     const memberType = method
-      ? resolveMethodType(sourceType, queries, state)
+      ? host.types.resolveType(sourceType, queries.sourceFile)
       : resolvePropertyType(declarations, sourceType, queries);
     if (memberType === undefined) {
       return undefined;
@@ -462,6 +437,7 @@ export function createCsharpObjectShapePolicy(
       sourceSubjects: declarations.length === 0
         ? [property]
         : [property, ...declarations],
+      sourceTypes: [sourceType],
       targetName: objectShapeMemberTargetName(sourceName),
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
@@ -519,52 +495,6 @@ export function createCsharpObjectShapePolicy(
       return host.ast.as.AsGetAccessorDeclaration(declaration)?.Type;
     }
     return undefined;
-  }
-
-  function resolveMethodType(
-    sourceType: Type,
-    queries: SourceFileSemantics,
-    state: ShapeResolutionState,
-  ): TargetTypeRef | undefined {
-    const signatures = queries.getCallSignatures(sourceType);
-    if (signatures.length !== 1 || signatures[0] === undefined) {
-      return undefined;
-    }
-    const signature = signatures[0];
-    const rawParameters = queries.getSignatureParameters(signature);
-    const parameters = rawParameters.filter(
-      (parameter): parameter is Symbol => parameter !== undefined,
-    );
-    if (parameters.length !== rawParameters.length) {
-      return undefined;
-    }
-    const parameterTypes = parameters.map((parameter) =>
-      host.types.resolveType(
-        queries.getTypeOfSymbol(parameter),
-        queries.sourceFile,
-      )
-    );
-    const returnType = host.types.resolveType(
-      queries.getReturnTypeOfSignature(signature),
-      queries.sourceFile,
-    );
-    if (
-      returnType === undefined ||
-      parameterTypes.some((parameter) => parameter === undefined) ||
-      state.depth > maximumObjectShapeDepth
-    ) {
-      return undefined;
-    }
-    return isCsharpVoidTargetType(returnType)
-      ? csharpDelegateTargetType(
-          "System.Action",
-          parameterTypes as readonly TargetTypeRef[],
-        )
-      : csharpDelegateTargetType(
-          "System.Func",
-          parameterTypes as readonly TargetTypeRef[],
-          returnType,
-        );
   }
 
   return Object.freeze({
@@ -857,9 +787,19 @@ function mergeCsharpObjectShapeSubjects(
         ...(member.sourceSubjects ?? []),
         ...(other.sourceSubjects ?? []),
       ]);
-      return subjects.size === 0
-        ? member
-        : { ...member, sourceSubjects: Object.freeze([...subjects]) };
+      const sourceTypes = new Set([
+        ...(member.sourceTypes ?? []),
+        ...(other.sourceTypes ?? []),
+      ]);
+      return {
+        ...member,
+        ...(subjects.size === 0
+          ? {}
+          : { sourceSubjects: Object.freeze([...subjects]) }),
+        ...(sourceTypes.size === 0
+          ? {}
+          : { sourceTypes: Object.freeze([...sourceTypes]) }),
+      };
     }),
   };
 }

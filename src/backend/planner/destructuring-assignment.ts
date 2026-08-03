@@ -90,7 +90,8 @@ import type {
   CsharpArrayBindingCarrier,
 } from "../../policy/types/index.js";
 import {
-  selectCsharpBinaryOperation,
+  csharpDestructuringAssignmentSyntax,
+  selectCsharpDestructuringAssignmentOperation,
 } from "../../policy/operations/index.js";
 
 export const missingDestructuringAssignmentFactsMessage = "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission.";
@@ -99,16 +100,7 @@ export function isDestructuringAssignmentExpression(
   node: Node | undefined,
   input: CsharpTranslationContext,
 ): boolean {
-  if (!HasSourceKind(input.ast, node, KindBinaryExpression)) {
-    return false;
-  }
-  const expression = AsBinaryExpression(node);
-  if (input.ast.operatorKindName(node) !== KindEqualsToken) {
-    return false;
-  }
-  const left = expression?.Left;
-  return HasSourceKind(input.ast, left, KindArrayLiteralExpression) ||
-    HasSourceKind(input.ast, left, KindObjectLiteralExpression);
+  return csharpDestructuringAssignmentSyntax(input.ast, node) !== undefined;
 }
 
 export function pushMissingDestructuringAssignmentFactsDiagnostic(
@@ -212,27 +204,17 @@ function planDestructuringAssignmentCore(
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): DestructuringAssignmentPlan | undefined {
-  const expression = AsBinaryExpression(node)!;
-  const left = expression.Left;
-  const right = expression.Right;
-  if (left === undefined || right === undefined) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
-    return undefined;
-  }
-  const selectedOperator = selectCsharpBinaryOperation(
+  const selectedOperator = selectCsharpDestructuringAssignmentOperation(
     input,
     node,
     sourceFile,
   );
-  if (
-    selectedOperator.kind !== "resolved" ||
-    selectedOperator.sourceOperator !== "=" ||
-    selectedOperator.targetOperation.kind !== "operator" ||
-    selectedOperator.targetOperation.operator !== "="
-  ) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(left, diagnostics);
+  if (selectedOperator.kind !== "resolved") {
+    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
     return undefined;
   }
+  const left = selectedOperator.pattern;
+  const right = selectedOperator.source;
   const pattern = destructuringAssignmentPattern(left, input);
   if (pattern === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(left, "Destructuring assignment target is outside the current C# planning surface."));

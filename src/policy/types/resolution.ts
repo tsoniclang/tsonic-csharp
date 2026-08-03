@@ -32,6 +32,7 @@ import {
   sourcePrimitiveImplicitlyConverts,
 } from "../conversions/source-primitives.js";
 import {
+  isCsharpDestructuringAssignmentPattern,
   sourceOperatorFromKindName,
 } from "../operations/syntax.js";
 import {
@@ -2163,6 +2164,9 @@ function resolveBinaryTargetRepresentation(
     case "||":
       return csharpSourcePrimitiveTargetType("bool");
     case "=":
+      return isCsharpDestructuringAssignmentPattern(ast, leftNode)
+        ? right
+        : left;
     case "&&=":
     case "||=":
     case "??=":

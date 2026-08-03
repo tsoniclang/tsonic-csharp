@@ -32,6 +32,7 @@ import {
 } from "../../backend/planner/target-types.js";
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
+  resolveCsharpObjectShapeMemberReadTargetType,
 } from "../../policy/types/index.js";
 import {
   selectCsharpFlowReadConversion,
@@ -315,11 +316,14 @@ function translateSourceOwnedProperty(
   ) {
     return planned;
   }
-  const selectedReadType = input.types.resolveSelectedResult(
-    selection.source.selectedDeclaration,
+  const selectedReadType = resolveCsharpObjectShapeMemberReadTargetType(
+    shapeMember.member,
     selection.source.sourceReadType,
-    sourceFile,
-  );
+  ) ?? input.types.resolveSelectedResult(
+      selection.source.selectedDeclaration,
+      selection.source.sourceReadType,
+      sourceFile,
+    );
   if (selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -1,6 +1,10 @@
 import type {
+  Type,
+} from "@tsonic/tsts";
+import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
+  TargetTypeRef,
 } from "./definitions.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
@@ -91,6 +95,16 @@ export function resolveCsharpObjectShapeMemberBySelectedSubject(
           ? "not-in-finalized-shape"
           : "ambiguous-finalized-shape-member",
       );
+}
+
+export function resolveCsharpObjectShapeMemberReadTargetType(
+  member: CsharpObjectShapeMemberFact,
+  selectedSourceType: Type | undefined,
+): TargetTypeRef | undefined {
+  return selectedSourceType !== undefined &&
+      member.sourceTypes?.includes(selectedSourceType) === true
+    ? member.type
+    : undefined;
 }
 
 export function csharpObjectShapeMemberLookupFailureMessage(

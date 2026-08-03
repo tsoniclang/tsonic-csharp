@@ -2,6 +2,7 @@ import type {
   ArgumentPassingMode,
   ExtensionFactSubject,
   SourcePrimitiveKind,
+  Type,
 } from "@tsonic/tsts";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
@@ -9,6 +10,7 @@ export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint"
 export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
+  readonly sourceTypes?: readonly Type[];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;

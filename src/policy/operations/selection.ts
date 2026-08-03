@@ -29,6 +29,7 @@ import type {
   CsharpSourceOperator,
 } from "./syntax.js";
 import {
+  csharpDestructuringAssignmentSyntax,
   sourceOperatorFromKindName,
 } from "./syntax.js";
 
@@ -65,6 +66,19 @@ export interface CsharpResolvedUnaryOperation {
   readonly targetOperator: string;
   readonly operand: Node;
   readonly operandType: TargetTypeRef;
+  readonly resultType: TargetTypeRef;
+}
+
+export interface CsharpResolvedDestructuringAssignmentOperation {
+  readonly kind: "resolved";
+  readonly sourceOperator: "=";
+  readonly targetOperation: {
+    readonly kind: "operator";
+    readonly operator: "=";
+  };
+  readonly pattern: Node;
+  readonly source: Node;
+  readonly sourceType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
 }
 
@@ -153,6 +167,39 @@ export function selectCsharpBinaryOperation(
         ...operationTypes,
       }
     : rejected(incompatibility);
+}
+
+export function selectCsharpDestructuringAssignmentOperation(
+  input: CsharpTranslationContext,
+  node: Node,
+  sourceFile: SourceFile,
+): CsharpOperationSelection<CsharpResolvedDestructuringAssignmentOperation> {
+  const syntax = csharpDestructuringAssignmentSyntax(input.ast, node);
+  if (syntax === undefined) {
+    return rejected(
+      "C# destructuring-assignment policy requires an array or object binding pattern.",
+    );
+  }
+  const sourceType = input.types.resolveNode(syntax.source, sourceFile);
+  const resultType = input.types.resolveNode(node, sourceFile);
+  if (
+    sourceType === undefined ||
+    resultType === undefined ||
+    !targetTypeRefEquals(sourceType, resultType)
+  ) {
+    return rejected(
+      "The checked destructuring assignment requires one exact C# representation for its source and result value.",
+    );
+  }
+  return {
+    kind: "resolved",
+    sourceOperator: "=",
+    targetOperation: { kind: "operator", operator: "=" },
+    pattern: syntax.pattern,
+    source: syntax.source,
+    sourceType,
+    resultType,
+  };
 }
 
 function selectBinaryOperationTypes(
