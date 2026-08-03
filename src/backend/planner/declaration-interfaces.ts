@@ -123,7 +123,7 @@ function planInterfaceMethodDeclaration(
   );
   publishCsharpSourceCallableContract(
     node,
-    parameters,
+    parameters.targetParameters,
     returnTargetType,
     input,
     diagnostics,

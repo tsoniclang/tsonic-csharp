@@ -84,7 +84,7 @@ export function planConstructorDeclaration(
     : input.types.resolveNode(classDeclaration, sourceFile);
   publishCsharpSourceCallableContract(
     node,
-    parameters,
+    parameters.targetParameters,
     constructedType,
     input,
     diagnostics,

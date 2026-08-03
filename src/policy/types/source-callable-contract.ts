@@ -37,6 +37,12 @@ export function isCsharpSourceCallableArtifactDeclaration(
   if (ast.is.IsFunctionDeclaration(declaration)) {
     return ast.as.AsFunctionDeclaration(declaration)?.Body !== undefined;
   }
+  if (ast.is.IsArrowFunction(declaration)) {
+    return ast.as.AsArrowFunction(declaration)?.Body !== undefined;
+  }
+  if (ast.is.IsFunctionExpression(declaration)) {
+    return ast.as.AsFunctionExpression(declaration)?.Body !== undefined;
+  }
   if (ast.is.IsMethodDeclaration(declaration)) {
     return ast.as.AsMethodDeclaration(declaration)?.Body !== undefined;
   }

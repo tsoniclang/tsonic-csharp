@@ -294,6 +294,92 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# translation reconstructs imported callable-expression return contracts", () => {
+  const initializers = [
+    `(text: string): int | undefined => {
+      void text;
+      return undefined;
+    }`,
+    `function (text: string): int | undefined {
+      void text;
+      return undefined;
+    }`,
+  ];
+  for (const initializer of initializers) {
+    const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      import { parseValue } from "./helper.js";
+      export const parseRequired = (text: string): int | undefined =>
+        parseValue(text);
+    `,
+    files: {
+      "helper.ts": `
+        import type { int } from "@tsonic/csharp/types.js";
+        export const parseValue = ${initializer};
+      `,
+    },
+  });
+
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.deepEqual(compiled.extensionDiagnostics, []);
+    assert.deepEqual(compiled.targetDiagnostics, []);
+    assert.equal(compiled.artifacts.get("src/Helper.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Helper
+    {
+        public static Func<string, int?> parseValue
+        {
+            get;
+            private set;
+        } = default(Func<string, int?>)!;
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
+            parseValue = (string text) =>
+            {
+                _ = text;
+                return null;
+            };
+            return null;
+        }
+        public static void __tsonic_module_init()
+        {
+            _ = __tsonic_module_initialization.Value;
+        }
+    }
+}
+`);
+    assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Func<string, int?> parseRequired
+        {
+            get;
+            private set;
+        } = default(Func<string, int?>)!;
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
+            Helper.__tsonic_module_init();
+            parseRequired = (string text) => Helper.parseValue(text);
+            return null;
+        }
+        public static void __tsonic_module_init()
+        {
+            _ = __tsonic_module_initialization.Value;
+        }
+    }
+}
+`);
+  }
+});
+
 test("direct C# translation instantiates inherited generic member types from exact project heritage", () => {
   const compiled = compileCsharpSource({
     sourceText: `

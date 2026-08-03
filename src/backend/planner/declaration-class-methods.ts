@@ -111,7 +111,7 @@ export function planMethodDeclaration(
       declaredReturnType;
   publishCsharpSourceCallableContract(
     node,
-    parameters,
+    parameters.targetParameters,
     effectiveReturnTargetType,
     input,
     diagnostics,

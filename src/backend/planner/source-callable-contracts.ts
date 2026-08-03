@@ -6,27 +6,25 @@ import type {
 } from "@tsonic/target-api";
 import type {
   CsharpSourceCallableContract,
+  CsharpSourceCallableParameterContract,
   CsharpProjectForwardingConstructor,
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
-import type {
-  PlannedParameterList,
-} from "./parameters.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 
 export function publishCsharpSourceCallableContract(
   declaration: Node,
-  parameters: PlannedParameterList,
+  parameters: readonly CsharpSourceCallableParameterContract[] | undefined,
   returnType: TargetTypeRef | undefined,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  if (parameters.targetParameters === undefined || returnType === undefined) {
+  if (parameters === undefined || returnType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       declaration,
       "A source-owned C# callable requires closed target parameter and return contracts before publication.",
@@ -59,7 +57,7 @@ export function publishCsharpSourceCallableContract(
     ...receiverTypeOwner === undefined
       ? {}
       : { receiverTypeOwner },
-    parameters: Object.freeze([...parameters.targetParameters]),
+    parameters: Object.freeze([...parameters]),
     returnType,
   });
   const published = input.artifacts.publishSourceCallable(

@@ -20,7 +20,11 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  CsharpSourceCallableParameterContract,
+  CsharpTargetParameter,
+  TargetTypeRef,
+} from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -53,6 +57,7 @@ import {
   isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
+import { publishCsharpSourceCallableContract } from "./source-callable-contracts.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -105,6 +110,14 @@ export function planArrowFunctionExpression(
     if (body === undefined) {
       return undefined;
     }
+    publishLambdaSourceCallableContract(
+      node,
+      expression.Parameters?.Nodes ?? [],
+      parameters,
+      targetContext,
+      input,
+      diagnostics,
+    );
     return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
@@ -126,6 +139,14 @@ export function planArrowFunctionExpression(
   if (body === undefined) {
     return undefined;
   }
+  publishLambdaSourceCallableContract(
+    node,
+    expression.Parameters?.Nodes ?? [],
+    parameters,
+    targetContext,
+    input,
+    diagnostics,
+  );
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
@@ -160,16 +181,87 @@ export function planFunctionExpression(
   if (scopedInput === undefined) {
     return undefined;
   }
+  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext);
   const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, state, targetContext, returnContext);
   if (body === undefined) {
     return undefined;
   }
+  publishLambdaSourceCallableContract(
+    node,
+    expression.Parameters?.Nodes ?? [],
+    parameters,
+    targetContext,
+    input,
+    diagnostics,
+  );
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext),
+    parameters,
     body,
   };
+}
+
+function publishLambdaSourceCallableContract(
+  declaration: Node,
+  parameterNodes: readonly (Node | undefined)[],
+  parameters: readonly CsharpLambdaParameter[],
+  targetContext: LambdaTargetContext | undefined,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): void {
+  if (targetContext === undefined) {
+    return;
+  }
+  const sourceParameters = parameterNodes.filter(
+    (parameter): parameter is Node => parameter !== undefined,
+  );
+  const contracts = sourceParameters.map(
+    (sourceParameter, index): CsharpSourceCallableParameterContract | undefined => {
+      const parameter = AsParameterDeclaration(sourceParameter);
+      const plannedParameter = parameters[index];
+      const targetType = targetContext.signature.parameterTargetTypes[index];
+      if (
+        parameter === undefined ||
+        plannedParameter === undefined ||
+        targetType === undefined
+      ) {
+        return undefined;
+      }
+      const targetParameter: CsharpTargetParameter = Object.freeze({
+        name: plannedParameter.name,
+        type: targetType,
+        passingMode: "by-value",
+        ...(input.ast.questionToken(sourceParameter) !== undefined ||
+            parameter.Initializer !== undefined
+          ? { optional: true }
+          : {}),
+        ...(parameter.DotDotDotToken === undefined
+          ? {}
+          : { paramsArray: true }),
+      });
+      return Object.freeze({ sourceParameter, targetParameter });
+    },
+  );
+  const closedContracts = contracts.every(
+      (contract): contract is CsharpSourceCallableParameterContract =>
+        contract !== undefined,
+    )
+    ? contracts
+    : undefined;
+  if (
+    closedContracts === undefined ||
+    targetContext.signature.returnTargetType === undefined
+  ) {
+    return;
+  }
+  publishCsharpSourceCallableContract(
+    declaration,
+    closedContracts,
+    targetContext.signature.returnTargetType,
+    input,
+    diagnostics,
+  );
 }
 
 export interface LambdaReturnContext {
