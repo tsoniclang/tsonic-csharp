@@ -53,10 +53,11 @@ export const expectedSharedSourceQuerySites = Object.freeze(new Map([
   ...querySite("src/policy/members/source-profile-policy.ts", "source-query.getSignatureDeclaration", 1, "Resolve source-profile evidence for an already-selected source signature."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getTypeFromTypeNode", 3, "Resolve canonical source types from authored type syntax."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getTypeAtLocation", 4, "Resolve canonical source types and compare exact declaration, initializer, and flow-selected types through shared refinement policy."),
-  ...querySite("src/policy/types/resolution.ts", "source-query.getSignatureDeclaration", 2, "Read declarations from already-selected source signatures."),
+  ...querySite("src/policy/types/resolution.ts", "source-query.getSignatureDeclaration", 1, "Read declarations from already-selected source signatures."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getResolvedSymbolOrNil", 1, "Resolve canonical source declaration identity for type policy."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getSymbolAtLocation", 1, "Resolve canonical source declaration identity for type policy."),
   ...querySite("src/policy/types/object-shape-policy.ts", "source-query.getTypeAtLocation", 1, "Resolve an object-shape source type through shared semantics."),
+  ...querySite("src/policy/types/object-shape-policy.ts", "source-query.getTypeFromTypeNode", 1, "Resolve an authored object-shape field type through shared semantics."),
   ...querySite("src/policy/types/object-shape-policy.ts", "source-query.getResolvedSymbolOrNil", 1, "Resolve an object-shape declaration identity through shared semantics."),
   ...querySite("src/policy/types/object-shape-policy.ts", "source-query.getSymbolAtLocation", 1, "Resolve an object-shape declaration identity through shared semantics."),
   ...querySite("src/backend/planner/locals.ts", "source-query.getTypeAtLocation", 1, "Render an already-checked assertion value with its canonical source type."),
@@ -67,6 +68,7 @@ export const expectedSharedSourceQuerySites = Object.freeze(new Map([
   ...querySite("src/backend/planner/expression-source-references.ts", "source-query.getTypeAtLocation", 1, "Resolve an already-checked source reference type."),
   ...querySite("src/backend/planner/expression-source-references.ts", "source-query.getSymbolAtLocation", 1, "Resolve an exact source reference symbol."),
   ...querySite("src/backend/planner/expression-source-references.ts", "source-query.getResolvedSymbol", 1, "Resolve an exact source reference alias."),
+  ...querySite("src/translate/context/index.ts", "source-query.getSignatureDeclaration", 1, "Read the declaration of an already-selected callable signature for artifact lookup."),
 ]));
 
 export function buildSelectedEvidenceAuditRows(repoRoot) {

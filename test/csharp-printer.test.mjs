@@ -287,13 +287,13 @@ test("object shape declarations enforce required members while leaving optional 
   };
 
   const fields = renderObjectShapeMembers(shape, false, undefined, undefined);
-  assert.deepEqual(fields?.map((member) => member.modifiers), [
-    ["public", "required"],
-    ["public"],
-  ]);
+  assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
   const properties = renderObjectShapeMembers(shape, true, undefined, undefined);
-  assert.deepEqual(properties?.map((member) => member.modifiers), [
-    ["public", "required"],
-    ["public"],
-  ]);
+  assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
 });
