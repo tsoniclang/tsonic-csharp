@@ -453,11 +453,15 @@ export function createCsharpTypePolicy(
         state,
       );
     }
+    const result = host.semantics(sourceFile).selectCallResult(source);
+    if (result === undefined) {
+      return undefined;
+    }
     return resolveSourceCallSelectedType(
       source,
       declaration,
-      source.sourceCallee.authoredTypeNode,
-      source.sourceResultType,
+      result.authoredTypeNode,
+      result.selectedReturnType,
       sourceFile,
       state,
     );

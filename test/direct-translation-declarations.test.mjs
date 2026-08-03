@@ -159,6 +159,31 @@ namespace Tsonic.Generated
 `);
 });
 
+test("generic delegate calls consume the selected signature return type", () => {
+  const compiled = cleanCompile(`
+    export function transform<T, U>(
+      value: T,
+      fn: (input: T) => U,
+    ): U {
+      return fn(value);
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static U transform<T, U>(T value, Func<T, U> fn)
+        {
+            return fn(value);
+        }
+    }
+}
+`);
+});
+
 test("delegate-valued calls use their exact carrier without inventing declaration artifacts", () => {
   const compiled = cleanCompile(`
     export function invoke(next: () => string): string { return next(); }
