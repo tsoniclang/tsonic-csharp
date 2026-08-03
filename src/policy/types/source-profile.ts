@@ -104,6 +104,13 @@ function classifySourceProfileDeclaration(
   declaration: Parameters<AstReader["name"]>[0],
   ast: AstReader,
 ): CsharpSourceProfileTypeIdentity | undefined {
+  if (
+    !ast.is.IsClassDeclaration(declaration) &&
+    !ast.is.IsInterfaceDeclaration(declaration) &&
+    !ast.is.IsTypeAliasDeclaration(declaration)
+  ) {
+    return undefined;
+  }
   const sourceFile = ast.getSourceFile(declaration);
   if (sourceFile === undefined) {
     return undefined;
@@ -111,7 +118,11 @@ function classifySourceProfileDeclaration(
   const fileName = ast.getFileName(sourceFile);
   const ownerId = sourceProfileOwner(fileName);
   const nameNode = ast.name(declaration);
-  if (ownerId === undefined || nameNode === undefined) {
+  if (
+    ownerId === undefined ||
+    nameNode === undefined ||
+    !ast.is.IsIdentifier(nameNode)
+  ) {
     return undefined;
   }
   const sourceName = ast.text(nameNode);
