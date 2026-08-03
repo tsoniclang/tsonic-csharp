@@ -84,6 +84,12 @@ export type CsharpConversionSelection =
       readonly sourceToInput: CsharpConversionSelection;
       readonly resultToTarget: CsharpConversionSelection;
     }
+  | {
+      readonly kind: "lifted-provider-argument-adapter";
+      readonly adapter: CsharpProviderArgumentAdapter;
+      readonly sourceElementType: TargetTypeRef;
+      readonly targetElementType: TargetTypeRef;
+    }
   | { readonly kind: "compat-box" }
   | {
       readonly kind: "compat-cast";
@@ -352,6 +358,24 @@ export function selectCsharpProviderArgumentConversion(
   if (csharpConversionIsApplicable(direct, "implicit") || adapter === undefined) {
     return direct;
   }
+  const sourceElementType = getCsharpNullableElementTargetType(source);
+  const targetElementType = getCsharpNullableElementTargetType(target);
+  if (
+    source !== undefined &&
+    sourceElementType !== undefined &&
+    targetElementType !== undefined &&
+    !isCsharpNullableReferenceTargetType(source) &&
+    !isCsharpNullableReferenceTargetType(target) &&
+    targetTypeRefEquals(sourceElementType, adapter.inputType) &&
+    targetTypeRefEquals(adapter.resultType, targetElementType)
+  ) {
+    return {
+      kind: "lifted-provider-argument-adapter",
+      adapter,
+      sourceElementType,
+      targetElementType,
+    };
+  }
   const sourceToInput = selectCsharpExpressionConversion(
     input,
     expression,
@@ -421,6 +445,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
     selection.kind === "provider-argument-adapter" ||
+    selection.kind === "lifted-provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
     selection.kind === "compat-box" ||
     selection.kind === "compat-cast" ||
@@ -523,6 +548,7 @@ function selectNullableConversion(
   target: TargetTypeRef,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
+  const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
   if (targetElement !== undefined) {
     if (
@@ -533,18 +559,17 @@ function selectNullableConversion(
     }
     const elementConversion = selectCsharpConversion(
       input,
-      source,
+      sourceElement ?? source,
       targetElement,
-      "implicit",
+      mode,
     );
-    if (
-      elementConversion.kind === "identity" ||
-      elementConversion.kind === "implicit"
-    ) {
+    if (conversionIsImplicitlyApplicable(elementConversion)) {
       return { kind: "implicit", proof: "nullable" };
     }
+    if (mode === "explicit" && csharpConversionIsApplicable(elementConversion, mode)) {
+      return { kind: "cast", proof: "nullable" };
+    }
   }
-  const sourceElement = getCsharpNullableElementTargetType(source);
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
     return mode === "explicit"
       ? { kind: "nullable-value" }

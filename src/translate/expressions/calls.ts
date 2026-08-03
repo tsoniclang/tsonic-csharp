@@ -583,7 +583,11 @@ function translateCallArgument(
     ));
     return undefined;
   }
-  if (selectedConversion?.selection.kind === "provider-argument-adapter") {
+  if (
+    selectedConversion?.selection.kind === "provider-argument-adapter" ||
+    selectedConversion?.selection.kind ===
+      "lifted-provider-argument-adapter"
+  ) {
     if (
       sourceForm !== "value" ||
       parameter.passingMode !== "by-value"

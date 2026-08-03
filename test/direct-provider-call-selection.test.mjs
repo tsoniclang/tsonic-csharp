@@ -22,6 +22,9 @@ import {
 import {
   instantiateCsharpProviderCall,
 } from "../dist/policy/members/index.js";
+import {
+  csharpNullableValueTargetType,
+} from "../dist/policy/types/index.js";
 
 test("an exact selected provider signature closes one target call", () => {
   const fixture = createCallFixture({
@@ -245,22 +248,7 @@ test("exact selected signatures reject incompatible target argument representati
 });
 
 test("exact provider argument adapters close otherwise invalid target conversions", () => {
-  const adapter = {
-    kind: "static-method",
-    id: "System.Convert.ToInt32(System.Double)",
-    declaringType: {
-      kind: "target-named",
-      id: "System.Convert",
-      csharpRender: {
-        kind: "named",
-        namespace: ["System"],
-        name: "Convert",
-      },
-    },
-    targetName: "ToInt32",
-    inputType: csharpSourcePrimitiveTargetType("float64"),
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  };
+  const adapter = int32ProviderAdapter();
   const withoutAdapter = createCallFixture({
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("float64")],
     targetParameters: [
@@ -295,6 +283,98 @@ test("exact provider argument adapters close otherwise invalid target conversion
   assert.deepEqual(
     selected.call.argumentConversions[0]?.selection.adapter,
     adapter,
+  );
+});
+
+test("provider calls accept exact lifted implicit conversions between nullable value carriers", () => {
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [
+      csharpNullableValueTargetType(
+        csharpSourcePrimitiveTargetType("int32"),
+      ),
+    ],
+    targetParameters: [
+      targetParameter(
+        "value",
+        csharpNullableValueTargetType(
+          csharpSourcePrimitiveTargetType("float64"),
+        ),
+      ),
+    ],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.argumentConversions[0]?.selection, {
+    kind: "implicit",
+    proof: "nullable",
+  });
+});
+
+test("provider calls lift exact static argument adapters over nullable value carriers", () => {
+  const sourceType = csharpNullableValueTargetType(
+    csharpSourcePrimitiveTargetType("float64"),
+  );
+  const targetType = csharpNullableValueTargetType(
+    csharpSourcePrimitiveTargetType("int32"),
+  );
+  const adapter = int32ProviderAdapter();
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [sourceType],
+    targetParameters: [targetParameter("value", targetType)],
+    sourceParametersRelations: [parameterRelation({ argumentAdapter: adapter })],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.argumentConversions[0]?.selection, {
+    kind: "lifted-provider-argument-adapter",
+    adapter,
+    sourceElementType: csharpSourcePrimitiveTargetType("float64"),
+    targetElementType: csharpSourcePrimitiveTargetType("int32"),
+  });
+});
+
+test("provider calls reject nullable adapter lifting when element identities differ", () => {
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [
+      csharpNullableValueTargetType(
+        csharpSourcePrimitiveTargetType("float64"),
+      ),
+    ],
+    targetParameters: [
+      targetParameter(
+        "value",
+        csharpNullableValueTargetType(
+          csharpSourcePrimitiveTargetType("uint32"),
+        ),
+      ),
+    ],
+    sourceParametersRelations: [
+      parameterRelation({ argumentAdapter: int32ProviderAdapter() }),
+    ],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "missing");
+  assert.match(
+    selected.reason,
+    /cannot relate 'target:System.Nullable`1<source:float64>' through 'source:float64' and 'source:int32' to 'target:System.Nullable`1<source:uint32>'/u,
   );
 });
 
@@ -996,5 +1076,24 @@ function parameterRelation(options = {}) {
     ...(options.argumentAdapter === undefined
       ? {}
       : { argumentAdapter: options.argumentAdapter }),
+  };
+}
+
+function int32ProviderAdapter() {
+  return {
+    kind: "static-method",
+    id: "System.Convert.ToInt32(System.Double)",
+    declaringType: {
+      kind: "target-named",
+      id: "System.Convert",
+      csharpRender: {
+        kind: "named",
+        namespace: ["System"],
+        name: "Convert",
+      },
+    },
+    targetName: "ToInt32",
+    inputType: csharpSourcePrimitiveTargetType("float64"),
+    resultType: csharpSourcePrimitiveTargetType("int32"),
   };
 }

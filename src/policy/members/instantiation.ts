@@ -560,7 +560,8 @@ function validateArgumentsTargetSelectedParameters(
       ? conversion.kind === "identity" ||
         conversion.kind === "implicit" ||
         conversion.kind === "delegate-adapter" ||
-        conversion.kind === "provider-argument-adapter"
+        conversion.kind === "provider-argument-adapter" ||
+        conversion.kind === "lifted-provider-argument-adapter"
       : conversion.kind === "identity";
     if (!conversionAccepted) {
       const detail = conversion.kind === "rejected" ||

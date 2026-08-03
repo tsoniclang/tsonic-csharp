@@ -14,8 +14,10 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
+  getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
+  isCsharpNullableReferenceTargetType,
   isSourceOwnedCallableRuntimeCarrierSubject,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
@@ -29,6 +31,13 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../backend/planner/target-types.js";
+import {
+  qualifiedCsharpType,
+} from "../../backend/planner/csharp-types.js";
+import {
+  csharpGeneratedConversionHelperName,
+  csharpGeneratedHelperNamespace,
+} from "../artifacts/generated-helpers.js";
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
@@ -99,6 +108,16 @@ export function applyCsharpConversionSelection(
         selection,
         expression,
       );
+    case "lifted-provider-argument-adapter":
+      return applyLiftedProviderArgumentAdapter(
+        node,
+        input,
+        diagnostics,
+        sourceType,
+        targetType,
+        selection,
+        expression,
+      );
     case "compat-box":
       return invokeStaticGeneric(
         csharpTsValueTargetType(),
@@ -130,6 +149,86 @@ export function applyCsharpConversionSelection(
       diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
       return undefined;
   }
+}
+
+function applyLiftedProviderArgumentAdapter(
+  node: Node,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  selection: Extract<
+    CsharpConversionSelection,
+    { readonly kind: "lifted-provider-argument-adapter" }
+  >,
+  expression: CsharpExpression,
+): CsharpExpression | undefined {
+  const sourceElementType = getCsharpNullableElementTargetType(sourceType);
+  const targetElementType = getCsharpNullableElementTargetType(targetType);
+  if (
+    sourceType === undefined ||
+    targetType === undefined ||
+    sourceElementType === undefined ||
+    targetElementType === undefined ||
+    isCsharpNullableReferenceTargetType(sourceType) ||
+    isCsharpNullableReferenceTargetType(targetType) ||
+    !targetTypeRefEquals(sourceElementType, selection.sourceElementType) ||
+    !targetTypeRefEquals(targetElementType, selection.targetElementType) ||
+    !targetTypeRefEquals(sourceElementType, selection.adapter.inputType) ||
+    !targetTypeRefEquals(selection.adapter.resultType, targetElementType)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Exact provider argument adapter '${selection.adapter.id}' cannot be lifted without matching nullable value-carrier element types.`,
+    ));
+    return undefined;
+  }
+  const sourceElement = csharpTypeFromTargetTypeRef(sourceElementType);
+  const targetElement = csharpTypeFromTargetTypeRef(targetElementType);
+  const declaringType = csharpTypeFromTargetTypeRef(
+    selection.adapter.declaringType,
+  );
+  if (
+    sourceElement === undefined ||
+    targetElement === undefined ||
+    declaringType === undefined
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Exact lifted provider argument adapter '${selection.adapter.id}' requires renderable source, result, and declaring types.`,
+    ));
+    return undefined;
+  }
+  const helper = input.artifacts.requireGeneratedHelper(
+    "lifted-provider-argument-adapter",
+  );
+  if (helper.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, helper.reason));
+    return undefined;
+  }
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: qualifiedCsharpType(
+        csharpGeneratedHelperNamespace,
+        csharpGeneratedConversionHelperName,
+      ),
+      name: "LiftNullable",
+      typeArguments: [sourceElement, targetElement],
+    },
+    arguments: [
+      { kind: "Argument", expression },
+      {
+        kind: "Argument",
+        expression: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: declaringType,
+          name: selection.adapter.targetName,
+        },
+      },
+    ],
+  };
 }
 
 function applyProviderArgumentAdapter(

@@ -13,6 +13,7 @@ export function predefined(name: string): CsharpTypeNode {
 export function qualifiedCsharpType(
   namespace: string,
   name: string,
+  typeArguments?: readonly CsharpTypeNode[],
 ): CsharpTypeNode {
   const parts = namespace.split(".");
   let current: CsharpTypeNode = {
@@ -22,7 +23,14 @@ export function qualifiedCsharpType(
   for (const part of parts.slice(1)) {
     current = { kind: "QualifiedName", left: current, name: part };
   }
-  return { kind: "QualifiedName", left: current, name };
+  return {
+    kind: "QualifiedName",
+    left: current,
+    name,
+    ...(typeArguments === undefined || typeArguments.length === 0
+      ? {}
+      : { typeArguments }),
+  };
 }
 
 export function nullableCsharpType(type: CsharpTypeNode): CsharpTypeNode {

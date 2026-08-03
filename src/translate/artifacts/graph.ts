@@ -18,6 +18,12 @@ import type {
 import {
   createCsharpStorageRequirementRegistry,
 } from "./storage-requirements.js";
+import type {
+  CsharpGeneratedHelper,
+} from "./generated-helpers.js";
+import {
+  createCsharpGeneratedHelperRegistry,
+} from "./generated-helpers.js";
 import {
   csharpObjectShapesEqual,
   getCsharpJsArrayElementTargetType,
@@ -69,6 +75,10 @@ export interface CsharpTranslationArtifactGraph {
   ): CsharpStorageTypeResult;
   requiredStorageType(storageExpression: Node): TargetTypeRef | undefined;
   unfulfilledStorageRequirements(): readonly CsharpUnfulfilledStorageRequirement[];
+  requireGeneratedHelper(
+    helper: CsharpGeneratedHelper,
+  ): CsharpArtifactRequestResult;
+  generatedHelpers(): readonly CsharpGeneratedHelper[];
 }
 
 export interface CsharpTranslationArtifactGraphHost {
@@ -104,6 +114,7 @@ export function createCsharpTranslationArtifactGraph(
 ): CsharpTranslationArtifactGraph {
   const records = new Map<string, MutableObjectShapeArtifact>();
   const storage = createCsharpStorageRequirementRegistry(host);
+  const helpers = createCsharpGeneratedHelperRegistry();
   let revision = 0;
 
   function registerObjectShape(
@@ -620,7 +631,7 @@ export function createCsharpTranslationArtifactGraph(
 
   return Object.freeze({
     get revision(): number {
-      return revision + storage.revision;
+      return revision + storage.revision + helpers.revision;
     },
     registerObjectShape,
     requireJsonSerialization,
@@ -630,6 +641,8 @@ export function createCsharpTranslationArtifactGraph(
     resolveStorageType: storage.resolve,
     requiredStorageType: storage.requiredType,
     unfulfilledStorageRequirements: storage.unfulfilled,
+    requireGeneratedHelper: helpers.require,
+    generatedHelpers: helpers.required,
   });
 }
 

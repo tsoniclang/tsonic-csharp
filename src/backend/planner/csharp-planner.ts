@@ -14,6 +14,9 @@ import {
   planCsharpObjectShapeSourceFile,
 } from "./object-shapes.js";
 import {
+  planCsharpGeneratedHelperSourceFile,
+} from "./generated-helpers.js";
+import {
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -83,6 +86,7 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
       diagnostics,
     };
   }
+  const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
   const project = planCsharpProject(input, {
     allowUnsafeBlocks:
       plannedSources.some((source) => source.requiresUnsafe) ||
@@ -102,6 +106,7 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
         unit: source.unit,
       })),
       ...(objectShapes === undefined ? [] : [objectShapes.source]),
+      ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
       ...[planCsharpEntrypointSourceFile(input, plannedSources, moduleInitialization)].filter((source): source is NonNullable<typeof source> => source !== undefined),
     ],
   });
