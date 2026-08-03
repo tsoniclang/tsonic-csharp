@@ -12,6 +12,9 @@ import {
   selectCsharpTargetCall,
 } from "../../policy/members/index.js";
 import {
+  selectCsharpSourceFlowCall,
+} from "../../policy/operations/index.js";
+import {
   selectCsharpCompatAnyCallOperation,
 } from "../../policy/compat/index.js";
 import type {
@@ -70,6 +73,15 @@ export function translateCsharpCallExpression(
 ): CsharpExpression | undefined {
   const expression = input.ast.as.AsCallExpression(node);
   const sourceCall = input.semantics(sourceFile).getResolvedCallInfo(node);
+  const sourceFlow = selectCsharpSourceFlowCall(input, node);
+  if (sourceFlow.kind === "rejected") {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      sourceFlow.code,
+      sourceFlow.reason,
+    ));
+    return undefined;
+  }
   const calleeNode = sourceCall?.sourceCallee.expression ??
     expression?.Expression;
   const compatShape = compatCallShape(input, sourceCall);

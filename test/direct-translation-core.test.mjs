@@ -658,13 +658,13 @@ test("direct C# strict-native translation rejects opaque any declarations and op
   assert.deepEqual(
     compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
     [{
-      code: "CSHARP_UNSUPPORTED_AST",
+      code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
       message:
-        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax.",
+        "Opaque target type 'any' has no renderable C# source representation.",
     }, {
-      code: "CSHARP_UNSUPPORTED_AST",
+      code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
       message:
-        "C# type policy resolved 'opaque', but that target type has no renderable C# syntax.",
+        "Opaque target type 'any' has no renderable C# source representation.",
     }, {
       code: "CSHARP_UNSUPPORTED_AST",
       message:

@@ -4,3 +4,4 @@ export * from "./regexp-literal.js";
 export * from "./js-array-mutations.js";
 export * from "./iteration.js";
 export * from "./numeric-promotion.js";
+export * from "./source-flow.js";

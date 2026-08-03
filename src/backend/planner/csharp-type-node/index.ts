@@ -12,6 +12,7 @@ import type {
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import {
+  targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -47,6 +48,14 @@ export function getCsharpTypeForNode(
   );
   if (csharpType !== undefined) {
     return csharpType;
+  }
+  if (targetType.kind === "opaque") {
+    diagnostics?.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
+      `Opaque target type '${targetType.id}' has no renderable C# source representation.`,
+    ));
+    return errorType;
   }
   diagnostics?.push(unsupportedNodeDiagnostic(
     node,

@@ -49,3 +49,30 @@ namespace Tsonic.Generated
 }
 `);
 });
+
+test("direct C# translation rejects exact source-core flow facts", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
+
+      export function reject(value: int): void {
+        borrow(value);
+        borrowMut(value);
+        move(value);
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
+    ["borrow", "borrowMut", "move"].map((marker) => ({
+      code: "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED",
+      message:
+        `C# target does not implement source flow marker '${marker}'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.`,
+    })),
+  );
+  assert.deepEqual([...compiled.artifacts], []);
+});
