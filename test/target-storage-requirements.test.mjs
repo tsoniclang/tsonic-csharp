@@ -10,6 +10,12 @@ import {
 } from "../dist/policy/types/index.js";
 
 function createRegistry(references = new Map()) {
+  const identities = new Map(
+    [...new Set(references.values())].map((declaration, index) => [
+      declaration,
+      `storage:fixture:${index}`,
+    ]),
+  );
   return createCsharpStorageRequirementRegistry({
     navigation: {
       referenceFor(node) {
@@ -18,6 +24,9 @@ function createRegistry(references = new Map()) {
           ? undefined
           : { symbol: {}, declaration, sourceFile: {} };
       },
+    },
+    artifactOwner(declaration) {
+      return identities.get(declaration);
     },
   });
 }
@@ -43,6 +52,32 @@ test("target storage requirements widen one exact reference storage declaration"
     },
   });
   assert.deepEqual(registry.unfulfilled(), []);
+});
+
+test("emitted storage publishes a baseline contract before later strengthening", () => {
+  const expression = {};
+  const declaration = {};
+  const todo = csharpTargetNamedType("Example.Todo");
+  const registry = createRegistry(new Map([[expression, declaration]]));
+
+  assert.deepEqual(registry.resolve(declaration, todo), {
+    kind: "resolved",
+    type: todo,
+  });
+  assert.equal(registry.revision, 1);
+  assert.equal(registry.contractOwner(expression), "storage:fixture:0");
+  assert.deepEqual(registry.require(expression, {
+    kind: "nullable-reference-write",
+    writtenType: todo,
+  }), { kind: "accepted" });
+  assert.equal(registry.revision, 2);
+  assert.deepEqual(registry.resolve(declaration, todo), {
+    kind: "resolved",
+    type: {
+      ...todo,
+      csharpNullableReference: true,
+    },
+  });
 });
 
 test("target storage requirements are idempotent and reject conflicting writes", () => {

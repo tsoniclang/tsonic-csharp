@@ -3,10 +3,20 @@ import type {
 } from "@tsonic/tsts";
 import type {
   SourceProgramNavigation,
+  TargetArtifactContractGraph,
+} from "@tsonic/target-api";
+import {
+  createTargetArtifactContractGraph,
 } from "@tsonic/target-api";
 import type {
   TargetTypeRef,
 } from "../../policy/types/index.js";
+import type {
+  CsharpArtifactFacet,
+} from "./contracts.js";
+import {
+  csharpStorageContractCandidate,
+} from "./contracts.js";
 import {
   csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,
@@ -50,16 +60,19 @@ export interface CsharpStorageRequirementRegistry {
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult;
   requiredType(storageExpression: Node): TargetTypeRef | undefined;
+  contractOwner(storageExpression: Node): string | undefined;
   unfulfilled(): readonly CsharpUnfulfilledStorageRequirement[];
 }
 
 export interface CsharpStorageRequirementRegistryHost {
   readonly navigation: SourceProgramNavigation;
+  artifactOwner(declaration: Node): string | undefined;
 }
 
 interface StoredRequirement {
   readonly expression: Node;
   readonly declaration: Node;
+  readonly artifactOwner: string;
   nullableWrittenType?: TargetTypeRef;
   targetType?: TargetTypeRef;
   nullableConsumed: boolean;
@@ -71,9 +84,10 @@ const accepted = Object.freeze({ kind: "accepted" as const });
 
 export function createCsharpStorageRequirementRegistry(
   host: CsharpStorageRequirementRegistryHost,
+  contracts: TargetArtifactContractGraph<CsharpArtifactFacet> =
+    createTargetArtifactContractGraph<CsharpArtifactFacet>(),
 ): CsharpStorageRequirementRegistry {
   const requirements = new Map<Node, StoredRequirement>();
-  let revision = 0;
 
   function require(
     storageExpression: Node,
@@ -95,19 +109,27 @@ export function createCsharpStorageRequirementRegistry(
           : "A selected target output can write null, but its exact source storage declaration is unavailable.",
       );
     }
-    const current = requirements.get(reference.declaration) ?? {
+    const existing = requirements.get(reference.declaration);
+    const artifactOwner = existing?.artifactOwner ??
+      host.artifactOwner(reference.declaration);
+    if (artifactOwner === undefined) {
+      return rejected(
+        "A selected target storage requirement has no exact source declaration identity.",
+      );
+    }
+    const current = existing ?? {
       expression: storageExpression,
       declaration: reference.declaration,
+      artifactOwner,
       nullableConsumed: false,
       targetConsumed: false,
     };
-    if (!requirements.has(reference.declaration)) {
+    if (existing === undefined) {
       if (requirements.size >= maximumStorageRequirementCount) {
         return rejected(
           `C# target storage requirements exceed their finite ${maximumStorageRequirementCount}-declaration budget.`,
         );
       }
-      requirements.set(reference.declaration, current);
     }
     if (requirement.kind === "target-representation") {
       if (
@@ -119,8 +141,16 @@ export function createCsharpStorageRequirementRegistry(
         );
       }
       if (current.targetType === undefined) {
+        const committed = commitStorageRequirement(
+          current,
+          requirement.targetType,
+          current.nullableWrittenType,
+        );
+        if (committed.kind === "rejected") {
+          return committed;
+        }
         current.targetType = requirement.targetType;
-        revision += 1;
+        requirements.set(reference.declaration, current);
       }
       return accepted;
     }
@@ -136,8 +166,16 @@ export function createCsharpStorageRequirementRegistry(
       );
     }
     if (current.nullableWrittenType === undefined) {
+      const committed = commitStorageRequirement(
+        current,
+        current.targetType,
+        requirement.writtenType,
+      );
+      if (committed.kind === "rejected") {
+        return committed;
+      }
       current.nullableWrittenType = requirement.writtenType;
-      revision += 1;
+      requirements.set(reference.declaration, current);
     }
     return accepted;
   }
@@ -146,9 +184,40 @@ export function createCsharpStorageRequirementRegistry(
     declaration: Node,
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult {
-    const requirement = requirements.get(declaration);
+    let requirement = requirements.get(declaration);
     if (requirement === undefined) {
-      return { kind: "resolved", type: sourceType };
+      const artifactOwner = host.artifactOwner(declaration);
+      if (artifactOwner === undefined) {
+        return {
+          kind: "rejected",
+          reason:
+            "An emitted C# storage declaration has no stable compiler-owned target artifact identity.",
+        };
+      }
+      if (requirements.size >= maximumStorageRequirementCount) {
+        return {
+          kind: "rejected",
+          reason:
+            `C# target storage declarations exceed their finite ${maximumStorageRequirementCount}-declaration budget.`,
+        };
+      }
+      const baseline: StoredRequirement = {
+        expression: declaration,
+        declaration,
+        artifactOwner,
+        nullableConsumed: false,
+        targetConsumed: false,
+      };
+      const committed = commitStorageRequirement(
+        baseline,
+        undefined,
+        undefined,
+      );
+      if (committed.kind === "rejected") {
+        return committed;
+      }
+      requirements.set(declaration, baseline);
+      requirement = baseline;
     }
     const targetType = requirement.targetType ?? sourceType;
     if (
@@ -176,6 +245,13 @@ export function createCsharpStorageRequirementRegistry(
     return reference === undefined
       ? undefined
       : requirements.get(reference.declaration)?.targetType;
+  }
+
+  function contractOwner(storageExpression: Node): string | undefined {
+    const reference = host.navigation.referenceFor(storageExpression);
+    return reference === undefined
+      ? undefined
+      : requirements.get(reference.declaration)?.artifactOwner;
   }
 
   function unfulfilled(): readonly CsharpUnfulfilledStorageRequirement[] {
@@ -208,13 +284,34 @@ export function createCsharpStorageRequirementRegistry(
 
   return Object.freeze({
     get revision(): number {
-      return revision;
+      return contracts.revision;
     },
     require,
     resolve,
     requiredType,
+    contractOwner,
     unfulfilled,
   });
+
+  function commitStorageRequirement(
+    requirement: StoredRequirement,
+    targetType: TargetTypeRef | undefined,
+    nullableWrittenType: TargetTypeRef | undefined,
+  ): CsharpStorageRequirementResult {
+    const candidate = csharpStorageContractCandidate(
+      requirement.artifactOwner,
+      targetType,
+      nullableWrittenType,
+    );
+    const committed = contracts.commit(
+      candidate.owner,
+      candidate.contract,
+      candidate.dependencies,
+    );
+    return committed.kind === "rejected"
+      ? rejected(committed.reason)
+      : accepted;
+  }
 }
 
 function sameStorageIdentity(

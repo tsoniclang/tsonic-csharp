@@ -1,3 +1,16 @@
+import {
+  createTargetArtifactContractGraph,
+} from "@tsonic/target-api";
+import type {
+  TargetArtifactContractGraph,
+} from "@tsonic/target-api";
+import type {
+  CsharpArtifactFacet,
+} from "./contracts.js";
+import {
+  csharpGeneratedHelperContractCandidate,
+} from "./contracts.js";
+
 export const csharpGeneratedHelperNamespace = "Tsonic.CSharp.Generated";
 export const csharpGeneratedConversionHelperName = "__TsonicConversions";
 
@@ -16,10 +29,12 @@ export interface CsharpGeneratedHelperRegistry {
 
 const maximumGeneratedHelperCount = 64;
 
-export function createCsharpGeneratedHelperRegistry():
+export function createCsharpGeneratedHelperRegistry(
+  contracts: TargetArtifactContractGraph<CsharpArtifactFacet> =
+    createTargetArtifactContractGraph<CsharpArtifactFacet>(),
+):
   CsharpGeneratedHelperRegistry {
   const helpers = new Set<CsharpGeneratedHelper>();
-  let revision = 0;
 
   function require(
     helper: CsharpGeneratedHelper,
@@ -34,14 +49,22 @@ export function createCsharpGeneratedHelperRegistry():
           `C# generated helpers exceed their finite ${maximumGeneratedHelperCount}-helper budget.`,
       };
     }
+    const candidate = csharpGeneratedHelperContractCandidate(helper);
+    const committed = contracts.commit(
+      candidate.owner,
+      candidate.contract,
+      candidate.dependencies,
+    );
+    if (committed.kind === "rejected") {
+      return { kind: "rejected", reason: committed.reason };
+    }
     helpers.add(helper);
-    revision += 1;
     return accepted;
   }
 
   return Object.freeze({
     get revision(): number {
-      return revision;
+      return contracts.revision;
     },
     require,
     required(): readonly CsharpGeneratedHelper[] {

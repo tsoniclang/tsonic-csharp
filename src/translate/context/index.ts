@@ -115,6 +115,7 @@ export function createCsharpTranslationContext(
     typePolicyHost,
   );
   artifacts = createCsharpTranslationArtifactGraph({
+    ast: input.source.ast,
     objectShapes,
     navigation: input.source.navigation,
   });

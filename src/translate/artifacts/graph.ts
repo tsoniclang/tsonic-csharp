@@ -1,9 +1,16 @@
 import type {
+  AstReader,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
 import type {
   SourceProgramNavigation,
+  TargetArtifactContractGraph,
+  TargetArtifactDependency,
+} from "@tsonic/target-api";
+import {
+  createTargetArtifactContractGraph,
+  sourceNodeIdentity,
 } from "@tsonic/target-api";
 import type {
   CsharpObjectShapeFact,
@@ -35,6 +42,12 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
+import type {
+  CsharpArtifactFacet,
+} from "./contracts.js";
+import {
+  csharpObjectShapeContractCandidate,
+} from "./contracts.js";
 
 export type CsharpArtifactRequestResult =
   | { readonly kind: "accepted" }
@@ -51,6 +64,14 @@ export interface CsharpObjectShapeArtifact {
 
 export interface CsharpTranslationArtifactGraph {
   readonly revision: number;
+  readonly contractGraph: TargetArtifactContractGraph<CsharpArtifactFacet>;
+  captureDependencies<Value>(
+    owner: string,
+    build: () => Value,
+  ): {
+    readonly value: Value;
+    readonly dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[];
+  };
   registerObjectShape(
     fact: CsharpObjectShapeFact,
     materialization: "source" | "synthetic",
@@ -79,9 +100,11 @@ export interface CsharpTranslationArtifactGraph {
     helper: CsharpGeneratedHelper,
   ): CsharpArtifactRequestResult;
   generatedHelpers(): readonly CsharpGeneratedHelper[];
+  verifyContractClosure(): CsharpArtifactRequestResult;
 }
 
 export interface CsharpTranslationArtifactGraphHost {
+  readonly ast: AstReader;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly navigation: SourceProgramNavigation;
 }
@@ -106,6 +129,13 @@ interface PreparedObjectShapeBatch {
   readonly materializations: Map<string, "source" | "synthetic">;
 }
 
+interface StagedObjectShapeRecord {
+  readonly fact: CsharpObjectShapeFact;
+  readonly materialization: "source" | "synthetic";
+  readonly jsonSerializable: boolean;
+  readonly dependencies: ReadonlySet<string>;
+}
+
 const maximumArtifactCount = 131_072;
 const maximumJsonClosureDepth = 256;
 
@@ -113,9 +143,58 @@ export function createCsharpTranslationArtifactGraph(
   host: CsharpTranslationArtifactGraphHost,
 ): CsharpTranslationArtifactGraph {
   const records = new Map<string, MutableObjectShapeArtifact>();
-  const storage = createCsharpStorageRequirementRegistry(host);
-  const helpers = createCsharpGeneratedHelperRegistry();
-  let revision = 0;
+  const contracts = createTargetArtifactContractGraph<CsharpArtifactFacet>();
+  const storage = createCsharpStorageRequirementRegistry({
+    navigation: host.navigation,
+    artifactOwner(declaration) {
+      const identity = sourceNodeIdentity(host.ast, declaration);
+      return identity === undefined ? undefined : `storage:${identity}`;
+    },
+  }, contracts);
+  const helpers = createCsharpGeneratedHelperRegistry(contracts);
+  let activeDependencies:
+    | Map<string, TargetArtifactDependency<CsharpArtifactFacet>>
+    | undefined;
+
+  function captureDependencies<Value>(
+    owner: string,
+    build: () => Value,
+  ): {
+    readonly value: Value;
+    readonly dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[];
+  } {
+    if (activeDependencies !== undefined) {
+      throw new Error(
+        `C# target artifact '${owner}' attempted nested dependency capture.`,
+      );
+    }
+    activeDependencies = new Map();
+    try {
+      const value = build();
+      return {
+        value,
+        dependencies: Object.freeze(
+          [...activeDependencies.values()].sort((left, right) =>
+            left.owner.localeCompare(right.owner) ||
+            left.facet.localeCompare(right.facet)
+          ),
+        ),
+      };
+    } finally {
+      activeDependencies = undefined;
+    }
+  }
+
+  function dependOn(
+    owner: string,
+    facet: CsharpArtifactFacet,
+  ): void {
+    if (activeDependencies === undefined) {
+      return;
+    }
+    const key = `${owner.length}:${owner}${facet.length}:${facet}`;
+    activeDependencies.set(key, Object.freeze({ owner, facet }));
+  }
 
   function registerObjectShape(
     fact: CsharpObjectShapeFact,
@@ -156,8 +235,14 @@ export function createCsharpTranslationArtifactGraph(
     if (validation.kind === "rejected") {
       return validation;
     }
-    commitObjectShapeBatch(prepared.batch, jsonShapes);
-    return accepted;
+    const committed = commitObjectShapeBatch(prepared.batch, jsonShapes);
+    if (committed.kind === "accepted") {
+      dependOn(
+        objectShapeArtifactKey(fact),
+        "object-shape-type-surface",
+      );
+    }
+    return committed;
   }
 
   function requireJsonSerialization(
@@ -217,14 +302,24 @@ export function createCsharpTranslationArtifactGraph(
     if (validation.kind === "rejected") {
       return validation;
     }
-    commitObjectShapeBatch(prepared.batch, completeClosure.shapes);
-    return accepted;
+    const committed = commitObjectShapeBatch(
+      prepared.batch,
+      completeClosure.shapes,
+    );
+    if (committed.kind === "accepted") {
+      for (const key of completeClosure.shapes.keys()) {
+        dependOn(key, "object-shape-serialization");
+      }
+    }
+    return committed;
   }
 
   function objectShapeRequiresJsonSerialization(
     fact: CsharpObjectShapeFact,
   ): boolean {
-    return records.get(objectShapeArtifactKey(fact))?.jsonSerializable === true;
+    const key = objectShapeArtifactKey(fact);
+    dependOn(key, "object-shape-serialization");
+    return records.get(key)?.jsonSerializable === true;
   }
 
   function objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[] {
@@ -252,7 +347,6 @@ export function createCsharpTranslationArtifactGraph(
     }
     owner.dependencies.add(dependencyKey);
     dependency.dependents.add(ownerKey);
-    revision += 1;
   }
 
   function collectShapeDependencies(
@@ -423,33 +517,75 @@ export function createCsharpTranslationArtifactGraph(
   function commitObjectShapeBatch(
     batch: PreparedObjectShapeBatch,
     jsonShapes: ReadonlyMap<string, CsharpObjectShapeFact>,
-  ): void {
-    for (const [key, fact] of batch.shapes) {
-      const materialization = batch.materializations.get(key) ?? "synthetic";
+  ): CsharpArtifactRequestResult {
+    const staged = new Map<string, StagedObjectShapeRecord>();
+    const affectedKeys = new Set([
+      ...batch.shapes.keys(),
+      ...jsonShapes.keys(),
+    ]);
+    for (const key of [...affectedKeys].sort()) {
+      const existing = records.get(key);
+      const fact = batch.shapes.get(key) ?? existing?.fact;
+      if (fact === undefined) {
+        return rejected(
+          `C# object-shape transaction '${key}' has no exact staged structural fact.`,
+        );
+      }
+      const requestedMaterialization = batch.materializations.get(key) ??
+        existing?.materialization ?? "synthetic";
+      const dependencies = new Set(existing?.dependencies ?? []);
+      batch.dependencies.get(key)?.forEach((dependency) =>
+        dependencies.add(dependency)
+      );
+      staged.set(key, {
+        fact,
+        materialization:
+          existing?.materialization === "source" ||
+            requestedMaterialization === "source"
+            ? "source"
+            : "synthetic",
+        jsonSerializable:
+          existing?.jsonSerializable === true || jsonShapes.has(key),
+        dependencies,
+      });
+    }
+    const candidates = [...staged]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, record]) =>
+        csharpObjectShapeContractCandidate(
+          key,
+          record.fact,
+          record.materialization,
+          record.jsonSerializable,
+          [...record.dependencies].sort(),
+        )
+      );
+    const committed = contracts.commitBatch(candidates);
+    if (committed.kind === "rejected") {
+      return rejected(committed.reason);
+    }
+    for (const [key, stagedRecord] of staged) {
       const existing = records.get(key);
       if (existing === undefined) {
         records.set(key, {
-          fact,
-          materialization,
-          jsonSerializable: false,
+          fact: stagedRecord.fact,
+          materialization: stagedRecord.materialization,
+          jsonSerializable: stagedRecord.jsonSerializable,
           dependencies: new Set(),
           dependents: new Set(),
         });
-        revision += 1;
-      } else if (
-        materialization === "source" &&
-        existing.materialization !== "source"
-      ) {
-        existing.materialization = "source";
-        revision += 1;
+        continue;
       }
+      existing.fact = stagedRecord.fact;
+      existing.materialization = stagedRecord.materialization;
+      existing.jsonSerializable = stagedRecord.jsonSerializable;
     }
-    for (const [owner, dependencies] of batch.dependencies) {
-      for (const dependency of dependencies) {
+    for (const [owner, stagedRecord] of staged) {
+      for (const dependency of stagedRecord.dependencies) {
         connect(owner, dependency);
       }
     }
-    commitJsonClosure(jsonShapes);
+    return accepted;
   }
 
   function collectJsonClosure(
@@ -606,18 +742,6 @@ export function createCsharpTranslationArtifactGraph(
     return undefined;
   }
 
-  function commitJsonClosure(
-    shapes: ReadonlyMap<string, CsharpObjectShapeFact>,
-  ): void {
-    for (const [key] of shapes) {
-      const record = records.get(key);
-      if (record !== undefined && !record.jsonSerializable) {
-        record.jsonSerializable = true;
-        revision += 1;
-      }
-    }
-  }
-
   function implementsJsonSerializableShape(
     fact: CsharpObjectShapeFact,
   ): boolean {
@@ -629,20 +753,82 @@ export function createCsharpTranslationArtifactGraph(
     );
   }
 
+  function requireStorage(
+    storageExpression: Node,
+    requirement: CsharpStorageRequirement,
+  ): CsharpArtifactRequestResult {
+    const result = storage.require(storageExpression, requirement);
+    if (result.kind === "accepted") {
+      const owner = storage.contractOwner(storageExpression);
+      if (owner !== undefined) {
+        dependOn(owner, "storage-representation");
+      }
+    }
+    return result;
+  }
+
+  function resolveStorageType(
+    declaration: Node,
+    sourceType: TargetTypeRef,
+  ): CsharpStorageTypeResult {
+    const result = storage.resolve(declaration, sourceType);
+    const owner = storage.contractOwner(declaration);
+    if (owner !== undefined) {
+      dependOn(owner, "storage-representation");
+    }
+    return result;
+  }
+
+  function requiredStorageType(
+    storageExpression: Node,
+  ): TargetTypeRef | undefined {
+    const owner = storage.contractOwner(storageExpression);
+    if (owner !== undefined) {
+      dependOn(owner, "storage-representation");
+    }
+    return storage.requiredType(storageExpression);
+  }
+
+  function requireGeneratedHelper(
+    helper: CsharpGeneratedHelper,
+  ): CsharpArtifactRequestResult {
+    const result = helpers.require(helper);
+    if (result.kind === "accepted") {
+      dependOn(
+        `generated-helper:${helper}`,
+        "generated-helper-surface",
+      );
+    }
+    return result;
+  }
+
+  function verifyContractClosure(): CsharpArtifactRequestResult {
+    if (contracts.hasPending()) {
+      return rejected(
+        "C# target artifact contracts retain dirty dependents after reconstruction.",
+      );
+    }
+    const closure = contracts.verifyClosure();
+    return closure.kind === "closed" ? accepted : rejected(closure.reason);
+  }
+
   return Object.freeze({
     get revision(): number {
-      return revision + storage.revision + helpers.revision;
+      return contracts.revision;
     },
+    contractGraph: contracts,
+    captureDependencies,
     registerObjectShape,
     requireJsonSerialization,
     objectShapeRequiresJsonSerialization,
     objectShapeArtifacts,
-    requireStorage: storage.require,
-    resolveStorageType: storage.resolve,
-    requiredStorageType: storage.requiredType,
+    requireStorage,
+    resolveStorageType,
+    requiredStorageType,
     unfulfilledStorageRequirements: storage.unfulfilled,
-    requireGeneratedHelper: helpers.require,
+    requireGeneratedHelper,
     generatedHelpers: helpers.required,
+    verifyContractClosure,
   });
 }
 
