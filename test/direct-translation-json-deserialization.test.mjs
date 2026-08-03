@@ -146,6 +146,31 @@ test("provider collection values do not become project-owned object shapes", () 
   assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
 });
 
+test("provider arguments retain an object literal's contextual project interface relation", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { JsonSerializer } from "@tsonic/dotnet/System.Text.Json.js";
+      export interface ErrorResponse { error: string; }
+      export function serializeError(message: string): string {
+        return JsonSerializer.Serialize<ErrorResponse>({ error: message });
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+  assert.ok(source);
+  assert.ok(shapes);
+  const selectedCarrier = source.match(
+    /JsonSerializer\.Serialize<ErrorResponse>\(new (__TsonicShape_[0-9a-f]{64})/,
+  )?.[1];
+  assert.ok(selectedCarrier);
+  assert.match(shapes, new RegExp(`public class ${selectedCarrier} : ErrorResponse`, "u"));
+});
+
 test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", () => {
   const compiled = compileCsharpSource({
     surface: "js",

@@ -121,12 +121,12 @@ export function createCsharpObjectShapePolicy(
       }
       const selectedTarget = host.types.resolveNode(node, queries.sourceFile);
       const selectedShape = resolveTarget(selectedTarget);
-      const semanticType = selectedObjectShapeSourceType(node, queries, host);
+      const source = selectedObjectShapeSource(node, queries, host);
       const shape = resolveSemanticShape(
-        semanticType,
+        source.type,
         node,
         queries,
-        selectedTarget,
+        source.contextualProjectTarget ?? selectedTarget,
       );
       if (shape !== undefined) {
         return remember(node, shape);
@@ -546,18 +546,23 @@ export function createCsharpObjectShapePolicy(
   });
 }
 
-function selectedObjectShapeSourceType(
+interface SelectedObjectShapeSource {
+  readonly type: Type | undefined;
+  readonly contextualProjectTarget?: TargetTypeRef;
+}
+
+function selectedObjectShapeSource(
   node: Node,
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
-): Type | undefined {
+): SelectedObjectShapeSource {
   const semanticType = queries.getTypeAtLocation(node);
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
-    return semanticType;
+    return { type: semanticType };
   }
   const contextual = queries.selectContextualValueType(node);
   if (contextual.kind !== "selected") {
-    return semanticType;
+    return { type: semanticType };
   }
   const contextualType = contextual.type;
   const contextualSymbol = queries.getTypeAliasSymbol(contextualType) ??
@@ -565,16 +570,25 @@ function selectedObjectShapeSourceType(
   const contextualDeclarations = queries.getSymbolDeclarations(
     contextualSymbol,
   );
-  return contextualDeclarations.some((declaration) =>
+  const projectDeclaration = contextualDeclarations.some((declaration) =>
       declaration !== undefined &&
       host.navigation.isProjectDeclaration(declaration) &&
       (
         host.ast.is.IsClassDeclaration(declaration) ||
         host.ast.is.IsInterfaceDeclaration(declaration)
       )
-    )
-    ? contextualType
-    : semanticType;
+    );
+  if (!projectDeclaration) {
+    return { type: semanticType };
+  }
+  const contextualProjectTarget = host.types.resolveType(
+    contextualType,
+    queries.sourceFile,
+  );
+  return contextualProjectTarget !== undefined &&
+      isProjectSourceTargetType(contextualProjectTarget)
+    ? { type: contextualType, contextualProjectTarget }
+    : { type: semanticType };
 }
 
 function sourceSubjects(

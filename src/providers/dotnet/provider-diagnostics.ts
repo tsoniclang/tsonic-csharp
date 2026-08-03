@@ -1,6 +1,12 @@
 import type {
   ExtensionDiagnostic,
 } from "@tsonic/tsts";
+import {
+  createHash,
+} from "node:crypto";
+import {
+  canonicalProviderValue,
+} from "../../provider/canonical-value.js";
 import type {
   DotnetProviderDiagnostic,
   DotnetProviderModuleResult,
@@ -24,12 +30,21 @@ export function dotnetExtensionDiagnostic(
   message: string,
   evidence?: readonly Readonly<Record<string, unknown>>[],
 ): ExtensionDiagnostic {
+  const identity = createHash("sha256")
+    .update(canonicalProviderValue({
+      extensionCode,
+      numericCode,
+      message,
+      evidence: evidence ?? null,
+    }))
+    .digest("hex");
   return {
     extensionId,
     extensionCode,
     numericCode,
     category: "error",
     message,
+    identity,
     ...(evidence !== undefined ? { evidence: evidence.map((details) => ({ message: "Provider evidence", details })) } : {}),
   };
 }

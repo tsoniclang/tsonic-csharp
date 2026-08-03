@@ -247,19 +247,16 @@ export function createDotnetReflectionTypeDataProvider(
     if (cached !== undefined) {
       const module = augmentDotnetModuleWithNativeArray(cached, context);
       const cachedDiagnostic = validateModuleSatisfiesRequest(module, cacheRequest);
-      if (cachedDiagnostic !== undefined) {
-        diagnostics.set(memoryKey, cachedDiagnostic);
-        providerBroker?.writeDiagnostic(cacheRequest, cachedDiagnostic);
-        return cachedDiagnostic;
+      const contractDiagnostic = validateDotnetModuleModelContract(module);
+      if (
+        cachedDiagnostic === undefined &&
+        contractDiagnostic === undefined
+      ) {
+        rememberModule(memoryKey, module);
+        providerBroker?.writeModule(cacheRequest, module);
+        telemetry.modelBytes(JSON.stringify(cached).length);
+        return module;
       }
-      const contractDiagnostic = validateLoadedModuleContract(memoryKey, cacheRequest, module);
-      if (contractDiagnostic !== undefined) {
-        return contractDiagnostic;
-      }
-      rememberModule(memoryKey, module);
-      providerBroker?.writeModule(cacheRequest, module);
-      telemetry.modelBytes(JSON.stringify(cached).length);
-      return module;
     }
     const args = [
       "--namespace",

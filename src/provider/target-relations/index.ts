@@ -9,6 +9,9 @@ import type {
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../policy/types/index.js";
+import {
+  canonicalProviderValue,
+} from "../canonical-value.js";
 
 export interface CsharpProviderSourceIdentityBase {
   readonly providerId: string;
@@ -743,31 +746,13 @@ function providerTargetRejectionsEqual(
   left: CsharpProviderTargetRejection,
   right: CsharpProviderTargetRejection,
 ): boolean {
-  return canonicalPolicyValue(left) === canonicalPolicyValue(right);
+  return canonicalProviderValue(left) === canonicalProviderValue(right);
 }
 
 function canonicalRelationValue(
   relation: CsharpProviderTargetRelation,
 ): string {
-  return canonicalPolicyValue(relation);
-}
-
-function canonicalPolicyValue(value: unknown): string {
-  return JSON.stringify(canonicalizeRelationValue(value));
-}
-
-function canonicalizeRelationValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(canonicalizeRelationValue);
-  }
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.entries(value as Readonly<Record<string, unknown>>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, canonicalizeRelationValue(child)]),
-  );
+  return canonicalProviderValue(relation);
 }
 
 function formatProviderSourceIdentity(identity: CsharpProviderSourceIdentity): string {
