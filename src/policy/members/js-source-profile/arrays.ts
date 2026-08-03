@@ -259,7 +259,7 @@ export const csharpJsArrayCallPolicies:
       jsCallIdentity("ArrayConstructor"),
       (context) => arrayCallMember(context),
       noReceiver,
-      { targetMethodTypeArguments: arrayResultElementTypeArguments },
+      { targetMethodTypeArguments: arrayConstructorElementTypeArguments },
     ),
   ]);
 
@@ -587,10 +587,7 @@ function arrayFromMember(
 function arrayConstructionMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const resultType = arrayConstructorResultType(context);
   const element = getCsharpJsArrayElementTargetType(resultType);
   if (resultType === undefined || element === undefined) {
     return undefined;
@@ -629,10 +626,7 @@ function arrayConstructionMember(
 function arrayCallMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
+  const resultType = arrayConstructorResultType(context);
   const element = getCsharpJsArrayElementTargetType(resultType);
   if (resultType === undefined || element === undefined) {
     return undefined;
@@ -672,15 +666,33 @@ function arrayCallShape(
     : { receiver, element };
 }
 
-function arrayResultElementTypeArguments(
+function arrayConstructorElementTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
-  const result = context.host.types.resolveType(
+  const result = arrayConstructorResultType(context);
+  const element = getCsharpJsArrayElementTargetType(result);
+  return element === undefined ? undefined : [element];
+}
+
+function arrayConstructorResultType(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): TargetTypeRef | undefined {
+  const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
+  if (selected.length !== 0) {
+    if (selected.length !== 1) {
+      return undefined;
+    }
+    const element = context.host.types.resolveSelectedType(
+      selected[0]!.explicitTypeNode,
+      selected[0]!.selectedType,
+      context.sourceFile,
+    );
+    return element === undefined ? undefined : csharpJsArrayTargetType(element);
+  }
+  return context.host.types.resolveType(
     context.source.sourceResultType,
     context.sourceFile,
   );
-  const element = getCsharpJsArrayElementTargetType(result);
-  return element === undefined ? undefined : [element];
 }
 
 function arrayOfTypeArguments(
@@ -789,7 +801,7 @@ function arrayConstructionTypeArguments(
     context.host.semantics(context.sourceFile).isNumberLike(
       context.source.sourceArguments[0]?.type,
     );
-  return numericLength ? [] : arrayResultElementTypeArguments(context);
+  return numericLength ? [] : arrayConstructorElementTypeArguments(context);
 }
 
 function sourceIsString(

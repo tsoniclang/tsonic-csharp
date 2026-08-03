@@ -317,10 +317,10 @@ function resolveBinaryOperandType(
     }
   }
   const selected = input.types.resolveNode(node, sourceFile);
-  return adaptNumericLiteralToExpectedType(input, node, selected, expectedType);
+  return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 
-function adaptNumericLiteralToExpectedType(
+function adaptLiteralToExpectedType(
   input: CsharpTranslationContext,
   node: Node,
   selected: TargetTypeRef | undefined,
@@ -328,8 +328,6 @@ function adaptNumericLiteralToExpectedType(
 ): TargetTypeRef | undefined {
   return selected !== undefined &&
       expected !== undefined &&
-      isSourceNumericPrimitive(selected) &&
-      isSourceNumericPrimitive(expected) &&
       csharpLiteralIsRepresentableAs(input, node, expected)
     ? expected
     : selected;
