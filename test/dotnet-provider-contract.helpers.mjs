@@ -6,14 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
   dotnetNativeArrayTypeId,
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
-export { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture };
+export { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture };
 
 export const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 export const testAssemblyId = "Provider.Contract.Tests, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -108,11 +108,9 @@ export function assertProviderDeclarationContractInvariants(model) {
   assert.equal(typeof model.moduleSpecifier, "string");
   assert.equal(typeof model.providerModuleId, "string");
   for (const declaration of model.exports) {
-    if (declaration.kind !== "namespace") {
-      assert.equal(declaration.targetIdentity?.target, "csharp");
-      assert.equal(typeof declaration.targetIdentity?.id, "string");
-      assert.notEqual(declaration.targetIdentity.id.length, 0);
-    }
+    assert.equal(Object.hasOwn(declaration, "targetIdentity"), false);
+    assert.equal(typeof declaration.id, "string");
+    assert.notEqual(declaration.id.length, 0);
     walkProviderExportRefs(declaration, (type, path) => assertProviderTypeExpressionInvariant(type, `${declaration.name}.${path}`));
   }
 }
@@ -136,13 +134,21 @@ export function assertTargetBindingContractInvariants(provider, module) {
 }
 
 export function assertRawSignatureInvariant(signature, path) {
+  assert.equal(typeof signature.sourceId, "string", `${path}.sourceId`);
+  assert.notEqual(signature.sourceId.length, 0, `${path}.sourceId`);
   for (const [index, parameter] of signature.parameters.entries()) {
     assert.equal(supportedPassingModes.has(parameter.passingMode), true, `${path}.parameters[${index}].passingMode`);
     walkDotnetTypeRef(parameter.type, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].type.${typePath}`));
+    if (parameter.sourceType !== undefined) {
+      walkDotnetTypeRef(parameter.sourceType, (type, typePath) => assertDotnetTypeRefInvariant(type, `${path}.parameters[${index}].sourceType.${typePath}`));
+    }
     if (parameter.rest === true) {
       assert.equal(index, signature.parameters.length - 1, `${path}.parameters[${index}].rest`);
       assert.equal(parameter.passingMode, "by-value", `${path}.parameters[${index}].rest.passingMode`);
-      assert.equal(parameter.type.kind, "array", `${path}.parameters[${index}].rest.type`);
+      const targetType = parameter.type.kind === "nullable-reference"
+        ? parameter.type.elementType
+        : parameter.type;
+      assert.equal(targetType.kind, "array", `${path}.parameters[${index}].rest.type`);
     }
     if (parameter.defaultValue !== undefined || parameter.unsupportedDefaultValue !== undefined) {
       assert.equal(parameter.optional, true, `${path}.parameters[${index}].default.optional`);
@@ -205,6 +211,16 @@ export function assertProviderTypeExpressionInvariant(type, path) {
     assert.equal(type.target, "csharp", `${path}.target`);
     assert.equal(typeof type.id, "string", `${path}.id`);
     assert.notEqual(type.id.length, 0, `${path}.id`);
+    assert.notEqual(type.sourceShape, undefined, `${path}.sourceShape`);
+  }
+  if (type.kind === "opaque") {
+    assert.equal(typeof type.id, "string", `${path}.id`);
+    assert.notEqual(type.id.length, 0, `${path}.id`);
+    assert.notEqual(type.sourceShape, undefined, `${path}.sourceShape`);
+  }
+  if (type.kind === "function") {
+    assert.equal(typeof type.id, "string", `${path}.id`);
+    assert.notEqual(type.id.length, 0, `${path}.id`);
   }
 }
 
@@ -259,6 +275,9 @@ export function walkDotnetTypeDeclarationRefs(declaration, visit) {
     for (const signature of member.signatures ?? []) {
       for (const parameter of signature.parameters) {
         walkDotnetTypeRef(parameter.type, visit);
+        if (parameter.sourceType !== undefined) {
+          walkDotnetTypeRef(parameter.sourceType, visit);
+        }
       }
       if (signature.returnType !== undefined) {
         walkDotnetTypeRef(signature.returnType, visit);
@@ -305,6 +324,9 @@ export function walkDotnetTypeRef(type, visit, path = "$") {
     case "function":
       for (const [index, parameter] of type.parameters.entries()) {
         walkDotnetTypeRef(parameter.type, visit, `${path}.parameters[${index}].type`);
+        if (parameter.sourceType !== undefined) {
+          walkDotnetTypeRef(parameter.sourceType, visit, `${path}.parameters[${index}].sourceType`);
+        }
       }
       walkDotnetTypeRef(type.returnType, visit, `${path}.returnType`);
       return;

@@ -15,7 +15,7 @@ export type CsharpStatement =
   | { readonly kind: "ContinueStatement" }
   | { readonly kind: "GotoStatement"; readonly label: string }
   | { readonly kind: "GotoSwitchStatement"; readonly label: CsharpSwitchLabel }
-  | { readonly kind: "ThrowStatement"; readonly expression: CsharpExpression }
+  | { readonly kind: "ThrowStatement"; readonly expression?: CsharpExpression }
   | { readonly kind: "LabeledStatement"; readonly name: string; readonly statement: CsharpStatement }
   | { readonly kind: "SwitchStatement"; readonly expression: CsharpExpression; readonly sections: readonly CsharpSwitchSection[] }
   | { readonly kind: "TryStatement"; readonly tryBody: CsharpBlock; readonly catchClause?: CsharpCatchClause; readonly finallyBody?: CsharpBlock }

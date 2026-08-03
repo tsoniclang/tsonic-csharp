@@ -1,52 +1,36 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import { targetTypeRefsMatch } from "./target-types.js";
+import {
+  selectCsharpRegularExpressionLiteral,
+} from "../../policy/operations/index.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import {
-  missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
-  resolveRuntimeCarrierForExpression,
-} from "./runtime-carriers.js";
-import {
-  csharpTargetOperationFactKey,
-  csharpRegularExpressionLiteralFactKey,
-} from "../../source/csharp-facts.js";
 
 export function planRegularExpressionLiteral(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const literal = input.facts.getFact(node, csharpRegularExpressionLiteralFactKey);
-  if (literal === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires finalized provider pattern and flags facts."));
+  const selection = selectCsharpRegularExpressionLiteral(
+    input,
+    node,
+    sourceFile,
+  );
+  if (selection.kind === "rejected") {
+    diagnostics.push({
+      code: selection.code,
+      category: "error",
+      source: "tsonic-csharp",
+      message: selection.message,
+    });
     return undefined;
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
-  const carrier = probeCarrierFromResolution(carrierResolution);
-  if (carrier === undefined) {
-    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the RegExp literal.");
-    diagnostics.push(unsupportedNodeDiagnostic(node, `RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
-    return undefined;
-  }
-  const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
-  if (operation?.kind !== "member" || operation.operationKind !== "constructor") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized provider constructor operation fact."));
-    return undefined;
-  }
-  const resultType = operation.resultType ?? operation.declaringType;
-  if (resultType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires finalized provider constructor result type facts."));
-    return undefined;
-  }
-  if (!targetTypeRefsMatch(carrier, resultType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires the finalized runtime carrier fact to match the provider constructor result type."));
-    return undefined;
-  }
-  const renderedType = csharpTypeFromTargetTypeRef(resultType);
+  const renderedType = csharpTypeFromTargetTypeRef(selection.targetType);
   if (renderedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a renderable provider constructor result type fact."));
     return undefined;
@@ -55,8 +39,8 @@ export function planRegularExpressionLiteral(
     kind: "ObjectCreationExpression",
     type: renderedType,
     arguments: [
-      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.pattern } },
-      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.flags } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: selection.pattern } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: selection.flags } },
     ],
   };
 }

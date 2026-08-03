@@ -6,27 +6,42 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    readonly record struct SourceDependency(Type Type, bool IncludeMembers);
-    readonly record struct SourceClosureType(Type Type, bool IncludeMembers);
-
-    SourceClosureType[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
+    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
     {
         if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
             return [];
         }
         var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
+        var sourceFamilyTypesByExportName = allTypes
+            .Select(type => new
+            {
+                Type = type,
+                Family = ProviderSourceTypeFamily(type),
+            })
+            .Where(entry => entry.Family is not null)
+            .GroupBy(entry => entry.Family!.Value.ExportName, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(entry => entry.Type)
+                    .OrderBy(TargetId, StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal);
         var exportedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var closureTargetIds = new SortedSet<string>(StringComparer.Ordinal);
-        var sourceVisibleTargetIds = new SortedSet<string>(StringComparer.Ordinal);
         var pendingTypes = new Queue<Type>(exportedTypes);
-        var expandedTargetIds = exportedTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
+        var expandedTargetIds = new HashSet<string>(StringComparer.Ordinal);
         while (pendingTypes.Count > 0)
         {
-            var type = pendingTypes.Dequeue();
-            foreach (var dependency in DirectSourceDependencies(type))
+            var pending = pendingTypes.Dequeue();
+            if (!expandedTargetIds.Add(TargetId(pending)))
             {
-                var normalized = NormalizeClosureType(dependency.Type);
+                continue;
+            }
+            foreach (var dependency in DirectSourceDependencies(pending))
+            {
+                var normalized = NormalizeClosureType(dependency);
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
                     exportedTargetIds.Contains(TargetId(normalized)) ||
@@ -35,69 +50,43 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                var targetId = TargetId(normalized);
-                closureTargetIds.Add(targetId);
-                var shouldIncludeMembers = dependency.IncludeMembers || normalized.IsNested;
-                if (shouldIncludeMembers)
+                foreach (var closureType in SourceClosureFamilyTypes(normalized, sourceFamilyTypesByExportName, sourceExportableTargetIds))
                 {
-                    sourceVisibleTargetIds.Add(targetId);
-                }
-                if (shouldIncludeMembers && expandedTargetIds.Add(targetId))
-                {
-                    pendingTypes.Enqueue(normalized);
+                    var targetId = TargetId(closureType);
+                    if (exportedTargetIds.Contains(targetId) ||
+                        !sourceExportableTargetIds.Contains(targetId) ||
+                        !allTypesByTargetId.ContainsKey(targetId))
+                    {
+                        continue;
+                    }
+                    closureTargetIds.Add(targetId);
+                    if (!expandedTargetIds.Contains(targetId))
+                    {
+                        pendingTypes.Enqueue(closureType);
+                    }
                 }
             }
         }
         return closureTargetIds
             .Select(targetId => allTypesByTargetId[targetId])
             .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
-            .Select(type => new SourceClosureType(type, sourceVisibleTargetIds.Contains(TargetId(type))))
             .ToArray();
     }
 
-    object? ToClosureTypeExport(SourceClosureType closure)
+    IEnumerable<Type> DirectSourceDependencies(Type type)
     {
-        return closure.IncludeMembers ? ToTypeExport(closure.Type) : ToShallowTypeExport(closure.Type);
-    }
-
-    object ToShallowTypeExport(Type type)
-    {
-        var typeParameters = TypeParameters(type);
-        var sourceShape = ExportSourceShape(type);
-        var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
-        return new
-        {
-            kind = "type",
-            typeKind = TypeKind(type),
-            sourceName = ProviderSourceTypeName(type),
-            namespaceName = activeNamespaceName,
-            targetId = TargetId(type),
-            metadataName = MetadataName(type),
-            assembly = AssemblyReference(type.Assembly),
-            displayName = DisplayName(type),
-            renderShape = RenderShape(type),
-            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
-            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
-            typeParameters = typeParameters.Length == 0 ? null : typeParameters,
-            sourceShape,
-            throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
-        };
-    }
-
-    IEnumerable<SourceDependency> DirectSourceDependencies(Type type)
-    {
-        if (type.BaseType is not null && type.BaseType != typeof(object))
+        if (type.BaseType is not null && !IsRuntimeType(type.BaseType, typeof(object)))
         {
             foreach (var dependency in SourceDependencyTypes(type.BaseType))
             {
-                yield return new SourceDependency(dependency, true);
+                yield return dependency;
             }
         }
         foreach (var contract in type.GetInterfaces())
         {
             foreach (var dependency in SourceDependencyTypes(contract))
             {
-                yield return new SourceDependency(dependency, true);
+                yield return dependency;
             }
         }
         foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
@@ -106,7 +95,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false);
+                    yield return dependency;
                 }
             }
         }
@@ -114,13 +103,13 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(property.PropertyType))
             {
-                yield return new SourceDependency(dependency, true);
+                yield return dependency;
             }
             foreach (var parameter in property.GetIndexParameters())
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false);
+                    yield return dependency;
                 }
             }
         }
@@ -128,7 +117,7 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(field.FieldType))
             {
-                yield return new SourceDependency(dependency, true);
+                yield return dependency;
             }
         }
         foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
@@ -137,7 +126,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(eventInfo.EventHandlerType))
                 {
-                    yield return new SourceDependency(dependency, true);
+                    yield return dependency;
                 }
             }
         }
@@ -145,13 +134,13 @@ sealed partial class ReflectionProvider
         {
             foreach (var dependency in SourceDependencyTypes(method.ReturnType))
             {
-                yield return new SourceDependency(dependency, true);
+                yield return dependency;
             }
             foreach (var parameter in method.GetParameters())
             {
                 foreach (var dependency in SourceDependencyTypes(parameter.ParameterType))
                 {
-                    yield return new SourceDependency(dependency, false);
+                    yield return dependency;
                 }
             }
             foreach (var methodParameter in method.GetGenericArguments())
@@ -160,7 +149,7 @@ sealed partial class ReflectionProvider
                 {
                     foreach (var dependency in SourceDependencyTypes(constraint))
                     {
-                        yield return new SourceDependency(dependency, false);
+                        yield return dependency;
                     }
                 }
             }
@@ -171,7 +160,7 @@ sealed partial class ReflectionProvider
             {
                 foreach (var dependency in SourceDependencyTypes(constraint))
                 {
-                    yield return new SourceDependency(dependency, false);
+                    yield return dependency;
                 }
             }
         }
@@ -180,7 +169,7 @@ sealed partial class ReflectionProvider
     static IEnumerable<Type> SourceDependencyTypes(Type type)
     {
         type = UnwrapByRef(type);
-        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        if (type.IsPointer || type.IsGenericParameter || IsRuntimeType(type, typeof(void)))
         {
             yield break;
         }
@@ -218,7 +207,7 @@ sealed partial class ReflectionProvider
     static Type? NormalizeClosureType(Type type)
     {
         type = UnwrapByRef(type);
-        if (type.IsPointer || type.IsGenericParameter || type == typeof(void))
+        if (type.IsPointer || type.IsGenericParameter || IsRuntimeType(type, typeof(void)))
         {
             return null;
         }
@@ -233,5 +222,21 @@ sealed partial class ReflectionProvider
         return type.IsGenericType && !type.IsGenericTypeDefinition
             ? type.GetGenericTypeDefinition()
             : type;
+    }
+
+    Type[] SourceClosureFamilyTypes(
+        Type type,
+        IReadOnlyDictionary<string, Type[]> sourceFamilyTypesByExportName,
+        ISet<string> sourceExportableTargetIds)
+    {
+        var family = ProviderSourceTypeFamily(type);
+        if (family is null ||
+            !sourceFamilyTypesByExportName.TryGetValue(family.Value.ExportName, out var familyTypes))
+        {
+            return new[] { type };
+        }
+        return familyTypes
+            .Where(candidate => sourceExportableTargetIds.Contains(TargetId(candidate)))
+            .ToArray();
     }
 }

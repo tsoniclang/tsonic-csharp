@@ -2,8 +2,11 @@ import type { ProviderParameterDeclaration } from "@tsonic/tsts";
 import type { DotnetParameterDeclaration } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 
-export function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaration): ProviderParameterDeclaration | undefined {
-  const type = tryDotnetTypeRefToProviderType(parameter.type);
+export function dotnetParameterToProviderParameter(
+  parameter: DotnetParameterDeclaration,
+  identityPath: string,
+): ProviderParameterDeclaration | undefined {
+  const type = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type, `${identityPath}.type`);
   if (type === undefined) {
     return undefined;
   }

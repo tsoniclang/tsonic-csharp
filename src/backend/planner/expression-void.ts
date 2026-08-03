@@ -1,84 +1,95 @@
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
-  AsVoidExpression,
-  HasSourceKind,
-  KindVoidExpression,
-  Node_Expression,
-} from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
+import {
+  selectCsharpCompatAnyVoidOperation,
+} from "../../policy/compat/index.js";
+import {
+  csharpTsValueTargetType,
+} from "../../policy/types/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
 import type {
   CsharpExpression,
 } from "../roslyn/syntax.js";
 import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import {
-  getProviderOperationOwnership,
-  pushMissingTargetFactDiagnostic,
-} from "./semantic-guards.js";
-import {
-  csharpTargetOperationFactKey,
-} from "../../source/csharp-facts.js";
-import {
-  asNodeSubject,
-} from "../../source/fact-subjects.js";
-import {
-  getAstReaderChildNodes,
-  getNodeField,
-} from "../../source/csharp-source-semantics/ast-utils.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  tryPlanCompatRuntimeUnaryOperator,
-} from "./compat-runtime-operations.js";
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
 
 export function planVoidExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!HasSourceKind(input.ast, node, KindVoidExpression)) {
+  if (!input.ast.is.IsVoidExpression(node)) {
     return undefined;
   }
-  const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  const operand = getVoidExpressionOperand(node, input);
-  if (selectedOperator === undefined) {
-    const ownership = getProviderOperationOwnership(operand, sourceFile, input);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# void expression emission requires a selected provider void operator fact.", ownership);
+  const operand = input.ast.as.AsVoidExpression(node)?.Expression;
+  const compat = selectCsharpCompatAnyVoidOperation(
+    input,
+    operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
     return undefined;
   }
-  if (selectedOperator.operationKind !== "operator") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Void expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+  if (compat.kind === "resolved") {
+    const expression = operand === undefined
+      ? undefined
+      : planExpression(operand, sourceFile, input, diagnostics);
+    return expression === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(
+          compat,
+          undefined,
+          [expression],
+        );
+  }
+  if (readCsharpTypescriptCompatibilityMode(input.target) !== "compat") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "JavaScript void semantics require the explicit C# compatibility runtime.",
+    ));
     return undefined;
   }
-  const compatDiagnosticsStart = diagnostics.length;
-  const compatRuntimeVoid = tryPlanCompatRuntimeUnaryOperator(node, operand, sourceFile, input, diagnostics, planExpression);
-  if (compatRuntimeVoid !== undefined) {
-    return compatRuntimeVoid;
-  }
-  if (diagnostics.length > compatDiagnosticsStart) {
+  const receiver = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+  if (operand === undefined || receiver === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# compatibility void translation requires an exact operand and closed TsValue carrier.",
+    ));
     return undefined;
   }
-  const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
-  diagnostics.push(unsupportedNodeDiagnostic(
-    node,
-    operation === undefined
-      ? "C# void expression emission requires a finalized closed compat-runtime void operation fact."
-      : "C# void expression emission does not support the finalized provider operation shape.",
-  ));
-  return undefined;
-}
-
-function getVoidExpressionOperand(
-  node: Node,
-  input: TargetCompileInput,
-): Node | undefined {
-  return Node_Expression(node) ??
-    AsVoidExpression(node)?.Expression ??
-    asNodeSubject(getNodeField(node, "Expression")) ??
-    asNodeSubject(getNodeField(node, "Operand")) ??
-    getAstReaderChildNodes(input.ast, node).map(asNodeSubject).find((child): child is Node => child !== undefined);
+  const expression = planExpression(operand, sourceFile, input, diagnostics);
+  return expression === undefined
+    ? undefined
+    : {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver,
+          name: "ApplyCompatVoid",
+        },
+        arguments: [{ kind: "Argument", expression }],
+      };
 }

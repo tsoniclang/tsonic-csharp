@@ -1,10 +1,11 @@
 import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
+import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -16,13 +17,13 @@ export interface ArrayLiteralPlanner {
   readonly planExpression: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
   ) => CsharpExpression | undefined;
   readonly planExpressionWithExpectedType: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
     expectedType: CsharpTypeNode,
     expectedTypeSubject?: Node,

@@ -1,11 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
   Node,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
@@ -20,10 +20,10 @@ import {
 } from "./target-types.js";
 import type {
   CsharpRuntimeUnionTargetTypeRef,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   type: TargetTypeRef,
   diagnostics?: TargetDiagnostic[],
   diagnosticSubject?: Node,
@@ -33,7 +33,7 @@ export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
 }
 
 function registerObjectShapeDeclarationsForTargetType(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   type: TargetTypeRef,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Node | undefined,
@@ -55,6 +55,7 @@ function registerObjectShapeDeclarationsForTargetType(
   }
 
   switch (type.kind) {
+    case "source-global":
     case "target-named":
       for (const typeArgument of type.typeArguments ?? []) {
         registerObjectShapeDeclarationsForTargetType(input, typeArgument, diagnostics, diagnosticSubject, visited);
@@ -77,7 +78,14 @@ function registerObjectShapeDeclarationsForTargetType(
       }
       registerObjectShapeDeclarationsForTargetType(input, type.result, diagnostics, diagnosticSubject, visited);
       return;
-    default:
+    case "associated-type":
+      registerObjectShapeDeclarationsForTargetType(input, type.owner, diagnostics, diagnosticSubject, visited);
+      return;
+    case "source-primitive":
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
       return;
   }
 }

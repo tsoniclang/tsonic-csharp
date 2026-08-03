@@ -40,7 +40,10 @@ export type {
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
 } from "./provider.js";
-export { createDotnetTargetBindingProvider } from "./provider.js";
+export {
+  createDotnetSourceDeclarationProvider,
+  createDotnetSourceDeclarationProviderSet,
+} from "./provider.js";
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
@@ -69,11 +72,19 @@ export {
   formatDotnetProviderTelemetrySnapshot,
 } from "./reflection/telemetry.js";
 export {
+  createDotnetModuleSpecifierPolicy,
   createDotnetModuleSpecifier,
   dotnetModuleExtension,
   dotnetModulePrefix,
   dotnetPackageName,
+  dotnetModuleSpecifierPolicy,
+  normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
+} from "./module-specifier.js";
+export type {
+  DotnetAssemblySourcePackage,
+  DotnetModuleSpecifier,
+  DotnetModuleSpecifierPolicy,
 } from "./module-specifier.js";
 export {
   augmentDotnetModuleWithNativeArray,
@@ -81,6 +92,5 @@ export {
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
-  isDotnetNativeArrayCreateMemberId,
 } from "./native-array.js";
 export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";

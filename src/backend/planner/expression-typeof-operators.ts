@@ -1,11 +1,24 @@
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
-  AsBinaryExpression,
-  HasSourceKind,
-  KindTypeOfExpression,
-  Node_Expression,
-} from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+  selectCsharpCompatTypeofOperation,
+} from "../../policy/compat/index.js";
+import {
+  getCsharpTypeofRuntimeKind,
+  selectCsharpTypeofComparison,
+  sourceOperatorFromKindName,
+} from "../../policy/operations/index.js";
+import type {
+  CsharpTypeofRuntimeKind,
+} from "../../policy/types/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
 import type {
   CsharpExpression,
 } from "../roslyn/syntax.js";
@@ -16,177 +29,247 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  getProviderOperationOwnership,
-  pushMissingTargetFactDiagnostic,
-} from "./semantic-guards.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
-import {
-  getRuntimeCarrierForExpression,
-} from "./runtime-carriers.js";
-import {
-  tryPlanRuntimeUnionTypeTest,
-} from "./runtime-union-projections.js";
-import {
-  CsharpTargetOperatorOperation,
-  csharpTargetOperationFactKey,
-} from "../../source/csharp-facts.js";
-import type {
-  CsharpTargetOperationFact,
-} from "../../source/csharp-facts.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  targetTypeRefEquals,
-} from "../../source/csharp-source-semantics/target-ref-utils.js";
+  tryPlanRuntimeUnionTypeTest,
+} from "./runtime-union-projections.js";
 import {
-  getBinaryLeft,
-  getBinaryRight,
-} from "./expression-binary-operands.js";
-import {
-  tryPlanCompatRuntimeUnaryOperator,
-} from "./compat-runtime-operations.js";
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
 
 export function planTypeofExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  if (selectedOperator === undefined) {
-    const operand = Node_Expression(node);
-    const ownership = getProviderOperationOwnership(operand, sourceFile, input);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
+  if (!input.ast.is.IsTypeOfExpression(node)) {
     return undefined;
   }
-  if (selectedOperator.operationKind !== "operator") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+  const operand = input.ast.as.AsTypeOfExpression(node)?.Expression;
+  const compat = selectCsharpCompatTypeofOperation(
+    input,
+    operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
     return undefined;
   }
-  const compatDiagnosticsStart = diagnostics.length;
-  const compatRuntimeTypeof = tryPlanCompatRuntimeUnaryOperator(node, Node_Expression(node), sourceFile, input, diagnostics, planExpression);
-  if (compatRuntimeTypeof !== undefined) {
-    return compatRuntimeTypeof;
+  if (compat.kind === "resolved") {
+    const planned = operand === undefined
+      ? undefined
+      : planExpression(operand, sourceFile, input, diagnostics);
+    return planned === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(
+          compat,
+          undefined,
+          [planned],
+        );
   }
-  if (diagnostics.length > compatDiagnosticsStart) {
+  const operandType = input.types.resolveNode(operand, sourceFile);
+  const runtimeKind = getCsharpTypeofRuntimeKind(operandType);
+  if (operand === undefined || runtimeKind === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# typeof translation requires one exact statically proven target runtime kind.",
+    ));
     return undefined;
   }
-  const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
-  if (operation === undefined || operation.operationId !== selectedOperator.operationId || operation.kind !== "typeof-runtime") {
-    const operand = Node_Expression(node);
-    const ownership = getProviderOperationOwnership(operand, sourceFile, input);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
-    return undefined;
-  }
-  return { kind: "LiteralExpression", value: operation.runtimeKind };
+  return { kind: "LiteralExpression", value: runtimeKind };
 }
 
 export function tryPlanTypeTestExpression(
-  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
-  selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
+  node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const csharpOperation = getSelectedCsharpOperator(input, expression, selectedOperator);
-  if (selectedOperator?.operationKind !== "operator" || csharpOperation?.kind !== "intrinsic-operator" || csharpOperation.operator !== CsharpTargetOperatorOperation.typeTest) {
+  if (
+    !input.ast.is.IsBinaryExpression(node) ||
+    sourceOperatorFromKindName(input.ast.operatorKindName(node)) !== "instanceof"
+  ) {
     return undefined;
   }
-  const left = getBinaryLeft(expression);
-  const right = getBinaryRight(expression);
+  const expression = input.ast.as.AsBinaryExpression(node);
+  const left = expression?.Left;
+  const right = expression?.Right;
   if (left === undefined || right === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a type-test operation, but the expression is missing an operand."));
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Checked instanceof expression is missing an exact operand.",
+    ));
     return undefined;
   }
   const planned = planExpression(left, sourceFile, input, diagnostics);
-  if (planned === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "IsPatternExpression",
-    expression: planned,
-    type: expressionToCsharpType(right, sourceFile, input, diagnostics),
-  };
+  return planned === undefined
+    ? undefined
+    : {
+        kind: "IsPatternExpression",
+        expression: planned,
+        type: expressionToCsharpType(right, sourceFile, input, diagnostics),
+      };
 }
 
 export function tryPlanTypeofComparisonExpression(
-  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
-  selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
+  node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const comparison = getSelectedCsharpOperator(input, expression, selectedOperator);
-  if (selectedOperator?.operationKind !== "operator" || comparison?.kind !== "typeof-comparison") {
+  if (!input.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
-  const operand = getTypeofComparisonOperand(expression, input);
-  if (operand === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
+  const sourceOperator = sourceOperatorFromKindName(
+    input.ast.operatorKindName(node),
+  );
+  if (
+    sourceOperator !== "===" &&
+    sourceOperator !== "==" &&
+    sourceOperator !== "!==" &&
+    sourceOperator !== "!="
+  ) {
     return undefined;
   }
-  const targetType = csharpTypeFromTargetTypeRef(comparison.targetType);
-  if (targetType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${comparison.runtimeKind}'.`));
+  const expression = input.ast.as.AsBinaryExpression(node);
+  const comparison = getTypeofComparison(
+    expression?.Left,
+    expression?.Right,
+    input,
+  ) ?? getTypeofComparison(
+    expression?.Right,
+    expression?.Left,
+    input,
+  );
+  if (comparison === undefined) {
     return undefined;
   }
-  const operandCarrier = getRuntimeCarrierForExpression(input, operand, sourceFile);
-  if (operandCarrier !== undefined && targetTypeRefEquals(operandCarrier, comparison.targetType)) {
-    return { kind: "LiteralExpression", value: comparison.negated !== true };
-  }
-  const planned = planExpression(operand, sourceFile, input, diagnostics);
-  if (planned === undefined) {
+  const operandType = input.types.resolveNode(
+    comparison.operand,
+    sourceFile,
+  );
+  const negated = sourceOperator === "!==" || sourceOperator === "!=";
+  const compat = selectCsharpCompatTypeofOperation(
+    input,
+    comparison.operand,
+    sourceFile,
+  );
+  if (compat.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
     return undefined;
   }
-  const runtimeUnionTest = tryPlanRuntimeUnionTypeTest(
-    operand,
-    comparison.targetType,
+  if (compat.kind === "resolved") {
+    const planned = planExpression(
+      comparison.operand,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    const runtimeTypeof = planned === undefined
+      ? undefined
+      : translateCsharpCompatInvocation(compat, undefined, [planned]);
+    return runtimeTypeof === undefined
+      ? undefined
+      : {
+          kind: "BinaryExpression",
+          left: runtimeTypeof,
+          operatorToken: {
+            kind: negated
+              ? "ExclamationEqualsToken"
+              : "EqualsEqualsToken",
+          },
+          right: {
+            kind: "LiteralExpression",
+            value: comparison.runtimeKind,
+          },
+        };
+  }
+  const selection = selectCsharpTypeofComparison(
+    operandType,
+    comparison.runtimeKind,
+    negated,
+  );
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+    return undefined;
+  }
+  if (selection.kind === "constant") {
+    return { kind: "LiteralExpression", value: selection.value };
+  }
+  const planned = planExpression(
+    comparison.operand,
     sourceFile,
     input,
     diagnostics,
-    planned,
-    comparison.negated === true,
   );
-  if (runtimeUnionTest !== undefined) {
-    return runtimeUnionTest;
+  if (planned === undefined) {
+    return undefined;
+  }
+  if (selection.kind === "runtime-union-arm-test") {
+    return tryPlanRuntimeUnionTypeTest(
+      comparison.operand,
+      selection.targetType,
+      sourceFile,
+      input,
+      diagnostics,
+      planned,
+      selection.negated,
+    );
+  }
+  const targetType = csharpTypeFromTargetTypeRef(selection.targetType);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected nullable typeof comparison target type is not renderable in C#.",
+    ));
+    return undefined;
   }
   return {
     kind: "IsPatternExpression",
     expression: planned,
     type: targetType,
-    ...(comparison.negated ? { negated: true } : {}),
+    negated: selection.negated,
   };
 }
 
-function getSelectedCsharpOperator(
-  input: TargetCompileInput,
-  expression: Node,
-  selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
-): CsharpTargetOperationFact | undefined {
-  if (selectedOperator === undefined) {
+function getTypeofComparison(
+  typeofNode: Node | undefined,
+  literalNode: Node | undefined,
+  input: CsharpTranslationContext,
+): {
+  readonly operand: Node;
+  readonly runtimeKind: CsharpTypeofRuntimeKind;
+} | undefined {
+  if (
+    typeofNode === undefined ||
+    literalNode === undefined ||
+    !input.ast.is.IsTypeOfExpression(typeofNode) ||
+    !input.ast.is.IsStringLiteral(literalNode)
+  ) {
     return undefined;
   }
-  const operation = input.facts.getFact(expression, csharpTargetOperationFactKey);
-  return operation?.operationId === selectedOperator.operationId ? operation : undefined;
+  const operand = input.ast.as.AsTypeOfExpression(typeofNode)?.Expression;
+  const runtimeKind = runtimeKindLiteral(input.ast.text(literalNode));
+  return operand === undefined || runtimeKind === undefined
+    ? undefined
+    : { operand, runtimeKind };
 }
 
-function getTypeofComparisonOperand(
-  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
-  input: TargetCompileInput,
-): Node | undefined {
-  const left = getBinaryLeft(expression);
-  const right = getBinaryRight(expression);
-  if (HasSourceKind(input.ast, left, KindTypeOfExpression)) {
-    return Node_Expression(left);
-  }
-  if (HasSourceKind(input.ast, right, KindTypeOfExpression)) {
-    return Node_Expression(right);
-  }
-  return undefined;
+function runtimeKindLiteral(
+  value: string,
+): CsharpTypeofRuntimeKind | undefined {
+  return value === "string" ||
+    value === "number" ||
+    value === "boolean" ||
+    value === "bigint"
+    ? value
+    : undefined;
 }

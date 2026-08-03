@@ -1,145 +1,80 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import {
-  missingCarrierResolution,
-  missingParameterCarrierResolution,
-  resolvedCarrierResolution,
-} from "./helpers/target-facts.mjs";
-import { planRegularExpressionLiteral } from "../dist/backend/planner/regular-expression-literals.js";
-import { printCsharpExpression } from "../dist/print/csharp-printer.js";
+  planRegularExpressionLiteral,
+} from "../dist/backend/planner/regular-expression-literals.js";
 import {
-  csharpRegularExpressionLiteralFactKey,
-  csharpTargetOperationFactKey,
-} from "../dist/source/csharp-facts.js";
+  csharpJsRegExpTargetType,
+} from "../dist/policy/types/index.js";
+import {
+  printCsharpExpression,
+} from "../dist/print/csharp-printer.js";
 
-test("regexp literal emission uses provider facts without backend target-id hardcoding", () => {
-  const node = { Kind: "KindRegularExpressionLiteral", Text: "/backend-must-not-read-this/g" };
+test("RegExp literal emission consumes the direct JS-surface policy selection", () => {
+  const node = regexpNode("/provider[/-]pattern/im");
   const diagnostics = [];
-  const expression = planRegularExpressionLiteral(node, {}, fakeInput({
-    subject: node,
-    literal: {
-      pattern: "provider[/-]pattern",
-      flags: "im",
-    },
-    operation: {
-      kind: "member",
-      operationId: "acme.regex.literal.constructor",
-      operationKind: "constructor",
-      memberName: "Regex",
-      resultType: {
-        kind: "target-named",
-        id: "Acme.Runtime.Regex",
-        csharpRender: { kind: "named", namespace: ["Acme", "Runtime"], name: "Regex" },
-      },
-    },
-    runtimeCarrier: {
-      kind: "target-named",
-      id: "Acme.Runtime.Regex",
-      csharpRender: { kind: "named", namespace: ["Acme", "Runtime"], name: "Regex" },
-    },
-  }), diagnostics);
+  const expression = planRegularExpressionLiteral(
+    node,
+    {},
+    directInput(node, csharpJsRegExpTargetType()),
+    diagnostics,
+  );
 
   assert.deepEqual(diagnostics, []);
-  assert.equal(printCsharpExpression(expression), "new Acme.Runtime.Regex(\"provider[/-]pattern\", \"im\")");
+  assert.equal(
+    printCsharpExpression(expression),
+    'new Tsonic.CSharp.Js.RegExp("provider[/-]pattern", "im")',
+  );
 });
 
-test("regexp literal emission requires provider literal facts", () => {
-  const node = { Kind: "KindRegularExpressionLiteral", Text: "/value/g" };
+test("RegExp literal emission fails closed without the explicit JS target relation", () => {
+  const node = regexpNode("/value/g");
   const diagnostics = [];
-  const expression = planRegularExpressionLiteral(node, {}, fakeInput({
-    subject: node,
-    operation: {
-      kind: "member",
-      operationId: "acme.regex.literal.constructor",
-      operationKind: "constructor",
-      memberName: "Regex",
-      resultType: {
-        kind: "target-named",
-        id: "Acme.Runtime.Regex",
-        csharpRender: { kind: "named", namespace: ["Acme", "Runtime"], name: "Regex" },
-      },
-    },
-  }), diagnostics);
+  const expression = planRegularExpressionLiteral(
+    node,
+    {},
+    directInput(node, undefined),
+    diagnostics,
+  );
 
   assert.equal(expression, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /requires finalized provider pattern and flags facts/);
+  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.code), [
+    "CSHARP_JS_REGEXP_TARGET_NOT_PROVEN",
+  ]);
 });
 
-test("regexp literal emission requires a renderable provider constructor result type", () => {
-  const node = { Kind: "KindRegularExpressionLiteral", Text: "/value/g" };
+test("RegExp literal emission rejects unsupported source semantics before C# AST construction", () => {
+  const node = regexpNode("/(?<name>a)/g");
   const diagnostics = [];
-  const expression = planRegularExpressionLiteral(node, {}, fakeInput({
-    subject: node,
-    literal: {
-      pattern: "value",
-      flags: "g",
-    },
-    operation: {
-      kind: "member",
-      operationId: "acme.regex.literal.constructor",
-      operationKind: "constructor",
-      memberName: "Regex",
-      resultType: {
-        kind: "target-named",
-        id: "Acme.Runtime.Regex",
-      },
-    },
-    runtimeCarrier: {
-      kind: "target-named",
-      id: "Acme.Runtime.Regex",
-    },
-  }), diagnostics);
+  const expression = planRegularExpressionLiteral(
+    node,
+    {},
+    directInput(node, csharpJsRegExpTargetType()),
+    diagnostics,
+  );
 
   assert.equal(expression, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /requires a renderable provider constructor result type fact/);
+  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.code), [
+    "CSHARP_JS_REGEXP_UNSUPPORTED",
+  ]);
+  assert.match(diagnostics[0].message, /Named capture/u);
 });
 
-function fakeInput(options) {
+function regexpNode(text) {
+  return { kind: "regexp", text };
+}
+
+function directInput(node, targetType) {
   return {
     ast: {
-      kindName(node) {
-        return node?.Kind ?? "";
+      is: {
+        IsRegularExpressionLiteral: (candidate) => candidate === node,
       },
+      text: (candidate) => candidate?.text ?? "",
     },
-    analysis: {
-      getSymbolName: () => undefined,
-      getSymbolDeclarations: () => [],
-      getTypeSymbol: () => undefined,
-      getTypeAliasSymbol: () => undefined,
-      getResolvedSymbol: () => undefined,
-      getSymbolAtLocation: () => undefined,
-    },
-    targetFacts: {
-      getTargetBinding: () => undefined,
-      getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.subject ? options.runtimeCarrier : undefined),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.subject ? options.runtimeCarrier : undefined),
-      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
-      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
-      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
-    },
-    facts: {
-      getRuntimeCarrierFact: (subject) => subject === options.subject && options.runtimeCarrier !== undefined
-        ? { carrier: options.runtimeCarrier }
-        : undefined,
-      getPointerFact: () => undefined,
-      getFunctionPointerFact: () => undefined,
-      getSourcePrimitiveFact: () => undefined,
-      getTargetBindingFact: () => undefined,
-      getFact: (subject, key) => {
-        if (subject !== options.subject) {
-          return undefined;
-        }
-        if (key === csharpRegularExpressionLiteralFactKey) {
-          return options.literal;
-        }
-        if (key === csharpTargetOperationFactKey) {
-          return options.operation;
-        }
-        return undefined;
-      },
+    types: {
+      resolveNode: (candidate) =>
+        candidate === node ? targetType : undefined,
     },
   };
 }

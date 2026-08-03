@@ -1,4 +1,4 @@
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -113,6 +113,7 @@ test(".NET explicit CLR array target refs preserve provider-supplied rank facts"
 test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
   const functionType = dotnetTypeRefToProviderType({
     kind: "function",
+    id: "test.callback",
     parameters: [
       {
         name: "value",
@@ -130,12 +131,14 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
   });
 
   assert.equal(functionType.kind, "function");
+  assert.equal(functionType.id, '["$","test.callback"]');
   assert.equal(functionType.parameters[0].passingMode, "byref-writeonly-must-init");
   assert.equal(functionType.parameters[1].passingMode, undefined);
   assert.equal(functionType.parameters[1].optional, true);
 
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "function",
+    id: "test.unsupported-pointer-callback",
     parameters: [
       {
         name: "pointer",
@@ -175,6 +178,7 @@ test(".NET provider declaration model exposes namespace members as fact-backed p
             signatures: [
               {
                 id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+                sourceId: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
                 parameters: [
                   { name: "text", type: { kind: "string" }, passingMode: "by-value" },
                 ],
@@ -315,10 +319,13 @@ test(".NET target refs carry provider-proven collection literal element metadata
       kind: "array",
       elementType: { kind: "source-primitive", name: "int32" },
     },
+    implicitArrayInput: true,
   });
 
   assert.equal(raw.csharpArrayLiteralElementType, undefined);
+  assert.equal(raw.csharpImplicitArrayInputElementType, undefined);
   assert.deepEqual(providerProven.csharpArrayLiteralElementType, { kind: "source-primitive", name: "int32" });
+  assert.deepEqual(providerProven.csharpImplicitArrayInputElementType, { kind: "source-primitive", name: "int32" });
 });
 test(".NET target binding uses provider-owned target member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -487,7 +494,10 @@ test(".NET provider source declarations keep extension-method signature identiti
   );
   assert.equal(signature.name, "AsSpan");
   assert.deepEqual(signature.parameters.map((parameter) => parameter.name), ["text", "start"]);
-  assert.deepEqual(signature.parameters[0].type, { kind: "string" });
+  assert.deepEqual(signature.parameters[0].type, {
+    kind: "union",
+    types: [{ kind: "string" }, { kind: "undefined" }],
+  });
   assert.deepEqual(signature.parameters[1].type, { kind: "source-primitive", name: "int32" });
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.MemoryExtensions");
@@ -623,6 +633,7 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
         signatures: [
           {
             id: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
+            sourceId: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
             typeParameters: [{ name: "T" }],
             parameters: [
               { name: "span", type: spanOfT, passingMode: "by-value" },
@@ -665,7 +676,7 @@ test(".NET target binding provider uses configured provider identity for diagnos
     message: "Fixture provider rejected this module.",
     evidence: [{ module: "@tsonic/dotnet/System.js" }],
   };
-  const bindingProvider = createDotnetTargetBindingProvider({
+  const bindingProvider = createDotnetSourceDeclarationProvider({
     provider: {
       identity,
       ownsModule(specifier) {

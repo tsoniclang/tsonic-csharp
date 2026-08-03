@@ -7,6 +7,3 @@ export {
 export {
   planCallExpression,
 } from "./call.js";
-export {
-  planSelectedTargetCallArguments,
-} from "../expression-selected-target-members.js";

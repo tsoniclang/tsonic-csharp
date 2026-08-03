@@ -8,7 +8,6 @@ import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
-import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -36,7 +35,20 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   );
   assert.equal(rawParams.parameters[0].rest, undefined);
   assert.equal(rawParams.parameters[1].name, "arg");
-  assert.equal(rawParams.parameters[1].type.kind, "array");
+  assert.deepEqual(rawParams.parameters[1].type, {
+    kind: "nullable-reference",
+    elementType: {
+      kind: "array",
+      elementType: {
+        kind: "nullable-reference",
+        elementType: { kind: "object" },
+      },
+    },
+  });
+  assert.deepEqual(rawParams.parameters[1].sourceType, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
   assert.equal(rawParams.parameters[1].rest, true);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
@@ -55,6 +67,10 @@ test(".NET provider preserves optional and params-array facts from reflected mem
     "System.Console.WriteLine(System.String,System.Object[])",
   );
   assert.equal(sourceParams.parameters[1].rest, true);
+  assert.deepEqual(sourceParams.parameters[1].type, {
+    kind: "array",
+    elementType: { kind: "unknown" },
+  });
 
   const targetOptional = targetMember(
     provider,
@@ -63,6 +79,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
     "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)",
   );
   assert.equal(targetOptional.parameters[1].optional, true);
+  assert.equal(targetOptional.parameters[1].csharpOmittableOptionalArgument, true);
 
   const targetParams = targetMember(
     provider,
@@ -175,89 +192,7 @@ test(".NET provider records unsupported default parameter values without exposin
     signatureId,
   );
   assert.deepEqual(targetSignatureWithUnsupportedDefault.parameters[0].unsupportedDefaultValue, rawParameter.unsupportedDefaultValue);
-});
-
-test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
-  const optionalMember = method("Example.Target.Optional(System.String,System.String)", [
-    parameter("value", stringType()),
-    parameter("name", stringType(), { optional: true, defaultValue: { kind: "string", value: "proved" } }),
-  ]);
-  assert.equal(selectBySignature(optionalMember, 1)?.id, optionalMember.id);
-  assert.equal(selectBySignature(optionalMember, 2)?.id, optionalMember.id);
-  assert.equal(selectBySignature(optionalMember, 0), undefined);
-  assert.equal(selectBySignature(optionalMember, 3), undefined);
-
-  const optionalWithoutDefaultMember = method("Example.Target.OptionalWithoutDefault(System.String,System.String)", [
-    parameter("value", stringType()),
-    parameter("name", stringType(), { optional: true }),
-  ]);
-  assert.equal(selectBySignature(optionalWithoutDefaultMember, 1), undefined);
-  assert.equal(selectBySignature(optionalWithoutDefaultMember, 2)?.id, optionalWithoutDefaultMember.id);
-
-  const defaultWithoutOptionalMember = method("Example.Target.DefaultWithoutOptional(System.String,System.String)", [
-    parameter("value", stringType()),
-    parameter("name", stringType(), { defaultValue: { kind: "string", value: "not-optional" } }),
-  ]);
-  assert.equal(selectBySignature(defaultWithoutOptionalMember, 1), undefined);
-  assert.equal(selectBySignature(defaultWithoutOptionalMember, 2)?.id, defaultWithoutOptionalMember.id);
-
-  const unsupportedDefaultMember = method("Example.Target.UnsupportedDefault(System.String,System.String)", [
-    parameter("value", stringType()),
-    parameter("name", stringType(), {
-      optional: true,
-      unsupportedDefaultValue: {
-        kind: "unsupported-default-value",
-        id: "Example.Target.UnsupportedDefault:parameter:name:default",
-        parameterName: "name",
-        reason: "Default is not representable.",
-      },
-    }),
-  ]);
-  assert.equal(selectBySignature(unsupportedDefaultMember, 1), undefined);
-  assert.equal(selectBySignature(unsupportedDefaultMember, 2)?.id, unsupportedDefaultMember.id);
-
-  const paramsMember = method("Example.Target.Params(System.String,System.String[])", [
-    parameter("format", stringType()),
-    parameter("values", { kind: "array", element: stringType() }, { paramsArray: true }),
-  ]);
-  assert.equal(selectBySignature(paramsMember, 1)?.id, paramsMember.id);
-  assert.equal(selectBySignature(paramsMember, 3)?.id, paramsMember.id);
-  assert.equal(selectBySignature(paramsMember, 0), undefined);
-
-  const arrayWithoutParamsMember = method("Example.Target.ArrayWithoutParams(System.String,System.String[])", [
-    parameter("format", stringType()),
-    parameter("values", { kind: "array", element: stringType() }),
-  ]);
-  assert.equal(selectBySignature(arrayWithoutParamsMember, 1), undefined);
-  assert.equal(selectBySignature(arrayWithoutParamsMember, 3), undefined);
-
-  const requiredMember = method("Example.Target.Required(System.String,System.String)", [
-    parameter("value", stringType()),
-    parameter("name", stringType()),
-  ]);
-  assert.equal(selectBySignature(requiredMember, 1), undefined);
-
-  const malformedParamsMember = method("Example.Target.Malformed(System.String[],System.String)", [
-    parameter("values", { kind: "array", element: stringType() }, { paramsArray: true }),
-    parameter("tail", stringType()),
-  ]);
-  assert.equal(selectBySignature(malformedParamsMember, 2), undefined);
-
-  const malformedParamsTypeMember = method("Example.Target.MalformedParamsType(System.String,System.String)", [
-    parameter("format", stringType()),
-    parameter("values", stringType(), { paramsArray: true }),
-  ]);
-  assert.equal(selectBySignature(malformedParamsTypeMember, 1), undefined);
-  assert.equal(selectBySignature(malformedParamsTypeMember, 2), undefined);
-
-  const malformedParamsPassingMember = method("Example.Target.MalformedParamsPassing(System.String,System.String[])", [
-    parameter("format", stringType()),
-    parameter("values", { kind: "array", element: stringType() }, {
-      paramsArray: true,
-      passingMode: "byref-readwrite",
-    }),
-  ]);
-  assert.equal(selectBySignature(malformedParamsPassingMember, 1), undefined);
+  assert.equal(targetSignatureWithUnsupportedDefault.parameters[0].csharpOmittableOptionalArgument, true);
 });
 
 function rawSignature(module, typeName, memberName, signatureId) {
@@ -313,49 +248,6 @@ function idHasShape(id, metadataShape) {
 function stripAssemblyQualifiers(id) {
   return id.replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
     `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`);
-}
-
-function selectBySignature(member, argumentCount) {
-  const arguments_ = Array.from({ length: argumentCount }, () => ({}));
-  return findTargetMemberForCall(
-    {
-      id: "Example.Target",
-      sourceName: "Target",
-      targetName: "Example.Target",
-      target: "csharp",
-      kind: "class",
-      members: [member],
-    },
-    { signatureId: member.id },
-    { arguments: arguments_ },
-    {},
-    (subject) => arguments_.includes(subject) ? stringType() : undefined,
-  );
-}
-
-function method(id, parameters) {
-  return {
-    id,
-    sourceName: "target",
-    targetName: "Target",
-    kind: "method",
-    parameters,
-    returnType: { kind: "target-named", id: "System.Void" },
-    overloadGroup: "Example.Target.Target",
-  };
-}
-
-function parameter(name, type, options = {}) {
-  return {
-    name,
-    type,
-    passingMode: "by-value",
-    ...options,
-  };
-}
-
-function stringType() {
-  return { kind: "target-named", id: "System.String" };
 }
 
 function buildDefaultParameterFixture() {

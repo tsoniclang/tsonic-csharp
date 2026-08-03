@@ -1,17 +1,17 @@
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   type CsharpProjectReference,
   readCsharpReferences,
 } from "../../options/csharp-target-options.js";
 
-export function readReferencesOption(input: TargetCompileInput): readonly CsharpProjectReference[] {
+export function readReferencesOption(input: CsharpTranslationContext): readonly CsharpProjectReference[] {
   return rejectDuplicateReferences([
     ...readCsharpReferences(input.target),
     ...input.runtimeReferences.map(csharpProjectReferenceFromRuntimeReference),
   ]);
 }
 
-function csharpProjectReferenceFromRuntimeReference(reference: TargetCompileInput["runtimeReferences"][number]): CsharpProjectReference {
+function csharpProjectReferenceFromRuntimeReference(reference: CsharpTranslationContext["runtimeReferences"][number]): CsharpProjectReference {
   switch (reference.kind) {
     case "project":
       return { kind: "project", include: reference.include };

@@ -1,33 +1,35 @@
 import {
-  TstsProviderContractVersion,
+  TstsSourceProviderContractVersion,
 } from "@tsonic/tsts";
 import type {
   ExtensionDiagnostic,
   ProviderDeclarationModel,
   ProviderIdentity,
+  ProviderImportDeclaration,
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
-  TargetBindingProvider,
+  SourceDeclarationProvider,
 } from "@tsonic/tsts";
+import {
+  tsonicCoreLangModule,
+} from "@tsonic/source-core";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
 import {
+  csharpLangModule,
   csharpProviderVersion,
-  csharpTargetId,
 } from "./identity.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
 import {
   providerExportDeclarationsForCsharpSourceModule,
 } from "./source-virtual-declarations.js";
 
-export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvider {
+export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
   const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
   const identity: ProviderIdentity = {
     id: "tsonic.csharp.source-virtual-modules",
     version: csharpProviderVersion,
-    target: csharpTargetId,
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "binding",
+    extensionContractVersion: TstsSourceProviderContractVersion,
     displayName: "Tsonic C# source alias modules",
   };
   return {
@@ -58,14 +60,29 @@ export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvide
       return {
         moduleSpecifier: resolution.moduleSpecifier,
         providerModuleId: resolution.providerModuleId,
+        ...(resolution.moduleSpecifier === csharpLangModule ? { imports: csharpLangProviderImports() } : {}),
         exports: providerExportDeclarationsForCsharpSourceModule(module),
         evidence: [{ message: "Declaration model is generated from C# source alias semantics." }],
       };
     },
-    getTargetIdentity() {
-      return undefined;
-    },
   };
+}
+
+function csharpLangProviderImports(): readonly ProviderImportDeclaration[] {
+  return [{
+    moduleSpecifier: tsonicCoreLangModule,
+    typeOnly: true,
+    namedImports: [
+      {
+        exportedName: "__TsonicAttributeBuilder",
+        kind: "type",
+      },
+      {
+        exportedName: "__TsonicAttributeMemberBuilder",
+        kind: "type",
+      },
+    ],
+  }];
 }
 
 function csharpSourceVirtualDeclarationFileName(specifier: string): string {

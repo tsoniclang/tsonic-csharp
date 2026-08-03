@@ -1,150 +1,234 @@
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
-  AsPostfixUnaryExpression,
-  AsPrefixUnaryExpression,
-} from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+  selectCsharpUnaryOperation,
+  sourceOperatorFromKindName,
+} from "../../policy/operations/index.js";
+import {
+  selectCsharpCompatAnyUnaryOperation,
+} from "../../policy/compat/index.js";
+import {
+  resolveCsharpCompatObjectShapeProperty,
+  selectCsharpTargetProperty,
+} from "../../policy/members/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
 import type {
   CsharpExpression,
-  CsharpPrefixUnaryOperatorToken,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
-import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import {
-  getProviderOperationOwnership,
-  pushMissingTargetFactDiagnostic,
-} from "./semantic-guards.js";
-import type {
-  ExpressionPlanner,
-} from "./expression-planner-types.js";
-import {
-  csharpTargetOperationFactKey,
-} from "../../source/csharp-facts.js";
 import {
   csharpPostfixUnaryOperatorTokenFromText,
   csharpPrefixUnaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
 import {
-  missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
-  resolveRuntimeCarrierForExpression,
-} from "./runtime-carriers.js";
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
+import type {
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
-import {
-  tryPlanCompatRuntimeUnaryOperator,
-} from "./compat-runtime-operations.js";
+  translateCsharpCompatInvocation,
+} from "../../translate/expressions/compat.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const expression = AsPrefixUnaryExpression(node)!;
-  const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Prefix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+  const operandNode = input.ast.as.AsPrefixUnaryExpression(node)?.Operand;
+  const sourceOperator = sourceOperatorFromKindName(
+    input.ast.operatorKindName(node),
+  );
+  if (
+    rejectUnloweredCompatObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      sourceFile,
+      input,
+      diagnostics,
+    )
+  ) {
     return undefined;
   }
-  if (selectedOperator === undefined) {
-    const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
+  if (sourceOperator !== undefined) {
+    const compat = selectCsharpCompatAnyUnaryOperation(
+      input,
+      operandNode,
+      sourceFile,
+      sourceOperator,
+    );
+    if (compat.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+      return undefined;
+    }
+    if (compat.kind === "resolved") {
+      const operand = operandNode === undefined
+        ? undefined
+        : planExpression(operandNode, sourceFile, input, diagnostics);
+      return operand === undefined
+        ? undefined
+        : translateCsharpCompatInvocation(
+            compat,
+            undefined,
+            [
+              operand,
+              { kind: "LiteralExpression", value: sourceOperator },
+            ],
+          );
+    }
+  }
+  const selection = selectCsharpUnaryOperation(input, node, sourceFile);
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  const compatRuntimeOperatorDiagnosticsStart = diagnostics.length;
-  const compatRuntimeOperator = tryPlanCompatRuntimeUnaryOperator(node, expression.Operand, sourceFile, input, diagnostics, planExpression);
-  if (compatRuntimeOperator !== undefined) {
-    return compatRuntimeOperator;
-  }
-  if (diagnostics.length > compatRuntimeOperatorDiagnosticsStart) {
-    return undefined;
-  }
-  const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
-  if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# prefix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
-    return undefined;
-  }
-  const operatorToken = csharpPrefixUnaryOperatorTokenFromText(csharpOperator.operator);
+  const operatorToken = csharpPrefixUnaryOperatorTokenFromText(
+    selection.targetOperator,
+  );
   if (operatorToken === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected prefix operator '${selection.targetOperator}' has no C# AST token.`,
+    ));
     return undefined;
   }
-  const operandCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Operand, sourceFile);
-  if (!isSupportedPrefixUnaryOperand(operandCarrierResolution, operatorToken)) {
-    const detail = missingCarrierDiagnosticDetail(operandCarrierResolution, "Operand runtime carrier fact does not prove the finalized C# token is valid.");
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator '${csharpOperator.operator}' requires operand runtime-carrier facts that prove the finalized C# token is valid. ${detail.reason}`, detail.evidence));
-    return undefined;
-  }
-  const operand = planExpression(expression.Operand!, sourceFile, input, diagnostics);
-  if (operand === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "PrefixUnaryExpression",
-    operatorToken,
-    operand,
-  };
+  const operand = planExpression(
+    selection.operand,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  return operand === undefined
+    ? undefined
+    : {
+        kind: "PrefixUnaryExpression",
+        operatorToken,
+        operand,
+      };
 }
 
 export function planPostfixUnaryExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const expression = AsPostfixUnaryExpression(node)!;
-  const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Postfix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+  const operandNode = input.ast.as.AsPostfixUnaryExpression(node)?.Operand;
+  const sourceOperator = sourceOperatorFromKindName(
+    input.ast.operatorKindName(node),
+  );
+  if (
+    rejectUnloweredCompatObjectShapeUpdate(
+      node,
+      operandNode,
+      sourceOperator,
+      sourceFile,
+      input,
+      diagnostics,
+    )
+  ) {
     return undefined;
   }
-  if (selectedOperator === undefined) {
-    const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a selected provider operator fact.", ownership);
+  if (sourceOperator !== undefined) {
+    const compat = selectCsharpCompatAnyUnaryOperation(
+      input,
+      operandNode,
+      sourceFile,
+      sourceOperator,
+    );
+    if (compat.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+      return undefined;
+    }
+    if (compat.kind === "resolved") {
+      const operand = operandNode === undefined
+        ? undefined
+        : planExpression(operandNode, sourceFile, input, diagnostics);
+      return operand === undefined
+        ? undefined
+        : translateCsharpCompatInvocation(
+            compat,
+            undefined,
+            [
+              operand,
+              { kind: "LiteralExpression", value: sourceOperator },
+            ],
+          );
+    }
+  }
+  const selection = selectCsharpUnaryOperation(input, node, sourceFile);
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
-  if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# postfix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
-    return undefined;
-  }
-  const operatorToken = csharpPostfixUnaryOperatorTokenFromText(csharpOperator.operator);
+  const operatorToken = csharpPostfixUnaryOperatorTokenFromText(
+    selection.targetOperator,
+  );
   if (operatorToken === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# postfix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `Selected postfix operator '${selection.targetOperator}' has no C# AST token.`,
+    ));
     return undefined;
   }
-  const operand = planExpression(expression.Operand!, sourceFile, input, diagnostics);
-  if (operand === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "PostfixUnaryExpression",
-    operand,
-    operatorToken,
-  };
+  const operand = planExpression(
+    selection.operand,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  return operand === undefined
+    ? undefined
+    : {
+        kind: "PostfixUnaryExpression",
+        operand,
+        operatorToken,
+      };
 }
 
-function isSupportedPrefixUnaryOperand(
-  operandCarrierResolution: ReturnType<typeof resolveRuntimeCarrierForExpression>,
-  operatorToken: CsharpPrefixUnaryOperatorToken,
+function rejectUnloweredCompatObjectShapeUpdate(
+  node: Node,
+  operand: Node | undefined,
+  sourceOperator: string | undefined,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
 ): boolean {
-  if (operatorToken.kind !== "ExclamationToken") {
-    return true;
-  }
-  const carrier = probeCarrierFromResolution(operandCarrierResolution);
-  if (carrier === undefined) {
+  if (
+    (sourceOperator !== "++" && sourceOperator !== "--") ||
+    operand === undefined ||
+    !input.ast.is.IsPropertyAccessExpression(operand)
+  ) {
     return false;
   }
-  if (carrier.kind !== "source-primitive") {
-    return true;
+  const selection = selectCsharpTargetProperty(input, operand, sourceFile);
+  if (selection.kind !== "source-owned") {
+    return false;
   }
-  return isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier));
-}
-
-function isCsharpBoolType(type: CsharpTypeNode | undefined): boolean {
-  return type?.kind === "PredefinedType" && type.name === "bool";
+  const compatProperty = resolveCsharpCompatObjectShapeProperty(
+    input.objectShapes,
+    input.semantics(sourceFile),
+    selection,
+    sourceFile,
+  );
+  if (compatProperty.kind === "not-compat-object-shape") {
+    return false;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    node,
+    compatProperty.kind === "rejected"
+      ? compatProperty.reason
+      : `Closed compatibility object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
+  ));
+  return true;
 }

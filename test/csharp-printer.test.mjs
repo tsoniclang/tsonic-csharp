@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { csharpTypeFromTargetTypeRef } from "../dist/backend/planner/target-types.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
 import {
   printCsharpCompilationUnit,
@@ -11,7 +13,8 @@ import {
 import {
   csharpDelegateTargetType,
   csharpTargetTypeFromBinding,
-} from "../dist/source/csharp-source-semantics/target-types.js";
+  targetTypeRefEquals,
+} from "../dist/policy/types/index.js";
 
 test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
@@ -39,6 +42,38 @@ test("printer renders cast expression nodes", () => {
       expression: { kind: "IdentifierName", name: "value" },
     }),
     "(Animal)value",
+  );
+});
+
+test("printer preserves a cast as the receiver of every postfix operation", () => {
+  const cast = {
+    kind: "CastExpression",
+    type: { kind: "IdentifierName", name: "Derived" },
+    expression: { kind: "IdentifierName", name: "value" },
+  };
+  assert.equal(
+    printCsharpExpression({
+      kind: "SimpleMemberAccessExpression",
+      receiver: cast,
+      name: "score",
+    }),
+    "((Derived)value).score",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "ElementAccessExpression",
+      receiver: cast,
+      argument: { kind: "LiteralExpression", value: 0 },
+    }),
+    "((Derived)value)[0]",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: cast,
+      arguments: [],
+    }),
+    "((Derived)value)()",
   );
 });
 
@@ -157,6 +192,36 @@ test("target type rendering requires explicit C# render shape for non-predefined
   assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
 });
 
+test("source-global target refs remain source evidence until wrapped by a C# target carrier", () => {
+  const promiseOfString = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.String" }],
+  };
+  const promiseOfNumber = {
+    kind: "source-global",
+    name: "Promise",
+    typeArguments: [{ kind: "target-named", id: "System.Double" }],
+  };
+
+  assert.equal(csharpTypeFromTargetTypeRef(promiseOfString), undefined);
+  assert.equal(targetTypeRefEquals(promiseOfString, { ...promiseOfString }), true);
+  assert.equal(targetTypeRefEquals(promiseOfString, promiseOfNumber), false);
+
+  const rendered = csharpTypeFromTargetTypeRef({
+    kind: "target-named",
+    id: "System.Threading.Tasks.Task`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Threading", "Tasks"],
+      name: "Task",
+    },
+  });
+  assert.ok(rendered);
+  assert.equal(printCsharpType(rendered), "System.Threading.Tasks.Task<int>");
+});
+
 test("target bindings require explicit C# render shape", () => {
   assert.equal(csharpTargetTypeFromBinding({
     id: "Example.Widget",
@@ -207,6 +272,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const members = renderObjectShapeMembers(metadataBackedShape, false, undefined, undefined);
   assert.ok(members);
   assert.equal(members.length, 2);
+  assert.deepEqual(members[0].modifiers, ["public", "required"]);
   assert.equal(members[1].kind, "MethodDeclaration");
   assert.equal(members[1].parameters[0].name, "arg0");
   assert.deepEqual(members[1].parameters[0].type, { kind: "PredefinedType", name: "int" });
@@ -228,4 +294,38 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const diagnostics = [];
   assert.equal(renderObjectShapeMembers(missingReturnFactShape, false, diagnostics, { Kind: "KindTypeLiteral" }), undefined);
   assert.match(diagnostics[0].message, /explicit return facts/);
+});
+
+test("object shape declarations enforce required members while leaving optional members optional", () => {
+  const shape = {
+    targetType: { kind: "target-named", id: "__Shape" },
+    members: [{
+      sourceName: "requiredValue",
+      targetName: "requiredValue",
+      memberKind: "property",
+      type: { kind: "target-named", id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
+    }, {
+      sourceName: "optionalValue",
+      targetName: "optionalValue",
+      memberKind: "property",
+      type: {
+        kind: "target-named",
+        id: "System.String",
+        csharpRender: { kind: "predefined", name: "string" },
+        csharpNullableReference: true,
+      },
+      optional: true,
+    }],
+  };
+
+  const fields = renderObjectShapeMembers(shape, false, undefined, undefined);
+  assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
+  const properties = renderObjectShapeMembers(shape, true, undefined, undefined);
+  assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
+    optionalValue: ["public"],
+    requiredValue: ["public", "required"],
+  });
 });

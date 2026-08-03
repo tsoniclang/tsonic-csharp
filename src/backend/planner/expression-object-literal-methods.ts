@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsMethodDeclaration,
 } from "./source-ast.js";
@@ -6,7 +7,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -16,7 +16,7 @@ import type {
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../source/csharp-facts.js";
+} from "../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -42,7 +42,7 @@ export function planObjectShapeMethodMemberAssignment(
   methodNode: Node,
   objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpObjectInitializerAssignment | undefined {
   const sourceName = getObjectLiteralPropertySourceName(methodNode, input, diagnostics);
@@ -74,7 +74,7 @@ export function planObjectShapeMethodMemberAssignment(
 function planObjectLiteralMethodAsLambda(
   methodNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
@@ -100,7 +100,7 @@ function planObjectLiteralMethodAsLambda(
   }
   return {
     kind: "LambdaExpression",
-    ...(isAsyncExpression(methodNode) ? { async: true } : {}),
+    ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
     parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, targetContext),
     body,
   };

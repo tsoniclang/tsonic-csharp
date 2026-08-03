@@ -1,17 +1,14 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsDoStatement,
   AsIfStatement,
   AsWhileStatement,
-  HasSourceKind,
-  KindFalseKeyword,
-  KindTrueKeyword,
 } from "./source-ast.js";
 import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -28,7 +25,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  requireCsharpBoolRuntimeCarrier,
+  planCsharpConditionExpression as planCheckedConditionExpression,
 } from "./expression-bool-carriers.js";
 import type {
   NestedStatementPlanner,
@@ -37,7 +34,7 @@ import type {
 export function planIfStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -63,7 +60,7 @@ export function planIfStatement(
 export function planWhileStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -86,7 +83,7 @@ export function planWhileStatement(
 export function planDoStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -110,7 +107,7 @@ export function planConditionExpression(
   expression: Node | undefined,
   statementKind: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
@@ -118,11 +115,19 @@ export function planConditionExpression(
     diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
     return undefined;
   }
-  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
-    return planExpression(expression, sourceFile, input, diagnostics, state);
-  }
-  if (!requireCsharpBoolRuntimeCarrier(expression, `${statementKind} condition`, sourceFile, input, diagnostics)) {
-    return undefined;
-  }
-  return planExpression(expression, sourceFile, input, diagnostics, state);
+  return planCheckedConditionExpression(
+    expression,
+    `${statementKind} condition`,
+    sourceFile,
+    input,
+    diagnostics,
+    (condition, conditionSourceFile, conditionInput, conditionDiagnostics) =>
+      planExpression(
+        condition,
+        conditionSourceFile,
+        conditionInput,
+        conditionDiagnostics,
+        state,
+      ),
+  );
 }

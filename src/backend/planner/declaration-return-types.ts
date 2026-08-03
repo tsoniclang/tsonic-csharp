@@ -1,55 +1,81 @@
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+import {
+  sourceNodesEqual,
+} from "@tsonic/target-api";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import {
-  csharpSourceReturnCarrierFactKey,
-} from "../../source/csharp-facts.js";
-import {
-  getTargetTypeRefForNode,
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
+  csharpRuntimeUndefinedTargetType,
+  csharpSourceTypeArgumentNodes,
+  csharpVoidTargetType,
+  getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms,
   getCsharpTaskResultTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  isCsharpNeverTargetType,
+  targetTypeRefKey,
+} from "../../policy/types/index.js";
+import {
+  csharpConversionIsApplicable,
+  selectCsharpCommonImplicitTarget,
+  selectCsharpConversion,
+} from "../../policy/conversions/index.js";
+
+export type CsharpReturnTargetContractResult =
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+  | { readonly kind: "rejected"; readonly reason: string };
 
 export function getExplicitReturnType(
   typeNode: Node | undefined,
   declarationNode: Node,
   context: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    const sourceReturnCarrier = input.facts.getFact(declarationNode, csharpSourceReturnCarrierFactKey)?.carrier;
-    if (sourceReturnCarrier !== undefined) {
-      const sourceReturnType = csharpTypeFromTargetTypeRef(sourceReturnCarrier);
-      if (sourceReturnType !== undefined) {
-        return sourceReturnType;
-      }
-      diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a renderable source-owned return carrier fact.`));
-      return invalidCsharpType(`${context} return type`);
-    }
-    const returnCarrierResolution = input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile });
-    const returnCarrier = probeCarrierFromResolution(returnCarrierResolution);
-    const inferred = returnCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(returnCarrier);
+    const returnTargetType = getInferredDeclarationReturnTargetType(
+      declarationNode,
+      sourceFile,
+      input,
+    );
+    const inferred = csharpDeclarationReturnType(returnTargetType);
     if (inferred === undefined) {
-      const detail = missingCarrierDiagnosticDetail(returnCarrierResolution, "Signature return carrier fact is missing.");
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,
-        returnCarrierResolution.kind === "missing"
-          ? `C# ${context} emission requires a finalized signature return carrier: ${detail.reason}`
-          : `C# ${context} emission requires a renderable signature return carrier fact; backend must not infer C# return types from raw TSTS semantic types.`,
-        detail.evidence,
+        `C# ${context} emission requires one exact checked source signature with a closed target return representation.`,
       ));
       return invalidCsharpType(`${context} return type`);
     }
     return inferred;
   }
+  const explicitTargetType = input.types.resolveNode(typeNode, sourceFile);
+  if (isCsharpNeverTargetType(explicitTargetType)) {
+    const neverReturnType = csharpDeclarationReturnType(explicitTargetType);
+    if (neverReturnType !== undefined) {
+      return neverReturnType;
+    }
+  }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
+}
+
+function csharpDeclarationReturnType(
+  targetType: TargetTypeRef | undefined,
+): ReturnType<typeof getCsharpTypeForNode> | undefined {
+  if (isCsharpNeverTargetType(targetType)) {
+    return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
+  }
+  return targetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(targetType);
 }
 
 export function getAsyncReturnExpressionExpectedType(
@@ -57,7 +83,7 @@ export function getAsyncReturnExpressionExpectedType(
   declarationNode: Node,
   context: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): { readonly type: ReturnType<typeof getCsharpTypeForNode>; readonly subject?: Node; readonly targetType: TargetTypeRef } | undefined {
   const returnTargetType = getDeclarationReturnTargetType(typeNode, declarationNode, sourceFile, input);
@@ -81,19 +107,127 @@ export function getAsyncReturnExpressionExpectedType(
   return { type, ...(subject === undefined ? {} : { subject }), targetType: resultTargetType };
 }
 
-function getDeclarationReturnTargetType(
+export function getDeclarationReturnTargetType(
   typeNode: Node | undefined,
   declarationNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ) {
   if (typeNode !== undefined) {
-    return getTargetTypeRefForNode(input, typeNode, sourceFile);
+    return input.types.resolveNode(typeNode, sourceFile);
   }
-  return probeCarrierFromResolution(input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile }));
+  return getInferredDeclarationReturnTargetType(
+    declarationNode,
+    sourceFile,
+    input,
+  );
 }
 
-function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: TargetCompileInput): Node | undefined {
-  const typeArguments = typeNode === undefined ? [] : input.ast.typeArguments(typeNode);
+export function reconcileInferredReturnTargetContract(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  baseline: TargetTypeRef,
+  observed: readonly TargetTypeRef[],
+  incomplete: boolean,
+): CsharpReturnTargetContractResult {
+  if (incomplete) {
+    return {
+      kind: "rejected",
+      reason:
+        "An inferred C# public return contract contains a return expression without one closed target representation.",
+    };
+  }
+  if (observed.length === 0) {
+    return { kind: "resolved", type: baseline };
+  }
+  const requiredSources = [
+    ...observed,
+    ...uncoveredBaselineReturnAlternatives(input, baseline, observed),
+  ];
+  const selected = selectCsharpCommonImplicitTarget(
+    input,
+    requiredSources,
+    [...observed, baseline],
+  );
+  if (selected.kind === "rejected") {
+    return {
+      kind: "rejected",
+      reason: `An inferred C# public return contract contains incompatible exact target representations. ${selected.reason}`,
+    };
+  }
+  return { kind: "resolved", type: selected.target };
+}
+
+function uncoveredBaselineReturnAlternatives(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  baseline: TargetTypeRef,
+  observed: readonly TargetTypeRef[],
+): readonly TargetTypeRef[] {
+  const alternatives = new Map<string, TargetTypeRef>();
+  collectTargetContractAlternatives(baseline, alternatives);
+  return [...alternatives.values()].filter((alternative) =>
+    !observed.some((source) =>
+      csharpConversionIsApplicable(
+        selectCsharpConversion(input, source, alternative, "implicit"),
+        "implicit",
+      )
+    )
+  );
+}
+
+function collectTargetContractAlternatives(
+  type: TargetTypeRef,
+  alternatives: Map<string, TargetTypeRef>,
+): void {
+  const union = getCsharpRuntimeUnionArms(type);
+  if (union !== undefined) {
+    union.forEach((member) =>
+      collectTargetContractAlternatives(member, alternatives)
+    );
+    return;
+  }
+  const nullableElement = getCsharpNullableElementTargetType(type);
+  if (nullableElement !== undefined) {
+    collectTargetContractAlternatives(nullableElement, alternatives);
+    const undefinedType = csharpRuntimeUndefinedTargetType();
+    alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
+    return;
+  }
+  alternatives.set(targetTypeRefKey(type), type);
+}
+
+function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: CsharpTranslationContext): Node | undefined {
+  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, typeNode);
   return typeArguments[0];
+}
+
+function getInferredDeclarationReturnTargetType(
+  declarationNode: Node,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+): TargetTypeRef | undefined {
+  const semantics = input.semantics(sourceFile);
+  const declarationType = semantics.getTypeAtLocation(
+    declarationNode,
+  );
+  const signatures = semantics.getCallSignaturesOfType(
+    declarationType,
+  );
+  const selected = signatures.filter((signature) => {
+    const declaration = semantics.getSignatureDeclaration(signature);
+    return declaration !== undefined &&
+      sourceNodesEqual(input.ast, declaration, declarationNode);
+  });
+  if (selected.length !== 1) {
+    return undefined;
+  }
+  return input.types.resolveType(
+    semantics.getReturnTypeOfSignature(selected[0]!),
+    sourceFile,
+  );
 }

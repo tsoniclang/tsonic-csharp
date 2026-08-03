@@ -1,9 +1,9 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsCallExpression,
   AsObjectLiteralExpression,
   AsPropertyAssignment,
   AsVariableDeclaration,
-  isAstNode,
   KindCallExpression,
   KindObjectLiteralExpression,
   KindPropertyAssignment,
@@ -11,29 +11,27 @@ import {
   Node_Text,
   SourceKind,
 } from "./source-ast.js";
-import type { FieldFact, Node, SourceFile, StructFact } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import {
+  fieldFactKey,
+  type FieldFact,
+  type Node,
+  type SourceFile,
+  type StructFact,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planIdentifierName } from "./names.js";
-import {
-  asSemanticType,
-  asTargetTypeRef,
-} from "../../source/fact-subjects.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
-import {
-  getTargetTypeRefForType,
-} from "./runtime-carriers.js";
 
 export function planValueTypeDeclaration(
   declarationNode: Node,
   valueType: StructFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpStructDeclaration {
   const declaration = AsVariableDeclaration(declarationNode)!;
@@ -50,36 +48,30 @@ export function planValueTypeDeclaration(
       kind: "FieldDeclaration",
       name: field.name,
       modifiers: field.readonly === true ? ["public", "readonly"] : ["public"],
-      type: getCsharpTypeForFieldFact(field, declarationNode, "Value-type field", sourceFile, input, diagnostics),
+      type: getCsharpTypeForFieldFact(field, "Value-type field", sourceFile, input, diagnostics),
     })),
   };
 }
 
 export function getCsharpTypeForFieldFact(
   field: FieldFact,
-  diagnosticNode: Node,
   diagnosticLabel: string,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
-  if (isAstNode(field.type)) {
-    return getCsharpTypeForNode(field.type, sourceFile, input, undefined, diagnostics);
-  }
-  const directTargetType = asTargetTypeRef(field.type);
-  const semanticType = asSemanticType(field.type);
-  const targetType = directTargetType ?? getTargetTypeRefForType(input, semanticType, sourceFile);
-  const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
-  if (csharpType !== undefined) {
-    return csharpType;
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${diagnosticLabel} '${field.name}' must carry a renderable AST, semantic type, or target type reference from finalized TSTS source facts.`));
-  return invalidCsharpType(`${diagnosticLabel} fact type subject`);
+  return getCsharpTypeForNode(
+    field.type,
+    sourceFile,
+    input,
+    invalidCsharpType(`${diagnosticLabel} '${field.name}' type`),
+    diagnostics,
+  );
 }
 
 function diagnoseUnprovenValueTypeFields(
   declaration: NonNullable<ReturnType<typeof AsVariableDeclaration>>,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): void {
   const initializer = SourceKind(input.ast, declaration.Initializer) === KindCallExpression
@@ -106,11 +98,11 @@ function diagnoseUnprovenValueTypeFields(
     }
     const assignment = AsPropertyAssignment(property)!;
     if (
-      input.facts.getFieldFact(property) === undefined &&
-      input.facts.getFieldFact(assignment.Initializer) === undefined &&
-      input.facts.getFieldFact(Node_Name(property)) === undefined
+      input.sourceFacts?.getFact(property, fieldFactKey) === undefined &&
+      input.sourceFacts?.getFact(assignment.Initializer, fieldFactKey) === undefined &&
+      input.sourceFacts?.getFact(Node_Name(input.ast, property), fieldFactKey) === undefined
     ) {
-      const name = Node_Text(Node_Name(property));
+      const name = Node_Text(input.ast, Node_Name(input.ast, property));
       diagnostics.push(unsupportedNodeDiagnostic(property, `Value-type member '${name}' requires a finalized field fact before C# struct emission.`));
     }
   }

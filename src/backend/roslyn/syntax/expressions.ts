@@ -19,12 +19,13 @@ export type CsharpExpression =
   | { readonly kind: "BinaryExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpBinaryOperatorToken; readonly right: CsharpExpression }
   | { readonly kind: "AssignmentExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpAssignmentOperatorToken; readonly right: CsharpExpression }
   | { readonly kind: "IsPatternExpression"; readonly expression: CsharpExpression; readonly type: CsharpTypeNode; readonly negated?: boolean }
+  | { readonly kind: "NullPatternExpression"; readonly expression: CsharpExpression; readonly negated: boolean }
   | { readonly kind: "PrefixUnaryExpression"; readonly operatorToken: CsharpPrefixUnaryOperatorToken; readonly operand: CsharpExpression }
   | { readonly kind: "PostfixUnaryExpression"; readonly operand: CsharpExpression; readonly operatorToken: CsharpPostfixUnaryOperatorToken }
   | { readonly kind: "ConditionalExpression"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "ArrayCreationExpression"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode; readonly size?: CsharpExpression }
   | { readonly kind: "TupleExpression"; readonly elements: readonly CsharpExpression[] }
-  | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode }
+  | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode; readonly nullForgiving?: boolean }
   | { readonly kind: "LambdaExpression"; readonly async?: boolean; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
 
 export type CsharpBinaryOperatorToken =

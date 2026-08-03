@@ -64,6 +64,8 @@ export function expressionRequiresUnsafe(
         expressionRequiresUnsafe(expression.right, blockRequiresUnsafe);
     case "IsPatternExpression":
       return expressionRequiresUnsafe(expression.expression, blockRequiresUnsafe) || csharpTypeRequiresUnsafe(expression.type);
+    case "NullPatternExpression":
+      return expressionRequiresUnsafe(expression.expression, blockRequiresUnsafe);
     case "PrefixUnaryExpression":
       return expressionRequiresUnsafe(expression.operand, blockRequiresUnsafe);
     case "PostfixUnaryExpression":

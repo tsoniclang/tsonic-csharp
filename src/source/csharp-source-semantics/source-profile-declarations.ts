@@ -39,10 +39,15 @@ interface Promise<T> {
   catch<TResult = never>(onrejected?: ((reason: unknown) => TResult) | null): Promise<T | TResult>;
 }
 
+type __TsonicPromiseResolve<T> = [T] extends [void]
+  ? (value?: T | PromiseLike<T>) => void
+  : (value: T | PromiseLike<T>) => void;
+
 interface PromiseConstructor {
-  new <T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: unknown) => void) => void): Promise<T>;
+  new <T>(executor: (resolve: __TsonicPromiseResolve<T>, reject: (reason?: unknown) => void) => void): Promise<T>;
   resolve<T>(value: T | PromiseLike<T>): Promise<T>;
   reject<T = never>(reason?: unknown): Promise<T>;
+  all<T>(values: readonly Promise<T>[]): Promise<T[]>;
   all<T extends readonly unknown[]>(values: T): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
 }
 declare var Promise: PromiseConstructor;
@@ -118,6 +123,10 @@ interface ReadonlyArray<T> extends Iterable<T> {
 
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
+
+interface TemplateStringsArray extends ReadonlyArray<string> {
+  readonly raw: readonly string[];
+}
 
 interface Object {
   hasOwnProperty(key: PropertyKey): boolean;
@@ -238,7 +247,7 @@ interface String {
 interface StringConstructor {
   new (value?: unknown): String;
   (value?: unknown): string;
-  raw(callSite: unknown, ...substitutions: unknown[]): string;
+  raw(callSite: TemplateStringsArray, ...substitutions: unknown[]): string;
   fromCharCode(...codes: number[]): string;
   fromCodePoint(...codes: number[]): string;
 }
@@ -475,8 +484,18 @@ interface Console {
 }
 declare var console: Console;
 
+declare function parseInt(value: string, radix?: number): number;
+declare function parseFloat(value: string): number;
+declare function isNaN(value: number): boolean;
+declare function isFinite(value: number): boolean;
+declare function setTimeout(callback: () => void, delay?: number): number;
+declare function clearTimeout(id: number): void;
+declare function setInterval(callback: () => void, delay: number): number;
+declare function clearInterval(id: number): void;
+
 interface ProxyConstructor {
   new <T extends object>(target: T, handler: object): T;
+  revocable<T extends object>(target: T, handler: object): { proxy: T; revoke: () => void };
 }
 declare var Proxy: ProxyConstructor;
 

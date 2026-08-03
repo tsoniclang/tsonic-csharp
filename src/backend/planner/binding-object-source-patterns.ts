@@ -1,16 +1,16 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingElement,
-  AsParameterDeclaration,
   AsStringLiteral,
   HasSourceKind,
-  KindBindingElement,
   KindIdentifier,
-  KindParameter,
   KindStringLiteral,
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -22,13 +22,13 @@ import {
   requireCsharpIdentifier,
   tryCsharpIdentifier,
 } from "./identifiers.js";
-import { isSourceOwnedProjectShapeSubject } from "./semantic-guards.js";
+import { isSourceOwnedProjectShapeSubject } from "../../policy/types/index.js";
 
 export function planObjectBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -63,23 +63,17 @@ export function planObjectBindingElement(
   return planBindingNameFromProjection(name, projected, undefined, elementNode, sourceFile, input, diagnostics, state);
 }
 
-export function isSourceOwnedBindingElement(
+export function isSourceOwnedBindingSource(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
-  if (!HasSourceKind(input.ast, sourceNode, KindBindingElement) && !HasSourceKind(input.ast, sourceNode, KindParameter)) {
-    return false;
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindParameter) && AsParameterDeclaration(sourceNode)?.Type === undefined) {
-    return false;
-  }
   return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input);
 }
 
 function getDirectSourcePropertyName(
   elementNode: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);
@@ -92,7 +86,7 @@ function getDirectSourcePropertyName(
   }
   if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
     if (HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
-      const text = AsStringLiteral(propertyName)?.Text;
+      const text = Node_Text(input.ast, AsStringLiteral(propertyName));
       if (text !== undefined && tryCsharpIdentifier(text) === text) {
         return text;
       }
@@ -100,5 +94,5 @@ function getDirectSourcePropertyName(
     diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names."));
     return undefined;
   }
-  return requireCsharpIdentifier(Node_Text(propertyName), diagnostics, "Object destructuring source property");
+  return requireCsharpIdentifier(Node_Text(input.ast, propertyName), diagnostics, "Object destructuring source property");
 }

@@ -11,7 +11,7 @@ import {
   ModifierFlagsPublic,
   ModifierFlagsReadonly,
 } from "./source-ast.js";
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
@@ -27,13 +27,21 @@ const typeScriptOnlyRuntimeShapeModifiers = [
   { flag: ModifierFlagsConst, name: "const" },
 ] as const;
 
+type TypeScriptOnlyRuntimeShapeModifierName =
+  (typeof typeScriptOnlyRuntimeShapeModifiers)[number]["name"];
+
 export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
+  ast: AstReader,
   node: Node,
   context: string,
   diagnostics: TargetDiagnostic[],
+  allowedModifiers: readonly TypeScriptOnlyRuntimeShapeModifierName[] = [],
 ): void {
   for (const modifier of typeScriptOnlyRuntimeShapeModifiers) {
-    if (HasSyntacticModifier(node, modifier.flag)) {
+    if (allowedModifiers.includes(modifier.name)) {
+      continue;
+    }
+    if (HasSyntacticModifier(ast, node, modifier.flag)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
         `TypeScript-only modifier '${modifier.name}' on ${context} is outside the native runtime-shape source subset. Use standard ECMAScript runtime shape or target/provider facts instead.`,
@@ -43,7 +51,8 @@ export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
 }
 
 export function isAsyncNode(
+  ast: AstReader,
   node: Node,
 ): boolean {
-  return HasSyntacticModifier(node, ModifierFlagsAsync);
+  return HasSyntacticModifier(ast, node, ModifierFlagsAsync);
 }

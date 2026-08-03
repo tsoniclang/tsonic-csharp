@@ -10,14 +10,18 @@ sealed partial class ReflectionProvider
     {
         return !type.IsGenericTypeDefinition
             ? Array.Empty<object>()
-            : type.GetGenericArguments().Where(parameter => parameter.IsGenericParameter).Select(TypeParameter).ToArray();
+            : type.GetGenericArguments().Where(parameter => parameter.IsGenericParameter).Select(parameter => TypeParameter(parameter)).ToArray();
     }
 
-    object[] MethodTypeParameters(MethodInfo method)
+    object[] MethodTypeParameters(MethodInfo method, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         return !method.IsGenericMethodDefinition
             ? Array.Empty<object>()
-            : method.GetGenericArguments().Where(parameter => parameter.IsGenericParameter).Select(TypeParameter).ToArray();
+            : method.GetGenericArguments()
+                .Where(parameter => parameter.IsGenericParameter && !genericParameters.IsOmitted(parameter))
+                .Select(parameter => TypeParameter(parameter, genericParameters))
+                .ToArray();
     }
 
     object[] ImplementedContracts(Type type)
@@ -44,8 +48,9 @@ sealed partial class ReflectionProvider
             .ToArray();
     }
 
-    object TypeParameter(Type parameter)
+    object TypeParameter(Type parameter, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
         var constraints = new List<object>();
         var attributes = parameter.GenericParameterAttributes;
         if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
@@ -67,11 +72,11 @@ sealed partial class ReflectionProvider
         var unsupportedConstraints = new List<object>();
         foreach (var constraint in parameter.GetGenericParameterConstraints())
         {
-            if (constraint == typeof(ValueType))
+            if (IsRuntimeType(constraint, typeof(ValueType)))
             {
                 continue;
             }
-            var contract = TypeRef(constraint);
+            var contract = TypeRef(constraint, genericParameters: genericParameters);
             if (contract is not null)
             {
                 constraints.Add(new { kind = "implements", contract });
@@ -86,7 +91,7 @@ sealed partial class ReflectionProvider
         }
         return new
         {
-            name = parameter.Name,
+            name = genericParameters.SourceName(parameter),
             constraints = constraints.Count == 0 ? null : constraints,
             unsupportedConstraints = unsupportedConstraints.Count == 0 ? null : unsupportedConstraints,
             variance = Variance(parameter),

@@ -6,7 +6,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../source/csharp-facts.js";
+} from "../../../policy/types/index.js";
 import {
   sameCsharpType,
 } from "../csharp-types.js";
@@ -22,16 +22,24 @@ import {
 import {
   renderObjectShapeInterfaces,
 } from "./interfaces.js";
+import {
+  csharpJsonValueInterfaceType,
+  csharpJsonValueWriterMethodName,
+} from "../json-object-shapes.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
+  jsonSerializable = false,
 ): boolean {
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
     return false;
   }
-  const interfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  const baseInterfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  const interfaces = baseInterfaces === undefined
+    ? undefined
+    : jsonSerializable ? [...baseInterfaces, csharpJsonValueInterfaceType()] : baseInterfaces;
   if (interfaces === undefined || !objectShapeInterfacesMatch(declaration.interfaces, interfaces)) {
     return false;
   }
@@ -54,8 +62,14 @@ export function objectShapeDeclarationMatches(
       return false;
     }
   }
+  if (jsonSerializable && !declaration.members.some((member) => member.kind === "MethodDeclaration" && member.name === csharpJsonValueWriterMethodName)) {
+    return false;
+  }
   return declaration.members.every((member) => {
     if (member.kind === "MethodDeclaration") {
+      if (jsonSerializable && member.name === csharpJsonValueWriterMethodName) {
+        return true;
+      }
       return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {

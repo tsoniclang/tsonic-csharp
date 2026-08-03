@@ -1,6 +1,10 @@
 import {
   createDotnetModuleSpecifier,
-  dotnetModulePrefix,
+  dotnetPackageName,
+  dotnetModuleSpecifierPolicy,
+} from "./module-specifier.js";
+import type {
+  DotnetModuleSpecifierPolicy,
 } from "./module-specifier.js";
 import {
   dotnetNativeArrayCreateMemberId,
@@ -16,20 +20,34 @@ const syntheticTargetModules = new Map<string, string>([
   [dotnetNativeArrayIndexerMemberId, createDotnetModuleSpecifier("System")],
 ]);
 
-export function dotnetModuleSpecifierForTargetId(targetId: string): string | undefined {
+export function dotnetModuleSpecifierForTargetId(
+  targetId: string,
+  policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
+): string | undefined {
   const syntheticModuleSpecifier = syntheticTargetModules.get(targetId);
-  if (syntheticModuleSpecifier !== undefined) {
+  if (syntheticModuleSpecifier !== undefined && policy.packageName === dotnetPackageName) {
     return syntheticModuleSpecifier;
   }
-  const metadataName = targetId.includes("::") ? targetId.slice(targetId.lastIndexOf("::") + 2) : targetId;
+  const identityParts = targetId.split("::");
+  if (
+    identityParts.length !== 2 ||
+    identityParts[0]?.length === 0 ||
+    identityParts[1]?.length === 0
+  ) {
+    return undefined;
+  }
+  const metadataName = identityParts[1]!;
   const typeMetadataName = metadataName.slice(0, firstSignatureDelimiter(metadataName));
   const declaringTypeName = typeMetadataName.includes("+")
     ? typeMetadataName.slice(0, typeMetadataName.indexOf("+"))
     : typeMetadataName;
-  return dotnetModuleSpecifierForMetadataName(declaringTypeName);
+  return dotnetModuleSpecifierForMetadataName(declaringTypeName, policy);
 }
 
-export function dotnetModuleSpecifierForMetadataName(metadataName: string): string | undefined {
+export function dotnetModuleSpecifierForMetadataName(
+  metadataName: string,
+  policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
+): string | undefined {
   const normalizedName = metadataName
     .slice(0, firstSignatureDelimiter(metadataName))
     .replace(/\+/gu, ".");
@@ -39,7 +57,11 @@ export function dotnetModuleSpecifierForMetadataName(metadataName: string): stri
   const namespaceName = unqualifiedName.includes(".")
     ? unqualifiedName.slice(0, unqualifiedName.lastIndexOf("."))
     : "";
-  return namespaceName.length === 0 ? undefined : `${dotnetModulePrefix}${namespaceName}.js`;
+  return namespaceName.length === 0 ||
+      namespaceName.includes("/") ||
+      namespaceName.split(".").some((segment) => segment.length === 0)
+    ? undefined
+    : createDotnetModuleSpecifier(namespaceName, policy);
 }
 
 function firstSignatureDelimiter(value: string): number {

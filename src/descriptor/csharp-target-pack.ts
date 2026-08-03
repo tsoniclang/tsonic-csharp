@@ -8,20 +8,21 @@ import type {
   TargetRuntimeContributionContext,
   TargetRuntimeContributions,
   TargetRuntimeReference,
+  TargetSourceCompilerContributions,
   TargetToolchain,
   TargetToolchainContext,
 } from "@tsonic/target-api";
-import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
   readCsharpTypescriptCompatibilityMode,
   validateCsharpTargetOptions,
 } from "../options/csharp-target-options.js";
 import {
-  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
-  createCsharpJsSurfaceExtension,
 } from "../source/csharp-source-semantics.js";
+import {
+  csharpSourceSemanticsModules,
+} from "../source/csharp-source-semantics/source-modules.js";
 import {
   csharpJsSurfaceSourceProfileContributions,
   csharpSourceProfileContributions,
@@ -39,12 +40,12 @@ export function createCsharpTargetPack(): TargetPack {
       id: "csharp-provider",
       displayName: "C# target provider",
       sourceProfileContributions: csharpSourceProfileContributions,
-      createExtensions(context: TargetProviderContext): readonly CompilerExtension[] {
+      sourceCompilerContributions(context: TargetProviderContext): TargetSourceCompilerContributions {
         validateCsharpTargetOptions(context.target);
-        return [
-          createCsharpSourceSemanticsExtension(context),
-          createCsharpTargetSemanticsExtension(context),
-        ];
+        return {
+          semanticsModules: csharpSourceSemanticsModules(),
+          extensions: [createCsharpSourceSemanticsExtension(context)],
+        };
       },
       runtimeContributions(context: TargetRuntimeContributionContext): TargetRuntimeContributions {
         return {
@@ -60,8 +61,8 @@ export function createCsharpTargetPack(): TargetPack {
         id: "js",
         displayName: "JavaScript surface",
         sourceProfileContributions: csharpJsSurfaceSourceProfileContributions,
-        createExtensions(context) {
-          return [createCsharpJsSurfaceExtension(context)];
+        sourceCompilerContributions() {
+          return {};
         },
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {

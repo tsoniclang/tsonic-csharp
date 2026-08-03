@@ -126,12 +126,12 @@ sealed partial class ReflectionProvider
             unsupportedReason = null;
             return new { kind = "array", elements = values.ToArray() };
         }
-        if (argumentType == typeof(string) && argument.Value is string stringValue)
+        if (IsRuntimeType(argumentType, typeof(string)) && argument.Value is string stringValue)
         {
             unsupportedReason = null;
             return new { kind = "string", value = stringValue };
         }
-        if (argumentType == typeof(Type) && argument.Value is Type typeValue)
+        if (IsRuntimeType(argumentType, typeof(Type)) && argument.Value is Type typeValue)
         {
             var typeRef = TypeRef(typeValue);
             if (typeRef is null)
@@ -170,21 +170,20 @@ sealed partial class ReflectionProvider
             unsupportedReason = $"Enum attribute value type '{enumType.FullName ?? enumType.Name}' cannot be represented as closed .NET target type facts.";
             return null;
         }
-        var underlyingType = Enum.GetUnderlyingType(enumType);
-        var underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+        var underlyingType = EnumUnderlyingType(enumType);
+        var underlyingValue = SourcePrimitiveDefaultValue(underlyingType, value);
         if (underlyingValue is null)
         {
             unsupportedReason = $"Enum attribute value '{enumType.FullName ?? enumType.Name}' has no deterministic underlying value.";
             return null;
         }
-        var enumValue = Enum.ToObject(enumType, underlyingValue);
         unsupportedReason = null;
         return new
         {
             kind = "enum",
             type = enumTypeRef,
             value = Convert.ToString(underlyingValue, CultureInfo.InvariantCulture),
-            fieldName = Enum.GetName(enumType, enumValue),
+            fieldName = EnumFieldName(enumType, underlyingType, value),
         };
     }
 }

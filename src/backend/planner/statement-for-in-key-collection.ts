@@ -1,8 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -26,8 +29,8 @@ import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
 import type {
-  CsharpTargetIterationFact,
-} from "../../source/csharp-facts.js";
+  CsharpResolvedIteration,
+} from "../../policy/operations/index.js";
 import type {
   PlannedForInBinding,
 } from "./statement-for-in-binding.js";
@@ -41,35 +44,25 @@ export function planKeyCollectionForInStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedForInBinding,
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    {
+      readonly iterationKind: "for-in";
+      readonly lowering: { readonly kind: "key-collection" };
+    }
+  >,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  if (selectedIteration.lowering.kind !== "key-collection") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `Key-collection for-in received provider lowering '${selectedIteration.lowering.kind}'.`));
-    return [];
-  }
   const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];
   }
   if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
     diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
-    return [];
-  }
-  if (selectedIteration.lowering.keysMember.kind !== "member" || selectedIteration.lowering.keysMember.operationKind !== "property") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "Key-collection for-in requires a finalized provider property member fact for key enumeration."));
-    return [];
-  }
-  if (selectedIteration.lowering.keysMember.selectedMember === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "Key-collection for-in requires closed selected provider member evidence for key enumeration."));
-    return [];
-  }
-  if (selectedIteration.lowering.keysMember.memberName !== selectedIteration.lowering.keysMember.selectedMember.targetName) {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "Key-collection for-in received mismatched key-member target-name facts."));
     return [];
   }
   if (statement.Expression === undefined) {
@@ -81,7 +74,11 @@ export function planKeyCollectionForInStatement(
     });
     return [];
   }
-  const collectionType = getCsharpTypeForForInCollection(statement.Expression, sourceFile, input, diagnostics);
+  const collectionType = getCsharpTypeForForInCollection(
+    selectedIteration,
+    statement.Expression,
+    diagnostics,
+  );
   if (collectionType === undefined) {
     return [];
   }
@@ -109,7 +106,7 @@ export function planKeyCollectionForInStatement(
           collection: {
             kind: "SimpleMemberAccessExpression",
             receiver: { kind: "IdentifierName", name: collectionName },
-            name: selectedIteration.lowering.keysMember.memberName,
+            name: selectedIteration.lowering.memberName,
           },
           body: {
             kind: "Block",

@@ -11,13 +11,17 @@ import {
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
   createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   dotnetProviderTelemetryCounters,
   formatDotnetProviderTelemetrySnapshot,
 } from "../dist/providers/dotnet/index.js";
 import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
+import {
+  csharpSourceProfileContributions,
+  csharpSourceProfileOwnerId,
+} from "../dist/source/csharp-source-semantics/source-profile-declarations.js";
 
 function providerRefExportNames(value, moduleSpecifier, refs = new Set()) {
   if (value === null || typeof value !== "object") {
@@ -123,6 +127,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
             static: true,
             signatures: [{
               id: "Example.Assembly::Example.Widget.Create()",
+              sourceId: "Example.Assembly::Example.Widget.Create()",
               targetName: "Create",
               parameters: [],
               returnType: { kind: "void" },
@@ -135,7 +140,7 @@ test(".NET target binding provider records virtual declaration model metrics", (
       telemetry.virtualDeclarations(3, JSON.stringify(model).length, elapsedMs);
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { broadImport: true });
   assert.equal(resolution.kind, "virtual");
 
@@ -177,7 +182,7 @@ test(".NET target binding provider preserves requested export slices for virtual
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
   assert.equal(resolution.kind, "virtual");
 
@@ -239,6 +244,13 @@ test(".NET target binding provider receives requested export slices from TSTS na
       };
     },
   };
+  const sourceProfileDeclarations = csharpSourceProfileContributions({
+    project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    target: { id: "csharp" },
+    targetPack: { id: "csharp", displayName: "C#" },
+    selectedCapabilities: [],
+    selectedSurfaces: [],
+  }).declarations ?? [];
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
@@ -257,6 +269,10 @@ test(".NET target binding provider receives requested export slices from TSTS na
           },
         },
       })],
+      ...sourceProfileDeclarations.map((declaration) => [
+        `/src/.tsonic/source-profiles/${csharpSourceProfileOwnerId}/${declaration.fileName}`,
+        declaration.text,
+      ]),
     ]),
     compilerOptions: {
       noLib: true,
@@ -268,11 +284,11 @@ test(".NET target binding provider receives requested export slices from TSTS na
       extensions: [createDotnetBindingTestExtension(provider)],
     },
   });
-  const sourceFile = session.getSourceFile("/src/index.ts");
+  const checked = session.checkSource();
+  const sourceFile = checked.getSourceFile("/src/index.ts");
   assert.ok(sourceFile);
 
-  const diagnostics = session.ensureChecked(sourceFile);
-  assert.equal(formatDiagnostics(diagnostics), "");
+  assert.equal(formatDiagnostics(checked.diagnostics), "");
   assert.equal(observedContexts.length, 1);
 });
 
@@ -293,7 +309,7 @@ test(".NET target binding provider rejects implicit broad virtual module request
       throw new Error("getModule must not run for an unsliced virtual module request.");
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", {});
 
   assert.equal(resolution.extensionCode, "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED", JSON.stringify(resolution));
@@ -317,7 +333,7 @@ test(".NET target binding provider rejects unsliced declaration model requests",
       throw new Error("getModule must not run for an unsliced declaration model request.");
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const declarationModel = bindingProvider.getDeclarationModel({
     kind: "virtual",
     moduleSpecifier: "@tsonic/dotnet/Example.js",
@@ -359,7 +375,7 @@ test(".NET target binding provider fails closed when a requested export is unpro
       };
     },
   };
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
   assert.equal(resolution.kind, "virtual");
 
@@ -378,7 +394,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
   const firstModule = firstProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in firstModule, true, JSON.stringify(firstModule));
   assert.equal(firstModule.exports.some((declaration) => declaration.sourceName === "Convert"), true);
-  assert.equal(firstProvider.getTelemetrySnapshot().toolInvocations, 1);
+  assert.equal(firstProvider.getTelemetrySnapshot().toolInvocations, 2);
 
   const secondTelemetry = createDotnetProviderTelemetry();
   const secondProvider = createDotnetReflectionTypeDataProvider({
@@ -392,7 +408,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
 
   const secondSnapshot = secondProvider.getTelemetrySnapshot();
   assert.equal(secondSnapshot.toolInvocations, 0);
-  assert.equal(secondSnapshot.memoryCacheHits, 1);
+  assert.equal(secondSnapshot.memoryCacheHits, 2);
   assert.equal(secondSnapshot.memoryCacheMisses, 0);
   assert.equal(secondSnapshot.diskCacheHits, 0);
   assert.equal(secondSnapshot.diskCacheMisses, 0);
@@ -426,7 +442,7 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
     disablePersistentCache: true,
     telemetry,
   });
-  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
@@ -434,11 +450,33 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
     "Convert",
+    "Range",
+    "SpanSplitEnumerator",
+    "TryWriteInterpolatedStringHandler",
     "Base64FormattingOptions",
+    "DateOnly",
     "DateTime",
+    "DateTimeKind",
+    "DateTimeOffset",
+    "DayOfWeek",
+    "Guid",
+    "IComparable",
+    "IComparable_1",
+    "IEquatable",
     "IFormatProvider",
+    "Index",
+    "ModuleHandle",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "Span",
+    "Span_Enumerator",
+    "StringComparison",
+    "StringSplitOptions",
+    "TimeOnly",
+    "TimeSpan",
     "Type",
     "TypeCode",
   ]);
@@ -459,8 +497,8 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
 
   const snapshot = provider.getTelemetrySnapshot();
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests >= 1, true);
-  assert.equal(snapshot.moduleRequestedExports >= 1, true);
+  assert.equal(snapshot.moduleSlicedRequests, 4);
+  assert.equal(snapshot.moduleRequestedExports, 8);
 });
 
 test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
@@ -483,28 +521,97 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
   assert.deepEqual(metadataSourceNames, [
     "Convert",
+    "ArraySegment",
+    "ArraySegment_Enumerator",
+    "AsyncCallback",
     "Base64FormattingOptions",
     "Boolean",
     "Byte",
     "Char",
+    "CharEnumerator",
+    "DateOnly",
     "DateTime",
+    "DateTimeKind",
+    "DateTimeOffset",
+    "DayOfWeek",
     "Decimal",
+    "Delegate",
+    "InvocationListEnumerator",
     "Double",
+    "Enum",
+    "Func_1",
+    "Func_10",
+    "Func_11",
+    "Func_12",
+    "Func_13",
+    "Func_14",
+    "Func_15",
+    "Func_16",
+    "Func_17",
+    "Func_2",
+    "Func_3",
+    "Func_4",
+    "Func_5",
+    "Func_6",
+    "Func_7",
+    "Func_8",
+    "Func_9",
+    "Guid",
+    "Half",
+    "IAsyncResult",
+    "ICloneable",
+    "IComparable",
+    "IComparable_1",
+    "IConvertible",
+    "IDisposable",
+    "IEquatable",
     "IFormatProvider",
+    "IFormattable",
+    "IParsable",
+    "ISpanFormattable",
+    "ISpanParsable",
+    "IUtf8SpanFormattable",
+    "IUtf8SpanParsable",
+    "Int128",
     "Int16",
     "Int32",
     "Int64",
+    "IntPtr",
+    "MidpointRounding",
+    "ModuleHandle",
+    "MulticastDelegate",
     "Object",
     "ReadOnlySpan",
+    "ReadOnlySpan_Enumerator",
+    "RuntimeFieldHandle",
+    "RuntimeMethodHandle",
+    "RuntimeTypeHandle",
     "SByte",
     "Single",
     "Span",
+    "Span_Enumerator",
     "String",
+    "StringComparison",
+    "StringSplitOptions",
+    "TimeOnly",
+    "TimeSpan",
     "Type",
     "TypeCode",
+    "UInt128",
     "UInt16",
     "UInt32",
     "UInt64",
+    "UIntPtr",
+    "ValueTuple",
+    "ValueTuple_1",
+    "ValueTuple_2",
+    "ValueTuple_3",
+    "ValueTuple_4",
+    "ValueTuple_5",
+    "ValueTuple_6",
+    "ValueTuple_7",
+    "ValueTuple_8",
+    "ValueType",
   ]);
   assert.equal(metadataModel.targetOnlyTypes, undefined);
   assert.equal(metadataModel.unsupportedExports, undefined);
@@ -543,7 +650,7 @@ function createDotnetBindingTestExtension(provider) {
       capabilityNamespace: provider.identity.id,
     },
     initialize(context) {
-      context.registerTargetBindingProvider(createDotnetTargetBindingProvider({ provider }));
+      context.registerSourceDeclarationProvider(createDotnetSourceDeclarationProvider({ provider }));
     },
   };
 }

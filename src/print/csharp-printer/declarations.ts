@@ -123,12 +123,12 @@ function printInterfaceMemberLines(
     case "PropertyDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.type)} ${member.name} { get; }`,
+        `${context.printType(member.type)} ${member.name} { get;${member.writable ? " set;" : ""} }`,
       ];
     case "IndexerDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get; }`,
+        `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get;${member.writable ? " set;" : ""} }`,
       ];
   }
   return failUnsupportedCsharpSyntax(member, "interface member");
@@ -211,7 +211,10 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
     accessors.push("get", "{", ...indentLines(context.printStatements(property.getter.statements)), "}");
   }
   if (property.autoSetter === true) {
-    accessors.push("set;");
+    const setterModifiers = property.autoSetterModifiers === undefined || property.autoSetterModifiers.length === 0
+      ? ""
+      : `${property.autoSetterModifiers.join(" ")} `;
+    accessors.push(`${setterModifiers}set;`);
   } else if (property.setter !== undefined) {
     accessors.push("set", "{", ...indentLines(context.printStatements(property.setter.statements)), "}");
   }

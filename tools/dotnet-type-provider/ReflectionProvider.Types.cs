@@ -36,7 +36,7 @@ sealed partial class ReflectionProvider
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             unsupportedImplementedContracts = unsupportedImplementedContracts.Length == 0 ? null : unsupportedImplementedContracts,
             sourceShape,
-            throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
+            throwable = IsAssignableToRuntimeType(type, typeof(Exception)) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
             conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,
@@ -45,6 +45,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedSourceExportReason(Type type)
     {
+        if (!IsSourceIdentifier(ProviderSourceTypeName(type)))
+        {
+            return $"CLR type name '{MetadataName(type)}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         return IsDelegate(type) ? UnsupportedDelegateSourceShapeReason(type) : null;
     }
 
@@ -74,7 +78,7 @@ sealed partial class ReflectionProvider
         {
             return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
         }
-        var returnReason = UnsupportedReturnTypeReason(invoke.ReturnType, "Delegate invoke return type");
+        var returnReason = UnsupportedReturnTypeReason(invoke, "Delegate invoke return type");
         return returnReason is null
             ? null
             : $"{returnReason}; the type is retained as target-only .NET data.";
@@ -82,7 +86,7 @@ sealed partial class ReflectionProvider
 
     object? BaseType(Type type)
     {
-        if (!type.IsClass || IsDelegate(type) || type.BaseType is null || type.BaseType == typeof(object))
+        if (!type.IsClass || IsDelegate(type) || type.BaseType is null || IsRuntimeType(type.BaseType, typeof(object)))
         {
             return null;
         }

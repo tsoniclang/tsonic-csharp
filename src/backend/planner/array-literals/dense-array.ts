@@ -1,16 +1,17 @@
+import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
   AsSpreadElement,
   HasSourceKind,
   KindSpreadElement,
-} from "../source-ast.js";
+  } from "../source-ast.js";
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -21,28 +22,8 @@ import {
   runtimeArrayHelperCall,
 } from "../array-helpers.js";
 import {
-  missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
-  resolveRuntimeCarrierForExpression,
-} from "../runtime-carriers.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../target-types.js";
-import {
-  sameCsharpType,
-} from "../csharp-types.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import {
-  isCsharpJsArrayCarrierTargetType,
-} from "../../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
-import {
-  getCsharpCollectionElementTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
-import {
-  targetTypeRefEquals,
-} from "../../../source/csharp-source-semantics/target-ref-utils.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -51,13 +32,13 @@ import {
   rejectSparseArrayLiteralElision,
 } from "./elision.js";
 import {
-  planTupleSpreadArrayExpression,
-} from "./tuple-spread.js";
+  planArraySpreadSourceExpression,
+} from "./spread-source.js";
 
 export function planArrayLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
@@ -85,12 +66,12 @@ export function planArrayLiteralExpression(
 export function plannedArrayElements(
   elements: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
   ) => CsharpExpression | undefined,
 ): readonly CsharpExpression[] | undefined {
@@ -111,14 +92,13 @@ export function plannedArrayElements(
 function planArraySpreadLiteralExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
   elementTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
-  const expectedArrayType = { kind: "ArrayType", elementType } satisfies CsharpTypeNode;
-  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType, planner, elementTargetType);
+  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, planner, elementTargetType);
   if (chunks === undefined) {
     return undefined;
   }
@@ -138,10 +118,9 @@ function planArraySpreadLiteralExpression(
 function createArraySpreadChunks(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
-  expectedArrayType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
   elementTargetType?: TargetTypeRef,
 ): readonly { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] | undefined {
@@ -179,88 +158,24 @@ function createArraySpreadChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;
     }
-    const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-    const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
-    const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
-    if (spreadType !== undefined && sameCsharpType(spreadType, expectedArrayType)) {
-      const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
-      if (planned === undefined) {
-        return undefined;
-      }
-      chunks.push({
-        expression: planned,
-        fromSpread: true,
-      });
-      continue;
-    }
-    if (spreadCarrierElementMatchesTargetElement(spreadCarrier, elementTargetType, elementType)) {
-      const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
-      if (planned === undefined) {
-        return undefined;
-      }
-      chunks.push({
-        expression: planned,
-        fromSpread: true,
-      });
-      continue;
-    }
-    if (spreadCarrier?.kind === "tuple") {
-      const planned = planTupleSpreadArrayExpression(element, expression, sourceFile, input, diagnostics, spreadCarrier, elementType, elementTargetType, planner.planExpression);
-      if (planned === undefined) {
-        return undefined;
-      }
-      chunks.push({
-        expression: planned,
-        fromSpread: true,
-      });
-      continue;
-    }
-    if (isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
-      const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
-      if (planned === undefined) {
-        return undefined;
-      }
-      chunks.push({
-        expression: {
-          kind: "InvocationExpression",
-          callee: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: planned,
-            name: "toArray",
-          },
-          arguments: [],
-        },
-        fromSpread: true,
-      });
-      continue;
-    }
-    if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
-      const detail = spreadCarrier === undefined
-        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.")
-        : {
-            reason: "Finalized spread carrier does not match the target array carrier.",
-            evidence: [],
-          };
-      diagnostics.push(unsupportedNodeDiagnostic(element, `Array spread requires a finalized provider array carrier matching the target array element type before C# emission. ${detail.reason}`, detail.evidence));
+    const planned = planArraySpreadSourceExpression(
+      element,
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      elementType,
+      elementTargetType,
+      planner.planExpression,
+    );
+    if (planned === undefined) {
       return undefined;
     }
+    chunks.push({
+      expression: planned,
+      fromSpread: true,
+    });
   }
   flushPending();
   return chunks;
-}
-
-function spreadCarrierElementMatchesTargetElement(
-  spreadCarrier: TargetTypeRef | undefined,
-  elementTargetType: TargetTypeRef | undefined,
-  elementType: CsharpTypeNode,
-): boolean {
-  const spreadElementTargetType = getCsharpCollectionElementTargetType(spreadCarrier);
-  if (spreadElementTargetType === undefined) {
-    return false;
-  }
-  if (elementTargetType !== undefined) {
-    return targetTypeRefEquals(spreadElementTargetType, elementTargetType);
-  }
-  const spreadElementType = csharpTypeFromTargetTypeRef(spreadElementTargetType);
-  return spreadElementType !== undefined && sameCsharpType(spreadElementType, elementType);
 }

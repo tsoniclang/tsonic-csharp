@@ -1,8 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpLocalDeclaration,
@@ -37,12 +40,14 @@ import {
   member,
 } from "./csharp-expression-builders.js";
 import {
-  csharpStaticMemberExpression,
-} from "./csharp-target-operations.js";
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 import type {
-  CsharpTargetIterationFact,
-  CsharpTargetMemberOperationFact,
-} from "../../source/csharp-facts.js";
+  CsharpResolvedIteration,
+} from "../../policy/operations/index.js";
+import type {
+  CsharpStaticTargetMethod,
+} from "../../policy/types/index.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly prelude: readonly CsharpStatement[];
@@ -52,16 +57,19 @@ export function planStringCodePointForOfStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedStringForOfBinding,
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-of" }
+  >,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const stringType = predefined("string");
-  if (selectedIteration.iterationKind !== "sync" || selectedIteration.lowering.kind !== "string-code-point") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received provider lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
+  if (selectedIteration.lowering.kind !== "string-code-point") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received iteration lowering '${selectedIteration.lowering.kind}'.`));
     return [];
   }
   if (!sameCsharpType(binding.type, stringType)) {
@@ -108,7 +116,7 @@ export function planStringCodePointForOfStatement(
               initializer: { kind: "LiteralExpression", value: 0 },
             }],
           },
-          condition: lessThan(indexIdentifier, member(collectionIdentifier, selectedIteration.lowering.lengthMember)),
+          condition: lessThan(indexIdentifier, member(collectionIdentifier, selectedIteration.lowering.policy.lengthMemberName)),
           body: {
             kind: "Block",
             statements: [
@@ -123,14 +131,14 @@ export function planStringCodePointForOfStatement(
                 thenBody: {
                   kind: "Block",
                   statements: [
-                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.substringMember, 2)),
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.policy.substringMemberName, 2)),
                     assign(indexIdentifier, add(indexIdentifier, literalNumber(2))),
                   ],
                 },
                 elseBody: {
                   kind: "Block",
                   statements: [
-                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.substringMember, 1)),
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.policy.substringMemberName, 1)),
                     {
                       kind: "ExpressionStatement",
                       expression: {
@@ -155,39 +163,56 @@ export function planStringCodePointForOfStatement(
 function stringHasSurrogatePairAt(
   collection: CsharpExpression,
   index: CsharpExpression,
-  selectedIteration: CsharpTargetIterationFact,
+  selectedIteration: Extract<
+    CsharpResolvedIteration,
+    { readonly iterationKind: "for-of" }
+  >,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
 ): CsharpExpression | undefined {
   if (selectedIteration.lowering.kind !== "string-code-point") {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires finalized string-code-point lowering facts."));
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires an exact string-code-point lowering policy."));
     return undefined;
   }
-  const high = callSurrogateOperation(selectedIteration.lowering.highSurrogateOperation, element(collection, index), diagnostics, diagnosticNode);
-  const low = callSurrogateOperation(selectedIteration.lowering.lowSurrogateOperation, element(collection, add(index, literalNumber(1))), diagnostics, diagnosticNode);
+  const high = callSurrogateOperation(
+    selectedIteration.lowering.policy.highSurrogateMethod,
+    element(collection, index),
+    diagnostics,
+    diagnosticNode,
+  );
+  const low = callSurrogateOperation(
+    selectedIteration.lowering.policy.lowSurrogateMethod,
+    element(collection, add(index, literalNumber(1))),
+    diagnostics,
+    diagnosticNode,
+  );
   if (high === undefined || low === undefined) {
     return undefined;
   }
   return and(
-    lessThan(add(index, literalNumber(1)), member(collection, selectedIteration.lowering.lengthMember)),
+    lessThan(add(index, literalNumber(1)), member(collection, selectedIteration.lowering.policy.lengthMemberName)),
     and(high, low),
   );
 }
 
 function callSurrogateOperation(
-  operation: CsharpTargetMemberOperationFact,
+  operation: CsharpStaticTargetMethod,
   argument: CsharpExpression,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
 ): CsharpExpression | undefined {
-  const callee = csharpStaticMemberExpression(operation, diagnostics, diagnosticNode, "String code-point surrogate test");
-  if (callee === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires a static C# member operation fact."));
+  const declaringType = csharpTypeFromTargetTypeRef(operation.declaringType);
+  if (declaringType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires a renderable static target method policy."));
     return undefined;
   }
   return {
     kind: "InvocationExpression",
-    callee,
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: declaringType,
+      name: operation.memberName,
+    },
     arguments: [{ kind: "Argument", expression: argument }],
   };
 }

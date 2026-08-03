@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsLabeledStatement,
   HasSourceKind,
@@ -9,7 +10,9 @@ import {
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpStatement } from "../roslyn/syntax.js";
 import {
   allocateControlLabel,
@@ -20,7 +23,7 @@ import { requireCsharpIdentifier } from "./identifiers.js";
 export type NestedStatementBodyPlanner = (
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ) => readonly CsharpStatement[];
@@ -28,12 +31,12 @@ export type NestedStatementBodyPlanner = (
 export function planLabeledStatement(
   statement: NonNullable<ReturnType<typeof AsLabeledStatement>>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
-  const sourceName = requireCsharpIdentifier(Node_Text(statement.Label!), diagnostics, "Statement label");
+  const sourceName = requireCsharpIdentifier(Node_Text(input.ast, statement.Label!), diagnostics, "Statement label");
   const target = {
     sourceName,
     breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
@@ -80,7 +83,7 @@ export function findControlLabel(
 function planSingleStatement(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
@@ -95,7 +98,7 @@ function planSingleStatement(
   };
 }
 
-function isIterationStatement(node: Node | undefined, input: TargetCompileInput): boolean {
+function isIterationStatement(node: Node | undefined, input: CsharpTranslationContext): boolean {
   return HasSourceKind(input.ast, node, KindWhileStatement) ||
     HasSourceKind(input.ast, node, KindDoStatement) ||
     HasSourceKind(input.ast, node, KindForStatement) ||

@@ -1,14 +1,15 @@
+import type {
+  CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   HasSourceKind,
   KindIdentifier,
-} from "../source-ast.js";
+  } from "../source-ast.js";
 import type {
   Node,
   SourceFile,
-  TargetTypeRef,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -16,11 +17,9 @@ import type {
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import {
-  targetTypeRefEquals,
-} from "../../../source/csharp-source-semantics/target-ref-utils.js";
-import {
   csharpTupleElementMemberName,
-} from "../../../source/csharp-source-semantics/tuple-element-index.js";
+  targetTypeRefEquals,
+} from "../../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -38,7 +37,7 @@ export function planTupleSpreadArrayExpression(
   spreadNode: Node,
   expression: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   spreadCarrier: TargetTypeRef,
   elementType: CsharpTypeNode,

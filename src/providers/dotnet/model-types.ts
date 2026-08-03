@@ -146,6 +146,7 @@ export interface DotnetMemberDeclaration {
   readonly metadataName: string;
   readonly static?: boolean;
   readonly sourceStatic?: boolean;
+  readonly sourceProjection?: "extension-method";
   readonly receiverPassing?: "instance" | "first-argument";
   readonly sourceParameterOffset?: number;
   readonly targetDeclaringType?: DotnetTypeRef;
@@ -170,7 +171,7 @@ export interface DotnetUnsupportedMemberDeclaration {
 
 export interface DotnetSignatureDeclaration {
   readonly id: string;
-  readonly providerSourceSignatureId?: string;
+  readonly sourceId: string;
   readonly targetName?: string;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
@@ -180,7 +181,18 @@ export interface DotnetSignatureDeclaration {
   readonly targetReturnType?: DotnetTypeRef;
   readonly returnAttributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedReturnAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
+  readonly targetInvocation?: DotnetTargetInvocation;
 }
+
+export type DotnetTargetInvocation =
+  | {
+      readonly kind: "array-creation";
+      readonly lengthParameterIndex: number;
+    }
+  | {
+      readonly kind: "static-factory-construction";
+      readonly factoryType: DotnetTypeRef;
+    };
 
 export interface DotnetConversionOperatorDeclaration {
   readonly id: string;
@@ -194,6 +206,7 @@ export interface DotnetConversionOperatorDeclaration {
 export interface DotnetParameterDeclaration {
   readonly name: string;
   readonly type: DotnetTypeRef;
+  readonly sourceType?: DotnetTypeRef;
   readonly passingMode: ArgumentPassingMode;
   readonly optional?: boolean;
   readonly rest?: boolean;
@@ -284,6 +297,7 @@ export type DotnetTypeRef =
   | { readonly kind: "void" }
   | { readonly kind: "any" }
   | { readonly kind: "unknown" }
+  | { readonly kind: "undefined" }
   | { readonly kind: "object" }
   | { readonly kind: "string" }
   | { readonly kind: "literal"; readonly value: string | number | boolean | null }
@@ -293,12 +307,13 @@ export type DotnetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly name: string }
   | { readonly kind: "provider-ref"; readonly moduleSpecifier: string; readonly exportName: string; readonly typeArguments?: readonly DotnetTypeRef[] }
-  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
+  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef; readonly implicitArrayInput?: true }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
+  | { readonly kind: "nullable-reference"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }
-  | { readonly kind: "function"; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
+  | { readonly kind: "function"; readonly id: string; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
   | { readonly kind: "pointer"; readonly pointee: DotnetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
   | { readonly kind: "function-pointer"; readonly args: readonly DotnetTypeRef[]; readonly result: DotnetTypeRef; readonly abi?: readonly string[] }
   | { readonly kind: "opaque"; readonly id: string; readonly displayName?: string; readonly sourceShape?: DotnetTypeRef };

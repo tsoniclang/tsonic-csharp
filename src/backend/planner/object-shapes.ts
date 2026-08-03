@@ -1,139 +1,282 @@
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpClassDeclaration, CsharpTypeDeclaration, CsharpTypeNode } from "../roslyn/syntax.js";
-import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+import type {
+  CsharpClassDeclaration,
+  CsharpCompilationUnit,
+  CsharpTypeDeclaration,
+  CsharpTypeNode,
+} from "../roslyn/syntax.js";
+import type {
+  CsharpOutputSourceFile,
+} from "./csharp-output-plan.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../policy/types/index.js";
+import {
+  isCsharpCompatObjectShapeTargetType,
+} from "../../policy/types/index.js";
 import {
   objectShapeDeclarationMatches,
   renderObjectShapeInterfaces,
   renderObjectShapeMembers,
   renderObjectShapeTypeParameters,
 } from "./object-shape-declarations.js";
+import {
+  csharpJsonValueInterfaceType,
+  renderJsonSerializableObjectShapeMethod,
+} from "./json-object-shapes.js";
+import {
+  finalizeCsharpCompilationUnit,
+} from "./csharp-compilation-unit.js";
+import {
+  readNamespace,
+} from "./project-artifacts.js";
 
 export {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
 
-interface ObjectShapeRegistry {
-  readonly declarations: Map<string, CsharpClassDeclaration>;
-  readonly declarationOwners: Map<string, string | undefined>;
-  activeOwner?: string;
-}
-
-const registries = new WeakMap<TargetCompileInput, ObjectShapeRegistry>();
-
-export function beginObjectShapePlanning(input: TargetCompileInput): void {
-  registries.set(input, createObjectShapeRegistry());
-}
-
-export function beginObjectShapeSourceFilePlanning(input: TargetCompileInput, owner: string): void {
-  const registry = registries.get(input) ?? createObjectShapeRegistry();
-  registry.activeOwner = owner;
-  registries.set(input, registry);
-}
-
-function createObjectShapeRegistry(): ObjectShapeRegistry {
-  return {
-    declarations: new Map(),
-    declarationOwners: new Map(),
-  };
-}
-
-export function takeObjectShapeDeclarations(input: TargetCompileInput, owner?: string): readonly CsharpTypeDeclaration[] {
-  const registry = registries.get(input);
-  if (registry === undefined) {
-    return [];
+export function registerSourceObjectShape(
+  input: CsharpTranslationContext,
+  fact: CsharpObjectShapeFact,
+  diagnostics: TargetDiagnostic[],
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0],
+): boolean {
+  const result = input.artifacts.registerObjectShape(fact, "source");
+  if (result.kind === "accepted") {
+    return true;
   }
-  if (owner === undefined) {
-    registries.delete(input);
-    return [...registry.declarations.values()];
-  }
-  return [...registry.declarations]
-    .filter(([name]) => registry.declarationOwners.get(name) === owner)
-    .map(([, declaration]) => declaration);
-}
-
-export function finishObjectShapePlanning(input: TargetCompileInput): void {
-  registries.delete(input);
+  diagnostics.push(unsupportedNodeDiagnostic(
+    diagnosticSubject,
+    result.reason,
+  ));
+  return false;
 }
 
 export function csharpTypeFromObjectShapeFact(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   fact: CsharpObjectShapeFact,
   diagnostics?: TargetDiagnostic[],
   diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
 ): CsharpTypeNode | undefined {
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
-  if (targetType === undefined || targetType.kind !== "IdentifierName") {
-    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Object-shape fact must carry a renderable named target carrier type before C# emission."));
-    }
+  if (targetType === undefined) {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Object-shape fact must carry a renderable named target carrier type before C# emission.",
+    );
     return undefined;
   }
-  if (fact.constructible === false) {
-    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Class object literal emission requires a finalized constructible source class fact with a parameterless constructor."));
-    }
+  if (isCsharpCompatObjectShapeTargetType(fact.targetType)) {
+    return targetType;
+  }
+  if (targetType.kind !== "IdentifierName") {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Generated object-shape declarations require one exact unqualified compiler-owned target type name.",
+    );
     return undefined;
   }
-  if (fact.constructible === true) {
+  if (fact.constructible === true || isSourceDeclaredNominalShape(fact)) {
+    const result = input.artifacts.registerObjectShape(fact, "source");
+    if (result.kind === "rejected") {
+      reportObjectShapeFailure(
+        diagnostics,
+        diagnosticSubject,
+        result.reason,
+      );
+      return undefined;
+    }
     return targetType;
   }
-  if (isSourceDeclaredNominalShape(fact)) {
-    return targetType;
+  const result = input.artifacts.registerObjectShape(fact, "synthetic");
+  if (result.kind === "rejected") {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      result.reason,
+    );
+    return undefined;
   }
-  registerObjectShapeDeclaration(input, targetType.name, fact, diagnostics, diagnosticSubject);
   return targetType;
+}
+
+export function csharpConstructibleTypeFromObjectShapeFact(
+  input: CsharpTranslationContext,
+  fact: CsharpObjectShapeFact,
+  diagnostics?: TargetDiagnostic[],
+  diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
+): CsharpTypeNode | undefined {
+  if (fact.constructible === false) {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
+    );
+    return undefined;
+  }
+  return csharpTypeFromObjectShapeFact(
+    input,
+    fact,
+    diagnostics,
+    diagnosticSubject,
+  );
+}
+
+export function materializeObjectShapeDeclarations(
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpTypeDeclaration[] {
+  const declarations = new Map<string, CsharpClassDeclaration>();
+  for (const artifact of input.artifacts.objectShapeArtifacts()) {
+    if (artifact.materialization !== "synthetic") {
+      continue;
+    }
+    const declaration = renderObjectShapeDeclaration(
+      artifact.fact,
+      artifact.jsonSerializable,
+      diagnostics,
+    );
+    if (declaration === undefined) {
+      continue;
+    }
+    const existing = declarations.get(declaration.name);
+    if (
+      existing !== undefined &&
+      !objectShapeDeclarationMatches(
+        existing,
+        artifact.fact,
+        artifact.jsonSerializable,
+      )
+    ) {
+      diagnostics.push({
+        code: "CSHARP_OBJECT_SHAPE_ARTIFACT_CONFLICT",
+        category: "error",
+        source: "tsonic-csharp",
+        message: `Generated object-shape name '${declaration.name}' is owned by incompatible target artifacts.`,
+      });
+      continue;
+    }
+    declarations.set(declaration.name, declaration);
+  }
+  return [...declarations.values()].sort((left, right) =>
+    left.name.localeCompare(right.name)
+  );
+}
+
+export function planCsharpObjectShapeSourceFile(
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): {
+  readonly source: CsharpOutputSourceFile;
+  readonly requiresUnsafe: boolean;
+} | undefined {
+  const declarations = materializeObjectShapeDeclarations(input, diagnostics);
+  if (declarations.length === 0) {
+    return undefined;
+  }
+  const unit: CsharpCompilationUnit = {
+    kind: "CompilationUnit",
+    usings: [{ kind: "UsingDirective", namespace: "System" }],
+    members: [{
+      kind: "NamespaceDeclaration",
+      name: readNamespace(input),
+      members: declarations,
+    }],
+  };
+  const finalized = finalizeCsharpCompilationUnit(unit);
+  return {
+    source: {
+      path: "generated/TsonicObjectShapes.cs",
+      unit: finalized.unit,
+    },
+    requiresUnsafe: finalized.requiresUnsafe,
+  };
+}
+
+function renderObjectShapeDeclaration(
+  fact: CsharpObjectShapeFact,
+  jsonSerializable: boolean,
+  diagnostics: TargetDiagnostic[],
+): CsharpClassDeclaration | undefined {
+  const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
+  if (targetType === undefined || targetType.kind !== "IdentifierName") {
+    diagnostics.push({
+      code: "CSHARP_OBJECT_SHAPE_TARGET_TYPE_INVALID",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "Generated object-shape artifact has no renderable named C# target type.",
+    });
+    return undefined;
+  }
+  const interfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  const typeParameters = renderObjectShapeTypeParameters(
+    fact,
+    undefined,
+    undefined,
+  );
+  const members = renderObjectShapeMembers(
+    fact,
+    (interfaces?.length ?? 0) > 0,
+    undefined,
+    undefined,
+  );
+  if (
+    interfaces === undefined ||
+    typeParameters === undefined ||
+    members === undefined
+  ) {
+    diagnostics.push({
+      code: "CSHARP_OBJECT_SHAPE_RENDERING_REJECTED",
+      category: "error",
+      source: "tsonic-csharp",
+      message: `Generated object-shape artifact '${targetType.name}' contains a target type or member that cannot be rendered exactly.`,
+    });
+    return undefined;
+  }
+  return {
+    kind: "ClassDeclaration",
+    name: targetType.name,
+    modifiers: ["public"],
+    ...(typeParameters.length === 0 ? {} : { typeParameters }),
+    ...(interfaces.length === 0 && !jsonSerializable
+      ? {}
+      : {
+          interfaces: jsonSerializable
+            ? [...interfaces, csharpJsonValueInterfaceType()]
+            : interfaces,
+        }),
+    members: jsonSerializable
+      ? [...members, renderJsonSerializableObjectShapeMethod(fact)]
+      : members,
+  };
+}
+
+function reportObjectShapeFailure(
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  message: string,
+): void {
+  if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
+  }
 }
 
 function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
   return fact.targetType.kind === "target-named" &&
-    (fact.targetType as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== undefined;
-}
-
-function registerObjectShapeDeclaration(
-  input: TargetCompileInput,
-  name: string,
-  fact: CsharpObjectShapeFact,
-  diagnostics: TargetDiagnostic[] | undefined,
-  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
-): void {
-  const registry = registries.get(input);
-  if (registry === undefined) {
-    return;
-  }
-  const existing = registry.declarations.get(name);
-  if (existing !== undefined) {
-    if (!objectShapeDeclarationMatches(existing, fact)) {
-      const message = `Object-shape carrier '${name}' was requested with incompatible finalized members. Structural carriers must have stable unique target identities.`;
-      if (diagnostics !== undefined && diagnosticSubject !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
-        return;
-      }
-      throw new Error(message);
-    }
-    return;
-  }
-  const interfaces = renderObjectShapeInterfaces(fact, diagnostics, diagnosticSubject);
-  if (interfaces === undefined) {
-    return;
-  }
-  const typeParameters = renderObjectShapeTypeParameters(fact, diagnostics, diagnosticSubject);
-  if (typeParameters === undefined) {
-    return;
-  }
-  const implementsInterface = interfaces.length > 0;
-  const members = renderObjectShapeMembers(fact, implementsInterface, diagnostics, diagnosticSubject);
-  if (members === undefined) {
-    return;
-  }
-  registry.declarations.set(name, {
-    kind: "ClassDeclaration",
-    name,
-    modifiers: ["public"],
-    ...(typeParameters.length === 0 ? {} : { typeParameters }),
-    ...(interfaces.length === 0 ? {} : { interfaces }),
-    members,
-  });
-  registry.declarationOwners.set(name, registry.activeOwner);
+    (fact.targetType as {
+      readonly csharpSourceDeclarationKind?: unknown;
+    }).csharpSourceDeclarationKind !== undefined;
 }

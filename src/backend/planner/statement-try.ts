@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsCatchClause,
   AsTryStatement,
@@ -7,7 +8,9 @@ import {
   KindObjectBindingPattern,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
   CsharpStatement,
@@ -21,7 +24,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
+  resolveRuntimeCarrierForStorage,
 } from "./runtime-carriers.js";
 import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -33,13 +36,13 @@ import {
   csharpThrownValueToValueExpression,
 } from "./exception-flow.js";
 import {
-  isCsharpTsValueTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  isCsharpCompatValueTargetType,
+} from "../../policy/types/index.js";
 
 export type BlockStatementPlanner = (
   blockNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ) => readonly CsharpStatement[];
@@ -47,7 +50,7 @@ export type BlockStatementPlanner = (
 export function planTryStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
@@ -71,7 +74,7 @@ export function planTryStatement(
 function planCatchClause(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
@@ -90,19 +93,29 @@ function planCatchClause(
         },
       };
     }
-    const primaryCarrierResolution = resolveRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile);
-    const primaryCarrier = probeCarrierFromResolution(primaryCarrierResolution);
-    const declarationCarrierResolution = primaryCarrier === undefined
-      ? resolveRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile)
-      : undefined;
-    const carrier = primaryCarrier ?? probeCarrierFromResolution(declarationCarrierResolution);
+    if (variable.name === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(clause.VariableDeclaration, "Catch variable declarations require a source binding name before C# emission."));
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
+    const carrierResolution = resolveRuntimeCarrierForStorage(
+      input,
+      variable.name,
+      sourceFile,
+    );
+    const carrier = probeCarrierFromResolution(carrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (
       !isCsharpThrowableCarrier(carrier) &&
-      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpTsValueTargetType(carrier))
+      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatValueTargetType(carrier))
     ) {
       const detail = carrier === undefined
-        ? missingCarrierDiagnosticDetail(declarationCarrierResolution ?? primaryCarrierResolution, "Runtime carrier fact is missing for the catch variable.")
+        ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the catch variable.")
         : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue compatibility catch carrier.", evidence: [] };
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, `Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
       return {
@@ -123,8 +136,7 @@ function planCatchClause(
         },
       };
     }
-    if (variable.name === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(clause.VariableDeclaration, "Catch variable declarations require a source binding name before C# emission."));
+    if (!catchVariableHasReferences(variable.name, input)) {
       return {
         kind: "CatchClause",
         body: {
@@ -133,10 +145,10 @@ function planCatchClause(
         },
       };
     }
-    if (isCsharpTsValueTargetType(carrier)) {
+    if (isCsharpCompatValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
       const catchExceptionName = allocateCatchValue(state);
-      const sourceVariableName = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Catch variable", "catchValue");
+      const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
       const catchValueInitializer = csharpThrownValueToValueExpression({ kind: "IdentifierName", name: catchExceptionName });
       if (catchExceptionType === undefined || catchValueInitializer === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(variable.name, "C# compatibility catch variables require renderable System.Exception and TsThrownValueException target carriers."));
@@ -166,7 +178,7 @@ function planCatchClause(
         },
       };
     }
-    const sourceVariableName = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Catch variable", "catchValue");
+    const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
     return {
       kind: "CatchClause",
       variableType,
@@ -184,4 +196,15 @@ function planCatchClause(
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
   };
+}
+
+function catchVariableHasReferences(
+  variableName: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  const reference = input.navigation.referenceFor(variableName);
+  if (reference === undefined) {
+    return true;
+  }
+  return input.navigation.hasReferenceOutside(reference.symbol, variableName);
 }

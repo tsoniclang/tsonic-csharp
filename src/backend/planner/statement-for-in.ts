@@ -1,8 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpStatement,
 } from "../roslyn/syntax.js";
@@ -17,8 +20,11 @@ import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
 import {
-  getRequiredCsharpTargetIterationFact,
-} from "./statement-iteration-facts.js";
+  isCsharpIndexKeyIteration,
+  isCsharpKeyCollectionIteration,
+  isCsharpObjectShapeKeyIteration,
+  selectCsharpIteration,
+} from "../../policy/operations/index.js";
 import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
@@ -36,7 +42,7 @@ export function planForInStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -46,24 +52,34 @@ export function planForInStatement(
     return [];
   }
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = getRequiredCsharpTargetIterationFact(
+  const selectedIteration = selectCsharpIteration(
     input,
     statementNode,
-    diagnosticNode,
-    diagnostics,
-    "C# for-in emission",
+    statement.Expression,
+    sourceFile,
   );
-  if (selectedIteration === undefined) {
+  if (selectedIteration.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      selectedIteration.reason,
+    ));
     return [];
   }
-  if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "object-shape-keys") {
+  if (selectedIteration.iterationKind !== "for-in") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      "C# for-in emission received a non-for-in checked iteration selection.",
+    ));
+    return [];
+  }
+  if (isCsharpObjectShapeKeyIteration(selectedIteration)) {
     return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "key-collection") {
+  if (isCsharpKeyCollectionIteration(selectedIteration)) {
     return planKeyCollectionForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.lowering.kind !== "index-key") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support provider iteration lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
+  if (!isCsharpIndexKeyIteration(selectedIteration)) {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "C# for-in emission received an unsupported exact iteration policy."));
     return [];
   }
   const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
@@ -83,12 +99,22 @@ export function planForInStatement(
     });
     return [];
   }
-  const collectionType = getCsharpTypeForForInCollection(statement.Expression, sourceFile, input, diagnostics);
+  const collectionType = getCsharpTypeForForInCollection(
+    selectedIteration,
+    statement.Expression,
+    diagnostics,
+  );
   if (collectionType === undefined) {
     return [];
   }
   const { indexName, collectionName } = allocateForInNames(state);
-  const bindingStatement = planForInKeyBindingStatement(binding, keyType, indexName, selectedIteration, diagnostics);
+  const bindingStatement = planForInKeyBindingStatement(
+    binding,
+    keyType,
+    indexName,
+    selectedIteration.lowering,
+    diagnostics,
+  );
   if (bindingStatement === undefined) {
     return [];
   }
@@ -110,7 +136,7 @@ export function planForInStatement(
       right: {
         kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: collectionName },
-        name: selectedIteration.lowering.lengthMember,
+        name: selectedIteration.lowering.lengthMemberName,
       },
     },
     incrementor: {

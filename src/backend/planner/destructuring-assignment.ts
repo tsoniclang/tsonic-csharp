@@ -1,5 +1,12 @@
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
   AsBinaryExpression,
   AsObjectLiteralExpression,
@@ -21,8 +28,6 @@ import {
   KindStringLiteral,
   Node_Text,
   Node_Expression,
-  SourceKind,
-  SourceTokenKind,
 } from "./source-ast.js";
 import type {
   CsharpExpression,
@@ -57,49 +62,46 @@ import {
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { csharpTupleExpression } from "./csharp-tuples.js";
 import {
+  csharpConstructibleTypeFromObjectShapeFact,
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
 } from "./object-shapes.js";
 import { planObjectShapeDefaultProjection } from "./object-shape-defaults.js";
 import {
   csharpTypeFromTargetTypeRef,
-  targetTypeRefsMatch,
 } from "./target-types.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../policy/types/index.js";
 import {
-  csharpTargetOperationFactKey,
-  type CsharpObjectShapeFact,
   csharpObjectShapeMemberLookupFailureMessage,
-  resolveCsharpObjectShapeMemberByFinalizedSourceName,
-} from "../../source/csharp-facts.js";
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../policy/types/index.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  csharpListTargetType,
+  csharpArrayBindingProjectionTarget,
+  csharpCollectionUsesJsArraySemantics,
   getCsharpNullableElementTargetType,
-  getCsharpReadOnlyIndexableCollectionElementTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  resolveCsharpArrayBindingCarrier,
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
+import type {
+  CsharpArrayBindingCarrier,
+} from "../../policy/types/index.js";
 import {
-  getCsharpArrayLengthMember,
-  isCsharpJsArrayCarrierTargetType,
-} from "../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+  csharpDestructuringAssignmentSyntax,
+  selectCsharpDestructuringAssignmentOperation,
+} from "../../policy/operations/index.js";
 
 export const missingDestructuringAssignmentFactsMessage = "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission.";
 
 export function isDestructuringAssignmentExpression(
   node: Node | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
-  if (!HasSourceKind(input.ast, node, KindBinaryExpression)) {
-    return false;
-  }
-  const expression = AsBinaryExpression(node);
-  if (sourceTokenKind(expression?.OperatorToken, input) !== KindEqualsToken) {
-    return false;
-  }
-  const left = expression?.Left;
-  return HasSourceKind(input.ast, left, KindArrayLiteralExpression) ||
-    HasSourceKind(input.ast, left, KindObjectLiteralExpression);
+  return csharpDestructuringAssignmentSyntax(input.ast, node) !== undefined;
 }
 
 export function pushMissingDestructuringAssignmentFactsDiagnostic(
@@ -112,7 +114,7 @@ export function pushMissingDestructuringAssignmentFactsDiagnostic(
 export function planDestructuringAssignmentStatement(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planExpression: ExpressionPlanner,
@@ -136,7 +138,7 @@ export function planDestructuringAssignmentStatement(
 export function tryPlanDestructuringAssignmentExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState | undefined,
   planExpression: ExpressionPlanner,
@@ -197,31 +199,23 @@ interface DestructuringAssignmentPlan {
 function planDestructuringAssignmentCore(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): DestructuringAssignmentPlan | undefined {
-  const expression = AsBinaryExpression(node)!;
-  const left = expression.Left;
-  const right = expression.Right;
-  if (left === undefined || right === undefined) {
+  const selectedOperator = selectCsharpDestructuringAssignmentOperation(
+    input,
+    node,
+    sourceFile,
+  );
+  if (selectedOperator.kind !== "resolved") {
     pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
     return undefined;
   }
-  const selectedOperator = input.facts.getSelectedTargetOperator(node!);
-  const csharpOperation = input.facts.getFact(node!, csharpTargetOperationFactKey);
-  if (
-    selectedOperator?.operationKind !== "operator" ||
-    selectedOperator.targetOperation !== "=" ||
-    csharpOperation?.kind !== "operator-token" ||
-    csharpOperation.operationId !== selectedOperator.operationId ||
-    csharpOperation.operator !== "="
-  ) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(left, diagnostics);
-    return undefined;
-  }
+  const left = selectedOperator.pattern;
+  const right = selectedOperator.source;
   const pattern = destructuringAssignmentPattern(left, input);
   if (pattern === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(left, "Destructuring assignment target is outside the current C# planning surface."));
@@ -308,16 +302,12 @@ type DestructuringAssignmentObjectElement =
       readonly target: DestructuringAssignmentTarget;
     };
 
-type AssignmentArrayCarrier =
-  | { readonly kind: "array"; readonly carrier: TargetTypeRef; readonly element: TargetTypeRef; readonly lengthMember: string; readonly restSlice: "runtime-array-helper" | "instance-slice" | "js-array-helper"; readonly restCarrier: TargetTypeRef }
-  | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] };
-
 function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   sourceCarrier: TargetTypeRef | undefined,
@@ -338,7 +328,7 @@ function planAssignmentTargetFromProjection(
   projectedType: CsharpTypeNode | undefined,
   projectionNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   projectedCarrier: TargetTypeRef | undefined,
@@ -349,7 +339,7 @@ function planAssignmentTargetFromProjection(
       kind: "ExpressionStatement",
       expression: {
         kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(target.node), diagnostics, "Destructuring assignment target") },
+        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(input.ast, target.node), diagnostics, "Destructuring assignment target") },
         operatorToken: { kind: "EqualsToken" },
         right: projected,
       },
@@ -378,13 +368,13 @@ function planArrayAssignmentPattern(
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   sourceCarrier: TargetTypeRef | undefined,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  const bindingCarrier = assignmentArrayCarrier(sourceCarrier);
+  const bindingCarrier = resolveCsharpArrayBindingCarrier(sourceCarrier);
   if (bindingCarrier === undefined) {
     const resolution = resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile);
     const detail = missingCarrierDiagnosticDetail(resolution, "Runtime carrier fact is missing for the array destructuring assignment source expression.");
@@ -403,9 +393,9 @@ function planArrayAssignmentElement(
   element: DestructuringAssignmentArrayElement,
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: AssignmentArrayCarrier,
+  sourceCarrier: CsharpArrayBindingCarrier,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
@@ -413,7 +403,11 @@ function planArrayAssignmentElement(
   if (element.rest) {
     return planArrayAssignmentRestElement(element, sourceExpression, index, sourceCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   }
-  const elementCarrier = sourceCarrier.kind === "array" ? sourceCarrier.element : sourceCarrier.elements[index];
+  const elementCarrier = csharpArrayBindingProjectionTarget(
+    sourceCarrier,
+    index,
+    false,
+  );
   const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Array destructuring assignment element requires a renderable provider element carrier type before C# emission."));
@@ -422,9 +416,48 @@ function planArrayAssignmentElement(
   const projected = planArrayAssignmentProjection(sourceExpression, index, sourceCarrier);
   if (element.initializer !== undefined) {
     if (sourceCarrier.kind !== "array") {
-      if (getCsharpNullableElementTargetType(elementCarrier) !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(element.initializer, "Tuple destructuring assignment defaults for optional/nullish tuple elements require finalized tuple optional-element facts before C# emission."));
-        return [];
+      const defaultedElementCarrier =
+        getCsharpNullableElementTargetType(elementCarrier);
+      if (defaultedElementCarrier !== undefined) {
+        const defaultedElementType = csharpTypeFromTargetTypeRef(
+          defaultedElementCarrier,
+        );
+        if (defaultedElementType === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(
+            element.initializer,
+            "Tuple destructuring assignment defaults require a renderable non-nullish element type.",
+          ));
+          return [];
+        }
+        const whenNull = planDefaultExpressionWithExpectedType(
+          element.initializer,
+          sourceFile,
+          input,
+          diagnostics,
+          defaultedElementType,
+          element.initializer,
+          state,
+        );
+        if (whenNull === undefined) {
+          return [];
+        }
+        return planAssignmentTargetFromProjection(
+          element.target,
+          {
+            kind: "BinaryExpression",
+            left: projected,
+            operatorToken: { kind: "QuestionQuestionToken" },
+            right: whenNull,
+          },
+          defaultedElementType,
+          element.sourceNode,
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+          defaultedElementCarrier,
+          planDefaultExpressionWithExpectedType,
+        );
       }
       return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
     }
@@ -441,9 +474,9 @@ function planArrayAssignmentRestElement(
   element: DestructuringAssignmentArrayElement,
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: AssignmentArrayCarrier,
+  sourceCarrier: CsharpArrayBindingCarrier,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
@@ -474,15 +507,23 @@ function planTupleAssignmentRestElement(
   element: DestructuringAssignmentArrayElement,
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: Extract<AssignmentArrayCarrier, { readonly kind: "tuple" }>,
+  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "tuple" }>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const restElements = sourceCarrier.elements.slice(index);
-  const restCarrier = { kind: "tuple" as const, elements: restElements };
+  const restCarrier = csharpArrayBindingProjectionTarget(
+    sourceCarrier,
+    index,
+    true,
+  );
+  if (restCarrier?.kind !== "tuple") {
+    diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires an exact tuple-slice carrier."));
+    return [];
+  }
   const projectedType = csharpTypeFromTargetTypeRef(restCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires a renderable provider tuple carrier type before C# emission."));
@@ -511,7 +552,7 @@ function planTupleAssignmentRestElement(
 function planArrayAssignmentProjection(
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: AssignmentArrayCarrier,
+  sourceCarrier: CsharpArrayBindingCarrier,
 ): CsharpExpression {
   if (sourceCarrier.kind === "tuple") {
     return {
@@ -531,10 +572,10 @@ function planArrayAssignmentDefaultProjection(
   sourceExpression: CsharpExpression,
   index: number,
   projected: CsharpExpression,
-  sourceCarrier: Extract<AssignmentArrayCarrier, { readonly kind: "array" }>,
+  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "array" }>,
   initializer: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   projectedType: CsharpTypeNode,
   state: DestructuringPlannerState,
@@ -555,9 +596,9 @@ function planArrayAssignmentDefaultProjection(
 function arrayAssignmentDefaultPresenceCondition(
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: Extract<AssignmentArrayCarrier, { readonly kind: "array" }>,
+  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "array" }>,
 ): CsharpExpression {
-  if (isCsharpJsArrayCarrierTargetType(sourceCarrier.carrier)) {
+  if (csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)) {
     return {
       kind: "InvocationExpression",
       callee: {
@@ -583,7 +624,7 @@ function arrayAssignmentDefaultPresenceCondition(
 function planArrayRestAssignmentProjection(
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: Extract<AssignmentArrayCarrier, { readonly kind: "array" }>,
+  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "array" }>,
 ): CsharpExpression {
   if (sourceCarrier.restSlice === "instance-slice") {
     return {
@@ -625,32 +666,12 @@ function planArrayRestAssignmentProjection(
     : runtimeArrayHelperCall("Slice", argumentsList);
 }
 
-function assignmentArrayCarrier(sourceCarrier: TargetTypeRef | undefined): AssignmentArrayCarrier | undefined {
-  if (sourceCarrier?.kind === "array") {
-    return { kind: "array", carrier: sourceCarrier, element: sourceCarrier.element, lengthMember: "Length", restSlice: "runtime-array-helper", restCarrier: sourceCarrier };
-  }
-  if (sourceCarrier?.kind === "tuple") {
-    return sourceCarrier;
-  }
-  if (sourceCarrier === undefined) {
-    return undefined;
-  }
-  const element = getCsharpReadOnlyIndexableCollectionElementTargetType(sourceCarrier);
-  const lengthMember = getCsharpArrayLengthMember(sourceCarrier);
-  if (element === undefined || lengthMember === undefined) {
-    return undefined;
-  }
-  return isCsharpJsArrayCarrierTargetType(sourceCarrier)
-    ? { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "instance-slice", restCarrier: sourceCarrier }
-    : { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "js-array-helper", restCarrier: csharpListTargetType(element) };
-}
-
 function planObjectAssignmentPattern(
   pattern: Extract<DestructuringAssignmentPattern, { readonly kind: "object" }>,
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
@@ -673,7 +694,7 @@ function planObjectAssignmentElement(
   objectShape: CsharpObjectShapeFact,
   extractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
@@ -686,7 +707,11 @@ function planObjectAssignmentElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object destructuring assignment property must match a finalized provider object-shape member."));
     return [];
   }
-  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-binding-property");
+  const memberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+    objectShape,
+    sourceName,
+    "checked-object-binding-property",
+  );
   if (memberLookup.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, csharpObjectShapeMemberLookupFailureMessage(memberLookup, "Object destructuring assignment property")));
     return [];
@@ -718,7 +743,7 @@ function planObjectAssignmentRestElement(
   sourceShape: CsharpObjectShapeFact,
   extractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
@@ -732,25 +757,38 @@ function planObjectAssignmentRestElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts for the rest target."));
     return [];
   }
-  const restType = csharpTypeFromObjectShapeFact(input, restShape, diagnostics, element.sourceNode);
+  const restType = csharpConstructibleTypeFromObjectShapeFact(
+    input,
+    restShape,
+    diagnostics,
+    element.sourceNode,
+  );
   if (restType === undefined) {
     return [];
   }
   for (const sourceName of extractedSourceNames) {
-    const staleRestMember = resolveCsharpObjectShapeMemberByFinalizedSourceName(restShape, sourceName, "finalized-object-rest-member");
+    const staleRestMember = resolveCsharpObjectShapeMemberBySourceContract(
+      restShape,
+      sourceName,
+      "finalized-object-rest-member",
+    );
     if (staleRestMember.kind === "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, `Object rest destructuring assignment rest shape must exclude explicitly extracted member '${staleRestMember.member.sourceName}'.`));
       return [];
     }
   }
   const assignments = restShape.members.map((restMember) => {
-    const sourceMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(sourceShape, restMember.sourceName, "finalized-object-rest-member");
+    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+      sourceShape,
+      restMember.sourceName,
+      "finalized-object-rest-member",
+    );
     if (sourceMemberLookup.kind !== "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, csharpObjectShapeMemberLookupFailureMessage(sourceMemberLookup, "Object rest destructuring assignment source shape")));
       return undefined;
     }
     const sourceMember = sourceMemberLookup.member;
-    if (!targetTypeRefsMatch(sourceMember.type, restMember.type)) {
+    if (!targetTypeRefEquals(sourceMember.type, restMember.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, `Object rest destructuring assignment member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
       return undefined;
     }
@@ -776,7 +814,7 @@ function planObjectAssignmentRestElement(
 
 function collectObjectAssignmentExtractedSourceNames(
   elements: readonly DestructuringAssignmentObjectElement[],
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): ReadonlySet<string> {
   const sourceNames = new Set<string>();
   for (const element of elements) {
@@ -793,7 +831,7 @@ function collectObjectAssignmentExtractedSourceNames(
 
 function getObjectAssignmentPropertySourceName(
   element: Extract<DestructuringAssignmentObjectElement, { readonly kind: "object-property" }>,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): string | undefined {
   const propertyName = element.propertyName ?? (element.target.kind === "node" ? element.target.node : undefined);
@@ -804,12 +842,12 @@ function getObjectAssignmentPropertySourceName(
     diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(propertyName);
+  return Node_Text(input.ast, propertyName);
 }
 
 function destructuringAssignmentPattern(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): DestructuringAssignmentPattern | undefined {
   if (hasDestructuringAssignmentKind(node, input, KindArrayLiteralExpression)) {
     return {
@@ -835,14 +873,14 @@ function destructuringAssignmentPattern(
 
 function destructuringAssignmentArrayElement(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): DestructuringAssignmentArrayElement | undefined {
   if (hasDestructuringAssignmentKind(node, input, KindOmittedExpression)) {
     return undefined;
   }
   if (hasDestructuringAssignmentKind(node, input, KindSpreadElement)) {
     const spread = AsSpreadElement(node);
-    const target = Node_Expression(node) ?? spread?.Expression;
+    const target = Node_Expression(input.ast, node) ?? spread?.Expression;
     return target === undefined ? undefined : {
       kind: "array-element",
       sourceNode: node,
@@ -870,7 +908,7 @@ function destructuringAssignmentArrayElement(
 
 function destructuringAssignmentObjectElement(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): DestructuringAssignmentObjectElement | undefined {
   if (hasDestructuringAssignmentKind(node, input, KindSpreadAssignment)) {
     const spread = AsSpreadAssignment(node);
@@ -908,7 +946,7 @@ function destructuringAssignmentObjectElement(
 
 function destructuringAssignmentTarget(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): DestructuringAssignmentTarget {
   const pattern = destructuringAssignmentPattern(node, input);
   return pattern === undefined
@@ -918,13 +956,13 @@ function destructuringAssignmentTarget(
 
 function destructuringAssignmentDefaultTarget(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): { readonly target: DestructuringAssignmentTarget; readonly initializer: Node } | undefined {
   if (!hasDestructuringAssignmentKind(node, input, KindBinaryExpression)) {
     return undefined;
   }
   const expression = AsBinaryExpression(node);
-  if (sourceTokenKind(expression?.OperatorToken, input) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
+  if (input.ast.operatorKindName(node) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
     return undefined;
   }
   return {
@@ -935,18 +973,8 @@ function destructuringAssignmentDefaultTarget(
 
 function hasDestructuringAssignmentKind(
   node: Node | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   expected: string,
 ): boolean {
-  return (node as { readonly Kind?: unknown } | undefined)?.Kind === expected ||
-    HasSourceKind(input.ast, node, expected);
-}
-
-function sourceTokenKind(
-  token: unknown,
-  input: TargetCompileInput,
-): string {
-  return typeof token === "number"
-    ? SourceTokenKind(input.ast, token)
-    : SourceKind(input.ast, token as Node | undefined);
+  return HasSourceKind(input.ast, node, expected);
 }

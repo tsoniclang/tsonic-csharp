@@ -1,6 +1,4 @@
 import {
-  attributeBuilderDeclaration,
-  attributeMemberBuilderDeclaration,
   providerCallMarkerDeclaration,
   providerPrimitiveDeclaration,
   providerTypeMarkerDeclaration,
@@ -9,24 +7,8 @@ import type {
   ProviderExportDeclaration,
   SourceSemanticsModule,
 } from "@tsonic/tsts";
-import {
-  csharpLangModule,
-} from "./identity.js";
-
 export function providerExportDeclarationsForCsharpSourceModule(module: SourceSemanticsModule): readonly ProviderExportDeclaration[] {
-  return [
-    ...csharpSourceHelperDeclarations(module.moduleSpecifier),
-    ...module.exports.map(providerExportDeclarationForCsharpSourceSemantics),
-  ];
-}
-
-function csharpSourceHelperDeclarations(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
-  return moduleSpecifier === csharpLangModule
-    ? [
-        attributeBuilderDeclaration(),
-        attributeMemberBuilderDeclaration(),
-      ]
-    : [];
+  return module.exports.map(providerExportDeclarationForCsharpSourceSemantics);
 }
 
 function providerExportDeclarationForCsharpSourceSemantics(declaration: SourceSemanticsModule["exports"][number]): ProviderExportDeclaration {

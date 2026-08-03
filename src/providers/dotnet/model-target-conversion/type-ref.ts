@@ -1,6 +1,6 @@
 import type {
   TargetTypeRef,
-} from "@tsonic/tsts";
+} from "../../../policy/types/index.js";
 import type {
   DotnetRenderShape,
   DotnetTypeDeclaration,
@@ -11,13 +11,13 @@ import {
   csharpBooleanTargetType,
   csharpDelegateTargetType,
   type CsharpDelegateSignatureShape,
-  csharpQualifiedTypeRenderShape,
   csharpNullableValueTargetType,
+  csharpNullableReferenceTargetType,
   type CsharpTargetTypeRenderShape,
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
   switch (type.kind) {
@@ -26,6 +26,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "any":
     case "unknown":
       return { kind: "opaque", id: type.kind };
+    case "undefined":
+      throw new Error("Undefined is a source declaration shape only and cannot be emitted as a target type.");
     case "object":
       return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
     case "string":
@@ -60,6 +62,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       };
     case "nullable":
       return csharpNullableValueTargetType(dotnetTypeRefToTargetTypeRef(type.elementType));
+    case "nullable-reference":
+      return csharpNullableReferenceTargetType(dotnetTypeRefToTargetTypeRef(type.elementType));
     case "tuple":
       return { kind: "tuple", elements: type.elements.map(dotnetTypeRefToTargetTypeRef) };
     case "union":
@@ -134,54 +138,13 @@ function csharpTargetMetadataFromDotnetTypeRef(
       : sourceShape.elementType
     : undefined;
   const arrayLiteralElementType = elementType === undefined ? undefined : dotnetTypeRefToTargetTypeRef(elementType);
-  const arrayLiteralConstructionType = arrayLiteralElementType === undefined
-    ? undefined
-    : dotnetArrayLiteralConstructionType(type, arrayLiteralElementType);
   return {
     ...(arrayLiteralElementType !== undefined ? { arrayLiteralElementType } : {}),
-    ...(arrayLiteralConstructionType !== undefined ? { arrayLiteralConstructionType } : {}),
+    ...(arrayLiteralElementType !== undefined && type.implicitArrayInput === true
+      ? { implicitArrayInputElementType: arrayLiteralElementType }
+      : {}),
     ...(delegateSignature !== undefined ? { delegateSignature } : {}),
   };
-}
-
-function dotnetArrayLiteralConstructionType(
-  type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
-  elementType: TargetTypeRef,
-): TargetTypeRef | undefined {
-  const metadataName = type.metadataName;
-  if (metadataName === "System.Collections.Generic.List`1") {
-    return csharpTargetNamedType(
-      requireDotnetTargetId(type.targetId, type.metadataName),
-      type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
-      type.renderShape === undefined ? csharpQualifiedTypeRenderShape("System.Collections.Generic", "List") : dotnetRenderShapeToCsharpRenderShape(type.renderShape),
-      {
-        arrayLiteralElementType: elementType,
-        enumerableElementType: elementType,
-        readOnlyIndexableElementType: elementType,
-        denseMutableElementType: elementType,
-      },
-    );
-  }
-  if (
-    metadataName === "System.Collections.Generic.IEnumerable`1" ||
-    metadataName === "System.Collections.Generic.IReadOnlyCollection`1" ||
-    metadataName === "System.Collections.Generic.IReadOnlyList`1" ||
-    metadataName === "System.Collections.Generic.ICollection`1" ||
-    metadataName === "System.Collections.Generic.IList`1"
-  ) {
-    return csharpTargetNamedType(
-      "System.Collections.Generic.List`1",
-      [elementType],
-      csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
-      {
-        arrayLiteralElementType: elementType,
-        enumerableElementType: elementType,
-        readOnlyIndexableElementType: elementType,
-        denseMutableElementType: elementType,
-      },
-    );
-  }
-  return undefined;
 }
 
 function dotnetDelegateSignatureFromSourceShape(

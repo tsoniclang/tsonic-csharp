@@ -49,7 +49,6 @@ export type SourceAstNode<T extends object = object> = Node & T & {
   readonly Token?: SourceAstNode;
   readonly TryBlock?: SourceAstNode;
   readonly Type?: SourceAstNode;
-  readonly TypeArguments?: SourceAstNodeList;
   readonly TypeName?: SourceAstNode;
   readonly TypeParameters?: SourceAstNodeList;
   readonly Types?: SourceAstNodeList;

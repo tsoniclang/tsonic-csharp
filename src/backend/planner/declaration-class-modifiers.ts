@@ -1,10 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   CsharpModifier,
   CsharpMethodDeclaration,
   CsharpPropertyDeclaration,
 } from "../roslyn/syntax.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput } from "@tsonic/target-api";
+
 import {
   HasSourceKind,
   HasSyntacticModifier,
@@ -15,31 +16,31 @@ import {
   isAsyncNode,
 } from "./modifiers.js";
 
-export function planClassMemberModifiers(node: Node, name: Node | undefined, input: TargetCompileInput): readonly ("public" | "private" | "static")[] {
+export function planClassMemberModifiers(node: Node, name: Node | undefined, input: CsharpTranslationContext): readonly ("public" | "private" | "static")[] {
   const access = HasSourceKind(input.ast, name, KindPrivateIdentifier) ? "private" : "public";
-  return HasSyntacticModifier(node, ModifierFlagsStatic)
+  return HasSyntacticModifier(input.ast, node, ModifierFlagsStatic)
     ? [access, "static"]
     : [access];
 }
 
-export function planMethodModifiers(node: Node, name: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): CsharpMethodDeclaration["modifiers"] {
+export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpTranslationContext): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  addDispatchModifiers(modifiers, input.analysis.getProjectSourceMemberDispatch(node, { sourceFile }));
-  if (isAsyncNode(node)) {
+  addDispatchModifiers(modifiers, input.navigation.memberDispatch(node));
+  if (isAsyncNode(input.ast, node)) {
     modifiers.push("async");
   }
   return modifiers;
 }
 
-export function planPropertyModifiers(node: Node, name: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): CsharpPropertyDeclaration["modifiers"] {
+export function planPropertyModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpTranslationContext): CsharpPropertyDeclaration["modifiers"] {
   const modifiers: CsharpPropertyDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  addDispatchModifiers(modifiers, input.analysis.getProjectSourceMemberDispatch(node, { sourceFile }));
+  addDispatchModifiers(modifiers, input.navigation.memberDispatch(node));
   return modifiers;
 }
 
 function addDispatchModifiers(
   modifiers: CsharpModifier[],
-  dispatch: ReturnType<TargetCompileInput["analysis"]["getProjectSourceMemberDispatch"]>,
+  dispatch: ReturnType<CsharpTranslationContext["navigation"]["memberDispatch"]>,
 ): void {
   if (dispatch?.overridesBase === true) {
     modifiers.push("override");

@@ -5,7 +5,6 @@ import type {
   ProviderMemberDeclaration,
   ProviderParameterDeclaration,
   ProviderSignatureDeclaration,
-  TargetIdentity,
   ProviderTypeExpression,
   ProviderTypeParameterDeclaration,
 } from "@tsonic/tsts";
@@ -98,6 +97,7 @@ const supportedDotnetTypeRefKinds = new Set([
   "void",
   "any",
   "unknown",
+  "undefined",
   "object",
   "string",
   "literal",
@@ -109,6 +109,7 @@ const supportedDotnetTypeRefKinds = new Set([
   "provider-ref",
   "named",
   "nullable",
+  "nullable-reference",
   "array",
   "tuple",
   "union",
@@ -126,6 +127,7 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["void", new Set(["kind"])],
   ["any", new Set(["kind"])],
   ["unknown", new Set(["kind"])],
+  ["undefined", new Set(["kind"])],
   ["object", new Set(["kind"])],
   ["string", new Set(["kind"])],
   ["literal", new Set(["kind", "value"])],
@@ -135,15 +137,31 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["source-primitive", new Set(["kind", "name"])],
   ["type-parameter", new Set(["kind", "name"])],
   ["provider-ref", new Set(["kind", "moduleSpecifier", "exportName", "typeArguments"])],
-  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape"])],
+  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape", "implicitArrayInput"])],
   ["nullable", new Set(["kind", "elementType"])],
+  ["nullable-reference", new Set(["kind", "elementType"])],
   ["array", new Set(["kind", "elementType", "rank"])],
   ["tuple", new Set(["kind", "elements"])],
   ["union", new Set(["kind", "types"])],
-  ["function", new Set(["kind", "parameters", "returnType", "typeParameters"])],
+  ["function", new Set(["kind", "id", "parameters", "returnType", "typeParameters"])],
   ["pointer", new Set(["kind", "pointee", "mutability"])],
   ["function-pointer", new Set(["kind", "args", "result", "abi"])],
   ["opaque", new Set(["kind", "id", "displayName", "sourceShape"])],
+]);
+
+const dotnetSignatureFields = new Set([
+  "id",
+  "sourceId",
+  "targetName",
+  "attributes",
+  "unsupportedAttributes",
+  "typeParameters",
+  "parameters",
+  "returnType",
+  "targetReturnType",
+  "returnAttributes",
+  "unsupportedReturnAttributes",
+  "targetInvocation",
 ]);
 
 export function validateDotnetModuleModelContract(module: DotnetModuleModel): DotnetProviderDiagnostic | undefined {
@@ -368,6 +386,7 @@ function validateDotnetMemberList(
     if (member.sourceParameterOffset !== undefined && (!Number.isSafeInteger(member.sourceParameterOffset) || member.sourceParameterOffset < 0)) {
       collector.add(`${memberPath}.sourceParameterOffset`, "Source parameter offset must be a non-negative safe integer.", member.sourceParameterOffset);
     }
+    validateDotnetSourceProjection(member, memberPath, collector);
     validateOptionalDotnetTypeRef(member.targetDeclaringType, `${memberPath}.targetDeclaringType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     switch (member.kind) {
       case "constructor":
@@ -405,6 +424,43 @@ function validateDotnetMemberList(
   }
 }
 
+function validateDotnetSourceProjection(
+  member: DotnetMemberDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (
+    member.sourceProjection !== undefined &&
+    member.sourceProjection !== "extension-method"
+  ) {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Unsupported .NET source projection kind.",
+      member.sourceProjection,
+    );
+    return;
+  }
+  const hasExtensionMethodShape = member.kind === "method" &&
+    member.static === true &&
+    member.sourceStatic === false &&
+    member.receiverPassing === "first-argument" &&
+    member.sourceParameterOffset === 1;
+  if (member.sourceProjection === "extension-method" && !hasExtensionMethodShape) {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Extension-method source projections require a static target method, an instance source member, first-argument receiver passing, and one omitted source parameter.",
+      member.sourceProjection,
+    );
+  }
+  if (hasExtensionMethodShape && member.sourceProjection !== "extension-method") {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Extension-method projection metadata must be explicit.",
+      member.sourceProjection,
+    );
+  }
+}
+
 function validateSourceVisibleCallableMemberClrShapes(
   member: DotnetMemberDeclaration,
   path: string,
@@ -414,8 +470,8 @@ function validateSourceVisibleCallableMemberClrShapes(
     const signaturePath = `${path}.signatures[${signatureIndex}]`;
     for (const [parameterIndex, parameter] of signature.parameters.slice(member.sourceParameterOffset ?? 0).entries()) {
       validateNoUnsupportedClrSourceTypeRef(
-        parameter.type,
-        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].type`,
+        parameter.sourceType ?? parameter.type,
+        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
         collector,
         `Source-visible ${member.kind} parameter '${parameter.name}' type`,
       );
@@ -440,11 +496,10 @@ function validateDotnetSignatureList(
   const signatureIds = new Set<string>();
   for (const [index, signature] of signatures.entries()) {
     const signaturePath = `${path}[${index}]`;
+    validateDotnetSignatureFields(signature, signaturePath, collector);
     requireNonEmptyString(signature.id, `${signaturePath}.id`, collector);
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
-    if (signature.providerSourceSignatureId !== undefined) {
-      requireNonEmptyString(signature.providerSourceSignatureId, `${signaturePath}.providerSourceSignatureId`, collector);
-    }
+    requireNonEmptyString(signature.sourceId, `${signaturePath}.sourceId`, collector);
     validateDotnetTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
     validateDotnetParameters(signature.parameters, `${signaturePath}.parameters`, collector);
     if (signature.returnType === undefined) {
@@ -459,6 +514,76 @@ function validateDotnetSignatureList(
       });
     }
     validateOptionalDotnetTypeRef(signature.targetReturnType, `${signaturePath}.targetReturnType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    validateDotnetTargetInvocation(
+      signature.targetInvocation,
+      signature,
+      signaturePath,
+      collector,
+    );
+  }
+}
+
+function validateDotnetSignatureFields(
+  signature: DotnetSignatureDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  const record = signature as unknown as Readonly<Record<string, unknown>>;
+  for (const key of Object.keys(record)) {
+    if (!dotnetSignatureFields.has(key)) {
+      collector.add(
+        `${path}.${key}`,
+        "Field is not valid for a .NET signature declaration.",
+        record[key],
+      );
+    }
+  }
+}
+
+function validateDotnetTargetInvocation(
+  invocation: DotnetSignatureDeclaration["targetInvocation"],
+  signature: DotnetSignatureDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (invocation === undefined) {
+    return;
+  }
+  switch (invocation.kind) {
+    case "array-creation": {
+      if (
+        !Number.isSafeInteger(invocation.lengthParameterIndex) ||
+        invocation.lengthParameterIndex < 0 ||
+        invocation.lengthParameterIndex >= signature.parameters.length
+      ) {
+        collector.add(
+          `${path}.targetInvocation.lengthParameterIndex`,
+          "Array-creation invocation lengthParameterIndex must identify an existing signature parameter.",
+          invocation.lengthParameterIndex,
+        );
+      }
+      const targetReturnType = signature.targetReturnType ?? signature.returnType;
+      if (targetReturnType?.kind !== "array") {
+        collector.add(
+          `${path}.targetInvocation`,
+          "Array-creation invocation must carry an array target return type.",
+          invocation,
+        );
+      }
+      return;
+    }
+    case "static-factory-construction":
+      validateDotnetTypeRef(
+        invocation.factoryType,
+        `${path}.targetInvocation.factoryType`,
+        collector,
+        {
+          allowLiteral: false,
+          allowProviderRef: false,
+          targetPosition: true,
+        },
+      );
+      return;
   }
 }
 
@@ -471,6 +596,7 @@ function validateDotnetParameters(
     const parameterPath = `${path}[${index}]`;
     requireNonEmptyString(parameter.name, `${parameterPath}.name`, collector);
     validateDotnetTypeRef(parameter.type, `${parameterPath}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    validateOptionalDotnetTypeRef(parameter.sourceType, `${parameterPath}.sourceType`, collector, { allowLiteral: true, allowProviderRef: true });
     if (!supportedPassingModes.has(parameter.passingMode)) {
       collector.add(`${parameterPath}.passingMode`, "Parameter passingMode is not a supported provider contract value.", parameter.passingMode);
     }
@@ -481,7 +607,7 @@ function validateDotnetParameters(
       if (parameter.passingMode !== "by-value") {
         collector.add(`${parameterPath}.passingMode`, "Params-array/rest parameters must be passed by value.", parameter.passingMode);
       }
-      if (parameter.type.kind !== "array") {
+      if (dotnetParamsArrayTargetType(parameter.type).kind !== "array") {
         collector.add(`${parameterPath}.type`, "Params-array/rest parameters must carry an array target type.", parameter.type);
       }
     }
@@ -497,6 +623,12 @@ function validateDotnetParameters(
     validateOptionalDotnetParameterDefaultValue(parameter.defaultValue, `${parameterPath}.defaultValue`, collector);
     validateOptionalDotnetUnsupportedDefaultValue(parameter.unsupportedDefaultValue, `${parameterPath}.unsupportedDefaultValue`, collector);
   }
+}
+
+function dotnetParamsArrayTargetType(type: DotnetTypeRef): DotnetTypeRef {
+  return type.kind === "nullable-reference"
+    ? type.elementType
+    : type;
 }
 
 function validateDotnetTypeParameters(
@@ -676,6 +808,7 @@ function validateNoUnsupportedClrSourceTypeRef(
       validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
       return;
     case "nullable":
+    case "nullable-reference":
       validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
       return;
     case "tuple":
@@ -686,7 +819,12 @@ function validateNoUnsupportedClrSourceTypeRef(
       return;
     case "function":
       for (const [index, parameter] of type.parameters.entries()) {
-        validateNoUnsupportedClrSourceTypeRef(parameter.type, `${path}.parameters[${index}].type`, collector, context);
+        validateNoUnsupportedClrSourceTypeRef(
+          parameter.sourceType ?? parameter.type,
+          `${path}.parameters[${index}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
+          collector,
+          context,
+        );
       }
       validateNoUnsupportedClrSourceTypeRef(type.returnType, `${path}.returnType`, collector, context);
       return;
@@ -706,6 +844,7 @@ function validateNoUnsupportedClrSourceTypeRef(
     case "object":
     case "string":
     case "literal":
+    case "undefined":
     case "boolean":
     case "number":
     case "bigint":
@@ -744,8 +883,9 @@ function validateDotnetTypeRef(
   validateDotnetTypeRefFields(type, path, collector);
   switch (type.kind) {
     case "literal":
+    case "undefined":
       if (!options.allowLiteral) {
-        collector.add(path, "Literal type refs are source declaration shapes only and are not valid target metadata refs.", type);
+        collector.add(path, `${type.kind === "literal" ? "Literal" : "Undefined"} type refs are source declaration shapes only and are not valid target metadata refs.`, type);
       }
       return;
     case "provider-ref":
@@ -760,6 +900,26 @@ function validateDotnetTypeRef(
       validateOptionalDotnetRenderShape(type.renderShape, `${path}.renderShape`, collector);
       validateDotnetTypeRefs(type.typeArguments ?? [], `${path}.typeArguments`, collector, options);
       validateOptionalDotnetTypeRef(type.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
+      if (
+        type.implicitArrayInput !== undefined &&
+        type.implicitArrayInput !== true
+      ) {
+        collector.add(
+          `${path}.implicitArrayInput`,
+          "Implicit native-array input evidence must be the literal true when present.",
+          type.implicitArrayInput,
+        );
+      }
+      if (
+        type.implicitArrayInput === true &&
+        type.sourceShape?.kind !== "array"
+      ) {
+        collector.add(
+          `${path}.implicitArrayInput`,
+          "Implicit native-array input evidence requires an exact source array shape.",
+          type.sourceShape,
+        );
+      }
       return;
     case "array":
       if (type.rank !== undefined && (!Number.isInteger(type.rank) || type.rank < 1)) {
@@ -768,6 +928,7 @@ function validateDotnetTypeRef(
       validateDotnetTypeRef(type.elementType, `${path}.elementType`, collector, options);
       return;
     case "nullable":
+    case "nullable-reference":
       validateDotnetTypeRef(type.elementType, `${path}.elementType`, collector, options);
       return;
     case "tuple":
@@ -783,6 +944,7 @@ function validateDotnetTypeRef(
       validateDotnetTypeRefs(type.types, `${path}.types`, collector, options);
       return;
     case "function":
+      requireNonEmptyString(type.id, `${path}.id`, collector);
       validateDotnetTypeParameters(type.typeParameters ?? [], `${path}.typeParameters`, collector);
       validateDotnetParameters(type.parameters, `${path}.parameters`, collector);
       validateDotnetTypeRef(type.returnType, `${path}.returnType`, collector, options);
@@ -801,6 +963,7 @@ function validateDotnetTypeRef(
     case "void":
     case "any":
     case "unknown":
+    case "undefined":
     case "object":
     case "string":
     case "boolean":
@@ -847,15 +1010,17 @@ function validateProviderExportDeclaration(
   path: string,
   collector: ContractCollector,
 ): void {
-  if (declaration.kind !== "namespace") {
-    validateProviderTargetIdentity(declaration.targetIdentity, `${path}.targetIdentity`, collector);
-  }
   validateOptionalProviderTypeExpression(declaration.type, `${path}.type`, collector);
   validateProviderTypeParameters(declaration.typeParameters ?? [], `${path}.typeParameters`, collector);
   for (const [index, heritage] of (declaration.heritage ?? []).entries()) {
     validateProviderHeritage(heritage, `${path}.heritage[${index}]`, collector);
   }
-  validateProviderMemberList(declaration.members ?? [], `${path}.members`, collector);
+  validateProviderMemberList(
+    declaration.members ?? [],
+    `${path}.members`,
+    collector,
+    { enumMembers: declaration.kind === "enum" },
+  );
   validateProviderSignatureList(declaration.signatures ?? [], `${path}.signatures`, collector, { requireReturnType: declaration.kind === "function" });
 }
 
@@ -863,17 +1028,81 @@ function validateProviderMemberList(
   members: readonly ProviderMemberDeclaration[],
   path: string,
   collector: ContractCollector,
+  options: { readonly enumMembers: boolean },
 ): void {
   const memberIds = new Set<string>();
+  const memberSurfaces = new Set<string>();
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
     requireNonEmptyString(member.id, `${memberPath}.id`, collector);
     requireUnique(memberIds, member.id, `${memberPath}.id`, collector);
+    requireUnique(
+      memberSurfaces,
+      providerMemberSurfaceKey(member),
+      `${memberPath}.name`,
+      collector,
+    );
+    if (options.enumMembers) {
+      validateProviderEnumMember(member, memberPath, collector);
+      continue;
+    }
     validateOptionalProviderTypeExpression(member.type, `${memberPath}.type`, collector);
     validateProviderSignatureList(member.signatures ?? [], `${memberPath}.signatures`, collector, {
       requireReturnType: member.kind === "method" || member.kind === "indexer",
     });
   }
+}
+
+function validateProviderEnumMember(
+  member: ProviderMemberDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (member.static === true) {
+    collector.add(`${path}.static`, "Provider enum members must use enum declaration semantics rather than static field semantics.");
+  }
+  if (member.readonly === true) {
+    collector.add(`${path}.readonly`, "Provider enum members must use enum declaration semantics rather than readonly field semantics.");
+  }
+  if (member.optional === true) {
+    collector.add(`${path}.optional`, "Provider enum members cannot be optional.");
+  }
+  if (member.type !== undefined) {
+    collector.add(`${path}.type`, "Provider enum members cannot carry a field type.");
+  }
+  if ((member.signatures?.length ?? 0) > 0) {
+    collector.add(`${path}.signatures`, "Provider enum members cannot carry signatures.");
+  }
+}
+
+function providerMemberSurfaceKey(member: ProviderMemberDeclaration): string {
+  switch (member.kind) {
+    case "constructor":
+      return "constructor";
+    case "indexer":
+      return "indexer";
+    case "method":
+    case "property":
+    case "field":
+      return JSON.stringify([
+        member.static === true,
+        providerMemberPropertySourceKey(member.name),
+      ]);
+  }
+}
+
+function providerMemberPropertySourceKey(
+  name: ProviderMemberDeclaration["name"],
+): readonly [string, string] {
+  if (typeof name !== "string" && name.kind === "well-known-symbol") {
+    return ["well-known-symbol", name.name];
+  }
+  const text = typeof name === "string"
+    ? name
+    : name.kind === "number-literal"
+      ? String(name.value)
+      : name.text;
+  return ["property-key", text];
 }
 
 function validateProviderSignatureList(
@@ -1005,13 +1234,11 @@ function validateProviderTypeExpression(
         validateProviderTypeExpression(argument, `${path}.typeArguments[${index}]`, collector);
       }
       return;
-    case "target-named":
-      requireNonEmptyString(type.target, `${path}.target`, collector);
-      requireNonEmptyString(type.id, `${path}.id`, collector);
+    case "source-global":
+      requireNonEmptyString(type.name, `${path}.name`, collector);
       for (const [index, argument] of (type.typeArguments ?? []).entries()) {
         validateProviderTypeExpression(argument, `${path}.typeArguments[${index}]`, collector);
       }
-      validateOptionalProviderTypeExpression(type.sourceShape, `${path}.sourceShape`, collector);
       return;
     case "array":
       validateProviderTypeExpression(type.elementType, `${path}.elementType`, collector);
@@ -1040,13 +1267,10 @@ function validateProviderTypeExpression(
       }
       validateProviderTypeExpression(type.returnType, `${path}.returnType`, collector);
       return;
-    case "opaque":
-      requireNonEmptyString(type.id, `${path}.id`, collector);
-      validateOptionalProviderTypeExpression(type.sourceShape, `${path}.sourceShape`, collector);
-      return;
     case "any":
     case "unknown":
     case "void":
+    case "undefined":
     case "never":
     case "boolean":
     case "string":
@@ -1157,23 +1381,6 @@ function validateDotnetTargetIdentity(
     if (actualAssemblyName !== expectedAssemblyName) {
       collector.add(targetPath, "Assembly-qualified target identity must agree with the assembly reference name.", targetId);
     }
-  }
-}
-
-function validateProviderTargetIdentity(
-  identity: TargetIdentity | undefined,
-  path: string,
-  collector: ContractCollector,
-): void {
-  if (identity === undefined) {
-    collector.add(path, ".NET provider declarations must carry finalized targetIdentity facts.");
-    return;
-  }
-  requireNonEmptyString(identity.target, `${path}.target`, collector);
-  requireNonEmptyString(identity.id, `${path}.id`, collector);
-  requireOptionalNonEmptyString(identity.displayName, `${path}.displayName`, collector);
-  if (identity.target !== "csharp") {
-    collector.add(`${path}.target`, ".NET provider targetIdentity facts must target csharp.", identity.target);
   }
 }
 

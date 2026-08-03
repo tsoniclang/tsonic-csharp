@@ -2,6 +2,18 @@ export const dotnetPackageName = "@tsonic/dotnet";
 export const dotnetModulePrefix = `${dotnetPackageName}/`;
 export const dotnetModuleExtension = ".js";
 
+export interface DotnetModuleSpecifierPolicy {
+  readonly packageName: string;
+  readonly modulePrefix: string;
+}
+
+export interface DotnetAssemblySourcePackage {
+  readonly assemblyName: string;
+  readonly packageName: string;
+}
+
+export const dotnetModuleSpecifierPolicy = createDotnetModuleSpecifierPolicy(dotnetPackageName);
+
 export interface DotnetModuleSpecifier {
   readonly moduleSpecifier: string;
   readonly namespaceName: string;
@@ -14,11 +26,41 @@ export interface DotnetExternAliasSpecifier {
   readonly assemblyName: string;
 }
 
-export function parseDotnetModuleSpecifier(specifier: string): DotnetModuleSpecifier | undefined {
-  if (!specifier.startsWith(dotnetModulePrefix) || !specifier.endsWith(dotnetModuleExtension)) {
+export function createDotnetModuleSpecifierPolicy(packageName: string): DotnetModuleSpecifierPolicy {
+  if (!isPackageName(packageName)) {
+    throw new Error(`Invalid .NET provider source package '${packageName}'.`);
+  }
+  return Object.freeze({
+    packageName,
+    modulePrefix: `${packageName}/`,
+  });
+}
+
+export function normalizeDotnetAssemblySourcePackages(
+  values: readonly DotnetAssemblySourcePackage[] = [],
+): readonly DotnetAssemblySourcePackage[] {
+  const byAssemblyName = new Map<string, DotnetAssemblySourcePackage>();
+  for (const value of values) {
+    if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/u.test(value.assemblyName)) {
+      throw new Error(`Invalid .NET provider source assembly '${value.assemblyName}'.`);
+    }
+    createDotnetModuleSpecifierPolicy(value.packageName);
+    if (byAssemblyName.has(value.assemblyName)) {
+      throw new Error(`Duplicate .NET provider source assembly '${value.assemblyName}'.`);
+    }
+    byAssemblyName.set(value.assemblyName, Object.freeze({ ...value }));
+  }
+  return Object.freeze([...byAssemblyName.values()].sort((left, right) => left.assemblyName.localeCompare(right.assemblyName)));
+}
+
+export function parseDotnetModuleSpecifier(
+  specifier: string,
+  policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
+): DotnetModuleSpecifier | undefined {
+  if (!specifier.startsWith(policy.modulePrefix) || !specifier.endsWith(dotnetModuleExtension)) {
     return undefined;
   }
-  const subpath = specifier.slice(dotnetModulePrefix.length, -dotnetModuleExtension.length);
+  const subpath = specifier.slice(policy.modulePrefix.length, -dotnetModuleExtension.length);
   if (subpath.length === 0 || subpath.includes("..") || subpath.startsWith("/") || subpath.endsWith("/")) {
     return undefined;
   }
@@ -41,11 +83,18 @@ export function parseDotnetModuleSpecifier(specifier: string): DotnetModuleSpeci
   };
 }
 
-export function createDotnetModuleSpecifier(namespaceName: string): string {
+export function createDotnetModuleSpecifier(
+  namespaceName: string,
+  policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
+): string {
   if (namespaceName.length === 0 || namespaceName.includes("/") || namespaceName.includes("..")) {
     throw new Error(`Invalid .NET namespace '${namespaceName}'.`);
   }
-  return `${dotnetModulePrefix}${namespaceName}${dotnetModuleExtension}`;
+  return `${policy.modulePrefix}${namespaceName}${dotnetModuleExtension}`;
+}
+
+function isPackageName(value: string): boolean {
+  return /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*)$/u.test(value);
 }
 
 function parseDotnetAliasSubpath(

@@ -1,13 +1,11 @@
 import {
-  createSourceSemanticsExtension,
-  ExtensionLifecycleEvent,
+  sourceSemanticsExtensionId,
 } from "@tsonic/tsts";
 import type {
   AstReader,
   CompilerExtension,
   ExtensionEvidence,
   Node,
-  SourceFileBoundLifecycleRequest,
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
@@ -27,31 +25,73 @@ import {
   createCsharpSourceVirtualModulesProvider,
 } from "./source-virtual-modules.js";
 import {
-  recordCsharpAttributeBuilderFacts,
-} from "./attribute-builder-facts.js";
+  createDotnetReflectionTypeDataProvider,
+  createDotnetSourceDeclarationProviderSet,
+  dotnetModuleSpecifierPolicy,
+} from "../../providers/dotnet/index.js";
+import {
+  readCsharpReflectionReferencePaths,
+  readCsharpTargetFramework,
+  validateCsharpTargetOptions,
+} from "../../options/csharp-target-options.js";
+import {
+  collectCsharpCapabilityContributions,
+  createCapabilityDotnetProviders,
+} from "../../provider/contributions.js";
 
-export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
-  const sourceSemantics = createSourceSemanticsExtension({
+export function createCsharpSourceSemanticsExtension(context: TargetProviderContext): CompilerExtension {
+  validateCsharpTargetOptions(context.target);
+  const references = readCsharpReflectionReferencePaths(context.target, context.projectDirectory);
+  const targetFramework = readCsharpTargetFramework(context.target);
+  const dotnetProvider = createDotnetReflectionTypeDataProvider({
+    references,
+    targetFramework,
+  });
+  const capabilityProviders = createCapabilityDotnetProviders(
+    context,
+    collectCsharpCapabilityContributions(context),
+  );
+  const sourceDeclarationProviders = createDotnetSourceDeclarationProviderSet([
+    {
+      provider: dotnetProvider,
+      moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
+      references,
+      targetFramework,
+    },
+    ...capabilityProviders.map((capabilityProvider) => ({
+      provider: capabilityProvider.provider,
+      moduleSpecifierPolicy: capabilityProvider.moduleSpecifierPolicy,
+      targetFramework: capabilityProvider.targetFramework,
+    })),
+  ]);
+  return {
     identity: {
       id: csharpSourceSemanticsExtensionId,
       version: csharpProviderVersion,
-      capabilityNamespace: "tsonic.csharp.source",
     },
-    modules: csharpSourceSemanticsModules(),
-  });
-  return {
-    ...sourceSemantics,
     dependencies: {
-      dependsOn: [tsonicCoreSourceExtensionId],
-      runsAfter: [tsonicCoreSourceExtensionId],
+      dependsOn: [sourceSemanticsExtensionId, tsonicCoreSourceExtensionId],
+      runsAfter: [sourceSemanticsExtensionId, tsonicCoreSourceExtensionId],
     },
     initialize(extensionContext): void {
-      extensionContext.registerTargetBindingProvider(createCsharpSourceVirtualModulesProvider());
-      sourceSemantics.initialize?.(extensionContext);
-      extensionContext.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext): void => {
-        recordUnsupportedCsharpLangReExportDiagnostics(request, lifecycleContext.compiler.ast, lifecycleContext.host.diagnostics);
-        recordCsharpAttributeBuilderFacts(request, lifecycleContext.compiler.ast, lifecycleContext.host.facts);
-      });
+      extensionContext.registerSourceDeclarationProvider(createCsharpSourceVirtualModulesProvider());
+      for (const sourceDeclarationProvider of sourceDeclarationProviders) {
+        extensionContext.registerSourceDeclarationProvider(
+          sourceDeclarationProvider,
+        );
+      }
+    },
+    analyzeSource(context): void {
+      for (const sourceFile of context.source.getSourceFiles()) {
+        if (sourceFile === undefined || context.source.ast.getFileName(sourceFile).endsWith(".d.ts")) {
+          continue;
+        }
+        recordUnsupportedCsharpLangReExportDiagnostics(
+          sourceFile,
+          context.source.ast,
+          context.diagnostics,
+        );
+      }
     },
   };
 }
@@ -83,14 +123,10 @@ type DiagnosticSink = {
 };
 
 function recordUnsupportedCsharpLangReExportDiagnostics(
-  request: SourceFileBoundLifecycleRequest,
+  sourceFile: Node,
   ast: AstReader,
   diagnostics: DiagnosticSink,
 ): void {
-  const sourceFile = request.sourceFile as Node | undefined;
-  if (sourceFile === undefined) {
-    return;
-  }
   let exportDeclarationIndex = 0;
   for (const statement of ast.statements(sourceFile)) {
     if (statement === undefined || !ast.is.IsExportDeclaration(statement)) {
@@ -136,10 +172,11 @@ function exportedCsharpLangAliasNames(exportDeclaration: Node, ast: AstReader): 
   }
   const exportedNames: string[] = [];
   for (const specifier of ast.elements(exportClause)) {
-    if (specifier === undefined) {
+    if (specifier === undefined || !ast.is.IsExportSpecifier(specifier)) {
       continue;
     }
-    const exportNameNode = (specifier as { readonly PropertyName?: Node }).PropertyName ?? ast.name(specifier);
+    const exportNameNode = ast.as.AsExportSpecifier(specifier)?.PropertyName ??
+      ast.name(specifier);
     const exportName = exportNameNode === undefined ? undefined : ast.text(exportNameNode);
     if (exportName !== undefined && csharpLangExportNames.has(exportName)) {
       exportedNames.push(exportName);

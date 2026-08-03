@@ -1,6 +1,6 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsClassDeclaration,
-  AsExpressionWithTypeArguments,
   AsFunctionDeclaration,
   AsInterfaceDeclaration,
   AsPropertySignatureDeclaration,
@@ -9,7 +9,9 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpClassDeclaration,
   CsharpMethodDeclaration,
@@ -24,10 +26,38 @@ import { planIdentifierName } from "./names.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
 import { planTypeParameters } from "./type-parameters.js";
-import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./declaration-return-types.js";
+import {
+  getAsyncReturnExpressionExpectedType,
+  getDeclarationReturnTargetType,
+  getExplicitReturnType,
+  reconcileInferredReturnTargetContract,
+} from "./declaration-return-types.js";
 import {
   planClassMembers,
 } from "./declaration-class-members.js";
+import {
+  csharpJsonValueInterfaceType,
+  objectShapeRequiresJsonSerialization,
+  renderJsonSerializableObjectShapeMethod,
+} from "./json-object-shapes.js";
+import {
+  getCsharpObjectShapeFactForNode,
+} from "./csharp-fact-queries.js";
+import {
+  registerSourceObjectShape,
+} from "./object-shapes.js";
+import {
+  planImplicitForwardingConstructors,
+} from "./project-type-constructors.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import {
+  publishCsharpSourceCallableContract,
+} from "./source-callable-contracts.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -35,14 +65,26 @@ export { planInterfaceDeclaration } from "./declaration-interfaces.js";
 export function planClassDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "class declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
-  const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
-  const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
+  const heritage = planClassHeritage(node, input, diagnostics);
+  const autoPropertyNames = getImplementedInterfacePropertyNames(node, input);
+  const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  if (objectShape !== undefined) {
+    registerSourceObjectShape(input, objectShape, diagnostics, node);
+  }
+  const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
+  const implicitConstructors = planImplicitForwardingConstructors(
+    node,
+    className,
+    input,
+    diagnostics,
+  );
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -50,37 +92,48 @@ export function planClassDeclaration(
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
-    ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
-    members: planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics),
+    ...(heritage.interfaces.length === 0 && !jsonSerializable
+      ? {}
+      : { interfaces: jsonSerializable ? [...heritage.interfaces, csharpJsonValueInterfaceType()] : heritage.interfaces }),
+    members: jsonSerializable && objectShape !== undefined
+      ? [
+          ...implicitConstructors,
+          ...members,
+          renderJsonSerializableObjectShapeMethod(objectShape),
+        ]
+      : [...implicitConstructors, ...members],
   };
 }
 
 function getImplementedInterfacePropertyNames(
   classDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  for (const heritageType of input.ast.implementsHeritageElements(classDeclaration)) {
-    if (heritageType !== undefined) {
-      collectImplementedInterfacePropertyNames(heritageType, sourceFile, input, names, new Set<Node>());
+  const heritage = input.navigation.declaredHeritage(classDeclaration);
+  if (heritage.kind !== "resolved") {
+    return names;
+  }
+  for (const edge of heritage.edges) {
+    if (edge.kind === "implements") {
+      collectImplementedInterfacePropertyNames(
+        edge.target.declaration,
+        input,
+        names,
+        new Set<Node>(),
+      );
     }
   }
   return names;
 }
 
 function collectImplementedInterfacePropertyNames(
-  heritageType: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  declaration: Node,
+  input: CsharpTranslationContext,
   names: Set<string>,
   seen: Set<Node>,
 ): void {
-  const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-  const reference = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile });
-  const declaration = reference?.declaration ??
-    input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
-  if (declaration === undefined || seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
+  if (seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
     return;
   }
   seen.add(declaration);
@@ -98,10 +151,18 @@ function collectImplementedInterfacePropertyNames(
       names.add(name);
     }
   }
-  const declarationSourceFile = reference?.sourceFile ?? input.ast.getSourceFile(declaration) ?? sourceFile;
-  for (const baseType of input.ast.extendsHeritageElements(declaration)) {
-    if (baseType !== undefined) {
-      collectImplementedInterfacePropertyNames(baseType, declarationSourceFile, input, names, seen);
+  const heritage = input.navigation.declaredHeritage(declaration);
+  if (heritage.kind !== "resolved") {
+    return;
+  }
+  for (const edge of heritage.edges) {
+    if (edge.kind === "extends") {
+      collectImplementedInterfacePropertyNames(
+        edge.target.declaration,
+        input,
+        names,
+        seen,
+      );
     }
   }
 }
@@ -109,27 +170,75 @@ function collectImplementedInterfacePropertyNames(
 export function planFunctionDeclaration(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
-  state.currentReturnType = returnType;
+  const declaredReturnTargetType = getDeclarationReturnTargetType(
+    declaration.Type,
+    node,
+    sourceFile,
+    input,
+  );
+  const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
+  const async = isAsyncNode(input.ast, node);
+  state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
-  if (isAsyncNode(node)) {
+  if (declaration.Type === undefined && !async) {
+    state.observedReturnTargetTypes = [];
+  }
+  if (async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
     state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
+  const bodyStatements = planBlockStatements(
+    declaration.Body,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+  );
+  const reconciledReturn = declaredReturnTargetType === undefined ||
+      declaration.Type !== undefined || async
+    ? declaredReturnTargetType === undefined
+      ? undefined
+      : { kind: "resolved" as const, type: declaredReturnTargetType }
+    : reconcileInferredReturnTargetContract(
+        input,
+        declaredReturnTargetType,
+        state.observedReturnTargetTypes ?? [],
+        state.returnTargetObservationIncomplete === true,
+      );
+  if (reconciledReturn?.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      reconciledReturn.reason,
+    ));
+  }
+  const effectiveReturnTargetType = reconciledReturn?.kind === "resolved"
+    ? reconciledReturn.type
+    : declaredReturnTargetType;
+  const returnType = effectiveReturnTargetType === undefined
+    ? declaredReturnType
+    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType) ??
+      declaredReturnType;
+  publishCsharpSourceCallableContract(
+    node,
+    parameters.targetParameters,
+    effectiveReturnTargetType,
+    input,
+    diagnostics,
+  );
   return {
     kind: "MethodDeclaration",
     name,
-    modifiers: isAsyncNode(node) ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: async ? ["public", "static", "async"] : ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,
@@ -138,7 +247,7 @@ export function planFunctionDeclaration(
       kind: "Block",
       statements: [
         ...parameters.prelude,
-        ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+        ...bodyStatements,
       ],
     },
   };

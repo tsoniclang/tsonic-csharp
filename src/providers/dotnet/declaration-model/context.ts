@@ -43,14 +43,32 @@ export function dotnetProviderRefToTypeDeclaration(
   context: DotnetDeclarationContext,
 ): DotnetTypeDeclaration | undefined {
   if (baseType.moduleSpecifier === context.moduleSpecifier) {
-    return context.typesBySourceName.get(baseType.exportName);
+    return selectDotnetTypeDeclarationForProviderRef(
+      [...context.typesBySourceName.values()],
+      baseType,
+    );
   }
   const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.exportName]);
   if (module === undefined) {
     return undefined;
   }
-  return module.exports.find((declaration): declaration is DotnetTypeDeclaration =>
-    declaration.kind === "type" && declaration.sourceName === baseType.exportName
+  return selectDotnetTypeDeclarationForProviderRef(
+    module.exports.filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type"),
+    baseType,
+  );
+}
+
+function selectDotnetTypeDeclarationForProviderRef(
+  declarations: readonly DotnetTypeDeclaration[],
+  providerRef: Extract<ProviderTypeExpression, { readonly kind: "provider-ref" }>,
+): DotnetTypeDeclaration | undefined {
+  const typeArgumentCount = providerRef.typeArguments?.length ?? 0;
+  return declarations.find((declaration) =>
+    declaration.sourceName === providerRef.exportName &&
+    declaration.sourceTypeFamily === undefined
+  ) ?? declarations.find((declaration) =>
+    declaration.sourceTypeFamily?.exportName === providerRef.exportName &&
+    declaration.sourceTypeFamily.typeArgumentCount === typeArgumentCount
   );
 }
 

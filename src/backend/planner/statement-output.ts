@@ -1,8 +1,9 @@
-import type { TargetTypeRef } from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   isCsharpThrowableTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  isCsharpVoidTargetType,
+} from "../../policy/types/index.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -22,12 +23,16 @@ export function isVoidCsharpType(type: CsharpTypeNode): boolean {
 export function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
   return isValidCsharpExpressionStatement(expression)
     ? expression
-    : {
-        kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: "_" },
-        operatorToken: { kind: "EqualsToken" },
-        right: expression,
-      };
+    : discardAssignment(expression);
+}
+
+export function planExplicitlyDiscardedExpression(
+  expression: CsharpExpression,
+  targetType: TargetTypeRef,
+): CsharpExpression {
+  return isCsharpVoidTargetType(targetType)
+    ? expression
+    : discardAssignment(expression);
 }
 
 function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
@@ -44,4 +49,13 @@ function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean
     default:
       return false;
   }
+}
+
+function discardAssignment(expression: CsharpExpression): CsharpExpression {
+  return {
+    kind: "AssignmentExpression",
+    left: { kind: "IdentifierName", name: "_" },
+    operatorToken: { kind: "EqualsToken" },
+    right: expression,
+  };
 }

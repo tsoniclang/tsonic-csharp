@@ -52,10 +52,6 @@ export function augmentDotnetModuleWithNativeArray(
   };
 }
 
-export function isDotnetNativeArrayCreateMemberId(memberId: string): boolean {
-  return memberId === dotnetNativeArrayCreateMemberId;
-}
-
 function shouldAugmentNativeArray(options: DotnetNativeArrayAugmentationOptions): boolean {
   return options.broadImport === true
     || options.requestedExports?.includes("Array") === true
@@ -92,6 +88,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
         signatures: [
           {
             id: dotnetNativeArrayCreateMemberId,
+            sourceId: dotnetNativeArrayCreateMemberId,
             typeParameters: [{ name: "T" }],
             parameters: [
               {
@@ -102,6 +99,10 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
             ],
             returnType: nativeArraySourceType,
             targetReturnType: nativeArrayType,
+            targetInvocation: {
+              kind: "array-creation",
+              lengthParameterIndex: 0,
+            },
           },
         ],
       },
@@ -126,6 +127,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
         signatures: [
           {
             id: dotnetNativeArrayIndexerMemberId,
+            sourceId: dotnetNativeArrayIndexerMemberId,
             parameters: [
               {
                 name: "index",

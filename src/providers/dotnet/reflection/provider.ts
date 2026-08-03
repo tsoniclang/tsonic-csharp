@@ -1,14 +1,26 @@
 import { performance } from "node:perf_hooks";
 import type {
+  ExtensionDiagnostic,
   ProviderDeclarationModel,
-  TargetBindingFact,
 } from "@tsonic/tsts";
+import type {
+  TargetBindingFact,
+} from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
 } from "../model.js";
 import {
+  dotnetModuleSpecifierPolicy,
+  normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
+import type {
+  DotnetAssemblySourcePackage,
+  DotnetModuleSpecifierPolicy,
+} from "../module-specifier.js";
+import type {
+  DotnetProviderIdentity,
+} from "../model.js";
 import {
   validateDotnetModuleModelContract,
 } from "../model-contract.js";
@@ -21,6 +33,9 @@ import type {
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
+} from "../provider.js";
+import {
+  resolveDotnetProviderDeclarationProjection,
 } from "../provider.js";
 import {
   createDotnetProviderCache,
@@ -61,8 +76,17 @@ import {
   validateModuleSatisfiesRequest,
 } from "./module-request-validation.js";
 import {
+  missingDotnetSameModuleProviderRefExports,
+} from "../provider-slices.js";
+import {
   createDotnetTargetBindingIndex,
 } from "./target-binding-index.js";
+import {
+  dotnetProviderTargetRelationTemplates,
+} from "../target-relations.js";
+import type {
+  DotnetProviderTargetRelationTemplate,
+} from "../target-relations.js";
 import {
   createDotnetReflectionCacheRequest,
   moduleMemoryCacheKey,
@@ -74,6 +98,9 @@ import {
 } from "./provider-identity.js";
 
 export interface DotnetReflectionTypeDataProviderOptions {
+  readonly providerIdentity?: DotnetProviderIdentity;
+  readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
+  readonly assemblySourcePackages?: readonly DotnetAssemblySourcePackage[];
   readonly toolProjectPath?: string;
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
@@ -88,12 +115,31 @@ export interface DotnetReflectionTypeDataProviderOptions {
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
   findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined;
   findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
+  resolveTargetRelations(
+    request: DotnetProviderTargetRelationRequest,
+  ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic;
   getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot;
+}
+
+export interface DotnetProviderTargetRelationRequest {
+  readonly moduleSpecifier: string;
+  readonly providerModuleId: string;
+  readonly artifactFileName: string;
+  readonly exportName: string;
 }
 
 export function createDotnetReflectionTypeDataProvider(
   options: DotnetReflectionTypeDataProviderOptions = {},
 ): DotnetReflectionTypeDataProvider {
+  const providerIdentity = options.providerIdentity ?? dotnetReflectionProviderIdentity;
+  const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
+  const assemblySourcePackages = normalizeDotnetAssemblySourcePackages(options.assemblySourcePackages);
+  const reflectionOptions = {
+    ...options,
+    providerIdentity,
+    moduleSpecifierPolicy,
+    assemblySourcePackages,
+  };
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
   const targetBindingIndex = createDotnetTargetBindingIndex();
@@ -114,7 +160,7 @@ export function createDotnetReflectionTypeDataProvider(
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
     telemetry.request("module");
     telemetry.moduleRequest(context);
-    const parsed = parseDotnetModuleSpecifier(specifier);
+    const parsed = parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy);
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
     }
@@ -127,7 +173,7 @@ export function createDotnetReflectionTypeDataProvider(
     const existing = modules.get(memoryKey);
     if (existing !== undefined) {
       telemetry.memoryCacheHit();
-      return existing;
+      return completeSameModuleProviderRefClosure(specifier, effectiveContext, existing);
     }
     const brokerModule = providerBroker?.readModule(cacheRequest);
     if (brokerModule !== undefined) {
@@ -145,7 +191,7 @@ export function createDotnetReflectionTypeDataProvider(
       }
       rememberModule(memoryKey, brokerModule);
       telemetry.memoryCacheHit();
-      return brokerModule;
+      return completeSameModuleProviderRefClosure(specifier, effectiveContext, brokerModule);
     }
     const existingDiagnostic = diagnostics.get(memoryKey);
     if (existingDiagnostic !== undefined) {
@@ -159,14 +205,40 @@ export function createDotnetReflectionTypeDataProvider(
       return brokerDiagnostic;
     }
     telemetry.memoryCacheMiss();
-    return loadSingleModule(cacheRequest, effectiveContext);
+    return completeSameModuleProviderRefClosure(specifier, effectiveContext, loadSingleModule(cacheRequest, effectiveContext));
+  }
+
+  function completeSameModuleProviderRefClosure(
+    specifier: string,
+    moduleContext: DotnetProviderModuleContext,
+    moduleResult: DotnetProviderModuleResult,
+  ): DotnetProviderModuleResult {
+    if (isDotnetProviderDiagnostic(moduleResult) || moduleContext.broadImport === true || moduleContext.requestedExports === undefined) {
+      return moduleResult;
+    }
+    const currentRequestedExports = moduleContext.requestedExports;
+    const missingExports = missingDotnetSameModuleProviderRefExports(moduleResult, currentRequestedExports);
+    if (missingExports.length === 0) {
+      return moduleResult;
+    }
+    const requestedExports = sortedUnique([
+      ...currentRequestedExports,
+      ...missingExports,
+    ]);
+    if (missingExports.every((exportName) => currentRequestedExports.includes(exportName))) {
+      return diagnostic("DOTNET_REFLECTION_PROVIDER_REF_CLOSURE_MISSING", ".NET reflection provider emitted same-module provider references that it could not prove as source exports.", {
+        specifier,
+        missingExports,
+      });
+    }
+    return loadModule(specifier, { ...moduleContext, requestedExports });
   }
 
   function loadSingleModule(
     cacheRequest: DotnetProviderCacheRequest,
     context: DotnetProviderModuleContext,
   ): DotnetProviderModuleResult {
-    const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, options);
+    const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, reflectionOptions);
     if (targetFrameworkDiagnostic !== undefined) {
       return targetFrameworkDiagnostic;
     }
@@ -175,19 +247,16 @@ export function createDotnetReflectionTypeDataProvider(
     if (cached !== undefined) {
       const module = augmentDotnetModuleWithNativeArray(cached, context);
       const cachedDiagnostic = validateModuleSatisfiesRequest(module, cacheRequest);
-      if (cachedDiagnostic !== undefined) {
-        diagnostics.set(memoryKey, cachedDiagnostic);
-        providerBroker?.writeDiagnostic(cacheRequest, cachedDiagnostic);
-        return cachedDiagnostic;
+      const contractDiagnostic = validateDotnetModuleModelContract(module);
+      if (
+        cachedDiagnostic === undefined &&
+        contractDiagnostic === undefined
+      ) {
+        rememberModule(memoryKey, module);
+        providerBroker?.writeModule(cacheRequest, module);
+        telemetry.modelBytes(JSON.stringify(cached).length);
+        return module;
       }
-      const contractDiagnostic = validateLoadedModuleContract(memoryKey, cacheRequest, module);
-      if (contractDiagnostic !== undefined) {
-        return contractDiagnostic;
-      }
-      rememberModule(memoryKey, module);
-      providerBroker?.writeModule(cacheRequest, module);
-      telemetry.modelBytes(JSON.stringify(cached).length);
-      return module;
     }
     const args = [
       "--namespace",
@@ -206,7 +275,7 @@ export function createDotnetReflectionTypeDataProvider(
         args.push("--metadata-name", metadataName);
       }
     }
-    pushDotnetReflectionReferenceArgs(args, context, options);
+    pushDotnetReflectionReferenceArgs(args, context, reflectionOptions);
     const result = toolRunner.run(args);
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
@@ -256,15 +325,19 @@ export function createDotnetReflectionTypeDataProvider(
       specifier,
       namespaceName,
       context,
-      options,
+      options: reflectionOptions,
       toolIdentity: toolRunner.identity,
     });
   }
 
-  return {
-    identity: dotnetReflectionProviderIdentity,
+  function sortedUnique(values: readonly string[]): readonly string[] {
+    return [...new Set(values)].sort();
+  }
+
+  const typeDataProvider: DotnetReflectionTypeDataProvider = {
+    identity: providerIdentity,
     ownsModule(specifier: string): DotnetProviderOwnership {
-      return parseDotnetModuleSpecifier(specifier) === undefined ? { kind: "unowned" } : { kind: "owned" };
+      return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },
     getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
       return loadModule(specifier, context);
@@ -286,7 +359,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      const moduleSpecifier = dotnetModuleSpecifierForTargetId(targetId);
+      const moduleSpecifier = dotnetModuleSpecifierForTargetId(targetId, moduleSpecifierPolicy);
       if (moduleSpecifier === undefined) {
         return undefined;
       }
@@ -302,7 +375,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName);
+      const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName, moduleSpecifierPolicy);
       if (moduleSpecifier === undefined) {
         return undefined;
       }
@@ -312,10 +385,36 @@ export function createDotnetReflectionTypeDataProvider(
       }
       return targetBindingIndex.getUniqueByMetadataName(metadataName);
     },
+    resolveTargetRelations(
+      request: DotnetProviderTargetRelationRequest,
+    ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic {
+      const model = resolveDotnetProviderDeclarationProjection(
+        {
+          provider: typeDataProvider,
+          moduleSpecifierPolicy,
+          references: options.references,
+          targetFramework: options.targetFramework,
+        },
+        providerIdentity.id,
+        {
+          kind: "virtual",
+          moduleSpecifier: request.moduleSpecifier,
+          virtualFileName: request.artifactFileName,
+          providerModuleId: request.providerModuleId,
+        },
+        { requestedExports: [request.exportName] },
+        moduleSpecifierPolicy,
+      );
+      if ("extensionId" in model) {
+        return model;
+      }
+      return dotnetProviderTargetRelationTemplates(model, targetBindingIndex);
+    },
     getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot {
       return telemetry.snapshot();
     },
   };
+  return typeDataProvider;
 
   function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
     modules.set(memoryKey, module);

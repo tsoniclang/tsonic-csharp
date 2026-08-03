@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsParameterDeclaration,
   HasSourceKind,
@@ -6,11 +7,18 @@ import {
   KindObjectBindingPattern,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
+import type {
+  CsharpSourceCallableParameterContract,
+  CsharpTargetParameter,
+  TargetTypeRef,
+} from "../../policy/types/index.js";
 import {
-  csharpArrayBoundaryFactKey,
-} from "../../source/csharp-facts.js";
+  csharpNullableTargetType,
+} from "../../policy/types/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
@@ -19,10 +27,11 @@ import {
 } from "./bindings.js";
 import { planAttributesForSubject } from "./attributes.js";
 import type { DestructuringPlannerState } from "./bindings.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
+  getCsharpTypeForNode,
+  invalidCsharpType,
+  nullableCsharpType,
+} from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -30,12 +39,13 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
   readonly prelude: readonly CsharpStatement[];
+  readonly targetParameters?: readonly CsharpSourceCallableParameterContract[];
 }
 
 export function planParameters(
   parameterNodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpParameter[] {
   return planParametersWithPrelude(parameterNodes, sourceFile, input, diagnostics).parameters;
@@ -44,48 +54,58 @@ export function planParameters(
 export function planParametersWithPrelude(
   parameterNodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): PlannedParameterList {
   const parameters: CsharpParameter[] = [];
+  const targetParameters: CsharpSourceCallableParameterContract[] = [];
   const prelude: CsharpStatement[] = [];
+  let targetParametersClosed = true;
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(parameterNode)!;
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
+    const questionToken = input.ast.questionToken(parameterNode);
+    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, parameterNode!, "parameter declaration", diagnostics);
     if (HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
-      const type = getArrayBoundaryParameterType(parameterNode, parameter.name, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
-        getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
+      const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics);
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
       }
-      const sourceName = declareCsharpLocalBindingName(parameter.name, sourceFile, input, diagnostics, state, "Parameter name", "arg");
-      const copyIn = parameter.DotDotDotToken === undefined
-        ? planParameterCopyIn(parameterNode!, parameter.name, typeSubject, sourceName, input, diagnostics, state)
-        : undefined;
+      const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
       parameters.push({
-        name: copyIn?.parameterName ?? sourceName,
+        name: sourceName,
         type,
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
-      if (copyIn !== undefined) {
-        prelude.push(copyIn.statement);
+      const targetParameter = getTargetParameter(
+        parameterNode!,
+        sourceName,
+        typeSubject,
+        questionToken,
+        parameter.DotDotDotToken !== undefined,
+        defaultValue !== undefined,
+        sourceFile,
+        input,
+      );
+      if (targetParameter === undefined) {
+        targetParametersClosed = false;
+      } else {
+        targetParameters.push(targetParameter);
       }
       continue;
     }
-    const bindingName = parameter.name;
+      const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
-      const type = getArrayBoundaryParameterType(parameterNode, bindingName, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
-        getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
+      const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
         diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Destructured parameter defaults require target object-shape lowering before C# emission."));
@@ -99,119 +119,116 @@ export function planParametersWithPrelude(
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
+      const targetParameter = getTargetParameter(
+        parameterNode!,
+        parameterName,
+        typeSubject,
+        questionToken,
+        parameter.DotDotDotToken !== undefined,
+        defaultValue !== undefined,
+        sourceFile,
+        input,
+      );
+      if (targetParameter === undefined) {
+        targetParametersClosed = false;
+      } else {
+        targetParameters.push(targetParameter);
+      }
       prelude.push(...planParameterBindingPrelude(bindingName, parameterName, sourceFile, input, diagnostics, state));
       continue;
     }
     const typeSubject = getParameterTypeSubject(parameter);
-    const type = getArrayBoundaryParameterType(parameterNode, parameter.name, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
-      getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
-    const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
+    const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics);
+    const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
     } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
     }
     diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode!, "Parameter name is outside the current C# planning surface."));
+    const targetName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
     parameters.push({
-      name: declareCsharpLocalBindingName(parameter.name, sourceFile, input, diagnostics, state, "Parameter name", "arg"),
+      name: targetName,
       type,
       attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
       ...(defaultValue === undefined ? {} : { defaultValue }),
     });
+    const targetParameter = getTargetParameter(
+      parameterNode!,
+      targetName,
+      typeSubject,
+      questionToken,
+      parameter.DotDotDotToken !== undefined,
+      defaultValue !== undefined,
+      sourceFile,
+      input,
+    );
+    if (targetParameter === undefined) {
+      targetParametersClosed = false;
+    } else {
+      targetParameters.push(targetParameter);
+    }
   }
-  return { parameters, prelude };
+  return {
+    parameters,
+    prelude,
+    ...(targetParametersClosed && targetParameters.length === parameters.length
+      ? { targetParameters: Object.freeze(targetParameters) }
+      : {}),
+  };
 }
 
-function planParameterCopyIn(
-  parameterNode: Node,
-  nameNode: Node | undefined,
+function getTargetParameter(
+  sourceParameter: Node,
+  name: string,
   typeSubject: Node | undefined,
-  sourceName: string,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): { readonly parameterName: string; readonly statement: CsharpStatement } | undefined {
-  const boundary = input.facts.getFact(typeSubject, csharpArrayBoundaryFactKey) ??
-    input.facts.getFact(nameNode, csharpArrayBoundaryFactKey) ??
-    input.facts.getFact(parameterNode, csharpArrayBoundaryFactKey);
-  if (boundary?.requiresCopyIn !== true) {
+  questionToken: Node | undefined,
+  rest: boolean,
+  hasDefault: boolean,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+): CsharpSourceCallableParameterContract | undefined {
+  const selectedType = input.types.resolveNode(typeSubject, sourceFile);
+  if (selectedType === undefined) {
     return undefined;
   }
-  const carrierType = csharpTypeFromTargetTypeRef(boundary.coreCarrierType);
-  if (carrierType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Array parameter copy-in requires a renderable finalized core carrier type."));
-    return undefined;
-  }
-  const parameterName = allocateSyntheticParameter(state);
-  return {
-    parameterName,
-    statement: {
-      kind: "LocalDeclarationStatement",
-      name: sourceName,
-      type: carrierType,
-      initializer: {
-        kind: "ObjectCreationExpression",
-        type: carrierType,
-        arguments: [{
-          kind: "Argument",
-          expression: { kind: "IdentifierName", name: parameterName },
-        }],
-      },
-    },
-  };
+  const targetType: TargetTypeRef = questionToken === undefined
+    ? selectedType
+    : csharpNullableTargetType(selectedType);
+  const targetParameter: CsharpTargetParameter = Object.freeze({
+    name,
+    type: targetType,
+    passingMode: "by-value",
+    ...(questionToken !== undefined || hasDefault ? { optional: true } : {}),
+    ...(rest ? { paramsArray: true } : {}),
+  });
+  return Object.freeze({
+    sourceParameter,
+    targetParameter,
+  });
 }
 
 function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {
   return parameter.Type ?? parameter.name;
 }
 
-function parameterQuestionToken(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {
-  return (parameter as { readonly QuestionToken?: Node }).QuestionToken;
-}
-
 function getParameterType(
   typeSubject: Node | undefined,
   questionToken: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   errorType?: CsharpTypeNode,
 ): CsharpTypeNode {
   const type = getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics);
-  return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
-    ? type
-    : { kind: "NullableType", inner: type };
-}
-
-function getArrayBoundaryParameterType(
-  parameterNode: Node | undefined,
-  nameNode: Node | undefined,
-  typeSubject: Node | undefined,
-  questionToken: Node | undefined,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const boundary = input.facts.getFact(typeSubject, csharpArrayBoundaryFactKey) ??
-    input.facts.getFact(nameNode, csharpArrayBoundaryFactKey) ??
-    input.facts.getFact(parameterNode, csharpArrayBoundaryFactKey);
-  if (boundary === undefined) {
-    return undefined;
-  }
-  const type = csharpTypeFromTargetTypeRef(boundary.publicType);
-  if (type === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(parameterNode ?? nameNode ?? typeSubject!, "Array parameter boundary requires a renderable finalized public ABI type."));
-    return invalidCsharpType("array parameter public ABI type");
-  }
-  return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
-    ? type
-    : { kind: "NullableType", inner: type };
+  return questionToken === undefined ? type : nullableCsharpType(type);
 }
 
 function planParameterDefaultValue(
   initializer: Node | undefined,
   questionToken: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,

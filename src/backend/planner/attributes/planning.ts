@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsExpressionStatement,
   HasSourceKind,
@@ -13,12 +14,20 @@ import {
   SourceKind,
   isAstNode,
 } from "../source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import {
+  type Node,
+  type SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../roslyn/syntax.js";
 import type {
-  CsharpAttributeApplicationFact,
-} from "../../../source/csharp-facts.js";
+  TsonicAttributeApplicationFact,
+} from "@tsonic/source-core";
+import {
+  tsonicAttributeBuilderFactKey,
+} from "@tsonic/source-core";
 import { expressionToCsharpType } from "../csharp-types.js";
 import { planExpression } from "../expressions.js";
 import {
@@ -37,7 +46,7 @@ import {
 export function planAttributesForSubject(
   subject: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpAttribute[] | undefined {
   const attributeFacts = collectAttributeFactsForSubject(subject, sourceFile, input);
@@ -52,21 +61,27 @@ export function planAttributesForSubject(
 
 export function isErasedAttributeExpressionStatement(
   statement: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   if (!HasSourceKind(input.ast, statement, KindExpressionStatement)) {
     return false;
   }
   const expression = AsExpressionStatement(statement)?.Expression;
-  return input.facts.getAttributeFact(expression) !== undefined;
+  return input.sourceFacts?.getFact(
+    expression,
+    tsonicAttributeBuilderFactKey,
+  ) !== undefined;
 }
 
 function planAttribute(
-  attribute: CsharpAttributeApplicationFact,
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute | undefined {
+  if (!attributeApplicationMemberKindIsValid(attribute, sourceFile, input, diagnostics)) {
+    return undefined;
+  }
   const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
   const arguments_ = planAttributeArguments(attribute, sourceFile, input, diagnostics);
   if (arguments_ === undefined) {
@@ -74,22 +89,46 @@ function planAttribute(
   }
   return {
     ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
-    type: isAstNode(attribute.attributeType)
+    type: isAstNode(input.ast, attribute.attributeType)
       ? expressionToCsharpType(attribute.attributeType, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: arguments_,
   };
 }
 
-function planAttributeArguments(
-  attribute: CsharpAttributeApplicationFact,
+function attributeApplicationMemberKindIsValid(
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): boolean {
+  const memberKind = attribute.applicationMemberKind;
+  if (memberKind === undefined) {
+    return true;
+  }
+  const declaration = resolveAttributeApplication(attribute, sourceFile, input).selectedDeclaration;
+  const kind = SourceKind(input.ast, declaration);
+  const valid = memberKind === "property"
+    ? kind === KindPropertyDeclaration || kind === KindPropertySignature || kind === KindGetAccessor || kind === KindSetAccessor
+    : kind === KindMethodDeclaration || kind === KindMethodSignature || kind === KindFunctionDeclaration;
+  if (!valid) {
+    diagnostics.push(attributeApplicationDiagnostic(
+      attribute,
+      `uses a ${memberKind} selector whose exact selected declaration is ${attributeSubjectDescription(declaration, input)}.`,
+    ));
+  }
+  return valid;
+}
+
+function planAttributeArguments(
+  attribute: TsonicAttributeApplicationFact,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpArgument[] | undefined {
   const arguments_: CsharpArgument[] = [];
   for (const argument of attribute.arguments ?? []) {
-    if (!isAstNode(argument)) {
+    if (!isAstNode(input.ast, argument)) {
       unsupportedAttributeArgument(attribute, diagnostics);
       return undefined;
     }
@@ -103,9 +142,9 @@ function planAttributeArguments(
 }
 
 function planAttributeTargetSpecifier(
-  attribute: CsharpAttributeApplicationFact,
+  attribute: TsonicAttributeApplicationFact,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttributeTargetSpecifier | undefined {
   const specifier = attribute.applicationTargetSpecifier;
@@ -141,7 +180,7 @@ function csharpAttributeTargetSpecifier(specifier: string): CsharpAttributeTarge
 function attributeTargetSpecifierSupportsSubject(
   specifier: CsharpAttributeTargetSpecifier,
   subject: Node | undefined,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   const kind = SourceKind(input.ast, subject);
   switch (specifier) {

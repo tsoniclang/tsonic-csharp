@@ -1,10 +1,15 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpPropertyDeclaration,
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
 import {
+  AsConstructorDeclaration,
+  AsMethodDeclaration,
   KindClassStaticBlockDeclaration,
   KindConstructor,
   KindGetAccessor,
@@ -33,7 +38,7 @@ export function planClassMembers(
   className: string,
   autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeMember[] {
   const planned: CsharpTypeMember[] = [];
@@ -44,13 +49,17 @@ export function planClassMembers(
     }
     switch (SourceKind(input.ast, member)) {
       case KindConstructor:
-        planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+        if (AsConstructorDeclaration(member)?.Body !== undefined) {
+          planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+        }
         break;
       case KindClassStaticBlockDeclaration:
         planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
-        planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        if (AsMethodDeclaration(member)?.Body !== undefined) {
+          planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        }
         break;
       case KindPropertyDeclaration:
         planned.push(planPropertyDeclaration(member, autoPropertyNames, sourceFile, input, diagnostics));

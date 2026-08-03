@@ -2,7 +2,6 @@ import type {
   ProviderExportDeclaration,
   ProviderHeritageDeclaration,
   ProviderMemberDeclaration,
-  TargetIdentity,
 } from "@tsonic/tsts";
 import type {
   DotnetMemberDeclaration,
@@ -11,13 +10,17 @@ import type {
 } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 
-export function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | undefined): ProviderHeritageDeclaration | undefined {
+export function tryDotnetBaseTypeToProviderHeritage(
+  baseType: DotnetTypeRef | undefined,
+  identityPath: string,
+): ProviderHeritageDeclaration | undefined {
   if (baseType === undefined) {
     return undefined;
   }
-  const providerType = tryDotnetTypeRefToProviderType(baseType.kind === "named" && baseType.sourceShape !== undefined
-    ? baseType.sourceShape
-    : baseType);
+  const providerType = tryDotnetTypeRefToProviderType(
+    baseType.kind === "named" && baseType.sourceShape !== undefined ? baseType.sourceShape : baseType,
+    identityPath,
+  );
   if (providerType?.kind !== "provider-ref") {
     return undefined;
   }
@@ -31,10 +34,10 @@ export function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKi
     case "enum":
       return kind;
     case "struct":
-    case "delegate":
       return "class";
+    case "delegate":
     case "opaque":
-      return "opaque";
+      return "type";
   }
 }
 
@@ -51,12 +54,4 @@ export function dotnetMemberKindToProviderKind(kind: DotnetMemberDeclaration["ki
     case "operator":
       throw new Error("C# operators are target-only until source operator semantics select them explicitly.");
   }
-}
-
-export function dotnetTargetIdentity(id: string, displayName: string): TargetIdentity {
-  return {
-    target: "csharp",
-    id,
-    displayName,
-  };
 }

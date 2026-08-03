@@ -8,9 +8,14 @@ import type {
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 import { dotnetMemberKindToProviderKind } from "./conversions.js";
 import {
+  dotnetProviderMemberId,
+  dotnetProviderSourceMemberGroupId,
+} from "../provider-member-identity.js";
+import {
   dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
   mergeProviderSignatures,
+  providerSignatureCallShapeKey,
 } from "./signatures.js";
 
 export function mergeOwnAndBaseProviderMembers(
@@ -26,8 +31,8 @@ export function mergeOwnAndBaseProviderMembers(
   const members = [...baseMembers];
   for (const member of ownMembers) {
     const matchingBaseMembers = baseMembers.filter((baseMember) =>
-      baseMember.name === member.name &&
-      baseMember.static === member.static
+      providerMemberNamesEqual(baseMember, member) &&
+      providerMembersHaveSameStaticness(baseMember, member)
     );
     if (matchingBaseMembers.length === 0) {
       members.push(member);
@@ -46,8 +51,8 @@ export function mergeProviderMemberList(members: readonly ProviderMemberDeclarat
   for (const member of members) {
     const index = merged.findIndex((candidate) =>
       member.kind !== "indexer" &&
-      candidate.name === member.name &&
-      candidate.static === member.static &&
+      providerMemberNamesEqual(candidate, member) &&
+      providerMembersHaveSameStaticness(candidate, member) &&
       candidate.kind === member.kind &&
       candidate.signatures !== undefined &&
       member.signatures !== undefined
@@ -57,7 +62,7 @@ export function mergeProviderMemberList(members: readonly ProviderMemberDeclarat
       continue;
     }
     merged[index] = {
-      ...member,
+      ...merged[index]!,
       signatures: mergeProviderSignatures([
         ...(merged[index]!.signatures ?? []),
         ...(member.signatures ?? []),
@@ -83,13 +88,38 @@ export function dotnetMemberToProviderMember(
   if (member.kind === "indexer" && !isSourceVisibleProviderIndexer(member)) {
     return undefined;
   }
-  const type = member.type === undefined ? undefined : tryDotnetTypeRefToProviderType(member.type);
+  const exactProviderMemberId = dotnetProviderMemberId(member);
+  const providerMemberId = dotnetProviderSourceMemberGroupId(
+    member,
+    declaringType,
+  );
+  if (declaringType.typeKind === "enum" && member.kind === "field") {
+    return {
+      id: providerMemberId,
+      name: member.sourceName,
+      kind: "field",
+    };
+  }
+  const type = member.type === undefined
+    ? undefined
+    : tryDotnetTypeRefToProviderType(
+        member.type,
+        `${exactProviderMemberId}.type`,
+      );
   if (member.type !== undefined && type === undefined) {
     return undefined;
   }
   const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
-  const sourceParameterOptions = { sourceParameterOffset: member.sourceParameterOffset };
-  const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName, sourceParameterOptions);
+  const sourceParameterOptions = {
+    sourceParameterOffset: member.sourceParameterOffset,
+    parentTypeParameterNames: declaringType.typeParameters?.map((parameter) => parameter.name) ?? [],
+  };
+  const providerSignatureIds = dotnetProviderSignatureIdsForMember(
+    member,
+    providerMemberId,
+    memberTargetName,
+    sourceParameterOptions,
+  );
   const signatures = member.signatures
     ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id), sourceParameterOptions))
     .filter((signature): signature is NonNullable<typeof signature> => signature !== undefined);
@@ -97,7 +127,7 @@ export function dotnetMemberToProviderMember(
     return undefined;
   }
   return {
-    id: dotnetProviderMemberId(member),
+    id: providerMemberId,
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.sourceStatic !== undefined || member.static !== undefined ? { static: member.sourceStatic ?? member.static } : {}),
@@ -105,6 +135,99 @@ export function dotnetMemberToProviderMember(
     ...(type !== undefined ? { type } : {}),
     ...(signatures !== undefined ? { signatures: mergeProviderSignatures(signatures) } : {}),
   };
+}
+
+export function dotnetMembersToProviderMembers(
+  members: readonly DotnetMemberDeclaration[],
+  declaringType: DotnetTypeDeclaration,
+  options: {
+    readonly inheritedConcreteMethodCallShapes?: ReadonlyMap<string, ReadonlySet<string>>;
+  } = {},
+): readonly ProviderMemberDeclaration[] {
+  const projections = members
+    .filter((source) =>
+      declaringType.typeKind !== "enum" ||
+      source.sourceProjection !== "extension-method")
+    .map((source) => ({
+      source,
+      declaration: dotnetMemberToProviderMember(source, declaringType),
+    }))
+    .filter((projection): projection is {
+      readonly source: DotnetMemberDeclaration;
+      readonly declaration: ProviderMemberDeclaration;
+    } => projection.declaration !== undefined);
+  const concreteNonMethodIdentities = new Set(
+    projections
+      .filter((projection) =>
+        projection.source.sourceProjection !== "extension-method" &&
+        projection.declaration.kind !== "method")
+      .map((projection) => projection.declaration.id),
+  );
+  const concreteMethodCallShapes = new Map<string, Set<string>>(
+    [...(options.inheritedConcreteMethodCallShapes ?? new Map()).entries()]
+      .map(([key, shapes]) => [key, new Set(shapes)]),
+  );
+  for (const projection of projections) {
+    if (
+      projection.source.sourceProjection === "extension-method" ||
+      projection.declaration.kind !== "method"
+    ) {
+      continue;
+    }
+    const memberKey = providerMemberInheritanceKey(projection.declaration);
+    if (memberKey === undefined) {
+      continue;
+    }
+    const callShapes = concreteMethodCallShapes.get(memberKey) ?? new Set<string>();
+    for (const signature of projection.declaration.signatures ?? []) {
+      callShapes.add(providerSignatureCallShapeKey(signature));
+    }
+    concreteMethodCallShapes.set(memberKey, callShapes);
+  }
+  return projections
+    .filter((projection) =>
+      projection.source.sourceProjection !== "extension-method" ||
+      !concreteNonMethodIdentities.has(projection.declaration.id))
+    .map((projection) => {
+      if (
+        projection.source.sourceProjection !== "extension-method" ||
+        projection.declaration.kind !== "method"
+      ) {
+        return projection;
+      }
+      const memberKey = providerMemberInheritanceKey(projection.declaration);
+      const concreteCallShapes = memberKey === undefined
+        ? undefined
+        : concreteMethodCallShapes.get(memberKey);
+      if (concreteCallShapes === undefined) {
+        return projection;
+      }
+      const signatures = (projection.declaration.signatures ?? []).filter((signature) =>
+        !concreteCallShapes.has(providerSignatureCallShapeKey(signature)));
+      return signatures.length === 0
+        ? undefined
+        : {
+            ...projection,
+            declaration: {
+              ...projection.declaration,
+              signatures,
+            },
+          };
+    })
+    .filter((projection): projection is NonNullable<typeof projection> => projection !== undefined)
+    .sort((left, right) =>
+      Number(left.source.sourceProjection === "extension-method") -
+      Number(right.source.sourceProjection === "extension-method"))
+    .map((projection) => projection.declaration);
+}
+
+export function providerMemberInheritanceKey(
+  member: ProviderMemberDeclaration,
+): string | undefined {
+  if (member.static === true || member.kind === "constructor") {
+    return undefined;
+  }
+  return `${member.kind}:${JSON.stringify(member.name)}`;
 }
 
 export function filterTsCompatibleProviderMembers(
@@ -124,8 +247,8 @@ function mergeProviderMemberWithLocalBase(
   baseMembers: readonly ProviderMemberDeclaration[],
 ): readonly ProviderMemberDeclaration[] {
   const matchingBaseMembers = baseMembers.filter((baseMember) =>
-    baseMember.name === member.name &&
-    baseMember.static === member.static
+    providerMemberNamesEqual(baseMember, member) &&
+    providerMembersHaveSameStaticness(baseMember, member)
   );
   if (matchingBaseMembers.length === 0) {
     return [member];
@@ -134,27 +257,26 @@ function mergeProviderMemberWithLocalBase(
     return [{
       ...member,
       signatures: mergeProviderSignatures([
-        ...matchingBaseMembers.flatMap((baseMember) => baseMember.signatures ?? []),
         ...(member.signatures ?? []),
+        ...matchingBaseMembers.flatMap((baseMember) => baseMember.signatures ?? []),
       ]),
     }];
   }
   return [];
 }
 
-function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
-  if (member.kind === "constructor") {
-    return dotnetMetadataNameWithoutSignature(member.targetId);
-  }
-  if (member.kind === "method") {
-    return `${member.targetId}#${member.static === true ? "static" : "instance"}`;
-  }
-  return member.targetId;
+function providerMembersHaveSameStaticness(
+  left: ProviderMemberDeclaration,
+  right: ProviderMemberDeclaration,
+): boolean {
+  return (left.static === true) === (right.static === true);
 }
 
-function dotnetMetadataNameWithoutSignature(metadataName: string): string {
-  const signatureStart = metadataName.indexOf("(");
-  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
+function providerMemberNamesEqual(
+  left: ProviderMemberDeclaration,
+  right: ProviderMemberDeclaration,
+): boolean {
+  return JSON.stringify(left.name) === JSON.stringify(right.name);
 }
 
 function isSourceReadableMember(member: DotnetMemberDeclaration, declaringType: DotnetTypeDeclaration): boolean {
@@ -184,7 +306,11 @@ function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolea
   if (signature === undefined || signature.parameters.length !== 1 || signature.returnType === undefined) {
     return false;
   }
-  const parameterType = tryDotnetTypeRefToProviderType(signature.parameters[0]!.type);
+  const parameter = signature.parameters[0]!;
+  const parameterType = tryDotnetTypeRefToProviderType(
+    parameter.sourceType ?? parameter.type,
+    `${member.targetId}.indexerParameter`,
+  );
   return parameterType !== undefined && isProviderTsCompatibleIndexType(parameterType);
 }
 

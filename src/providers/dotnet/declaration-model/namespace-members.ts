@@ -11,7 +11,7 @@ export function dotnetExportToNamespaceMember(declaration: DotnetExportDeclarati
     case "type": {
       const sourceType = declaration.sourceShape === undefined
         ? undefined
-        : tryDotnetTypeRefToProviderType(declaration.sourceShape);
+        : tryDotnetTypeRefToProviderType(declaration.sourceShape, `${declaration.targetId}.sourceShape`);
       if (sourceType === undefined) {
         return undefined;
       }
@@ -20,13 +20,7 @@ export function dotnetExportToNamespaceMember(declaration: DotnetExportDeclarati
         name: declaration.sourceName,
         kind: "property",
         static: true,
-        type: {
-          kind: "target-named",
-          target: "csharp",
-          id: declaration.targetId,
-          ...(declaration.displayName !== undefined ? { displayName: declaration.displayName } : {}),
-          sourceShape: sourceType,
-        },
+        type: sourceType,
       };
     }
     case "function": {
@@ -44,7 +38,7 @@ export function dotnetExportToNamespaceMember(declaration: DotnetExportDeclarati
       };
     }
     case "value": {
-      const type = tryDotnetTypeRefToProviderType(declaration.type);
+      const type = tryDotnetTypeRefToProviderType(declaration.type, `${declaration.targetId}.type`);
       if (type === undefined) {
         return undefined;
       }
@@ -62,7 +56,7 @@ export function dotnetExportToNamespaceMember(declaration: DotnetExportDeclarati
         name: declaration.sourceName,
         kind: "property",
         static: true,
-        type: { kind: "opaque", id: declaration.namespaceName, displayName: declaration.sourceName },
+        type: { kind: "object" },
       };
   }
 }

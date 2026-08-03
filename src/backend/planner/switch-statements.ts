@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsAsExpression,
   AsCaseBlock,
@@ -23,7 +24,9 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -32,13 +35,13 @@ interface SwitchStatementPlanner {
   readonly planExpression: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
   ) => CsharpExpression | undefined;
   readonly planStatements: (
     node: Node,
     sourceFile: SourceFile,
-    input: TargetCompileInput,
+    input: CsharpTranslationContext,
     diagnostics: TargetDiagnostic[],
     state: DestructuringPlannerState,
   ) => readonly CsharpStatement[];
@@ -47,7 +50,7 @@ interface SwitchStatementPlanner {
 export function planSwitchStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
@@ -72,7 +75,7 @@ function planSwitchExpression(
   expression: Node | undefined,
   statementNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planner: SwitchStatementPlanner,
 ): CsharpExpression | undefined {
@@ -86,7 +89,7 @@ function planSwitchExpression(
 function planSwitchSections(
   caseBlockNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
@@ -134,7 +137,7 @@ function planSwitchSections(
 function planSwitchSection(
   clauseNode: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
@@ -157,7 +160,7 @@ function planSwitchLabel(
   clauseNode: Node,
   expression: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planner: SwitchStatementPlanner,
 ): CsharpSwitchSection["label"] | undefined {
@@ -177,7 +180,7 @@ function planSwitchLabel(
 
 function diagnoseDuplicateDefaultClauses(
   clauses: readonly Node[],
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): void {
   let hasDefault = false;
@@ -195,7 +198,7 @@ function diagnoseDuplicateDefaultClauses(
 
 function isNativeCsharpSwitchCaseLabelExpression(
   expression: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   switch (SourceKind(input.ast, expression)) {
     case KindStringLiteral:

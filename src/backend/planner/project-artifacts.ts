@@ -1,4 +1,7 @@
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import { existsSync, statSync } from "node:fs";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import type { CsharpProjectFile, CsharpProjectPlan } from "./project-artifact-types.js";
@@ -21,7 +24,7 @@ export type {
 export { readNamespace } from "./project-options.js";
 
 export function planCsharpProject(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
   diagnostics?: TargetDiagnostic[],
 ): CsharpProjectPlan | undefined {
@@ -40,7 +43,7 @@ export function planCsharpProject(
 }
 
 export function planCsharpProjectFile(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectFile {
   validateCsharpTargetOptions(input.target);
@@ -53,7 +56,7 @@ export function planCsharpProjectFile(
 }
 
 function resolveUserProjectFile(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   projectFile: string,
   diagnostics: TargetDiagnostic[] | undefined,
 ): string | undefined {
@@ -72,7 +75,7 @@ function resolveUserProjectFile(
 }
 
 function validateUserProjectFile(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   projectFile: string,
 ): TargetDiagnostic | undefined {
   if (extname(projectFile) !== ".csproj") {

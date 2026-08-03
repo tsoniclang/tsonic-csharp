@@ -1,8 +1,11 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingPattern,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
@@ -12,22 +15,24 @@ import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
-import { getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import {
-  isSourceOwnedBindingElement,
+  isSourceOwnedBindingSource,
   planObjectBindingElement,
 } from "./binding-object-source-patterns.js";
 import {
   planObjectShapeBindingPattern,
 } from "./binding-object-shape-patterns.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export function planObjectBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
@@ -38,10 +43,11 @@ export function planObjectBindingPattern(
     csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
     return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   }
-  const ownership = getSemanticOwnership(sourceNode, sourceFile, input);
-  const sourceOwnedBindingElement = isSourceOwnedBindingElement(sourceNode, sourceFile, input);
-  if (!sourceOwnedBindingElement && (ownership.requiresTargetFact || !ownership.sourceOwned)) {
-    pushMissingTargetFactDiagnostic(diagnostics, patternNode, "Object destructuring requires a source-owned declaration or finalized provider object-shape facts before C# emission.", ownership);
+  if (!isSourceOwnedBindingSource(sourceNode, sourceFile, input)) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      patternNode,
+      "Object destructuring requires an exact source-owned declaration or target object-shape policy.",
+    ));
     return [];
   }
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
@@ -56,7 +62,7 @@ export function planObjectBindingPattern(
 export function getObjectShapeForBindingSource(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): CsharpObjectShapeFact | undefined {
   return getCsharpObjectShapeFactForNode(sourceNode, sourceFile, input);
 }

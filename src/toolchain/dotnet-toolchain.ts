@@ -1,6 +1,6 @@
-import type { TargetBackendContext, TargetToolchain, TargetToolchainInput, TargetToolchainResult } from "@tsonic/target-api";
+import type { TargetToolchain, TargetToolchainContext, TargetToolchainInput, TargetToolchainResult } from "@tsonic/target-api";
 
-export function createDotnetToolchain(_context: TargetBackendContext): TargetToolchain {
+export function createDotnetToolchain(_context: TargetToolchainContext): TargetToolchain {
   return {
     prepare(input: TargetToolchainInput): TargetToolchainResult {
       return {

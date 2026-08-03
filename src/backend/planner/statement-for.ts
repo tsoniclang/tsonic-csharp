@@ -1,7 +1,7 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForStatement,
   AsVariableDeclaration,
-  AsVariableDeclarationList,
   HasSourceKind,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
@@ -12,7 +12,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -42,7 +41,7 @@ import type {
 export function planForStatement(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
@@ -96,13 +95,13 @@ interface PlannedForInitializer {
 function planForInitializer(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): PlannedForInitializer {
   if (HasSourceKind(input.ast, node, KindVariableDeclarationList)) {
-    const declarations = AsVariableDeclarationList(node)!.Declarations?.Nodes ?? [];
-    const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
+    const concreteDeclarations = input.ast.children(node)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
     if (concreteDeclarations.some((declaration) => {
       const variable = AsVariableDeclaration(declaration)!;
       return HasSourceKind(input.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.ast, variable.name, KindArrayBindingPattern);
@@ -112,8 +111,7 @@ function planForInitializer(
           planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
       };
     }
-    const locals = declarations
-      .filter((declaration): declaration is Node => declaration !== undefined)
+    const locals = concreteDeclarations
       .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics, state));
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {

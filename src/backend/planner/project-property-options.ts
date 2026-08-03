@@ -1,4 +1,4 @@
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   CsharpProjectProperty,
 } from "./project-artifact-types.js";
@@ -24,7 +24,7 @@ const targetOwnedProjectProperties = new Set([
 ]);
 
 export function readCsharpProjectProperties(
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   options: { readonly allowUnsafeBlocks?: boolean },
 ): readonly CsharpProjectProperty[] {
   const properties = new Map<string, string>();

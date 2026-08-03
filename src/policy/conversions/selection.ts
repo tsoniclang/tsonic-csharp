@@ -1,0 +1,1038 @@
+import type {
+  Node,
+} from "@tsonic/tsts";
+import type {
+  CsharpProviderArgumentAdapter,
+} from "../../provider/target-relations/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
+import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
+import type {
+  CsharpTargetBindingFact,
+  CsharpTargetConversionOperatorFact,
+  CsharpTargetNamedTypeRef,
+  TargetConstraint,
+  TargetTypeParameter,
+  TargetTypeRef,
+} from "../types/index.js";
+import {
+  csharpBaseTargetTypeFromBinding,
+  csharpEnumerableTargetType,
+  csharpObjectTargetType,
+  csharpTargetBindingFact,
+  getCsharpCollectionElementTargetType,
+  getCsharpImplicitArrayInputElementTargetType,
+  getCsharpDelegateSignature,
+  getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms,
+  getCsharpTaskResultTargetType,
+  isCsharpAnyRuntimeCarrier,
+  isCsharpNullableReferenceTargetType,
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
+  isCsharpCompatValueTargetType,
+  substituteTargetTypeParameters,
+  targetTypeRefEquals,
+  targetTypeRefKey,
+} from "../types/index.js";
+import {
+  sourcePrimitiveImplicitlyConverts,
+} from "./source-primitives.js";
+import {
+  csharpLiteralIsRepresentableAs,
+} from "./literals.js";
+
+export type CsharpConversionMode = "implicit" | "explicit";
+
+export type CsharpConversionSelection =
+  | { readonly kind: "identity" }
+  | {
+      readonly kind: "implicit";
+      readonly proof:
+        | "numeric"
+        | "literal"
+        | "nullable"
+        | "reference"
+        | "tuple"
+        | "object-shape-interface"
+        | "collection-interface"
+        | "provider-operator";
+      readonly providerOperatorId?: string;
+    }
+  | {
+      readonly kind: "implicit";
+      readonly proof: "runtime-union-arm";
+      readonly armIndex: number;
+      readonly armType: TargetTypeRef;
+      readonly sourceToArm: CsharpConversionSelection;
+    }
+  | {
+      readonly kind: "cast";
+      readonly proof:
+        | "numeric"
+        | "nullable"
+        | "reference"
+        | "tuple"
+        | "provider-operator";
+      readonly providerOperatorId?: string;
+    }
+  | { readonly kind: "nullable-value" }
+  | {
+      readonly kind: "runtime-union-projection";
+      readonly armIndex: number;
+      readonly armType: TargetTypeRef;
+    }
+  | { readonly kind: "delegate-adapter" }
+  | {
+      readonly kind: "provider-argument-adapter";
+      readonly adapter: CsharpProviderArgumentAdapter;
+      readonly sourceToInput: CsharpConversionSelection;
+      readonly resultToTarget: CsharpConversionSelection;
+    }
+  | {
+      readonly kind: "lifted-provider-argument-adapter";
+      readonly adapter: CsharpProviderArgumentAdapter;
+      readonly sourceElementType: TargetTypeRef;
+      readonly targetElementType: TargetTypeRef;
+    }
+  | { readonly kind: "compat-box" }
+  | {
+      readonly kind: "compat-cast";
+      readonly runtimeUnionArms?: readonly TargetTypeRef[];
+    }
+  | {
+      readonly kind: "ambiguous";
+      readonly candidateIds: readonly string[];
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "rejected";
+      readonly reason: string;
+    };
+
+export type CsharpConversionTargetPreference =
+  | "left"
+  | "right"
+  | "equivalent"
+  | "incomparable";
+
+export type CsharpCommonImplicitTargetSelection =
+  | { readonly kind: "resolved"; readonly target: TargetTypeRef }
+  | { readonly kind: "rejected"; readonly reason: string };
+
+export function selectCsharpCommonImplicitTarget(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  sources: readonly TargetTypeRef[],
+  candidates: readonly TargetTypeRef[] = sources,
+): CsharpCommonImplicitTargetSelection {
+  if (sources.length === 0 || candidates.length === 0) {
+    return {
+      kind: "rejected",
+      reason:
+        "A common C# implicit conversion target requires non-empty exact source and candidate sets.",
+    };
+  }
+  const uniqueCandidates = new Map<string, TargetTypeRef>();
+  for (const candidate of candidates) {
+    uniqueCandidates.set(targetTypeRefKey(candidate), candidate);
+  }
+  const applicable = [...uniqueCandidates.values()].filter((candidate) =>
+    sources.every((source) =>
+      csharpConversionIsApplicable(
+        selectCsharpConversion(input, source, candidate, "implicit"),
+        "implicit",
+      )
+    )
+  );
+  const mostSpecific = applicable.filter((candidate) =>
+    !applicable.some((other) =>
+      !targetTypeRefEquals(candidate, other) &&
+      csharpConversionIsApplicable(
+        selectCsharpConversion(input, other, candidate, "implicit"),
+        "implicit",
+      ) &&
+      !csharpConversionIsApplicable(
+        selectCsharpConversion(input, candidate, other, "implicit"),
+        "implicit",
+      )
+    )
+  );
+  if (mostSpecific.length === 1) {
+    return { kind: "resolved", target: mostSpecific[0]! };
+  }
+  return {
+    kind: "rejected",
+    reason: mostSpecific.length === 0
+      ? "No exact candidate accepts every inferred C# return representation through implicit target conversions."
+      : "More than one equally specific candidate accepts every inferred C# return representation.",
+  };
+}
+
+export function compareCsharpImplicitConversionTargets(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): CsharpConversionTargetPreference {
+  if (targetTypeRefEquals(left, right)) {
+    return "equivalent";
+  }
+  const leftToRight = conversionIsImplicitlyApplicable(
+    selectCsharpConversion(input, left, right, "implicit"),
+  );
+  const rightToLeft = conversionIsImplicitlyApplicable(
+    selectCsharpConversion(input, right, left, "implicit"),
+  );
+  if (leftToRight === rightToLeft) {
+    return leftToRight ? "equivalent" : "incomparable";
+  }
+  return leftToRight ? "left" : "right";
+}
+
+export function selectCsharpConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection {
+  if (source === undefined || target === undefined) {
+    return {
+      kind: "rejected",
+      reason:
+        "C# conversion requires closed source and target representations.",
+    };
+  }
+  if (targetTypeRefEquals(source, target)) {
+    return { kind: "identity" };
+  }
+  const compatValueConversion = selectCompatValueConversion(
+    source,
+    target,
+    mode,
+  );
+  if (compatValueConversion !== undefined) {
+    return compatValueConversion;
+  }
+  const anyConversion = selectAnyConversion(input, source, target);
+  if (anyConversion !== undefined) {
+    return anyConversion;
+  }
+  if (
+    getCsharpTaskResultTargetType(source) !== undefined ||
+    getCsharpTaskResultTargetType(target) !== undefined
+  ) {
+    return {
+      kind: "rejected",
+      reason:
+        "Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation.",
+    };
+  }
+  const runtimeUnion = selectRuntimeUnionConversion(source, target);
+  if (runtimeUnion !== undefined) {
+    return runtimeUnion;
+  }
+  const tuple = selectTupleConversion(input, source, target, mode);
+  if (tuple !== undefined) {
+    return tuple;
+  }
+  const nullable = selectNullableConversion(input, source, target, mode);
+  if (nullable !== undefined) {
+    return nullable;
+  }
+  const collectionInterface = selectCollectionInterfaceConversion(
+    source,
+    target,
+  );
+  if (collectionInterface !== undefined) {
+    return collectionInterface;
+  }
+  if (sourcePrimitiveImplicitlyConverts(target, source)) {
+    return { kind: "implicit", proof: "numeric" };
+  }
+  if (
+    mode === "explicit" &&
+    source.kind === "source-primitive" &&
+    target.kind === "source-primitive"
+  ) {
+    return { kind: "cast", proof: "numeric" };
+  }
+  const delegate = selectDelegateConversion(source, target);
+  if (delegate !== undefined) {
+    return delegate;
+  }
+  if (
+    targetTypeRefEquals(target, csharpObjectTargetType()) &&
+    targetTypeImplicitlyConvertsToObject(source)
+  ) {
+    return { kind: "implicit", proof: "reference" };
+  }
+  if (namedTargetTypeImplicitlyAccepts(input, source, target, new Set())) {
+    return { kind: "implicit", proof: "reference" };
+  }
+  const providerOperator = selectProviderConversionOperator(
+    input,
+    source,
+    target,
+    mode,
+  );
+  if (providerOperator.kind !== "none") {
+    return providerOperator;
+  }
+  if (
+    mode === "explicit" &&
+    namedTargetTypesAreRelated(input, source, target)
+  ) {
+    return { kind: "cast", proof: "reference" };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      `No exact C# ${mode} conversion relates '${targetTypeRefKey(source)}' to '${targetTypeRefKey(target)}'.`,
+  };
+}
+
+function selectTupleConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  if (source.kind !== "tuple" || target.kind !== "tuple") {
+    return undefined;
+  }
+  if (source.elements.length !== target.elements.length) {
+    return {
+      kind: "rejected",
+      reason: "C# tuple conversion requires equal source and target arity.",
+    };
+  }
+  const elementConversions = source.elements.map((element, index) =>
+    selectCsharpConversion(
+      input,
+      element,
+      target.elements[index],
+      mode,
+    )
+  );
+  if (
+    elementConversions.every((conversion) =>
+      conversionIsImplicitlyApplicable(conversion)
+    )
+  ) {
+    return { kind: "implicit", proof: "tuple" };
+  }
+  if (
+    mode === "explicit" &&
+    elementConversions.every((conversion) =>
+      csharpConversionIsApplicable(conversion, mode)
+    )
+  ) {
+    return { kind: "cast", proof: "tuple" };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      `C# tuple ${mode} conversion requires every corresponding element conversion to be applicable.`,
+  };
+}
+
+function conversionIsImplicitlyApplicable(
+  selection: CsharpConversionSelection,
+): boolean {
+  return selection.kind === "identity" ||
+    selection.kind === "implicit" ||
+    selection.kind === "delegate-adapter";
+}
+
+function targetTypeImplicitlyConvertsToObject(
+  source: TargetTypeRef,
+): boolean {
+  switch (source.kind) {
+    case "source-primitive":
+    case "array":
+    case "tuple":
+      return true;
+    case "target-named":
+      return (source as CsharpTargetNamedTypeRef).csharpSpecialType !== "void";
+    case "source-global":
+    case "type-parameter":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return false;
+  }
+}
+
+function selectCollectionInterfaceConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): CsharpConversionSelection | undefined {
+  const implicitArrayInputElement =
+    getCsharpImplicitArrayInputElementTargetType(target);
+  if (
+    source.kind === "array" &&
+    implicitArrayInputElement !== undefined &&
+    targetTypeRefEquals(source.element, implicitArrayInputElement)
+  ) {
+    return { kind: "implicit", proof: "collection-interface" };
+  }
+  const element = getCsharpCollectionElementTargetType(source);
+  return element !== undefined &&
+      targetTypeRefEquals(target, csharpEnumerableTargetType(element))
+    ? { kind: "implicit", proof: "collection-interface" }
+    : undefined;
+}
+
+export function selectCsharpExpressionConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "ast" | "projectTypes" | "providers" | "target"
+  > & Pick<Partial<CsharpTranslationContext>, "objectShapes">,
+  expression: Node,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection {
+  const selected = selectCsharpConversion(input, source, target, mode);
+  if (selected.kind !== "rejected" || target === undefined) {
+    return selected;
+  }
+  const objectShape = input.objectShapes?.resolveNode(expression) ??
+    input.objectShapes?.resolveTarget(source);
+  if (
+    source !== undefined &&
+    objectShape !== undefined &&
+    targetTypeRefEquals(objectShape.targetType, source) &&
+    objectShape.implements?.some((implemented) =>
+      targetTypeRefEquals(implemented, target)
+    ) === true
+  ) {
+    return { kind: "implicit", proof: "object-shape-interface" };
+  }
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
+  if (runtimeUnionArms !== undefined) {
+    const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
+      const sourceToArm = selectCsharpExpressionConversion(
+        input,
+        expression,
+        source,
+        armType,
+        mode,
+      );
+      return csharpConversionIsApplicable(sourceToArm, mode)
+        ? [{ armIndex, armType, sourceToArm }]
+        : [];
+    });
+    if (candidates.length === 1) {
+      return {
+        kind: "implicit",
+        proof: "runtime-union-arm",
+        ...candidates[0]!,
+      };
+    }
+    if (candidates.length > 1) {
+      return {
+        kind: "ambiguous",
+        reason:
+          "C# runtime-union expression conversion matches more than one exact arm.",
+        candidateIds: candidates.map((candidate) =>
+          `${candidate.armIndex}:${targetTypeRefKey(candidate.armType)}`),
+      };
+    }
+  }
+  return csharpLiteralIsRepresentableAs(input, expression, target)
+    ? { kind: "implicit", proof: "literal" }
+    : selected;
+}
+
+export function selectCsharpProviderArgumentConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "ast" | "projectTypes" | "providers" | "target"
+  > & Pick<Partial<CsharpTranslationContext>, "objectShapes">,
+  expression: Node,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef,
+  adapter: CsharpProviderArgumentAdapter | undefined,
+): CsharpConversionSelection {
+  const direct = selectCsharpExpressionConversion(
+    input,
+    expression,
+    source,
+    target,
+    "implicit",
+  );
+  if (csharpConversionIsApplicable(direct, "implicit") || adapter === undefined) {
+    return direct;
+  }
+  const sourceElementType = getCsharpNullableElementTargetType(source);
+  const targetElementType = getCsharpNullableElementTargetType(target);
+  if (
+    source !== undefined &&
+    sourceElementType !== undefined &&
+    targetElementType !== undefined &&
+    !isCsharpNullableReferenceTargetType(source) &&
+    !isCsharpNullableReferenceTargetType(target) &&
+    targetTypeRefEquals(sourceElementType, adapter.inputType) &&
+    targetTypeRefEquals(adapter.resultType, targetElementType)
+  ) {
+    return {
+      kind: "lifted-provider-argument-adapter",
+      adapter,
+      sourceElementType,
+      targetElementType,
+    };
+  }
+  const sourceToInput = selectCsharpExpressionConversion(
+    input,
+    expression,
+    source,
+    adapter.inputType,
+    "implicit",
+  );
+  const resultToTarget = selectCsharpConversion(
+    input,
+    adapter.resultType,
+    target,
+    "implicit",
+  );
+  if (
+    csharpConversionIsApplicable(sourceToInput, "implicit") &&
+    csharpConversionIsApplicable(resultToTarget, "implicit")
+  ) {
+    return {
+      kind: "provider-argument-adapter",
+      adapter,
+      sourceToInput,
+      resultToTarget,
+    };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      `Exact provider argument adapter '${adapter.id}' cannot relate '${source === undefined ? "<unresolved>" : targetTypeRefKey(source)}' through '${targetTypeRefKey(adapter.inputType)}' and '${targetTypeRefKey(adapter.resultType)}' to '${targetTypeRefKey(target)}'.`,
+  };
+}
+
+export function selectCsharpFlowReadConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  storageType: TargetTypeRef,
+  selectedReadType: TargetTypeRef,
+): CsharpConversionSelection {
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(storageType);
+  if (runtimeUnionArms !== undefined) {
+    const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
+      targetTypeRefEquals(armType, selectedReadType)
+        ? [{ armIndex, armType }]
+        : []
+    );
+    if (matchingArms.length === 1) {
+      return {
+        kind: "runtime-union-projection",
+        ...matchingArms[0]!,
+      };
+    }
+    return {
+      kind: "rejected",
+      reason:
+        matchingArms.length === 0
+          ? `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which is not an exact runtime-union arm.`
+          : `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which matches more than one runtime-union arm.`,
+    };
+  }
+  const selected = selectCsharpConversion(
+    input,
+    storageType,
+    selectedReadType,
+    "explicit",
+  );
+  return csharpConversionIsApplicable(selected, "explicit")
+    ? selected
+    : {
+        kind: "rejected",
+        reason:
+          `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', but C# has no closed storage-read projection for that relation.`,
+      };
+}
+
+export function csharpConversionIsApplicable(
+  selection: CsharpConversionSelection,
+  mode: CsharpConversionMode,
+): boolean {
+  return selection.kind === "identity" ||
+    selection.kind === "implicit" ||
+    selection.kind === "delegate-adapter" ||
+    selection.kind === "provider-argument-adapter" ||
+    selection.kind === "lifted-provider-argument-adapter" ||
+    selection.kind === "nullable-value" ||
+    selection.kind === "runtime-union-projection" ||
+    selection.kind === "compat-box" ||
+    selection.kind === "compat-cast" ||
+    mode === "explicit" && selection.kind === "cast";
+}
+
+function selectCompatValueConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  const sourceCompatValue = isCsharpCompatValueTargetType(source);
+  const targetCompatValue = isCsharpCompatValueTargetType(target);
+  if (!sourceCompatValue && !targetCompatValue) {
+    return undefined;
+  }
+  if (sourceCompatValue && targetCompatValue) {
+    return { kind: "identity" };
+  }
+  if (targetCompatValue) {
+    return { kind: "compat-box" };
+  }
+  return mode === "explicit"
+    ? {
+        kind: "compat-cast",
+        ...(getCsharpRuntimeUnionArms(target) === undefined
+          ? {}
+          : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
+      }
+    : undefined;
+}
+
+function selectAnyConversion(
+  input: Pick<CsharpTranslationContext, "target">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): CsharpConversionSelection | undefined {
+  const sourceAny = isCsharpAnyRuntimeCarrier(source);
+  const targetAny = isCsharpAnyRuntimeCarrier(target);
+  if (!sourceAny && !targetAny) {
+    return undefined;
+  }
+  if (readCsharpTypescriptCompatibilityMode(input.target) !== "compat") {
+    return {
+      kind: "rejected",
+      reason:
+        "C# strict-native mode cannot cross a TypeScript any boundary.",
+    };
+  }
+  if (sourceAny && targetAny) {
+    return { kind: "identity" };
+  }
+  if (targetAny) {
+    return { kind: "compat-box" };
+  }
+  return {
+    kind: "compat-cast",
+    ...(getCsharpRuntimeUnionArms(target) === undefined
+      ? {}
+      : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
+  };
+}
+
+function selectRuntimeUnionConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): CsharpConversionSelection | undefined {
+  const arms = getCsharpRuntimeUnionArms(target);
+  if (arms === undefined) {
+    return undefined;
+  }
+  const matchingArms = arms.flatMap((armType, armIndex) =>
+    targetTypeRefEquals(armType, source)
+      ? [{ armIndex, armType }]
+      : []
+  );
+  if (matchingArms.length === 1) {
+    return {
+      kind: "implicit",
+      proof: "runtime-union-arm",
+      ...matchingArms[0]!,
+      sourceToArm: { kind: "identity" },
+    };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      matchingArms.length === 0
+        ? "C# runtime-union conversion requires the source representation to match one exact union arm."
+        : "C# runtime-union conversion matched more than one structurally identical union arm.",
+  };
+}
+
+function selectNullableConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if (targetElement !== undefined) {
+    if (
+      isCsharpRuntimeNullTargetType(source) ||
+      isCsharpRuntimeUndefinedTargetType(source)
+    ) {
+      return { kind: "implicit", proof: "nullable" };
+    }
+    const elementConversion = selectCsharpConversion(
+      input,
+      sourceElement ?? source,
+      targetElement,
+      mode,
+    );
+    if (conversionIsImplicitlyApplicable(elementConversion)) {
+      return { kind: "implicit", proof: "nullable" };
+    }
+    if (mode === "explicit" && csharpConversionIsApplicable(elementConversion, mode)) {
+      return { kind: "cast", proof: "nullable" };
+    }
+  }
+  if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
+    return mode === "explicit"
+      ? isCsharpNullableReferenceTargetType(source)
+        ? { kind: "implicit", proof: "nullable" }
+        : { kind: "nullable-value" }
+      : {
+          kind: "rejected",
+          reason:
+            "A nullable C# value cannot implicitly convert to its non-nullable element type.",
+        };
+  }
+  if (
+    mode === "explicit" &&
+    (
+      isCsharpNullableReferenceTargetType(source) ||
+      isCsharpNullableReferenceTargetType(target)
+    ) &&
+    namedTargetTypesAreRelated(input, sourceElement ?? source, targetElement ?? target)
+  ) {
+    return { kind: "cast", proof: "nullable" };
+  }
+  return undefined;
+}
+
+function selectDelegateConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): CsharpConversionSelection | undefined {
+  const sourceSignature = getCsharpDelegateSignature(source);
+  const targetSignature = getCsharpDelegateSignature(target);
+  if (sourceSignature === undefined || targetSignature === undefined) {
+    return undefined;
+  }
+  return delegateSignaturesEqual(sourceSignature, targetSignature)
+    ? { kind: "delegate-adapter" }
+    : {
+        kind: "rejected",
+        reason:
+          "C# delegate conversion requires exactly matching parameter and return representations.",
+      };
+}
+
+function delegateSignaturesEqual(
+  source: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
+  target: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
+): boolean {
+  return source.parameters.length === target.parameters.length &&
+    source.parameters.every((parameter, index) =>
+      target.parameters[index] !== undefined &&
+      targetTypeRefEquals(parameter, target.parameters[index]!)) &&
+    targetTypeRefEquals(source.returnType, target.returnType);
+}
+
+function namedTargetTypesAreRelated(
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): boolean {
+  return namedTargetTypeImplicitlyAccepts(input, source, target, new Set()) ||
+    namedTargetTypeImplicitlyAccepts(input, target, source, new Set());
+}
+
+function namedTargetTypeImplicitlyAccepts(
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  visited: Set<string>,
+): boolean {
+  if (targetTypeRefEquals(source, target)) {
+    return true;
+  }
+  if (source.kind !== "target-named" || target.kind !== "target-named") {
+    return false;
+  }
+  const key = `${targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`;
+  if (visited.has(key)) {
+    return false;
+  }
+  visited.add(key);
+  if (source.id === target.id) {
+    return constructedNamedTargetTypeImplicitlyAccepts(
+      input,
+      source,
+      target,
+      visited,
+    );
+  }
+  const projectSupertypes = input.projectTypes.directSupertypes(source);
+  if (
+    projectSupertypes?.some((supertype) =>
+      namedTargetTypeImplicitlyAccepts(
+        input,
+        supertype,
+        target,
+        visited,
+      )
+    ) === true
+  ) {
+    return true;
+  }
+  const sourceBinding = csharpTargetBindingFact(
+    input.providers.findTargetBindingByTargetId(source.id),
+  );
+  if (sourceBinding === undefined) {
+    return false;
+  }
+  const substitutions = targetBindingSubstitutions(
+    sourceBinding,
+    source.typeArguments ?? [],
+  );
+  const baseType = csharpBaseTargetTypeFromBinding(
+    sourceBinding,
+    source.typeArguments ?? [],
+  );
+  if (
+    baseType !== undefined &&
+    namedTargetTypeImplicitlyAccepts(input, baseType, target, visited)
+  ) {
+    return true;
+  }
+  return (sourceBinding.implementedContracts ?? []).some((constraint) =>
+    constraint.kind === "implements" &&
+    namedTargetTypeImplicitlyAccepts(
+      input,
+      implementedConstraintType(constraint, substitutions),
+      target,
+      visited,
+    ));
+}
+
+function constructedNamedTargetTypeImplicitlyAccepts(
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
+  source: CsharpTargetNamedTypeRef,
+  target: CsharpTargetNamedTypeRef,
+  visited: Set<string>,
+): boolean {
+  const sourceArguments = source.typeArguments ?? [];
+  const targetArguments = target.typeArguments ?? [];
+  if (sourceArguments.length !== targetArguments.length) {
+    return false;
+  }
+  if (sourceArguments.length === 0) {
+    return true;
+  }
+  const binding = csharpTargetBindingFact(
+    input.providers.findTargetBindingByTargetId(source.id),
+  );
+  const parameters = binding?.typeParameters ?? [];
+  return sourceArguments.every((sourceArgument, index) => {
+    const targetArgument = targetArguments[index];
+    return targetArgument !== undefined &&
+      typeArgumentImplicitlyAccepts(
+        input,
+        sourceArgument,
+        targetArgument,
+        parameters[index],
+        visited,
+      );
+  });
+}
+
+function typeArgumentImplicitlyAccepts(
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  parameter: TargetTypeParameter | undefined,
+  visited: Set<string>,
+): boolean {
+  if (targetTypeRefEquals(source, target)) {
+    return true;
+  }
+  if (parameter?.variance === "out") {
+    return namedTargetTypeImplicitlyAccepts(input, source, target, visited);
+  }
+  if (parameter?.variance === "in") {
+    return namedTargetTypeImplicitlyAccepts(input, target, source, visited);
+  }
+  return false;
+}
+
+function implementedConstraintType(
+  constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  return {
+    kind: "target-named",
+    id: constraint.contract,
+    ...(constraint.typeArguments === undefined
+      ? {}
+      : {
+          typeArguments: constraint.typeArguments.map((argument) =>
+            substituteTargetTypeParameters(argument, substitutions)),
+        }),
+  };
+}
+
+function targetBindingSubstitutions(
+  binding: CsharpTargetBindingFact,
+  arguments_: readonly TargetTypeRef[],
+): ReadonlyMap<string, TargetTypeRef> {
+  return new Map(
+    (binding.typeParameters ?? []).flatMap((parameter, index) => {
+      const argument = arguments_[index];
+      return argument === undefined
+        ? []
+        : [[parameter.name, argument] as const];
+    }),
+  );
+}
+
+type ProviderConversionSelection =
+  | { readonly kind: "none" }
+  | Extract<CsharpConversionSelection, { readonly kind: "implicit" | "cast" | "ambiguous" }>;
+
+function selectProviderConversionOperator(
+  input: Pick<CsharpTranslationContext, "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): ProviderConversionSelection {
+  const matches = providerConversionCandidates(input, source, target)
+    .filter((operator) =>
+      operator.conversionKind === "implicit" ||
+      mode === "explicit" && operator.conversionKind === "explicit");
+  if (matches.length === 0) {
+    return { kind: "none" };
+  }
+  const candidateIds = [...new Set(matches.map((operator) => operator.id))]
+    .sort((left, right) => left.localeCompare(right));
+  if (matches.length !== 1) {
+    return {
+      kind: "ambiguous",
+      candidateIds,
+      reason:
+        "More than one exact provider conversion operator relates the selected C# source and target representations.",
+    };
+  }
+  const operator = matches[0]!;
+  return operator.conversionKind === "implicit"
+    ? {
+        kind: "implicit",
+        proof: "provider-operator",
+        providerOperatorId: operator.id,
+      }
+    : {
+        kind: "cast",
+        proof: "provider-operator",
+        providerOperatorId: operator.id,
+      };
+}
+
+function providerConversionCandidates(
+  input: Pick<CsharpTranslationContext, "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): readonly CsharpTargetConversionOperatorFact[] {
+  return uniqueProviderBindingCandidates(input, source, target)
+    .flatMap(({ binding, typeArguments }) =>
+      (binding.conversionOperators ?? [])
+        .map((operator) =>
+          substituteConversionOperatorTypes(
+            operator,
+            binding,
+            typeArguments,
+          ))
+        .filter((operator) =>
+          targetTypeRefEquals(operator.sourceType, source) &&
+          targetTypeRefEquals(operator.targetType, target)));
+}
+
+function uniqueProviderBindingCandidates(
+  input: Pick<CsharpTranslationContext, "providers">,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): readonly {
+  readonly binding: CsharpTargetBindingFact;
+  readonly typeArguments: readonly TargetTypeRef[];
+}[] {
+  const byId = new Map<string, {
+    readonly binding: CsharpTargetBindingFact;
+    readonly typeArguments: readonly TargetTypeRef[];
+  }>();
+  for (const type of [source, target]) {
+    if (type.kind !== "target-named") {
+      continue;
+    }
+    const binding = csharpTargetBindingFact(
+      input.providers.findTargetBindingByTargetId(type.id),
+    );
+    if (binding === undefined) {
+      continue;
+    }
+    const key = `${binding.id}\u0000${(type.typeArguments ?? [])
+      .map(targetTypeRefKey)
+      .join("\u0000")}`;
+    byId.set(key, {
+      binding,
+      typeArguments: type.typeArguments ?? [],
+    });
+  }
+  return [...byId.values()];
+}
+
+function substituteConversionOperatorTypes(
+  operator: CsharpTargetConversionOperatorFact,
+  binding: CsharpTargetBindingFact,
+  typeArguments: readonly TargetTypeRef[],
+): CsharpTargetConversionOperatorFact {
+  const substitutions = targetBindingSubstitutions(binding, typeArguments);
+  return substitutions.size === 0
+    ? operator
+    : {
+        ...operator,
+        declaringType: substituteTargetTypeParameters(
+          operator.declaringType,
+          substitutions,
+        ),
+        sourceType: substituteTargetTypeParameters(
+          operator.sourceType,
+          substitutions,
+        ),
+        targetType: substituteTargetTypeParameters(
+          operator.targetType,
+          substitutions,
+        ),
+      };
+}

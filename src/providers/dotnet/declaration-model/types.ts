@@ -10,16 +10,25 @@ import {
 import type { DotnetDeclarationContext } from "./context.js";
 import { dotnetProviderRefToTypeDeclaration } from "./context.js";
 import {
-  dotnetTargetIdentity,
   dotnetTypeKindToProviderKind,
   tryDotnetBaseTypeToProviderHeritage,
 } from "./conversions.js";
 import {
   dotnetMemberToProviderMember,
+  dotnetMembersToProviderMembers,
   filterTsCompatibleProviderMembers,
   mergeProviderMemberList,
+  providerMemberInheritanceKey,
 } from "./members.js";
-import { providerSignatureShapeKey } from "./signatures.js";
+import {
+  mergeProviderSignatures,
+  normalizeProviderSignatureTypeParameterScope,
+  providerSignatureCallShapeKey,
+} from "./signatures.js";
+import {
+  getBaseTypeParameterSubstitutions,
+  substituteProviderMember,
+} from "./substitutions.js";
 
 export function dotnetTypeToProviderExport(
   declaration: DotnetTypeDeclaration,
@@ -27,18 +36,22 @@ export function dotnetTypeToProviderExport(
 ): ProviderExportDeclaration {
   const kind = dotnetTypeKindToProviderKind(declaration.typeKind);
   const members = dotnetTypeSourceMembers(declaration, context);
-  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType, `${declaration.targetId}.baseType`);
   const sourceType = declaration.sourceShape === undefined
     ? undefined
-    : tryDotnetTypeRefToProviderType(declaration.sourceShape);
+    : tryDotnetTypeRefToProviderType(declaration.sourceShape, `${declaration.targetId}.sourceShape`);
   return {
     id: declaration.targetId,
     name: declaration.sourceName,
     kind,
     ...(declaration.sourceTypeFamily !== undefined ? { sourceTypeFamily: declaration.sourceTypeFamily } : {}),
-    targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
-    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
+    ...(declaration.typeParameters !== undefined
+      ? {
+        typeParameters: declaration.typeParameters.map((parameter, index) =>
+          dotnetTypeParameterToProviderTypeParameter(parameter, `${declaration.targetId}.typeParameters[${index}]`)),
+      }
+      : {}),
     ...(baseHeritage !== undefined ? { heritage: [baseHeritage] } : {}),
     ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
@@ -52,12 +65,17 @@ function dotnetTypeSourceMembers(
   if (cached !== undefined) {
     return cached;
   }
-  const inheritedMembers = inheritedSourceMembers(declaration, context, new Set());
-  const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(declaration.members
-    ?.map((member) => dotnetMemberToProviderMember(member, declaration))
-    .filter((member): member is ProviderMemberDeclaration => member !== undefined)
-    .map((member) => removeInheritedDuplicateSignatures(member, inheritedMembers))
-    .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []));
+  const inherited = inheritedSourceMembers(declaration, context, new Set());
+  const parentTypeParameterNames = declaration.typeParameters?.map((parameter) => parameter.name) ?? [];
+  const ownMembers = filterTsCompatibleProviderMembers(mergeProviderMemberList(
+    dotnetMembersToProviderMembers(declaration.members ?? [], declaration, {
+      inheritedConcreteMethodCallShapes: providerConcreteMethodCallShapes(
+        inherited.concreteMethodsByKey,
+        parentTypeParameterNames,
+      ),
+    })
+    .map((member) => mergeInheritedOverloadSignatures(member, inherited.membersByKey, parentTypeParameterNames))
+    .filter((member): member is ProviderMemberDeclaration => member !== undefined)));
   context.sourceMembersByTargetId.set(declaration.targetId, ownMembers);
   return ownMembers.length === 0 ? undefined : ownMembers;
 }
@@ -66,41 +84,98 @@ function inheritedSourceMembers(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
   visitedTargetIds: Set<string>,
-): ReadonlyMap<string, readonly ProviderMemberDeclaration[]> {
+): InheritedProviderMembers {
   if (!visitedTargetIds.add(declaration.targetId)) {
-    return new Map();
+    return emptyInheritedProviderMembers();
   }
   const membersByKey = new Map<string, ProviderMemberDeclaration[]>();
-  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const concreteMethodsByKey = new Map<string, ProviderMemberDeclaration[]>();
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType, `${declaration.targetId}.baseType`);
   const baseType = baseHeritage?.type;
   if (baseType?.kind !== "provider-ref") {
-    return membersByKey;
+    return { membersByKey, concreteMethodsByKey };
   }
   const baseDeclaration = dotnetProviderRefToTypeDeclaration(baseType, context);
   if (baseDeclaration === undefined) {
-    return membersByKey;
+    return { membersByKey, concreteMethodsByKey };
   }
+  const substitutions = getBaseTypeParameterSubstitutions(baseDeclaration, baseType);
   for (const member of dotnetTypeSourceMembers(baseDeclaration, context) ?? []) {
-    const key = inheritedSourceMemberKey(member);
+    const substitutedMember = substituteProviderMember(member, substitutions);
+    const key = providerMemberInheritanceKey(substitutedMember);
     if (key !== undefined) {
       const members = membersByKey.get(key) ?? [];
-      members.push(member);
+      members.push(substitutedMember);
       membersByKey.set(key, members);
     }
   }
-  for (const [key, members] of inheritedSourceMembers(baseDeclaration, context, visitedTargetIds)) {
+  for (const sourceMember of baseDeclaration.members ?? []) {
+    if (sourceMember.sourceProjection === "extension-method") {
+      continue;
+    }
+    const providerMember = dotnetMemberToProviderMember(sourceMember, baseDeclaration);
+    if (providerMember?.kind !== "method") {
+      continue;
+    }
+    const substitutedMember = substituteProviderMember(providerMember, substitutions);
+    const key = providerMemberInheritanceKey(substitutedMember);
+    if (key !== undefined) {
+      const methods = concreteMethodsByKey.get(key) ?? [];
+      methods.push(substitutedMember);
+      concreteMethodsByKey.set(key, methods);
+    }
+  }
+  const inherited = inheritedSourceMembers(baseDeclaration, context, visitedTargetIds);
+  for (const [key, members] of inherited.membersByKey) {
+    const substitutedMembers = members.map((member) => substituteProviderMember(member, substitutions));
     const existing = membersByKey.get(key) ?? [];
-    existing.push(...members);
+    existing.push(...substitutedMembers);
     membersByKey.set(key, existing);
   }
-  return membersByKey;
+  for (const [key, methods] of inherited.concreteMethodsByKey) {
+    const substitutedMethods = methods.map((member) => substituteProviderMember(member, substitutions));
+    const existing = concreteMethodsByKey.get(key) ?? [];
+    existing.push(...substitutedMethods);
+    concreteMethodsByKey.set(key, existing);
+  }
+  return { membersByKey, concreteMethodsByKey };
 }
 
-function removeInheritedDuplicateSignatures(
+interface InheritedProviderMembers {
+  readonly membersByKey: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>;
+  readonly concreteMethodsByKey: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>;
+}
+
+function emptyInheritedProviderMembers(): InheritedProviderMembers {
+  return {
+    membersByKey: new Map(),
+    concreteMethodsByKey: new Map(),
+  };
+}
+
+function providerConcreteMethodCallShapes(
+  membersByKey: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>,
+  parentTypeParameterNames: readonly string[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  return new Map([...membersByKey.entries()].map(([key, members]) => [
+    key,
+    new Set(members.flatMap((member) =>
+      (member.signatures ?? []).map((signature) =>
+        providerSignatureCallShapeKey(
+          normalizeProviderSignatureTypeParameterScope(
+            signature,
+            parentTypeParameterNames,
+          ),
+        )))),
+  ]));
+}
+
+function mergeInheritedOverloadSignatures(
   member: ProviderMemberDeclaration,
   inheritedMembers: ReadonlyMap<string, readonly ProviderMemberDeclaration[]>,
+  parentTypeParameterNames: readonly string[],
 ): ProviderMemberDeclaration | undefined {
-  const key = inheritedSourceMemberKey(member);
+  const key = providerMemberInheritanceKey(member);
   if (key === undefined) {
     return member;
   }
@@ -111,19 +186,15 @@ function removeInheritedDuplicateSignatures(
   if (member.kind !== "method" || member.signatures === undefined) {
     return undefined;
   }
-  const inheritedSignatureShapes = new Set(inherited.flatMap((inheritedMember) =>
-    (inheritedMember.signatures ?? []).map(providerSignatureShapeKey)));
-  const signatures = member.signatures.filter((signature) =>
-    !inheritedSignatureShapes.has(providerSignatureShapeKey(signature)));
-  if (signatures.length === 0) {
+  const inheritedSignatures = inherited.flatMap((inheritedMember) =>
+    (inheritedMember.signatures ?? []).map((signature) => normalizeProviderSignatureTypeParameterScope(signature, parentTypeParameterNames)));
+  const localSignatureIds = new Set(member.signatures.map((signature) => signature.id));
+  const mergedSignatures = mergeProviderSignatures([
+    ...inheritedSignatures.filter((signature) => !localSignatureIds.has(signature.id)),
+    ...member.signatures,
+  ]);
+  if (mergedSignatures === undefined || mergedSignatures.length === 0) {
     return undefined;
   }
-  return { ...member, signatures };
-}
-
-function inheritedSourceMemberKey(member: ProviderMemberDeclaration): string | undefined {
-  if (member.static === true || member.kind === "constructor") {
-    return undefined;
-  }
-  return `${member.kind}:${JSON.stringify(member.name)}`;
+  return { ...member, signatures: mergedSignatures };
 }

@@ -3,7 +3,7 @@ import type {
   CsharpTargetAttributeFact,
   CsharpTargetAttributeValue,
   CsharpTargetUnsupportedAttributeFact,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 import type {
   DotnetAttributeArgument,
   DotnetAttributeDeclaration,

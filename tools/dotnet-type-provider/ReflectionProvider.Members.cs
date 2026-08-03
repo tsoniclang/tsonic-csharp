@@ -88,8 +88,14 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var sourceType = TypeRef(UnwrapByRef(parameters[0].ParameterType));
-            var targetType = TypeRef(method.ReturnType);
+            var sourceType = TypeRef(
+                UnwrapByRef(parameters[0].ParameterType),
+                typeNullability: nullability.Create(parameters[0]),
+                typeNullabilityMetadata: NullableMetadata.ForParameter(parameters[0]));
+            var targetType = TypeRef(
+                method.ReturnType,
+                typeNullability: nullability.Create(method.ReturnParameter),
+                typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter));
             if (sourceType is null || targetType is null)
             {
                 continue;
@@ -187,7 +193,10 @@ sealed partial class ReflectionProvider
                 var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
                 var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
                 var parameters = Parameters(indexParameters, targetId);
-                var returnType = TypeRef(property.PropertyType);
+                var returnType = TypeRef(
+                    property.PropertyType,
+                    typeNullability: nullability.Create(property),
+                    typeNullabilityMetadata: NullableMetadata.ForProperty(property));
                 if (parameters is null || returnType is null)
                 {
                     continue;
@@ -209,6 +218,7 @@ sealed partial class ReflectionProvider
                         new
                         {
                             id = targetId,
+                            sourceId = targetId,
                             targetName = property.Name,
                             parameters,
                             returnType,
@@ -218,7 +228,10 @@ sealed partial class ReflectionProvider
                 continue;
             }
 
-            var typeRef = TypeRef(property.PropertyType);
+            var typeRef = TypeRef(
+                property.PropertyType,
+                typeNullability: nullability.Create(property),
+                typeNullabilityMetadata: NullableMetadata.ForProperty(property));
             if (typeRef is null)
             {
                 continue;
@@ -277,6 +290,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedPropertyReason(Type type, PropertyInfo property)
     {
+        if (!IsSourceIdentifier(SourceMemberName(property.Name)))
+        {
+            return $"CLR property name '{property.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         var accessors = property.GetAccessors(false);
         if (accessors.Length == 0)
         {
@@ -297,12 +314,18 @@ sealed partial class ReflectionProvider
             {
                 return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
-            if (TypeRef(property.PropertyType) is null)
+            if (TypeRef(
+                property.PropertyType,
+                typeNullability: nullability.Create(property),
+                typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
             {
                 return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
             }
         }
-        if (TypeRef(property.PropertyType) is null)
+        if (TypeRef(
+            property.PropertyType,
+            typeNullability: nullability.Create(property),
+            typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
         {
             return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
@@ -330,7 +353,10 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(field.FieldType);
+            var typeRef = TypeRef(
+                field.FieldType,
+                typeNullability: nullability.Create(field),
+                typeNullabilityMetadata: NullableMetadata.ForField(field));
             if (typeRef is null)
             {
                 continue;
@@ -379,11 +405,18 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedFieldReason(Type type, FieldInfo field)
     {
+        if (!IsSourceIdentifier(SourceMemberName(field.Name)))
+        {
+            return $"CLR field name '{field.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         if (field.IsSpecialName)
         {
             return "Special-name fields are target-only CLR implementation details and are not exposed as source declarations.";
         }
-        if (TypeRef(field.FieldType) is null)
+        if (TypeRef(
+            field.FieldType,
+            typeNullability: nullability.Create(field),
+            typeNullabilityMetadata: NullableMetadata.ForField(field)) is null)
         {
             return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
@@ -407,7 +440,11 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var typeRef = TypeRef(eventHandlerType, requireDelegateSourceShape: false);
+            var typeRef = TypeRef(
+                eventHandlerType,
+                requireDelegateSourceShape: false,
+                typeNullability: nullability.Create(eventInfo),
+                typeNullabilityMetadata: NullableMetadata.ForEvent(eventInfo));
             if (typeRef is null)
             {
                 continue;
@@ -461,12 +498,20 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedSourceEventReason(EventInfo eventInfo)
     {
+        if (!IsSourceIdentifier(SourceMemberName(eventInfo.Name)))
+        {
+            return $"CLR event name '{eventInfo.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         var eventHandlerType = eventInfo.EventHandlerType;
         if (eventHandlerType is null)
         {
             return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
         }
-        if (TypeRef(eventHandlerType, requireDelegateSourceShape: false) is null)
+        if (TypeRef(
+            eventHandlerType,
+            requireDelegateSourceShape: false,
+            typeNullability: nullability.Create(eventInfo),
+            typeNullabilityMetadata: NullableMetadata.ForEvent(eventInfo)) is null)
         {
             return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }
@@ -500,7 +545,7 @@ sealed partial class ReflectionProvider
         foreach (var group in ExtensionProjectionMethods(receiverType).GroupBy(ExtensionProjectionGroupKey))
         {
             var first = group.First();
-            var signatures = group.Select(method => MethodSignature(method)).Where(signature => signature is not null).Cast<object>().ToArray();
+            var signatures = group.Select(method => MethodSignature(method, GenericParameterContext.ForExtensionProjection(method, receiverType))).Where(signature => signature is not null).Cast<object>().ToArray();
             var targetDeclaringType = TypeRef(first.DeclaringType!, requireDelegateSourceShape: false);
             if (signatures.Length == 0 || targetDeclaringType is null)
             {
@@ -515,6 +560,7 @@ sealed partial class ReflectionProvider
                 metadataName = $"{MetadataName(first.DeclaringType!)}.{first.Name}",
                 @static = true,
                 sourceStatic = false,
+                sourceProjection = "extension-method",
                 receiverPassing = "first-argument",
                 sourceParameterOffset = 1,
                 targetDeclaringType,
@@ -602,6 +648,10 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedMethodReason(Type type, MethodInfo method)
     {
+        if (!IsSourceIdentifier(SourceMemberName(method.Name)))
+        {
+            return $"CLR method name '{method.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
+        }
         if (type.IsInterface && method.IsStatic)
         {
             return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
@@ -614,7 +664,7 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
-        return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
+        return UnsupportedReturnTypeReason(method, "Method return type");
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)
@@ -654,16 +704,20 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Operator signature")!;
         }
-        return UnsupportedReturnTypeReason(method.ReturnType, "Operator return type");
+        return UnsupportedReturnTypeReason(method, "Operator return type");
     }
 
-    string? UnsupportedReturnTypeReason(Type returnType, string context)
+    string? UnsupportedReturnTypeReason(MethodInfo method, string context)
     {
+        var returnType = method.ReturnType;
         if (returnType.IsByRef)
         {
             return $"{context} returns '{TypeMetadataName(returnType)}' by reference; by-reference returns require an explicit provider ref-return declaration model before they can be exposed safely.";
         }
-        return TypeRef(returnType) is null
+        return TypeRef(
+            returnType,
+            typeNullability: nullability.Create(method.ReturnParameter),
+            typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter)) is null
             ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
             : null;
     }
@@ -701,7 +755,10 @@ sealed partial class ReflectionProvider
         foreach (var parameter in parameters)
         {
             var parameterType = UnwrapByRef(parameter.ParameterType);
-            if (TypeRef(parameterType) is null)
+            if (TypeRef(
+                parameterType,
+                typeNullability: nullability.Create(parameter),
+                typeNullabilityMetadata: NullableMetadata.ForParameter(parameter)) is null)
             {
                 return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
             }
@@ -712,28 +769,33 @@ sealed partial class ReflectionProvider
     static bool IsExtensionMethod(MethodInfo method)
     {
         return method.IsStatic &&
-            method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), inherit: false);
+            HasRuntimeAttribute(method, typeof(System.Runtime.CompilerServices.ExtensionAttribute));
     }
 
-    object? MethodSignature(MethodInfo method)
+    object? MethodSignature(MethodInfo method, GenericParameterContext? genericParameters = null)
     {
+        genericParameters ??= GenericParameterContext.ForMethod(method, method.DeclaringType!);
         var id = method.IsSpecialName && method.Name.StartsWith("op_", StringComparison.Ordinal) && !IsConversionOperator(method)
             ? OperatorId(method)
             : MethodId(method);
-        var parameters = Parameters(method.GetParameters(), id);
-        var returnType = TypeRef(method.ReturnType);
+        var parameters = Parameters(method.GetParameters(), id, genericParameters);
+        var returnType = TypeRef(
+            method.ReturnType,
+            genericParameters: genericParameters,
+            typeNullability: nullability.Create(method.ReturnParameter),
+            typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter));
         if (parameters is null || returnType is null)
         {
             return null;
         }
-        var typeParameters = MethodTypeParameters(method);
+        var typeParameters = MethodTypeParameters(method, genericParameters);
         var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
         var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
-        var providerSourceSignatureId = ProviderSourceSignatureId(method, id);
+        var sourceId = SourceSignatureId(method, id);
         return new
         {
             id,
-            providerSourceSignatureId,
+            sourceId,
             targetName = method.Name,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -745,21 +807,73 @@ sealed partial class ReflectionProvider
         };
     }
 
-    string? ProviderSourceSignatureId(MethodInfo method, string id)
+    string SourceSignatureId(MethodInfo method, string id)
     {
         if (method.IsStatic || !method.IsVirtual)
         {
-            return null;
+            return id;
         }
-        var baseDefinition = method.GetBaseDefinition();
+        var baseDefinition = MetadataBaseDefinition(method);
         if (baseDefinition == method ||
             baseDefinition.DeclaringType == method.DeclaringType ||
             !baseDefinition.IsPublic)
         {
-            return null;
+            return id;
         }
-        var sourceId = MethodId(baseDefinition);
-        return sourceId == id ? null : sourceId;
+        return MethodId(baseDefinition);
+    }
+
+    static MethodInfo MetadataBaseDefinition(MethodInfo method)
+    {
+        if ((method.Attributes & MethodAttributes.NewSlot) != 0)
+        {
+            return method;
+        }
+        var definition = method;
+        for (var baseType = method.DeclaringType?.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            var matches = baseType
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(candidate => candidate.IsVirtual && MethodSlotKey(candidate) == MethodSlotKey(method))
+                .ToArray();
+            if (matches.Length > 1)
+            {
+                throw new InvalidOperationException($"Virtual method '{MethodId(method)}' has more than one metadata base-slot candidate on '{TypeMetadataName(baseType)}'.");
+            }
+            if (matches.Length == 1)
+            {
+                definition = matches[0];
+            }
+        }
+        return definition;
+    }
+
+    static string MethodSlotKey(MethodInfo method)
+    {
+        return $"{method.Name}`{method.GetGenericArguments().Length}({string.Join(",", method.GetParameters().Select(parameter => $"{PassingMode(parameter)}:{TypeSlotKey(UnwrapByRef(parameter.ParameterType))}"))})";
+    }
+
+    static string TypeSlotKey(Type type)
+    {
+        if (type.IsGenericParameter)
+        {
+            return type.DeclaringMethod is null
+                ? $"!{type.GenericParameterPosition}"
+                : $"!!{type.GenericParameterPosition}";
+        }
+        if (type.IsArray)
+        {
+            return $"{TypeSlotKey(type.GetElementType()!)}{ArrayRankSuffix(type)}";
+        }
+        if (type.IsPointer)
+        {
+            return $"{TypeSlotKey(type.GetElementType()!)}*";
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeSlotKey))}>";
+        }
+        return TargetId(type);
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)
@@ -774,25 +888,50 @@ sealed partial class ReflectionProvider
         return new
         {
             id,
+            sourceId = id,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             parameters,
         };
     }
 
-    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null)
+    object[]? Parameters(
+        ParameterInfo[] parameters,
+        string? ownerId = null,
+        GenericParameterContext? genericParameters = null,
+        GenericNullabilityContext? genericNullability = null)
     {
+        genericParameters ??= GenericParameterContext.Empty;
+        genericNullability ??= GenericNullabilityContext.Empty;
         var result = new List<object>();
         for (var index = 0; index < parameters.Length; index++)
         {
             var parameter = parameters[index];
             var parameterType = UnwrapByRef(parameter.ParameterType);
-            var type = TypeRef(parameterType);
+            var parameterNullability = genericNullability.Resolve(parameterType, nullability.Create(parameter))
+                ?? throw new InvalidOperationException($"Parameter '{parameter.Name ?? index.ToString()}' has no nullability information.");
+            var parameterNullabilityMetadata = genericNullability.ResolveMetadata(
+                parameterType,
+                NullableMetadata.ForParameter(parameter))
+                ?? throw new InvalidOperationException($"Parameter '{parameter.Name ?? index.ToString()}' has no nullable metadata information.");
+            var type = TypeRef(
+                parameterType,
+                genericParameters: genericParameters,
+                typeNullability: parameterNullability,
+                typeNullabilityMetadata: parameterNullabilityMetadata,
+                genericNullability: genericNullability);
             if (type is null)
             {
                 return null;
             }
-            var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
+            var isParamsArray = HasRuntimeAttribute(parameter, typeof(ParamArrayAttribute)) && parameterType.IsArray;
+            var sourceType = NullableParameterSourceTypeRef(
+                parameterType,
+                isParamsArray,
+                parameterNullability,
+                parameterNullabilityMetadata,
+                genericParameters,
+                genericNullability);
             var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, index, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
@@ -801,6 +940,7 @@ sealed partial class ReflectionProvider
             {
                 name = ParameterIdentifier(parameter, index),
                 type,
+                sourceType,
                 passingMode = PassingMode(parameter),
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,
@@ -829,7 +969,7 @@ sealed partial class ReflectionProvider
             return new { kind = "null" };
         }
 
-        parameterType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+        parameterType = IsNullableShape(parameterType, out var nullableElement) ? nullableElement : parameterType;
         if (parameterType.IsEnum)
         {
             var enumDefaultValue = EnumParameterDefaultValue(parameterType, value);
@@ -844,11 +984,11 @@ sealed partial class ReflectionProvider
             }
             return enumDefaultValue;
         }
-        if (parameterType == typeof(string) && value is string stringValue)
+        if (IsRuntimeType(parameterType, typeof(string)) && value is string stringValue)
         {
             return new { kind = "string", value = stringValue };
         }
-        if (parameterType == typeof(string))
+        if (IsRuntimeType(parameterType, typeof(string)))
         {
             unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                 parameter,
@@ -931,53 +1071,51 @@ sealed partial class ReflectionProvider
 
     static object? EnumParameterDefaultValue(Type enumType, object value)
     {
-        var underlyingType = Enum.GetUnderlyingType(enumType);
-        var underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+        var underlyingType = EnumUnderlyingType(enumType);
+        var underlyingValue = SourcePrimitiveDefaultValue(underlyingType, value);
         if (underlyingValue is null)
         {
             return null;
         }
-        var enumValue = Enum.ToObject(enumType, underlyingValue);
-        var fieldName = Enum.GetName(enumType, enumValue);
         return new
         {
             kind = "enum",
             value = Convert.ToString(underlyingValue, CultureInfo.InvariantCulture),
-            fieldName,
+            fieldName = EnumFieldName(enumType, underlyingType, value),
         };
     }
 
     static object? SourcePrimitiveDefaultValue(Type primitiveType, object value)
     {
-        if (primitiveType == typeof(bool) && value is bool boolValue)
+        if (IsRuntimeType(primitiveType, typeof(bool)) && value is bool boolValue)
         {
             return boolValue;
         }
-        if (primitiveType == typeof(char) && value is char charValue)
+        if (IsRuntimeType(primitiveType, typeof(char)) && value is char charValue)
         {
             return charValue.ToString();
         }
-        if (primitiveType == typeof(float))
+        if (IsRuntimeType(primitiveType, typeof(float)))
         {
             return Convert.ToSingle(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(double))
+        if (IsRuntimeType(primitiveType, typeof(double)))
         {
             return Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(decimal))
+        if (IsRuntimeType(primitiveType, typeof(decimal)))
         {
             return Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(Half))
+        if (IsRuntimeType(primitiveType, typeof(Half)))
         {
             return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(nint))
+        if (IsRuntimeType(primitiveType, typeof(nint)))
         {
             return Convert.ToInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
-        if (primitiveType == typeof(nuint))
+        if (IsRuntimeType(primitiveType, typeof(nuint)))
         {
             return Convert.ToUInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
         }
@@ -995,16 +1133,16 @@ sealed partial class ReflectionProvider
 
     static bool IsIntegerPrimitive(Type type)
     {
-        return type == typeof(sbyte) ||
-            type == typeof(byte) ||
-            type == typeof(short) ||
-            type == typeof(ushort) ||
-            type == typeof(int) ||
-            type == typeof(uint) ||
-            type == typeof(long) ||
-            type == typeof(ulong) ||
-            type.FullName == "System.Int128" ||
-            type.FullName == "System.UInt128";
+        return IsRuntimeType(type, typeof(sbyte)) ||
+            IsRuntimeType(type, typeof(byte)) ||
+            IsRuntimeType(type, typeof(short)) ||
+            IsRuntimeType(type, typeof(ushort)) ||
+            IsRuntimeType(type, typeof(int)) ||
+            IsRuntimeType(type, typeof(uint)) ||
+            IsRuntimeType(type, typeof(long)) ||
+            IsRuntimeType(type, typeof(ulong)) ||
+            IsRuntimeType(type, typeof(Int128)) ||
+            IsRuntimeType(type, typeof(UInt128));
     }
 
     static string PassingMode(ParameterInfo parameter)
@@ -1017,7 +1155,7 @@ sealed partial class ReflectionProvider
         {
             return "byref-writeonly-must-init";
         }
-        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+        return HasRuntimeAttribute(parameter, typeof(System.Runtime.InteropServices.InAttribute))
             ? "byref-readonly"
             : "byref-readwrite";
     }

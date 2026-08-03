@@ -1,7 +1,15 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
+import type { Node } from "@tsonic/tsts";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import { expressionToCsharpType } from "./csharp-types.js";
+import type {
+  TargetTypeRef,
+} from "../../policy/types/index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
 export interface CsharpClassHeritage {
@@ -11,60 +19,80 @@ export interface CsharpClassHeritage {
 
 export function planClassHeritage(
   classDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
-  const interfaces: CsharpTypeNode[] = [];
-  let baseType: CsharpTypeNode | undefined;
-  const baseTypes = input.ast.extendsHeritageElements(classDeclaration);
-  if (baseTypes.length > 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(classDeclaration, "Classes can extend only one C# base type."));
+  const heritage = input.projectTypes.heritageForDeclaration(classDeclaration);
+  if (heritage === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      classDeclaration,
+      "Project class is absent from the canonical C# project-type model.",
+    ));
+    return { interfaces: [] };
   }
-  for (const heritageType of baseTypes) {
-    if (heritageType === undefined) {
-      continue;
-    }
-    const planned = planHeritageType(heritageType, sourceFile, input, diagnostics);
-    if (baseType === undefined) {
-      baseType = planned;
-    } else {
-      diagnostics.push(unsupportedNodeDiagnostic(heritageType, "Additional class base types cannot be emitted to C#."));
-    }
-  }
-  interfaces.push(...planHeritageTypes(input.ast.implementsHeritageElements(classDeclaration), sourceFile, input, diagnostics));
+  const baseType = heritage.baseType === undefined
+    ? undefined
+    : planHeritageType(
+        heritage.baseType,
+        classDeclaration,
+        diagnostics,
+      );
+  const interfaces = planHeritageTypes(
+    heritage.interfaces,
+    classDeclaration,
+    diagnostics,
+  );
   return baseType === undefined ? { interfaces } : { baseType, interfaces };
 }
 
 export function planInterfaceHeritage(
   interfaceDeclaration: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  const implementedTypes = input.ast.implementsHeritageElements(interfaceDeclaration);
-  if (implementedTypes.length > 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(interfaceDeclaration, "Interfaces cannot implement types in C#; use extends-compatible interface heritage."));
+  const heritage = input.projectTypes.heritageForDeclaration(
+    interfaceDeclaration,
+  );
+  if (heritage === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      interfaceDeclaration,
+      "Project interface is absent from the canonical C# project-type model.",
+    ));
+    return [];
   }
-  return planHeritageTypes(input.ast.extendsHeritageElements(interfaceDeclaration), sourceFile, input, diagnostics);
+  return planHeritageTypes(
+    heritage.interfaces,
+    interfaceDeclaration,
+    diagnostics,
+  );
 }
 
 function planHeritageTypes(
-  nodes: readonly (Node | undefined)[],
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  types: readonly TargetTypeRef[],
+  declaration: Node,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  return nodes
-    .filter((node): node is Node => node !== undefined)
-    .map((node) => planHeritageType(node, sourceFile, input, diagnostics));
+  return types.flatMap((type) => {
+    const planned = planHeritageType(
+      type,
+      declaration,
+      diagnostics,
+    );
+    return planned === undefined ? [] : [planned];
+  });
 }
 
 function planHeritageType(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  type: TargetTypeRef,
+  declaration: Node,
   diagnostics: TargetDiagnostic[],
-): CsharpTypeNode {
-  return expressionToCsharpType(node, sourceFile, input, diagnostics);
+): CsharpTypeNode | undefined {
+  const planned = csharpTypeFromTargetTypeRef(type);
+  if (planned === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      declaration,
+      "Canonical project heritage contains a target type that cannot be rendered in C#.",
+    ));
+  }
+  return planned;
 }

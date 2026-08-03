@@ -27,12 +27,14 @@ export interface CsharpInterfacePropertyDeclaration {
   readonly kind: "PropertyDeclaration";
   readonly name: string;
   readonly attributes?: readonly CsharpAttribute[];
+  readonly writable: boolean;
   readonly type: CsharpTypeNode;
 }
 
 export interface CsharpInterfaceIndexerDeclaration {
   readonly kind: "IndexerDeclaration";
   readonly attributes?: readonly CsharpAttribute[];
+  readonly writable: boolean;
   readonly keyName: string;
   readonly keyType: CsharpTypeNode;
   readonly valueType: CsharpTypeNode;
@@ -93,9 +95,12 @@ export interface CsharpPropertyDeclaration {
   readonly initializer?: CsharpExpression;
   readonly autoGetter?: boolean;
   readonly autoSetter?: boolean;
+  readonly autoSetterModifiers?: readonly CsharpAccessorModifier[];
   readonly getter?: CsharpBlock;
   readonly setter?: CsharpBlock;
 }
+
+export type CsharpAccessorModifier = "private" | "protected" | "internal";
 
 export interface CsharpParameter {
   readonly name: string;
@@ -114,4 +119,4 @@ export interface CsharpAttribute {
 
 export type CsharpAttributeTargetSpecifier = "field" | "property" | "param" | "return";
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "virtual" | "override" | "async" | "unsafe";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "required" | "virtual" | "override" | "async" | "unsafe";

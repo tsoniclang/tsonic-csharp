@@ -1,15 +1,18 @@
-import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
+import type {
+  SourcePrimitiveKind,
+} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../policy/types/index.js";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { csharpTupleType } from "./csharp-tuples.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "./identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 import {
   csharpRenderShapeForTargetNamedType,
   csharpSourcePrimitiveCsharpPredefinedName,
   isCsharpNullableReferenceTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type);
@@ -24,6 +27,8 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
   switch (type.kind) {
     case "source-primitive":
       return csharpTypeFromSourcePrimitiveKind(type.name);
+    case "source-global":
+      return undefined;
     case "target-named":
       return csharpTypeFromTargetNamedType(type);
     case "type-parameter":
@@ -54,8 +59,9 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
         : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
     }
     case "target-specific":
-      return undefined;
-    default:
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
       return undefined;
   }
 }

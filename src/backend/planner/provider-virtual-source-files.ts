@@ -1,14 +1,9 @@
-import {
-  providerVirtualDeclarationFactKey,
-} from "@tsonic/tsts";
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TargetCompileInput,
-} from "@tsonic/target-api";
 
-export function isProviderVirtualSourceFile(input: TargetCompileInput, sourceFile: SourceFile | undefined): boolean {
+export function isProviderVirtualSourceFile(input: CsharpTranslationContext, sourceFile: SourceFile | undefined): boolean {
   return sourceFile !== undefined &&
-    input.facts.getFact(sourceFile, providerVirtualDeclarationFactKey) !== undefined;
+    input.ast.getFileName(sourceFile).startsWith("tsts-provider://");
 }

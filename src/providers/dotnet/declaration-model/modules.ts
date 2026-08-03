@@ -14,12 +14,12 @@ import type {
   DotnetProviderDeclarationModelOptions,
 } from "./context.js";
 import { createDotnetDeclarationContext } from "./context.js";
-import { dotnetTargetIdentity } from "./conversions.js";
 import { providerImportsForExternalRefs, qualifyProviderExportModuleRefs } from "./module-refs.js";
 import { dotnetExportToNamespaceMember } from "./namespace-members.js";
 import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 import { dotnetSignatureToProviderSignature } from "./signatures.js";
 import { dotnetTypeToProviderExport } from "./types.js";
+import { normalizeProviderTypeFamilyParameters } from "./type-families.js";
 
 export function dotnetModuleToProviderDeclarationModel(
   module: DotnetModuleModel,
@@ -35,12 +35,13 @@ export function dotnetModuleToProviderDeclarationModel(
         : qualifyProviderExportModuleRefs(providerExport, context);
     })
     .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined);
-  const imports = providerImportsForExternalRefs(exports, qualifiedModule.moduleSpecifier);
+  const normalizedExports = normalizeProviderTypeFamilyParameters(exports);
+  const imports = providerImportsForExternalRefs(normalizedExports, qualifiedModule.moduleSpecifier);
   return {
     moduleSpecifier: qualifiedModule.moduleSpecifier,
     providerModuleId: options.providerModuleId ?? qualifiedModule.moduleSpecifier,
     ...(imports.length === 0 ? {} : { imports }),
-    exports,
+    exports: normalizedExports,
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
   };
 }
@@ -63,12 +64,11 @@ export function dotnetExportToProviderExport(
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "function",
-        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         signatures,
       };
     }
     case "value": {
-      const type = tryDotnetTypeRefToProviderType(declaration.type);
+      const type = tryDotnetTypeRefToProviderType(declaration.type, `${declaration.targetId}.type`);
       if (type === undefined) {
         return undefined;
       }
@@ -76,7 +76,6 @@ export function dotnetExportToProviderExport(
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "value",
-        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         type,
       };
     }

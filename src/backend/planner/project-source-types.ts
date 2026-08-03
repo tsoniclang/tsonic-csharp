@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   KindClassDeclaration,
   KindEnumDeclaration,
@@ -9,7 +10,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -25,15 +25,18 @@ import {
 import {
   isProviderVirtualSourceFile,
 } from "./provider-virtual-source-files.js";
+import {
+  csharpSourceTypeArgumentNodes,
+} from "../../policy/types/index.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(
   node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceFile: SourceFile,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   return getCsharpTypeFromProjectSourceReference(
-    input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }),
+    input.navigation.referenceFor(node),
     input,
     diagnostics,
   );
@@ -42,11 +45,11 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
 export function getCsharpTypeFromProjectSourceTypeReferenceNode(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   resolveCsharpType: (
     typeNode: Node | undefined,
     typeSourceFile: SourceFile,
-    typeInput: TargetCompileInput,
+    typeInput: CsharpTranslationContext,
     errorType: CsharpTypeNode,
     typeDiagnostics?: TargetDiagnostic[],
   ) => CsharpTypeNode,
@@ -57,25 +60,21 @@ export function getCsharpTypeFromProjectSourceTypeReferenceNode(
   if (type === undefined) {
     return undefined;
   }
-  const typeArguments = input.ast.typeArguments(node)
-    .filter((argument): argument is Node => argument !== undefined)
+  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, node)
     .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("project source type argument"), diagnostics));
   return withCsharpTypeArguments(type, typeArguments);
 }
 
 export function getCsharpTypeFromProjectSourceReference(
-  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
-  input: TargetCompileInput,
+  reference: ReturnType<CsharpTranslationContext["navigation"]["referenceFor"]>,
+  input: CsharpTranslationContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   if (reference === undefined) {
     return undefined;
   }
-  if (input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
-    return undefined;
-  }
   if (
-    !input.sourceFiles.some((sourceFile) => sourceFile === reference.sourceFile) ||
+    !input.navigation.isProjectDeclaration(reference.declaration) ||
     reference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, reference.sourceFile)
   ) {
@@ -88,7 +87,7 @@ export function getCsharpTypeFromProjectSourceReference(
   ) {
     return undefined;
   }
-  const nameNode = Node_Name(reference.declaration);
+  const nameNode = Node_Name(input.ast, reference.declaration);
   if (nameNode === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
     return invalidCsharpType("project source type reference");

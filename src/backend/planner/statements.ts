@@ -1,8 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBlock,
   AsForInOrOfStatement,
   AsLabeledStatement,
-  AsVariableDeclarationList,
   AsVariableStatement,
   KindBlock,
   KindBreakStatement,
@@ -26,7 +26,9 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type {
   CsharpStatement,
 } from "../roslyn/syntax.js";
@@ -61,7 +63,7 @@ import {
 export function planBlockStatements(
   blockNode: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
@@ -76,7 +78,7 @@ export function planBlockStatements(
 export function planStatements(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
@@ -94,9 +96,9 @@ export function planStatements(
     case KindReturnStatement:
       return planReturnStatement(node, sourceFile, input, diagnostics, state);
     case KindBreakStatement:
-      return planBreakStatement(node, diagnostics, state);
+      return planBreakStatement(node, input.ast, diagnostics, state);
     case KindContinueStatement:
-      return planContinueStatement(node, diagnostics, state);
+      return planContinueStatement(node, input.ast, diagnostics, state);
     case KindThrowStatement:
       return planThrowStatement(node, sourceFile, input, diagnostics, state);
     case KindDebuggerStatement:
@@ -135,14 +137,15 @@ export function planStatements(
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(node)!.DeclarationList;
-      const declarations = AsVariableDeclarationList(declarationList)!.Declarations?.Nodes ?? [];
+      const declarations = declarationList === undefined
+        ? []
+        : input.ast.children(declarationList)
+          .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
       if (declarations.length === 0) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
         return [];
       }
-      return declarations
-        .filter((declaration): declaration is Node => declaration !== undefined)
-        .flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
+      return declarations.flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
@@ -153,7 +156,7 @@ export function planStatements(
 function planNestedStatementBody(
   node: Node | undefined,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {

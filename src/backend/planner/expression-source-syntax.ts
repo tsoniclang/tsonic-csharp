@@ -1,5 +1,8 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import {
   AsAsExpression,
@@ -42,16 +45,21 @@ import {
 } from "../../source/source-literal-values.js";
 import {
   csharpBigIntegerTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+} from "../../policy/types/index.js";
+import {
+  selectCsharpExpressionConversion,
+} from "../../policy/conversions/index.js";
+import {
+  applyCsharpConversionSelection,
+} from "../../translate/expressions/conversions.js";
 import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
 import {
-  requireCsharpBoolRuntimeCarrier,
+  planCsharpConditionExpression,
 } from "./expression-bool-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
-  targetTypeRefsMatch,
 } from "./target-types.js";
 import {
   probeCarrierFromResolution,
@@ -60,7 +68,8 @@ import {
 } from "./runtime-carriers.js";
 import {
   getCsharpTaskResultTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
 import {
   planThisExpression,
 } from "./expression-this.js";
@@ -68,20 +77,20 @@ import {
 export function tryPlanSourceSyntaxExpression(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   switch (SourceKind(input.ast, node)) {
     case KindStringLiteral:
-      return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
+      return { kind: "LiteralExpression", value: Node_Text(input.ast, AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
       if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
         return undefined;
       }
-      return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
+      return { kind: "LiteralExpression", value: Node_Text(input.ast, AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral: {
-      const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+      const value = parseFiniteNumberLiteral(Node_Text(input.ast, AsNumericLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
         return undefined;
@@ -89,7 +98,7 @@ export function tryPlanSourceSyntaxExpression(
       return { kind: "LiteralExpression", value };
     }
     case KindBigIntLiteral: {
-      const value = parseBigIntLiteral(Node_Text(AsBigIntLiteral(node)));
+      const value = parseBigIntLiteral(Node_Text(input.ast, AsBigIntLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
         return undefined;
@@ -101,7 +110,7 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, `BigInt literal emission requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
         return undefined;
       }
-      if (!targetTypeRefsMatch(carrier, csharpBigIntegerTargetType())) {
+      if (!targetTypeRefEquals(carrier, csharpBigIntegerTargetType())) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact."));
         return undefined;
       }
@@ -133,14 +142,44 @@ export function tryPlanSourceSyntaxExpression(
       return planThisExpression(node, sourceFile, input, diagnostics);
     case KindSuperKeyword:
       return { kind: "IdentifierName", name: "base" };
-    case KindAsExpression:
-      return planExpression(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics);
+    case KindAsExpression: {
+      const assertion = AsAsExpression(node)!;
+      return planAssertionExpression(
+        node,
+        assertion.Expression,
+        assertion.Type,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+      );
+    }
     case KindSatisfiesExpression:
       return planExpression(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics);
-    case KindNonNullExpression:
-      return planExpression(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics);
-    case KindTypeAssertionExpression:
-      return planExpression(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics);
+    case KindNonNullExpression: {
+      const expression = AsNonNullExpression(node)!.Expression;
+      return planAssertionExpression(
+        node,
+        expression,
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+      );
+    }
+    case KindTypeAssertionExpression: {
+      const assertion = AsTypeAssertion(node)!;
+      return planAssertionExpression(
+        node,
+        assertion.Expression,
+        assertion.Type,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+      );
+    }
     case KindParenthesizedExpression: {
       const expression = AsParenthesizedExpression(node)!;
       const inner = planExpression(expression.Expression!, sourceFile, input, diagnostics);
@@ -170,7 +209,7 @@ export function tryPlanSourceSyntaxExpression(
       const awaitCarrier = probeCarrierFromResolution(awaitCarrierResolution);
       if (
         awaitCarrier === undefined ||
-        !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
+        !targetTypeRefEquals(awaitCarrier, awaitedResultCarrier)
       ) {
         const detail = missingCarrierDiagnosticDetail(awaitCarrierResolution, "Runtime carrier fact is missing for the await expression result.");
         diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier. ${detail.reason}`, detail.evidence));
@@ -191,10 +230,14 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
         return undefined;
       }
-      if (!requireCsharpBoolRuntimeCarrier(expression.Condition, "Conditional expression condition", sourceFile, input, diagnostics)) {
-        return undefined;
-      }
-      const condition = planExpression(expression.Condition!, sourceFile, input, diagnostics);
+      const condition = planCsharpConditionExpression(
+        expression.Condition,
+        "Conditional expression condition",
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+      );
       const whenTrue = planExpression(expression.WhenTrue!, sourceFile, input, diagnostics);
       const whenFalse = planExpression(expression.WhenFalse!, sourceFile, input, diagnostics);
       if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
@@ -210,4 +253,44 @@ export function tryPlanSourceSyntaxExpression(
     default:
       return undefined;
   }
+}
+
+function planAssertionExpression(
+  node: Node,
+  expressionNode: Node | undefined,
+  targetTypeNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (expressionNode === undefined || targetTypeNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# assertion translation requires exact expression and target type syntax.",
+    ));
+    return undefined;
+  }
+  if (input.ast.isConstAssertion(node)) {
+    return planExpression(expressionNode, sourceFile, input, diagnostics);
+  }
+  const sourceType = input.types.resolveNode(expressionNode, sourceFile);
+  const targetType = input.types.resolveNode(targetTypeNode, sourceFile);
+  const selection = selectCsharpExpressionConversion(
+    input,
+    expressionNode,
+    sourceType,
+    targetType,
+    "explicit",
+  );
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceType,
+    targetType,
+    selection,
+    planExpression(expressionNode, sourceFile, input, diagnostics),
+  );
 }

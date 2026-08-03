@@ -1,6 +1,4 @@
-import type {
-  TargetTypeRef,
-} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -13,7 +11,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../source/csharp-facts.js";
+} from "../../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -24,8 +22,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
+  canonicalCsharpObjectShapeMembers,
   isCsharpVoidTargetType,
-} from "../../../source/csharp-source-semantics/target-types.js";
+} from "../../../policy/types/index.js";
 
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,
@@ -33,7 +32,7 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): CsharpClassDeclaration["members"] | undefined {
-  const members = fact.members.flatMap((member) => {
+  const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {
@@ -48,7 +47,9 @@ export function renderObjectShapeMembers(
       return [{
         kind: "PropertyDeclaration" as const,
         name: member.targetName,
-        modifiers: ["public"] as const,
+        modifiers: member.optional === true
+          ? ["public"] as const
+          : ["public", "required"] as const,
         type,
         autoGetter: true,
         autoSetter: true,
@@ -57,7 +58,9 @@ export function renderObjectShapeMembers(
     return [{
       kind: "FieldDeclaration" as const,
       name: member.targetName,
-      modifiers: ["public"] as const,
+      modifiers: member.optional === true
+        ? ["public"] as const
+        : ["public", "required"] as const,
       type,
     }];
   });
@@ -102,7 +105,7 @@ function renderObjectShapeMethodMember(
   return [{
     kind: "FieldDeclaration",
     name: backingName,
-    modifiers: ["public"],
+    modifiers: member.optional === true ? ["public"] : ["public", "required"],
     type: delegateType,
   }, {
     kind: "MethodDeclaration",

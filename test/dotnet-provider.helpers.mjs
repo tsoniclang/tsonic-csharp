@@ -7,7 +7,7 @@ import {
   augmentDotnetModuleWithNativeArray,
   createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
-  createDotnetTargetBindingProvider,
+  createDotnetSourceDeclarationProvider,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
@@ -22,7 +22,7 @@ import {
   tryDotnetTypeRefToProviderType,
 } from "../dist/providers/dotnet/model.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
-export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetTargetBindingProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
+export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
 
 export const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 export const testAssemblyId = "Test.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -52,6 +52,7 @@ export function methodMember(ownerMetadataName, sourceName, targetName, paramete
     signatures: [
       {
         id: testTargetId(signatureMetadataName),
+        sourceId: testTargetId(signatureMetadataName),
         targetName,
         parameters,
         returnType,
@@ -315,6 +316,15 @@ export function typeFact(type) {
       return {
         kind: "target-named",
         id: stripAssemblyQualifiers(type.id),
+      };
+    case "provider-ref":
+      return {
+        kind: "provider-ref",
+        moduleSpecifier: type.moduleSpecifier,
+        exportName: type.exportName,
+        ...(type.typeArguments === undefined
+          ? {}
+          : { typeArguments: type.typeArguments.map(typeFact) }),
       };
     default:
       return { kind: type.kind };

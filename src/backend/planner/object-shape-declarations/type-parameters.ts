@@ -1,6 +1,4 @@
-import type {
-  TargetTypeRef,
-} from "@tsonic/tsts";
+import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -9,7 +7,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../source/csharp-facts.js";
+} from "../../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -88,6 +86,7 @@ function collectTargetTypeParameterNames(
     case "type-parameter":
       names.add(type.name);
       return;
+    case "source-global":
     case "target-named":
       for (const typeArgument of type.typeArguments ?? []) {
         collectTargetTypeParameterNames(typeArgument, names);

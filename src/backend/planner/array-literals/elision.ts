@@ -1,3 +1,4 @@
+import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import {
   AsArrayLiteralExpression,
   HasSourceKind,
@@ -7,7 +8,6 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import type {
-  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
@@ -16,7 +16,7 @@ import {
 
 export function arrayLiteralHasElision(
   node: Node,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
 ): boolean {
   const literal = AsArrayLiteralExpression(node);
   return (literal?.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));

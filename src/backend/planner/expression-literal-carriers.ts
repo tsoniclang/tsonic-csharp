@@ -1,8 +1,12 @@
+import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
 import {
   csharpStringTargetType,
-} from "../../source/csharp-source-semantics/target-types.js";
+  targetTypeRefEquals,
+} from "../../policy/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
@@ -11,14 +15,11 @@ import {
   missingCarrierDiagnosticDetail,
   resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
-import {
-  targetTypeRefsMatch,
-} from "./target-types.js";
 
 export function requireCsharpStringRuntimeCarrier(
   node: Node,
   sourceFile: SourceFile,
-  input: TargetCompileInput,
+  input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   description: string,
 ): boolean {
@@ -29,7 +30,7 @@ export function requireCsharpStringRuntimeCarrier(
     diagnostics.push(unsupportedNodeDiagnostic(node, `${description} requires a finalized target string runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
     return false;
   }
-  if (!targetTypeRefsMatch(carrier, csharpStringTargetType())) {
+  if (!targetTypeRefEquals(carrier, csharpStringTargetType())) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `${description} requires a finalized System.String runtime carrier fact before C# emission.`));
     return false;
   }
