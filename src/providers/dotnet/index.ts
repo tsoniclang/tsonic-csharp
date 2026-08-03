@@ -92,6 +92,5 @@ export {
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
-  isDotnetNativeArrayCreateMemberId,
 } from "./native-array.js";
 export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";

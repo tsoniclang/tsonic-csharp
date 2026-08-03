@@ -111,6 +111,15 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.ok(binding);
   assert.equal(binding.csharpType.kind, "array");
   assert.equal(binding.csharpType.element.kind, "type-parameter");
+  const targetCreate = binding.members.find((member) =>
+    member.id === dotnetNativeArrayCreateMemberId
+  );
+  assert.ok(targetCreate);
+  assert.equal(targetCreate.typeParameters, undefined);
+  assert.deepEqual(targetCreate.csharpInvocation, {
+    kind: "array-creation",
+    lengthParameterIndex: 0,
+  });
   assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayLengthMemberId).targetName, "Length");
   assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayIndexerMemberId).targetName, "Item");
 });

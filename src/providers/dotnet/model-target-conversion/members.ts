@@ -161,7 +161,9 @@ function dotnetSignatureToTargetMember(
                 ),
               },
         }),
-    ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
+    ...(signature.targetInvocation?.kind !== "array-creation" &&
+        signature.typeParameters !== undefined &&
+        signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
     ...(methodTypeArgumentProjections.length === 0

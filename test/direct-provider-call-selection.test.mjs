@@ -903,6 +903,68 @@ test("generic constructor families close from selected operation type arguments"
   assert.deepEqual(selected.call.targetMethodTypeArguments, []);
 });
 
+test("target operations can consume selected method type arguments as structural binding arguments", () => {
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const explicitTypeNode = {};
+  const selectedType = {};
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const binding = providerBinding({
+    id: "Fixture.Array`1",
+    typeParameters: [{ name: "T" }],
+    csharpType: { kind: "array", element: typeParameter },
+  });
+  const method = Object.freeze({
+    ...providerMethod({
+      id: "Fixture.Array`1.Create(System.Int32)",
+      declaringType: { kind: "array", element: typeParameter },
+      static: true,
+      parameters: [targetParameter("length", int32)],
+      returnType: { kind: "array", element: typeParameter },
+    }),
+    csharpInvocation: {
+      kind: "array-creation",
+      lengthParameterIndex: 0,
+    },
+  });
+  const fixture = createCallFixture({
+    declaration: providerDeclaration({ memberStatic: true }),
+    binding,
+    member: method,
+    receiver: false,
+    targetParameters: method.parameters,
+    sourceArgumentTargets: [int32],
+    methodTypeArguments: [{
+      typeParameterName: "T",
+      typeParameter: {},
+      selectedType,
+      explicitTypeNode,
+    }],
+    additionalNodeTypes: [[explicitTypeNode, int32]],
+    additionalSemanticTypes: [[selectedType, int32]],
+    bindingTypeArgumentSource: "selected-operation-type-arguments",
+    bindingTypeParameters: [{
+      sourceTypeParameterIndex: 0,
+      targetTypeParameterIndex: 0,
+    }],
+    methodTypeParameters: [],
+  });
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.targetMember.declaringType, {
+    kind: "array",
+    element: int32,
+  });
+  assert.deepEqual(selected.call.targetMember.returnType, {
+    kind: "array",
+    element: int32,
+  });
+  assert.deepEqual(selected.call.targetMethodTypeArguments, []);
+});
+
 test("constructor selection does not fall through to a same-shaped sibling signature", () => {
   const selectedDeclaration = providerDeclaration({
     signatureId: "provider.constructor.string",
@@ -1042,6 +1104,12 @@ function createCallFixture(options = {}) {
     ...(options.bindingTypeArgumentSource === undefined
       ? {}
       : { bindingTypeArgumentSource: options.bindingTypeArgumentSource }),
+    ...(options.bindingTypeParameters === undefined
+      ? {}
+      : { bindingTypeParameters: options.bindingTypeParameters }),
+    ...(options.methodTypeParameters === undefined
+      ? {}
+      : { methodTypeParameters: options.methodTypeParameters }),
   });
   const relations = options.relations ?? [relation];
   const sourceArgumentTargets = options.sourceArgumentTargets ?? [];

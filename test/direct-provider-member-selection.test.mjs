@@ -146,6 +146,37 @@ test("generic property members close from exact receiver representation", () => 
   assert.deepEqual(selected.property.targetMember.returnType, stringType);
 });
 
+test("structural property bindings close from exact receiver representation", () => {
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const binding = providerBinding({
+    id: "Fixture.Array`1",
+    typeParameters: [{ name: "T" }],
+    csharpType: { kind: "array", element: typeParameter },
+  });
+  const member = providerField({
+    id: "Fixture.Array`1.Length",
+    targetName: "Length",
+    declaringType: { kind: "array", element: typeParameter },
+    returnType: int32,
+  });
+  const fixture = createPropertyFixture({
+    binding,
+    member,
+    receiverTarget: { kind: "array", element: int32 },
+  });
+  const selected = selectCsharpProviderProperty(
+    fixture.host,
+    fixture.expression,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.property.targetMember.declaringType, {
+    kind: "array",
+    element: int32,
+  });
+});
+
 test("readonly target properties reject exact source writes", () => {
   const fixture = createPropertyFixture({
     accessMode: "write",
@@ -302,6 +333,33 @@ test("generic indexer results close from exact receiver representation", () => {
   );
   assert.equal(selected.kind, "resolved");
   assert.deepEqual(selected.element.targetMember.returnType, stringType);
+});
+
+test("structural indexer bindings close from exact receiver representation", () => {
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const binding = providerBinding({
+    id: "Fixture.Array`1",
+    typeParameters: [{ name: "T" }],
+    csharpType: { kind: "array", element: typeParameter },
+  });
+  const member = providerIndexer({
+    id: "Fixture.Array`1.Item(System.Int32)",
+    declaringType: { kind: "array", element: typeParameter },
+    returnType: typeParameter,
+  });
+  const fixture = createElementFixture({
+    binding,
+    member,
+    receiverTarget: { kind: "array", element: int32 },
+  });
+  const selected = selectCsharpProviderElement(
+    fixture.host,
+    fixture.expression,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.element.targetMember.returnType, int32);
 });
 
 test("readonly indexers reject exact source writes", () => {

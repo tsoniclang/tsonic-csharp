@@ -256,11 +256,24 @@ function dotnetProviderMemberTargetRelationTemplates(
         signature.parameters,
         projection,
       );
-      const methodTypeParameters = providerTypeParameterRelations(
-        signature.typeParameters?.length ?? 0,
-        projection.targetMember.typeParameters?.length ?? 0,
-        `signature '${signature.id}'`,
-      );
+      const selectedTypeArgumentsCloseBinding =
+        projection.targetMember.kind === "constructor" ||
+        projection.targetMember.csharpInvocation?.kind === "array-creation";
+      const relationBindingTypeParameters =
+        projection.targetMember.csharpInvocation?.kind === "array-creation"
+          ? providerTypeParameterRelations(
+              signature.typeParameters?.length ?? 0,
+              projection.targetBinding.typeParameters?.length ?? 0,
+              `array-creation signature '${signature.id}'`,
+            )
+          : bindingTypeParameters;
+      const methodTypeParameters = selectedTypeArgumentsCloseBinding
+        ? []
+        : providerTypeParameterRelations(
+            signature.typeParameters?.length ?? 0,
+            projection.targetMember.typeParameters?.length ?? 0,
+            `signature '${signature.id}'`,
+          );
       return {
         kind: "signature" as const,
         exportId: declaration.id,
@@ -272,9 +285,9 @@ function dotnetProviderMemberTargetRelationTemplates(
         targetMember: projection.targetMember,
         receiver: providerReceiverRelation(projection),
         parameters,
-        bindingTypeParameters,
+        bindingTypeParameters: relationBindingTypeParameters,
         bindingTypeArgumentSource:
-          projection.targetMember.kind === "constructor"
+          selectedTypeArgumentsCloseBinding
             ? "selected-operation-type-arguments"
             : providerBindingTypeArgumentSource(projection.targetMember),
         methodTypeParameters,

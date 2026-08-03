@@ -14,6 +14,8 @@ import type {
 } from "../types/index.js";
 import {
   csharpTargetBindingSubstitutions,
+  csharpTargetTypePatternFromBinding,
+  resolveCsharpTargetTypePatternArguments,
   substituteCsharpTargetMember,
   targetTypeRefEquals,
 } from "../types/index.js";
@@ -37,14 +39,16 @@ export function resolveCsharpTargetBindingArguments(
     .map((evidence) =>
       types.resolveNode(evidence.node, sourceFile) ??
       types.resolveType(evidence.type, sourceFile))
+    .filter((type): type is TargetTypeRef => type !== undefined)
+    .map((type) => resolveCsharpTargetTypePatternArguments(
+      csharpTargetTypePatternFromBinding(binding),
+      type,
+      binding.typeParameters ?? [],
+    ))
     .filter(
-      (type): type is TargetTypeRef =>
-        type !== undefined &&
-        type.kind === "target-named" &&
-        type.id === binding.id,
-    )
-    .map((type) => type.kind === "target-named" ? type.typeArguments ?? [] : [])
-    .filter((arguments_) => arguments_.length === targetArity);
+      (arguments_): arguments_ is readonly TargetTypeRef[] =>
+        arguments_ !== undefined && arguments_.length === targetArity,
+    );
   if (candidates.length === 0) {
     return undefined;
   }

@@ -52,10 +52,6 @@ export function augmentDotnetModuleWithNativeArray(
   };
 }
 
-export function isDotnetNativeArrayCreateMemberId(memberId: string): boolean {
-  return memberId === dotnetNativeArrayCreateMemberId;
-}
-
 function shouldAugmentNativeArray(options: DotnetNativeArrayAugmentationOptions): boolean {
   return options.broadImport === true
     || options.requestedExports?.includes("Array") === true

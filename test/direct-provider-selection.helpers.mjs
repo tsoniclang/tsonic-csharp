@@ -86,6 +86,7 @@ export function providerBinding(options = {}) {
     targetName: options.targetName ?? id,
     target: "csharp",
     kind: options.kind ?? "class",
+    ...(options.csharpType === undefined ? {} : { csharpType: options.csharpType }),
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(options.members === undefined ? {} : { members: options.members }),
     ...(options.conversionOperators === undefined

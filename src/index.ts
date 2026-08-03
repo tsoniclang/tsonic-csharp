@@ -102,7 +102,6 @@ export {
   dotnetModuleSpecifierPolicy,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
-  isDotnetNativeArrayCreateMemberId,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
   validateDotnetModuleModelContract,

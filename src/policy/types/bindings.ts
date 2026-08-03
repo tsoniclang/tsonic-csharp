@@ -43,6 +43,25 @@ export function csharpTargetTypeFromBinding(
     : csharpTargetNamedType(binding.id, typeArguments, renderShape);
 }
 
+export function csharpTargetTypePatternFromBinding(
+  binding: CsharpTargetBindingFact,
+): TargetTypeRef {
+  if (binding.csharpType !== undefined) {
+    return binding.csharpType;
+  }
+  const typeArguments = binding.typeParameters?.map((parameter) => ({
+    kind: "type-parameter" as const,
+    name: parameter.name,
+  }));
+  return {
+    kind: "target-named",
+    id: binding.id,
+    ...(typeArguments === undefined || typeArguments.length === 0
+      ? {}
+      : { typeArguments }),
+  };
+}
+
 function targetBindingTypeArgumentMap(
   binding: TargetBindingFact,
   typeArguments: readonly TargetTypeRef[],
