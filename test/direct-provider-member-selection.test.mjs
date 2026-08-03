@@ -235,6 +235,20 @@ test("index arguments require an exact implicit target conversion", () => {
   );
 });
 
+test("index arguments preserve exact syntax-owned source primitive evidence", () => {
+  const fixture = createElementFixture({
+    argumentTarget: csharpSourcePrimitiveTargetType("float64"),
+    argumentNodeTarget: csharpSourcePrimitiveTargetType("int32"),
+    targetParameterType: csharpSourcePrimitiveTargetType("int32"),
+  });
+  const selected = selectCsharpProviderElement(
+    fixture.host,
+    fixture.expression,
+    fixture.sourceFile,
+  );
+  assert.equal(selected.kind, "resolved");
+});
+
 test("exact checked index arguments are accepted only on their selected relation", () => {
   const indexer = providerIndexer({
     parameters: [
@@ -430,6 +444,7 @@ function createElementFixture(options = {}) {
     id: binding.id,
   };
   const argumentTarget = options.argumentTarget ?? targetParameterType;
+  const argumentNodeTarget = options.argumentNodeTarget ?? argumentTarget;
   const facts = options.includeProviderFact === false
     ? []
     : [providerFact(
@@ -443,7 +458,7 @@ function createElementFixture(options = {}) {
     elements: [[source.expression, source.evidence]],
     nodeTypes: [
       [source.evidence.receiver.expression, receiverTarget],
-      [source.evidence.argument.expression, argumentTarget],
+      [source.evidence.argument.expression, argumentNodeTarget],
     ],
     semanticTypes: [
       [source.evidence.receiver.type, receiverTarget],

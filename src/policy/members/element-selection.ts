@@ -173,7 +173,8 @@ function instantiateProviderElement(
     return undefined;
   }
   if (targetParameter.csharpAcceptsCheckedSourceArgument !== true) {
-    const sourceArgumentType = host.types.resolveType(
+    const sourceArgumentType = host.types.resolveValue(
+      source.argument.expression,
       source.argument.type,
       sourceFile,
     );
