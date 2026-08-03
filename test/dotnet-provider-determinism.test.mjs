@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -38,10 +38,27 @@ test("C# framework references resolve through active SDK targeting packs", () =>
 
   assert.deepEqual(references.slice(0, 2), ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
   const frameworkReferences = references.slice(2);
-  assert.ok(frameworkReferences.length > 0);
-  assert.ok(frameworkReferences.some((reference) => reference.endsWith("/Microsoft.AspNetCore.Http.dll")));
-  assert.ok(frameworkReferences.every((reference) => reference.includes("/packs/Microsoft.AspNetCore.App.Ref/")));
-  assert.ok(frameworkReferences.every((reference) => !reference.includes("/shared/Microsoft.AspNetCore.App/")));
+  assert.notEqual(frameworkReferences[0], undefined);
+  const frameworkDirectory = dirname(frameworkReferences[0]);
+  assert.deepEqual(
+    [...new Set(frameworkReferences.map((reference) => dirname(reference)))],
+    [frameworkDirectory],
+  );
+  assert.match(frameworkDirectory, /\/packs\/Microsoft\.AspNetCore\.App\.Ref\//u);
+  assert.doesNotMatch(frameworkDirectory, /\/shared\/Microsoft\.AspNetCore\.App\//u);
+  assert.deepEqual(
+    frameworkReferences,
+    readdirSync(frameworkDirectory)
+      .filter((fileName) => fileName.endsWith(".dll"))
+      .map((fileName) => join(frameworkDirectory, fileName))
+      .sort((left, right) => left.localeCompare(right)),
+  );
+  assert.equal(
+    frameworkReferences.filter((reference) =>
+      reference.endsWith("/Microsoft.AspNetCore.Http.dll")
+    ).length,
+    1,
+  );
 });
 
 test(".NET reflection provider reads active SDK targeting-pack assemblies as metadata", () => {
@@ -63,9 +80,33 @@ test(".NET reflection provider reads active SDK targeting-pack assemblies as met
 
   assert.equal("exports" in module, true, JSON.stringify(module));
   const httpContext = module.exports.find((declaration) => declaration.sourceName === "HttpContext");
-  assert.equal(httpContext?.targetId.includes("::Microsoft.AspNetCore.Http.HttpContext"), true);
+  assert.equal(httpContext?.metadataName, "Microsoft.AspNetCore.Http.HttpContext");
+  assert.equal(httpContext?.assembly.name, "Microsoft.AspNetCore.Http.Abstractions");
+  assert.equal(
+    httpContext?.targetId,
+    `${httpContext?.assembly.name}, Version=${httpContext?.assembly.version}, Culture=neutral, PublicKeyToken=${httpContext?.assembly.publicKeyToken}::${httpContext?.metadataName}`,
+  );
   assert.match(httpContext?.assembly.path ?? "", /\/packs\/Microsoft\.AspNetCore\.App\.Ref\//u);
-  assert.equal(httpContext?.members?.some((member) => member.sourceName === "Response"), true);
+  const responseMembers = httpContext?.members?.filter((member) =>
+    member.sourceName === "Response"
+  );
+  assert.equal(responseMembers?.length, 1);
+  assert.deepEqual(
+    {
+      kind: responseMembers?.[0]?.kind,
+      sourceName: responseMembers?.[0]?.sourceName,
+      targetName: responseMembers?.[0]?.targetName,
+      readable: responseMembers?.[0]?.readable,
+      metadataName: responseMembers?.[0]?.metadataName,
+    },
+    {
+      kind: "property",
+      sourceName: "Response",
+      targetName: "Response",
+      readable: true,
+      metadataName: "Microsoft.AspNetCore.Http.HttpContext.Response",
+    },
+  );
 });
 
 test(".NET targeting-pack selection follows the exact active SDK without version sorting", () => {
@@ -132,7 +173,11 @@ test(".NET targeting-pack selection follows the exact active SDK without version
     ],
   );
   assert.equal(calls.length, 3);
-  assert.ok(calls.every((call) => call.cwd === "/project"));
+  assert.deepEqual(calls.map((call) => call.cwd), [
+    "/project",
+    "/project",
+    "/project",
+  ]);
 });
 
 test(".NET targeting-pack selection fails closed for an unsupported target framework", () => {

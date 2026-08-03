@@ -137,7 +137,16 @@ test("generic method type arguments come only from shared selected call evidence
   const forbidden = /\b(?:TypeArguments|getSourceCallTypeParameterSubstitutions|addInferredTargetTypeParameterSubstitutions|inferMethodTypeArguments|inferTypeArgumentsFromCallback)\b/gu;
   assert.deepEqual(productHits(forbidden), []);
   const consumers = productHits(/\bsourceSelectedMethodTypeArguments\b/gu);
-  assert.equal(consumers.length > 0, true);
+  const consumerCounts = new Map();
+  for (const consumer of consumers) {
+    const file = consumer.slice(0, consumer.lastIndexOf(":"));
+    consumerCounts.set(file, (consumerCounts.get(file) ?? 0) + 1);
+  }
+  assert.deepEqual([...consumerCounts.entries()].sort(), [
+    ["src/policy/members/instantiation.ts", 3],
+    ["src/policy/members/js-source-profile/arrays.ts", 3],
+    ["src/policy/types/resolution.ts", 3],
+  ]);
 });
 
 test("provider relations never recover identity through optional fallback", () => {

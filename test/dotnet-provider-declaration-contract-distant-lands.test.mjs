@@ -60,7 +60,24 @@ test(".NET declaration projection emits exact enum and overload-group surfaces",
     (declaration) => declaration.name === "ConsoleColor",
   );
   assert.equal(consoleColor?.kind, "enum");
-  assert.ok(consoleColor.members.length > 0);
+  assert.deepEqual(consoleColor.members.map((member) => member.name), [
+    "Black",
+    "Blue",
+    "Cyan",
+    "DarkBlue",
+    "DarkCyan",
+    "DarkGray",
+    "DarkGreen",
+    "DarkMagenta",
+    "DarkRed",
+    "DarkYellow",
+    "Gray",
+    "Green",
+    "Magenta",
+    "Red",
+    "White",
+    "Yellow",
+  ]);
   for (const member of consoleColor.members) {
     assert.deepEqual(
       Object.keys(member).sort(),
@@ -137,10 +154,12 @@ test(".NET declaration contract rejects enum field shape and duplicate source su
     "DOTNET_PROVIDER_DECLARATION_CONTRACT_INVALID",
   );
   const paths = diagnostic.evidence.map((entry) => entry.path);
-  assert.ok(paths.includes("$.exports[0].members[0].static"));
-  assert.ok(paths.includes("$.exports[0].members[0].readonly"));
-  assert.ok(paths.includes("$.exports[0].members[0].type"));
-  assert.ok(paths.includes("$.exports[1].members[1].name"));
+  assert.deepEqual(paths, [
+    "$.exports[0].members[0].static",
+    "$.exports[0].members[0].readonly",
+    "$.exports[0].members[0].type",
+    "$.exports[1].members[1].name",
+  ]);
 });
 
 test("concrete properties suppress colliding extension-method projections", () => {

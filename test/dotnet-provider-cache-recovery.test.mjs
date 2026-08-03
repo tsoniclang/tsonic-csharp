@@ -74,7 +74,7 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
     ),
     true,
   );
-  assert.ok(recoveredProvider.getTelemetrySnapshot().toolInvocations > 0);
+  assert.equal(recoveredProvider.getTelemetrySnapshot().toolInvocations, 1);
 
   const repaired = JSON.parse(
     readFileSync(join(cacheRoot, selected.fileName), "utf8"),
