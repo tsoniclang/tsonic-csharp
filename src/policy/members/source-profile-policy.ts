@@ -131,11 +131,13 @@ export function resolveCsharpSelectedSourceValue(
     readonly type: Type;
   } | undefined,
 ): TargetTypeRef | undefined {
-  return context.host.types.resolveValue(
-    value?.expression,
-    value?.type,
-    context.sourceFile,
-  );
+  return value === undefined
+    ? undefined
+    : context.host.types.resolveSelectedValue(
+        value.expression,
+        value.type,
+        context.sourceFile,
+      );
 }
 
 export function selectCsharpSourceProfileCallPolicy(

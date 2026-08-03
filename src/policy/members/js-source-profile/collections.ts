@@ -188,26 +188,12 @@ export const csharpJsCollectionElementPolicies:
         const valueType = receiver?.kind === "target-named"
           ? receiver.typeArguments?.[1]
           : undefined;
-        const readType = context.source.sourceReadType === undefined
-          ? undefined
-          : context.host.types.resolveType(
-              context.source.sourceReadType,
-              context.sourceFile,
-            );
-        const writeType = context.source.sourceWriteType === undefined
-          ? undefined
-          : context.host.types.resolveType(
-              context.source.sourceWriteType,
-              context.sourceFile,
-            );
         if (
           !isCsharpRecordDictionaryTargetType(receiver) ||
           keyType === undefined ||
           valueType === undefined ||
           index === undefined ||
-          !targetTypeRefEquals(index, keyType) ||
-          readType !== undefined && !targetTypeRefEquals(readType, valueType) ||
-          writeType !== undefined && !targetTypeRefEquals(writeType, valueType)
+          !targetTypeRefEquals(index, keyType)
         ) {
           return undefined;
         }
