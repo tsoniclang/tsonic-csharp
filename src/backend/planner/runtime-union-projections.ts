@@ -4,12 +4,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
-  selectCsharpFlowReadConversion,
-} from "../../policy/conversions/index.js";
-import {
-  applyCsharpConversionSelection,
-} from "../../translate/expressions/conversions.js";
-import {
   targetTypeRefEquals,
   type TargetTypeRef,
 } from "../../policy/types/index.js";
@@ -26,38 +20,6 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpRuntimeUnionTargetType,
 } from "../../policy/types/index.js";
-
-export function planRuntimeUnionUseSiteProjection(
-  node: Node,
-  baseExpression: CsharpExpression,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
-  const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
-  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
-    return baseExpression;
-  }
-  const useSiteCarrier = input.types.resolveNode(node, sourceFile);
-  if (useSiteCarrier === undefined || isCsharpRuntimeUnionTargetType(useSiteCarrier)) {
-    return baseExpression;
-  }
-  const selection = selectCsharpFlowReadConversion(
-    input,
-    storageCarrier,
-    useSiteCarrier,
-  );
-  return applyCsharpConversionSelection(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    storageCarrier,
-    useSiteCarrier,
-    selection,
-    baseExpression,
-  );
-}
 
 export function tryPlanRuntimeUnionTypeTest(
   node: Node,

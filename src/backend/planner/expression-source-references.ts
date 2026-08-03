@@ -31,8 +31,8 @@ import {
   getCsharpLocalBindingName,
 } from "./bindings.js";
 import {
-  planRuntimeUnionUseSiteProjection,
-} from "./runtime-union-projections.js";
+  planFlowReadUseSiteProjection,
+} from "./flow-read-projections.js";
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
@@ -88,7 +88,7 @@ export function planIdentifierExpression(
     name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
-  return planRuntimeUnionUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);
+  return planFlowReadUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);
 }
 
 function planProviderValueReference(
