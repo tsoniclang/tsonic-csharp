@@ -4,7 +4,6 @@ import {
   KindCallExpression,
   KindArrayLiteralExpression,
   KindBinaryExpression,
-  KindConditionalExpression,
   KindDeleteExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
@@ -94,9 +93,6 @@ import {
 import {
   requireCsharpStorageRepresentation,
 } from "../../translate/artifacts/storage-representation.js";
-import {
-  sourceOperatorFromKindName,
-} from "../../policy/operations/index.js";
 
 export function planExpression(
   node: Node,
@@ -354,17 +350,17 @@ export function planExpressionWithExpectedType(
         ? undefined
         : input.types.resolveNode(expectedTypeSubject, sourceFile)
     );
-  const expression = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
+  const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
     planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
   }, effectiveExpectedTargetType);
-  if (expression === undefined || effectiveExpectedTargetType === undefined) {
-    return expression;
+  if (plan === undefined || effectiveExpectedTargetType === undefined) {
+    return plan?.expression;
   }
-  if (expressionIsConstructedInExpectedRepresentation(input, node)) {
-    return expression;
+  if (plan.representation === "expected") {
+    return plan.expression;
   }
   const sourceType = input.types.resolveNode(node, sourceFile);
   const selection = selectCsharpExpressionConversion(
@@ -397,25 +393,6 @@ export function planExpressionWithExpectedType(
     sourceType,
     effectiveExpectedTargetType,
     selection,
-    expression,
+    plan.expression,
   );
-}
-
-function expressionIsConstructedInExpectedRepresentation(
-  input: CsharpTranslationContext,
-  node: Node,
-): boolean {
-  switch (SourceKind(input.ast, node)) {
-    case KindArrayLiteralExpression:
-    case KindObjectLiteralExpression:
-    case KindArrowFunction:
-    case KindFunctionExpression:
-    case KindConditionalExpression:
-      return true;
-    case KindBinaryExpression:
-      return sourceOperatorFromKindName(input.ast.operatorKindName(node)) ===
-        "??";
-    default:
-      return false;
-  }
 }

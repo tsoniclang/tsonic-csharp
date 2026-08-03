@@ -66,6 +66,9 @@ export interface CsharpObjectShapePolicy {
     sourceFile?: SourceFile,
   ): CsharpObjectShapeFact | undefined;
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
+  resolveObjectLiteralTargetShape(
+    expectedShape: CsharpObjectShapeFact,
+  ): CsharpObjectShapeFact;
   resolveProjectConstructibleSelectedType(
     targetType: TargetTypeRef,
     explicitTypeNode: Node | undefined,
@@ -159,6 +162,27 @@ export function createCsharpObjectShapePolicy(
       (shape): shape is CsharpObjectShapeFact => shape !== undefined,
     );
     return present.length === 1 ? present[0] : undefined;
+  }
+
+  function resolveObjectLiteralTargetShape(
+    expectedShape: CsharpObjectShapeFact,
+  ): CsharpObjectShapeFact {
+    if (
+      expectedShape.targetType.kind !== "target-named" ||
+      (expectedShape.targetType as CsharpTargetNamedTypeRef)
+          .csharpSourceDeclarationKind !== "interface"
+    ) {
+      return expectedShape;
+    }
+    return rememberTargetShape({
+      targetType: createStructuralObjectShapeTarget(
+        expectedShape.members,
+        [expectedShape.targetType],
+        host,
+      ),
+      members: expectedShape.members,
+      implements: [expectedShape.targetType],
+    });
   }
 
   function resolveProjectConstructibleSelectedType(
@@ -506,6 +530,7 @@ export function createCsharpObjectShapePolicy(
   return Object.freeze({
     resolveNode,
     resolveTarget,
+    resolveObjectLiteralTargetShape,
     resolveProjectConstructibleSelectedType,
   });
 }

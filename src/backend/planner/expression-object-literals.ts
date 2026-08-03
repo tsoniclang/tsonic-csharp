@@ -54,19 +54,15 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
-  const objectShape = expectedObjectShape !== undefined && !isInterfaceObjectShape(expectedObjectShape)
-    ? expectedObjectShape
-    : getExpectedObjectShapeFact(node, sourceFile, input) ?? expectedObjectShape;
+  const objectShape = expectedObjectShape === undefined
+    ? getExpectedObjectShapeFact(node, sourceFile, input)
+    : input.objectShapes.resolveObjectLiteralTargetShape(expectedObjectShape);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType);
   }
   void expectedType;
   diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
   return undefined;
-}
-
-function isInterfaceObjectShape(objectShape: CsharpObjectShapeFact): boolean {
-  return (objectShape.targetType as { readonly csharpSourceDeclarationKind?: string }).csharpSourceDeclarationKind === "interface";
 }
 
 function planObjectLiteralExpressionWithObjectShape(

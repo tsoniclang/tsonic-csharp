@@ -213,6 +213,87 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# translation retains imported interface context for expression-bodied arrow object literals", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      import type { ItemDto } from "./dto.js";
+      export const makeItem = (id: int, title: string): ItemDto => ({ id, title });
+    `,
+    files: {
+      "dto.ts": `
+        import type { int } from "@tsonic/csharp/types.js";
+        export interface ItemDto { id: int; title: string; }
+      `,
+    },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Dto.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public interface ItemDto
+    {
+        int id { get; }
+        string title { get; }
+    }
+}
+`);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static Func<int, string, ItemDto> makeItem
+        {
+            get;
+            private set;
+        } = default(Func<int, string, ItemDto>)!;
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
+            makeItem = (int id, string title) => (new __TsonicShape_b9c9d57e6f6fe683c883bef1fb946f3a0d8442192caa5a7a6eaa81309e8c0450
+            {
+                id = id,
+                title = title,
+            });
+            return null;
+        }
+        public static void __tsonic_module_init()
+        {
+            _ = __tsonic_module_initialization.Value;
+        }
+    }
+}
+`);
+  assert.equal(
+    compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
+    `using System;
+
+namespace Tsonic.Generated
+{
+    public class __TsonicShape_b9c9d57e6f6fe683c883bef1fb946f3a0d8442192caa5a7a6eaa81309e8c0450 : ItemDto
+    {
+        public required int id
+        {
+            get;
+            set;
+        }
+        public required string title
+        {
+            get;
+            set;
+        }
+    }
+}
+`,
+  );
+});
+
 test("direct C# translation instantiates inherited generic member types from exact project heritage", () => {
   const compiled = compileCsharpSource({
     sourceText: `
