@@ -64,6 +64,10 @@ export function csharpSourceFileContractCandidate(
         ],
       },
       dependencies,
+      artifact: Object.freeze({
+        kind: "source-file",
+        owner,
+      }),
     },
   };
 }

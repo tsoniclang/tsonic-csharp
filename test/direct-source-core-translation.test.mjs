@@ -20,7 +20,7 @@ test("direct C# translation consumes exact source-core default and struct facts"
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
 
 namespace Tsonic.Generated

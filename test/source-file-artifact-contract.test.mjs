@@ -131,6 +131,7 @@ test("C# public contracts reconstruct direct and transitive source dependents", 
     graph,
     ["callee", "caller", "entry"],
     reconstruct,
+    { maximumReconstructionCount: 16 },
   ), { kind: "completed", reconstructionCount: 3 });
   assert.deepEqual(reconstructed, ["callee", "caller", "entry"]);
 
@@ -140,6 +141,7 @@ test("C# public contracts reconstruct direct and transitive source dependents", 
     graph,
     ["callee"],
     reconstruct,
+    { maximumReconstructionCount: 16 },
   ), { kind: "completed", reconstructionCount: 1 });
   assert.deepEqual(reconstructed, ["callee"]);
 
@@ -149,6 +151,7 @@ test("C# public contracts reconstruct direct and transitive source dependents", 
     graph,
     ["callee"],
     reconstruct,
+    { maximumReconstructionCount: 16 },
   ), { kind: "completed", reconstructionCount: 3 });
   assert.deepEqual(reconstructed, ["callee", "caller", "entry"]);
 });
@@ -177,6 +180,7 @@ function sourceCandidate(unit, dependencies) {
     kind: "resolved",
     contract: candidate.contract,
     dependencies: candidate.dependencies,
+    artifact: candidate.artifact,
   };
 }
 

@@ -103,6 +103,16 @@ export function compileCsharpSource(options) {
   return {
     ...checked,
     result,
+    targetDiagnostics: result.diagnostics.map(
+      ({ code, category, message, source, sourceSpan, evidence }) => ({
+        code,
+        category,
+        message,
+        ...(source === undefined ? {} : { source }),
+        ...(sourceSpan === undefined ? {} : { sourceSpan }),
+        ...(evidence === undefined ? {} : { evidence }),
+      }),
+    ),
     artifacts: new Map(result.artifacts.map((artifact) => [artifact.path, artifact.text])),
   };
 }

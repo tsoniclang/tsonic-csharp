@@ -4,9 +4,13 @@ import type {
 } from "@tsonic/target-api";
 import type {
   CsharpObjectShapeFact,
+  CsharpSourceCallableContract,
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
+  canonicalCsharpObjectShapeImplementedTypes,
+  canonicalCsharpObjectShapeMembers,
+  csharpObjectShapeMemberContractParts,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 
@@ -17,12 +21,39 @@ export type CsharpArtifactFacet =
   | "object-shape-type-surface"
   | "source-file-implementation"
   | "source-file-public-surface"
+  | "source-callable-surface"
   | "storage-representation";
+
+export type CsharpArtifactSnapshot =
+  | {
+      readonly kind: "generated-helper";
+      readonly helper: string;
+    }
+  | {
+      readonly kind: "object-shape";
+      readonly fact: CsharpObjectShapeFact;
+      readonly materialization: "source" | "synthetic";
+      readonly jsonSerializable: boolean;
+    }
+  | {
+      readonly kind: "source-callable";
+      readonly callable: CsharpSourceCallableContract;
+    }
+  | {
+      readonly kind: "source-file";
+      readonly owner: string;
+    }
+  | {
+      readonly kind: "storage";
+      readonly targetType?: TargetTypeRef;
+      readonly nullableWrittenType?: TargetTypeRef;
+    };
 
 export interface CsharpArtifactContractCandidate {
   readonly owner: string;
   readonly contract: TargetArtifactContract<CsharpArtifactFacet>;
   readonly dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[];
+  readonly artifact: CsharpArtifactSnapshot;
 }
 
 export function csharpGeneratedHelperContractCandidate(
@@ -37,6 +68,10 @@ export function csharpGeneratedHelperContractCandidate(
       }],
     },
     dependencies: Object.freeze([]),
+    artifact: Object.freeze({
+      kind: "generated-helper",
+      helper,
+    }),
   };
 }
 
@@ -77,6 +112,12 @@ export function csharpObjectShapeContractCandidate(
           }]
         : []),
     ])),
+    artifact: Object.freeze({
+      kind: "object-shape",
+      fact,
+      materialization,
+      jsonSerializable,
+    }),
   };
 }
 
@@ -91,17 +132,12 @@ export function csharpObjectShapeTypeSurface(
       : fact.constructible
       ? "constructible"
       : "non-constructible",
-    ...fact.implements?.map((type) =>
+    ...canonicalCsharpObjectShapeImplementedTypes(fact.implements ?? []).map((type) =>
       encodeContractParts(["implements", targetTypeRefKey(type)])
-    ) ?? [],
-    ...fact.members.map((member) => encodeContractParts([
+    ),
+    ...canonicalCsharpObjectShapeMembers(fact.members).map((member) => encodeContractParts([
       "member",
-      member.sourceName,
-      member.targetName,
-      member.memberKind,
-      member.optional === true ? "optional" : "required",
-      member.readonly === true ? "readonly" : "mutable",
-      targetTypeRefKey(member.type),
+      ...csharpObjectShapeMemberContractParts(member),
     ])),
   ]);
 }
@@ -128,6 +164,57 @@ export function csharpStorageContractCandidate(
       }],
     },
     dependencies: Object.freeze([]),
+    artifact: Object.freeze({
+      kind: "storage",
+      ...(targetType === undefined ? {} : { targetType }),
+      ...(nullableWrittenType === undefined
+        ? {}
+        : { nullableWrittenType }),
+    }),
+  };
+}
+
+export function csharpSourceCallableContractCandidate(
+  owner: string,
+  callable: CsharpSourceCallableContract,
+): CsharpArtifactContractCandidate {
+  return {
+    owner,
+    contract: {
+      facets: [{
+        facet: "source-callable-surface",
+        value: encodeContractParts([
+          "source-callable",
+          ...callable.methodTypeParameterNames.map((name) =>
+            encodeContractParts(["type-parameter", name])
+          ),
+          ...callable.parameters.map((parameter, index) =>
+            encodeContractParts([
+              "parameter",
+              String(index),
+              parameter.targetParameter.name,
+              targetTypeRefKey(parameter.targetParameter.type),
+              parameter.targetParameter.passingMode,
+              parameter.targetParameter.optional === true
+                ? "optional"
+                : "required",
+              parameter.targetParameter.paramsArray === true
+                ? "params"
+                : "ordinary",
+            ])
+          ),
+          encodeContractParts([
+            "return",
+            targetTypeRefKey(callable.returnType),
+          ]),
+        ]),
+      }],
+    },
+    dependencies: Object.freeze([]),
+    artifact: Object.freeze({
+      kind: "source-callable",
+      callable,
+    }),
   };
 }
 

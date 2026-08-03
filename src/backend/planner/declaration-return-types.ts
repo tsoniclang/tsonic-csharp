@@ -14,9 +14,22 @@ import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
+  csharpRuntimeUndefinedTargetType,
   csharpSourceTypeArgumentNodes,
+  getCsharpNullableElementTargetType,
+  getCsharpRuntimeUnionArms,
   getCsharpTaskResultTargetType,
+  targetTypeRefKey,
 } from "../../policy/types/index.js";
+import {
+  csharpConversionIsApplicable,
+  selectCsharpCommonImplicitTarget,
+  selectCsharpConversion,
+} from "../../policy/conversions/index.js";
+
+export type CsharpReturnTargetContractResult =
+  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
+  | { readonly kind: "rejected"; readonly reason: string };
 
 export function getExplicitReturnType(
   typeNode: Node | undefined,
@@ -76,7 +89,7 @@ export function getAsyncReturnExpressionExpectedType(
   return { type, ...(subject === undefined ? {} : { subject }), targetType: resultTargetType };
 }
 
-function getDeclarationReturnTargetType(
+export function getDeclarationReturnTargetType(
   typeNode: Node | undefined,
   declarationNode: Node,
   sourceFile: SourceFile,
@@ -90,6 +103,84 @@ function getDeclarationReturnTargetType(
     sourceFile,
     input,
   );
+}
+
+export function reconcileInferredReturnTargetContract(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  baseline: TargetTypeRef,
+  observed: readonly TargetTypeRef[],
+  incomplete: boolean,
+): CsharpReturnTargetContractResult {
+  if (incomplete) {
+    return {
+      kind: "rejected",
+      reason:
+        "An inferred C# public return contract contains a return expression without one closed target representation.",
+    };
+  }
+  if (observed.length === 0) {
+    return { kind: "resolved", type: baseline };
+  }
+  const requiredSources = [
+    ...observed,
+    ...uncoveredBaselineReturnAlternatives(input, baseline, observed),
+  ];
+  const selected = selectCsharpCommonImplicitTarget(
+    input,
+    requiredSources,
+    [...observed, baseline],
+  );
+  if (selected.kind === "rejected") {
+    return {
+      kind: "rejected",
+      reason: `An inferred C# public return contract contains incompatible exact target representations. ${selected.reason}`,
+    };
+  }
+  return { kind: "resolved", type: selected.target };
+}
+
+function uncoveredBaselineReturnAlternatives(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  baseline: TargetTypeRef,
+  observed: readonly TargetTypeRef[],
+): readonly TargetTypeRef[] {
+  const alternatives = new Map<string, TargetTypeRef>();
+  collectTargetContractAlternatives(baseline, alternatives);
+  return [...alternatives.values()].filter((alternative) =>
+    !observed.some((source) =>
+      csharpConversionIsApplicable(
+        selectCsharpConversion(input, source, alternative, "implicit"),
+        "implicit",
+      )
+    )
+  );
+}
+
+function collectTargetContractAlternatives(
+  type: TargetTypeRef,
+  alternatives: Map<string, TargetTypeRef>,
+): void {
+  const union = getCsharpRuntimeUnionArms(type);
+  if (union !== undefined) {
+    union.forEach((member) =>
+      collectTargetContractAlternatives(member, alternatives)
+    );
+    return;
+  }
+  const nullableElement = getCsharpNullableElementTargetType(type);
+  if (nullableElement !== undefined) {
+    collectTargetContractAlternatives(nullableElement, alternatives);
+    const undefinedType = csharpRuntimeUndefinedTargetType();
+    alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
+    return;
+  }
+  alternatives.set(targetTypeRefKey(type), type);
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: CsharpTranslationContext): Node | undefined {

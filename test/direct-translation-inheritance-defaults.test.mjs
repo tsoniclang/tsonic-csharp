@@ -13,7 +13,7 @@ test("selected source defaults close every emitted C# generic type use", () => {
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
 
 namespace Tsonic.Generated

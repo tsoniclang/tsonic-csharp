@@ -23,7 +23,7 @@ test("strict C# catch storage remains System.Exception through exact provider na
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /return System\.Int32\.Parse\(value\);/);
   assert.match(source, /catch \(System\.Exception error\)/);
@@ -49,7 +49,7 @@ test("strict C# preserves explicit throw when the active catch binding is reassi
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /catch \(System\.Exception error\)/);
   assert.match(source, /error = new System\.Exception\("replacement"\);/);

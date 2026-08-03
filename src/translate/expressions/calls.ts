@@ -17,7 +17,7 @@ import {
 import type {
   CsharpSelectedCallArgument,
   CsharpSelectedTargetCall,
-  CsharpProviderArgumentConversion,
+  CsharpProviderArgumentMapping,
   ResolvedSourceCallInfo,
 } from "../../policy/members/index.js";
 import type {
@@ -519,8 +519,8 @@ export function translateSelectedTargetArguments(
       planExpression,
       planCallArgument,
       selection.origin === "provider"
-        ? selection.argumentConversions.find((conversion) =>
-            conversion.effectiveArgumentIndex ===
+        ? selection.argumentMappings.find((mapping) =>
+            mapping.effectiveArgumentIndex ===
               argumentSelection.effectiveArgumentIndex)
         : undefined,
     );
@@ -558,7 +558,7 @@ function translateCallArgument(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-  selectedConversion?: CsharpProviderArgumentConversion,
+  selectedMapping?: CsharpProviderArgumentMapping,
 ): CsharpArgument | undefined {
   if (sourceForm === "spread-element") {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -584,9 +584,11 @@ function translateCallArgument(
     return undefined;
   }
   if (
-    selectedConversion?.selection.kind === "provider-argument-adapter" ||
-    selectedConversion?.selection.kind ===
-      "lifted-provider-argument-adapter"
+    selectedMapping?.kind === "by-value" &&
+    (
+      selectedMapping.conversion.kind === "provider-argument-adapter" ||
+      selectedMapping.conversion.kind === "lifted-provider-argument-adapter"
+    )
   ) {
     if (
       sourceForm !== "value" ||
@@ -594,7 +596,7 @@ function translateCallArgument(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         expression,
-        `Exact provider argument adapter '${selectedConversion.selection.adapter.id}' requires an ordinary by-value source argument.`,
+        `Exact provider argument adapter '${selectedMapping.conversion.adapter.id}' requires an ordinary by-value source argument.`,
       ));
       return undefined;
     }
@@ -609,9 +611,9 @@ function translateCallArgument(
       sourceFile,
       input,
       diagnostics,
-      selectedConversion.sourceType,
-      selectedConversion.targetType,
-      selectedConversion.selection,
+      selectedMapping.sourceType,
+      selectedMapping.targetType,
+      selectedMapping.conversion,
       sourceExpression,
     );
     return adapted === undefined

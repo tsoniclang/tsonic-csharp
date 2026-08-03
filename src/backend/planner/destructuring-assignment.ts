@@ -62,6 +62,7 @@ import {
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { csharpTupleExpression } from "./csharp-tuples.js";
 import {
+  csharpConstructibleTypeFromObjectShapeFact,
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
 } from "./object-shapes.js";
@@ -756,7 +757,12 @@ function planObjectAssignmentRestElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts for the rest target."));
     return [];
   }
-  const restType = csharpTypeFromObjectShapeFact(input, restShape, diagnostics, element.sourceNode);
+  const restType = csharpConstructibleTypeFromObjectShapeFact(
+    input,
+    restShape,
+    diagnostics,
+    element.sourceNode,
+  );
   if (restType === undefined) {
     return [];
   }

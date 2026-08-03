@@ -23,7 +23,9 @@ import {
   instantiateCsharpProviderCall,
 } from "../dist/policy/members/index.js";
 import {
+  csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,
+  csharpTargetNamedType,
 } from "../dist/policy/types/index.js";
 
 test("an exact selected provider signature closes one target call", () => {
@@ -277,11 +279,11 @@ test("exact provider argument adapters close otherwise invalid target conversion
   assert.equal(rejected.kind, "missing");
   assert.equal(selected.kind, "resolved");
   assert.equal(
-    selected.call.argumentConversions[0]?.selection.kind,
+    selected.call.argumentMappings[0]?.conversion.kind,
     "provider-argument-adapter",
   );
   assert.deepEqual(
-    selected.call.argumentConversions[0]?.selection.adapter,
+    selected.call.argumentMappings[0]?.conversion.adapter,
     adapter,
   );
 });
@@ -310,7 +312,7 @@ test("provider calls accept exact lifted implicit conversions between nullable v
   );
 
   assert.equal(selected.kind, "resolved");
-  assert.deepEqual(selected.call.argumentConversions[0]?.selection, {
+  assert.deepEqual(selected.call.argumentMappings[0]?.conversion, {
     kind: "implicit",
     proof: "nullable",
   });
@@ -337,7 +339,7 @@ test("provider calls lift exact static argument adapters over nullable value car
   );
 
   assert.equal(selected.kind, "resolved");
-  assert.deepEqual(selected.call.argumentConversions[0]?.selection, {
+  assert.deepEqual(selected.call.argumentMappings[0]?.conversion, {
     kind: "lifted-provider-argument-adapter",
     adapter,
     sourceElementType: csharpSourcePrimitiveTargetType("float64"),
@@ -642,6 +644,56 @@ test("byref arguments reject implicit storage conversions", () => {
   );
 });
 
+test("byref arguments use CLR storage identity across nullable-reference annotations", () => {
+  const parameterDeclaration = {};
+  const sourceArgument = {};
+  const storageExpression = {};
+  const todo = csharpTargetNamedType("Example.Todo");
+  const nullableTodo = csharpNullableReferenceTargetType(todo);
+  const target = {
+    ...targetParameter("value", todo),
+    passingMode: "byref-writeonly-must-init",
+    csharpOutputMayBeNull: true,
+  };
+  const fixture = createCallFixture({
+    sourceParameters: [sourceParameter({ parameterDeclaration })],
+    argumentExpressions: [sourceArgument],
+    sourceArgumentTargets: [nullableTodo],
+    targetParameters: [target],
+    sourceParametersRelations: [
+      parameterRelation({
+        sourcePassingMode: "byref-writeonly-must-init",
+        targetPassingMode: "byref-writeonly-must-init",
+      }),
+    ],
+    additionalFacts: [
+      passingFact(parameterDeclaration, "byref-writeonly-must-init"),
+      passingFact(
+        sourceArgument,
+        "byref-writeonly-must-init",
+        storageExpression,
+      ),
+    ],
+    additionalNodeTypes: [[storageExpression, nullableTodo]],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.argumentMappings, [{
+    kind: "by-reference",
+    effectiveArgumentIndex: 0,
+    sourceType: nullableTodo,
+    targetType: todo,
+    passingMode: "byref-writeonly-must-init",
+    proof: "storage-identity",
+  }]);
+});
+
 test("selected method type arguments close generic target methods directly", () => {
   const selectedType = {};
   const explicitTypeNode = {};
@@ -941,7 +993,7 @@ test("exact generated object-shape contracts satisfy their implemented target in
   );
   assert.equal(instantiated.kind, "resolved");
   assert.equal(
-    instantiated.argumentConversions[0]?.selection.proof,
+    instantiated.argumentMappings[0]?.conversion.proof,
     "object-shape-interface",
   );
 });

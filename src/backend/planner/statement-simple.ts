@@ -106,6 +106,17 @@ export function planReturnStatement(
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
+  if (
+    statement.Expression !== undefined &&
+    state.observedReturnTargetTypes !== undefined
+  ) {
+    const observed = input.types.resolveNode(statement.Expression, sourceFile);
+    if (observed === undefined) {
+      state.returnTargetObservationIncomplete = true;
+    } else {
+      state.observedReturnTargetTypes.push(observed);
+    }
+  }
   const expression = statement.Expression === undefined
     ? undefined
     : expectedReturnExpressionType === undefined

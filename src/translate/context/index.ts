@@ -34,6 +34,7 @@ import {
 } from "../../policy/types/index.js";
 import type {
   CsharpProviderCallSelectionHost,
+  ResolvedSourceCallInfo,
 } from "../../policy/members/index.js";
 import type {
   CsharpTranslationArtifactGraph,
@@ -97,6 +98,7 @@ export function createCsharpTranslationContext(
   const semanticsFor = input.source.semantics.forNode;
   const hasSemantics = input.source.semantics.includes;
   let artifacts: CsharpTranslationArtifactGraph | undefined;
+  let projectTypes: CsharpProjectTypePolicy | undefined;
   const typePolicyHost = {
     ast: input.source.ast,
     sourceFiles,
@@ -110,10 +112,40 @@ export function createCsharpTranslationContext(
     scopedTargetType(node: Node): TargetTypeRef | undefined {
       return artifacts?.requiredStorageType(node);
     },
+    sourceCallable(
+      source: ResolvedSourceCallInfo,
+      sourceFile: SourceFile,
+    ) {
+      const selectedCallee = source.sourceCallee.selectedDeclaration;
+      if (
+        selectedCallee !== undefined &&
+        input.source.ast.is.IsClassDeclaration(selectedCallee)
+      ) {
+        const constructor = projectTypes?.implicitConstructorForSignature(
+          selectedCallee,
+          source.selectedSignature,
+        );
+        if (constructor !== undefined) {
+          return artifacts?.sourceCallable({
+            kind: "project-constructor",
+            targetMemberId: constructor.targetMember.id,
+          });
+        }
+      }
+      const declaration = semantics(sourceFile).getSignatureDeclaration(
+        source.selectedSignature,
+      );
+      return declaration !== undefined &&
+          input.source.navigation.isProjectDeclaration(declaration)
+        ? artifacts?.sourceCallable({ kind: "declaration", declaration })
+        : undefined;
+    },
   };
-  const { types, objectShapes, projectTypes } = createCsharpTypeSystem(
+  const typeSystem = createCsharpTypeSystem(
     typePolicyHost,
   );
+  const { types, objectShapes } = typeSystem;
+  projectTypes = typeSystem.projectTypes;
   artifacts = createCsharpTranslationArtifactGraph({
     ast: input.source.ast,
     objectShapes,

@@ -89,14 +89,6 @@ export function csharpTypeFromObjectShapeFact(
     );
     return undefined;
   }
-  if (fact.constructible === false) {
-    reportObjectShapeFailure(
-      diagnostics,
-      diagnosticSubject,
-      "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
-    );
-    return undefined;
-  }
   if (fact.constructible === true || isSourceDeclaredNominalShape(fact)) {
     const result = input.artifacts.registerObjectShape(fact, "source");
     if (result.kind === "rejected") {
@@ -119,6 +111,28 @@ export function csharpTypeFromObjectShapeFact(
     return undefined;
   }
   return targetType;
+}
+
+export function csharpConstructibleTypeFromObjectShapeFact(
+  input: CsharpTranslationContext,
+  fact: CsharpObjectShapeFact,
+  diagnostics?: TargetDiagnostic[],
+  diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
+): CsharpTypeNode | undefined {
+  if (fact.constructible === false) {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Class object literal emission requires an exact constructible source class with a parameterless constructor.",
+    );
+    return undefined;
+  }
+  return csharpTypeFromObjectShapeFact(
+    input,
+    fact,
+    diagnostics,
+    diagnosticSubject,
+  );
 }
 
 export function materializeObjectShapeDeclarations(

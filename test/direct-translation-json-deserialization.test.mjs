@@ -26,7 +26,7 @@ test("provider-owned CLR enums retain intrinsic C# equality and bitwise operatio
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
 
 namespace Tsonic.Generated
@@ -66,7 +66,7 @@ test("provider-returned CLR enums retain intrinsic equality with enum constants"
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
     /return value\.DayOfWeek == System\.DayOfWeek\.Monday;/,
@@ -88,7 +88,7 @@ test("provider-selected JSON deserialization uses an exact constructible project
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
   assert.ok(source);
@@ -107,12 +107,12 @@ namespace Tsonic.Generated
 {
     public class ${selectedCarrier} : Input
     {
-        public required string title
+        public required int count
         {
             get;
             set;
         }
-        public required int count
+        public required string title
         {
             get;
             set;
@@ -138,7 +138,7 @@ test("provider collection values do not become project-owned object shapes", () 
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
     /System\.Text\.Json\.JsonSerializer\.Serialize<System\.Collections\.Generic\.List<Item>>\(items\)/,
@@ -178,7 +178,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.ok(source);
   assert.equal(source, `using System;

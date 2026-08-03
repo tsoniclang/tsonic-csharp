@@ -88,6 +88,11 @@ export interface CsharpProjectTypePolicy {
   directSupertypes(
     type: TargetTypeRef,
   ): readonly TargetTypeRef[] | undefined;
+  instantiateDeclarationType(
+    declaration: Node | undefined,
+    receiver: TargetTypeRef | undefined,
+    declaredType: TargetTypeRef,
+  ): CsharpProjectMemberTypeInstantiation;
   instantiateMemberType(
     declaration: Node | undefined,
     receiver: TargetTypeRef | undefined,
@@ -253,6 +258,73 @@ export function createCsharpProjectTypePolicy(
     ]);
   };
 
+  const instantiateDeclarationType = (
+    declaration: Node | undefined,
+    receiver: TargetTypeRef | undefined,
+    declaredType: TargetTypeRef,
+  ): CsharpProjectMemberTypeInstantiation => {
+    const owner = catalog.definitionForDeclaration(declaration);
+    if (owner === undefined) {
+      return { kind: "not-project-member" };
+    }
+    if (owner.typeParameterNames.length === 0) {
+      return { kind: "resolved", type: declaredType };
+    }
+    if (receiver === undefined) {
+      return {
+        kind: "unresolved",
+        reason:
+          `Project declaration '${owner.sourceName}' requires an exact receiver target type to instantiate its type parameters.`,
+      };
+    }
+    const pending: TargetTypeRef[] = [receiver];
+    const visited = new Set<string>();
+    const matches = new Map<string, TargetTypeRef>();
+    while (pending.length > 0) {
+      const candidate = pending.shift()!;
+      const key = targetTypeRefKey(candidate);
+      if (visited.has(key)) {
+        continue;
+      }
+      visited.add(key);
+      const definition = catalog.definitionForTarget(candidate);
+      if (definition?.id === owner.id) {
+        matches.set(key, candidate);
+        continue;
+      }
+      pending.push(...(directSupertypes(candidate) ?? []));
+    }
+    if (matches.size !== 1) {
+      return {
+        kind: "unresolved",
+        reason: matches.size === 0
+          ? `The selected receiver has no exact target heritage path to project declaration '${owner.sourceName}'.`
+          : `The selected receiver has more than one target instantiation of project declaration '${owner.sourceName}'.`,
+      };
+    }
+    const selectedOwner = [...matches.values()][0]!;
+    const arguments_ = selectedOwner.kind === "target-named"
+      ? selectedOwner.typeArguments ?? []
+      : [];
+    if (arguments_.length !== owner.typeParameterNames.length) {
+      return {
+        kind: "unresolved",
+        reason:
+          `The selected receiver instantiates project declaration '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterNames.length}.`,
+      };
+    }
+    return {
+      kind: "resolved",
+      type: substituteTargetTypeParameters(
+        declaredType,
+        new Map(owner.typeParameterNames.map((name, index) => [
+          name,
+          arguments_[index]!,
+        ])),
+      ),
+    };
+  };
+
   return Object.freeze({
     catalog,
     issues: Object.freeze(issues),
@@ -263,6 +335,7 @@ export function createCsharpProjectTypePolicy(
         : heritageById.get(definition.id);
     },
     directSupertypes,
+    instantiateDeclarationType,
     instantiateMemberType(
       declaration: Node | undefined,
       receiver: TargetTypeRef | undefined,
@@ -272,62 +345,11 @@ export function createCsharpProjectTypePolicy(
       if (owner === undefined) {
         return { kind: "not-project-member" };
       }
-      if (owner.typeParameterNames.length === 0) {
-        return { kind: "resolved", type: memberType };
-      }
-      if (receiver === undefined) {
-        return {
-          kind: "unresolved",
-          reason:
-            `Project member '${owner.sourceName}' requires an exact receiver target type to instantiate its declaring type parameters.`,
-        };
-      }
-      const pending: TargetTypeRef[] = [receiver];
-      const visited = new Set<string>();
-      const matches = new Map<string, TargetTypeRef>();
-      while (pending.length > 0) {
-        const candidate = pending.shift()!;
-        const key = targetTypeRefKey(candidate);
-        if (visited.has(key)) {
-          continue;
-        }
-        visited.add(key);
-        const definition = catalog.definitionForTarget(candidate);
-        if (definition?.id === owner.id) {
-          matches.set(key, candidate);
-          continue;
-        }
-        pending.push(...(directSupertypes(candidate) ?? []));
-      }
-      if (matches.size !== 1) {
-        return {
-          kind: "unresolved",
-          reason: matches.size === 0
-            ? `The selected receiver has no exact target heritage path to project member owner '${owner.sourceName}'.`
-            : `The selected receiver has more than one target instantiation of project member owner '${owner.sourceName}'.`,
-        };
-      }
-      const selectedOwner = [...matches.values()][0]!;
-      const arguments_ = selectedOwner.kind === "target-named"
-        ? selectedOwner.typeArguments ?? []
-        : [];
-      if (arguments_.length !== owner.typeParameterNames.length) {
-        return {
-          kind: "unresolved",
-          reason:
-            `The selected receiver instantiates project member owner '${owner.sourceName}' with ${arguments_.length} target type arguments instead of ${owner.typeParameterNames.length}.`,
-        };
-      }
-      return {
-        kind: "resolved",
-        type: substituteTargetTypeParameters(
-          memberType,
-          new Map(owner.typeParameterNames.map((name, index) => [
-            name,
-            arguments_[index]!,
-          ])),
-        ),
-      };
+      return instantiateDeclarationType(
+        owner.declaration,
+        receiver,
+        memberType,
+      );
     },
     implicitConstructorsForDeclaration:
       constructors.implicitConstructorsForDeclaration,

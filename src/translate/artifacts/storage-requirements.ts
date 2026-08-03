@@ -12,17 +12,17 @@ import type {
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import type {
+  CsharpArtifactSnapshot,
   CsharpArtifactFacet,
 } from "./contracts.js";
 import {
   csharpStorageContractCandidate,
 } from "./contracts.js";
 import {
+  csharpTargetStorageIdentityEquals,
   csharpNullableReferenceTargetType,
-  isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-  withoutCsharpNullableReference,
 } from "../../policy/types/index.js";
 
 export type CsharpStorageRequirement =
@@ -84,8 +84,13 @@ const accepted = Object.freeze({ kind: "accepted" as const });
 
 export function createCsharpStorageRequirementRegistry(
   host: CsharpStorageRequirementRegistryHost,
-  contracts: TargetArtifactContractGraph<CsharpArtifactFacet> =
-    createTargetArtifactContractGraph<CsharpArtifactFacet>(),
+  contracts: TargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  > = createTargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  >(),
 ): CsharpStorageRequirementRegistry {
   const requirements = new Map<Node, StoredRequirement>();
 
@@ -242,9 +247,23 @@ export function createCsharpStorageRequirementRegistry(
 
   function requiredType(storageExpression: Node): TargetTypeRef | undefined {
     const reference = host.navigation.referenceFor(storageExpression);
-    return reference === undefined
+    const requirement = reference === undefined
       ? undefined
-      : requirements.get(reference.declaration)?.targetType;
+      : requirements.get(reference.declaration);
+    if (requirement === undefined) {
+      return undefined;
+    }
+    const artifact = contracts.artifact(requirement.artifactOwner);
+    if (artifact?.kind !== "storage") {
+      return undefined;
+    }
+    const targetType = artifact.targetType ?? artifact.nullableWrittenType;
+    if (targetType === undefined) {
+      return undefined;
+    }
+    return artifact.nullableWrittenType === undefined
+      ? targetType
+      : csharpNullableReferenceTargetType(targetType);
   }
 
   function contractOwner(storageExpression: Node): string | undefined {
@@ -307,6 +326,7 @@ export function createCsharpStorageRequirementRegistry(
       candidate.owner,
       candidate.contract,
       candidate.dependencies,
+      candidate.artifact,
     );
     return committed.kind === "rejected"
       ? rejected(committed.reason)
@@ -314,18 +334,7 @@ export function createCsharpStorageRequirementRegistry(
   }
 }
 
-function sameStorageIdentity(
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-): boolean {
-  const leftIdentity = isCsharpNullableReferenceTargetType(left)
-    ? withoutCsharpNullableReference(left)
-    : left;
-  const rightIdentity = isCsharpNullableReferenceTargetType(right)
-    ? withoutCsharpNullableReference(right)
-    : right;
-  return targetTypeRefEquals(leftIdentity, rightIdentity);
-}
+const sameStorageIdentity = csharpTargetStorageIdentityEquals;
 
 function rejected(reason: string): {
   readonly kind: "rejected";

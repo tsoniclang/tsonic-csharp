@@ -26,7 +26,7 @@ test("object-shape reads retain exact authored member carriers through utility p
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs"),
     /return \$"\{value\.label\}:\{value\.x\}";/u,
@@ -81,7 +81,7 @@ test("destructuring assignment expressions retain the right-hand value carrier",
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs"),
     /int\[\] returned =/u,

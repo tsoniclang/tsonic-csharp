@@ -247,7 +247,7 @@ test("direct C# translation rejects runtime ES module cycles before publishing a
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, [{
+  assert.deepEqual(compiled.targetDiagnostics, [{
     code: "CSHARP_UNSUPPORTED_RUNTIME_MODULE_CYCLE",
     category: "error",
     source: "tsonic-csharp",
@@ -266,6 +266,6 @@ function cleanCompile(options) {
   const compiled = compileCsharpSource(options);
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   return compiled;
 }

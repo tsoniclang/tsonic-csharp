@@ -358,17 +358,17 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_698c6eaed071825052bb6167e814f68e5eebdf379fa5c0cdd5ba98c3eae2e35a make(int age)
+        public static __TsonicShape_c88cee3c96ce65c5f8a681bbc9553ad7568113d8c4159b6959bc39913b929782 make(int age)
         {
-            return new __TsonicShape_698c6eaed071825052bb6167e814f68e5eebdf379fa5c0cdd5ba98c3eae2e35a
+            return new __TsonicShape_c88cee3c96ce65c5f8a681bbc9553ad7568113d8c4159b6959bc39913b929782
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(__TsonicShape_698c6eaed071825052bb6167e814f68e5eebdf379fa5c0cdd5ba98c3eae2e35a user)
+        public static int total(__TsonicShape_c88cee3c96ce65c5f8a681bbc9553ad7568113d8c4159b6959bc39913b929782 user)
         {
-            __TsonicShape_698c6eaed071825052bb6167e814f68e5eebdf379fa5c0cdd5ba98c3eae2e35a __tsonic_destructure0 = user;
+            __TsonicShape_c88cee3c96ce65c5f8a681bbc9553ad7568113d8c4159b6959bc39913b929782 __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -381,10 +381,10 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_698c6eaed071825052bb6167e814f68e5eebdf379fa5c0cdd5ba98c3eae2e35a
+    public class __TsonicShape_c88cee3c96ce65c5f8a681bbc9553ad7568113d8c4159b6959bc39913b929782
     {
-        public required string name;
         public required int age;
+        public required string name;
     }
 }
 `,
@@ -473,7 +473,7 @@ namespace Tsonic.Generated
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Object.keys(new __TsonicShape_b7e2a6248ebac22c1efb0929eb9d1515ba2979444966d0329c9d415858f064f3
+            return Tsonic.CSharp.Js.Object.keys(new __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
             {
                 text = text,
             }).join(",");
@@ -487,7 +487,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_b7e2a6248ebac22c1efb0929eb9d1515ba2979444966d0329c9d415858f064f3
+    public class __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
     {
         public required string text;
     }
@@ -513,7 +513,7 @@ namespace Tsonic.Generated
     {
         public static User make(int age)
         {
-            return new __TsonicShape_b42abccfd13872c0718fc426ba1b18af7959dc10063d0004845ff5fdec29ed40
+            return new __TsonicShape_dd72a4213d6e4f12c20240881a17dda7d40e2296d786ac392c5eb74a99ff1324
             {
                 name = "Ada",
                 age = age,
@@ -533,14 +533,14 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_b42abccfd13872c0718fc426ba1b18af7959dc10063d0004845ff5fdec29ed40 : User
+    public class __TsonicShape_dd72a4213d6e4f12c20240881a17dda7d40e2296d786ac392c5eb74a99ff1324 : User
     {
-        public required string name
+        public required int age
         {
             get;
             set;
         }
-        public required int age
+        public required string name
         {
             get;
             set;
@@ -683,6 +683,6 @@ function cleanCompile(sourceText, options = {}) {
   const compiled = compileCsharpSource({ sourceText, ...options });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   return compiled;
 }

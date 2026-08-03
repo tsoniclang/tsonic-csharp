@@ -7,12 +7,15 @@ import type {
   SourceProgramNavigation,
   TargetArtifactContractGraph,
   TargetArtifactDependency,
+  TargetArtifactReconstruction,
 } from "@tsonic/target-api";
 import {
   createTargetArtifactContractGraph,
   sourceNodeIdentity,
 } from "@tsonic/target-api";
 import type {
+  CsharpSourceCallableContract,
+  CsharpSourceCallableArtifactIdentity,
   CsharpObjectShapeFact,
   CsharpObjectShapePolicy,
   TargetTypeRef,
@@ -38,15 +41,21 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpClosedJsonRuntimeLeaf,
   isCsharpRecordDictionaryTargetType,
+  isCsharpSourceCallableArtifactDeclaration,
   isCsharpStringTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type {
+  CsharpArtifactContractCandidate,
+  CsharpArtifactSnapshot,
   CsharpArtifactFacet,
 } from "./contracts.js";
 import {
+  csharpGeneratedHelperContractCandidate,
   csharpObjectShapeContractCandidate,
+  csharpSourceCallableContractCandidate,
+  csharpStorageContractCandidate,
 } from "./contracts.js";
 
 export type CsharpArtifactRequestResult =
@@ -64,7 +73,10 @@ export interface CsharpObjectShapeArtifact {
 
 export interface CsharpTranslationArtifactGraph {
   readonly revision: number;
-  readonly contractGraph: TargetArtifactContractGraph<CsharpArtifactFacet>;
+  readonly contractGraph: TargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  >;
   captureDependencies<Value>(
     owner: string,
     build: () => Value,
@@ -95,11 +107,21 @@ export interface CsharpTranslationArtifactGraph {
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult;
   requiredStorageType(storageExpression: Node): TargetTypeRef | undefined;
+  publishSourceCallable(
+    identity: CsharpSourceCallableArtifactIdentity,
+    callable: CsharpSourceCallableContract,
+  ): CsharpArtifactRequestResult;
+  sourceCallable(
+    identity: CsharpSourceCallableArtifactIdentity,
+  ): CsharpSourceCallableContract | undefined;
   unfulfilledStorageRequirements(): readonly CsharpUnfulfilledStorageRequirement[];
   requireGeneratedHelper(
     helper: CsharpGeneratedHelper,
   ): CsharpArtifactRequestResult;
   generatedHelpers(): readonly CsharpGeneratedHelper[];
+  reconstructArtifact(
+    owner: string,
+  ): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot>;
   verifyContractClosure(): CsharpArtifactRequestResult;
 }
 
@@ -143,7 +165,10 @@ export function createCsharpTranslationArtifactGraph(
   host: CsharpTranslationArtifactGraphHost,
 ): CsharpTranslationArtifactGraph {
   const records = new Map<string, MutableObjectShapeArtifact>();
-  const contracts = createTargetArtifactContractGraph<CsharpArtifactFacet>();
+  const contracts = createTargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  >();
   const storage = createCsharpStorageRequirementRegistry({
     navigation: host.navigation,
     artifactOwner(declaration) {
@@ -789,6 +814,81 @@ export function createCsharpTranslationArtifactGraph(
     return storage.requiredType(storageExpression);
   }
 
+  function publishSourceCallable(
+    identity: CsharpSourceCallableArtifactIdentity,
+    callable: CsharpSourceCallableContract,
+  ): CsharpArtifactRequestResult {
+    if (
+      identity.kind === "declaration" &&
+      (
+        callable.sourceDeclaration !== identity.declaration ||
+        !isCsharpSourceCallableArtifactDeclaration(
+          host.ast,
+          identity.declaration,
+        )
+      )
+    ) {
+      return rejected(
+        "A C# source-callable contract must be owned by its exact emitted callable declaration.",
+      );
+    }
+    const owner = sourceCallableArtifactOwner(identity);
+    if (owner === undefined) {
+      return rejected(
+        "A C# source-callable contract has no stable compiler-owned declaration identity.",
+      );
+    }
+    const candidate = csharpSourceCallableContractCandidate(owner, callable);
+    const committed = contracts.commit(
+      candidate.owner,
+      candidate.contract,
+      candidate.dependencies,
+      candidate.artifact,
+    );
+    if (committed.kind === "rejected") {
+      return rejected(committed.reason);
+    }
+    dependOn(owner, "source-callable-surface");
+    return accepted;
+  }
+
+  function sourceCallable(
+    identity: CsharpSourceCallableArtifactIdentity,
+  ): CsharpSourceCallableContract | undefined {
+    if (
+      identity.kind === "declaration" &&
+      !isCsharpSourceCallableArtifactDeclaration(host.ast, identity.declaration)
+    ) {
+      return undefined;
+    }
+    const owner = sourceCallableArtifactOwner(identity);
+    if (owner === undefined) {
+      return undefined;
+    }
+    dependOn(owner, "source-callable-surface");
+    const artifact = contracts.artifact(owner);
+    return artifact?.kind === "source-callable"
+      ? artifact.callable
+      : undefined;
+  }
+
+  function sourceCallableArtifactOwner(
+    identity: CsharpSourceCallableArtifactIdentity,
+  ): string | undefined {
+    if (identity.kind === "project-constructor") {
+      return identity.targetMemberId.length === 0
+        ? undefined
+        : `source-callable:project-constructor:${identity.targetMemberId}`;
+    }
+    const declarationIdentity = sourceNodeIdentity(
+      host.ast,
+      identity.declaration,
+    );
+    return declarationIdentity === undefined
+      ? undefined
+      : `source-callable:declaration:${declarationIdentity}`;
+  }
+
   function requireGeneratedHelper(
     helper: CsharpGeneratedHelper,
   ): CsharpArtifactRequestResult {
@@ -800,6 +900,60 @@ export function createCsharpTranslationArtifactGraph(
       );
     }
     return result;
+  }
+
+  function reconstructArtifact(
+    owner: string,
+  ): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot> {
+    const artifact = contracts.artifact(owner);
+    if (artifact === undefined) {
+      return {
+        kind: "rejected",
+        code: "CSHARP_TARGET_ARTIFACT_RECONSTRUCTOR_MISSING",
+        reason: `Dirty C# target artifact '${owner}' has no published target-owned snapshot.`,
+      };
+    }
+    switch (artifact.kind) {
+      case "generated-helper":
+        return resolvedArtifact(
+          csharpGeneratedHelperContractCandidate(artifact.helper),
+        );
+      case "object-shape": {
+        const record = records.get(owner);
+        if (record === undefined) {
+          return {
+            kind: "rejected",
+            code: "CSHARP_OBJECT_SHAPE_RECONSTRUCTOR_MISSING",
+            reason:
+              `Dirty C# object-shape artifact '${owner}' has no canonical target-owned shape record.`,
+          };
+        }
+        return resolvedArtifact(csharpObjectShapeContractCandidate(
+          owner,
+          record.fact,
+          record.materialization,
+          record.jsonSerializable,
+          [...record.dependencies].sort(),
+        ));
+      }
+      case "source-callable":
+        return resolvedArtifact(
+          csharpSourceCallableContractCandidate(owner, artifact.callable),
+        );
+      case "storage":
+        return resolvedArtifact(csharpStorageContractCandidate(
+          owner,
+          artifact.targetType,
+          artifact.nullableWrittenType,
+        ));
+      case "source-file":
+        return {
+          kind: "rejected",
+          code: "CSHARP_SOURCE_FILE_RECONSTRUCTOR_OWNERSHIP_INVALID",
+          reason:
+            `Dirty C# source-file artifact '${owner}' must be reconstructed by its source-file planner.`,
+        };
+    }
   }
 
   function verifyContractClosure(): CsharpArtifactRequestResult {
@@ -825,11 +979,25 @@ export function createCsharpTranslationArtifactGraph(
     requireStorage,
     resolveStorageType,
     requiredStorageType,
+    publishSourceCallable,
+    sourceCallable,
     unfulfilledStorageRequirements: storage.unfulfilled,
     requireGeneratedHelper,
     generatedHelpers: helpers.required,
+    reconstructArtifact,
     verifyContractClosure,
   });
+}
+
+function resolvedArtifact(
+  candidate: CsharpArtifactContractCandidate,
+): TargetArtifactReconstruction<CsharpArtifactFacet, CsharpArtifactSnapshot> {
+  return {
+    kind: "resolved",
+    contract: candidate.contract,
+    dependencies: candidate.dependencies,
+    artifact: candidate.artifact,
+  };
 }
 
 const accepted = Object.freeze({ kind: "accepted" as const });

@@ -26,12 +26,17 @@ import {
   invalidCsharpType,
   nullableCsharpType,
 } from "./csharp-types.js";
-import { getExplicitReturnType } from "./declaration-return-types.js";
+import {
+  getDeclarationReturnTargetType,
+  getExplicitReturnType,
+} from "./declaration-return-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planInterfaceHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
-import { planParameters } from "./parameters.js";
+import {
+  planParametersWithPrelude,
+} from "./parameters.js";
 import { planTypeParameters } from "./type-parameters.js";
 import {
   csharpJsonValueInterfaceType,
@@ -43,6 +48,9 @@ import {
 import {
   registerSourceObjectShape,
 } from "./object-shapes.js";
+import {
+  publishCsharpSourceCallableContract,
+} from "./source-callable-contracts.js";
 
 export function planInterfaceDeclaration(
   node: Node,
@@ -95,13 +103,38 @@ function planInterfaceMethodDeclaration(
 ): CsharpInterfaceMethodDeclaration {
   const declaration = AsMethodSignatureDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface method declaration", diagnostics);
+  const parameters = planParametersWithPrelude(
+    declaration.Parameters?.Nodes ?? [],
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  if (parameters.prelude.length > 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Interface methods cannot publish destructuring parameter preludes.",
+    ));
+  }
+  const returnTargetType = getDeclarationReturnTargetType(
+    declaration.Type,
+    node,
+    sourceFile,
+    input,
+  );
+  publishCsharpSourceCallableContract(
+    node,
+    parameters,
+    returnTargetType,
+    input,
+    diagnostics,
+  );
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    parameters: parameters.parameters,
   };
 }
 

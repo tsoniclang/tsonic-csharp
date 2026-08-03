@@ -8,6 +8,8 @@ import type {
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
 import {
+  AsConstructorDeclaration,
+  AsMethodDeclaration,
   KindClassStaticBlockDeclaration,
   KindConstructor,
   KindGetAccessor,
@@ -47,13 +49,17 @@ export function planClassMembers(
     }
     switch (SourceKind(input.ast, member)) {
       case KindConstructor:
-        planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+        if (AsConstructorDeclaration(member)?.Body !== undefined) {
+          planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+        }
         break;
       case KindClassStaticBlockDeclaration:
         planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
-        planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        if (AsMethodDeclaration(member)?.Body !== undefined) {
+          planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        }
         break;
       case KindPropertyDeclaration:
         planned.push(planPropertyDeclaration(member, autoPropertyNames, sourceFile, input, diagnostics));

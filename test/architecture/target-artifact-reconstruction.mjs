@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const planner = productSource("src/backend/planner/csharp-planner.ts");
@@ -19,6 +19,10 @@ test("C# source artifacts use one contract-driven reconstruction path", () => {
   assert.match(reconstruction, /captureDependencies\s*\(/u);
   assert.match(reconstruction, /moduleReferences\s*\(/u);
   assert.match(reconstruction, /kind:\s*"retry"/u);
+  assert.match(reconstruction, /artifacts\.reconstructArtifact\s*\(/u);
+  assert.doesNotMatch(reconstruction, /graph\.contract\s*\(/u);
+  assert.doesNotMatch(reconstruction, /graph\.artifact\s*\(/u);
+  assert.doesNotMatch(reconstruction, /graph\.dependencies\s*\(/u);
 });
 
 test("C# source artifact contracts separate public and implementation facets", () => {
@@ -27,6 +31,21 @@ test("C# source artifact contracts separate public and implementation facets", (
   assert.match(contracts, /publicCompilationUnit\s*\(/u);
   assert.doesNotMatch(contracts, /printCsharpCompilationUnit/u);
   assert.doesNotMatch(contracts, /JSON\.stringify/u);
+});
+
+test("direct compiler tests compare bounded target diagnostic projections", () => {
+  const testRoot = new URL("../", import.meta.url);
+  const files = readdirSync(testRoot, {
+    encoding: "utf8",
+    recursive: true,
+  }).filter((path) => path.endsWith(".mjs"));
+  for (const path of files) {
+    assert.doesNotMatch(
+      readFileSync(new URL(path, testRoot), "utf8"),
+      /assert\.deepEqual\([ \t]*[A-Za-z_$][\w$]*\.result\.diagnostics(?:[ \t]*[,)]|\b(?!\.))/u,
+      `${path} must project away compiler-owned source nodes before assertion formatting.`,
+    );
+  }
 });
 
 function productSource(path) {

@@ -11,6 +11,7 @@ import {
   sourceFileIdentity,
 } from "@tsonic/target-api";
 import type {
+  CsharpArtifactSnapshot,
   CsharpArtifactFacet,
 } from "../../translate/artifacts/index.js";
 import type {
@@ -28,6 +29,9 @@ import type {
 import {
   csharpSourceFileContractCandidate,
 } from "./source-file-artifact-contract.js";
+
+const minimumCsharpArtifactReconstructionCount = 64;
+const maximumReconstructionsPerSourceFile = 32;
 
 export function reconstructCsharpSourceFiles(
   input: CsharpTranslationContext,
@@ -57,27 +61,29 @@ export function reconstructCsharpSourceFiles(
   }
 
   const plannedByOwner = new Map<string, PlannedCsharpSourceFile | undefined>();
+  const maximumReconstructionCount = csharpArtifactReconstructionBudget(
+    sourceFilesByOwner.size,
+  );
+  if (maximumReconstructionCount === undefined) {
+    diagnostics.push(reconstructionDiagnostic(
+      "CSHARP_TARGET_ARTIFACT_RECONSTRUCTION_BUDGET_INVALID",
+      "The project source-file count cannot produce a finite target artifact reconstruction budget.",
+    ));
+    return undefined;
+  }
   let rejectedDiagnostics: readonly TargetDiagnostic[] | undefined;
   const reconstruction = reconstructTargetArtifacts(
     input.artifacts.contractGraph,
-    [...sourceFilesByOwner.keys()],
-    (owner, graph): TargetArtifactReconstruction<CsharpArtifactFacet> => {
+    [...sourceFilesByOwner.keys()].sort((left, right) =>
+      left.localeCompare(right)
+    ),
+    (owner, graph): TargetArtifactReconstruction<
+      CsharpArtifactFacet,
+      CsharpArtifactSnapshot
+    > => {
       const sourceFile = sourceFilesByOwner.get(owner);
       if (sourceFile === undefined) {
-        const contract = graph.contract(owner);
-        if (contract === undefined) {
-          return {
-            kind: "rejected",
-            code: "CSHARP_TARGET_ARTIFACT_RECONSTRUCTOR_MISSING",
-            reason:
-              `Dirty target artifact '${owner}' has no owning C# reconstructor.`,
-          };
-        }
-        return {
-          kind: "resolved",
-          contract,
-          dependencies: graph.dependencies(owner),
-        };
+        return input.artifacts.reconstructArtifact(owner);
       }
 
       const revision = graph.revision;
@@ -132,8 +138,10 @@ export function reconstructCsharpSourceFiles(
         kind: "resolved",
         contract: candidate.candidate.contract,
         dependencies: candidate.candidate.dependencies,
+        artifact: candidate.candidate.artifact,
       };
     },
+    { maximumReconstructionCount },
   );
   if (reconstruction.kind === "rejected") {
     diagnostics.push(...(
@@ -159,6 +167,16 @@ export function reconstructCsharpSourceFiles(
       return planned === undefined ? [] : [planned];
     }),
   );
+}
+
+function csharpArtifactReconstructionBudget(
+  sourceFileCount: number,
+): number | undefined {
+  const proportional = sourceFileCount * maximumReconstructionsPerSourceFile;
+  if (!Number.isSafeInteger(proportional) || proportional < 0) {
+    return undefined;
+  }
+  return Math.max(minimumCsharpArtifactReconstructionCount, proportional);
 }
 
 function sourceFilePublicDependencies(

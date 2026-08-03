@@ -90,7 +90,7 @@ test("C# target composes capability-owned .NET source providers", () => {
     JSON.stringify(compiled.extensionDiagnostics, null, 2),
   );
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
     /JsonSerializer\.Deserialize<Input>\(json\)/,

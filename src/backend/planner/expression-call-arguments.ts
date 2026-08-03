@@ -116,7 +116,25 @@ export function planCallArgumentCore(
   if (argument.passingMode !== "by-value" && passing === undefined) {
     return undefined;
   }
-  const expression = planCallArgumentExpression(argument.storageExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
+  const expression = argument.passingMode === "by-value"
+    ? planCallArgumentExpression(
+        argument.storageExpression,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+        planExpressionWithExpectedType,
+        expectedType,
+        expectedTypeSubject,
+        conversionExpectedTargetType,
+        state,
+      )
+    : planExpression(
+        argument.storageExpression,
+        sourceFile,
+        input,
+        diagnostics,
+      );
   if (expression === undefined) {
     return undefined;
   }

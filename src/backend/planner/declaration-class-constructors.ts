@@ -40,6 +40,9 @@ import {
 import {
   planAttributesForSubject,
 } from "./attributes.js";
+import {
+  publishCsharpSourceCallableContract,
+} from "./source-callable-contracts.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -75,6 +78,17 @@ export function planConstructorDeclaration(
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const classDeclaration = input.ast.parent(node);
+  const constructedType = classDeclaration === undefined
+    ? undefined
+    : input.types.resolveNode(classDeclaration, sourceFile);
+  publishCsharpSourceCallableContract(
+    node,
+    parameters,
+    constructedType,
+    input,
+    diagnostics,
+  );
   const baseArguments = leadingSuperCall === undefined
     ? undefined
     : planBaseConstructorArguments(leadingSuperCall.Arguments?.Nodes ?? [], sourceFile, input, diagnostics);

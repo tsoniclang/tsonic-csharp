@@ -51,6 +51,52 @@ export type CsharpSourceOperator =
   | "in"
   | "instanceof";
 
+export type CsharpAssignmentOperator = Extract<
+  CsharpSourceOperator,
+  | "="
+  | "+="
+  | "-="
+  | "*="
+  | "**="
+  | "/="
+  | "%="
+  | "&&="
+  | "&="
+  | "||="
+  | "|="
+  | "??="
+  | "^="
+  | "<<="
+  | ">>="
+  | ">>>="
+>;
+
+export function isCsharpAssignmentOperator(
+  operator: CsharpSourceOperator,
+): operator is CsharpAssignmentOperator {
+  switch (operator) {
+    case "=":
+    case "+=":
+    case "-=":
+    case "*=":
+    case "**=":
+    case "/=":
+    case "%=":
+    case "&&=":
+    case "&=":
+    case "||=":
+    case "|=":
+    case "??=":
+    case "^=":
+    case "<<=":
+    case ">>=":
+    case ">>>=":
+      return true;
+    default:
+      return false;
+  }
+}
+
 export interface CsharpDestructuringAssignmentSyntax {
   readonly expression: Node;
   readonly pattern: Node;

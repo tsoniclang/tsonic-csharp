@@ -33,6 +33,7 @@ import {
 } from "../conversions/source-primitives.js";
 import {
   isCsharpDestructuringAssignmentPattern,
+  isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
 } from "../operations/syntax.js";
 import {
@@ -101,6 +102,9 @@ import type {
   CsharpProjectTypeCatalog,
   CsharpProjectTypePolicy,
 } from "./project-types.js";
+import type {
+  CsharpSourceCallableContract,
+} from "./source-callable-contract.js";
 import {
   csharpJsArrayTargetType,
   csharpJsDateTargetType,
@@ -129,6 +133,10 @@ export interface CsharpTypePolicyBaseHost {
   readonly scopedTargetType?: (
     node: Node,
   ) => TargetTypeRef | undefined;
+  sourceCallable(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): CsharpSourceCallableContract | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -329,7 +337,12 @@ export function createCsharpTypePolicy(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
   ): readonly TargetTypeRef[] | undefined {
-    return resolveSourceCallInstantiation(source, sourceFile)?.arguments;
+    const callable = host.sourceCallable(source, sourceFile);
+    return resolveSourceCallInstantiation(
+      source,
+      sourceFile,
+      callable?.methodTypeParameterNames,
+    )?.arguments;
   }
 
   function resolveSourceCallParameter(
@@ -338,9 +351,28 @@ export function createCsharpTypePolicy(
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined {
     const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
-    return parameter === undefined
-      ? undefined
-      : resolveSourceCallSelectedType(
+    if (parameter === undefined) {
+      return undefined;
+    }
+    const callable = host.sourceCallable(source, sourceFile);
+    const contractedParameter = callable?.parameters[parameterIndex];
+    if (callable !== undefined && contractedParameter !== undefined) {
+      if (
+        contractedParameter.sourceParameter !==
+          parameter.parameterDeclaration ||
+        !sourceCallableTypeParametersMatch(source, callable)
+      ) {
+        return undefined;
+      }
+      return resolveSourceCallableContractType(
+        source,
+        callable,
+        contractedParameter.targetParameter.type,
+        sourceFile,
+        { depth: 0 },
+      );
+    }
+    return resolveSourceCallSelectedType(
           source,
           parameter.parameterDeclaration,
           parameter.authoredTypeNode,
@@ -366,16 +398,24 @@ export function createCsharpTypePolicy(
     sourceFile: SourceFile,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const queries = host.semantics(sourceFile);
-    const declaration = queries.getSignatureDeclaration(
-      source.selectedSignature,
-    );
+    const declaration = sourceCallSelectedDeclaration(source);
+    const callable = host.sourceCallable(source, sourceFile);
+    if (callable !== undefined) {
+      if (!sourceCallableTypeParametersMatch(source, callable)) {
+        return undefined;
+      }
+      return resolveSourceCallableContractType(
+        source,
+        callable,
+        callable.returnType,
+        sourceFile,
+        state,
+      );
+    }
     return resolveSourceCallSelectedType(
       source,
       declaration,
-      declaration === undefined
-        ? undefined
-        : declarationResultTypeNode(declaration),
+      source.sourceCallee.authoredTypeNode,
       source.sourceResultType,
       sourceFile,
       state,
@@ -1386,6 +1426,7 @@ export function createCsharpTypePolicy(
   function resolveSourceCallInstantiation(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
+    expectedTypeParameterNames?: readonly string[],
   ):
     | {
         readonly arguments: readonly TargetTypeRef[];
@@ -1393,39 +1434,37 @@ export function createCsharpTypePolicy(
       }
     | undefined {
     const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+    if (expectedTypeParameterNames?.length === 0) {
+      return {
+        arguments: Object.freeze([]),
+        substitutions: new Map(),
+      };
+    }
+    if (
+      expectedTypeParameterNames !== undefined &&
+      (
+        selectedArguments.length !== expectedTypeParameterNames.length ||
+        selectedArguments.some((argument, index) =>
+          argument.typeParameterName !== expectedTypeParameterNames[index]
+        )
+      )
+    ) {
+      return undefined;
+    }
     if (selectedArguments.length === 0) {
       return {
         arguments: Object.freeze([]),
         substitutions: new Map(),
       };
     }
-    const queries = host.semantics(sourceFile);
     const selectedParameters = new Set<Type>();
     const arguments_: TargetTypeRef[] = [];
     const substitutions = new Map<string, TargetTypeRef>();
     for (const selected of selectedArguments) {
-      const parameterSymbol = queries.getTypeSymbol(selected.typeParameter);
-      const parameterDeclarations = parameterSymbol === undefined
-        ? []
-        : definedValues(queries.getSymbolDeclarations(parameterSymbol)).filter(
-            (declaration) =>
-              host.ast.is.IsTypeParameterDeclaration(declaration),
-          );
-      const parameter = parameterDeclarations.length === 1
-        ? parameterDeclarations[0]
-        : undefined;
-      const nameNode = host.ast.name(parameter);
       if (
-        parameter === undefined ||
-        nameNode === undefined ||
-        selectedParameters.has(selected.typeParameter)
-      ) {
-        return undefined;
-      }
-      const name = host.ast.text(nameNode);
-      if (
-        name !== selected.typeParameterName ||
-        substitutions.has(name)
+        selected.typeParameterName.length === 0 ||
+        selectedParameters.has(selected.typeParameter) ||
+        substitutions.has(selected.typeParameterName)
       ) {
         return undefined;
       }
@@ -1438,7 +1477,7 @@ export function createCsharpTypePolicy(
         return undefined;
       }
       selectedParameters.add(selected.typeParameter);
-      substitutions.set(name, targetArgument);
+      substitutions.set(selected.typeParameterName, targetArgument);
       arguments_.push(targetArgument);
     }
     return {
@@ -1464,7 +1503,8 @@ export function createCsharpTypePolicy(
     }
     const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
       selectedSourceFile;
-    const authored = authoredTypeNode === undefined
+    const authored = authoredTypeNode === undefined ||
+        !host.hasSemantics(authoredSourceFile)
       ? undefined
       : resolveNodeWithState(
           authoredTypeNode,
@@ -1477,26 +1517,11 @@ export function createCsharpTypePolicy(
           authored,
           instantiation.substitutions,
         );
-    const queries = host.semantics(selectedSourceFile);
-    const selectedCalleeDeclaration = source.sourceCallee.selectedDeclaration;
-    const constructorOwner = selectedCalleeDeclaration !== undefined &&
-        host.ast.is.IsClassDeclaration(selectedCalleeDeclaration)
-      ? host.projectTypeCatalog.definitionForDeclaration(
-          selectedCalleeDeclaration,
-        )
-      : undefined;
-    const receiverType = constructorOwner !== undefined &&
-        instantiation.arguments.length ===
-          constructorOwner.typeParameterNames.length
-      ? host.projectTypeCatalog.targetTypeForDeclaration(
-          constructorOwner.declaration,
-          instantiation.arguments,
-        )
-      : resolveSelectedReceiverTargetType(
-          source.sourceReceiver,
-          queries,
-          state,
-        );
+    const receiverType = resolveSourceCallReceiverTargetType(
+      source,
+      selectedSourceFile,
+      state,
+    );
     const receiverInstantiation = instantiated === undefined
       ? { kind: "not-project-member" as const }
       : host.projectTypes().instantiateMemberType(
@@ -1524,6 +1549,85 @@ export function createCsharpTypePolicy(
       selectedSourceFile,
       state,
     );
+  }
+
+  function resolveSourceCallableContractType(
+    source: ResolvedSourceCallInfo,
+    callable: CsharpSourceCallableContract,
+    type: TargetTypeRef,
+    selectedSourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const instantiation = resolveSourceCallInstantiation(
+      source,
+      selectedSourceFile,
+      callable.methodTypeParameterNames,
+    );
+    if (instantiation === undefined) {
+      return undefined;
+    }
+    const substituted = substituteTargetTypeParameters(
+      type,
+      instantiation.substitutions,
+    );
+    const receiverType = resolveSourceCallReceiverTargetType(
+      source,
+      selectedSourceFile,
+      state,
+    );
+    const receiverInstantiation = callable.receiverTypeOwner === undefined
+      ? { kind: "not-project-member" as const }
+      : host.projectTypes().instantiateDeclarationType(
+          callable.receiverTypeOwner,
+          receiverType,
+          substituted,
+        );
+    if (receiverInstantiation.kind === "unresolved") {
+      return undefined;
+    }
+    return receiverInstantiation.kind === "resolved"
+      ? receiverInstantiation.type
+      : substituted;
+  }
+
+  function sourceCallSelectedDeclaration(
+    source: ResolvedSourceCallInfo,
+  ): Node | undefined {
+    return source.sourceCalleeAccess?.selectedDeclaration ??
+      source.sourceCallee.selectedDeclaration;
+  }
+
+  function resolveSourceCallReceiverTargetType(
+    source: ResolvedSourceCallInfo,
+    selectedSourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    return host.ast.is.IsNewExpression(source.call)
+      ? resolveTypeWithState(
+          source.sourceResultType,
+          selectedSourceFile,
+          nextState(state),
+        )
+      : resolveSelectedReceiverTargetType(
+          source.sourceReceiver,
+          host.semantics(selectedSourceFile),
+          state,
+        );
+  }
+
+  function sourceCallableTypeParametersMatch(
+    source: ResolvedSourceCallInfo,
+    callable: CsharpSourceCallableContract,
+  ): boolean {
+    if (callable.methodTypeParameterNames.length === 0) {
+      return true;
+    }
+    const selected = source.sourceSelectedMethodTypeArguments ?? [];
+    return selected.length === callable.methodTypeParameterNames.length &&
+      selected.every((argument, index) =>
+        argument.typeParameterName ===
+          callable.methodTypeParameterNames[index]
+      );
   }
 
   function sourceValueDeclaration(
@@ -2149,6 +2253,12 @@ function resolveBinaryTargetRepresentation(
   if (operator === undefined || left === undefined || right === undefined) {
     return undefined;
   }
+  if (isCsharpAssignmentOperator(operator)) {
+    return operator === "=" &&
+        isCsharpDestructuringAssignmentPattern(ast, leftNode)
+      ? right
+      : left;
+  }
   switch (operator) {
     case "===":
     case "==":
@@ -2163,22 +2273,11 @@ function resolveBinaryTargetRepresentation(
     case "&&":
     case "||":
       return csharpSourcePrimitiveTargetType("bool");
-    case "=":
-      return isCsharpDestructuringAssignmentPattern(ast, leftNode)
-        ? right
-        : left;
-    case "&&=":
-    case "||=":
-    case "??=":
-      return left;
     case ",":
       return right;
     case "<<":
     case ">>":
     case ">>>":
-    case "<<=":
-    case ">>=":
-    case ">>>=":
       return left;
     case "??": {
       const nonNullableLeft = getNonNullableTargetRepresentation(left);

@@ -22,6 +22,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
+  canonicalCsharpObjectShapeMembers,
   isCsharpVoidTargetType,
 } from "../../../policy/types/index.js";
 
@@ -31,7 +32,7 @@ export function renderObjectShapeMembers(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): CsharpClassDeclaration["members"] | undefined {
-  const members = fact.members.flatMap((member) => {
+  const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {

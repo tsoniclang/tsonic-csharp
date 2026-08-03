@@ -195,6 +195,11 @@ export function planLambdaBlockBody(
   const previousReturnExpressionType = lambdaState.currentReturnExpressionType;
   const previousReturnExpressionTypeSubject = lambdaState.currentReturnExpressionTypeSubject;
   const previousReturnExpressionTargetType = lambdaState.currentReturnExpressionTargetType;
+  const previousObservedReturnTargetTypes = lambdaState.observedReturnTargetTypes;
+  const previousReturnTargetObservationIncomplete =
+    lambdaState.returnTargetObservationIncomplete;
+  lambdaState.observedReturnTargetTypes = undefined;
+  lambdaState.returnTargetObservationIncomplete = undefined;
   if (returnContext !== undefined) {
     lambdaState.currentReturnExpressionType = returnContext.returnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = returnContext.returnExpressionTypeSubject;
@@ -206,6 +211,9 @@ export function planLambdaBlockBody(
     lambdaState.currentReturnExpressionType = previousReturnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = previousReturnExpressionTypeSubject;
     lambdaState.currentReturnExpressionTargetType = previousReturnExpressionTargetType;
+    lambdaState.observedReturnTargetTypes = previousObservedReturnTargetTypes;
+    lambdaState.returnTargetObservationIncomplete =
+      previousReturnTargetObservationIncomplete;
   }
 }
 

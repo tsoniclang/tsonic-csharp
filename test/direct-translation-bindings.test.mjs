@@ -44,7 +44,7 @@ namespace Tsonic.Generated
             int count = __tsonic_destructure1.Item2;
             User __tsonic_destructure2 = user;
             int age = __tsonic_destructure2.age ?? 0;
-            __TsonicShape_0047e14a4596fa0a9ba9d935e52bf7a89959970d81268edec706e73db9ad166a identity = new __TsonicShape_0047e14a4596fa0a9ba9d935e52bf7a89959970d81268edec706e73db9ad166a
+            __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11 identity = new __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11
             {
                 name = __tsonic_destructure2.name,
                 active = __tsonic_destructure2.active,
@@ -71,10 +71,10 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_0047e14a4596fa0a9ba9d935e52bf7a89959970d81268edec706e73db9ad166a
+    public class __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11
     {
-        public required string name;
         public required bool active;
+        public required string name;
     }
 }
 `,
@@ -85,6 +85,6 @@ function cleanCompile(sourceText) {
   const compiled = compileCsharpSource({ sourceText });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   return compiled;
 }

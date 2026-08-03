@@ -24,6 +24,9 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
+  publishCsharpProjectConstructorCallableContract,
+} from "./source-callable-contracts.js";
+import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
 
@@ -42,12 +45,18 @@ export function planImplicitForwardingConstructors(
     ));
     return [];
   }
-  return constructors.flatMap((constructor) =>
-    planForwardingConstructorOverloads(
+  return constructors.flatMap((constructor) => {
+    publishCsharpProjectConstructorCallableContract(
+      constructor,
+      input,
+      diagnostics,
+    );
+    return planForwardingConstructorOverloads(
       constructor,
       className,
       diagnostics,
-    ));
+    );
+  });
 }
 
 function planForwardingConstructorOverloads(

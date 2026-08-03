@@ -17,7 +17,7 @@ test("direct C# translation emits namespace-imported project functions through e
     },
   });
 
-  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
   const generated = compiled.artifacts.get("src/Index.cs");
   assert.match(generated, /return Store\.get\(\);/);
   assert.doesNotMatch(generated, /\bStore\.Store\b|__unsupported/);

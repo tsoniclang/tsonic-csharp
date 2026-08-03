@@ -40,6 +40,12 @@ import {
   targetTypeRefKey,
 } from "./equality.js";
 import {
+  canonicalCsharpObjectShapeImplementedTypes,
+  canonicalCsharpObjectShapeMembers,
+  csharpObjectShapeMemberContractKey,
+  csharpObjectShapeMemberContractParts,
+} from "./object-shape-identity.js";
+import {
   csharpNullableTargetType,
   getCsharpNullableElementTargetType,
 } from "./nullable.js";
@@ -684,25 +690,26 @@ function createStructuralObjectShapeTarget(
   implemented: readonly TargetTypeRef[] | undefined,
   host: CsharpObjectShapePolicyHost,
 ): TargetTypeRef {
-  const key = [
-    ...members.map((member) => [
-      member.sourceName,
-      member.targetName,
-      member.memberKind,
-      member.optional === true ? "optional" : "required",
-      member.readonly === true ? "readonly" : "mutable",
-      targetTypeRefKey(member.type),
-    ].join(":")),
-    ...(implemented ?? [])
-      .map((type) => `implements:${targetTypeRefKey(type)}`)
-      .sort(),
-  ].join("|");
+  const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
+  const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
+    implemented ?? [],
+  );
+  const key = JSON.stringify({
+    members: canonicalMembers.map(csharpObjectShapeMemberContractParts),
+    implements: canonicalImplemented.map(targetTypeRefKey),
+  });
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
-  const typeParameters = collectObjectShapeTypeParameters(members, implemented);
+  const typeParameters = collectObjectShapeTypeParameters(
+    canonicalMembers,
+    canonicalImplemented,
+  );
   const compatValueCarrier =
     readCsharpTypescriptCompatibilityMode(host.target) === "compat" &&
-    canUseCsharpCompatObjectShapeCarrier(members, implemented);
+    canUseCsharpCompatObjectShapeCarrier(
+      canonicalMembers,
+      canonicalImplemented,
+    );
   const compatValueType = csharpTsValueTargetType();
   return csharpTargetNamedType(
     `tsonic.shape:${identity}`,
@@ -779,10 +786,18 @@ function mergeCsharpObjectShapeSubjects(
   left: CsharpObjectShapeFact,
   right: CsharpObjectShapeFact,
 ): CsharpObjectShapeFact {
+  const rightMembers = new Map(
+    right.members.map((member) => [
+      csharpObjectShapeMemberContractKey(member),
+      member,
+    ]),
+  );
   return {
     ...left,
-    members: left.members.map((member, index) => {
-      const other = right.members[index]!;
+    members: left.members.map((member) => {
+      const other = rightMembers.get(
+        csharpObjectShapeMemberContractKey(member),
+      )!;
       const subjects = new Set([
         ...(member.sourceSubjects ?? []),
         ...(other.sourceSubjects ?? []),
@@ -808,12 +823,14 @@ export function csharpObjectShapesEqual(
   left: CsharpObjectShapeFact,
   right: CsharpObjectShapeFact,
 ): boolean {
+  const leftMembers = canonicalCsharpObjectShapeMembers(left.members);
+  const rightMembers = canonicalCsharpObjectShapeMembers(right.members);
   return targetTypeRefEquals(left.targetType, right.targetType) &&
     left.constructible === right.constructible &&
     targetTypeListsEqual(left.implements ?? [], right.implements ?? []) &&
-    left.members.length === right.members.length &&
-    left.members.every((member, index) => {
-      const other = right.members[index];
+    leftMembers.length === rightMembers.length &&
+    leftMembers.every((member, index) => {
+      const other = rightMembers[index];
       return other !== undefined &&
         member.sourceName === other.sourceName &&
         member.targetName === other.targetName &&
@@ -828,9 +845,11 @@ function targetTypeListsEqual(
   left: readonly TargetTypeRef[],
   right: readonly TargetTypeRef[],
 ): boolean {
-  return left.length === right.length &&
-    left.every((type, index) =>
-      right[index] !== undefined &&
-      targetTypeRefEquals(type, right[index]!)
+  const canonicalLeft = canonicalCsharpObjectShapeImplementedTypes(left);
+  const canonicalRight = canonicalCsharpObjectShapeImplementedTypes(right);
+  return canonicalLeft.length === canonicalRight.length &&
+    canonicalLeft.every((type, index) =>
+      canonicalRight[index] !== undefined &&
+      targetTypeRefEquals(type, canonicalRight[index]!)
     );
 }

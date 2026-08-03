@@ -25,7 +25,7 @@ import type {
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
+import { csharpConstructibleTypeFromObjectShapeFact } from "./object-shapes.js";
 import {
   translateCsharpCompatInvocation,
 } from "../../translate/expressions/compat.js";
@@ -88,7 +88,12 @@ function planObjectLiteralExpressionWithObjectShape(
       planExpressionWithExpectedType,
     );
   }
-  const type = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
+  const type = csharpConstructibleTypeFromObjectShapeFact(
+    input,
+    objectShape,
+    diagnostics,
+    node,
+  );
   if (type === undefined) {
     return undefined;
   }

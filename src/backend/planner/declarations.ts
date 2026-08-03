@@ -26,7 +26,12 @@ import { planIdentifierName } from "./names.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
 import { planTypeParameters } from "./type-parameters.js";
-import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./declaration-return-types.js";
+import {
+  getAsyncReturnExpressionExpectedType,
+  getDeclarationReturnTargetType,
+  getExplicitReturnType,
+  reconcileInferredReturnTargetContract,
+} from "./declaration-return-types.js";
 import {
   planClassMembers,
 } from "./declaration-class-members.js";
@@ -44,6 +49,15 @@ import {
 import {
   planImplicitForwardingConstructors,
 } from "./project-type-constructors.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import {
+  publishCsharpSourceCallableContract,
+} from "./source-callable-contracts.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -164,19 +178,67 @@ export function planFunctionDeclaration(
   const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
-  state.currentReturnType = returnType;
+  const declaredReturnTargetType = getDeclarationReturnTargetType(
+    declaration.Type,
+    node,
+    sourceFile,
+    input,
+  );
+  const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
+  const async = isAsyncNode(input.ast, node);
+  state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
-  if (isAsyncNode(input.ast, node)) {
+  if (declaration.Type === undefined && !async) {
+    state.observedReturnTargetTypes = [];
+  }
+  if (async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
     state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
+  const bodyStatements = planBlockStatements(
+    declaration.Body,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+  );
+  const reconciledReturn = declaredReturnTargetType === undefined ||
+      declaration.Type !== undefined || async
+    ? declaredReturnTargetType === undefined
+      ? undefined
+      : { kind: "resolved" as const, type: declaredReturnTargetType }
+    : reconcileInferredReturnTargetContract(
+        input,
+        declaredReturnTargetType,
+        state.observedReturnTargetTypes ?? [],
+        state.returnTargetObservationIncomplete === true,
+      );
+  if (reconciledReturn?.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      reconciledReturn.reason,
+    ));
+  }
+  const effectiveReturnTargetType = reconciledReturn?.kind === "resolved"
+    ? reconciledReturn.type
+    : declaredReturnTargetType;
+  const returnType = effectiveReturnTargetType === undefined
+    ? declaredReturnType
+    : csharpTypeFromTargetTypeRef(effectiveReturnTargetType) ??
+      declaredReturnType;
+  publishCsharpSourceCallableContract(
+    node,
+    parameters,
+    effectiveReturnTargetType,
+    input,
+    diagnostics,
+  );
   return {
     kind: "MethodDeclaration",
     name,
-    modifiers: isAsyncNode(input.ast, node) ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: async ? ["public", "static", "async"] : ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,
@@ -185,7 +247,7 @@ export function planFunctionDeclaration(
       kind: "Block",
       statements: [
         ...parameters.prelude,
-        ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+        ...bodyStatements,
       ],
     },
   };

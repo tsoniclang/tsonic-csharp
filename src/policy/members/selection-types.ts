@@ -38,12 +38,25 @@ interface CsharpSelectedTargetCallBase {
   readonly arguments: readonly CsharpSelectedCallArgument[];
 }
 
-export interface CsharpProviderArgumentConversion {
-  readonly effectiveArgumentIndex: number;
-  readonly sourceType: TargetTypeRef;
-  readonly targetType: TargetTypeRef;
-  readonly selection: CsharpConversionSelection;
-}
+export type CsharpProviderArgumentMapping =
+  | {
+      readonly kind: "by-value";
+      readonly effectiveArgumentIndex: number;
+      readonly sourceType: TargetTypeRef;
+      readonly targetType: TargetTypeRef;
+      readonly conversion: CsharpConversionSelection;
+    }
+  | {
+      readonly kind: "by-reference";
+      readonly effectiveArgumentIndex: number;
+      readonly sourceType: TargetTypeRef;
+      readonly targetType: TargetTypeRef;
+      readonly passingMode: Exclude<
+        CsharpTargetParameter["passingMode"],
+        "by-value"
+      >;
+      readonly proof: "storage-identity";
+    };
 
 export type CsharpSelectedTargetCall =
   | CsharpSelectedTargetCallBase & {
@@ -52,7 +65,7 @@ export type CsharpSelectedTargetCall =
         CsharpProviderTargetRelation,
         { readonly kind: "signature" }
       >;
-      readonly argumentConversions: readonly CsharpProviderArgumentConversion[];
+      readonly argumentMappings: readonly CsharpProviderArgumentMapping[];
     }
   | CsharpSelectedTargetCallBase & {
       readonly origin: "source-profile";

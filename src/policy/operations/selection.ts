@@ -30,6 +30,7 @@ import type {
 } from "./syntax.js";
 import {
   csharpDestructuringAssignmentSyntax,
+  isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
 } from "./syntax.js";
 
@@ -212,7 +213,7 @@ function selectBinaryOperationTypes(
   CsharpResolvedBinaryOperation,
   "leftInputType" | "rightInputType" | "resultType"
 > {
-  if (isAssignment(operator)) {
+  if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
       rightInputType: rightType,
@@ -271,7 +272,7 @@ function operatorRequiresNumericPromotion(
   right: TargetTypeRef,
 ): boolean {
   if (
-    isAssignment(operator) ||
+    isCsharpAssignmentOperator(operator) ||
     operator === "&&" ||
     operator === "||" ||
     operator === "??" ||
@@ -289,24 +290,6 @@ function operatorRequiresNumericPromotion(
 
 function isSourceNumericPrimitive(type: TargetTypeRef): boolean {
   return type.kind === "source-primitive" && type.name !== "bool";
-}
-
-function isAssignment(operator: CsharpSourceOperator): boolean {
-  return operator === "=" ||
-    operator === "+=" ||
-    operator === "-=" ||
-    operator === "*=" ||
-    operator === "/=" ||
-    operator === "%=" ||
-    operator === "&=" ||
-    operator === "|=" ||
-    operator === "^=" ||
-    operator === "<<=" ||
-    operator === ">>=" ||
-    operator === ">>>=" ||
-    operator === "&&=" ||
-    operator === "||=" ||
-    operator === "??=";
 }
 
 function selectNullishTest(

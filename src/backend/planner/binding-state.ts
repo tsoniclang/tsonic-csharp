@@ -32,6 +32,8 @@ export interface DestructuringPlannerState {
   currentReturnExpressionType?: CsharpTypeNode;
   currentReturnExpressionTypeSubject?: Node;
   currentReturnExpressionTargetType?: TargetTypeRef;
+  observedReturnTargetTypes?: TargetTypeRef[];
+  returnTargetObservationIncomplete?: boolean;
 }
 
 export interface ControlLabelTarget {

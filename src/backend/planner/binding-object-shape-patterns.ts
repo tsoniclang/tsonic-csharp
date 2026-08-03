@@ -22,7 +22,10 @@ import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.j
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planObjectShapeDefaultProjection } from "./object-shape-defaults.js";
-import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
+import {
+  csharpConstructibleTypeFromObjectShapeFact,
+  objectShapeStorageMemberName,
+} from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   targetTypeRefEquals,
@@ -136,7 +139,12 @@ function planObjectShapeRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
     return [];
   }
-  const restType = csharpTypeFromObjectShapeFact(input, restShape, diagnostics, elementNode);
+  const restType = csharpConstructibleTypeFromObjectShapeFact(
+    input,
+    restShape,
+    diagnostics,
+    elementNode,
+  );
   if (restType === undefined) {
     return [];
   }

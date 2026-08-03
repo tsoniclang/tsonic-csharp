@@ -5,6 +5,7 @@ import type {
   TargetArtifactContractGraph,
 } from "@tsonic/target-api";
 import type {
+  CsharpArtifactSnapshot,
   CsharpArtifactFacet,
 } from "./contracts.js";
 import {
@@ -30,8 +31,13 @@ export interface CsharpGeneratedHelperRegistry {
 const maximumGeneratedHelperCount = 64;
 
 export function createCsharpGeneratedHelperRegistry(
-  contracts: TargetArtifactContractGraph<CsharpArtifactFacet> =
-    createTargetArtifactContractGraph<CsharpArtifactFacet>(),
+  contracts: TargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  > = createTargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  >(),
 ):
   CsharpGeneratedHelperRegistry {
   const helpers = new Set<CsharpGeneratedHelper>();
@@ -54,6 +60,7 @@ export function createCsharpGeneratedHelperRegistry(
       candidate.owner,
       candidate.contract,
       candidate.dependencies,
+      candidate.artifact,
     );
     if (committed.kind === "rejected") {
       return { kind: "rejected", reason: committed.reason };
