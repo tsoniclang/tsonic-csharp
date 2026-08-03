@@ -87,53 +87,10 @@ export function tryPlanBinaryExpression(
   if (mutation !== undefined || diagnostics.length > mutationDiagnosticsStart) {
     return mutation;
   }
-  const typeTestStart = diagnostics.length;
-  const typeTest = tryPlanTypeTestExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
-  if (typeTest !== undefined || diagnostics.length > typeTestStart) {
-    return typeTest;
-  }
-  const typeofStart = diagnostics.length;
-  const typeofComparison = tryPlanTypeofComparisonExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
-  if (typeofComparison !== undefined || diagnostics.length > typeofStart) {
-    return typeofComparison;
-  }
   const expression = input.ast.as.AsBinaryExpression(node);
   const sourceOperator = sourceOperatorFromKindName(
     input.ast.operatorKindName(node),
   );
-  if (
-    sourceOperator !== undefined &&
-    csharpAssignmentOperatorTokenFromText(sourceOperator) !== undefined &&
-    expression?.Left !== undefined &&
-    expression.Right !== undefined
-  ) {
-    const compatAssignment = tryPlanCompatAssignment(
-      node,
-      expression.Left,
-      expression.Right,
-      sourceOperator,
-      sourceFile,
-      input,
-      diagnostics,
-      planExpression,
-      planExpressionWithExpectedType,
-    );
-    if (compatAssignment.handled) {
-      return compatAssignment.expression;
-    }
-  }
   if (
     sourceOperator !== undefined &&
     sourceOperator !== "=" &&
@@ -182,6 +139,49 @@ export function tryPlanBinaryExpression(
             : right,
         ],
       );
+    }
+  }
+  const typeTestStart = diagnostics.length;
+  const typeTest = tryPlanTypeTestExpression(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  if (typeTest !== undefined || diagnostics.length > typeTestStart) {
+    return typeTest;
+  }
+  const typeofStart = diagnostics.length;
+  const typeofComparison = tryPlanTypeofComparisonExpression(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  if (typeofComparison !== undefined || diagnostics.length > typeofStart) {
+    return typeofComparison;
+  }
+  if (
+    sourceOperator !== undefined &&
+    csharpAssignmentOperatorTokenFromText(sourceOperator) !== undefined &&
+    expression?.Left !== undefined &&
+    expression.Right !== undefined
+  ) {
+    const compatAssignment = tryPlanCompatAssignment(
+      node,
+      expression.Left,
+      expression.Right,
+      sourceOperator,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+      planExpressionWithExpectedType,
+    );
+    if (compatAssignment.handled) {
+      return compatAssignment.expression;
     }
   }
   const selection = selectCsharpBinaryOperation(input, node, sourceFile);

@@ -28,6 +28,7 @@ test("C# source profile accepts CLR names and rejects JS names under noLib", () 
   const invalid = createSourceProfileSession({
     profile: "csharp",
     sourceText: [
+      "declare const template: TemplateStringsArray;",
       "const path: string = \"a/b\";",
       "const parts = path.split(\"/\");",
       "const count = [1, 2, 3].length;",
@@ -39,16 +40,19 @@ test("C# source profile accepts CLR names and rejects JS names under noLib", () 
   const diagnosticsText = formatDiagnostics(invalid.getDiagnostics("all"));
   assert.match(diagnosticsText, /Property 'split' does not exist on type 'string'\. Did you mean 'Split'\?/u);
   assert.match(diagnosticsText, /Property 'length' does not exist on type 'number\[\]'\. Did you mean 'Length'\?/u);
+  assert.match(diagnosticsText, /Cannot find name 'TemplateStringsArray'/u);
 });
 
 test("JS surface profile accepts JS names and rejects CLR names under noLib", () => {
   const valid = createSourceProfileSession({
     profile: "js",
     sourceText: [
+      "declare const template: TemplateStringsArray;",
       "const path: string = \"a/b\";",
       "const parts = path.split(\"/\");",
       "const count = parts.length;",
-      "export const result = `${count}`;",
+      "const raw = String.raw(template, path);",
+      "export const result = `${count}:${raw}`;",
       "",
     ].join("\n"),
   });

@@ -50,15 +50,6 @@ const numberInstanceRows = [
     returnType: stringType,
   },
   {
-    sourceName: "toLocaleString",
-    targetName: "toLocaleString",
-    parameters: [
-      closedObjectParameter("locales", { optional: true }),
-      closedObjectParameter("options", { optional: true }),
-    ],
-    returnType: stringType,
-  },
-  {
     sourceName: "toFixed",
     targetName: "toFixed",
     parameters: [targetParameter("fractionDigits", intType, { optional: true })],
@@ -142,6 +133,7 @@ export const csharpJsNumberCallPolicies:
         noReceiver,
       )
     ),
+    numberLocaleStringPolicy(),
     jsCallPolicy(
       jsCallIdentity("NumberConstructor"),
       () =>
@@ -264,6 +256,43 @@ function numberReceiverMember(
         row.parameters,
         row.returnType,
       );
+}
+
+function numberLocaleStringPolicy(): CsharpSourceProfileCallPolicy {
+  const source = jsMemberIdentity("Number", "toLocaleString");
+  const supported = jsCallPolicy(
+    source,
+    (context) =>
+      numberReceiverMember(
+        resolveCsharpSelectedSourceValue(
+          context,
+          context.source.sourceReceiver,
+        ),
+        {
+          sourceName: "toLocaleString",
+          targetName: "toLocaleString",
+          parameters: [
+            closedObjectParameter("locales", { optional: true }),
+            closedObjectParameter("options", { optional: true }),
+          ],
+          returnType: stringType,
+        },
+      ),
+    firstParameterReceiver,
+  );
+  const unsupported = jsUnsupportedCallPolicy(
+    source,
+    "Number.toLocaleString locales/options require exact Intl.NumberFormat-compatible source and runtime facts.",
+  );
+  return Object.freeze({
+    source,
+    select: (
+      context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+    ) =>
+      (context.source.sourceArguments.length === 0
+        ? supported
+        : unsupported).select(context),
+  });
 }
 
 function booleanReceiverMember(

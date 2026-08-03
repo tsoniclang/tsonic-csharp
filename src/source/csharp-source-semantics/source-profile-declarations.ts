@@ -124,6 +124,10 @@ interface ReadonlyArray<T> extends Iterable<T> {
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
 
+interface TemplateStringsArray extends ReadonlyArray<string> {
+  readonly raw: readonly string[];
+}
+
 interface Object {
   hasOwnProperty(key: PropertyKey): boolean;
   toString(): string;
@@ -243,7 +247,7 @@ interface String {
 interface StringConstructor {
   new (value?: unknown): String;
   (value?: unknown): string;
-  raw(callSite: unknown, ...substitutions: unknown[]): string;
+  raw(callSite: TemplateStringsArray, ...substitutions: unknown[]): string;
   fromCharCode(...codes: number[]): string;
   fromCodePoint(...codes: number[]): string;
 }

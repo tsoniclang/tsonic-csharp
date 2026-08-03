@@ -679,6 +679,30 @@ test("direct C# strict-native translation rejects opaque any declarations and op
   assert.deepEqual([...compiled.artifacts], []);
 });
 
+test("direct C# compat translation rejects instanceof before direct C# type-test lowering", () => {
+  const compiled = compileCsharpSource({
+    sourceText: [
+      "class Marker {}",
+      "export function test(value: any): boolean {",
+      "  return value instanceof Marker;",
+      "}",
+    ].join("\n"),
+    targetOptions: { typescriptCompatibility: "compat" },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
+    [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message:
+        "C# compatibility mode has no closed runtime operation for TypeScript any operator 'instanceof'.",
+    }],
+  );
+  assert.deepEqual([...compiled.artifacts], []);
+});
+
 function cleanCompile(sourceText, options = {}) {
   const compiled = compileCsharpSource({ sourceText, ...options });
   assert.equal(compiled.sourceDiagnosticsText, "");
