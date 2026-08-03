@@ -86,6 +86,7 @@ import {
   csharpExceptionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpNeverTargetType,
   csharpVoidTargetType,
 } from "./scalar-types.js";
 import {
@@ -1911,7 +1912,7 @@ export function createCsharpTypePolicy(
         : { kind: "opaque", id: "unknown" };
     }
     if (queries.isNever(type)) {
-      return { kind: "opaque", id: "never" };
+      return csharpNeverTargetType();
     }
     if (queries.isNullish(type)) {
       return isUndefinedType(type, queries)
@@ -2632,7 +2633,7 @@ function resolveKeywordType(
         ? csharpTsValueTargetType()
         : { kind: "opaque", id: "unknown" };
     case "KindNeverKeyword":
-      return { kind: "opaque", id: "never" };
+      return csharpNeverTargetType();
     default:
       return undefined;
   }

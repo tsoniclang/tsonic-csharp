@@ -16,9 +16,11 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpRuntimeUndefinedTargetType,
   csharpSourceTypeArgumentNodes,
+  csharpVoidTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpTaskResultTargetType,
+  isCsharpNeverTargetType,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import {
@@ -45,9 +47,7 @@ export function getExplicitReturnType(
       sourceFile,
       input,
     );
-    const inferred = returnTargetType === undefined
-      ? undefined
-      : csharpTypeFromTargetTypeRef(returnTargetType);
+    const inferred = csharpDeclarationReturnType(returnTargetType);
     if (inferred === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,
@@ -57,7 +57,25 @@ export function getExplicitReturnType(
     }
     return inferred;
   }
+  const explicitTargetType = input.types.resolveNode(typeNode, sourceFile);
+  if (isCsharpNeverTargetType(explicitTargetType)) {
+    const neverReturnType = csharpDeclarationReturnType(explicitTargetType);
+    if (neverReturnType !== undefined) {
+      return neverReturnType;
+    }
+  }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
+}
+
+function csharpDeclarationReturnType(
+  targetType: TargetTypeRef | undefined,
+): ReturnType<typeof getCsharpTypeForNode> | undefined {
+  if (isCsharpNeverTargetType(targetType)) {
+    return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
+  }
+  return targetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(targetType);
 }
 
 export function getAsyncReturnExpressionExpectedType(

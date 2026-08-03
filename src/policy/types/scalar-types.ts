@@ -93,6 +93,16 @@ export function csharpVoidTargetType(): CsharpTargetNamedTypeRef {
   });
 }
 
+export function csharpNeverTargetType(): TargetTypeRef {
+  return { kind: "opaque", id: "never" };
+}
+
+export function isCsharpNeverTargetType(
+  type: TargetTypeRef | undefined,
+): boolean {
+  return type?.kind === "opaque" && type.id === "never";
+}
+
 export function csharpBooleanTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Boolean", undefined, { kind: "predefined", name: "bool" }, {
     typeofRuntimeKind: "boolean",
