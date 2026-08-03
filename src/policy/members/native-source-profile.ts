@@ -184,12 +184,10 @@ export const csharpNativeSourceProfileElementPolicies:
             `The checked ${declaringName} index access does not resolve to one exact native C# array element carrier.`,
           );
         }
-        if (
-          indexType === undefined ||
-          !isCsharpArrayIndexTargetType(indexType)
-        ) {
-          return rejectedNativeProfileArrayIndex();
-        }
+        const targetIndexType = indexType !== undefined &&
+            isCsharpArrayIndexTargetType(indexType)
+          ? indexType
+          : intType;
         return {
           kind: "resolved",
           targetMember: Object.freeze({
@@ -198,7 +196,7 @@ export const csharpNativeSourceProfileElementPolicies:
             targetName: "Item",
             kind: "indexer",
             declaringType,
-            parameters: [nativeParameter("index", indexType)],
+            parameters: [nativeParameter("index", targetIndexType)],
             returnType: declaringType.element,
             ...(declaringName === "ReadonlyArray"
               ? { readonly: true as const }
@@ -293,18 +291,6 @@ function rejectedNativeProfileElement(
       "CSHARP_NATIVE_SOURCE_PROFILE_ELEMENT_NOT_CLOSED",
       9100903,
       message,
-    ),
-  };
-}
-
-function rejectedNativeProfileArrayIndex():
-  CsharpSourceProfileElementPolicyResult {
-  return {
-    kind: "rejected",
-    diagnostic: nativeProfileDiagnostic(
-      "CSHARP_NATIVE_ARRAY_INDEX_NOT_INTEGRAL",
-      9100109,
-      "C# native array element access requires an integral TSTS/provider-backed index type.",
     ),
   };
 }

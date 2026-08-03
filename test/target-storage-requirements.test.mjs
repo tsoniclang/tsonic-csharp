@@ -68,7 +68,7 @@ test("target storage requirements are idempotent and reject conflicting writes",
   }), {
     kind: "rejected",
     reason:
-      "One source storage declaration is related to incompatible target output types 'target:Example.Todo<>' and 'target:Example.User<>'.",
+      "One source storage declaration is related to incompatible nullable target output types 'target:Example.Todo<>' and 'target:Example.User<>'.",
   });
   assert.deepEqual(registry.resolve(declaration, user), {
     kind: "rejected",
@@ -107,5 +107,71 @@ test("nullable-output metadata does not alter value-type storage", () => {
     kind: "resolved",
     type: int32,
   });
+  assert.deepEqual(registry.unfulfilled(), []);
+});
+
+test("target storage requirements select one exact representation and require declaration consumption", () => {
+  const expression = {};
+  const declaration = {};
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const float64 = csharpSourcePrimitiveTargetType("float64");
+  const registry = createRegistry(new Map([[expression, declaration]]));
+
+  assert.deepEqual(registry.require(expression, {
+    kind: "target-representation",
+    targetType: int32,
+  }), { kind: "accepted" });
+  assert.equal(registry.revision, 1);
+  assert.equal(registry.requiredType(expression), int32);
+  assert.equal(registry.unfulfilled().length, 1);
+
+  assert.deepEqual(registry.require(expression, {
+    kind: "target-representation",
+    targetType: int32,
+  }), { kind: "accepted" });
+  assert.equal(registry.revision, 1);
+
+  assert.deepEqual(registry.resolve(declaration, float64), {
+    kind: "resolved",
+    type: int32,
+  });
+  assert.deepEqual(registry.unfulfilled(), []);
+});
+
+test("target storage requirements reject conflicting exact representations", () => {
+  const expression = {};
+  const declaration = {};
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const float64 = csharpSourcePrimitiveTargetType("float64");
+  const registry = createRegistry(new Map([[expression, declaration]]));
+
+  assert.equal(registry.require(expression, {
+    kind: "target-representation",
+    targetType: int32,
+  }).kind, "accepted");
+  assert.deepEqual(registry.require(expression, {
+    kind: "target-representation",
+    targetType: float64,
+  }), {
+    kind: "rejected",
+    reason:
+      "One source storage declaration requires incompatible target representations 'source:int32' and 'source:float64'.",
+  });
+  assert.equal(registry.revision, 1);
+  assert.equal(registry.requiredType(expression), int32);
+});
+
+test("exact target storage requirements fail closed without declaration evidence", () => {
+  const registry = createRegistry();
+
+  assert.deepEqual(registry.require({}, {
+    kind: "target-representation",
+    targetType: csharpSourcePrimitiveTargetType("int32"),
+  }), {
+    kind: "rejected",
+    reason:
+      "A selected target operation requires an exact storage representation, but its source storage declaration is unavailable.",
+  });
+  assert.equal(registry.revision, 0);
   assert.deepEqual(registry.unfulfilled(), []);
 });

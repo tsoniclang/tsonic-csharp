@@ -92,6 +92,9 @@ import {
   applyCsharpConversionSelection,
 } from "../../translate/expressions/conversions.js";
 import {
+  requireCsharpStorageRepresentation,
+} from "../../translate/artifacts/storage-representation.js";
+import {
   sourceOperatorFromKindName,
 } from "../../policy/operations/index.js";
 
@@ -371,6 +374,21 @@ export function planExpressionWithExpectedType(
     effectiveExpectedTargetType,
     "implicit",
   );
+  if (selection.kind === "rejected") {
+    const requirement = requireCsharpStorageRepresentation(
+      input,
+      node,
+      sourceFile,
+      effectiveExpectedTargetType,
+    );
+    if (requirement.kind === "requested") {
+      return undefined;
+    }
+    if (requirement.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, requirement.reason));
+      return undefined;
+    }
+  }
   return applyCsharpConversionSelection(
     node,
     sourceFile,

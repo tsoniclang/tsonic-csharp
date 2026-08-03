@@ -304,6 +304,28 @@ namespace Tsonic.Generated
 `);
 });
 
+test("direct C# translation preserves inferred integral storage across mutable index uses", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function sum(values: number[]): number {
+        let result: number = 0;
+        for (let index = 0; index < values.Length; index++) {
+          result += values[index];
+        }
+        return result;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.result.diagnostics, []);
+  assert.match(
+    compiled.artifacts.get("src/Index.cs"),
+    /for \(int index = 0; index < values\.Length; index\+\+\)/u,
+  );
+});
+
 test("direct C# translation scopes exact delegate parameter representations through callback bodies", () => {
   const compiled = compileCsharpSource({
     sourceText: `

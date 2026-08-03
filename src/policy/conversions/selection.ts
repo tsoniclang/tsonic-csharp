@@ -306,7 +306,7 @@ export function selectCsharpExpressionConversion(
         armType,
         mode,
       );
-      return conversionIsApplicable(sourceToArm, mode)
+      return csharpConversionIsApplicable(sourceToArm, mode)
         ? [{ armIndex, armType, sourceToArm }]
         : [];
     });
@@ -349,7 +349,7 @@ export function selectCsharpProviderArgumentConversion(
     target,
     "implicit",
   );
-  if (conversionIsApplicable(direct, "implicit") || adapter === undefined) {
+  if (csharpConversionIsApplicable(direct, "implicit") || adapter === undefined) {
     return direct;
   }
   const sourceToInput = selectCsharpExpressionConversion(
@@ -366,8 +366,8 @@ export function selectCsharpProviderArgumentConversion(
     "implicit",
   );
   if (
-    conversionIsApplicable(sourceToInput, "implicit") &&
-    conversionIsApplicable(resultToTarget, "implicit")
+    csharpConversionIsApplicable(sourceToInput, "implicit") &&
+    csharpConversionIsApplicable(resultToTarget, "implicit")
   ) {
     return {
       kind: "provider-argument-adapter",
@@ -413,7 +413,7 @@ export function selectCsharpFlowReadConversion(
       };
 }
 
-function conversionIsApplicable(
+export function csharpConversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
 ): boolean {

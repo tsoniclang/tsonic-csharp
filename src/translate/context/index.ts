@@ -96,6 +96,7 @@ export function createCsharpTranslationContext(
   const semantics = input.source.semantics.forFile;
   const semanticsFor = input.source.semantics.forNode;
   const hasSemantics = input.source.semantics.includes;
+  let artifacts: CsharpTranslationArtifactGraph | undefined;
   const typePolicyHost = {
     ast: input.source.ast,
     sourceFiles,
@@ -106,11 +107,14 @@ export function createCsharpTranslationContext(
     semantics,
     semanticsFor,
     hasSemantics,
+    scopedTargetType(node: Node): TargetTypeRef | undefined {
+      return artifacts?.requiredStorageType(node);
+    },
   };
   const { types, objectShapes, projectTypes } = createCsharpTypeSystem(
     typePolicyHost,
   );
-  const artifacts = createCsharpTranslationArtifactGraph({
+  artifacts = createCsharpTranslationArtifactGraph({
     objectShapes,
     navigation: input.source.navigation,
   });

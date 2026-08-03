@@ -67,6 +67,7 @@ export interface CsharpTranslationArtifactGraph {
     declaration: Node,
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult;
+  requiredStorageType(storageExpression: Node): TargetTypeRef | undefined;
   unfulfilledStorageRequirements(): readonly CsharpUnfulfilledStorageRequirement[];
 }
 
@@ -627,6 +628,7 @@ export function createCsharpTranslationArtifactGraph(
     objectShapeArtifacts,
     requireStorage: storage.require,
     resolveStorageType: storage.resolve,
+    requiredStorageType: storage.requiredType,
     unfulfilledStorageRequirements: storage.unfulfilled,
   });
 }

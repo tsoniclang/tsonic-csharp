@@ -88,9 +88,11 @@ import {
   selectedCsharpSourceProfileOwner,
 } from "./source-profile.js";
 import {
-  csharpNumericLiteralFitsSourcePrimitive,
   resolveCsharpSourceLiteralTargetType,
 } from "./source-literal-policy.js";
+import {
+  selectCsharpNumericBinaryPromotion,
+} from "../operations/numeric-promotion.js";
 import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
@@ -123,6 +125,9 @@ export interface CsharpTypePolicyBaseHost {
   readonly navigation: SourceProgramNavigation;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
+  readonly scopedTargetType?: (
+    node: Node,
+  ) => TargetTypeRef | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -137,9 +142,6 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       sourceFile: SourceFile,
     ): TargetTypeRef | undefined;
   };
-  readonly scopedTargetType?: (
-    node: Node,
-  ) => TargetTypeRef | undefined;
 }
 
 export interface CsharpSourceTargetTypeBinding {
@@ -351,6 +353,18 @@ export function createCsharpTypePolicy(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined {
+    return resolveSourceCallResultWithState(
+      source,
+      sourceFile,
+      { depth: 0 },
+    );
+  }
+
+  function resolveSourceCallResultWithState(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
     const queries = host.semantics(sourceFile);
     const declaration = queries.getSignatureDeclaration(
       source.selectedSignature,
@@ -363,7 +377,7 @@ export function createCsharpTypePolicy(
         : declarationResultTypeNode(declaration),
       source.sourceResultType,
       sourceFile,
-      { depth: 0 },
+      state,
     );
   }
 
@@ -893,14 +907,8 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const declaration = queries.getSignatureDeclaration(
-      source.selectedSignature,
-    );
-    return resolveSourceCallSelectedType(
+    return resolveSourceCallResultWithState(
       source,
-      declaration,
-      declarationResultTypeNode(declaration),
-      source.sourceResultType,
       queries.sourceFile,
       state,
     );
@@ -2140,24 +2148,6 @@ function resolveBinaryTargetRepresentation(
   if (operator === undefined || left === undefined || right === undefined) {
     return undefined;
   }
-  const alignedLeft = right.kind === "source-primitive" &&
-      leftNode !== undefined &&
-      csharpNumericLiteralFitsSourcePrimitive(
-        ast,
-        leftNode,
-        right.name,
-      )
-    ? right
-    : left;
-  const alignedRight = alignedLeft.kind === "source-primitive" &&
-      rightNode !== undefined &&
-      csharpNumericLiteralFitsSourcePrimitive(
-        ast,
-        rightNode,
-        alignedLeft.name,
-      )
-    ? alignedLeft
-    : right;
   switch (operator) {
     case "===":
     case "==":
@@ -2176,23 +2166,42 @@ function resolveBinaryTargetRepresentation(
     case "&&=":
     case "||=":
     case "??=":
-      return alignedLeft;
+      return left;
     case ",":
-      return alignedRight;
+      return right;
     case "<<":
     case ">>":
     case ">>>":
     case "<<=":
     case ">>=":
     case ">>>=":
-      return alignedLeft;
-    case "??":
-      return commonTargetRepresentation(
-        getNonNullableTargetRepresentation(alignedLeft),
-        alignedRight,
-      );
-    default:
-      return commonTargetRepresentation(alignedLeft, alignedRight);
+      return left;
+    case "??": {
+      const nonNullableLeft = getNonNullableTargetRepresentation(left);
+      const numeric = leftNode === undefined || rightNode === undefined
+        ? undefined
+        : selectCsharpNumericBinaryPromotion(
+            { ast },
+            leftNode,
+            nonNullableLeft,
+            rightNode,
+            right,
+          );
+      return numeric?.resultType ??
+        commonTargetRepresentation(nonNullableLeft, right);
+    }
+    default: {
+      const numeric = leftNode === undefined || rightNode === undefined
+        ? undefined
+        : selectCsharpNumericBinaryPromotion(
+            { ast },
+            leftNode,
+            left,
+            rightNode,
+            right,
+          );
+      return numeric?.resultType ?? commonTargetRepresentation(left, right);
+    }
   }
 }
 
