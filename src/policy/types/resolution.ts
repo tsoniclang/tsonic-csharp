@@ -341,7 +341,8 @@ export function createCsharpTypePolicy(
       }
       return undefined;
     }
-    return resolveType(selectedType, sourceFile);
+    return resolveNode(node, sourceFile) ??
+      resolveType(selectedType, sourceFile);
   }
 
   function resolveSelectedType(

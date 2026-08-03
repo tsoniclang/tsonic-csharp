@@ -67,6 +67,7 @@ import {
   csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
+  getCsharpImplicitArrayInputElementTargetType,
   isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
@@ -203,8 +204,14 @@ export function planExpressionWithExpectedTypeCore(
     HasSourceKind(input.ast, node, KindArrayLiteralExpression) &&
     effectiveExpectedTargetType !== undefined
   ) {
-    const sourceCarrier = getTargetTypeRefForNode(input, node, sourceFile) ??
-      input.types.resolveNode(node, sourceFile);
+    const implicitArrayInputElement =
+      getCsharpImplicitArrayInputElementTargetType(
+        effectiveExpectedTargetType,
+      );
+    const sourceCarrier = implicitArrayInputElement === undefined
+      ? getTargetTypeRefForNode(input, node, sourceFile) ??
+        input.types.resolveNode(node, sourceFile)
+      : { kind: "array" as const, element: implicitArrayInputElement };
     const conversion = selectCsharpConversion(
       input,
       sourceCarrier,
