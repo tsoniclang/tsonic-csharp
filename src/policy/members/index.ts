@@ -6,6 +6,7 @@ export * from "./instantiation.js";
 export * from "./call-selection.js";
 export * from "./property-selection.js";
 export * from "./element-selection.js";
+export * from "./project-element-selection.js";
 export * from "./value-selection.js";
 export * from "./source-profile-identity.js";
 export * from "./source-profile-policy.js";

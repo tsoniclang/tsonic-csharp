@@ -27,12 +27,14 @@ export interface CsharpInterfacePropertyDeclaration {
   readonly kind: "PropertyDeclaration";
   readonly name: string;
   readonly attributes?: readonly CsharpAttribute[];
+  readonly writable: boolean;
   readonly type: CsharpTypeNode;
 }
 
 export interface CsharpInterfaceIndexerDeclaration {
   readonly kind: "IndexerDeclaration";
   readonly attributes?: readonly CsharpAttribute[];
+  readonly writable: boolean;
   readonly keyName: string;
   readonly keyType: CsharpTypeNode;
   readonly valueType: CsharpTypeNode;

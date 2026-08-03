@@ -145,7 +145,13 @@ function planInterfacePropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
   const declaration = AsPropertySignatureDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface property declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(
+    input.ast,
+    node,
+    "interface property declaration",
+    diagnostics,
+    ["readonly"],
+  );
   if (declaration.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
@@ -160,6 +166,7 @@ function planInterfacePropertyDeclaration(
     kind: "PropertyDeclaration",
     name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    writable: !input.ast.hasModifierKind(node, "readonly"),
     type: input.ast.questionToken(node) === undefined
       ? type
       : nullableCsharpType(type),
@@ -173,7 +180,13 @@ function planInterfaceIndexerDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
   const declaration = AsIndexSignatureDeclaration(node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface index signature", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(
+    input.ast,
+    node,
+    "interface index signature",
+    diagnostics,
+    ["readonly"],
+  );
   const parameterNodes = declaration.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes.find((item): item is Node => item !== undefined);
   if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {
@@ -183,6 +196,7 @@ function planInterfaceIndexerDeclaration(
   return {
     kind: "IndexerDeclaration",
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    writable: !input.ast.hasModifierKind(node, "readonly"),
     keyName: planIdentifierName(parameterDeclaration?.name, "key", input, diagnostics, "Interface indexer key name"),
     keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
     valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),

@@ -69,7 +69,7 @@ namespace Tsonic.Generated
     }
     public interface Todo
     {
-        int id { get; }
+        int id { get; set; }
     }
 }
 `,
@@ -144,7 +144,7 @@ namespace Tsonic.Generated
     }
     public interface Todo
     {
-        int id { get; }
+        int id { get; set; }
     }
 }
 `,

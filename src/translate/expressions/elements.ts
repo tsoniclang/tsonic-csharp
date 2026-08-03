@@ -15,6 +15,9 @@ import type {
   CsharpTargetElementSelection,
 } from "../../policy/members/index.js";
 import {
+  selectCsharpFlowReadConversion,
+} from "../../policy/conversions/index.js";
+import {
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   targetTypeRefEquals,
@@ -42,6 +45,9 @@ import {
   translateCsharpCompatInvocation,
   translateCsharpCompatValueFactory,
 } from "./compat.js";
+import {
+  applyCsharpConversionSelection,
+} from "./conversions.js";
 import {
   translateCsharpSelectedReceiver,
 } from "./receivers.js";
@@ -111,6 +117,16 @@ export function translateCsharpElementAccess(
         diagnostics,
         planExpression,
       );
+    case "project-indexer":
+      return translateProjectIndexerElement(
+        node,
+        selection,
+        sourceFile,
+        input,
+        diagnostics,
+        planExpression,
+        planCallArgument,
+      );
     case "rejected":
       diagnostics.push(selectedPolicyDiagnostic(
         node,
@@ -141,6 +157,75 @@ export function translateCsharpElementAccess(
       ));
       return undefined;
   }
+}
+
+function translateProjectIndexerElement(
+  node: Node,
+  selection: Extract<
+    CsharpTargetElementSelection,
+    { readonly kind: "project-indexer" }
+  >,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+): CsharpExpression | undefined {
+  const keyType = csharpTypeFromTargetTypeRef(selection.keyType);
+  if (keyType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact selected project index key has no renderable C# target type.",
+    ));
+    return undefined;
+  }
+  const receiver = translateCsharpSelectedReceiver(
+    selection.source.receiver,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  const argument = planCallArgument(
+    selection.source.argument.expression,
+    sourceFile,
+    input,
+    diagnostics,
+    keyType,
+    undefined,
+    selection.keyType,
+    "by-value",
+  );
+  if (receiver === undefined || !isValueArgument(argument)) {
+    return undefined;
+  }
+  const planned: CsharpExpression = {
+    kind: selection.source.optionalChain
+      ? "ConditionalElementAccessExpression"
+      : "ElementAccessExpression",
+    receiver,
+    argument: argument.expression,
+  };
+  if (
+    selection.source.accessMode !== "read" ||
+    selection.selectedReadType === undefined
+  ) {
+    return planned;
+  }
+  return applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    selection.valueType,
+    selection.selectedReadType,
+    selectCsharpFlowReadConversion(
+      input,
+      selection.valueType,
+      selection.selectedReadType,
+    ),
+    planned,
+  );
 }
 
 function translateSelectedElement(

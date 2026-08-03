@@ -221,12 +221,14 @@ function publicInterfaceMember(
         kind: member.kind,
         name: member.name,
         attributes: member.attributes,
+        writable: member.writable,
         type: member.type,
       });
     case "IndexerDeclaration":
       return Object.freeze({
         kind: member.kind,
         attributes: member.attributes,
+        writable: member.writable,
         keyName: member.keyName,
         keyType: member.keyType,
         valueType: member.valueType,

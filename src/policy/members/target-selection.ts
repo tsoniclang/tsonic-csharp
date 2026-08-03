@@ -8,6 +8,7 @@ import type {
 } from "@tsonic/target-api";
 import type {
   CsharpTargetMember,
+  TargetTypeRef,
 } from "../types/index.js";
 import type {
   CsharpTargetReceiverRelation,
@@ -24,6 +25,9 @@ import {
 import {
   selectCsharpProviderProperty,
 } from "./property-selection.js";
+import {
+  selectCsharpProjectElement,
+} from "./project-element-selection.js";
 import {
   selectCsharpComposedSourceProfileCall,
   selectCsharpComposedSourceProfileElement,
@@ -103,6 +107,13 @@ export type CsharpTargetElementSelection =
       readonly receiver: CsharpTargetReceiverRelation;
       readonly invocation: CsharpTargetElementInvocation;
       readonly origin: "provider" | "source-profile";
+    }
+  | {
+      readonly kind: "project-indexer";
+      readonly source: ResolvedSourceElementAccessInfo;
+      readonly keyType: TargetTypeRef;
+      readonly valueType: TargetTypeRef;
+      readonly selectedReadType?: TargetTypeRef;
     }
   | {
       readonly kind: "source-owned";
@@ -224,6 +235,25 @@ export function selectCsharpTargetElement(
   }
   if (provider.kind !== "not-provider") {
     return provider;
+  }
+  const project = selectCsharpProjectElement(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (project.kind === "resolved") {
+    return {
+      kind: "project-indexer",
+      source: project.source,
+      keyType: project.keyType,
+      valueType: project.valueType,
+      ...(project.selectedReadType === undefined
+        ? {}
+        : { selectedReadType: project.selectedReadType }),
+    };
+  }
+  if (project.kind === "rejected") {
+    return { kind: "missing", reason: project.reason };
   }
   const profile = selectCsharpComposedSourceProfileElement(
     host,

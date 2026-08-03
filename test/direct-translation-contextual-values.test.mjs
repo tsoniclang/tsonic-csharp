@@ -58,8 +58,8 @@ namespace Tsonic.Generated
     }
     public interface TodoCreateInput
     {
-        string title { get; }
-        int id { get; }
+        string title { get; set; }
+        int id { get; set; }
     }
 }
 `);
@@ -218,8 +218,8 @@ namespace Tsonic.Generated
     }
     public interface Box<T>
     {
-        T value { get; }
-        string label { get; }
+        T value { get; set; }
+        string label { get; set; }
     }
 }
 `);
@@ -271,8 +271,8 @@ namespace Tsonic.Generated
 {
     public interface ItemDto
     {
-        int id { get; }
-        string title { get; }
+        int id { get; set; }
+        string title { get; set; }
     }
 }
 `);

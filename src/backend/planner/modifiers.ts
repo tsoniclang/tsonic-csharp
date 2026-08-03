@@ -27,13 +27,20 @@ const typeScriptOnlyRuntimeShapeModifiers = [
   { flag: ModifierFlagsConst, name: "const" },
 ] as const;
 
+type TypeScriptOnlyRuntimeShapeModifierName =
+  (typeof typeScriptOnlyRuntimeShapeModifiers)[number]["name"];
+
 export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
   ast: AstReader,
   node: Node,
   context: string,
   diagnostics: TargetDiagnostic[],
+  allowedModifiers: readonly TypeScriptOnlyRuntimeShapeModifierName[] = [],
 ): void {
   for (const modifier of typeScriptOnlyRuntimeShapeModifiers) {
+    if (allowedModifiers.includes(modifier.name)) {
+      continue;
+    }
     if (HasSyntacticModifier(ast, node, modifier.flag)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

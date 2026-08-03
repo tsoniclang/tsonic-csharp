@@ -87,7 +87,7 @@ namespace Tsonic.Generated
     }
     public interface User
     {
-        string name { get; }
+        string name { get; set; }
     }
 }
 `);
@@ -522,8 +522,8 @@ namespace Tsonic.Generated
     }
     public interface User
     {
-        string name { get; }
-        int age { get; }
+        string name { get; set; }
+        int age { get; set; }
     }
 }
 `);

@@ -123,12 +123,12 @@ function printInterfaceMemberLines(
     case "PropertyDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.type)} ${member.name} { get; }`,
+        `${context.printType(member.type)} ${member.name} { get;${member.writable ? " set;" : ""} }`,
       ];
     case "IndexerDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get; }`,
+        `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get;${member.writable ? " set;" : ""} }`,
       ];
   }
   return failUnsupportedCsharpSyntax(member, "interface member");

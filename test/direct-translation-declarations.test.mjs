@@ -53,7 +53,7 @@ namespace Tsonic.Generated
     }
     public interface Named
     {
-        string name { get; }
+        string name { get; set; }
     }
     public class Box<T>
     where T : Named

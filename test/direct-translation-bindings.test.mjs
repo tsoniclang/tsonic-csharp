@@ -59,9 +59,9 @@ namespace Tsonic.Generated
     }
     public interface User
     {
-        string name { get; }
-        int? age { get; }
-        bool active { get; }
+        string name { get; set; }
+        int? age { get; set; }
+        bool active { get; set; }
     }
 }
 `);
