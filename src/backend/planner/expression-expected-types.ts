@@ -65,10 +65,8 @@ import {
 import {
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
-  getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpImplicitArrayInputElementTargetType,
-  isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import {
@@ -281,15 +279,7 @@ export function planExpressionWithExpectedTypeCore(
     });
   }
   const expression = planners.planExpression(node, sourceFile, input, diagnostics);
-  return sourceRepresentation(
-    projectNullableValueForExpectedTarget(
-      node,
-      sourceFile,
-      input,
-      expression,
-      effectiveExpectedTargetType,
-    ),
-  );
+  return sourceRepresentation(expression);
 }
 
 function sourceRepresentation(
@@ -306,40 +296,6 @@ function expectedRepresentation(
   return expression === undefined
     ? undefined
     : { expression, representation: "expected" };
-}
-
-function projectNullableValueForExpectedTarget(
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  expression: CsharpExpression | undefined,
-  expectedTargetType: TargetTypeRef | undefined,
-): CsharpExpression | undefined {
-  if (expression === undefined || expectedTargetType === undefined) {
-    return expression;
-  }
-  const selectedTargetType = getTargetTypeRefForNode(input, node, sourceFile);
-  const storageTargetType = input.types.resolveStorage(node, sourceFile);
-  if (
-    selectedTargetType === undefined ||
-    storageTargetType === undefined ||
-    isCsharpNullableReferenceTargetType(storageTargetType)
-  ) {
-    return expression;
-  }
-  const nullableElementType = getCsharpNullableElementTargetType(storageTargetType);
-  if (
-    nullableElementType === undefined ||
-    !targetTypeRefEquals(nullableElementType, selectedTargetType) ||
-    !targetTypeRefEquals(selectedTargetType, expectedTargetType)
-  ) {
-    return expression;
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: expression,
-    name: "Value",
-  };
 }
 
 function planExpectedRuntimeNullishLiteral(

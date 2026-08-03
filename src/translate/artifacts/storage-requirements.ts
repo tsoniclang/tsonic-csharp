@@ -247,9 +247,9 @@ export function createCsharpStorageRequirementRegistry(
 
   function requiredType(storageExpression: Node): TargetTypeRef | undefined {
     const reference = host.navigation.referenceFor(storageExpression);
-    const requirement = reference === undefined
-      ? undefined
-      : requirements.get(reference.declaration);
+    const requirement = requirements.get(
+      reference?.declaration ?? storageExpression,
+    );
     if (requirement === undefined) {
       return undefined;
     }
@@ -268,9 +268,9 @@ export function createCsharpStorageRequirementRegistry(
 
   function contractOwner(storageExpression: Node): string | undefined {
     const reference = host.navigation.referenceFor(storageExpression);
-    return reference === undefined
-      ? undefined
-      : requirements.get(reference.declaration)?.artifactOwner;
+    return requirements.get(
+      reference?.declaration ?? storageExpression,
+    )?.artifactOwner;
   }
 
   function unfulfilled(): readonly CsharpUnfulfilledStorageRequirement[] {

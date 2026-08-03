@@ -158,6 +158,8 @@ test("target storage requirements select one exact representation and require de
   }), { kind: "accepted" });
   assert.equal(registry.revision, 1);
   assert.equal(registry.requiredType(expression), int32);
+  assert.equal(registry.requiredType(declaration), int32);
+  assert.equal(registry.contractOwner(declaration), "storage:fixture:0");
   assert.equal(registry.unfulfilled().length, 1);
 
   assert.deepEqual(registry.require(expression, {

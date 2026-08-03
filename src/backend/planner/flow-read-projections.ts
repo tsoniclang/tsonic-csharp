@@ -23,6 +23,9 @@ import {
 import type {
   CsharpExpression,
 } from "../roslyn/syntax.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export function planFlowReadUseSiteProjection(
   node: Node,
@@ -39,6 +42,35 @@ export function planFlowReadUseSiteProjection(
     targetTypeRefEquals(storageType, selectedType)
   ) {
     return baseExpression;
+  }
+  const sourceRefinement = input.source.semantics
+    .selectValueTypeRefinement(node);
+  if (sourceRefinement.kind === "not-project-reference") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A target storage-read projection requires an exact project source declaration.",
+    ));
+    return undefined;
+  }
+  if (sourceRefinement.kind === "unresolved") {
+    const missing = sourceRefinement.missing === "declared-type"
+      ? "declared type"
+      : "selected type";
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `A target storage-read projection requires the exact source ${missing}.`,
+    ));
+    return undefined;
+  }
+  if (sourceRefinement.refinement.kind === "exact") {
+    return baseExpression;
+  }
+  if (sourceRefinement.refinement.kind === "ambiguous") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The checked source value refinement is ambiguous, so C# cannot select one storage-read projection.",
+    ));
+    return undefined;
   }
   return applyCsharpConversionSelection(
     node,
