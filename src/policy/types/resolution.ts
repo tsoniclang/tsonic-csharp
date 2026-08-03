@@ -487,6 +487,22 @@ export function createCsharpTypePolicy(
     const queries = sourceFile === undefined
       ? host.semanticsFor(node)
       : host.semantics(sourceFile);
+    const syntaxFact = resolveDirectSourceFacts(
+      [node],
+      queries.sourceFile,
+      state,
+    );
+    if (syntaxFact !== undefined) {
+      return syntaxFact;
+    }
+    const selectedExpression = resolveSelectedExpressionType(
+      node,
+      queries,
+      state,
+    );
+    if (selectedExpression !== undefined) {
+      return selectedExpression;
+    }
     const direct = resolveDirectSourceFacts(
       sourceFactSubjectsForNode(node, queries),
       queries.sourceFile,
@@ -576,19 +592,24 @@ export function createCsharpTypePolicy(
         nextState(state),
       );
     }
+    if (host.ast.is.IsTypeQueryNode(node)) {
+      const expression = host.ast.as.AsTypeQueryNode(node)?.ExprName;
+      const reference = host.navigation.referenceFor(expression);
+      const definition = host.projectTypeCatalog.definitionForDeclaration(
+        reference?.declaration,
+      );
+      if (definition?.kind === "struct") {
+        return host.projectTypeCatalog.targetTypeForDeclaration(
+          definition.declaration,
+          [],
+        );
+      }
+    }
     if (host.ast.is.IsTypeReferenceNode(node)) {
       const resolved = resolveTypeReferenceNode(node, queries, state);
       if (resolved !== undefined) {
         return resolved;
       }
-    }
-    const selectedExpression = resolveSelectedExpressionType(
-      node,
-      queries,
-      state,
-    );
-    if (selectedExpression !== undefined) {
-      return selectedExpression;
     }
     const projectThis = resolveProjectThisTargetType(node);
     if (projectThis !== undefined) {
@@ -789,19 +810,25 @@ export function createCsharpTypePolicy(
         queries.sourceFile,
       );
       if (selection.kind === "resolved") {
-        return host.ast.is.IsNewExpression(node)
+        const result = host.ast.is.IsNewExpression(node)
           ? selection.call.targetMember.declaringType ??
             selection.call.targetMember.returnType
           : selection.call.targetMember.returnType;
+        return host.ast.is.IsNewExpression(node)
+          ? result
+          : optionalAccessTargetType(result, selection.source.optionalChain);
       }
       if (selection.kind === "source-owned") {
-        return host.ast.is.IsNewExpression(node)
+        const result = host.ast.is.IsNewExpression(node)
           ? resolveSourceOwnedConstructionResult(
               selection.source,
               queries,
               state,
             )
           : resolveSourceOwnedCallResult(selection.source, queries, state);
+        return host.ast.is.IsNewExpression(node)
+          ? result
+          : optionalAccessTargetType(result, selection.source.optionalChain);
       }
       return undefined;
     }

@@ -17,7 +17,7 @@ import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import type { CsharpObjectShapeFact } from "../../policy/types/index.js";
 import {
-  isSourceOwnedBindingElement,
+  isSourceOwnedBindingSource,
   planObjectBindingElement,
 } from "./binding-object-source-patterns.js";
 import {
@@ -43,8 +43,7 @@ export function planObjectBindingPattern(
     csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
     return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   }
-  const sourceOwnedBindingElement = isSourceOwnedBindingElement(sourceNode, sourceFile, input);
-  if (!sourceOwnedBindingElement) {
+  if (!isSourceOwnedBindingSource(sourceNode, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(
       patternNode,
       "Object destructuring requires an exact source-owned declaration or target object-shape policy.",

@@ -1,12 +1,9 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBindingElement,
-  AsParameterDeclaration,
   AsStringLiteral,
   HasSourceKind,
-  KindBindingElement,
   KindIdentifier,
-  KindParameter,
   KindStringLiteral,
   Node_Text,
 } from "./source-ast.js";
@@ -66,17 +63,11 @@ export function planObjectBindingElement(
   return planBindingNameFromProjection(name, projected, undefined, elementNode, sourceFile, input, diagnostics, state);
 }
 
-export function isSourceOwnedBindingElement(
+export function isSourceOwnedBindingSource(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): boolean {
-  if (!HasSourceKind(input.ast, sourceNode, KindBindingElement) && !HasSourceKind(input.ast, sourceNode, KindParameter)) {
-    return false;
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindParameter) && AsParameterDeclaration(sourceNode)?.Type === undefined) {
-    return false;
-  }
   return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input);
 }
 

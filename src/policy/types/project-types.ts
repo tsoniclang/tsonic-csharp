@@ -5,6 +5,9 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
+  structFactKey,
+} from "@tsonic/tsts";
+import {
   sourceNodeIdentity,
 } from "@tsonic/target-api";
 import type {
@@ -51,7 +54,7 @@ export interface CsharpProjectTypeDefinition {
   readonly declaration: Node;
   readonly sourceFile: SourceFile;
   readonly sourceName: string;
-  readonly kind: "class" | "interface" | "enum";
+  readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
 }
 
@@ -115,6 +118,7 @@ export type CsharpProjectMemberTypeInstantiation =
 export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
+  readonly sourceFacts?: ReadonlySourceFactResolver;
 }
 
 export interface CsharpProjectTypePolicyHost
@@ -391,7 +395,7 @@ function projectTypeDefinition(
   host: CsharpProjectTypeCatalogHost,
   declaration: Node,
 ): CsharpProjectTypeDefinition | undefined {
-  const kind = declarationKind(host.ast, declaration);
+  const kind = declarationKind(host, declaration);
   const sourceFile = host.ast.getSourceFile(declaration);
   const name = host.ast.name(declaration);
   const identity = sourceNodeIdentity(host.ast, declaration);
@@ -404,7 +408,7 @@ function projectTypeDefinition(
   ) {
     return undefined;
   }
-  const rawTypeParameters = kind === "enum"
+  const rawTypeParameters = kind === "enum" || kind === "struct"
     ? []
     : host.ast.typeParameters(declaration);
   const typeParameters = rawTypeParameters.filter(
@@ -438,6 +442,15 @@ function resolveDefinitionHeritage(
 ):
   | { readonly kind: "resolved"; readonly heritage: CsharpProjectTypeHeritage }
   | { readonly kind: "unresolved"; readonly issue: CsharpProjectTypeIssue } {
+  if (definition.kind === "struct") {
+    return {
+      kind: "resolved",
+      heritage: Object.freeze({
+        definition,
+        interfaces: Object.freeze([]),
+      }),
+    };
+  }
   const source = host.navigation.declaredHeritage(definition.declaration);
   if (source.kind === "unresolved") {
     return {
@@ -531,8 +544,8 @@ function heritageKindError(
   relation: "extends" | "implements",
   targetKind: CsharpProjectTypeDefinition["kind"] | undefined,
 ): string | undefined {
-  if (definition.kind === "enum") {
-    return `Project enum '${definition.sourceName}' cannot declare C# heritage.`;
+  if (definition.kind === "enum" || definition.kind === "struct") {
+    return `Project ${definition.kind} '${definition.sourceName}' cannot declare C# heritage.`;
   }
   if (definition.kind === "interface") {
     if (relation === "implements") {
@@ -589,15 +602,19 @@ function projectDefinitionTargetType(
 }
 
 function declarationKind(
-  ast: AstReader,
+  host: CsharpProjectTypeCatalogHost,
   declaration: Node,
 ): CsharpProjectTypeDefinition["kind"] | undefined {
+  const ast = host.ast;
   return ast.is.IsClassDeclaration(declaration)
     ? "class"
     : ast.is.IsInterfaceDeclaration(declaration)
       ? "interface"
       : ast.is.IsEnumDeclaration(declaration)
         ? "enum"
+        : ast.is.IsVariableDeclaration(declaration) &&
+            host.sourceFacts?.getFact(declaration, structFactKey)?.valueType === true
+          ? "struct"
         : undefined;
 }
 
