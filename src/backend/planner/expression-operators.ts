@@ -26,7 +26,6 @@ import type {
 } from "../roslyn/syntax.js";
 import {
   csharpAssignmentOperatorTokenFromText,
-  csharpBinaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
 import {
   unsupportedNodeDiagnostic,
@@ -40,8 +39,8 @@ import {
   tryPlanJsArrayLengthMutationExpression,
 } from "./expression-js-array-mutations.js";
 import {
-  planBinaryOperand,
-} from "./expression-operators/operands.js";
+  planSelectedCsharpBinaryOperation,
+} from "./expression-operators/selected-binary.js";
 import {
   tryPlanTypeofComparisonExpression,
   tryPlanTypeTestExpression,
@@ -190,101 +189,15 @@ export function tryPlanBinaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
-  if (selection.targetOperation.kind === "nullish-test") {
-    const operandNode = selection.targetOperation.operand === "left"
-      ? selection.left
-      : selection.right;
-    const operand = planExpression(
-      operandNode,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    return operand === undefined
-      ? undefined
-      : {
-          kind: "NullPatternExpression",
-          expression: operand,
-          negated: selection.targetOperation.negated,
-        };
-  }
-  const targetOperator = selection.targetOperation.operator;
-  const assignmentToken = csharpAssignmentOperatorTokenFromText(
-    targetOperator,
-  );
-  if (assignmentToken !== undefined) {
-    const left = planExpression(
-      selection.left,
-      sourceFile,
-      input,
-      diagnostics,
-    );
-    const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType);
-    const right = sourceOperator === "=" && expectedRightType !== undefined
-      ? planExpressionWithExpectedType(
-          selection.right,
-          sourceFile,
-          input,
-          diagnostics,
-          expectedRightType,
-          undefined,
-          selection.leftType,
-        )
-      : planExpression(
-          selection.right,
-          sourceFile,
-          input,
-          diagnostics,
-        );
-    return left === undefined || right === undefined
-      ? undefined
-      : {
-          kind: "AssignmentExpression",
-          left,
-          operatorToken: assignmentToken,
-          right,
-        };
-  }
-  const binaryToken = csharpBinaryOperatorTokenFromText(
-    targetOperator,
-  );
-  if (binaryToken === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      `Selected C# operator '${targetOperator}' has no target AST token.`,
-    ));
-    return undefined;
-  }
-  const left = planBinaryOperand(
-    selection.left,
-    binaryToken,
+  return planSelectedCsharpBinaryOperation(
+    node,
+    selection,
     sourceFile,
     input,
     diagnostics,
     planExpression,
     planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.leftInputType),
-    selection.leftInputType,
   );
-  const right = planBinaryOperand(
-    selection.right,
-    binaryToken,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    planExpressionWithExpectedType,
-    csharpTypeFromTargetTypeRef(selection.rightInputType),
-    selection.rightInputType,
-  );
-  return left === undefined || right === undefined
-    ? undefined
-    : {
-        kind: "BinaryExpression",
-        left,
-        operatorToken: binaryToken,
-        right,
-      };
 }
 
 function tryPlanCompatAssignment(

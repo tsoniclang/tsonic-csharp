@@ -32,12 +32,24 @@ export function selectCsharpNumericBinaryPromotion(
   leftType: TargetTypeRef,
   rightNode: Node,
   rightType: TargetTypeRef,
+  expectedResultType?: TargetTypeRef,
 ): CsharpNumericBinaryPromotion | undefined {
   if (!isNumericPrimitive(leftType) || !isNumericPrimitive(rightType)) {
     return undefined;
   }
   const selectedLeft = leftType;
   const selectedRight = rightType;
+  const expectedPromotion = expectedNumericPromotion(
+    input,
+    leftNode,
+    selectedLeft,
+    rightNode,
+    selectedRight,
+    expectedResultType,
+  );
+  if (expectedPromotion !== undefined) {
+    return expectedPromotion;
+  }
   const adaptedRight = literalAdaptation(
     input,
     rightNode,
@@ -65,6 +77,42 @@ export function selectCsharpNumericBinaryPromotion(
     rightType: resultType,
     resultType,
   };
+}
+
+function expectedNumericPromotion(
+  input: Pick<CsharpTranslationContext, "ast">,
+  leftNode: Node,
+  leftType: SourcePrimitiveTargetType,
+  rightNode: Node,
+  rightType: SourcePrimitiveTargetType,
+  expectedResultType: TargetTypeRef | undefined,
+): CsharpNumericBinaryPromotion | undefined {
+  if (
+    !isNumericPrimitive(expectedResultType) ||
+    promotedPrimitiveKind(
+      expectedResultType.name,
+      expectedResultType.name,
+    ) !== expectedResultType.name ||
+    !operandCanUseExpectedType(input, leftNode, leftType, expectedResultType) ||
+    !operandCanUseExpectedType(input, rightNode, rightType, expectedResultType)
+  ) {
+    return undefined;
+  }
+  return {
+    leftType: expectedResultType,
+    rightType: expectedResultType,
+    resultType: expectedResultType,
+  };
+}
+
+function operandCanUseExpectedType(
+  input: Pick<CsharpTranslationContext, "ast">,
+  node: Node,
+  source: SourcePrimitiveTargetType,
+  expected: SourcePrimitiveTargetType,
+): boolean {
+  return source.name === expected.name ||
+    csharpLiteralIsRepresentableAs(input, node, expected);
 }
 
 export function csharpUnaryNumericPromotion(
@@ -99,9 +147,9 @@ function targetTypeIsLiteralAdaptationCandidate(
 }
 
 function isNumericPrimitive(
-  type: TargetTypeRef,
+  type: TargetTypeRef | undefined,
 ): type is SourcePrimitiveTargetType {
-  return type.kind === "source-primitive" && type.name !== "bool";
+  return type?.kind === "source-primitive" && type.name !== "bool";
 }
 
 function promotedPrimitiveKind(

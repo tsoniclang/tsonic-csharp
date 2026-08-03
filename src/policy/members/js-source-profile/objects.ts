@@ -14,7 +14,9 @@ import {
   csharpTaskTargetType,
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
+  isCsharpRecordDictionaryTargetType,
   isCsharpVoidTargetType,
+  targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../types/index.js";
 import type {
@@ -49,6 +51,11 @@ const firstParameterReceiver = {
   kind: "target-parameter",
   targetParameterIndex: 0,
 } as const;
+const objectCollectionRows = [
+  { sourceName: "keys", result: "keys" },
+  { sourceName: "values", result: "values" },
+  { sourceName: "entries", result: "entries" },
+] as const;
 
 const unsupportedObjectMethods = [
   "getPrototypeOf",
@@ -87,10 +94,10 @@ export const csharpJsObjectCallPolicies:
         ),
       noReceiver,
     ),
-    ...["keys", "values", "entries"].map((name) =>
+    ...objectCollectionRows.map((row) =>
       jsCallPolicy(
-        jsMemberIdentity("ObjectConstructor", name),
-        (context) => objectCollectionMember(context, name),
+        jsMemberIdentity("ObjectConstructor", row.sourceName),
+        (context) => objectCollectionMember(context, row),
         noReceiver,
       )
     ),
@@ -180,7 +187,7 @@ export const csharpJsObjectCallPolicies:
 
 function objectCollectionMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-  name: string,
+  row: typeof objectCollectionRows[number],
 ): CsharpTargetMember | undefined {
   const argumentType = resolveCsharpSelectedSourceValue(
     context,
@@ -190,16 +197,47 @@ function objectCollectionMember(
     context.source.sourceResultType,
     context.sourceFile,
   );
-  return argumentType === undefined || resultType === undefined
+  const refinedResultType = argumentType === undefined || resultType === undefined
+    ? undefined
+    : objectCollectionResultType(row.result, argumentType, resultType);
+  return argumentType === undefined || refinedResultType === undefined
     ? undefined
     : staticMethod(
-        `Tsonic.CSharp.Js.Object.${name}:${targetTypeIdentity(argumentType)}`,
-        name,
-        name,
+        `Tsonic.CSharp.Js.Object.${row.sourceName}:${targetTypeIdentity(argumentType)}`,
+        row.sourceName,
+        row.sourceName,
         objectRuntimeType,
         [targetParameter("value", argumentType)],
-        resultType,
+        refinedResultType,
       );
+}
+
+function objectCollectionResultType(
+  result: typeof objectCollectionRows[number]["result"],
+  argumentType: TargetTypeRef,
+  sourceResultType: TargetTypeRef,
+): TargetTypeRef | undefined {
+  if (
+    !isCsharpRecordDictionaryTargetType(argumentType) ||
+    argumentType.typeArguments?.length !== 2 ||
+    !targetTypeRefEquals(argumentType.typeArguments[0]!, stringType)
+  ) {
+    return sourceResultType;
+  }
+  const valueType = argumentType.typeArguments[1]!;
+  switch (result) {
+    case "keys":
+      return csharpJsArrayTargetType(stringType);
+    case "values":
+      return csharpJsArrayTargetType(valueType);
+    case "entries":
+      return csharpJsArrayTargetType({
+        kind: "tuple",
+        elements: [stringType, valueType],
+      });
+    default:
+      return undefined;
+  }
 }
 
 function objectHasOwnMember(

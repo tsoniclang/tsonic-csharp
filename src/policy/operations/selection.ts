@@ -7,13 +7,12 @@ import type {
 } from "../../translate/context/index.js";
 import type {
   CsharpTargetNamedTypeRef,
-  CsharpTypeofRuntimeKind,
   TargetTypeRef,
 } from "../types/index.js";
 import {
   csharpSourcePrimitiveTargetType,
   getCsharpNullableElementTargetType,
-  getCsharpTypeofRuntimeKindForTargetType,
+  getCsharpRuntimeUnionArms,
   isCsharpAnyRuntimeCarrier,
   isCsharpIntegralTargetType,
   isCsharpRuntimeNullTargetType,
@@ -25,6 +24,9 @@ import {
   csharpUnaryNumericPromotion,
   selectCsharpNumericBinaryPromotion,
 } from "./numeric-promotion.js";
+import {
+  csharpLiteralIsRepresentableAs,
+} from "../conversions/literals.js";
 import type {
   CsharpSourceOperator,
 } from "./syntax.js";
@@ -91,6 +93,7 @@ export function selectCsharpBinaryOperation(
   input: CsharpTranslationContext,
   node: Node,
   sourceFile: SourceFile,
+  expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   if (!input.ast.is.IsBinaryExpression(node)) {
     return rejected("C# binary-operation policy requires a binary expression.");
@@ -106,8 +109,20 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
-  const leftType = input.types.resolveNode(left, sourceFile);
-  const rightType = input.types.resolveNode(right, sourceFile);
+  const leftType = resolveBinaryOperandType(
+    input,
+    left,
+    sourceFile,
+  );
+  const nullishRightExpectation = sourceOperator === "??"
+    ? expectedResultType ?? nullishValueType(leftType)
+    : undefined;
+  const rightType = resolveBinaryOperandType(
+    input,
+    right,
+    sourceFile,
+    nullishRightExpectation,
+  );
   const selectedResultType = input.types.resolveNode(node, sourceFile);
   if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
@@ -127,6 +142,7 @@ export function selectCsharpBinaryOperation(
     leftType,
     right,
     rightType,
+    expectedResultType,
   );
   const numericPromotionRequired = operatorRequiresNumericPromotion(
     sourceOperator,
@@ -138,12 +154,21 @@ export function selectCsharpBinaryOperation(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
   }
+  const nullishResultType = sourceOperator === "??"
+    ? selectNullishResultType(leftType, rightType)
+    : undefined;
+  if (sourceOperator === "??" && nullishResultType === undefined) {
+    return rejected(
+      "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
+    );
+  }
   const operationTypes = selectBinaryOperationTypes(
     sourceOperator,
     leftType,
     rightType,
     selectedResultType,
     numericPromotion,
+    nullishResultType,
   );
   const incompatibility = nullishTest === undefined
     ? validateBinaryTargetSemantics(
@@ -209,6 +234,7 @@ function selectBinaryOperationTypes(
   rightType: TargetTypeRef,
   selectedResultType: TargetTypeRef,
   numericPromotion: ReturnType<typeof selectCsharpNumericBinaryPromotion>,
+  nullishResultType: TargetTypeRef | undefined,
 ): Pick<
   CsharpResolvedBinaryOperation,
   "leftInputType" | "rightInputType" | "resultType"
@@ -232,6 +258,13 @@ function selectBinaryOperationTypes(
       leftInputType: leftType,
       rightInputType: rightType,
       resultType: csharpSourcePrimitiveTargetType("bool"),
+    };
+  }
+  if (operator === "??" && nullishResultType !== undefined) {
+    return {
+      leftInputType: leftType,
+      rightInputType: rightType,
+      resultType: nullishResultType,
     };
   }
   if (isShift(operator)) {
@@ -264,6 +297,80 @@ function selectBinaryOperationTypes(
     rightInputType: rightType,
     resultType: selectedResultType,
   };
+}
+
+function resolveBinaryOperandType(
+  input: CsharpTranslationContext,
+  node: Node,
+  sourceFile: SourceFile,
+  expectedType?: TargetTypeRef,
+): TargetTypeRef | undefined {
+  if (input.ast.is.IsBinaryExpression(node)) {
+    const nested = selectCsharpBinaryOperation(
+      input,
+      node,
+      sourceFile,
+      expectedType,
+    );
+    if (nested.kind === "resolved") {
+      return nested.resultType;
+    }
+  }
+  const selected = input.types.resolveNode(node, sourceFile);
+  return adaptNumericLiteralToExpectedType(input, node, selected, expectedType);
+}
+
+function adaptNumericLiteralToExpectedType(
+  input: CsharpTranslationContext,
+  node: Node,
+  selected: TargetTypeRef | undefined,
+  expected: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  return selected !== undefined &&
+      expected !== undefined &&
+      isSourceNumericPrimitive(selected) &&
+      isSourceNumericPrimitive(expected) &&
+      csharpLiteralIsRepresentableAs(input, node, expected)
+    ? expected
+    : selected;
+}
+
+function selectNullishResultType(
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): TargetTypeRef | undefined {
+  const valueType = nullishValueType(left);
+  if (valueType === undefined) {
+    return undefined;
+  }
+  if (targetTypeRefEquals(right, valueType)) {
+    return valueType;
+  }
+  if (
+    targetTypeRefEquals(right, left) ||
+    isCsharpRuntimeNullTargetType(right) ||
+    isCsharpRuntimeUndefinedTargetType(right)
+  ) {
+    return left;
+  }
+  return undefined;
+}
+
+function nullishValueType(
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  const nullableElement = getCsharpNullableElementTargetType(type);
+  if (nullableElement !== undefined) {
+    return nullableElement;
+  }
+  const runtimeArms = type === undefined
+    ? undefined
+    : getCsharpRuntimeUnionArms(type);
+  const valueArms = runtimeArms?.filter((arm) =>
+    !isCsharpRuntimeNullTargetType(arm) &&
+    !isCsharpRuntimeUndefinedTargetType(arm)
+  );
+  return valueArms?.length === 1 ? valueArms[0] : undefined;
 }
 
 function operatorRequiresNumericPromotion(
@@ -371,30 +478,6 @@ export function selectCsharpUnaryOperation(
         resultType,
       }
     : rejected(incompatibility);
-}
-
-export function getCsharpTypeofRuntimeKind(
-  type: TargetTypeRef | undefined,
-): CsharpTypeofRuntimeKind | undefined {
-  const explicit = getCsharpTypeofRuntimeKindForTargetType(type);
-  if (explicit !== undefined) {
-    return explicit;
-  }
-  if (type?.kind !== "source-primitive") {
-    return undefined;
-  }
-  if (type.name === "bool") {
-    return "boolean";
-  }
-  if (type.name === "char") {
-    return "string";
-  }
-  return type.name === "int64" ||
-    type.name === "uint64" ||
-    type.name === "int128" ||
-    type.name === "uint128"
-    ? "bigint"
-    : "number";
 }
 
 function validateBinaryTargetSemantics(

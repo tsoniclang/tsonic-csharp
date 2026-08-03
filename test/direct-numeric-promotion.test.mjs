@@ -62,6 +62,53 @@ test("C# numeric promotion uses exact representable literal evidence", () => {
   );
 });
 
+test("C# numeric promotion honors an exact enclosing result type only for representable operands", () => {
+  assert.deepEqual(
+    selectCsharpNumericBinaryPromotion(
+      input,
+      numericLiteral("7"),
+      primitive("float64"),
+      numericLiteral("2"),
+      primitive("float64"),
+      primitive("int32"),
+    ),
+    promoted("int32"),
+  );
+  assert.deepEqual(
+    selectCsharpNumericBinaryPromotion(
+      input,
+      numericLiteral("1.5"),
+      primitive("float64"),
+      numericLiteral("2.5"),
+      primitive("float64"),
+      primitive("float32"),
+    ),
+    promoted("float32"),
+  );
+  assert.deepEqual(
+    selectCsharpNumericBinaryPromotion(
+      input,
+      numericLiteral("7"),
+      primitive("float64"),
+      numericLiteral("2.5"),
+      primitive("float64"),
+      primitive("int32"),
+    ),
+    promoted("float64"),
+  );
+  assert.deepEqual(
+    selectCsharpNumericBinaryPromotion(
+      input,
+      value,
+      primitive("float64"),
+      numericLiteral("2"),
+      primitive("float64"),
+      primitive("int32"),
+    ),
+    promoted("float64"),
+  );
+});
+
 function assertPromotion(left, right, result) {
   assert.deepEqual(
     selectCsharpNumericBinaryPromotion(

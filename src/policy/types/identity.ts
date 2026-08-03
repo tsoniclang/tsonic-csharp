@@ -3,17 +3,10 @@ import type {
 } from "./definitions.js";
 import type {
   CsharpTargetNamedTypeRef,
-  CsharpTypeofRuntimeKind,
 } from "./definitions.js";
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
-}
-
-export function getCsharpTypeofRuntimeKindForTargetType(type: TargetTypeRef | undefined): CsharpTypeofRuntimeKind | undefined {
-  return type?.kind === "target-named"
-    ? (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind
-    : undefined;
 }
 
 export function isCsharpStringTargetType(type: TargetTypeRef | undefined): boolean {

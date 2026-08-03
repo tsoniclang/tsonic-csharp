@@ -25,6 +25,7 @@ import {
 import {
   csharpCollectionUsesJsArraySemantics,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpNullableElementTargetType,
 } from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
@@ -78,29 +79,33 @@ export function planArrayLiteralExpressionWithCarrier(
   planner: ArrayLiteralPlanner,
   carrierResolution?: ReturnType<typeof resolveRuntimeCarrierForExpression>,
 ): CsharpExpression | undefined {
+  const constructionCarrier = getCsharpNullableElementTargetType(carrier) ??
+    carrier;
   if (
     arrayLiteralHasElision(node, input) &&
-    !csharpCollectionUsesJsArraySemantics(carrier)
+    !csharpCollectionUsesJsArraySemantics(constructionCarrier)
   ) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
-  if (carrier?.kind === "array") {
-    const elementType = csharpTypeFromTargetTypeRef(carrier.element);
+  if (constructionCarrier?.kind === "array") {
+    const elementType = csharpTypeFromTargetTypeRef(constructionCarrier.element);
     if (elementType !== undefined) {
-      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, carrier.element);
+      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, constructionCarrier.element);
     }
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires a renderable provider element carrier type before C# emission."));
     return undefined;
   }
-  const collectionElementCarrier = getCsharpArrayLiteralElementTargetType(carrier);
-  if (carrier !== undefined && collectionElementCarrier !== undefined) {
-    const collectionType = csharpTypeFromTargetTypeRef(carrier);
+  const collectionElementCarrier = getCsharpArrayLiteralElementTargetType(
+    constructionCarrier,
+  );
+  if (constructionCarrier !== undefined && collectionElementCarrier !== undefined) {
+    const collectionType = csharpTypeFromTargetTypeRef(constructionCarrier);
     const elementType = csharpTypeFromTargetTypeRef(collectionElementCarrier);
     if (collectionType === undefined || elementType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."));
       return undefined;
     }
-    if (csharpCollectionUsesJsArraySemantics(carrier)) {
+    if (csharpCollectionUsesJsArraySemantics(constructionCarrier)) {
       return planJsArrayLiteralExpression(
         node,
         sourceFile,
@@ -112,10 +117,10 @@ export function planArrayLiteralExpressionWithCarrier(
         planner,
       );
     }
-    return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, carrier, collectionElementCarrier, planner);
+    return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, constructionCarrier, collectionElementCarrier, planner);
   }
-  if (carrier?.kind === "tuple") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planner, csharpTypeFromTargetTypeRef(carrier));
+  if (constructionCarrier?.kind === "tuple") {
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planner, csharpTypeFromTargetTypeRef(constructionCarrier));
   }
   const detail = missingCarrierDiagnosticDetail(carrierResolution ?? resolveRuntimeCarrierForExpression(input, node, sourceFile), "Runtime carrier fact is missing for the array literal.");
   diagnostics.push(unsupportedNodeDiagnostic(node, `Array literal emission requires finalized TSTS/provider array runtime-carrier facts with array element type evidence before C# emission. ${detail.reason}`, detail.evidence));

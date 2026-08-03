@@ -6,13 +6,11 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
-  getCsharpRuntimeUnionArms,
-} from "../../policy/types/index.js";
-import {
   selectCsharpCompatTypeofOperation,
 } from "../../policy/compat/index.js";
 import {
   getCsharpTypeofRuntimeKind,
+  selectCsharpTypeofComparison,
   sourceOperatorFromKindName,
 } from "../../policy/operations/index.js";
 import type {
@@ -30,6 +28,9 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -191,24 +192,17 @@ export function tryPlanTypeofComparisonExpression(
           },
         };
   }
-  const exactRuntimeKind = getCsharpTypeofRuntimeKind(operandType);
-  if (exactRuntimeKind !== undefined) {
-    return {
-      kind: "LiteralExpression",
-      value: (exactRuntimeKind === comparison.runtimeKind) !== negated,
-    };
-  }
-  const matchingArms = (getCsharpRuntimeUnionArms(operandType) ?? [])
-    .filter((arm) =>
-      getCsharpTypeofRuntimeKind(arm) === comparison.runtimeKind);
-  if (matchingArms.length !== 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      matchingArms.length === 0
-        ? "The selected typeof comparison has no target runtime-kind representation."
-        : "The selected typeof comparison needs a single-evaluation multi-arm runtime-union condition plan.",
-    ));
+  const selection = selectCsharpTypeofComparison(
+    operandType,
+    comparison.runtimeKind,
+    negated,
+  );
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
+  }
+  if (selection.kind === "constant") {
+    return { kind: "LiteralExpression", value: selection.value };
   }
   const planned = planExpression(
     comparison.operand,
@@ -216,17 +210,34 @@ export function tryPlanTypeofComparisonExpression(
     input,
     diagnostics,
   );
-  return planned === undefined
-    ? undefined
-    : tryPlanRuntimeUnionTypeTest(
-        comparison.operand,
-        matchingArms[0]!,
-        sourceFile,
-        input,
-        diagnostics,
-        planned,
-        negated,
-      );
+  if (planned === undefined) {
+    return undefined;
+  }
+  if (selection.kind === "runtime-union-arm-test") {
+    return tryPlanRuntimeUnionTypeTest(
+      comparison.operand,
+      selection.targetType,
+      sourceFile,
+      input,
+      diagnostics,
+      planned,
+      selection.negated,
+    );
+  }
+  const targetType = csharpTypeFromTargetTypeRef(selection.targetType);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected nullable typeof comparison target type is not renderable in C#.",
+    ));
+    return undefined;
+  }
+  return {
+    kind: "IsPatternExpression",
+    expression: planned,
+    type: targetType,
+    negated: selection.negated,
+  };
 }
 
 function getTypeofComparison(

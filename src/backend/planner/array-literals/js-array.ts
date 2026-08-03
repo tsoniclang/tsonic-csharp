@@ -21,22 +21,17 @@ import type {
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import {
-  missingCarrierDiagnosticDetail,
-  probeCarrierFromResolution,
-  resolveRuntimeCarrierForExpression,
-} from "../runtime-carriers.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
-import {
-  csharpCollectionUsesJsArraySemantics,
-} from "../../../policy/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
 import {
   planArrayLiteralExpression,
 } from "./dense-array.js";
+import {
+  planArraySpreadSourceExpression,
+} from "./spread-source.js";
 
 export function planJsArrayLiteralExpression(
   node: Node,
@@ -147,19 +142,16 @@ function createJsArrayLiteralChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;
     }
-    const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-    const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
-    if (!csharpCollectionUsesJsArraySemantics(spreadCarrier)) {
-      const detail = spreadCarrier === undefined
-        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.")
-        : {
-            reason: "Finalized spread carrier is not a JSArray carrier.",
-            evidence: [],
-          };
-      diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized JSArray carrier fact for the spread expression. ${detail.reason}`, detail.evidence));
-      return undefined;
-    }
-    const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
+    const planned = planArraySpreadSourceExpression(
+      element,
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      elementType,
+      elementTargetType,
+      planner.planExpression,
+    );
     if (planned === undefined) {
       return undefined;
     }

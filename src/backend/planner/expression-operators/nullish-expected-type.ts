@@ -12,6 +12,9 @@ import {
   selectCsharpBinaryOperation,
 } from "../../../policy/operations/index.js";
 import type {
+  CsharpSourceOperator,
+} from "../../../policy/operations/index.js";
+import type {
   TargetTypeRef,
 } from "../../../policy/types/index.js";
 import type {
@@ -21,6 +24,9 @@ import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
+import {
+  targetTypeRefEquals,
+} from "../../../policy/types/index.js";
 import {
   sameCsharpType,
 } from "../csharp-types.js";
@@ -34,6 +40,9 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  planSelectedCsharpBinaryOperation,
+} from "./selected-binary.js";
 
 export function tryPlanBinaryExpressionWithExpectedType(
   node: Node,
@@ -49,12 +58,29 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (!input.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
-  const selection = selectCsharpBinaryOperation(input, node, sourceFile);
-  if (
-    selection.kind === "rejected" ||
-    selection.sourceOperator !== "??"
-  ) {
+  const selection = selectCsharpBinaryOperation(
+    input,
+    node,
+    sourceFile,
+    expectedTargetType,
+  );
+  if (selection.kind === "rejected") {
     return undefined;
+  }
+  if (selection.sourceOperator !== "??") {
+    return binaryOperationUsesExpectedNumericType(selection.sourceOperator) &&
+      expectedTargetType !== undefined &&
+      targetTypeRefEquals(selection.resultType, expectedTargetType)
+      ? planSelectedCsharpBinaryOperation(
+          node,
+          selection,
+          sourceFile,
+          input,
+          diagnostics,
+          planExpression,
+          planExpressionWithExpectedType,
+        )
+      : undefined;
   }
   const resultType = selectExpectedResultType(
     selection.resultType,
@@ -92,6 +118,28 @@ export function tryPlanBinaryExpressionWithExpectedType(
         operatorToken: { kind: "QuestionQuestionToken" },
         right,
       };
+}
+
+function binaryOperationUsesExpectedNumericType(
+  operator: CsharpSourceOperator,
+): boolean {
+  switch (operator) {
+    case "+":
+    case "-":
+    case "*":
+    case "**":
+    case "/":
+    case "%":
+    case "&":
+    case "|":
+    case "^":
+    case "<<":
+    case ">>":
+    case ">>>":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function selectExpectedResultType(
