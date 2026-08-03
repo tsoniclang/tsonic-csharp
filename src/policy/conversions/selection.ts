@@ -24,6 +24,7 @@ import {
   csharpObjectTargetType,
   csharpTargetBindingFact,
   getCsharpCollectionElementTargetType,
+  getCsharpImplicitArrayInputElementTargetType,
   getCsharpDelegateSignature,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
@@ -55,6 +56,7 @@ export type CsharpConversionSelection =
         | "literal"
         | "nullable"
         | "reference"
+        | "tuple"
         | "object-shape-interface"
         | "collection-interface"
         | "provider-operator";
@@ -73,6 +75,7 @@ export type CsharpConversionSelection =
         | "numeric"
         | "nullable"
         | "reference"
+        | "tuple"
         | "provider-operator";
       readonly providerOperatorId?: string;
     }
@@ -234,6 +237,10 @@ export function selectCsharpConversion(
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
   }
+  const tuple = selectTupleConversion(input, source, target, mode);
+  if (tuple !== undefined) {
+    return tuple;
+  }
   const nullable = selectNullableConversion(input, source, target, mode);
   if (nullable !== undefined) {
     return nullable;
@@ -290,6 +297,54 @@ export function selectCsharpConversion(
   };
 }
 
+function selectTupleConversion(
+  input: Pick<
+    CsharpTranslationContext,
+    "projectTypes" | "providers" | "target"
+  >,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  if (source.kind !== "tuple" || target.kind !== "tuple") {
+    return undefined;
+  }
+  if (source.elements.length !== target.elements.length) {
+    return {
+      kind: "rejected",
+      reason: "C# tuple conversion requires equal source and target arity.",
+    };
+  }
+  const elementConversions = source.elements.map((element, index) =>
+    selectCsharpConversion(
+      input,
+      element,
+      target.elements[index],
+      mode,
+    )
+  );
+  if (
+    elementConversions.every((conversion) =>
+      conversionIsImplicitlyApplicable(conversion)
+    )
+  ) {
+    return { kind: "implicit", proof: "tuple" };
+  }
+  if (
+    mode === "explicit" &&
+    elementConversions.every((conversion) =>
+      csharpConversionIsApplicable(conversion, mode)
+    )
+  ) {
+    return { kind: "cast", proof: "tuple" };
+  }
+  return {
+    kind: "rejected",
+    reason:
+      `C# tuple ${mode} conversion requires every corresponding element conversion to be applicable.`,
+  };
+}
+
 function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
@@ -324,6 +379,15 @@ function selectCollectionInterfaceConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
+  const implicitArrayInputElement =
+    getCsharpImplicitArrayInputElementTargetType(target);
+  if (
+    source.kind === "array" &&
+    implicitArrayInputElement !== undefined &&
+    targetTypeRefEquals(source.element, implicitArrayInputElement)
+  ) {
+    return { kind: "implicit", proof: "collection-interface" };
+  }
   const element = getCsharpCollectionElementTargetType(source);
   return element !== undefined &&
       targetTypeRefEquals(target, csharpEnumerableTargetType(element))
@@ -470,21 +534,14 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
 ): CsharpConversionSelection {
-  if (targetTypeRefEquals(storageType, selectedReadType)) {
-    return { kind: "identity" };
-  }
-  if (isCsharpCompatValueTargetType(storageType)) {
-    return selectCsharpConversion(
-      input,
-      storageType,
-      selectedReadType,
-      "explicit",
-    );
-  }
-  const nullableElement = getCsharpNullableElementTargetType(storageType);
-  return nullableElement !== undefined &&
-      targetTypeRefEquals(nullableElement, selectedReadType)
-    ? { kind: "nullable-value" }
+  const selected = selectCsharpConversion(
+    input,
+    storageType,
+    selectedReadType,
+    "explicit",
+  );
+  return csharpConversionIsApplicable(selected, "explicit")
+    ? selected
     : {
         kind: "rejected",
         reason:
@@ -627,7 +684,9 @@ function selectNullableConversion(
   }
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
     return mode === "explicit"
-      ? { kind: "nullable-value" }
+      ? isCsharpNullableReferenceTargetType(source)
+        ? { kind: "implicit", proof: "nullable" }
+        : { kind: "nullable-value" }
       : {
           kind: "rejected",
           reason:

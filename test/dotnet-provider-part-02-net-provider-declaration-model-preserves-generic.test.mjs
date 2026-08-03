@@ -319,10 +319,13 @@ test(".NET target refs carry provider-proven collection literal element metadata
       kind: "array",
       elementType: { kind: "source-primitive", name: "int32" },
     },
+    implicitArrayInput: true,
   });
 
   assert.equal(raw.csharpArrayLiteralElementType, undefined);
+  assert.equal(raw.csharpImplicitArrayInputElementType, undefined);
   assert.deepEqual(providerProven.csharpArrayLiteralElementType, { kind: "source-primitive", name: "int32" });
+  assert.deepEqual(providerProven.csharpImplicitArrayInputElementType, { kind: "source-primitive", name: "int32" });
 });
 test(".NET target binding uses provider-owned target member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();

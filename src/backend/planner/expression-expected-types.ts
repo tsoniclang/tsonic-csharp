@@ -70,6 +70,10 @@ import {
   isCsharpNullableReferenceTargetType,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
+import {
+  csharpConversionIsApplicable,
+  selectCsharpConversion,
+} from "../../policy/conversions/index.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -194,6 +198,31 @@ export function planExpressionWithExpectedTypeCore(
     return expectedRepresentation(
       planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, expectedType),
     );
+  }
+  if (
+    HasSourceKind(input.ast, node, KindArrayLiteralExpression) &&
+    effectiveExpectedTargetType !== undefined
+  ) {
+    const sourceCarrier = getTargetTypeRefForNode(input, node, sourceFile) ??
+      input.types.resolveNode(node, sourceFile);
+    const conversion = selectCsharpConversion(
+      input,
+      sourceCarrier,
+      effectiveExpectedTargetType,
+      "implicit",
+    );
+    if (csharpConversionIsApplicable(conversion, "implicit")) {
+      return sourceRepresentation(
+        planArrayLiteralExpressionWithCarrier(
+          node,
+          sourceFile,
+          input,
+          diagnostics,
+          sourceCarrier,
+          planners,
+        ),
+      );
+    }
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
     return expectedRepresentation(

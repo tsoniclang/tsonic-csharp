@@ -230,6 +230,9 @@ export function createCsharpScopedTranslationContext(
     resolveTarget(type) {
       return input.objectShapes.resolveTarget(type);
     },
+    resolveType(type, sourceFile) {
+      return input.objectShapes.resolveType(type, sourceFile);
+    },
     resolveObjectLiteralTargetShape(expectedShape) {
       return input.objectShapes.resolveObjectLiteralTargetShape(expectedShape);
     },

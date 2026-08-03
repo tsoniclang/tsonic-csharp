@@ -14,7 +14,7 @@ export function csharpObjectShapeMemberContractParts(
     member.targetName,
     member.memberKind,
     member.optional === true ? "optional" : "required",
-    member.readonly === true ? "readonly" : "mutable",
+    "mutable",
     targetTypeRefKey(member.type),
   ];
 }

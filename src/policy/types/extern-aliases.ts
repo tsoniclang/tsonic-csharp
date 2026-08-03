@@ -118,6 +118,7 @@ function csharpApplyExternAliasToNamedTargetType(
     ...(csharpType.csharpBaseType !== undefined ? { csharpBaseType: csharpApplyExternAliasToTargetType(csharpType.csharpBaseType, specifier) } : {}),
     ...(csharpType.csharpArrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: csharpApplyExternAliasToTargetType(csharpType.csharpArrayLiteralElementType, specifier) } : {}),
     ...(csharpType.csharpArrayLiteralConstructionType !== undefined ? { csharpArrayLiteralConstructionType: csharpApplyExternAliasToTargetType(csharpType.csharpArrayLiteralConstructionType, specifier) } : {}),
+    ...(csharpType.csharpImplicitArrayInputElementType !== undefined ? { csharpImplicitArrayInputElementType: csharpApplyExternAliasToTargetType(csharpType.csharpImplicitArrayInputElementType, specifier) } : {}),
     ...(csharpType.csharpEnumerableElementType !== undefined ? { csharpEnumerableElementType: csharpApplyExternAliasToTargetType(csharpType.csharpEnumerableElementType, specifier) } : {}),
     ...(csharpType.csharpReadOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: csharpApplyExternAliasToTargetType(csharpType.csharpReadOnlyIndexableElementType, specifier) } : {}),
     ...(csharpType.csharpDenseMutableElementType !== undefined ? { csharpDenseMutableElementType: csharpApplyExternAliasToTargetType(csharpType.csharpDenseMutableElementType, specifier) } : {}),

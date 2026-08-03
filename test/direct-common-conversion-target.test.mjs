@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   selectCsharpCommonImplicitTarget,
+  selectCsharpConversion,
 } from "../dist/policy/conversions/index.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpNullableTargetType,
+  csharpTargetNamedType,
 } from "../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -71,5 +73,69 @@ test("inferred return contracts retain unobserved nullish alternatives", () => {
       false,
     ),
     { kind: "resolved", type: nullableFloat64 },
+  );
+});
+
+test("tuple conversions apply exact element conversions at equal arity", () => {
+  const nullableFloat64 = csharpNullableTargetType(float64);
+  assert.deepEqual(
+    selectCsharpConversion(
+      host,
+      { kind: "tuple", elements: [string, float64] },
+      { kind: "tuple", elements: [string, nullableFloat64] },
+      "implicit",
+    ),
+    { kind: "implicit", proof: "tuple" },
+  );
+  assert.deepEqual(
+    selectCsharpConversion(
+      host,
+      { kind: "tuple", elements: [string] },
+      { kind: "tuple", elements: [string, nullableFloat64] },
+      "implicit",
+    ),
+    {
+      kind: "rejected",
+      reason: "C# tuple conversion requires equal source and target arity.",
+    },
+  );
+});
+
+test("native arrays convert only through explicit target input capability", () => {
+  const target = csharpTargetNamedType(
+    "Fixture.Assembly::Fixture.Sequence`1",
+    [int32],
+    undefined,
+    { implicitArrayInputElementType: int32 },
+  );
+  assert.deepEqual(
+    selectCsharpConversion(
+      host,
+      { kind: "array", element: int32 },
+      target,
+      "implicit",
+    ),
+    { kind: "implicit", proof: "collection-interface" },
+  );
+  assert.equal(
+    selectCsharpConversion(
+      host,
+      { kind: "array", element: float64 },
+      target,
+      "implicit",
+    ).kind,
+    "rejected",
+  );
+  assert.equal(
+    selectCsharpConversion(
+      host,
+      { kind: "array", element: int32 },
+      csharpTargetNamedType(
+        "Fixture.Assembly::Fixture.Sequence`1",
+        [int32],
+      ),
+      "implicit",
+    ).kind,
+    "rejected",
   );
 });

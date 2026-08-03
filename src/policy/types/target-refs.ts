@@ -14,6 +14,7 @@ export function csharpTargetNamedType(
   metadata: {
     readonly arrayLiteralElementType?: TargetTypeRef;
     readonly arrayLiteralConstructionType?: TargetTypeRef;
+    readonly implicitArrayInputElementType?: TargetTypeRef;
     readonly enumerableElementType?: TargetTypeRef;
     readonly readOnlyIndexableElementType?: TargetTypeRef;
     readonly denseMutableElementType?: TargetTypeRef;
@@ -38,6 +39,7 @@ export function csharpTargetNamedType(
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     ...(metadata.arrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: metadata.arrayLiteralElementType } : {}),
     ...(metadata.arrayLiteralConstructionType !== undefined ? { csharpArrayLiteralConstructionType: metadata.arrayLiteralConstructionType } : {}),
+    ...(metadata.implicitArrayInputElementType !== undefined ? { csharpImplicitArrayInputElementType: metadata.implicitArrayInputElementType } : {}),
     ...(metadata.enumerableElementType !== undefined ? { csharpEnumerableElementType: metadata.enumerableElementType } : {}),
     ...(metadata.readOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: metadata.readOnlyIndexableElementType } : {}),
     ...(metadata.denseMutableElementType !== undefined ? { csharpDenseMutableElementType: metadata.denseMutableElementType } : {}),

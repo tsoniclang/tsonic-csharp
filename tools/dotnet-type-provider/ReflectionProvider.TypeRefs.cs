@@ -133,6 +133,7 @@ sealed partial class ReflectionProvider
             renderShape = RenderShape(definition),
             typeArguments = typeArguments.Length == 0 ? null : typeArguments,
             sourceShape,
+            implicitArrayInput = IsEnumerableShape(type, out _) ? true : (bool?)null,
         };
         return ReferenceNullabilityTypeRef(type, typeNullability, typeNullabilityMetadata, namedType, includeTopLevelReferenceNullability);
     }

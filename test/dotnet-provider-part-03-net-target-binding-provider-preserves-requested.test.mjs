@@ -122,6 +122,7 @@ test(".NET reflection provider proves collection constructor array-literal eleme
   const parameterType = collectionConstructor.parameters[0].type;
   assert.equal(parameterType.kind, "target-named");
   assert.deepEqual(parameterType.csharpArrayLiteralElementType, { kind: "type-parameter", name: "T" });
+  assert.deepEqual(parameterType.csharpImplicitArrayInputElementType, { kind: "type-parameter", name: "T" });
 });
 test(".NET reflection provider preserves exact constructor facts and unsupported constructor evidence", () => {
   const reference = buildConstructorFixture();

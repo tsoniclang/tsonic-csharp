@@ -15,7 +15,6 @@ export interface CsharpObjectShapeMemberFact {
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
   readonly optional?: boolean;
-  readonly readonly?: boolean;
 }
 
 export interface CsharpObjectShapeFact {
@@ -148,6 +147,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpCompatObjectShape?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
   readonly csharpArrayLiteralConstructionType?: TargetTypeRef;
+  readonly csharpImplicitArrayInputElementType?: TargetTypeRef;
   readonly csharpEnumerableElementType?: TargetTypeRef;
   readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
   readonly csharpDenseMutableElementType?: TargetTypeRef;

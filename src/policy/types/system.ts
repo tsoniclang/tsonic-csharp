@@ -1,6 +1,7 @@
 import type {
   Node,
   SourceFile,
+  Type,
 } from "@tsonic/tsts";
 import type {
   CsharpObjectShapePolicy,
@@ -28,6 +29,9 @@ import type {
 import {
   createCsharpBindingProjectionPolicy,
 } from "./binding-projection-policy.js";
+import {
+  csharpTargetTypeComponents,
+} from "./target-type-components.js";
 
 export interface CsharpTypeSystem {
   readonly types: CsharpTypePolicy;
@@ -53,6 +57,12 @@ export function createCsharpTypeSystem(
       }
       return projectTypes;
     },
+    targetTypeComponents(type) {
+      return csharpTargetTypeComponents(
+        type,
+        objectShapes?.resolveTarget(type),
+      );
+    },
     structuralTypes: {
       resolveNode(
         node: Node,
@@ -70,6 +80,17 @@ export function createCsharpTypeSystem(
         }
         return bindingProjections.resolveNode(node, sourceFile) ??
           objectShapes.resolveNode(node, sourceFile)?.targetType;
+      },
+      resolveType(
+        type: Type,
+        sourceFile: SourceFile,
+      ) {
+        if (objectShapes === undefined) {
+          throw new Error(
+            "C# structural type resolution ran before the type system was fully initialized.",
+          );
+        }
+        return objectShapes.resolveType(type, sourceFile)?.targetType;
       },
     },
   });

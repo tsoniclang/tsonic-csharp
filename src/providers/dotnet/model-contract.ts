@@ -137,7 +137,7 @@ const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["source-primitive", new Set(["kind", "name"])],
   ["type-parameter", new Set(["kind", "name"])],
   ["provider-ref", new Set(["kind", "moduleSpecifier", "exportName", "typeArguments"])],
-  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape"])],
+  ["named", new Set(["kind", "targetId", "metadataName", "displayName", "renderShape", "typeArguments", "sourceShape", "implicitArrayInput"])],
   ["nullable", new Set(["kind", "elementType"])],
   ["nullable-reference", new Set(["kind", "elementType"])],
   ["array", new Set(["kind", "elementType", "rank"])],
@@ -900,6 +900,26 @@ function validateDotnetTypeRef(
       validateOptionalDotnetRenderShape(type.renderShape, `${path}.renderShape`, collector);
       validateDotnetTypeRefs(type.typeArguments ?? [], `${path}.typeArguments`, collector, options);
       validateOptionalDotnetTypeRef(type.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
+      if (
+        type.implicitArrayInput !== undefined &&
+        type.implicitArrayInput !== true
+      ) {
+        collector.add(
+          `${path}.implicitArrayInput`,
+          "Implicit native-array input evidence must be the literal true when present.",
+          type.implicitArrayInput,
+        );
+      }
+      if (
+        type.implicitArrayInput === true &&
+        type.sourceShape?.kind !== "array"
+      ) {
+        collector.add(
+          `${path}.implicitArrayInput`,
+          "Implicit native-array input evidence requires an exact source array shape.",
+          type.sourceShape,
+        );
+      }
       return;
     case "array":
       if (type.rank !== undefined && (!Number.isInteger(type.rank) || type.rank < 1)) {

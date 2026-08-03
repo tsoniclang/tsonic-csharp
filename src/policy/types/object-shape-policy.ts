@@ -9,8 +9,8 @@ import type {
   ExtensionFactSubject,
   Node,
   SourceFile,
-  Symbol,
   Type,
+  TypePropertyInfo,
 } from "@tsonic/tsts";
 import type {
   SourceFileSemantics,
@@ -66,6 +66,10 @@ export interface CsharpObjectShapePolicy {
     sourceFile?: SourceFile,
   ): CsharpObjectShapeFact | undefined;
   resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
+  resolveType(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+  ): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact;
@@ -87,6 +91,7 @@ export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpObjectShapePolicy {
   const activeNodes = new WeakSet<object>();
+  const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
 
@@ -162,6 +167,21 @@ export function createCsharpObjectShapePolicy(
       (shape): shape is CsharpObjectShapeFact => shape !== undefined,
     );
     return present.length === 1 ? present[0] : undefined;
+  }
+
+  function resolveType(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+  ): CsharpObjectShapeFact | undefined {
+    if (type === undefined) {
+      return undefined;
+    }
+    const shape = resolveSemanticShape(
+      type,
+      undefined,
+      host.semantics(sourceFile),
+    );
+    return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
   function resolveObjectLiteralTargetShape(
@@ -345,89 +365,90 @@ export function createCsharpObjectShapePolicy(
 
   function resolveSemanticShape(
     type: Type | undefined,
-    node: Node,
+    node: Node | undefined,
     queries: SourceFileSemantics,
     selectedTarget?: TargetTypeRef,
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
+      activeTypes.has(type) ||
+      requiresUnresolvedStructuralProjection(type, node, queries, host) ||
       typeIsExcludedFromObjectShape(type, queries) ||
       !typeHasProjectOwnedShapeDeclaration(type, node, queries, host)
     ) {
       return undefined;
     }
-    const targetType = selectedTarget ??
-      host.types.resolveType(type, queries.sourceFile);
-    const contextualProjectType = targetType !== undefined &&
-        isProjectSourceTargetType(targetType)
-      ? targetType
-      : undefined;
-    const objectLiteral = host.ast.is.IsObjectLiteralExpression(node);
-    const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
-    if (
-      contextualProjectType !== undefined &&
-      declaredKind === "class" &&
-      !objectLiteral
-    ) {
-      return undefined;
-    }
-    if (declaredKind === "enum") {
-      return undefined;
-    }
-    const members = deriveMembers(type, queries);
-    if (members === undefined) {
-      return undefined;
-    }
-    if (
-      contextualProjectType !== undefined &&
-      declaredKind === "class"
-    ) {
-      return objectLiteral
-        ? {
-            targetType: contextualProjectType,
-            members,
-            constructible: projectClassIsObjectInitializable(
-              type,
-              queries,
-              host,
-            ),
-          }
+    activeTypes.add(type);
+    try {
+      const targetType = selectedTarget ??
+        host.types.resolveType(type, queries.sourceFile);
+      const contextualProjectType = targetType !== undefined &&
+          isProjectSourceTargetType(targetType)
+        ? targetType
         : undefined;
-    }
-    if (
-      contextualProjectType !== undefined &&
-      declaredKind === "interface" &&
-      !objectLiteral
-    ) {
+      const objectLiteral = node !== undefined &&
+        host.ast.is.IsObjectLiteralExpression(node);
+      const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
+      if (
+        contextualProjectType !== undefined &&
+        declaredKind === "class" &&
+        !objectLiteral
+      ) {
+        return undefined;
+      }
+      if (declaredKind === "enum") {
+        return undefined;
+      }
+      const members = deriveMembers(type, queries);
+      if (members === undefined) {
+        return undefined;
+      }
+      if (
+        contextualProjectType !== undefined &&
+        declaredKind === "class"
+      ) {
+        return objectLiteral
+          ? {
+              targetType: contextualProjectType,
+              members,
+              constructible: projectClassIsObjectInitializable(
+                type,
+                queries,
+                host,
+              ),
+            }
+          : undefined;
+      }
+      if (
+        contextualProjectType !== undefined &&
+        declaredKind === "interface" &&
+        !objectLiteral
+      ) {
+        return {
+          targetType: contextualProjectType,
+          members,
+        };
+      }
+      const implemented = contextualProjectType !== undefined &&
+          declaredKind === "interface"
+        ? [contextualProjectType]
+        : undefined;
       return {
-        targetType: contextualProjectType,
+        targetType: createStructuralObjectShapeTarget(members, implemented, host),
         members,
+        ...(implemented === undefined ? {} : { implements: implemented }),
       };
+    } finally {
+      activeTypes.delete(type);
     }
-    const implemented = contextualProjectType !== undefined &&
-        declaredKind === "interface"
-      ? [contextualProjectType]
-      : undefined;
-    return {
-      targetType: createStructuralObjectShapeTarget(members, implemented, host),
-      members,
-      ...(implemented === undefined ? {} : { implements: implemented }),
-    };
   }
 
   function deriveMembers(
     ownerType: Type,
     queries: SourceFileSemantics,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const rawProperties = queries.getProperties(ownerType);
-    const properties = rawProperties.filter(
-      (property): property is Symbol => property !== undefined,
-    );
-    if (properties.length !== rawProperties.length) {
-      return undefined;
-    }
-    const members = properties.map((property) =>
-      deriveMember(ownerType, property, queries)
+    const members = queries.getPropertyInfos(ownerType).map((property) =>
+      deriveMember(property, queries)
     );
     return members.some((member) => member === undefined)
       ? undefined
@@ -435,20 +456,16 @@ export function createCsharpObjectShapePolicy(
   }
 
   function deriveMember(
-    ownerType: Type,
-    property: Symbol,
+    property: TypePropertyInfo,
     queries: SourceFileSemantics,
   ): CsharpObjectShapeMemberFact | undefined {
-    const sourceName = queries.getSymbolName(property);
+    const sourceName = property.name;
     if (sourceName.length === 0) {
       return undefined;
     }
-    const declarations = queries.getSymbolDeclarations(property)
+    const declarations = queries.getSymbolDeclarations(property.symbol)
       .filter((declaration): declaration is Node => declaration !== undefined);
-    const sourceType = queries.getPropertyType(ownerType, sourceName);
-    if (sourceType === undefined) {
-      return undefined;
-    }
+    const sourceType = property.type;
     const method = declarations.some((declaration) =>
       host.ast.is.IsMethodDeclaration(declaration) ||
       host.ast.is.IsMethodSignatureDeclaration(declaration)
@@ -459,24 +476,17 @@ export function createCsharpObjectShapePolicy(
     if (memberType === undefined) {
       return undefined;
     }
-    const optional = declarations.some((declaration) =>
-      host.ast.questionToken(declaration) !== undefined
-    ) || typeIncludesNullish(sourceType, queries);
+    const optional = property.optional || typeIncludesNullish(sourceType, queries);
     return {
       sourceName,
       sourceSubjects: declarations.length === 0
-        ? [property]
-        : [property, ...declarations],
+        ? [property.symbol]
+        : [property.symbol, ...declarations],
       sourceTypes: [sourceType],
       targetName: objectShapeMemberTargetName(sourceName),
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
       ...(optional ? { optional: true } : {}),
-      ...(declarations.some((declaration) =>
-          host.ast.hasModifierKind(declaration, "readonly")
-        )
-        ? { readonly: true }
-        : {}),
     };
   }
 
@@ -530,6 +540,7 @@ export function createCsharpObjectShapePolicy(
   return Object.freeze({
     resolveNode,
     resolveTarget,
+    resolveType,
     resolveObjectLiteralTargetShape,
     resolveProjectConstructibleSelectedType,
   });
@@ -587,6 +598,27 @@ function sourceSubjects(
   return subjects;
 }
 
+function requiresUnresolvedStructuralProjection(
+  type: Type,
+  node: Node | undefined,
+  queries: SourceFileSemantics,
+  host: CsharpObjectShapePolicyHost,
+): boolean {
+  if (!queries.couldContainTypeVariables(type)) {
+    return false;
+  }
+  if (
+    node !== undefined &&
+    (
+      host.ast.is.IsTypeLiteralNode(node) ||
+      host.ast.is.IsObjectLiteralExpression(node)
+    )
+  ) {
+    return false;
+  }
+  return queries.getPropertyInfos(type).length === 0;
+}
+
 function typeIsExcludedFromObjectShape(
   type: Type,
   queries: SourceFileSemantics,
@@ -607,7 +639,7 @@ function typeIsExcludedFromObjectShape(
 
 function typeHasProjectOwnedShapeDeclaration(
   type: Type,
-  node: Node,
+  node: Node | undefined,
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): boolean {
@@ -635,10 +667,11 @@ function typeHasProjectOwnedShapeDeclaration(
   )) {
     return false;
   }
-  if (host.ast.is.IsObjectLiteralExpression(node)) {
+  if (node !== undefined && host.ast.is.IsObjectLiteralExpression(node)) {
     return true;
   }
   if (
+    node !== undefined &&
     host.navigation.isProjectDeclaration(
       host.navigation.declarationFor(node),
     )
@@ -652,12 +685,9 @@ function typeHasProjectOwnedShapeDeclaration(
   )) {
     return true;
   }
-  const properties = queries.getProperties(type);
+  const properties = queries.getPropertyInfos(type);
   return properties.length > 0 && properties.every((property) => {
-    if (property === undefined) {
-      return false;
-    }
-    const declarations = queries.getSymbolDeclarations(property);
+    const declarations = queries.getSymbolDeclarations(property.symbol);
     return declarations.length > 0 && declarations.every((declaration) =>
       declaration !== undefined &&
       host.navigation.isProjectDeclaration(declaration)
@@ -861,7 +891,6 @@ export function csharpObjectShapesEqual(
         member.targetName === other.targetName &&
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&
-        member.readonly === other.readonly &&
         targetTypeRefEquals(member.type, other.type);
     });
 }

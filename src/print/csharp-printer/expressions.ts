@@ -41,15 +41,15 @@ export function printCsharpExpression(
     case "ParenthesizedExpression":
       return `(${context.printExpression(expression.expression)})`;
     case "SimpleMemberAccessExpression":
-      return `${context.printExpression(expression.receiver)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
+      return `${printPostfixOperand(expression.receiver, context)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ConditionalAccessExpression":
-      return `${context.printExpression(expression.receiver)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
+      return `${printPostfixOperand(expression.receiver, context)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ElementAccessExpression":
-      return `${context.printExpression(expression.receiver)}[${context.printExpression(expression.argument)}]`;
+      return `${printPostfixOperand(expression.receiver, context)}[${context.printExpression(expression.argument)}]`;
     case "ConditionalElementAccessExpression":
-      return `${context.printExpression(expression.receiver)}?[${context.printExpression(expression.argument)}]`;
+      return `${printPostfixOperand(expression.receiver, context)}?[${context.printExpression(expression.argument)}]`;
     case "InvocationExpression":
-      return `${context.printExpression(expression.callee)}(${expression.arguments.map(context.printArgument).join(", ")})`;
+      return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
     case "AwaitExpression":
       return `await ${context.printExpression(expression.expression)}`;
     case "ObjectCreationExpression":
@@ -99,6 +99,52 @@ export function printCsharpExpression(
       return printCsharpLambda(expression, context);
   }
   return failUnsupportedCsharpSyntax(expression, "expression");
+}
+
+function printPostfixOperand(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  const printed = context.printExpression(expression);
+  return postfixOperandRequiresParentheses(expression)
+    ? `(${printed})`
+    : printed;
+}
+
+function postfixOperandRequiresParentheses(
+  expression: CsharpExpression,
+): boolean {
+  if (isCsharpTypeSyntax(expression)) {
+    return false;
+  }
+  switch (expression.kind) {
+    case "AwaitExpression":
+    case "CastExpression":
+    case "BinaryExpression":
+    case "AssignmentExpression":
+    case "IsPatternExpression":
+    case "NullPatternExpression":
+    case "PrefixUnaryExpression":
+    case "PostfixUnaryExpression":
+    case "ConditionalExpression":
+    case "LambdaExpression":
+      return true;
+    case "LiteralExpression":
+    case "NumericLiteralExpression":
+    case "CharacterLiteralExpression":
+    case "InterpolatedStringExpression":
+    case "ParenthesizedExpression":
+    case "InvocationExpression":
+    case "ObjectCreationExpression":
+    case "SimpleMemberAccessExpression":
+    case "ConditionalAccessExpression":
+    case "ElementAccessExpression":
+    case "ConditionalElementAccessExpression":
+    case "ArrayCreationExpression":
+    case "TupleExpression":
+    case "DefaultExpression":
+      return false;
+  }
 }
 
 function printMemberName(

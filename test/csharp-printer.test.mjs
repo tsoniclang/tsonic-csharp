@@ -45,6 +45,38 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("printer preserves a cast as the receiver of every postfix operation", () => {
+  const cast = {
+    kind: "CastExpression",
+    type: { kind: "IdentifierName", name: "Derived" },
+    expression: { kind: "IdentifierName", name: "value" },
+  };
+  assert.equal(
+    printCsharpExpression({
+      kind: "SimpleMemberAccessExpression",
+      receiver: cast,
+      name: "score",
+    }),
+    "((Derived)value).score",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "ElementAccessExpression",
+      receiver: cast,
+      argument: { kind: "LiteralExpression", value: 0 },
+    }),
+    "((Derived)value)[0]",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: cast,
+      arguments: [],
+    }),
+    "((Derived)value)()",
+  );
+});
+
 test("printer parenthesizes casted lambda expressions", () => {
   assert.equal(
     printCsharpExpression({

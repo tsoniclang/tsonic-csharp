@@ -42,6 +42,9 @@ import {
   translateCsharpCompatInvocation,
   translateCsharpCompatValueFactory,
 } from "./compat.js";
+import {
+  translateCsharpSelectedReceiver,
+} from "./receivers.js";
 
 export function translateCsharpElementAccess(
   node: Node,
@@ -174,11 +177,12 @@ function translateSelectedElement(
     ));
     return undefined;
   }
-  const receiver = planExpression(
-    selection.source.receiver.expression,
+  const receiver = translateCsharpSelectedReceiver(
+    selection.source.receiver,
     sourceFile,
     input,
     diagnostics,
+    planExpression,
   );
   const argument = planCallArgument(
     selection.source.argument.expression,
@@ -264,11 +268,12 @@ function translateSourceOwnedElement(
     receiverType?.kind === "tuple" &&
     selection.source.selectedElementIndex !== undefined
   ) {
-    const receiver = planExpression(
-      selection.source.receiver.expression,
+    const receiver = translateCsharpSelectedReceiver(
+      selection.source.receiver,
       sourceFile,
       input,
       diagnostics,
+      planExpression,
     );
     return receiver === undefined
       ? undefined
@@ -302,11 +307,12 @@ function translateSourceOwnedElement(
     ));
     return undefined;
   }
-  const receiver = planExpression(
-    selection.source.receiver.expression,
+  const receiver = translateCsharpSelectedReceiver(
+    selection.source.receiver,
     sourceFile,
     input,
     diagnostics,
+    planExpression,
   );
   const argument = planExpression(
     selection.source.argument.expression,

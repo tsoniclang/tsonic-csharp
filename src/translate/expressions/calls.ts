@@ -62,6 +62,9 @@ import {
 import {
   applyCsharpConversionSelection,
 } from "./conversions.js";
+import {
+  translateCsharpSelectedReceiver,
+} from "./receivers.js";
 
 export function translateCsharpCallExpression(
   node: Node,
@@ -420,19 +423,20 @@ function translateSelectedTargetCallee(
     return undefined;
   }
   if (selection.receiver.kind === "instance") {
-    const receiverNode = source.sourceReceiver?.expression;
-    if (receiverNode === undefined) {
+    const sourceReceiver = source.sourceReceiver;
+    if (sourceReceiver === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
         "Selected instance target call has no exact checker-selected receiver.",
       ));
       return undefined;
     }
-    const receiver = planExpression(
-      receiverNode,
+    const receiver = translateCsharpSelectedReceiver(
+      sourceReceiver,
       sourceFile,
       input,
       diagnostics,
+      planExpression,
     );
     if (receiver === undefined) {
       return undefined;
@@ -654,11 +658,14 @@ function translateSourceOwnedCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
+  const signatureDeclaration = input.semantics(sourceFile)
+    .getSignatureDeclaration(source.selectedSignature);
   if (
     !isProjectSourceDeclaration(
       input,
       source.sourceCallee.selectedDeclaration,
-    )
+    ) &&
+    !isProjectSourceDeclaration(input, signatureDeclaration)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -307,7 +307,7 @@ export type DotnetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly name: string }
   | { readonly kind: "provider-ref"; readonly moduleSpecifier: string; readonly exportName: string; readonly typeArguments?: readonly DotnetTypeRef[] }
-  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
+  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef; readonly implicitArrayInput?: true }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "nullable-reference"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }

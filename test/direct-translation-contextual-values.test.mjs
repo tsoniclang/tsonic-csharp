@@ -151,6 +151,40 @@ namespace Tsonic.Generated
   );
 });
 
+test("direct C# translation consumes exact non-null expression refinements", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function unwrap(value: string | null): string {
+        return value!;
+      }
+      export function invoke(value: (() => string) | null): string {
+        return value!();
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static string unwrap(string? value)
+        {
+            return value;
+        }
+        public static string invoke(Func<string>? value)
+        {
+            return value();
+        }
+    }
+}
+`);
+});
+
 test("direct C# translation specializes generic object-shape members from exact selected types", () => {
   const compiled = compileCsharpSource({
     sourceText: `

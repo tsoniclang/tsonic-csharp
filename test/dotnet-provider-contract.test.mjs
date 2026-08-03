@@ -201,6 +201,72 @@ test(".NET provider model contract rejects extra fields on type-ref variants", (
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[2].type.sourceShape"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].returnType.targetId"), true);
 });
+test(".NET provider model accepts native-array input only as exact named-type evidence", () => {
+  const diagnostic = validateDotnetModuleModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [{
+      kind: "type",
+      typeKind: "class",
+      sourceName: "ArrayInputs",
+      namespaceName: "ProviderContractFixtures",
+      targetId: testTargetId("ProviderContractFixtures.ArrayInputs"),
+      metadataName: "ProviderContractFixtures.ArrayInputs",
+      members: [{
+        kind: "method",
+        sourceName: "accept",
+        targetName: "Accept",
+        targetId: testTargetId("ProviderContractFixtures.ArrayInputs.Accept"),
+        metadataName: "ProviderContractFixtures.ArrayInputs.Accept",
+        signatures: [{
+          id: testTargetId("ProviderContractFixtures.ArrayInputs.Accept(System.Object,System.Object)"),
+          sourceId: testTargetId("ProviderContractFixtures.ArrayInputs.Accept(System.Object,System.Object)"),
+          parameters: [{
+            name: "notProven",
+            passingMode: "by-value",
+            type: {
+              kind: "named",
+              targetId: testTargetId("ProviderContractFixtures.Sequence"),
+              metadataName: "ProviderContractFixtures.Sequence",
+              sourceShape: {
+                kind: "array",
+                elementType: { kind: "string" },
+              },
+              implicitArrayInput: false,
+            },
+          }, {
+            name: "wrongShape",
+            passingMode: "by-value",
+            type: {
+              kind: "named",
+              targetId: testTargetId("ProviderContractFixtures.Text"),
+              metadataName: "ProviderContractFixtures.Text",
+              sourceShape: { kind: "string" },
+              implicitArrayInput: true,
+            },
+          }],
+          returnType: { kind: "void" },
+        }],
+      }],
+    }],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(
+    hasEvidencePath(
+      diagnostic,
+      "$.exports[0].members[0].signatures[0].parameters[0].type.implicitArrayInput",
+    ),
+    true,
+  );
+  assert.equal(
+    hasEvidencePath(
+      diagnostic,
+      "$.exports[0].members[0].signatures[0].parameters[1].type.implicitArrayInput",
+    ),
+    true,
+  );
+});
 test(".NET provider model contract accepts nullable CLR params-array targets without weakening rest shape validation", () => {
   const model = {
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",

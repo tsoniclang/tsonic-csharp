@@ -46,6 +46,9 @@ import {
 import {
   applyCsharpConversionSelection,
 } from "./conversions.js";
+import {
+  translateCsharpSelectedReceiver,
+} from "./receivers.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -169,11 +172,12 @@ function translateSelectedProperty(
   }
   const receiver = selection.receiver.kind === "none"
     ? targetStaticReceiver(member, node, diagnostics)
-    : planExpression(
-        selection.source.receiver.expression,
+    : translateCsharpSelectedReceiver(
+        selection.source.receiver,
         sourceFile,
         input,
         diagnostics,
+        planExpression,
       );
   if (receiver === undefined) {
     return undefined;
@@ -267,11 +271,12 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
-  const receiver = planExpression(
-    selection.source.receiver.expression,
+  const receiver = translateCsharpSelectedReceiver(
+    selection.source.receiver,
     sourceFile,
     input,
     diagnostics,
+    planExpression,
   );
   if (receiver === undefined) {
     return undefined;

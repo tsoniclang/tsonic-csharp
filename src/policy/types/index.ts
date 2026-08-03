@@ -2,6 +2,7 @@ export * from "./definitions.js";
 export * from "./member-facts.js";
 export * from "./member-substitution.js";
 export * from "./target-refs.js";
+export * from "./target-type-components.js";
 export * from "./bindings.js";
 export * from "./substitution.js";
 export * from "./render-shapes.js";

@@ -17,7 +17,12 @@ export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTa
     "System.Collections.Generic.IEnumerable`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
-    { arrayLiteralElementType: elementType, arrayLiteralConstructionType: constructionType, enumerableElementType: elementType },
+    {
+      arrayLiteralElementType: elementType,
+      arrayLiteralConstructionType: constructionType,
+      implicitArrayInputElementType: elementType,
+      enumerableElementType: elementType,
+    },
   );
 }
 
@@ -30,6 +35,7 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
     {
       arrayLiteralElementType: elementType,
       arrayLiteralConstructionType: constructionType,
+      implicitArrayInputElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
       indexableLengthMemberName: "Count",
@@ -99,6 +105,14 @@ export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | und
 export function getCsharpArrayLiteralConstructionTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType
+    : undefined;
+}
+
+export function getCsharpImplicitArrayInputElementTargetType(
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  return type?.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType
     : undefined;
 }
 

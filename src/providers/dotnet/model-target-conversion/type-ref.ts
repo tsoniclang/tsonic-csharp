@@ -11,7 +11,6 @@ import {
   csharpBooleanTargetType,
   csharpDelegateTargetType,
   type CsharpDelegateSignatureShape,
-  csharpQualifiedTypeRenderShape,
   csharpNullableValueTargetType,
   csharpNullableReferenceTargetType,
   type CsharpTargetTypeRenderShape,
@@ -139,54 +138,13 @@ function csharpTargetMetadataFromDotnetTypeRef(
       : sourceShape.elementType
     : undefined;
   const arrayLiteralElementType = elementType === undefined ? undefined : dotnetTypeRefToTargetTypeRef(elementType);
-  const arrayLiteralConstructionType = arrayLiteralElementType === undefined
-    ? undefined
-    : dotnetArrayLiteralConstructionType(type, arrayLiteralElementType);
   return {
     ...(arrayLiteralElementType !== undefined ? { arrayLiteralElementType } : {}),
-    ...(arrayLiteralConstructionType !== undefined ? { arrayLiteralConstructionType } : {}),
+    ...(arrayLiteralElementType !== undefined && type.implicitArrayInput === true
+      ? { implicitArrayInputElementType: arrayLiteralElementType }
+      : {}),
     ...(delegateSignature !== undefined ? { delegateSignature } : {}),
   };
-}
-
-function dotnetArrayLiteralConstructionType(
-  type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
-  elementType: TargetTypeRef,
-): TargetTypeRef | undefined {
-  const metadataName = type.metadataName;
-  if (metadataName === "System.Collections.Generic.List`1") {
-    return csharpTargetNamedType(
-      requireDotnetTargetId(type.targetId, type.metadataName),
-      type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
-      type.renderShape === undefined ? csharpQualifiedTypeRenderShape("System.Collections.Generic", "List") : dotnetRenderShapeToCsharpRenderShape(type.renderShape),
-      {
-        arrayLiteralElementType: elementType,
-        enumerableElementType: elementType,
-        readOnlyIndexableElementType: elementType,
-        denseMutableElementType: elementType,
-      },
-    );
-  }
-  if (
-    metadataName === "System.Collections.Generic.IEnumerable`1" ||
-    metadataName === "System.Collections.Generic.IReadOnlyCollection`1" ||
-    metadataName === "System.Collections.Generic.IReadOnlyList`1" ||
-    metadataName === "System.Collections.Generic.ICollection`1" ||
-    metadataName === "System.Collections.Generic.IList`1"
-  ) {
-    return csharpTargetNamedType(
-      "System.Collections.Generic.List`1",
-      [elementType],
-      csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
-      {
-        arrayLiteralElementType: elementType,
-        enumerableElementType: elementType,
-        readOnlyIndexableElementType: elementType,
-        denseMutableElementType: elementType,
-      },
-    );
-  }
-  return undefined;
 }
 
 function dotnetDelegateSignatureFromSourceShape(
