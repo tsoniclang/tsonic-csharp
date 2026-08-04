@@ -7,6 +7,7 @@ import {
 
 import {
   createDotnetReflectionTypeDataProvider,
+  createDotnetProviderTelemetry,
   createDotnetSourceDeclarationProvider,
 } from "../dist/index.js";
 import {
@@ -76,7 +77,11 @@ test(".NET reflection preserves provider-family variants while completing requir
 });
 
 test("header-only target bindings cannot satisfy a complete target lookup", () => {
-  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
   const header = requireModule(provider.getModule(systemCollectionsGenericModule, {
     requestedExports: ["List"],
     materialization: incremental([]),
@@ -87,6 +92,36 @@ test("header-only target bindings cannot satisfy a complete target lookup", () =
 
   assert.ok(binding);
   assert.equal((binding.members?.length ?? 0) > 0, true);
+  const snapshot = telemetry.snapshot();
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleMaterializedExports, 1);
+});
+
+test("target relations materialize the exact selected provider export", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
+  const header = requireModule(provider.getModule(systemCollectionsGenericModule, {
+    requestedExports: ["List"],
+    materialization: incremental([]),
+  }));
+  const listHeader = requireType(header, "List");
+
+  const relations = provider.resolveTargetRelations({
+    moduleSpecifier: systemCollectionsGenericModule,
+    providerModuleId: systemCollectionsGenericModule,
+    artifactFileName: "tsts-provider://test/System.Collections.Generic.List.d.ts",
+    exportName: "List",
+    exportId: listHeader.targetId,
+  });
+
+  assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
+  assert.equal(relations.some((relation) => relation.exportId === listHeader.targetId), true);
+  const snapshot = telemetry.snapshot();
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleMaterializedExports > 0, true);
 });
 
 test("source declaration requests carry their own immutable slice and materialization", () => {

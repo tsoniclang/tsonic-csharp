@@ -513,6 +513,7 @@ test(".NET reflection provider preserves selected parameter-mode facts per signa
     providerModuleId: "@tsonic/dotnet/ProviderSignatureFixtures.js",
     artifactFileName: "tsts-provider://test/ProviderSignatureFixtures.ParameterModeTarget.d.ts",
     exportName: "ParameterModeTarget",
+    exportId: rawTarget.targetId,
   });
   assert.equal(
     Array.isArray(relations),

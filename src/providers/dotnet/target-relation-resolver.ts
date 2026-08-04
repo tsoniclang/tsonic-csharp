@@ -64,6 +64,7 @@ export function resolveDotnetProviderTargetRelations(
     providerModuleId: declaration.providerModuleId,
     artifactFileName: declaration.artifactFileName,
     exportName: declaration.exportName,
+    exportId: declaration.exportId,
   });
   if ("extensionId" in projected) {
     return { kind: "rejected", diagnostic: projected };

@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import type {
   ExtensionDiagnostic,
+  ProviderDeclarationMaterialization,
   ProviderDeclarationModel,
 } from "@tsonic/tsts";
 import type {
@@ -35,8 +36,7 @@ import type {
   DotnetTypeDataProvider,
 } from "../provider.js";
 import {
-  completeDotnetProviderContext,
-  completeDotnetProviderMaterialization,
+  emptyIncrementalDotnetProviderMaterialization,
   resolveDotnetProviderDeclarationProjection,
 } from "../provider.js";
 import {
@@ -128,6 +128,7 @@ export interface DotnetProviderTargetRelationRequest {
   readonly providerModuleId: string;
   readonly artifactFileName: string;
   readonly exportName: string;
+  readonly exportId: string;
 }
 
 export function createDotnetReflectionTypeDataProvider(
@@ -376,7 +377,26 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, completeDotnetProviderContext({ requestedTargetIds: [targetId] }));
+      const request = { requestedTargetIds: [targetId] } as const;
+      const header = loadModule(moduleSpecifier, {
+        ...request,
+        materialization: emptyIncrementalDotnetProviderMaterialization,
+      });
+      if (isDotnetProviderDiagnostic(header)) {
+        return undefined;
+      }
+      const headerBinding = targetBindingIndex.getByTargetId(targetId);
+      if (headerBinding !== undefined) {
+        return headerBinding;
+      }
+      const materialization = exactSourceTypeMaterialization(
+        header,
+        (declaration) => declaration.targetId === targetId,
+      );
+      if (materialization === undefined) {
+        return undefined;
+      }
+      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -392,7 +412,26 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, completeDotnetProviderContext({ requestedMetadataNames: [metadataName] }));
+      const request = { requestedMetadataNames: [metadataName] } as const;
+      const header = loadModule(moduleSpecifier, {
+        ...request,
+        materialization: emptyIncrementalDotnetProviderMaterialization,
+      });
+      if (isDotnetProviderDiagnostic(header)) {
+        return undefined;
+      }
+      const headerBinding = targetBindingIndex.getUniqueByMetadataName(metadataName);
+      if (headerBinding !== undefined) {
+        return headerBinding;
+      }
+      const materialization = exactSourceTypeMaterialization(
+        header,
+        (declaration) => declaration.metadataName === metadataName,
+      );
+      if (materialization === undefined) {
+        return undefined;
+      }
+      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -416,7 +455,7 @@ export function createDotnetReflectionTypeDataProvider(
           providerModuleId: request.providerModuleId,
         },
         { requestedExports: [request.exportName] },
-        completeDotnetProviderMaterialization,
+        exactProviderExportMaterialization(request.exportName, request.exportId),
         moduleSpecifierPolicy,
       );
       if ("extensionId" in model) {
@@ -484,4 +523,30 @@ export function createDotnetReflectionTypeDataProvider(
   ): value is DotnetProviderDiagnostic {
     return "code" in value && "message" in value;
   }
+}
+
+function exactSourceTypeMaterialization(
+  module: DotnetModuleModel,
+  matches: (declaration: Extract<DotnetModuleModel["exports"][number], { readonly kind: "type" }>) => boolean,
+): ProviderDeclarationMaterialization | undefined {
+  const declarations = module.exports.filter((declaration): declaration is Extract<
+    DotnetModuleModel["exports"][number],
+    { readonly kind: "type" }
+  > => declaration.kind === "type" && matches(declaration));
+  return declarations.length === 1
+    ? exactProviderExportMaterialization(
+        declarations[0]!.sourceTypeFamily?.exportName ?? declarations[0]!.sourceName,
+        declarations[0]!.targetId,
+      )
+    : undefined;
+}
+
+function exactProviderExportMaterialization(
+  exportName: string,
+  exportId: string,
+): ProviderDeclarationMaterialization {
+  return Object.freeze({
+    kind: "incremental",
+    completeExports: Object.freeze([Object.freeze({ exportName, exportId })]),
+  });
 }

@@ -8,7 +8,7 @@ import {
 } from "@tsonic/tsts";
 import {
   augmentDotnetModuleWithNativeArray,
-  completeDotnetProviderContext,
+  completeDotnetProviderMaterialization,
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
   createDotnetReflectionTypeDataProvider,
@@ -49,8 +49,15 @@ test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
   telemetry.providerInstance();
   telemetry.request("module");
-  telemetry.moduleRequest({ requestedExports: ["Convert"], requestedMetadataNames: ["System.Convert"] });
-  telemetry.moduleRequest({ broadImport: true });
+  telemetry.moduleRequest({
+    requestedExports: ["Convert"],
+    requestedMetadataNames: ["System.Convert"],
+    materialization: emptyIncrementalDotnetProviderMaterialization,
+  });
+  telemetry.moduleRequest({
+    broadImport: true,
+    materialization: completeDotnetProviderMaterialization,
+  });
   telemetry.memoryCacheHit();
   telemetry.memoryCacheMiss();
   telemetry.diskCacheHit();
@@ -76,6 +83,9 @@ test(".NET provider telemetry exposes required performance counters", () => {
   assert.equal(counters["provider.requests.module.requestedExports"], 1);
   assert.equal(counters["provider.requests.module.requestedTargetIds"], 0);
   assert.equal(counters["provider.requests.module.requestedMetadataNames"], 1);
+  assert.equal(counters["provider.requests.module.materialization.complete"], 1);
+  assert.equal(counters["provider.requests.module.materialization.incremental"], 1);
+  assert.equal(counters["provider.requests.module.materializedExports"], 0);
   assert.equal(counters["provider.cache.memory.hit"], 1);
   assert.equal(counters["provider.cache.memory.miss"], 1);
   assert.equal(counters["provider.cache.disk.hit"], 1);
@@ -447,14 +457,17 @@ test(".NET reflection provider records metadata target-binding lookups as sliced
   assert.equal(binding.id.endsWith("::System.Convert"), true);
 
   const snapshot = provider.getTelemetrySnapshot();
-  assert.equal(snapshot.toolInvocations, 1);
+  assert.equal(snapshot.toolInvocations, 2);
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests, 1);
+  assert.equal(snapshot.moduleSlicedRequests, 2);
   assert.equal(snapshot.moduleRequestedExports, 0);
   assert.equal(snapshot.moduleRequestedTargetIds, 0);
-  assert.equal(snapshot.moduleRequestedMetadataNames, 1);
+  assert.equal(snapshot.moduleRequestedMetadataNames, 2);
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests, 2);
+  assert.equal(snapshot.moduleMaterializedExports, 1);
   assert.equal(snapshot.requestsByKind.targetBindingByMetadataName, 1);
-  assert.equal(snapshot.requestsByKind.module, 1);
+  assert.equal(snapshot.requestsByKind.module, 2);
 });
 
 test(".NET reflection declaration slices avoid broad unrelated namespace surfaces", () => {
@@ -526,7 +539,7 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   assert.equal(snapshot.moduleRequestedExports, 8);
 });
 
-test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
+test(".NET reflection provider tool materializes only the exact target-binding export", () => {
   const telemetry = createDotnetProviderTelemetry();
   const runner = createDotnetProviderToolRunner({
     toolProjectPath: resolve("tools/dotnet-type-provider/DotnetTypeProvider.csproj"),
@@ -540,105 +553,11 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "@tsonic/dotnet/System.js",
     "--metadata-name",
     "System.Convert",
-    "--complete-all-exports",
   ]);
   assert.equal(byMetadata.status, 0, byMetadata.stderr);
   const metadataModel = JSON.parse(byMetadata.stdout);
-  const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
-  assert.deepEqual(metadataSourceNames, [
-    "Convert",
-    "ArraySegment",
-    "ArraySegment_Enumerator",
-    "AsyncCallback",
-    "Base64FormattingOptions",
-    "Boolean",
-    "Byte",
-    "Char",
-    "CharEnumerator",
-    "DateOnly",
-    "DateTime",
-    "DateTimeKind",
-    "DateTimeOffset",
-    "DayOfWeek",
-    "Decimal",
-    "Delegate",
-    "InvocationListEnumerator",
-    "Double",
-    "Enum",
-    "Func_1",
-    "Func_10",
-    "Func_11",
-    "Func_12",
-    "Func_13",
-    "Func_14",
-    "Func_15",
-    "Func_16",
-    "Func_17",
-    "Func_2",
-    "Func_3",
-    "Func_4",
-    "Func_5",
-    "Func_6",
-    "Func_7",
-    "Func_8",
-    "Func_9",
-    "Guid",
-    "Half",
-    "IAsyncResult",
-    "ICloneable",
-    "IComparable",
-    "IComparable_1",
-    "IConvertible",
-    "IDisposable",
-    "IEquatable",
-    "IFormatProvider",
-    "IFormattable",
-    "IParsable",
-    "ISpanFormattable",
-    "ISpanParsable",
-    "IUtf8SpanFormattable",
-    "IUtf8SpanParsable",
-    "Int128",
-    "Int16",
-    "Int32",
-    "Int64",
-    "IntPtr",
-    "MidpointRounding",
-    "ModuleHandle",
-    "MulticastDelegate",
-    "Object",
-    "ReadOnlySpan",
-    "ReadOnlySpan_Enumerator",
-    "RuntimeFieldHandle",
-    "RuntimeMethodHandle",
-    "RuntimeTypeHandle",
-    "SByte",
-    "Single",
-    "Span",
-    "Span_Enumerator",
-    "String",
-    "StringComparison",
-    "StringSplitOptions",
-    "TimeOnly",
-    "TimeSpan",
-    "Type",
-    "TypeCode",
-    "UInt128",
-    "UInt16",
-    "UInt32",
-    "UInt64",
-    "UIntPtr",
-    "ValueTuple",
-    "ValueTuple_1",
-    "ValueTuple_2",
-    "ValueTuple_3",
-    "ValueTuple_4",
-    "ValueTuple_5",
-    "ValueTuple_6",
-    "ValueTuple_7",
-    "ValueTuple_8",
-    "ValueType",
-  ]);
+  assert.deepEqual(metadataModel.exports.map((declaration) => declaration.sourceName), ["Convert"]);
+  assert.equal(metadataModel.exports[0].members, undefined);
   assert.equal(metadataModel.targetOnlyTypes, undefined);
   assert.equal(metadataModel.unsupportedExports, undefined);
 
@@ -651,6 +570,8 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "@tsonic/dotnet/System.js",
     "--target-id",
     targetId,
+    "--complete-export-id",
+    targetId,
   ]);
   assert.equal(byTargetId.status, 0, byTargetId.stderr);
   const targetIdModel = JSON.parse(byTargetId.stdout);
@@ -658,6 +579,14 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   assert.equal(targetIdExports.includes(targetId), true);
   assert.equal(targetIdModel.exports.map((declaration) => declaration.sourceName).includes("Environment"), false);
   assert.equal(targetIdModel.targetOnlyTypes, undefined);
+  const completed = targetIdModel.exports.find((declaration) => declaration.targetId === targetId);
+  assert.equal((completed.members?.length ?? 0) > 0, true);
+  assert.deepEqual(
+    targetIdModel.exports
+      .filter((declaration) => (declaration.members?.length ?? 0) > 0)
+      .map((declaration) => declaration.sourceName),
+    ["Convert", "Object"],
+  );
 
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.toolInvocations, 2);

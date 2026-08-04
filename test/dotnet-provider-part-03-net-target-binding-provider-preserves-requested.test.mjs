@@ -202,6 +202,7 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
     providerModuleId: "@tsonic/dotnet/ProviderConstructorFixtures.js",
     artifactFileName: "tsts-provider://test/ProviderConstructorFixtures.ConstructorTarget.d.ts",
     exportName: "ConstructorTarget",
+    exportId: rawTarget.targetId,
   });
   assert.equal(
     Array.isArray(constructorRelations),

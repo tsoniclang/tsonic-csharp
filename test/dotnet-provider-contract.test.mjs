@@ -726,6 +726,7 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
     providerModuleId: "@tsonic/dotnet/System.js",
     artifactFileName: "tsts-provider://contract/System.Console.d.ts",
     exportName: "Console",
+    exportId: console.targetId,
   });
   assert.equal(
     Array.isArray(consoleRelations),

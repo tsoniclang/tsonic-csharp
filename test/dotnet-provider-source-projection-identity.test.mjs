@@ -36,11 +36,13 @@ test("one CLR signature retains distinct static and extension source-operation i
   const extensionRelation = requiredSignatureRelation(
     provider,
     "JsonDocument",
+    document.id,
     extensionSignature.id,
   );
   const staticRelation = requiredSignatureRelation(
     provider,
     "JsonSerializer",
+    serializer.id,
     staticSignature.id,
   );
 
@@ -102,12 +104,13 @@ function requiredJsonTypeInfoSignature(member, parameterCount) {
   return signature;
 }
 
-function requiredSignatureRelation(provider, exportName, signatureId) {
+function requiredSignatureRelation(provider, exportName, exportId, signatureId) {
   const result = provider.resolveTargetRelations({
     moduleSpecifier,
     providerModuleId: moduleSpecifier,
     artifactFileName: `tsts-provider://test/${exportName}.d.ts`,
     exportName,
+    exportId,
   });
   assert.equal(Array.isArray(result), true, JSON.stringify(result));
   const matches = result.filter((relation) =>

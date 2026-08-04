@@ -501,11 +501,14 @@ test(".NET reflection provider exposes members on source-visible returned closur
 });
 test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const binding = provider.findTargetBindingByMetadataName("System.IO.StreamReader");
+  assert.ok(binding);
   const relations = provider.resolveTargetRelations({
     moduleSpecifier: "@tsonic/dotnet/System.IO.js",
     providerModuleId: "@tsonic/dotnet/System.IO.js",
     artifactFileName: "tsts-provider://test/System.IO.StreamReader.d.ts",
     exportName: "StreamReader",
+    exportId: binding.id,
   });
   assert.equal(
     Array.isArray(relations),

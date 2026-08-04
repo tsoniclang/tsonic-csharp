@@ -1,3 +1,7 @@
+import type {
+  ProviderDeclarationMaterialization,
+} from "@tsonic/tsts";
+
 export interface DotnetProviderTelemetrySnapshot {
   readonly providerInstances: number;
   readonly requestsTotal: number;
@@ -7,6 +11,9 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly moduleRequestedExports: number;
   readonly moduleRequestedTargetIds: number;
   readonly moduleRequestedMetadataNames: number;
+  readonly moduleCompleteMaterializationRequests: number;
+  readonly moduleIncrementalMaterializationRequests: number;
+  readonly moduleMaterializedExports: number;
   readonly memoryCacheHits: number;
   readonly memoryCacheMisses: number;
   readonly diskCacheHits: number;
@@ -30,6 +37,7 @@ export interface DotnetProviderTelemetrySnapshot {
 }
 
 export interface DotnetProviderModuleRequestTelemetry {
+  readonly materialization: ProviderDeclarationMaterialization;
   readonly broadImport?: boolean;
   readonly requestedExports?: readonly string[];
   readonly requestedTargetIds?: readonly string[];
@@ -66,6 +74,9 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let moduleRequestedExports = 0;
   let moduleRequestedTargetIds = 0;
   let moduleRequestedMetadataNames = 0;
+  let moduleCompleteMaterializationRequests = 0;
+  let moduleIncrementalMaterializationRequests = 0;
+  let moduleMaterializedExports = 0;
   let memoryCacheHits = 0;
   let memoryCacheMisses = 0;
   let diskCacheHits = 0;
@@ -95,6 +106,12 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
       requestsByKind.set(kind, (requestsByKind.get(kind) ?? 0) + 1);
     },
     moduleRequest(request: DotnetProviderModuleRequestTelemetry): void {
+      if (request.materialization.kind === "complete") {
+        moduleCompleteMaterializationRequests += 1;
+      } else {
+        moduleIncrementalMaterializationRequests += 1;
+        moduleMaterializedExports += request.materialization.completeExports.length;
+      }
       if (request.broadImport === true) {
         moduleBroadRequests += 1;
         return;
@@ -171,6 +188,9 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         moduleRequestedExports,
         moduleRequestedTargetIds,
         moduleRequestedMetadataNames,
+        moduleCompleteMaterializationRequests,
+        moduleIncrementalMaterializationRequests,
+        moduleMaterializedExports,
         memoryCacheHits,
         memoryCacheMisses,
         diskCacheHits,
@@ -209,6 +229,9 @@ export function dotnetProviderTelemetryCounters(
     "provider.requests.module.requestedExports": snapshot.moduleRequestedExports,
     "provider.requests.module.requestedTargetIds": snapshot.moduleRequestedTargetIds,
     "provider.requests.module.requestedMetadataNames": snapshot.moduleRequestedMetadataNames,
+    "provider.requests.module.materialization.complete": snapshot.moduleCompleteMaterializationRequests,
+    "provider.requests.module.materialization.incremental": snapshot.moduleIncrementalMaterializationRequests,
+    "provider.requests.module.materializedExports": snapshot.moduleMaterializedExports,
     "provider.cache.memory.hit": snapshot.memoryCacheHits,
     "provider.cache.memory.miss": snapshot.memoryCacheMisses,
     "provider.cache.disk.hit": snapshot.diskCacheHits,
