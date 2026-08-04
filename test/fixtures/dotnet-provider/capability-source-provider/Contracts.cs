@@ -20,6 +20,8 @@ public sealed class ProviderPayload
 public sealed class ProviderStore
 {
     public ProviderPayload? Find() => null;
+
+    public string[] Names() => ["alpha", "beta", "alpha"];
 }
 
 public sealed class NarrowVisitor : ExpressionVisitor

@@ -41,6 +41,7 @@ import {
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
+  receiverHelperMethod,
   staticMethod,
   targetIndexer,
   targetParameter,
@@ -104,37 +105,6 @@ const directArrayRows = [
     result: (_element: TargetTypeRef, receiver: TargetTypeRef) => receiver,
   },
   {
-    sourceName: "join",
-    parameters: () => [
-      targetParameter("separator", stringType, { optional: true }),
-    ],
-    result: () => stringType,
-  },
-  {
-    sourceName: "indexOf",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
-    result: () => intType,
-  },
-  {
-    sourceName: "lastIndexOf",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
-    result: () => intType,
-  },
-  {
-    sourceName: "includes",
-    parameters: (element: TargetTypeRef) => [
-      targetParameter("searchElement", element),
-      targetParameter("fromIndex", intType, { optional: true }),
-    ],
-    result: () => boolType,
-  },
-  {
     sourceName: "reverse",
     parameters: () => [],
     result: (_element: TargetTypeRef, receiver: TargetTypeRef) => receiver,
@@ -156,6 +126,40 @@ const directArrayRows = [
       targetParameter("end", intType, { optional: true }),
     ],
     result: (_element: TargetTypeRef, receiver: TargetTypeRef) => receiver,
+  },
+] as const;
+
+const readOnlyArrayQueryRows = [
+  {
+    sourceName: "join",
+    parameters: () => [
+      targetParameter("separator", stringType, { optional: true }),
+    ],
+    result: stringType,
+  },
+  {
+    sourceName: "indexOf",
+    parameters: (element: TargetTypeRef) => [
+      targetParameter("searchElement", element),
+      targetParameter("fromIndex", intType, { optional: true }),
+    ],
+    result: intType,
+  },
+  {
+    sourceName: "lastIndexOf",
+    parameters: (element: TargetTypeRef) => [
+      targetParameter("searchElement", element),
+      targetParameter("fromIndex", intType, { optional: true }),
+    ],
+    result: intType,
+  },
+  {
+    sourceName: "includes",
+    parameters: (element: TargetTypeRef) => [
+      targetParameter("searchElement", element),
+      targetParameter("fromIndex", intType, { optional: true }),
+    ],
+    result: boolType,
   },
 ] as const;
 
@@ -183,6 +187,13 @@ export const csharpJsArrayCallPolicies:
           jsMemberIdentity(declaringName, row.sourceName),
           (context) => directArrayMember(context, row),
           instanceReceiver,
+        )
+      ),
+      ...readOnlyArrayQueryRows.map((row) =>
+        jsCallPolicy(
+          jsMemberIdentity(declaringName, row.sourceName),
+          (context) => readOnlyArrayQueryMember(context, row),
+          firstParameterReceiver,
         )
       ),
       ...predicateArrayRows.map((row) =>
@@ -338,6 +349,24 @@ function directArrayMember(
         shape.receiver,
         row.parameters(shape.element),
         row.result(shape.element, shape.receiver),
+      );
+}
+
+function readOnlyArrayQueryMember(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  row: typeof readOnlyArrayQueryRows[number],
+): CsharpTargetMember | undefined {
+  const shape = readOnlyArrayCallShape(context);
+  return shape === undefined
+    ? undefined
+    : receiverHelperMethod(
+        `Tsonic.CSharp.Js.Array.${row.sourceName}`,
+        row.sourceName,
+        row.sourceName,
+        arrayHelperType,
+        shape.receiver,
+        row.parameters(shape.element),
+        row.result,
       );
 }
 
@@ -661,6 +690,24 @@ function arrayCallShape(
     context.source.sourceReceiver,
   );
   const element = getCsharpJsArrayElementTargetType(receiver);
+  return receiver === undefined || element === undefined
+    ? undefined
+    : { receiver, element };
+}
+
+function readOnlyArrayCallShape(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): {
+  readonly receiver: TargetTypeRef;
+  readonly element: TargetTypeRef;
+} | undefined {
+  const receiver = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceReceiver,
+  );
+  const element = getCsharpReadOnlyIndexableCollectionElementTargetType(
+    receiver,
+  );
   return receiver === undefined || element === undefined
     ? undefined
     : { receiver, element };
