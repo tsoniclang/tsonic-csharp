@@ -1,5 +1,6 @@
 import type {
   ProviderMemberDeclaration,
+  ProviderDeclarationMaterialization,
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type {
@@ -10,7 +11,11 @@ import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
-  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
+  readonly resolveModule?: (
+    specifier: string,
+    requestedExports: readonly string[],
+    materialization: ProviderDeclarationMaterialization,
+  ) => DotnetModuleModel | undefined;
 }
 
 export interface DotnetDeclarationContext {
@@ -19,7 +24,7 @@ export interface DotnetDeclarationContext {
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
   readonly modulesBySpecifier: Map<string, DotnetModuleModel[]>;
-  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
+  readonly resolveModule?: DotnetProviderDeclarationModelOptions["resolveModule"];
 }
 
 export function createDotnetDeclarationContext(
@@ -48,7 +53,12 @@ export function dotnetProviderRefToTypeDeclaration(
       baseType,
     );
   }
-  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.exportName]);
+  const module = getDotnetModuleBySpecifier(
+    baseType.moduleSpecifier,
+    context,
+    [baseType.exportName],
+    { kind: "complete" },
+  );
   if (module === undefined) {
     return undefined;
   }
@@ -76,13 +86,14 @@ export function getDotnetModuleBySpecifier(
   moduleSpecifier: string,
   context: DotnetDeclarationContext,
   requestedExports: readonly string[],
+  materialization: ProviderDeclarationMaterialization,
 ): DotnetModuleModel | undefined {
   const existing = context.modulesBySpecifier.get(moduleSpecifier)
     ?.find((module) => dotnetModuleIncludesRequestedExports(module, requestedExports));
   if (existing !== undefined) {
     return existing;
   }
-  const resolved = context.resolveModule?.(moduleSpecifier, requestedExports);
+  const resolved = context.resolveModule?.(moduleSpecifier, requestedExports, materialization);
   if (resolved !== undefined) {
     const qualified = qualifyDotnetModuleProviderRefs(resolved);
     const modules = context.modulesBySpecifier.get(moduleSpecifier);
@@ -101,7 +112,12 @@ export function dotnetModuleExportsSourceName(
   sourceName: string,
   context: DotnetDeclarationContext,
 ): boolean {
-  const module = getDotnetModuleBySpecifier(moduleSpecifier, context, [sourceName]);
+  const module = getDotnetModuleBySpecifier(
+    moduleSpecifier,
+    context,
+    [sourceName],
+    { kind: "incremental", completeExports: [] },
+  );
   return module?.exports.some((declaration) =>
     declaration.kind === "type" && declaration.sourceName === sourceName
   ) === true;

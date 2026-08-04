@@ -34,6 +34,7 @@ export {
 } from "./model.js";
 export type {
   DotnetBindingProviderOptions,
+  DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
@@ -41,8 +42,11 @@ export type {
   DotnetTypeDataProvider,
 } from "./provider.js";
 export {
+  completeDotnetProviderContext,
+  completeDotnetProviderMaterialization,
   createDotnetSourceDeclarationProvider,
   createDotnetSourceDeclarationProviderSet,
+  emptyIncrementalDotnetProviderMaterialization,
 } from "./provider.js";
 export {
   validateDotnetModuleModelContract,

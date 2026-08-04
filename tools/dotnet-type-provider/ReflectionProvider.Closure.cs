@@ -6,7 +6,44 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
+    ISet<string> CompleteSourceTargetIds(Type[] allTypes, ISet<string> sourceExportableTargetIds)
+    {
+        var completeExports = request.CompleteExports.ToHashSet(StringComparer.Ordinal);
+        var completeExportIds = request.CompleteExportIds.ToHashSet(StringComparer.Ordinal);
+        var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
+        var completeTargetIds = allTypes
+            .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
+            .Where(type => request.CompleteAllExports ||
+                completeExports.Contains(ProviderSourceExportName(type)) ||
+                completeExportIds.Contains(TargetId(type)))
+            .Select(TargetId)
+            .ToHashSet(StringComparer.Ordinal);
+        var pending = new Queue<string>(completeTargetIds);
+        while (pending.Count > 0)
+        {
+            var targetId = pending.Dequeue();
+            if (!allTypesByTargetId.TryGetValue(targetId, out var type) || type.BaseType is null)
+            {
+                continue;
+            }
+            var baseType = NormalizeClosureType(type.BaseType);
+            if (baseType is null ||
+                baseType.Namespace != activeNamespaceName ||
+                !sourceExportableTargetIds.Contains(TargetId(baseType)) ||
+                !completeTargetIds.Add(TargetId(baseType)))
+            {
+                continue;
+            }
+            pending.Enqueue(TargetId(baseType));
+        }
+        return completeTargetIds;
+    }
+
+    Type[] SourceClosureTypes(
+        Type[] allTypes,
+        Type[] exportedTypes,
+        ISet<string> sourceExportableTargetIds,
+        ISet<string> completeSourceTargetIds)
     {
         if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
@@ -39,7 +76,9 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            foreach (var dependency in DirectSourceDependencies(pending))
+            foreach (var dependency in DirectSourceDependencies(
+                pending,
+                completeSourceTargetIds.Contains(TargetId(pending))))
             {
                 var normalized = NormalizeClosureType(dependency);
                 if (normalized is null ||
@@ -73,7 +112,7 @@ sealed partial class ReflectionProvider
             .ToArray();
     }
 
-    IEnumerable<Type> DirectSourceDependencies(Type type)
+    IEnumerable<Type> DirectSourceDependencies(Type type, bool complete)
     {
         if (type.BaseType is not null && !IsRuntimeType(type.BaseType, typeof(object)))
         {
@@ -88,6 +127,20 @@ sealed partial class ReflectionProvider
             {
                 yield return dependency;
             }
+        }
+        foreach (var typeParameter in type.GetGenericArguments().Where(parameter => parameter.IsGenericParameter))
+        {
+            foreach (var constraint in typeParameter.GetGenericParameterConstraints())
+            {
+                foreach (var dependency in SourceDependencyTypes(constraint))
+                {
+                    yield return dependency;
+                }
+            }
+        }
+        if (!complete)
+        {
+            yield break;
         }
         foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
@@ -151,16 +204,6 @@ sealed partial class ReflectionProvider
                     {
                         yield return dependency;
                     }
-                }
-            }
-        }
-        foreach (var typeParameter in type.GetGenericArguments().Where(parameter => parameter.IsGenericParameter))
-        {
-            foreach (var constraint in typeParameter.GetGenericParameterConstraints())
-            {
-                foreach (var dependency in SourceDependencyTypes(constraint))
-                {
-                    yield return dependency;
                 }
             }
         }

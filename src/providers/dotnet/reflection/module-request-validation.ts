@@ -18,7 +18,8 @@ export function validateModuleSatisfiesRequest(
   const missingExports = missingRequestedExports(module, request.requestedExports);
   const missingTargetIds = missingRequestedTargetIds(module, request.requestedTargetIds);
   const missingMetadataNames = missingRequestedMetadataNames(module, request.requestedMetadataNames);
-  if (missingExports.length === 0 && missingTargetIds.length === 0 && missingMetadataNames.length === 0) {
+  const missingMaterializedExports = missingRequestedMaterializedExports(module, request);
+  if (missingExports.length === 0 && missingTargetIds.length === 0 && missingMetadataNames.length === 0 && missingMaterializedExports.length === 0) {
     return undefined;
   }
   return diagnostic("DOTNET_REFLECTION_REQUESTED_DECLARATION_MISSING", ".NET reflection provider did not prove all requested declarations.", {
@@ -26,7 +27,25 @@ export function validateModuleSatisfiesRequest(
     missingExports,
     missingTargetIds,
     missingMetadataNames,
+    missingMaterializedExports,
   });
+}
+
+function missingRequestedMaterializedExports(
+  module: DotnetModuleModel,
+  request: DotnetProviderCacheRequest,
+): readonly Readonly<{ readonly exportName: string; readonly exportId?: string }>[] {
+  if (request.materialization.kind === "complete") {
+    return [];
+  }
+  const declarations = module.exports.filter((declaration) => declaration.kind === "type");
+  return request.materialization.completeExports.filter((requested) =>
+    requested.exportId === undefined
+      ? !declarations.some((declaration) =>
+        declaration.sourceName === requested.exportName ||
+        declaration.sourceTypeFamily?.exportName === requested.exportName)
+      : !declarations.some((declaration) => declaration.targetId === requested.exportId)
+  );
 }
 
 function missingRequestedExports(

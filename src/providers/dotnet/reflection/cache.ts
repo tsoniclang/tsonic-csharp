@@ -10,6 +10,9 @@ import type {
 import type {
   DotnetProviderToolIdentity,
 } from "./tool.js";
+import type {
+  ProviderDeclarationMaterialization,
+} from "@tsonic/tsts";
 
 export interface DotnetProviderCache {
   readModule(request: DotnetProviderCacheRequest): DotnetModuleModel | undefined;
@@ -26,6 +29,7 @@ export interface DotnetProviderCacheRequest {
   readonly requestedExports: readonly string[] | undefined;
   readonly requestedTargetIds: readonly string[] | undefined;
   readonly requestedMetadataNames: readonly string[] | undefined;
+  readonly materialization: ProviderDeclarationMaterialization;
   readonly broadImport: boolean | undefined;
   readonly assemblyName: string | undefined;
   readonly referenceDirectory: string | undefined;

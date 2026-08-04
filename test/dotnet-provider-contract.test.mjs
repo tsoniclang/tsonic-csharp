@@ -1,4 +1,5 @@
 import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "./dotnet-provider-contract.helpers.mjs";
+import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider model contract rejects legacy and incomplete provider refs", () => {
   const diagnostic = validateDotnetModuleModelContract({
@@ -672,10 +673,10 @@ test(".NET provider declaration contract rejects invalid provider parameter pass
 });
 test(".NET reflection provider emits contract-valid SDK metadata slices", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {
     requestedExports: ["Console", "CLSCompliantAttribute"],
   });
-  const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
+  const collectionsModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Collections.Generic.js", {
     requestedExports: ["List", "Dictionary"],
   });
 
@@ -765,12 +766,16 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
 test(".NET target binding provider emits contract-valid virtual declaration models", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+  const requestContext = {
     containingFile: "provider-contract.ts",
     requestedExports: ["Console", "CLSCompliantAttribute"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
 });
@@ -783,12 +788,12 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
       buildUnsupportedMemberFixture(),
     ],
   });
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {
     requestedExports: ["Array", "Console", "CLSCompliantAttribute", "ArgumentException"],
   });
-  const signatureModule = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
-  const constraintModule = provider.getModule("@tsonic/dotnet/ProviderConstraintFixtures.js", {});
-  const unsupportedModule = provider.getModule("@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {});
+  const signatureModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  const constraintModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderConstraintFixtures.js", {});
+  const unsupportedModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {});
   const modules = [systemModule, signatureModule, constraintModule, unsupportedModule];
 
   for (const module of modules) {
@@ -869,12 +874,16 @@ test(".NET target binding provider reports unsupported requested exports with pr
     },
   });
 
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/ProviderUnsupportedFixtures.js", {
+  const requestContext = {
     containingFile: "provider-unsupported.ts",
     requestedExports: ["PointerDelegate"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/ProviderUnsupportedFixtures.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal(model.extensionCode, "DOTNET_PROVIDER_REQUESTED_EXPORT_UNSUPPORTED");
   assert.match(model.message, /PointerDelegate/u);
   assert.match(JSON.stringify(model.evidence), /pointer parameter/u);

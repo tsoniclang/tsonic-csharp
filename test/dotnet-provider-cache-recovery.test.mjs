@@ -18,6 +18,7 @@ import {
   createDotnetReflectionTypeDataProvider,
   validateDotnetModuleModelContract,
 } from "../dist/providers/dotnet/index.js";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -31,7 +32,7 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
     requestedExports: ["Convert"],
   };
   const firstProvider = createDotnetReflectionTypeDataProvider({ cacheRoot });
-  const first = firstProvider.getModule(
+  const first = getCompleteDotnetModule(firstProvider,
     "@tsonic/dotnet/System.js",
     request,
   );
@@ -63,7 +64,7 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
     cacheRoot,
     telemetry,
   });
-  const recovered = recoveredProvider.getModule(
+  const recovered = getCompleteDotnetModule(recoveredProvider,
     "@tsonic/dotnet/System.js",
     request,
   );

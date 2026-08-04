@@ -9,12 +9,13 @@ import {
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test(".NET provider preserves optional and params-array facts from reflected member signatures", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in module, true);
 
   const rawOptional = rawSignature(
@@ -93,7 +94,7 @@ test(".NET provider preserves optional and params-array facts from reflected mem
 test(".NET provider preserves default parameter values only from reflected default metadata", () => {
   const reference = buildDefaultParameterFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = provider.getModule("@tsonic/dotnet/ProviderDefaultFixtures.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDefaultFixtures.js", {});
   assert.equal("exports" in module, true);
 
   const defaultsSignatureId = "ProviderDefaultFixtures.DefaultParameterSource.WithDefaults(System.String,System.Int32,System.Boolean,System.Char,System.Decimal,ProviderDefaultFixtures.DefaultMode,System.String)";
@@ -155,7 +156,7 @@ test(".NET provider preserves default parameter values only from reflected defau
 test(".NET provider records unsupported default parameter values without exposing source defaults", () => {
   const reference = buildUnsupportedDefaultParameterFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = provider.getModule("@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
   assert.equal("exports" in module, true);
 
   const signatureId = "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)";
@@ -231,7 +232,7 @@ function targetMember(provider, moduleSpecifier, typeMetadataName, memberIdShape
 }
 
 function getDotnetBinding(provider, moduleSpecifier, metadataName) {
-  const module = provider.getModule(moduleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, moduleSpecifier, {});
   assert.equal("exports" in module, true, JSON.stringify(module));
   const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
     .find((candidate) => candidate.kind === "type" && candidate.metadataName === metadataName);

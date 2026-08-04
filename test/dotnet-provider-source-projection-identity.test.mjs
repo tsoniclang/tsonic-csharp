@@ -5,6 +5,7 @@ import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const moduleSpecifier = "@tsonic/dotnet/System.Text.Json.js";
 
@@ -12,7 +13,7 @@ test("one CLR signature retains distinct static and extension source-operation i
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
   });
-  const module = provider.getModule(moduleSpecifier, {
+  const module = getCompleteDotnetModule(provider, moduleSpecifier, {
     requestedExports: ["JsonDocument", "JsonSerializer"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));

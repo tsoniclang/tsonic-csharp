@@ -19,15 +19,19 @@ import type {
   DotnetTargetMemberProjection,
   DotnetTargetRelationLookup,
 } from "../target-relations.js";
+import type {
+  DotnetProviderCacheRequest,
+} from "./cache.js";
 
 export interface DotnetTargetBindingIndex extends DotnetTargetRelationLookup {
-  readonly rememberModule: (module: DotnetModuleModel) => void;
+  readonly rememberModule: (module: DotnetModuleModel, request: DotnetProviderCacheRequest) => void;
   readonly getByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getUniqueByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
 }
 
 export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   const targetBindingsByTargetId = new Map<string, TargetBindingFact>();
+  const completeTargetIds = new Set<string>();
   const targetBindingsByMetadataName = new Map<string, TargetBindingFact | "ambiguous">();
   const memberProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
   const signatureProjectionsByProviderId = new Map<string, DotnetTargetMemberProjection[]>();
@@ -36,8 +40,9 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     DotnetTargetMemberProjection[]
   >();
 
-  function rememberModule(module: DotnetModuleModel): void {
-    for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
+  function rememberModule(module: DotnetModuleModel, request: DotnetProviderCacheRequest): void {
+    const targetOnlyDeclarations = new Set(module.targetOnlyTypes ?? []);
+    for (const declaration of [...module.exports, ...targetOnlyDeclarations]) {
       if (declaration.kind !== "type") {
         continue;
       }
@@ -46,6 +51,9 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
         continue;
       }
       const mergedTargetBinding = rememberTargetBindingByTargetId(binding);
+      if (targetOnlyDeclarations.has(declaration) || sourceDeclarationIsComplete(declaration, request)) {
+        completeTargetIds.add(binding.id);
+      }
       const existing = targetBindingsByMetadataName.get(declaration.metadataName);
       targetBindingsByMetadataName.set(
         declaration.metadataName,
@@ -88,14 +96,18 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
   return {
     rememberModule,
     getByTargetId(targetId: string): TargetBindingFact | undefined {
-      return targetBindingsByTargetId.get(targetId);
+      return completeTargetIds.has(targetId)
+        ? targetBindingsByTargetId.get(targetId)
+        : undefined;
     },
     getTargetBinding(exportId: string): CsharpTargetBindingFact | undefined {
       return targetBindingsByTargetId.get(exportId) as CsharpTargetBindingFact | undefined;
     },
     getUniqueByMetadataName(metadataName: string): TargetBindingFact | undefined {
       const existing = targetBindingsByMetadataName.get(metadataName);
-      return existing === "ambiguous" ? undefined : existing;
+      return existing === "ambiguous" || existing === undefined || !completeTargetIds.has(existing.id)
+        ? undefined
+        : existing;
     },
     getTargetMembersForProviderMember(memberId: string): readonly DotnetTargetMemberProjection[] {
       return memberProjectionsByProviderId.get(memberId) ?? [];
@@ -112,6 +124,21 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
         : canonicalSignatureProjectionsByProviderId.get(signatureId) ?? [];
     },
   };
+}
+
+function sourceDeclarationIsComplete(
+  declaration: Extract<DotnetModuleModel["exports"][number], { readonly kind: "type" }>,
+  request: DotnetProviderCacheRequest,
+): boolean {
+  if (request.materialization.kind === "complete") {
+    return true;
+  }
+  return request.materialization.completeExports.some((materialized) =>
+    materialized.exportId === undefined
+      ? declaration.sourceName === materialized.exportName ||
+        declaration.sourceTypeFamily?.exportName === materialized.exportName
+      : declaration.targetId === materialized.exportId
+  );
 }
 
 function rememberProjection(

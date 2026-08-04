@@ -3,6 +3,9 @@ import type {
   DotnetTypeDeclaration,
   DotnetTypeRef,
 } from "./model-types.js";
+import type {
+  ProviderDeclarationMaterialization,
+} from "@tsonic/tsts";
 import {
   createDotnetModuleSpecifier,
 } from "./module-specifier.js";
@@ -28,6 +31,7 @@ const nativeArraySourceType = {
 const dotnetNativeArrayProviderExportNames = new Set(["Array"]);
 
 export interface DotnetNativeArrayAugmentationOptions {
+  readonly materialization: ProviderDeclarationMaterialization;
   readonly broadImport?: boolean;
   readonly requestedExports?: readonly string[];
   readonly requestedTargetIds?: readonly string[];
@@ -36,7 +40,7 @@ export interface DotnetNativeArrayAugmentationOptions {
 
 export function augmentDotnetModuleWithNativeArray(
   module: DotnetModuleModel,
-  options: DotnetNativeArrayAugmentationOptions = { broadImport: true },
+  options: DotnetNativeArrayAugmentationOptions,
 ): DotnetModuleModel {
   if (module.moduleSpecifier !== systemModuleSpecifier || !shouldAugmentNativeArray(options)) {
     return module;
@@ -47,7 +51,7 @@ export function augmentDotnetModuleWithNativeArray(
       ...module.exports.filter((declaration) =>
         !(declaration.kind === "type" && dotnetNativeArrayProviderExportNames.has(declaration.sourceName))
       ),
-      dotnetNativeArrayDeclaration(),
+      dotnetNativeArrayDeclaration(nativeArrayIsComplete(options.materialization)),
     ],
   };
 }
@@ -66,7 +70,14 @@ function isDotnetNativeArrayTargetId(targetId: string): boolean {
     || targetId === dotnetNativeArrayIndexerMemberId;
 }
 
-function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
+function nativeArrayIsComplete(materialization: ProviderDeclarationMaterialization): boolean {
+  return materialization.kind === "complete" || materialization.completeExports.some((request) =>
+    request.exportName === "Array" &&
+    (request.exportId === undefined || request.exportId === dotnetNativeArrayTypeId)
+  );
+}
+
+function dotnetNativeArrayDeclaration(complete: boolean): DotnetTypeDeclaration {
   return {
     kind: "type",
     typeKind: "class",
@@ -77,7 +88,7 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
     displayName: "System.Array<T>",
     typeParameters: [{ name: "T", defaultType: { kind: "unknown" } }],
     targetType: nativeArrayType,
-    members: [
+    ...(complete ? { members: [
       {
         kind: "method",
         sourceName: "Create",
@@ -139,6 +150,6 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
           },
         ],
       },
-    ],
+    ] } : {}),
   };
 }

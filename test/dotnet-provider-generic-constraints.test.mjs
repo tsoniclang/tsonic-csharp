@@ -8,13 +8,14 @@ import {
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const constraintModuleSpecifier = "@tsonic/dotnet/ProviderConstraintFixtures.js";
 
 test(".NET provider keeps CLR generic constraints in target facts, not source virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()] });
-  const module = provider.getModule(constraintModuleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, constraintModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const rawReferenceNewTarget = getDeclaration(module, "ProviderConstraintFixtures.ReferenceNewTarget`1");
@@ -67,7 +68,7 @@ test(".NET provider keeps CLR generic constraints in target facts, not source vi
 
 test(".NET provider preserves nested and generic target identities without metadata-name fallback", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
 
   const specialFolder = getDeclaration(systemModule, "System.Environment.SpecialFolder");
@@ -93,7 +94,7 @@ test(".NET provider preserves nested and generic target identities without metad
     nested: [{ name: "SpecialFolder" }],
   });
 
-  const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {});
+  const collectionsModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Collections.Generic.js", {});
   assert.equal("exports" in collectionsModule, true);
   const dictionary = getDeclaration(collectionsModule, "System.Collections.Generic.Dictionary`2");
   assert.match(dictionary.targetId, /::System\.Collections\.Generic\.Dictionary`2$/u);

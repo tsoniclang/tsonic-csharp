@@ -19,6 +19,7 @@ import {
   resolveDotnetFrameworkReferenceAssemblies,
 } from "../dist/options/dotnet-framework-reference-packs.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -77,7 +78,7 @@ test(".NET reflection provider reads active SDK targeting-pack assemblies as met
     disablePersistentCache: true,
     references,
   });
-  const module = provider.getModule("@tsonic/dotnet/Microsoft.AspNetCore.Http.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/Microsoft.AspNetCore.Http.js", {
     requestedExports: ["HttpContext"],
   });
 
@@ -300,7 +301,7 @@ test("C# reflection framework policy has no installed-runtime version selector",
 
 test(".NET reflection provider rejects unparseable target frameworks instead of drifting", () => {
   const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "netbanana" });
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
   assert.match(module.message, /target framework is not supported/u);
@@ -322,7 +323,7 @@ test(".NET reflection provider fails closed for explicit references with missing
     disablePersistentCache: true,
     references: [brokenReference],
   });
-  const module = provider.getModule("@tsonic/dotnet/MissingReference.Consumer.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/MissingReference.Consumer.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
   const evidence = JSON.stringify(module.evidence);
@@ -336,7 +337,7 @@ test(".NET reflection provider resolves transitive assemblies from the explicit 
     disablePersistentCache: true,
     references,
   });
-  const module = provider.getModule("@tsonic/dotnet/MissingReference.Consumer.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/MissingReference.Consumer.js", {
     requestedExports: ["BrokenConsumer"],
   });
 
@@ -349,7 +350,7 @@ test(".NET reflection provider reports recursive delegates unsupported instead o
     disablePersistentCache: true,
     references: [recursiveDelegateFixture()],
   });
-  const module = provider.getModule("@tsonic/dotnet/RecursiveDelegateFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/RecursiveDelegateFixtures.js", {
     requestedExports: ["SelfRecursive", "MutuallyRecursiveA", "MutuallyRecursiveB", "RecursiveDelegateConsumer"],
   });
 

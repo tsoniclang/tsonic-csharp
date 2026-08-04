@@ -108,7 +108,7 @@ static object WorkerResponse(string id, int status, string stdout, string stderr
 
 static void WriteUsage(TextWriter stderr)
 {
-    stderr.WriteLine("Usage: dotnet-type-provider --namespace <namespace> --module-specifier <specifier> [--export <name>...] [--target-id <id>...] [--metadata-name <name>...] [--reference-dir <dir>] [--reference <assembly>] [--assembly-name <name>]");
+    stderr.WriteLine("Usage: dotnet-type-provider --namespace <namespace> --module-specifier <specifier> [--export <name>...] [--target-id <id>...] [--metadata-name <name>...] [--complete-all-exports | --complete-export <name>... | --complete-export-id <id>...] [--reference-dir <dir>] [--reference <assembly>] [--assembly-name <name>]");
     stderr.WriteLine("   or: dotnet-type-provider --all-modules --module-specifier-prefix <prefix> [--reference-dir <dir>] [--reference <assembly>]");
 }
 

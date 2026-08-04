@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, bool CompleteAllExports, IReadOnlyList<string> CompleteExports, IReadOnlyList<string> CompleteExportIds, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
 {
     public static Request Parse(string[] args)
     {
@@ -17,6 +17,9 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         var exports = new List<string>();
         var targetIds = new List<string>();
         var metadataNames = new List<string>();
+        var completeAllExports = false;
+        var completeExports = new List<string>();
+        var completeExportIds = new List<string>();
         string? referenceDirectory = null;
         var references = new List<string>();
         string? assemblyName = null;
@@ -52,6 +55,15 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                 case "--metadata-name":
                     metadataNames.Add(RequiredValue(args, ref index, arg));
                     break;
+                case "--complete-all-exports":
+                    completeAllExports = true;
+                    break;
+                case "--complete-export":
+                    completeExports.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--complete-export-id":
+                    completeExportIds.Add(RequiredValue(args, ref index, arg));
+                    break;
                 case "--reference-dir":
                     referenceDirectory = RequiredValue(args, ref index, arg);
                     break;
@@ -65,7 +77,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, referenceDirectory, references, assemblyName);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, completeAllExports, completeExports, completeExportIds, referenceDirectory, references, assemblyName);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)

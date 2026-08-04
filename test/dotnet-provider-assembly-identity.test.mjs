@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   csharpApplyExternAliasToTargetBinding,
+  completeDotnetProviderContext,
   createDotnetModuleSpecifierPolicy,
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
@@ -12,13 +13,14 @@ import {
   printCsharpType,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test(".NET reflection provider does not first-win duplicate source names from different assemblies", () => {
   const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
-  const module = provider.getModule("@tsonic/dotnet/Shared.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/Shared.js", {});
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   const widgetExports = module.exports.filter(isSharedWidgetDeclaration);
@@ -47,7 +49,7 @@ test(".NET reflection provider does not first-win duplicate source names from di
 test(".NET reflection provider records assembly reference facts on supported modules and types", () => {
   const acmeDll = buildAssemblyIdentityFixture("Acme.Contracts", "acme");
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll] });
-  const module = provider.getModule("@tsonic/dotnet/Shared.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/Shared.js", {});
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   assertAssemblyReference(module.assembly, "Acme.Contracts");
@@ -83,8 +85,8 @@ test("installed .NET provider packages separate same-namespace same-name types b
     disablePersistentCache: true,
   });
 
-  const acmeModule = acmeProvider.getModule("@acme/native/Shared.js", { requestedExports: ["Widget"] });
-  const contosoModule = contosoProvider.getModule("@contoso/native/Shared.js", { requestedExports: ["Widget"] });
+  const acmeModule = getCompleteDotnetModule(acmeProvider, "@acme/native/Shared.js", { requestedExports: ["Widget"] });
+  const contosoModule = getCompleteDotnetModule(contosoProvider, "@contoso/native/Shared.js", { requestedExports: ["Widget"] });
   assert.equal("exports" in acmeModule, true, JSON.stringify(acmeModule));
   assert.equal("exports" in contosoModule, true, JSON.stringify(contosoModule));
   assert.deepEqual(acmeModule.exports.filter(isSharedWidgetDeclaration).map((declaration) => assemblySimpleNameFromTargetId(declaration.targetId)), ["Acme.Contracts"]);
@@ -101,13 +103,17 @@ test(".NET target binding provider reports assembly-qualified unsupported export
   const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Shared.js", {
+  const requestContext = {
     containingFile: "assembly-collision.ts",
     requestedExports: ["Widget"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Shared.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
 
   assert.equal(model.extensionCode, "DOTNET_PROVIDER_REQUESTED_EXPORT_UNSUPPORTED");
   assert.match(model.message, /Widget/u);
@@ -124,7 +130,7 @@ test(".NET alias module specifiers select one assembly without source-name or de
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
   const moduleSpecifier = "@tsonic/dotnet/aliases/acme/Acme.Contracts/Shared.js";
   const parsed = parseDotnetModuleSpecifier(moduleSpecifier);
-  const module = provider.getModule(moduleSpecifier, { requestedExports: ["Widget"] });
+  const module = getCompleteDotnetModule(provider, moduleSpecifier, { requestedExports: ["Widget"] });
 
   assert.deepEqual(parsed, {
     moduleSpecifier,
@@ -148,7 +154,7 @@ test(".NET alias module specifiers select one assembly without source-name or de
 test(".NET alias facts render C# extern-alias qualified target types", () => {
   const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
-  const module = provider.getModule("@tsonic/dotnet/aliases/acme/Acme.Contracts/Shared.js", { requestedExports: ["Widget"] });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/aliases/acme/Acme.Contracts/Shared.js", { requestedExports: ["Widget"] });
   assert.equal("exports" in module, true, JSON.stringify(module));
   const widget = module.exports.find(isSharedWidgetDeclaration);
   assert.ok(widget);
@@ -178,8 +184,8 @@ test(".NET reflection requests isolate equal assembly identities with different 
   const firstProvider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
   const secondProvider = createDotnetReflectionTypeDataProvider({ references: [secondDll], disablePersistentCache: true });
 
-  const first = firstProvider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
-  const second = secondProvider.getModule("@tsonic/dotnet/Acme.Second.js", { requestedExports: ["Two"] });
+  const first = getCompleteDotnetModule(firstProvider, "@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
+  const second = getCompleteDotnetModule(secondProvider, "@tsonic/dotnet/Acme.Second.js", { requestedExports: ["Two"] });
 
   assert.equal("exports" in first, true, JSON.stringify(first));
   assert.equal("exports" in second, true, JSON.stringify(second));
@@ -194,7 +200,7 @@ test(".NET reflection request rejects different artifacts for one exact assembly
     disablePersistentCache: true,
   });
 
-  const result = provider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
+  const result = getCompleteDotnetModule(provider, "@tsonic/dotnet/Acme.First.js", { requestedExports: ["One"] });
 
   assert.equal("code" in result, true, JSON.stringify(result));
   assert.equal(result.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
@@ -204,7 +210,7 @@ test(".NET reflection request rejects different artifacts for one exact assembly
 test(".NET reflection provider never synthesizes source aliases for invalid CLR member names", () => {
   const { firstDll } = buildLoadContextFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/Acme.First.js", { requestedExports: ["RecordValue"] });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/Acme.First.js", { requestedExports: ["RecordValue"] });
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   const record = module.exports.find((entry) => entry.kind === "type" && entry.sourceName === "RecordValue");
@@ -222,12 +228,16 @@ test(".NET reflection provider never synthesizes source aliases for invalid CLR 
   );
 
   const binding = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
+  const requestContext = {
     containingFile: "record.ts",
     requestedExports: ["RecordValue"],
-  });
+  };
+  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const declarationModel = binding.getDeclarationModel(resolution);
+  const declarationModel = binding.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   const declaration = declarationModel.exports.find((entry) => entry.name === "RecordValue");
   assert.ok(declaration, JSON.stringify(declarationModel));
@@ -245,13 +255,17 @@ test(".NET provider type families normalize positional type-parameter identity a
   const { firstDll } = buildLoadContextFixtures();
   const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
   const binding = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", {
+  const requestContext = {
     containingFile: "family.ts",
     requestedExports: ["Family"],
-  });
+  };
+  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = binding.getDeclarationModel(resolution);
+  const model = binding.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   const family = model.exports
     .filter((entry) => entry.sourceTypeFamily?.exportName === "Family")

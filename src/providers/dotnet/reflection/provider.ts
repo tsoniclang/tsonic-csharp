@@ -28,13 +28,15 @@ import {
   augmentDotnetModuleWithNativeArray,
 } from "../native-array.js";
 import type {
+  DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
-  DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
 } from "../provider.js";
 import {
+  completeDotnetProviderContext,
+  completeDotnetProviderMaterialization,
   resolveDotnetProviderDeclarationProjection,
 } from "../provider.js";
 import {
@@ -157,7 +159,7 @@ export function createDotnetReflectionTypeDataProvider(
     ? undefined
     : createDotnetProviderCache(options.cacheRoot ?? defaultProviderCacheRoot(), telemetry);
 
-  function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
+  function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
     telemetry.moduleRequest(context);
     const parsed = parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy);
@@ -189,7 +191,7 @@ export function createDotnetReflectionTypeDataProvider(
         telemetry.memoryCacheHit();
         return contractDiagnostic;
       }
-      rememberModule(memoryKey, brokerModule);
+      rememberModule(memoryKey, brokerModule, cacheRequest);
       telemetry.memoryCacheHit();
       return completeSameModuleProviderRefClosure(specifier, effectiveContext, brokerModule);
     }
@@ -210,7 +212,7 @@ export function createDotnetReflectionTypeDataProvider(
 
   function completeSameModuleProviderRefClosure(
     specifier: string,
-    moduleContext: DotnetProviderModuleContext,
+    moduleContext: DotnetProviderDeclarationContext,
     moduleResult: DotnetProviderModuleResult,
   ): DotnetProviderModuleResult {
     if (isDotnetProviderDiagnostic(moduleResult) || moduleContext.broadImport === true || moduleContext.requestedExports === undefined) {
@@ -236,7 +238,7 @@ export function createDotnetReflectionTypeDataProvider(
 
   function loadSingleModule(
     cacheRequest: DotnetProviderCacheRequest,
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
   ): DotnetProviderModuleResult {
     const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, reflectionOptions);
     if (targetFrameworkDiagnostic !== undefined) {
@@ -252,7 +254,7 @@ export function createDotnetReflectionTypeDataProvider(
         cachedDiagnostic === undefined &&
         contractDiagnostic === undefined
       ) {
-        rememberModule(memoryKey, module);
+        rememberModule(memoryKey, module, cacheRequest);
         providerBroker?.writeModule(cacheRequest, module);
         telemetry.modelBytes(JSON.stringify(cached).length);
         return module;
@@ -273,6 +275,17 @@ export function createDotnetReflectionTypeDataProvider(
       }
       for (const metadataName of context.requestedMetadataNames ?? []) {
         args.push("--metadata-name", metadataName);
+      }
+    }
+    if (cacheRequest.materialization.kind === "complete") {
+      args.push("--complete-all-exports");
+    } else {
+      for (const request of cacheRequest.materialization.completeExports) {
+        if (request.exportId === undefined) {
+          args.push("--complete-export", request.exportName);
+        } else {
+          args.push("--complete-export-id", request.exportId);
+        }
       }
     }
     pushDotnetReflectionReferenceArgs(args, context, reflectionOptions);
@@ -302,7 +315,7 @@ export function createDotnetReflectionTypeDataProvider(
         return contractDiagnostic;
       }
       persistentCache?.writeModule(cacheRequest, rawModule);
-      rememberModule(memoryKey, module);
+      rememberModule(memoryKey, module, cacheRequest);
       providerBroker?.writeModule(cacheRequest, module);
       return module;
     } catch (error) {
@@ -319,7 +332,7 @@ export function createDotnetReflectionTypeDataProvider(
   function createCacheRequest(
     specifier: string,
     namespaceName: string,
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
   ): DotnetProviderCacheRequest {
     return createDotnetReflectionCacheRequest({
       specifier,
@@ -339,7 +352,7 @@ export function createDotnetReflectionTypeDataProvider(
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },
-    getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
+    getModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
       return loadModule(specifier, context);
     },
     recordVirtualDeclarationModel(model: ProviderDeclarationModel, elapsedMs: number): void {
@@ -363,7 +376,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, { requestedTargetIds: [targetId] });
+      const loaded = loadModule(moduleSpecifier, completeDotnetProviderContext({ requestedTargetIds: [targetId] }));
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -379,7 +392,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, { requestedMetadataNames: [metadataName] });
+      const loaded = loadModule(moduleSpecifier, completeDotnetProviderContext({ requestedMetadataNames: [metadataName] }));
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -403,6 +416,7 @@ export function createDotnetReflectionTypeDataProvider(
           providerModuleId: request.providerModuleId,
         },
         { requestedExports: [request.exportName] },
+        completeDotnetProviderMaterialization,
         moduleSpecifierPolicy,
       );
       if ("extensionId" in model) {
@@ -416,9 +430,13 @@ export function createDotnetReflectionTypeDataProvider(
   };
   return typeDataProvider;
 
-  function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
+  function rememberModule(
+    memoryKey: string,
+    module: DotnetModuleModel,
+    request: DotnetProviderCacheRequest,
+  ): void {
     modules.set(memoryKey, module);
-    targetBindingIndex.rememberModule(module);
+    targetBindingIndex.rememberModule(module, request);
   }
 
   function validateLoadedModuleContract(
@@ -436,9 +454,9 @@ export function createDotnetReflectionTypeDataProvider(
   }
 
   function contextWithParsedExternAlias(
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
     externAlias: NonNullable<ReturnType<typeof parseDotnetModuleSpecifier>>["externAlias"],
-  ): DotnetProviderModuleContext | DotnetProviderDiagnostic {
+  ): DotnetProviderDeclarationContext | DotnetProviderDiagnostic {
     if (externAlias === undefined) {
       return context;
     }
@@ -462,7 +480,7 @@ export function createDotnetReflectionTypeDataProvider(
   }
 
   function isProviderContextDiagnostic(
-    value: DotnetProviderModuleContext | DotnetProviderDiagnostic,
+    value: DotnetProviderDeclarationContext | DotnetProviderDiagnostic,
   ): value is DotnetProviderDiagnostic {
     return "code" in value && "message" in value;
   }
