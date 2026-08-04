@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -36,7 +36,10 @@ test("C# framework references resolve through active SDK targeting packs", () =>
     },
   }, repoRoot);
 
-  assert.deepEqual(references.slice(0, 2), ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
+  assert.deepEqual(references.slice(0, 2), [
+    resolve(repoRoot, "../lib/Acme.Contracts.dll"),
+    resolve(repoRoot, "../lib/Direct.Contracts.dll"),
+  ]);
   const frameworkReferences = references.slice(2);
   assert.notEqual(frameworkReferences[0], undefined);
   const frameworkDirectory = dirname(frameworkReferences[0]);
@@ -219,13 +222,13 @@ test("C# provider references are reflection-only provider inputs", () => {
         assemblies: [{ include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" }],
       },
       providerReferences: {
-        directories: [referenceDirectory],
+        directories: [relative(repoRoot, referenceDirectory)],
       },
     },
   };
 
   assert.deepEqual(readCsharpReflectionReferencePaths(target, repoRoot), [
-    "../lib/Project.Assembly.dll",
+    resolve(repoRoot, "../lib/Project.Assembly.dll"),
     providerOnlyAssembly,
   ]);
   assert.deepEqual(readCsharpReferences(target), [
