@@ -18,6 +18,8 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly memoryCacheMisses: number;
   readonly diskCacheHits: number;
   readonly diskCacheMisses: number;
+  readonly diskCacheFailures: number;
+  readonly diskCacheDisables: number;
   readonly providerToolBuilds: number;
   readonly providerToolBuildElapsedMs: number;
   readonly toolProcessStarts: number;
@@ -57,6 +59,8 @@ export interface DotnetProviderTelemetry {
   memoryCacheMiss(): void;
   diskCacheHit(): void;
   diskCacheMiss(): void;
+  diskCacheFailure(): void;
+  diskCacheDisable(): void;
   toolBuild(elapsedMs: number): void;
   toolProcessStart(mode: "cli" | "server"): void;
   toolInvocation(mode: "cli" | "server", elapsedMs: number): void;
@@ -88,6 +92,8 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let memoryCacheMisses = 0;
   let diskCacheHits = 0;
   let diskCacheMisses = 0;
+  let diskCacheFailures = 0;
+  let diskCacheDisables = 0;
   let providerToolBuilds = 0;
   let providerToolBuildElapsedMs = 0;
   let toolProcessStarts = 0;
@@ -151,6 +157,12 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
     },
     diskCacheMiss(): void {
       diskCacheMisses += 1;
+    },
+    diskCacheFailure(): void {
+      diskCacheFailures += 1;
+    },
+    diskCacheDisable(): void {
+      diskCacheDisables += 1;
     },
     toolBuild(elapsedMs: number): void {
       providerToolBuilds += 1;
@@ -216,6 +228,8 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         memoryCacheMisses,
         diskCacheHits,
         diskCacheMisses,
+        diskCacheFailures,
+        diskCacheDisables,
         providerToolBuilds,
         providerToolBuildElapsedMs,
         toolProcessStarts,
@@ -262,6 +276,8 @@ export function dotnetProviderTelemetryCounters(
     "provider.cache.memory.miss": snapshot.memoryCacheMisses,
     "provider.cache.disk.hit": snapshot.diskCacheHits,
     "provider.cache.disk.miss": snapshot.diskCacheMisses,
+    "provider.cache.disk.failures": snapshot.diskCacheFailures,
+    "provider.cache.disk.disables": snapshot.diskCacheDisables,
     "provider.tool.builds": snapshot.providerToolBuilds,
     "provider.tool.build.elapsedMs": snapshot.providerToolBuildElapsedMs,
     "provider.tool.processStarts": snapshot.toolProcessStarts,

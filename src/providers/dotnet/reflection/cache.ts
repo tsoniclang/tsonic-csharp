@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
   DotnetModuleModel,
@@ -17,6 +17,7 @@ import type {
 export interface DotnetProviderCache {
   readModule(request: DotnetProviderCacheRequest): DotnetModuleModel | undefined;
   writeModule(request: DotnetProviderCacheRequest, module: DotnetModuleModel): void;
+  discardModule(request: DotnetProviderCacheRequest): void;
 }
 
 export interface DotnetProviderCacheRequest {
@@ -32,7 +33,6 @@ export interface DotnetProviderCacheRequest {
   readonly materialization: ProviderDeclarationMaterialization;
   readonly broadImport: boolean | undefined;
   readonly assemblyName: string | undefined;
-  readonly referenceDirectory: string | undefined;
   readonly referenceSnapshotDigest: string;
   readonly assemblySourcePackages: readonly Readonly<{ readonly assemblyName: string; readonly packageName: string }>[];
   readonly toolIdentity: DotnetProviderToolIdentity;
@@ -49,13 +49,32 @@ export function createDotnetProviderCache(
   telemetry: DotnetProviderTelemetry,
 ): DotnetProviderCache {
   const root = resolve(cacheRoot);
+  let disabled = false;
+
+  const disable = (): void => {
+    if (disabled) {
+      return;
+    }
+    disabled = true;
+    telemetry.diskCacheDisable();
+  };
+
+  const discardFile = (cacheFile: string): void => {
+    try {
+      unlinkSync(cacheFile);
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        disable();
+      }
+    }
+  };
+
   return {
     readModule(request): DotnetModuleModel | undefined {
-      const cacheFile = requestCacheFile(root, request);
-      if (!existsSync(cacheFile)) {
-        telemetry.diskCacheMiss();
+      if (disabled) {
         return undefined;
       }
+      const cacheFile = requestCacheFile(root, request);
       try {
         const record = JSON.parse(readFileSync(cacheFile, "utf8")) as DotnetProviderCacheRecord;
         if (record.schemaVersion !== 1 || JSON.stringify(record.request) !== JSON.stringify(request)) {
@@ -64,22 +83,41 @@ export function createDotnetProviderCache(
         }
         telemetry.diskCacheHit();
         return record.model;
-      } catch {
-        rmSync(cacheFile, { force: true });
+      } catch (error) {
+        if (!isMissingPathError(error)) {
+          telemetry.diskCacheFailure();
+          discardFile(cacheFile);
+        }
         telemetry.diskCacheMiss();
         return undefined;
       }
     },
     writeModule(request, module): void {
+      if (disabled) {
+        return;
+      }
       const cacheFile = requestCacheFile(root, request);
-      mkdirSync(dirname(cacheFile), { recursive: true });
-      const temporaryFile = `${cacheFile}.${process.pid}.${Date.now()}.tmp`;
-      writeFileSync(temporaryFile, JSON.stringify({
-        schemaVersion: 1,
-        request,
-        model: module,
-      } satisfies DotnetProviderCacheRecord));
-      renameSync(temporaryFile, cacheFile);
+      const temporaryFile = `${cacheFile}.${process.pid}.${randomUUID()}.tmp`;
+      try {
+        mkdirSync(dirname(cacheFile), { recursive: true });
+        writeFileSync(temporaryFile, JSON.stringify({
+          schemaVersion: 1,
+          request,
+          model: module,
+        } satisfies DotnetProviderCacheRecord));
+        renameSync(temporaryFile, cacheFile);
+      } catch {
+        telemetry.diskCacheFailure();
+        discardFile(temporaryFile);
+        disable();
+      }
+    },
+    discardModule(request): void {
+      if (disabled) {
+        return;
+      }
+      telemetry.diskCacheFailure();
+      discardFile(requestCacheFile(root, request));
     },
   };
 }
@@ -89,4 +127,8 @@ function requestCacheFile(root: string, request: DotnetProviderCacheRequest): st
     .update(JSON.stringify(request))
     .digest("hex");
   return join(root, `${hash}.json`);
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

@@ -179,16 +179,9 @@ export function createDotnetReflectionTypeDataProvider(
     if (isProviderContextDiagnostic(effectiveContext)) {
       return effectiveContext;
     }
-    const referenceMutation = referenceSnapshot.verify();
-    if (referenceMutation !== undefined) {
-      return diagnostic(
-        "DOTNET_REFLECTION_REFERENCES_MUTATED",
-        ".NET reference assemblies changed while the compilation was running; provider results would not be trustworthy.",
-        {
-          path: referenceMutation.path,
-          reason: referenceMutation.reason,
-        },
-      );
+    const referenceDiagnostic = validateReferenceSnapshot();
+    if (referenceDiagnostic !== undefined) {
+      return referenceDiagnostic;
     }
     const cacheRequest = createCacheRequest(specifier, parsed.namespaceName, effectiveContext);
     const memoryKey = moduleMemoryCacheKey(cacheRequest);
@@ -279,6 +272,7 @@ export function createDotnetReflectionTypeDataProvider(
         telemetry.modelBytes(JSON.stringify(cached).length);
         return module;
       }
+      persistentCache?.discardModule(cacheRequest);
     }
     const args = [
       "--namespace",
@@ -308,8 +302,12 @@ export function createDotnetReflectionTypeDataProvider(
         }
       }
     }
-    pushDotnetReflectionReferenceArgs(args, context, reflectionOptions);
+    pushDotnetReflectionReferenceArgs(args, context, reflectionOptions, referenceSnapshot);
     const result = toolRunner.run(args);
+    const referenceDiagnostic = validateReferenceSnapshot();
+    if (referenceDiagnostic !== undefined) {
+      return referenceDiagnostic;
+    }
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
         specifier: cacheRequest.moduleSpecifier,
@@ -362,6 +360,21 @@ export function createDotnetReflectionTypeDataProvider(
       toolIdentity: toolRunner.identity,
       referenceSnapshot,
     });
+  }
+
+  function validateReferenceSnapshot(): DotnetProviderDiagnostic | undefined {
+    const mutation = referenceSnapshot.verify();
+    if (mutation === undefined) {
+      return undefined;
+    }
+    return diagnostic(
+      "DOTNET_REFLECTION_REFERENCES_MUTATED",
+      ".NET reference assemblies changed while the compilation was running; provider results would not be trustworthy.",
+      {
+        path: mutation.path,
+        reason: mutation.reason,
+      },
+    );
   }
 
   function sortedUnique(values: readonly string[]): readonly string[] {
@@ -464,7 +477,6 @@ export function createDotnetReflectionTypeDataProvider(
         {
           provider: typeDataProvider,
           moduleSpecifierPolicy,
-          references: options.references,
           targetFramework: options.targetFramework,
         },
         providerIdentity.id,

@@ -25,11 +25,6 @@ export type {
   DotnetProviderToolRunnerOptions,
 } from "./tool/types.js";
 
-export {
-  referenceDirectoryIdentities,
-  referenceIdentities,
-} from "./tool/reference-identities.js";
-
 export function createDotnetProviderToolRunner(options: DotnetProviderToolRunnerOptions): DotnetProviderToolRunner {
   const paths = resolveDotnetProviderToolPaths(options);
   return {

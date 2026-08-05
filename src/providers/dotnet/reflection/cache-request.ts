@@ -67,7 +67,6 @@ export function createDotnetReflectionCacheRequest(
     materialization: normalizeProviderMaterialization(input.context.materialization),
     broadImport: input.context.broadImport,
     assemblyName: input.context.assemblyName,
-    referenceDirectory: input.options.referenceDirectory,
     referenceSnapshotDigest: input.referenceSnapshot.digest,
     assemblySourcePackages: normalizeDotnetAssemblySourcePackages(input.options.assemblySourcePackages),
     toolIdentity: input.toolIdentity,
@@ -92,6 +91,7 @@ export function pushDotnetReflectionReferenceArgs(
   args: string[],
   context: DotnetProviderDeclarationContext,
   options: DotnetReflectionCacheRequestOptions,
+  referenceSnapshot: DotnetReferenceSnapshot,
 ): void {
   if (options.moduleSpecifierPolicy !== undefined) {
     args.push("--source-package", options.moduleSpecifierPolicy.packageName);
@@ -99,12 +99,7 @@ export function pushDotnetReflectionReferenceArgs(
   for (const sourcePackage of normalizeDotnetAssemblySourcePackages(options.assemblySourcePackages)) {
     args.push("--assembly-source-package", `${sourcePackage.assemblyName}=${sourcePackage.packageName}`);
   }
-  if (options.referenceDirectory !== undefined) {
-    args.push("--reference-dir", options.referenceDirectory);
-  }
-  for (const reference of [...(context.references ?? []), ...(options.references ?? [])]) {
-    args.push("--reference", reference);
-  }
+  referenceSnapshot.appendToolArguments(args);
   if (context.assemblyName !== undefined) {
     args.push("--assembly-name", context.assemblyName);
   }

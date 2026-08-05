@@ -8,9 +8,8 @@ import {
   createDotnetReflectionTypeDataProvider,
 } from "../dist/providers/dotnet/reflection/provider.js";
 import {
-  referenceDirectoryIdentities,
-  referenceIdentities,
-} from "../dist/providers/dotnet/reflection/tool.js";
+  createDotnetReferenceSnapshot,
+} from "../dist/providers/dotnet/reflection/reference-snapshot.js";
 import {
   readCsharpReferences,
   readCsharpReflectionReferencePaths,
@@ -276,17 +275,28 @@ test(".NET provider cache fingerprints reference contents rather than mutable pa
   mkdirSync(referenceDirectory, { recursive: true });
   const reference = join(referenceDirectory, "Mutable.dll");
   writeFileSync(reference, "AAAA");
-  const firstFileIdentity = referenceIdentities([reference]);
-  const firstDirectoryIdentity = referenceDirectoryIdentities(referenceDirectory);
+  const firstFileSnapshot = createDotnetReferenceSnapshot({
+    referenceDirectory: undefined,
+    references: [reference],
+  });
+  const firstDirectorySnapshot = createDotnetReferenceSnapshot({
+    referenceDirectory,
+    references: [],
+  });
 
   writeFileSync(reference, "BBBB");
-  const secondFileIdentity = referenceIdentities([reference]);
-  const secondDirectoryIdentity = referenceDirectoryIdentities(referenceDirectory);
+  const secondFileSnapshot = createDotnetReferenceSnapshot({
+    referenceDirectory: undefined,
+    references: [reference],
+  });
+  const secondDirectorySnapshot = createDotnetReferenceSnapshot({
+    referenceDirectory,
+    references: [],
+  });
 
-  assert.notDeepEqual(secondFileIdentity, firstFileIdentity);
-  assert.notDeepEqual(secondDirectoryIdentity, firstDirectoryIdentity);
-  assert.equal(firstFileIdentity[0].size, secondFileIdentity[0].size);
-  assert.notEqual(firstFileIdentity[0].sha256, secondFileIdentity[0].sha256);
+  assert.equal(firstFileSnapshot.hashedBytes, secondFileSnapshot.hashedBytes);
+  assert.notEqual(secondFileSnapshot.digest, firstFileSnapshot.digest);
+  assert.notEqual(secondDirectorySnapshot.digest, firstDirectorySnapshot.digest);
 });
 
 test("C# reflection framework policy has no installed-runtime version selector", () => {

@@ -1,26 +1,16 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import type {
   DotnetProviderTelemetry,
 } from "./telemetry.js";
 
-/**
- * Compilation-scoped immutable snapshot of the selected .NET reference set.
- *
- * Every unique assembly is normalized and content-hashed exactly once per
- * provider session. Module cache requests reuse the precomputed identity
- * records; they never reread assembly bytes. The identity record shape is the
- * exact shape previously computed per request, so persisted cache keys remain
- * content-equivalent across this change.
- */
 export interface DotnetReferenceSnapshot {
   readonly digest: string;
-  readonly directoryIdentities: readonly Readonly<Record<string, unknown>>[];
-  readonly referenceIdentities: readonly Readonly<Record<string, unknown>>[];
   readonly uniqueFileCount: number;
   readonly hashedBytes: number;
+  appendToolArguments(args: string[]): void;
   verify(): DotnetReferenceSnapshotMutation | undefined;
 }
 
@@ -38,9 +28,22 @@ export interface CreateDotnetReferenceSnapshotInput {
 interface ReferenceFileState {
   readonly path: string;
   readonly exists: boolean;
-  readonly size?: number;
-  readonly mtimeMs?: number;
+  readonly metadata?: ReferenceFileMetadata;
 }
+
+interface ReferenceFileMetadata {
+  readonly device: string;
+  readonly inode: string;
+  readonly size: string;
+  readonly modifiedNanoseconds: string;
+  readonly changedNanoseconds: string;
+}
+
+type ReferenceDirectoryState =
+  | { readonly kind: "none" }
+  | { readonly kind: "missing"; readonly path: string }
+  | { readonly kind: "not-directory"; readonly path: string }
+  | { readonly kind: "directory"; readonly path: string; readonly files: readonly string[] };
 
 export function createDotnetReferenceSnapshot(
   input: CreateDotnetReferenceSnapshotInput,
@@ -49,6 +52,7 @@ export function createDotnetReferenceSnapshot(
   const identityByPath = new Map<string, Readonly<Record<string, unknown>>>();
   const stateByPath = new Map<string, ReferenceFileState>();
   let hashedBytes = 0;
+  let initialMutation: DotnetReferenceSnapshotMutation | undefined;
 
   const identityFor = (path: string): Readonly<Record<string, unknown>> => {
     const resolved = resolve(path);
@@ -56,40 +60,49 @@ export function createDotnetReferenceSnapshot(
     if (existing !== undefined) {
       return existing;
     }
-    if (!existsSync(resolved)) {
+    const before = readReferenceFileState(resolved);
+    if (!before.exists) {
       const identity = Object.freeze({ path: resolved, exists: false });
       identityByPath.set(resolved, identity);
-      stateByPath.set(resolved, { path: resolved, exists: false });
+      stateByPath.set(resolved, before);
       return identity;
     }
-    const stat = statSync(resolved);
     const bytes = readFileSync(resolved);
+    const after = readReferenceFileState(resolved);
+    if (!sameReferenceFileState(before, after)) {
+      initialMutation ??= {
+        path: resolved,
+        reason: "reference assembly changed while its compilation snapshot was being created",
+      };
+    }
     hashedBytes += bytes.length;
     const identity = Object.freeze({
       path: resolved,
       exists: true,
-      size: stat.size,
+      size: bytes.length,
       sha256: createHash("sha256").update(bytes).digest("hex"),
     });
     identityByPath.set(resolved, identity);
-    stateByPath.set(resolved, {
-      path: resolved,
-      exists: true,
-      size: stat.size,
-      mtimeMs: stat.mtimeMs,
-    });
+    stateByPath.set(resolved, after);
     return identity;
   };
 
-  const directoryIdentities = snapshotDirectoryIdentities(input.referenceDirectory, identityFor);
-  const referenceIdentities = input.references.map((reference) => identityFor(reference));
-
+  const referenceDirectory = snapshotReferenceDirectory(input.referenceDirectory);
+  const directoryIdentities = referenceDirectory.kind === "directory"
+    ? referenceDirectory.files.map(identityFor)
+    : referenceDirectory.kind === "none"
+      ? []
+      : [Object.freeze({
+        path: referenceDirectory.path,
+        exists: referenceDirectory.kind !== "missing",
+        directory: false,
+      })];
+  const references = uniqueResolvedPaths(input.references);
+  const referenceIdentities = references.map(identityFor);
   const digest = createHash("sha256")
-    .update(JSON.stringify({
-      directoryIdentities,
-      referenceIdentities,
-    }))
+    .update(JSON.stringify({ directoryIdentities, referenceIdentities }))
     .digest("hex");
+
   input.telemetry?.referenceSnapshot(
     identityByPath.size,
     hashedBytes,
@@ -98,16 +111,51 @@ export function createDotnetReferenceSnapshot(
 
   return Object.freeze({
     digest,
-    directoryIdentities,
-    referenceIdentities,
     uniqueFileCount: identityByPath.size,
     hashedBytes,
+    appendToolArguments(args: string[]): void {
+      if (referenceDirectory.kind !== "none") {
+        args.push("--reference-dir", referenceDirectory.path);
+      }
+      for (const reference of references) {
+        args.push("--reference", reference);
+      }
+    },
     verify(): DotnetReferenceSnapshotMutation | undefined {
       input.telemetry?.referenceSnapshotVerification();
+      if (initialMutation !== undefined) {
+        return initialMutation;
+      }
+      if (referenceDirectory.kind !== "none") {
+        try {
+          const directoryMutation = verifyReferenceDirectory(referenceDirectory);
+          if (directoryMutation !== undefined) {
+            return directoryMutation;
+          }
+        } catch {
+          return {
+            path: referenceDirectory.path,
+            reason: "reference directory could not be verified during compilation",
+          };
+        }
+      }
       for (const state of stateByPath.values()) {
-        const mutation = verifyReferenceFileState(state);
-        if (mutation !== undefined) {
-          return mutation;
+        let current: ReferenceFileState;
+        try {
+          current = readReferenceFileState(state.path);
+        } catch {
+          return {
+            path: state.path,
+            reason: "reference assembly could not be verified during compilation",
+          };
+        }
+        if (!sameReferenceFileState(state, current)) {
+          return {
+            path: state.path,
+            reason: state.exists
+              ? "reference assembly changed during compilation"
+              : "reference assembly appeared during compilation",
+          };
         }
       }
       return undefined;
@@ -115,48 +163,113 @@ export function createDotnetReferenceSnapshot(
   });
 }
 
-function snapshotDirectoryIdentities(
-  referenceDirectory: string | undefined,
-  identityFor: (path: string) => Readonly<Record<string, unknown>>,
-): readonly Readonly<Record<string, unknown>>[] {
+function snapshotReferenceDirectory(referenceDirectory: string | undefined): ReferenceDirectoryState {
   if (referenceDirectory === undefined) {
-    return [];
+    return { kind: "none" };
   }
-  const resolved = resolve(referenceDirectory);
-  if (!existsSync(resolved)) {
-    return [Object.freeze({ path: resolved, exists: false })];
+  const path = resolve(referenceDirectory);
+  const kind = readPathKind(path);
+  if (kind === "missing") {
+    return { kind: "missing", path };
   }
-  const stat = statSync(resolved);
-  if (!stat.isDirectory()) {
-    return [Object.freeze({ path: resolved, exists: true, directory: false })];
+  if (kind === "not-directory") {
+    return { kind: "not-directory", path };
   }
-  return readdirSync(resolved)
-    .filter((name) => name.toLowerCase().endsWith(".dll"))
-    .sort()
-    .map((name) => identityFor(join(resolved, name)));
+  return {
+    kind: "directory",
+    path,
+    files: readReferenceDirectoryFiles(path),
+  };
 }
 
-function verifyReferenceFileState(
-  state: ReferenceFileState,
+function verifyReferenceDirectory(
+  state: ReferenceDirectoryState,
 ): DotnetReferenceSnapshotMutation | undefined {
-  const exists = existsSync(state.path);
-  if (exists !== state.exists) {
-    return {
-      path: state.path,
-      reason: state.exists
-        ? "reference assembly was removed during compilation"
-        : "reference assembly appeared during compilation",
-    };
-  }
-  if (!state.exists) {
+  if (state.kind === "none") {
     return undefined;
   }
-  const stat = statSync(state.path);
-  if (stat.size !== state.size || stat.mtimeMs !== state.mtimeMs) {
+  const currentKind = readPathKind(state.path);
+  if (currentKind !== state.kind) {
     return {
       path: state.path,
-      reason: "reference assembly changed during compilation",
+      reason: "reference directory changed during compilation",
+    };
+  }
+  if (state.kind !== "directory") {
+    return undefined;
+  }
+  const currentFiles = readReferenceDirectoryFiles(state.path);
+  if (!sameStrings(state.files, currentFiles)) {
+    return {
+      path: state.path,
+      reason: "reference directory assembly membership changed during compilation",
     };
   }
   return undefined;
+}
+
+function readPathKind(path: string): "missing" | "not-directory" | "directory" {
+  try {
+    return statSync(path).isDirectory() ? "directory" : "not-directory";
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return "missing";
+    }
+    throw error;
+  }
+}
+
+function readReferenceDirectoryFiles(path: string): readonly string[] {
+  return readdirSync(path)
+    .filter((name) => name.toLowerCase().endsWith(".dll"))
+    .sort(compareStrings)
+    .map((name) => join(path, name));
+}
+
+function readReferenceFileState(path: string): ReferenceFileState {
+  try {
+    const stat = statSync(path, { bigint: true });
+    return {
+      path,
+      exists: true,
+      metadata: {
+        device: String(stat.dev),
+        inode: String(stat.ino),
+        size: String(stat.size),
+        modifiedNanoseconds: String(stat.mtimeNs),
+        changedNanoseconds: String(stat.ctimeNs),
+      },
+    };
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return { path, exists: false };
+    }
+    throw error;
+  }
+}
+
+function sameReferenceFileState(left: ReferenceFileState, right: ReferenceFileState): boolean {
+  if (left.path !== right.path || left.exists !== right.exists) {
+    return false;
+  }
+  if (!left.exists || !right.exists) {
+    return true;
+  }
+  return JSON.stringify(left.metadata) === JSON.stringify(right.metadata);
+}
+
+function uniqueResolvedPaths(paths: readonly string[]): readonly string[] {
+  return Object.freeze([...new Set(paths.map((path) => resolve(path)))]);
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

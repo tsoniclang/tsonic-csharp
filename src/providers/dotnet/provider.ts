@@ -65,7 +65,6 @@ export interface DotnetTypeDataProvider {
 export interface DotnetProviderModuleContext {
   readonly containingFile?: string;
   readonly targetFramework?: string;
-  readonly references?: readonly string[];
   readonly requestedExports?: readonly string[];
   readonly requestedTargetIds?: readonly string[];
   readonly requestedMetadataNames?: readonly string[];
@@ -113,7 +112,6 @@ export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
   readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
   readonly targetFramework?: string;
-  readonly references?: readonly string[];
 }
 
 export function createDotnetSourceDeclarationProvider(options: DotnetBindingProviderOptions): SourceDeclarationProvider {
@@ -612,7 +610,6 @@ function providerModuleContext(
     ...(context.broadImport === true ? { broadImport: true as const } : {}),
     ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),
-    ...(options.references !== undefined ? { references: options.references } : {}),
     ...(module?.assemblyName !== undefined ? { assemblyName: module.assemblyName } : {}),
     ...(module?.externAlias !== undefined ? { externAlias: module.externAlias } : {}),
   };
