@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import test from "node:test";
 import {
   createCompilerSessionFromFiles,
@@ -382,6 +383,49 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
     incremental([]),
     incremental([{ exportName: "Widget", exportId: targetId }]),
   ]);
+});
+
+test("persistent reflection cache isolates identity headers from exact completed exports", () => {
+  const cacheRoot = join(
+    process.cwd(),
+    ".temp/provider-cache/dotnet-reflection-lazy-materialization",
+    `${Date.now()}-${process.pid}`,
+  );
+  const populate = createDotnetReflectionTypeDataProvider({ cacheRoot });
+  const initialHeader = requireModule(populate.getModule(systemCollectionsGenericModule, {
+    requestedExports: ["List"],
+    materialization: incremental([]),
+  }));
+  const listHeader = requireType(initialHeader, "List");
+  const completion = incremental([{
+    exportName: "List",
+    exportId: listHeader.targetId,
+  }]);
+  const initialComplete = requireModule(populate.getModule(systemCollectionsGenericModule, {
+    requestedExports: ["List"],
+    materialization: completion,
+  }));
+  assert.equal(requireType(initialHeader, "List").members, undefined);
+  assert.equal((requireType(initialComplete, "List").members?.length ?? 0) > 0, true);
+
+  const telemetry = createDotnetProviderTelemetry();
+  const replay = createDotnetReflectionTypeDataProvider({ cacheRoot, telemetry });
+  const cachedComplete = requireModule(replay.getModule(systemCollectionsGenericModule, {
+    requestedExports: ["List"],
+    materialization: completion,
+  }));
+  const cachedHeader = requireModule(replay.getModule(systemCollectionsGenericModule, {
+    requestedExports: ["List"],
+    materialization: incremental([]),
+  }));
+
+  assert.equal((requireType(cachedComplete, "List").members?.length ?? 0) > 0, true);
+  assert.equal(requireType(cachedHeader, "List").members, undefined);
+  const snapshot = telemetry.snapshot();
+  assert.equal(snapshot.toolInvocations, 0);
+  assert.equal(snapshot.diskCacheHits > 0, true);
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests > 0, true);
 });
 
 function incremental(completeExports) {
