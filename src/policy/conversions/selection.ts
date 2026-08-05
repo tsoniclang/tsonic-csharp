@@ -767,7 +767,19 @@ function delegateSignaturesEqual(
     source.parameters.every((parameter, index) =>
       target.parameters[index] !== undefined &&
       targetTypeRefEquals(parameter, target.parameters[index]!)) &&
-    targetTypeRefEquals(source.returnType, target.returnType);
+    targetTypeRefEquals(source.returnType, target.returnType) &&
+    numberListsEqual(
+      source.optionalParameterIndexes ?? [],
+      target.optionalParameterIndexes ?? [],
+    );
+}
+
+function numberListsEqual(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
+  return left.length === right.length &&
+    left.every((value, index) => value === right[index]);
 }
 
 function namedTargetTypesAreRelated(

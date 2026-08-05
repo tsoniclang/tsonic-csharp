@@ -73,10 +73,8 @@ import {
   csharpAnyTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
-  csharpRuntimeUnionTargetType,
+  combineCsharpTargetUnionMembers,
   csharpTsValueTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
 } from "./runtime-carriers.js";
 import {
   readCsharpTypescriptCompatibilityMode,
@@ -598,7 +596,7 @@ export function createCsharpTypePolicy(
       );
       return members.some((member) => member === undefined)
         ? undefined
-        : combineTargetUnionMembers(
+        : combineCsharpTargetUnionMembers(
             members as readonly TargetTypeRef[],
           );
     }
@@ -1178,6 +1176,16 @@ export function createCsharpTypePolicy(
     if (enumMemberTarget !== undefined) {
       return enumMemberTarget;
     }
+    if (
+      semanticType !== undefined &&
+      queries.getCallSignatures(semanticType).length > 0
+    ) {
+      return resolveCallableType(
+        semanticType,
+        queries,
+        nextState(state),
+      );
+    }
     const declarationType = declaration === undefined ||
         !host.navigation.isProjectDeclaration(declaration)
       ? undefined
@@ -1592,7 +1600,7 @@ export function createCsharpTypePolicy(
       ];
       return selectedTargets.some((member) => member === undefined)
         ? undefined
-        : combineTargetUnionMembers(
+        : combineCsharpTargetUnionMembers(
             selectedTargets as readonly TargetTypeRef[],
           );
     }
@@ -2232,41 +2240,9 @@ export function createCsharpTypePolicy(
     if (resolved.some((member) => member === undefined)) {
       return undefined;
     }
-    return combineTargetUnionMembers(
+    return combineCsharpTargetUnionMembers(
       resolved as readonly TargetTypeRef[],
     );
-  }
-
-  function combineTargetUnionMembers(
-    members: readonly TargetTypeRef[],
-  ): TargetTypeRef | undefined {
-    const canonicalMembers = uniqueTargetTypes(members);
-    const nonNullishMembers = canonicalMembers.filter(
-      (member) =>
-        !isCsharpRuntimeNullTargetType(member) &&
-        !isCsharpRuntimeUndefinedTargetType(member),
-    );
-    const nullishMembers = canonicalMembers.filter(
-      (member) =>
-        isCsharpRuntimeNullTargetType(member) ||
-        isCsharpRuntimeUndefinedTargetType(member),
-    );
-    if (nonNullishMembers.length === 0) {
-      return nullishMembers.length === 1
-        ? nullishMembers[0]
-        : csharpRuntimeUnionTargetType(nullishMembers);
-    }
-    if (nullishMembers.length === 0) {
-      return nonNullishMembers.length === 1
-        ? nonNullishMembers[0]
-        : csharpRuntimeUnionTargetType(nonNullishMembers);
-    }
-    return nonNullishMembers.length === 1
-      ? csharpNullableTargetType(nonNullishMembers[0]!)
-      : csharpRuntimeUnionTargetType([
-          ...nonNullishMembers,
-          ...nullishMembers,
-        ]);
   }
 
   function resolveCallableType(
@@ -2288,9 +2264,23 @@ export function createCsharpTypePolicy(
     if (parameters.length !== rawParameters.length) {
       return undefined;
     }
-    const parameterTypes = parameters.map((parameter) =>
-        resolveSymbolType(parameter, queries, nextState(state))
+    const parameterTypes = parameters.map((parameter) => {
+      const resolved = resolveSymbolType(
+        parameter,
+        queries,
+        nextState(state),
       );
+      if (resolved === undefined) {
+        return undefined;
+      }
+      return queries.getSymbolDeclarations(parameter).some((declaration) =>
+          declaration !== undefined &&
+          host.ast.is.IsParameterDeclaration(declaration) &&
+          host.ast.questionToken(declaration) !== undefined
+        )
+        ? csharpNullableTargetType(resolved)
+        : resolved;
+    });
     if (parameterTypes.some((parameter) => parameter === undefined)) {
       return undefined;
     }
@@ -2601,16 +2591,6 @@ function definedValues<T>(
   values: readonly (T | undefined)[],
 ): T[] {
   return values.filter((value): value is T => value !== undefined);
-}
-
-function uniqueTargetTypes(
-  types: readonly TargetTypeRef[],
-): readonly TargetTypeRef[] {
-  const byIdentity = new Map<string, TargetTypeRef>();
-  for (const type of types) {
-    byIdentity.set(targetTypeRefKey(type), type);
-  }
-  return [...byIdentity.values()];
 }
 
 function resolveKeywordType(

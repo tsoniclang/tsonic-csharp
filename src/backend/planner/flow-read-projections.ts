@@ -12,6 +12,7 @@ import type {
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
+  combineCsharpTargetUnionMembers,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import type {
@@ -36,16 +37,18 @@ export function planFlowReadUseSiteProjection(
   selectedType: TargetTypeRef | undefined = input.types.resolveNode(node, sourceFile),
 ): CsharpExpression | undefined {
   const storageType = input.types.resolveStorage(node, sourceFile);
-  if (
-    storageType === undefined ||
-    selectedType === undefined ||
-    targetTypeRefEquals(storageType, selectedType)
-  ) {
+  if (storageType === undefined) {
     return baseExpression;
   }
   const sourceRefinement = input.source.semantics
     .selectValueTypeRefinement(node);
   if (sourceRefinement.kind === "not-project-reference") {
+    if (
+      selectedType === undefined ||
+      targetTypeRefEquals(storageType, selectedType)
+    ) {
+      return baseExpression;
+    }
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "A target storage-read projection requires an exact project source declaration.",
@@ -53,6 +56,12 @@ export function planFlowReadUseSiteProjection(
     return undefined;
   }
   if (sourceRefinement.kind === "unresolved") {
+    if (
+      selectedType === undefined ||
+      targetTypeRefEquals(storageType, selectedType)
+    ) {
+      return baseExpression;
+    }
     const missing = sourceRefinement.missing === "declared-type"
       ? "declared type"
       : "selected type";
@@ -72,14 +81,44 @@ export function planFlowReadUseSiteProjection(
     ));
     return undefined;
   }
+  const refinedMembers = sourceRefinement.refinement.kind === "members"
+    ? sourceRefinement.refinement.types.map((member) =>
+        input.types.resolveType(member, sourceFile)
+      )
+    : undefined;
+  const selectedValueType = input.types.resolveSelectedValue(
+    node,
+    sourceRefinement.selectedType,
+    sourceFile,
+  );
+  const refinedSelectedType = selectedValueType !== undefined &&
+      !targetTypeRefEquals(storageType, selectedValueType)
+    ? selectedValueType
+    : refinedMembers === undefined
+      ? input.types.resolveType(sourceRefinement.selectedType, sourceFile)
+      : refinedMembers.some((member) => member === undefined)
+        ? undefined
+        : combineCsharpTargetUnionMembers(
+            refinedMembers as readonly TargetTypeRef[],
+          );
+  if (refinedSelectedType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The exact checked source value refinement has no closed C# representation.",
+    ));
+    return undefined;
+  }
+  if (targetTypeRefEquals(storageType, refinedSelectedType)) {
+    return baseExpression;
+  }
   return applyCsharpConversionSelection(
     node,
     sourceFile,
     input,
     diagnostics,
     storageType,
-    selectedType,
-    selectCsharpFlowReadConversion(input, storageType, selectedType),
+    refinedSelectedType,
+    selectCsharpFlowReadConversion(input, storageType, refinedSelectedType),
     baseExpression,
   );
 }

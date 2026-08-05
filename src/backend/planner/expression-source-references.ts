@@ -173,7 +173,7 @@ export function planProjectSourceModuleMemberReference(
     return sourceTypeMemberReference;
   }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
-  if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
+  if (sourceReference === undefined) {
     return undefined;
   }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
@@ -188,8 +188,20 @@ export function planProjectSourceModuleMemberReference(
   if (isNestedProjectSourceMemberDeclaration(sourceReference.declaration, input)) {
     return undefined;
   }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    !isModuleStaticValueDeclaration(sourceReference.declaration, input)
+  ) {
+    return undefined;
+  }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Project source reference requires a top-level function or variable declaration resolved by TSTS."));
+    return undefined;
+  }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+  ) {
     return undefined;
   }
   return {
@@ -217,9 +229,14 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
   }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined ||
-    sourceReference.sourceFile === sourceFile ||
     isExternalDeclarationReference(sourceReference, sourceFile, input) ||
     !isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
+    return undefined;
+  }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+  ) {
     return undefined;
   }
   return {

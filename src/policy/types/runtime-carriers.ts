@@ -15,6 +15,12 @@ import {
 import {
   csharpTargetNamedType,
 } from "./target-refs.js";
+import {
+  targetTypeRefKey,
+} from "./equality.js";
+import {
+  csharpNullableTargetType,
+} from "./nullable.js";
 
 export function csharpAnyTargetType(
   mode: TargetTypescriptCompatibilityMode,
@@ -88,6 +94,42 @@ export function csharpRuntimeUnionTargetType(
     csharpRuntimeUnionArms: arms,
     ...(objectShapes === undefined || objectShapes.every((objectShape) => objectShape === undefined) ? {} : { csharpRuntimeUnionObjectShapes: objectShapes }),
   } satisfies CsharpRuntimeUnionTargetTypeRef;
+}
+
+export function combineCsharpTargetUnionMembers(
+  members: readonly TargetTypeRef[],
+): TargetTypeRef | undefined {
+  const byIdentity = new Map<string, TargetTypeRef>();
+  for (const member of members) {
+    byIdentity.set(targetTypeRefKey(member), member);
+  }
+  const canonicalMembers = [...byIdentity.values()];
+  const nonNullishMembers = canonicalMembers.filter(
+    (member) =>
+      !isCsharpRuntimeNullTargetType(member) &&
+      !isCsharpRuntimeUndefinedTargetType(member),
+  );
+  const nullishMembers = canonicalMembers.filter(
+    (member) =>
+      isCsharpRuntimeNullTargetType(member) ||
+      isCsharpRuntimeUndefinedTargetType(member),
+  );
+  if (nonNullishMembers.length === 0) {
+    return nullishMembers.length === 1
+      ? nullishMembers[0]
+      : csharpRuntimeUnionTargetType(nullishMembers);
+  }
+  if (nullishMembers.length === 0) {
+    return nonNullishMembers.length === 1
+      ? nonNullishMembers[0]
+      : csharpRuntimeUnionTargetType(nonNullishMembers);
+  }
+  return nonNullishMembers.length === 1
+    ? csharpNullableTargetType(nonNullishMembers[0]!)
+    : csharpRuntimeUnionTargetType([
+        ...nonNullishMembers,
+        ...nullishMembers,
+      ]);
 }
 
 export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
