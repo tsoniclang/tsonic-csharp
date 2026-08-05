@@ -137,6 +137,18 @@ function planCsharpLibraryModuleInitializer(
                 "System.Runtime.CompilerServices",
                 "ModuleInitializerAttribute",
               ),
+            }, {
+              type: qualifiedCsharpType(
+                "System.Diagnostics.CodeAnalysis",
+                "SuppressMessageAttribute",
+              ),
+              arguments: [{
+                kind: "Argument",
+                expression: { kind: "LiteralExpression", value: "Usage" },
+              }, {
+                kind: "Argument",
+                expression: { kind: "LiteralExpression", value: "CA2255" },
+              }],
             }],
             returnType: predefined("void"),
             parameters: [],
