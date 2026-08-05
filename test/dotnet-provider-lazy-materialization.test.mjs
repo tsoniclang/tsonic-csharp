@@ -41,9 +41,10 @@ test(".NET reflection emits identity headers until the exact export is materiali
   const list = requireType(completed, "List");
   const dependencyHeaders = completed.exports.filter((declaration) =>
     declaration.kind === "type" && declaration.targetId !== list.targetId);
+  const listInterface = requireType(completed, "IList");
 
-  assert.equal((list.members?.length ?? 0) > 0, true);
-  assert.equal(dependencyHeaders.length > 0, true);
+  assert.equal(list.members?.some((member) => member.sourceName === "Add"), true);
+  assert.equal(listInterface.members, undefined);
   assert.equal(dependencyHeaders.every((declaration) => declaration.members === undefined), true);
 });
 
@@ -72,9 +73,8 @@ test(".NET reflection preserves provider-family variants while completing requir
   const completedGeneric = completedVariants.find((declaration) => declaration.targetId === generic.targetId);
   const completedNongenericBase = completedVariants.find((declaration) => declaration.targetId === nongeneric.targetId);
 
-  assert.equal((completedGeneric?.members?.length ?? 0) > 0, true);
-  assert.equal((completedNongenericBase?.members?.length ?? 0) > 0, true);
   assert.equal(completedGeneric?.members?.some((member) => member.sourceName === "Result"), true);
+  assert.equal(completedNongenericBase?.members?.some((member) => member.sourceName === "CompletedTask"), true);
   assert.equal(completedNongenericBase?.members?.some((member) => member.sourceName === "Result") ?? false, false);
 });
 
@@ -93,7 +93,7 @@ test("header-only target bindings cannot satisfy a complete target lookup", () =
   const binding = provider.findTargetBindingByTargetId(listHeader.targetId);
 
   assert.ok(binding);
-  assert.equal((binding.members?.length ?? 0) > 0, true);
+  assert.equal(binding.members?.some((member) => member.sourceName === "Add"), true);
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
   assert.equal(snapshot.moduleMaterializedExports, 1);
@@ -123,7 +123,7 @@ test("target relations materialize the exact selected provider export", () => {
   assert.equal(relations.some((relation) => relation.exportId === listHeader.targetId), true);
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
-  assert.equal(snapshot.moduleMaterializedExports > 0, true);
+  assert.equal(snapshot.moduleMaterializedExports, 1);
 });
 
 test("cross-module inherited members materialize only the exact base export", () => {
@@ -265,7 +265,7 @@ test("source declaration requests carry their own immutable slice and materializ
   }));
 
   assert.deepEqual(second.exports.map((declaration) => declaration.name), ["Second"]);
-  assert.equal((second.exports[0].members?.length ?? 0) > 0, true);
+  assert.deepEqual(second.exports[0].members?.map((member) => member.name), ["Value"]);
   assert.deepEqual(first.exports.map((declaration) => declaration.name), ["First"]);
   assert.equal(first.exports[0].members, undefined);
   assert.deepEqual(observed.map((context) => ({
@@ -406,7 +406,7 @@ test("persistent reflection cache isolates identity headers from exact completed
     materialization: completion,
   }));
   assert.equal(requireType(initialHeader, "List").members, undefined);
-  assert.equal((requireType(initialComplete, "List").members?.length ?? 0) > 0, true);
+  assert.equal(requireType(initialComplete, "List").members?.some((member) => member.sourceName === "Add"), true);
 
   const telemetry = createDotnetProviderTelemetry();
   const replay = createDotnetReflectionTypeDataProvider({ cacheRoot, telemetry });
@@ -419,13 +419,14 @@ test("persistent reflection cache isolates identity headers from exact completed
     materialization: incremental([]),
   }));
 
-  assert.equal((requireType(cachedComplete, "List").members?.length ?? 0) > 0, true);
-  assert.equal(requireType(cachedHeader, "List").members, undefined);
+  assert.deepEqual(cachedComplete, initialComplete);
+  assert.deepEqual(cachedHeader, initialHeader);
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.toolInvocations, 0);
-  assert.equal(snapshot.diskCacheHits > 0, true);
+  assert.equal(snapshot.diskCacheHits, 2);
   assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
-  assert.equal(snapshot.moduleIncrementalMaterializationRequests > 0, true);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests, 2);
+  assert.equal(snapshot.moduleMaterializedExports, 1);
 });
 
 function incremental(completeExports) {
