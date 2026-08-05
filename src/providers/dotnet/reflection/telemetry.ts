@@ -34,6 +34,11 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly tstsProviderVirtualParseMs: number;
   readonly tstsProviderVirtualCheckMs: number;
   readonly generatedDotnetBuildElapsedMs: number;
+  readonly referenceSnapshotComputations: number;
+  readonly referenceSnapshotUniqueFiles: number;
+  readonly referenceSnapshotHashedBytes: number;
+  readonly referenceSnapshotElapsedMs: number;
+  readonly referenceSnapshotVerifications: number;
 }
 
 export interface DotnetProviderModuleRequestTelemetry {
@@ -60,6 +65,8 @@ export interface DotnetProviderTelemetry {
   tstsProviderVirtualParse(elapsedMs: number): void;
   tstsProviderVirtualCheck(elapsedMs: number): void;
   generatedDotnetBuild(elapsedMs: number): void;
+  referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void;
+  referenceSnapshotVerification(): void;
   snapshot(): DotnetProviderTelemetrySnapshot;
 }
 
@@ -97,6 +104,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let tstsProviderVirtualParseMs = 0;
   let tstsProviderVirtualCheckMs = 0;
   let generatedDotnetBuildElapsedMs = 0;
+  let referenceSnapshotComputations = 0;
+  let referenceSnapshotUniqueFiles = 0;
+  let referenceSnapshotHashedBytes = 0;
+  let referenceSnapshotElapsedMs = 0;
+  let referenceSnapshotVerifications = 0;
   return {
     providerInstance(): void {
       providerInstances += 1;
@@ -178,6 +190,15 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
     generatedDotnetBuild(elapsedMs: number): void {
       generatedDotnetBuildElapsedMs += elapsedMs;
     },
+    referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void {
+      referenceSnapshotComputations += 1;
+      referenceSnapshotUniqueFiles += uniqueFiles;
+      referenceSnapshotHashedBytes += hashedBytes;
+      referenceSnapshotElapsedMs += elapsedMs;
+    },
+    referenceSnapshotVerification(): void {
+      referenceSnapshotVerifications += 1;
+    },
     snapshot(): DotnetProviderTelemetrySnapshot {
       return {
         providerInstances,
@@ -211,6 +232,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         tstsProviderVirtualParseMs,
         tstsProviderVirtualCheckMs,
         generatedDotnetBuildElapsedMs,
+        referenceSnapshotComputations,
+        referenceSnapshotUniqueFiles,
+        referenceSnapshotHashedBytes,
+        referenceSnapshotElapsedMs,
+        referenceSnapshotVerifications,
       };
     },
   };
@@ -252,6 +278,11 @@ export function dotnetProviderTelemetryCounters(
     "tsts.providerVirtual.parseMs": snapshot.tstsProviderVirtualParseMs,
     "tsts.providerVirtual.checkMs": snapshot.tstsProviderVirtualCheckMs,
     "generatedProject.dotnetBuild.elapsedMs": snapshot.generatedDotnetBuildElapsedMs,
+    "provider.referenceSnapshot.computations": snapshot.referenceSnapshotComputations,
+    "provider.referenceSnapshot.uniqueFiles": snapshot.referenceSnapshotUniqueFiles,
+    "provider.referenceSnapshot.hashedBytes": snapshot.referenceSnapshotHashedBytes,
+    "provider.referenceSnapshot.elapsedMs": snapshot.referenceSnapshotElapsedMs,
+    "provider.referenceSnapshot.verifications": snapshot.referenceSnapshotVerifications,
   };
 }
 

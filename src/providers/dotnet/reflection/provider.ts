@@ -98,6 +98,9 @@ import {
 import {
   dotnetReflectionProviderIdentity,
 } from "./provider-identity.js";
+import {
+  createDotnetReferenceSnapshot,
+} from "./reference-snapshot.js";
 
 export interface DotnetReflectionTypeDataProviderOptions {
   readonly providerIdentity?: DotnetProviderIdentity;
@@ -159,6 +162,11 @@ export function createDotnetReflectionTypeDataProvider(
   const persistentCache = options.disablePersistentCache === true
     ? undefined
     : createDotnetProviderCache(options.cacheRoot ?? defaultProviderCacheRoot(), telemetry);
+  const referenceSnapshot = createDotnetReferenceSnapshot({
+    referenceDirectory: options.referenceDirectory,
+    references: options.references ?? [],
+    telemetry,
+  });
 
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
@@ -170,6 +178,17 @@ export function createDotnetReflectionTypeDataProvider(
     const effectiveContext = contextWithParsedExternAlias(context, parsed.externAlias);
     if (isProviderContextDiagnostic(effectiveContext)) {
       return effectiveContext;
+    }
+    const referenceMutation = referenceSnapshot.verify();
+    if (referenceMutation !== undefined) {
+      return diagnostic(
+        "DOTNET_REFLECTION_REFERENCES_MUTATED",
+        ".NET reference assemblies changed while the compilation was running; provider results would not be trustworthy.",
+        {
+          path: referenceMutation.path,
+          reason: referenceMutation.reason,
+        },
+      );
     }
     const cacheRequest = createCacheRequest(specifier, parsed.namespaceName, effectiveContext);
     const memoryKey = moduleMemoryCacheKey(cacheRequest);
@@ -341,6 +360,7 @@ export function createDotnetReflectionTypeDataProvider(
       context,
       options: reflectionOptions,
       toolIdentity: toolRunner.identity,
+      referenceSnapshot,
     });
   }
 

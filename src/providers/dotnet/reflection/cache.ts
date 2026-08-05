@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
   DotnetModuleModel,
@@ -33,8 +33,7 @@ export interface DotnetProviderCacheRequest {
   readonly broadImport: boolean | undefined;
   readonly assemblyName: string | undefined;
   readonly referenceDirectory: string | undefined;
-  readonly referenceDirectoryIdentities: readonly Readonly<Record<string, unknown>>[];
-  readonly referenceIdentities: readonly Readonly<Record<string, unknown>>[];
+  readonly referenceSnapshotDigest: string;
   readonly assemblySourcePackages: readonly Readonly<{ readonly assemblyName: string; readonly packageName: string }>[];
   readonly toolIdentity: DotnetProviderToolIdentity;
 }
@@ -66,6 +65,7 @@ export function createDotnetProviderCache(
         telemetry.diskCacheHit();
         return record.model;
       } catch {
+        rmSync(cacheFile, { force: true });
         telemetry.diskCacheMiss();
         return undefined;
       }

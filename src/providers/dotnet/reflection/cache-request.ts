@@ -21,10 +21,9 @@ import type {
 import type {
   DotnetProviderToolIdentity,
 } from "./tool.js";
-import {
-  referenceDirectoryIdentities,
-  referenceIdentities,
-} from "./tool.js";
+import type {
+  DotnetReferenceSnapshot,
+} from "./reference-snapshot.js";
 import {
   diagnostic,
 } from "./diagnostics.js";
@@ -49,6 +48,7 @@ export interface CreateDotnetReflectionCacheRequestInput {
   readonly context: DotnetProviderDeclarationContext;
   readonly options: DotnetReflectionCacheRequestOptions;
   readonly toolIdentity: DotnetProviderToolIdentity;
+  readonly referenceSnapshot: DotnetReferenceSnapshot;
 }
 
 export function createDotnetReflectionCacheRequest(
@@ -68,8 +68,7 @@ export function createDotnetReflectionCacheRequest(
     broadImport: input.context.broadImport,
     assemblyName: input.context.assemblyName,
     referenceDirectory: input.options.referenceDirectory,
-    referenceDirectoryIdentities: referenceDirectoryIdentities(input.options.referenceDirectory),
-    referenceIdentities: referenceIdentities([...(input.context.references ?? []), ...(input.options.references ?? [])]),
+    referenceSnapshotDigest: input.referenceSnapshot.digest,
     assemblySourcePackages: normalizeDotnetAssemblySourcePackages(input.options.assemblySourcePackages),
     toolIdentity: input.toolIdentity,
   };

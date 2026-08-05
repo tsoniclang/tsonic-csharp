@@ -105,6 +105,7 @@ const csharpProfileDeclarations = `
 ${sharedNoLibDeclarations}
 
 interface String {
+  [Symbol.iterator](): IterableIterator<string>;
   readonly Length: number;
   Split(separator: string): string[];
   StartsWith(value: string): boolean;
@@ -208,6 +209,7 @@ interface NumberConstructor {
 declare var Number: NumberConstructor;
 
 interface String {
+  [Symbol.iterator](): IterableIterator<string>;
   readonly length: number;
   readonly [index: number]: string;
   split(separator: string | RegExp, limit?: number): string[];
