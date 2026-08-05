@@ -1,9 +1,12 @@
 import type { TargetTypeRef } from "../../policy/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
-  isCsharpThrowableTargetType,
+  isCsharpThrowableType,
   isCsharpVoidTargetType,
 } from "../../policy/types/index.js";
+import type {
+  CsharpTranslationContext,
+} from "../../translate/context/index.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -12,8 +15,11 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
   };
 }
 
-export function isCsharpThrowableCarrier(carrier: TargetTypeRef | undefined): boolean {
-  return isCsharpThrowableTargetType(carrier);
+export function isCsharpThrowableCarrier(
+  carrier: TargetTypeRef | undefined,
+  input: Pick<CsharpTranslationContext, "projectTypes" | "providers" | "target">,
+): boolean {
+  return isCsharpThrowableType(input, carrier);
 }
 
 export function isVoidCsharpType(type: CsharpTypeNode): boolean {

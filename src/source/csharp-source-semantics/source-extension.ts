@@ -55,7 +55,6 @@ export function createCsharpSourceSemanticsExtension(context: TargetProviderCont
     {
       provider: dotnetProvider,
       moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
-      references,
       targetFramework,
     },
     ...capabilityProviders.map((capabilityProvider) => ({

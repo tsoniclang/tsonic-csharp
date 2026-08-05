@@ -111,7 +111,7 @@ function planCatchClause(
     const carrier = probeCarrierFromResolution(carrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (
-      !isCsharpThrowableCarrier(carrier) &&
+      !isCsharpThrowableCarrier(carrier, input) &&
       !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatValueTargetType(carrier))
     ) {
       const detail = carrier === undefined

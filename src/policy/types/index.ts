@@ -16,6 +16,7 @@ export * from "./identity.js";
 export * from "./extern-aliases.js";
 export * from "./equality.js";
 export * from "./target-type-pattern.js";
+export * from "./target-hierarchy.js";
 export * from "./storage-identity.js";
 export * from "./source-profile.js";
 export * from "./source-literal-policy.js";

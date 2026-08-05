@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  mkdirSync,
   readFileSync,
   readdirSync,
   writeFileSync,
@@ -82,4 +83,32 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
   );
   assert.equal(repaired.model.namespaceName, "System");
   assert.equal(validateDotnetModuleModelContract(repaired.model), undefined);
+});
+
+test(".NET reflection continues from authoritative tooling when persistent cache storage is unavailable", () => {
+  const fixtureRoot = join(
+    repoRoot,
+    ".temp/provider-cache/dotnet-reflection-unavailable",
+    `${Date.now()}-${process.pid}`,
+  );
+  const cacheRoot = join(fixtureRoot, "not-a-directory");
+  mkdirSync(fixtureRoot, { recursive: true });
+  writeFileSync(cacheRoot, "occupied");
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({ cacheRoot, telemetry });
+
+  const module = getCompleteDotnetModule(
+    provider,
+    "@tsonic/dotnet/System.js",
+    { requestedExports: ["Convert"] },
+  );
+
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  assert.equal(
+    module.exports.filter((declaration) => declaration.sourceName === "Convert").length,
+    1,
+  );
+  assert.equal(telemetry.snapshot().diskCacheFailures, 1);
+  assert.equal(telemetry.snapshot().diskCacheDisables, 1);
+  assert.equal(telemetry.snapshot().toolInvocations, 2);
 });

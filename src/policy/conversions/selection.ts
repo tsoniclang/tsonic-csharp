@@ -21,6 +21,7 @@ import type {
 import {
   csharpBaseTargetTypeFromBinding,
   csharpEnumerableTargetType,
+  csharpExceptionTargetType,
   csharpObjectTargetType,
   csharpTargetBindingFact,
   getCsharpCollectionElementTargetType,
@@ -33,6 +34,7 @@ import {
   isCsharpNullableReferenceTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
+  isCsharpThrowableType,
   isCsharpCompatValueTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
@@ -559,6 +561,12 @@ export function selectCsharpFlowReadConversion(
           ? `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which is not an exact runtime-union arm.`
           : `The exact source flow narrows '${targetTypeRefKey(storageType)}' to '${targetTypeRefKey(selectedReadType)}', which matches more than one runtime-union arm.`,
     };
+  }
+  if (
+    targetTypeRefEquals(storageType, csharpExceptionTargetType()) &&
+    isCsharpThrowableType(input, selectedReadType)
+  ) {
+    return { kind: "cast", proof: "reference" };
   }
   const selected = selectCsharpConversion(
     input,

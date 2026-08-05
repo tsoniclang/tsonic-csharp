@@ -18,6 +18,8 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly memoryCacheMisses: number;
   readonly diskCacheHits: number;
   readonly diskCacheMisses: number;
+  readonly diskCacheFailures: number;
+  readonly diskCacheDisables: number;
   readonly providerToolBuilds: number;
   readonly providerToolBuildElapsedMs: number;
   readonly toolProcessStarts: number;
@@ -34,6 +36,11 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly tstsProviderVirtualParseMs: number;
   readonly tstsProviderVirtualCheckMs: number;
   readonly generatedDotnetBuildElapsedMs: number;
+  readonly referenceSnapshotComputations: number;
+  readonly referenceSnapshotUniqueFiles: number;
+  readonly referenceSnapshotHashedBytes: number;
+  readonly referenceSnapshotElapsedMs: number;
+  readonly referenceSnapshotVerifications: number;
 }
 
 export interface DotnetProviderModuleRequestTelemetry {
@@ -52,6 +59,8 @@ export interface DotnetProviderTelemetry {
   memoryCacheMiss(): void;
   diskCacheHit(): void;
   diskCacheMiss(): void;
+  diskCacheFailure(): void;
+  diskCacheDisable(): void;
   toolBuild(elapsedMs: number): void;
   toolProcessStart(mode: "cli" | "server"): void;
   toolInvocation(mode: "cli" | "server", elapsedMs: number): void;
@@ -60,6 +69,8 @@ export interface DotnetProviderTelemetry {
   tstsProviderVirtualParse(elapsedMs: number): void;
   tstsProviderVirtualCheck(elapsedMs: number): void;
   generatedDotnetBuild(elapsedMs: number): void;
+  referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void;
+  referenceSnapshotVerification(): void;
   snapshot(): DotnetProviderTelemetrySnapshot;
 }
 
@@ -81,6 +92,8 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let memoryCacheMisses = 0;
   let diskCacheHits = 0;
   let diskCacheMisses = 0;
+  let diskCacheFailures = 0;
+  let diskCacheDisables = 0;
   let providerToolBuilds = 0;
   let providerToolBuildElapsedMs = 0;
   let toolProcessStarts = 0;
@@ -97,6 +110,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let tstsProviderVirtualParseMs = 0;
   let tstsProviderVirtualCheckMs = 0;
   let generatedDotnetBuildElapsedMs = 0;
+  let referenceSnapshotComputations = 0;
+  let referenceSnapshotUniqueFiles = 0;
+  let referenceSnapshotHashedBytes = 0;
+  let referenceSnapshotElapsedMs = 0;
+  let referenceSnapshotVerifications = 0;
   return {
     providerInstance(): void {
       providerInstances += 1;
@@ -140,6 +158,12 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
     diskCacheMiss(): void {
       diskCacheMisses += 1;
     },
+    diskCacheFailure(): void {
+      diskCacheFailures += 1;
+    },
+    diskCacheDisable(): void {
+      diskCacheDisables += 1;
+    },
     toolBuild(elapsedMs: number): void {
       providerToolBuilds += 1;
       providerToolBuildElapsedMs += elapsedMs;
@@ -178,6 +202,15 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
     generatedDotnetBuild(elapsedMs: number): void {
       generatedDotnetBuildElapsedMs += elapsedMs;
     },
+    referenceSnapshot(uniqueFiles: number, hashedBytes: number, elapsedMs: number): void {
+      referenceSnapshotComputations += 1;
+      referenceSnapshotUniqueFiles += uniqueFiles;
+      referenceSnapshotHashedBytes += hashedBytes;
+      referenceSnapshotElapsedMs += elapsedMs;
+    },
+    referenceSnapshotVerification(): void {
+      referenceSnapshotVerifications += 1;
+    },
     snapshot(): DotnetProviderTelemetrySnapshot {
       return {
         providerInstances,
@@ -195,6 +228,8 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         memoryCacheMisses,
         diskCacheHits,
         diskCacheMisses,
+        diskCacheFailures,
+        diskCacheDisables,
         providerToolBuilds,
         providerToolBuildElapsedMs,
         toolProcessStarts,
@@ -211,6 +246,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         tstsProviderVirtualParseMs,
         tstsProviderVirtualCheckMs,
         generatedDotnetBuildElapsedMs,
+        referenceSnapshotComputations,
+        referenceSnapshotUniqueFiles,
+        referenceSnapshotHashedBytes,
+        referenceSnapshotElapsedMs,
+        referenceSnapshotVerifications,
       };
     },
   };
@@ -236,6 +276,8 @@ export function dotnetProviderTelemetryCounters(
     "provider.cache.memory.miss": snapshot.memoryCacheMisses,
     "provider.cache.disk.hit": snapshot.diskCacheHits,
     "provider.cache.disk.miss": snapshot.diskCacheMisses,
+    "provider.cache.disk.failures": snapshot.diskCacheFailures,
+    "provider.cache.disk.disables": snapshot.diskCacheDisables,
     "provider.tool.builds": snapshot.providerToolBuilds,
     "provider.tool.build.elapsedMs": snapshot.providerToolBuildElapsedMs,
     "provider.tool.processStarts": snapshot.toolProcessStarts,
@@ -252,6 +294,11 @@ export function dotnetProviderTelemetryCounters(
     "tsts.providerVirtual.parseMs": snapshot.tstsProviderVirtualParseMs,
     "tsts.providerVirtual.checkMs": snapshot.tstsProviderVirtualCheckMs,
     "generatedProject.dotnetBuild.elapsedMs": snapshot.generatedDotnetBuildElapsedMs,
+    "provider.referenceSnapshot.computations": snapshot.referenceSnapshotComputations,
+    "provider.referenceSnapshot.uniqueFiles": snapshot.referenceSnapshotUniqueFiles,
+    "provider.referenceSnapshot.hashedBytes": snapshot.referenceSnapshotHashedBytes,
+    "provider.referenceSnapshot.elapsedMs": snapshot.referenceSnapshotElapsedMs,
+    "provider.referenceSnapshot.verifications": snapshot.referenceSnapshotVerifications,
   };
 }
 

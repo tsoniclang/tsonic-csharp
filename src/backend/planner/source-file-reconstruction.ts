@@ -71,7 +71,7 @@ export function reconstructCsharpSourceFiles(
     ));
     return undefined;
   }
-  let rejectedDiagnostics: readonly TargetDiagnostic[] | undefined;
+  const diagnosticsByOwner = new Map<string, readonly TargetDiagnostic[]>();
   const reconstruction = reconstructTargetArtifacts(
     input.artifacts.contractGraph,
     [...sourceFilesByOwner.keys()].sort((left, right) =>
@@ -104,7 +104,7 @@ export function reconstructCsharpSourceFiles(
         };
       }
       if (candidateDiagnostics.length > 0) {
-        rejectedDiagnostics = Object.freeze([...candidateDiagnostics]);
+        diagnosticsByOwner.set(owner, Object.freeze([...candidateDiagnostics]));
         return {
           kind: "rejected",
           code: "CSHARP_SOURCE_FILE_RECONSTRUCTION_REJECTED",
@@ -144,12 +144,21 @@ export function reconstructCsharpSourceFiles(
     { maximumReconstructionCount },
   );
   if (reconstruction.kind === "rejected") {
-    diagnostics.push(...(
-      rejectedDiagnostics ?? [reconstructionDiagnostic(
-        reconstruction.code,
-        reconstruction.reason,
-      )]
+    diagnostics.push(reconstructionDiagnostic(
+      reconstruction.code,
+      reconstruction.reason,
     ));
+    return undefined;
+  }
+  if (reconstruction.kind === "failed") {
+    for (const failure of reconstruction.failures) {
+      diagnostics.push(...(
+        diagnosticsByOwner.get(failure.owner) ?? [reconstructionDiagnostic(
+          failure.code,
+          failure.reason,
+        )]
+      ));
+    }
     return undefined;
   }
   const closure = input.artifacts.verifyContractClosure();

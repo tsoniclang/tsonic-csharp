@@ -1473,7 +1473,11 @@ export function createCsharpTypePolicy(
       nextState(state),
     );
     if (syntax.initializer === undefined) {
-      return declaredTarget;
+      return resolveTypeWithState(
+        selectedType ?? queries.getTypeAtLocation(node),
+        queries.sourceFile,
+        nextState(state),
+      ) ?? declaredTarget;
     }
     const selectedInitializerTarget = resolveSelectedExpressionType(
       syntax.initializer,

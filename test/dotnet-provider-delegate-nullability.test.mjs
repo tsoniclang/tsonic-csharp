@@ -53,6 +53,11 @@ test(".NET provider projects closed delegate nullability from the member use sit
 
   const create = requireMethod(callbackHost, "Create");
   assertCallbackNullability(create.signatures[0].returnType, false, true);
+
+  const replace = requireMethod(callbackHost, "Replace");
+  const replacement = replace.signatures[0].parameters[0];
+  assert.equal(replacement.passingMode, "byref-readwrite");
+  assertCallbackNullability(replacement.type, true, false);
 });
 
 test(".NET provider preserves authored non-null type parameters on open generic delegate declarations", () => {

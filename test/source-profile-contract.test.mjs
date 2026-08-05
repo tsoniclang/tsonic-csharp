@@ -75,6 +75,45 @@ test("JS surface profile accepts JS names and rejects CLR names under noLib", ()
   assert.match(diagnosticsText, /Property 'Length' does not exist on type 'number\[\]'\. Did you mean 'length'\?/u);
 });
 
+test("JS surface Map and iterator types are iterable with for-of under noLib", () => {
+  const session = createSourceProfileSession({
+    profile: "js",
+    sourceText: [
+      "const map = new Map<string, number>();",
+      "map.set(\"a\", 1);",
+      "let total = 0;",
+      "for (const value of map.values()) total += value;",
+      "for (const key of map.keys()) total += key.length;",
+      "const set = new Set<number>();",
+      "for (const item of set) total += item;",
+      "export const result = total;",
+      "",
+    ].join("\n"),
+  });
+  assertNoBundledTypeScriptLibraries(session);
+  assert.equal(formatDiagnostics(session.getDiagnostics("all")), "");
+});
+
+test("ECMAScript string iteration remains available in both source profiles", () => {
+  for (const profile of ["csharp", "js"]) {
+    const session = createSourceProfileSession({
+      profile,
+      sourceText: [
+        "let result = \"\";",
+        "for (const character of \"A😀\") result += character;",
+        "export { result };",
+        "",
+      ].join("\n"),
+    });
+    assertNoBundledTypeScriptLibraries(session);
+    assert.equal(
+      formatDiagnostics(session.getDiagnostics("all")),
+      "",
+      `${profile} profile must retain standard ECMAScript string iteration`,
+    );
+  }
+});
+
 function createSourceProfileSession(options) {
   const files = new Map([
     ["/src/index.ts", options.sourceText],

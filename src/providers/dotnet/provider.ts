@@ -65,7 +65,6 @@ export interface DotnetTypeDataProvider {
 export interface DotnetProviderModuleContext {
   readonly containingFile?: string;
   readonly targetFramework?: string;
-  readonly references?: readonly string[];
   readonly requestedExports?: readonly string[];
   readonly requestedTargetIds?: readonly string[];
   readonly requestedMetadataNames?: readonly string[];
@@ -113,7 +112,6 @@ export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
   readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
   readonly targetFramework?: string;
-  readonly references?: readonly string[];
 }
 
 export function createDotnetSourceDeclarationProvider(options: DotnetBindingProviderOptions): SourceDeclarationProvider {
@@ -272,15 +270,11 @@ export function resolveDotnetProviderDeclarationProjection(
     );
   }
   const startedAt = performance.now();
-  const model = buildClosedProviderDeclarationModel(
+  const model = buildProviderDeclarationModel(
     resolution,
     effectiveResolutionContext,
-    materialization,
     augmentedModule,
-    options,
     extensionId,
-    resolution.providerModuleId,
-    moduleSpecifierPolicy,
     resolveDependencyModule,
   );
   if ("extensionId" in model) {
@@ -292,71 +286,6 @@ export function resolveDotnetProviderDeclarationProjection(
   }
   options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
   return model;
-}
-
-function buildClosedProviderDeclarationModel(
-  resolution: ProviderModuleResolution,
-  resolutionContext: DotnetProviderResolutionContext,
-  materialization: ProviderDeclarationMaterialization,
-  initialModule: DotnetModuleModel,
-  options: DotnetBindingProviderOptions,
-  extensionId: string,
-  providerModuleSpecifier: string,
-  moduleSpecifierPolicy: DotnetModuleSpecifierPolicy,
-  resolveDependencyModule: ResolveDotnetDependencyModule,
-): ProviderDeclarationModel | ExtensionDiagnostic {
-  let currentContext = resolutionContext;
-  let currentModule = initialModule;
-  for (;;) {
-    const model = buildProviderDeclarationModel(
-      resolution,
-      currentContext,
-      currentModule,
-      extensionId,
-      resolveDependencyModule,
-    );
-    if ("extensionId" in model || currentContext.broadImport === true) {
-      return model;
-    }
-    const missingProviderRefs = missingProviderDeclarationSameModuleRefs(model, currentContext.requestedExports);
-    if (missingProviderRefs.length === 0) {
-      return model;
-    }
-    const requestedExports = sortedUnique([
-      ...(currentContext.requestedExports ?? []),
-      ...missingProviderRefs,
-    ]);
-    if (currentContext.requestedExports !== undefined && missingProviderRefs.every((exportName) => currentContext.requestedExports?.includes(exportName) === true)) {
-      return dotnetProviderRequestedExportMissingDiagnostic(extensionId, providerModuleSpecifier, missingProviderRefs);
-    }
-    currentContext = { requestedExports };
-    const moduleRequest = dotnetProviderModuleRequest(resolution.moduleSpecifier, moduleSpecifierPolicy);
-    if (moduleRequest === undefined) {
-      return dotnetExtensionDiagnostic(extensionId, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
-    }
-    const resolved = options.provider.getModule(
-      moduleRequest.moduleSpecifier,
-      providerDeclarationContext(
-        currentContext,
-        materialization,
-        options,
-        resolution.virtualFileName,
-        moduleRequest,
-      ),
-    );
-    if (isDotnetProviderDiagnostic(resolved)) {
-      return dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, resolved);
-    }
-    const augmentedModule = augmentDotnetModuleWithNativeArray(resolved, {
-      ...currentContext,
-      materialization,
-    });
-    const missingRequestedExports = missingDotnetRequestedExports(augmentedModule, currentContext);
-    if (missingRequestedExports.length > 0) {
-      return dotnetProviderRequestedExportMissingDiagnostic(extensionId, providerModuleSpecifier, missingRequestedExports);
-    }
-    currentModule = augmentedModule;
-  }
 }
 
 function buildProviderDeclarationModel(
@@ -483,93 +412,6 @@ function validateDotnetProviderRegistrations(
   }
 }
 
-function missingProviderDeclarationSameModuleRefs(
-  model: ProviderDeclarationModel,
-  requestedExports: readonly string[] | undefined,
-): readonly string[] {
-  if (requestedExports === undefined) {
-    return [];
-  }
-  const exportedNames = new Set<string>();
-  const exportsByName = new Map(model.exports.map((declaration) => [declaration.name, declaration]));
-  for (const declaration of model.exports) {
-    exportedNames.add(declaration.name);
-    const sourceTypeFamily = (declaration as { readonly sourceTypeFamily?: { readonly exportName?: string } }).sourceTypeFamily;
-    if (typeof sourceTypeFamily?.exportName === "string") {
-      exportedNames.add(sourceTypeFamily.exportName);
-    }
-  }
-  const missing = new Set<string>();
-  const pending = [...requestedExports];
-  const expanded = new Set<string>();
-  while (pending.length > 0) {
-    const exportName = pending.pop();
-    if (exportName === undefined || expanded.has(exportName)) {
-      continue;
-    }
-    expanded.add(exportName);
-    const declaration = exportsByName.get(exportName);
-    if (declaration === undefined) {
-      continue;
-    }
-    if (!requestedExports.includes(exportName) && !providerDeclarationExpandsSourceClosure(declaration)) {
-      continue;
-    }
-    for (const dependency of collectProviderDeclarationSameModuleRefs(declaration, model.moduleSpecifier)) {
-      if (exportedNames.has(dependency)) {
-        pending.push(dependency);
-      } else {
-        missing.add(dependency);
-      }
-    }
-  }
-  return [...missing].sort();
-}
-
-function providerDeclarationExpandsSourceClosure(declaration: ProviderDeclarationModel["exports"][number]): boolean {
-  return (declaration.members?.length ?? 0) > 0 ||
-    (declaration.signatures?.length ?? 0) > 0 ||
-    (declaration.heritage?.length ?? 0) > 0;
-}
-
-function collectProviderDeclarationSameModuleRefs(
-  value: unknown,
-  moduleSpecifier: string,
-  refs = new Set<string>(),
-  visited = new WeakSet<object>(),
-): readonly string[] {
-  if (value === undefined || value === null || typeof value !== "object") {
-    return [...refs].sort();
-  }
-  if (visited.has(value)) {
-    return [...refs].sort();
-  }
-  visited.add(value);
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectProviderDeclarationSameModuleRefs(item, moduleSpecifier, refs, visited);
-    }
-    return [...refs].sort();
-  }
-  const record = value as Readonly<Record<string, unknown>>;
-  if (record.kind === "provider-ref" && record.moduleSpecifier === moduleSpecifier && typeof record.exportName === "string") {
-    refs.add(record.exportName);
-  }
-  for (const [key, child] of Object.entries(record)) {
-    if (nonSourceClosureMetadataKeys.has(key)) {
-      continue;
-    }
-    collectProviderDeclarationSameModuleRefs(child, moduleSpecifier, refs, visited);
-  }
-  return [...refs].sort();
-}
-
-const nonSourceClosureMetadataKeys = new Set([
-  "attributes",
-  "evidence",
-  "unsupportedAttributes",
-]);
-
 function sortedUnique(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort();
 }
@@ -612,7 +454,6 @@ function providerModuleContext(
     ...(context.broadImport === true ? { broadImport: true as const } : {}),
     ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),
-    ...(options.references !== undefined ? { references: options.references } : {}),
     ...(module?.assemblyName !== undefined ? { assemblyName: module.assemblyName } : {}),
     ...(module?.externAlias !== undefined ? { externAlias: module.externAlias } : {}),
   };

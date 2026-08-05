@@ -689,6 +689,9 @@ function supportsIntrinsicEquality(
     left.kind === "array" &&
     right.kind === "array" &&
     targetTypeRefEquals(left, right)
+  ) || (
+    targetTypeRefEquals(left, right) &&
+    input.projectTypes.catalog.definitionForTarget(left)?.kind === "class"
   );
 }
 

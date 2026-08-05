@@ -22,6 +22,10 @@ public sealed class CallbackHost
     {
         return (_, _) => "value";
     }
+
+    public void Replace(ref Func<Payload?, object, string> callback)
+    {
+    }
 }
 
 public static class GenericCallbackHost

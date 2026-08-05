@@ -78,14 +78,6 @@ const directArrayRows = [
     result: () => intType,
   },
   {
-    sourceName: "slice",
-    parameters: () => [
-      targetParameter("start", intType, { optional: true }),
-      targetParameter("end", intType, { optional: true }),
-    ],
-    result: (_element: TargetTypeRef, receiver: TargetTypeRef) => receiver,
-  },
-  {
     sourceName: "splice",
     parameters: (element: TargetTypeRef) => [
       targetParameter("start", intType),
@@ -182,6 +174,11 @@ const nullableArrayRows = [
 export const csharpJsArrayCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
     ...["Array", "ReadonlyArray"].flatMap((declaringName) => [
+      jsCallPolicy(
+        jsMemberIdentity(declaringName, "slice"),
+        (context) => readOnlyArraySliceMember(context),
+        firstParameterReceiver,
+      ),
       ...directArrayRows.map((row) =>
         jsCallPolicy(
           jsMemberIdentity(declaringName, row.sourceName),
@@ -367,6 +364,26 @@ function readOnlyArrayQueryMember(
         shape.receiver,
         row.parameters(shape.element),
         row.result,
+      );
+}
+
+function readOnlyArraySliceMember(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+): CsharpTargetMember | undefined {
+  const shape = readOnlyArrayCallShape(context);
+  return shape === undefined
+    ? undefined
+    : receiverHelperMethod(
+        "Tsonic.CSharp.Js.Array.slice",
+        "slice",
+        "slice",
+        arrayHelperType,
+        shape.receiver,
+        [
+          targetParameter("start", intType, { optional: true }),
+          targetParameter("end", intType, { optional: true }),
+        ],
+        csharpJsArrayTargetType(shape.element),
       );
 }
 

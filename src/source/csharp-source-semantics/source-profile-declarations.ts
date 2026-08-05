@@ -65,17 +65,21 @@ interface IteratorResult<T, TReturn = unknown> {
 interface Iterator<T, TReturn = unknown, TNext = unknown> {
   next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
 }
-interface Iterable<T> {
-  [Symbol.iterator](): Iterator<T>;
+interface Iterable<T, TReturn = unknown, TNext = unknown> {
+  [Symbol.iterator](): Iterator<T, TReturn, TNext>;
 }
-interface IterableIterator<T> extends Iterator<T>, Iterable<T> {}
+interface IterableIterator<T, TReturn = unknown, TNext = unknown> extends Iterator<T, TReturn, TNext> {
+  [Symbol.iterator](): IterableIterator<T, TReturn, TNext>;
+}
 interface AsyncIterator<T, TReturn = unknown, TNext = unknown> {
   next(...args: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
 }
-interface AsyncIterable<T> {
-  [Symbol.asyncIterator](): AsyncIterator<T>;
+interface AsyncIterable<T, TReturn = unknown, TNext = unknown> {
+  [Symbol.asyncIterator](): AsyncIterator<T, TReturn, TNext>;
 }
-interface AsyncIterableIterator<T> extends AsyncIterator<T>, AsyncIterable<T> {}
+interface AsyncIterableIterator<T, TReturn = unknown, TNext = unknown> extends AsyncIterator<T, TReturn, TNext> {
+  [Symbol.asyncIterator](): AsyncIterableIterator<T, TReturn, TNext>;
+}
 
 type Partial<T> = { [P in keyof T]?: T[P] };
 type Required<T> = { [P in keyof T]-?: T[P] };
@@ -101,6 +105,7 @@ const csharpProfileDeclarations = `
 ${sharedNoLibDeclarations}
 
 interface String {
+  [Symbol.iterator](): IterableIterator<string>;
   readonly Length: number;
   Split(separator: string): string[];
   StartsWith(value: string): boolean;
@@ -204,6 +209,7 @@ interface NumberConstructor {
 declare var Number: NumberConstructor;
 
 interface String {
+  [Symbol.iterator](): IterableIterator<string>;
   readonly length: number;
   readonly [index: number]: string;
   split(separator: string | RegExp, limit?: number): string[];

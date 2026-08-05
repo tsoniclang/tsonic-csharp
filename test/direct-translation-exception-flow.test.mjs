@@ -56,3 +56,37 @@ test("strict C# preserves explicit throw when the active catch binding is reassi
   assert.match(source, /throw error;/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
+
+test("strict C# carries project exception heritage through throw and catch narrowing", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { Exception } from "@tsonic/dotnet/System.js";
+      export class ReturnSignal extends Exception {
+        value: string;
+        constructor(value: string) {
+          super("return");
+          this.value = value;
+        }
+      }
+      export function run(): string {
+        try {
+          throw new ReturnSignal("done");
+        } catch (error) {
+          if (error instanceof ReturnSignal) return error.value;
+          throw error;
+        }
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.match(source, /throw new ReturnSignal\("done"\);/);
+  assert.match(source, /catch \(System\.Exception error\)/);
+  assert.match(source, /if \(error is ReturnSignal\)/);
+  assert.match(source, /return \(\(ReturnSignal\)error\)\.value;/);
+  assert.match(source, /throw;/);
+  assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
+});

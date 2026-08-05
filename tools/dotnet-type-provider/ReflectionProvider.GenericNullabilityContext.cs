@@ -43,13 +43,28 @@ sealed partial class ReflectionProvider
             {
                 return this;
             }
-            if (constructedNullability is not null && constructedNullability.Type != constructedType)
+            if (constructedNullability is not null && constructedNullability.Type.IsByRef)
+            {
+                if (constructedNullability.Type.GetElementType() != constructedType)
+                {
+                    throw new InvalidOperationException($"Delegate nullability type '{constructedNullability.Type}' does not match '{constructedType}'.");
+                }
+                if (constructedNullability.GenericTypeArguments.Length != parameters.Length)
+                {
+                    constructedNullability = null;
+                }
+            }
+            else if (constructedNullability is not null && constructedNullability.Type != constructedType)
             {
                 throw new InvalidOperationException($"Delegate nullability type '{constructedNullability.Type}' does not match '{constructedType}'.");
             }
             if (constructedNullability is not null && constructedNullability.GenericTypeArguments.Length != parameters.Length)
             {
                 throw new InvalidOperationException($"Delegate nullability for '{constructedType}' has an inconsistent generic arity.");
+            }
+            if (constructedNullability is null && constructedNullabilityMetadata is null)
+            {
+                return this;
             }
             if (constructedNullabilityMetadata is not null && constructedNullabilityMetadata.GenericTypeArguments.Count != parameters.Length)
             {

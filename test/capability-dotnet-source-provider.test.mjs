@@ -93,6 +93,9 @@ test("C# target composes capability-owned .NET source providers", () => {
       "export function joinedNames(store: ProviderStore): string {",
       "  return store.Names().join(\"|\");",
       "}",
+      "export function remainingNames(store: ProviderStore): string[] {",
+      "  return store.Names().slice(1);",
+      "}",
       "",
     ].join("\n"),
   });
@@ -123,5 +126,9 @@ test("C# target composes capability-owned .NET source providers", () => {
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
     /Tsonic\.CSharp\.Js\.Array\.join\(store\.Names\(\), "\|"\)/,
+  );
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /Tsonic\.CSharp\.Js\.Array\.slice\(store\.Names\(\), 1\)/,
   );
 });

@@ -16,7 +16,6 @@ import type {
 import { createDotnetDeclarationContext } from "./context.js";
 import { providerImportsForExternalRefs, qualifyProviderExportModuleRefs } from "./module-refs.js";
 import { dotnetExportToNamespaceMember } from "./namespace-members.js";
-import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 import { dotnetSignatureToProviderSignature } from "./signatures.js";
 import { dotnetTypeToProviderExport } from "./types.js";
 import { normalizeProviderTypeFamilyParameters } from "./type-families.js";
@@ -25,9 +24,8 @@ export function dotnetModuleToProviderDeclarationModel(
   module: DotnetModuleModel,
   options: DotnetProviderDeclarationModelOptions = {},
 ): ProviderDeclarationModel {
-  const qualifiedModule = qualifyDotnetModuleProviderRefs(module);
-  const context = createDotnetDeclarationContext(qualifiedModule, options);
-  const exports = qualifiedModule.exports
+  const context = createDotnetDeclarationContext(module, options);
+  const exports = module.exports
     .map((declaration) => {
       const providerExport = dotnetExportToProviderExport(declaration, context);
       return providerExport === undefined
@@ -36,10 +34,10 @@ export function dotnetModuleToProviderDeclarationModel(
     })
     .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined);
   const normalizedExports = normalizeProviderTypeFamilyParameters(exports);
-  const imports = providerImportsForExternalRefs(normalizedExports, qualifiedModule.moduleSpecifier);
+  const imports = providerImportsForExternalRefs(normalizedExports, module.moduleSpecifier);
   return {
-    moduleSpecifier: qualifiedModule.moduleSpecifier,
-    providerModuleId: options.providerModuleId ?? qualifiedModule.moduleSpecifier,
+    moduleSpecifier: module.moduleSpecifier,
+    providerModuleId: options.providerModuleId ?? module.moduleSpecifier,
     ...(imports.length === 0 ? {} : { imports }),
     exports: normalizedExports,
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
