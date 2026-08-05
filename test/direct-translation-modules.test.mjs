@@ -31,7 +31,10 @@ test("direct C# translation qualifies same-module values only across generated t
       export class Counter {
         value: number;
         constructor(value: number) { this.value = value; }
-        shifted(): number { return this.value + offset; }
+        shifted(): number {
+          const local = this.value;
+          return local + offset;
+        }
       }
     `,
   });
@@ -74,7 +77,8 @@ namespace Tsonic.Generated
         }
         public double shifted()
         {
-            return this.value + Index.offset;
+            double local = this.value;
+            return local + Index.offset;
         }
     }
 }

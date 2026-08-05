@@ -293,9 +293,32 @@ function isProviderVirtualDeclarationIdentifier(
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
-  return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindExportAssignment);
+  if (
+    HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindExportAssignment)
+  ) {
+    const parent = input.ast.parent(declaration);
+    return parent !== undefined && input.ast.is.IsSourceFile(parent);
+  }
+  if (!HasSourceKind(input.ast, declaration, KindVariableDeclaration)) {
+    return false;
+  }
+  const declarationList = input.ast.parent(declaration);
+  if (
+    declarationList === undefined ||
+    !input.ast.is.IsVariableDeclarationList(declarationList)
+  ) {
+    return false;
+  }
+  const statement = input.ast.parent(declarationList);
+  if (
+    statement === undefined ||
+    !input.ast.is.IsVariableStatement(statement)
+  ) {
+    return false;
+  }
+  const sourceFile = input.ast.parent(statement);
+  return sourceFile !== undefined && input.ast.is.IsSourceFile(sourceFile);
 }
 
 function isModuleTypeValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
