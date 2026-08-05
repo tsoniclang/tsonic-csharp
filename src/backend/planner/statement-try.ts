@@ -11,6 +11,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
+import { sourceNodesEqual } from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
   CsharpStatement,
@@ -34,6 +35,7 @@ import {
 import {
   csharpCatchExceptionType,
   csharpThrownValueToValueExpression,
+  isExactUnmodifiedCatchRethrow,
 } from "./exception-flow.js";
 import {
   isCsharpCompatValueTargetType,
@@ -103,6 +105,15 @@ function planCatchClause(
         },
       };
     }
+    if (!catchVariableRequiresTargetBinding(variable.name, clause.Block, input)) {
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
     const carrierResolution = resolveRuntimeCarrierForStorage(
       input,
       variable.name,
@@ -128,15 +139,6 @@ function planCatchClause(
     }
     if (variableType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variable carrier must render to a closed C# type before C# emission."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
-    }
-    if (!catchVariableHasReferences(variable.name, input)) {
       return {
         kind: "CatchClause",
         body: {
@@ -198,13 +200,42 @@ function planCatchClause(
   };
 }
 
-function catchVariableHasReferences(
+function catchVariableRequiresTargetBinding(
   variableName: Node,
+  catchBlock: Node | undefined,
   input: CsharpTranslationContext,
 ): boolean {
-  const reference = input.navigation.referenceFor(variableName);
-  if (reference === undefined) {
+  const binding = input.navigation.referenceFor(variableName);
+  if (binding === undefined || catchBlock === undefined) {
     return true;
   }
-  return input.navigation.hasReferenceOutside(reference.symbol, variableName);
+  let required = false;
+  const visit = (node: Node | undefined): void => {
+    if (node === undefined || required) {
+      return;
+    }
+    const reference = input.navigation.referenceFor(node);
+    if (
+      !sourceNodesEqual(input.ast, node, variableName) &&
+      reference?.symbol === binding.symbol
+    ) {
+      const parent = input.ast.parent(node);
+      if (
+        parent === undefined ||
+        !input.ast.is.IsThrowStatement(parent) ||
+        !sourceNodesEqual(
+          input.ast,
+          input.ast.as.AsThrowStatement(parent)?.Expression,
+          node,
+        ) ||
+        !isExactUnmodifiedCatchRethrow(parent, node, input)
+      ) {
+        required = true;
+        return;
+      }
+    }
+    input.ast.forEachChild(node, visit);
+  };
+  visit(catchBlock);
+  return required;
 }

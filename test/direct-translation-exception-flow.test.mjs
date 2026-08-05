@@ -32,6 +32,45 @@ test("strict C# catch storage remains System.Exception through exact provider na
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
 
+test("strict C# omits a catch binding whose only source use lowers to an exact rethrow", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function fail(): void {
+        try {
+          return;
+        } catch (error) {
+          throw error;
+        }
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.equal(source, `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static void fail()
+        {
+            try
+            {
+                return;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+    }
+}
+`);
+});
+
 test("strict C# preserves explicit throw when the active catch binding is reassigned", () => {
   const compiled = compileCsharpSource({
     sourceText: `
