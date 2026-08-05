@@ -184,7 +184,7 @@ export function planThrowStatement(
     ? resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile)
     : resolveRuntimeCarrierForStorage(input, statement.Expression, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution);
-  if (!isCsharpThrowableCarrier(carrier)) {
+  if (!isCsharpThrowableCarrier(carrier, input)) {
     if (compatibilityMode === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
       const wrapped = expression === undefined ? undefined : csharpThrownValueFromExpression(expression);
