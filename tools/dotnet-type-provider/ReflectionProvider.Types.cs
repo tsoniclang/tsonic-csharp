@@ -6,17 +6,19 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    object? ToTypeExport(Type type)
+    object? ToTypeExport(Type type, bool complete)
     {
         var typeParameters = TypeParameters(type);
-        var members = Members(type).ToArray();
-        var conversionOperators = ConversionOperators(type).ToArray();
-        var unsupportedMembers = UnsupportedMembers(type);
+        var members = complete ? Members(type).ToArray() : [];
+        var conversionOperators = complete ? ConversionOperators(type).ToArray() : [];
+        var unsupportedMembers = complete ? UnsupportedMembers(type) : [];
         var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
         var unsupportedImplementedContracts = UnsupportedImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
-        var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
+        var attributes = complete
+            ? AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type))
+            : new AttributeCollection([], []);
         return new
         {
             kind = "type",

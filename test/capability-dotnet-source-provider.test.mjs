@@ -60,6 +60,7 @@ test("C# target composes capability-owned .NET source providers", () => {
 
   const compiled = compileCsharpSource({
     capabilities: [capability],
+    surface: "js",
     sourceText: [
       `import { NarrowVisitor, ProviderBase, ProviderStore, Widget } from "${packageName}/Shared.js";`,
       "import { JsonSerializer } from \"@tsonic/dotnet/System.Text.Json.js\";",
@@ -80,6 +81,18 @@ test("C# target composes capability-owned .NET source providers", () => {
       "  }",
       "  return undefined;",
       "}",
+      "export function hasName(store: ProviderStore, name: string): boolean {",
+      "  return store.Names().includes(name);",
+      "}",
+      "export function firstName(store: ProviderStore, name: string): number {",
+      "  return store.Names().indexOf(name);",
+      "}",
+      "export function lastName(store: ProviderStore, name: string): number {",
+      "  return store.Names().lastIndexOf(name);",
+      "}",
+      "export function joinedNames(store: ProviderStore): string {",
+      "  return store.Names().join(\"|\");",
+      "}",
       "",
     ].join("\n"),
   });
@@ -94,5 +107,21 @@ test("C# target composes capability-owned .NET source providers", () => {
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
     /JsonSerializer\.Deserialize<Input>\(json\)/,
+  );
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /Tsonic\.CSharp\.Js\.Array\.includes\(store\.Names\(\), name\)/,
+  );
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /Tsonic\.CSharp\.Js\.Array\.indexOf\(store\.Names\(\), name\)/,
+  );
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /Tsonic\.CSharp\.Js\.Array\.lastIndexOf\(store\.Names\(\), name\)/,
+  );
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /Tsonic\.CSharp\.Js\.Array\.join\(store\.Names\(\), "\|"\)/,
   );
 });

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   augmentDotnetModuleWithNativeArray,
+  completeDotnetProviderContext,
   createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
@@ -22,7 +23,7 @@ import {
   tryDotnetTypeRefToProviderType,
 } from "../dist/providers/dotnet/model.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
-export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
+export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
 
 export const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 export const testAssemblyId = "Test.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -91,12 +92,36 @@ export function sourcePrimitiveTestMetadataName(name) {
 }
 
 export function getDotnetDeclaration(provider, moduleSpecifier, metadataName) {
-  const module = provider.getModule(moduleSpecifier, {});
+  const module = provider.getModule(moduleSpecifier, completeDotnetProviderContext());
   assert.equal("exports" in module, true, JSON.stringify(module));
   const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
     .find((candidate) => candidate.kind === "type" && candidate.metadataName === metadataName);
   assert.ok(declaration, `Missing .NET declaration '${metadataName}' in ${moduleSpecifier}`);
   return declaration;
+}
+
+export function getCompleteDotnetModule(provider, moduleSpecifier, context = {}) {
+  return provider.getModule(
+    moduleSpecifier,
+    completeDotnetProviderContext(context),
+  );
+}
+
+export function completeProviderDeclarationRequest(context = {}) {
+  return Object.freeze({
+    context: Object.freeze({ ...context }),
+    materialization: Object.freeze({ kind: "complete" }),
+  });
+}
+
+export function incrementalProviderDeclarationRequest(context, completeExports = []) {
+  return Object.freeze({
+    context: Object.freeze({ ...context }),
+    materialization: Object.freeze({
+      kind: "incremental",
+      completeExports: Object.freeze(completeExports.map((request) => Object.freeze({ ...request }))),
+    }),
+  });
 }
 
 export function getDotnetTargetId(provider, moduleSpecifier, metadataName) {

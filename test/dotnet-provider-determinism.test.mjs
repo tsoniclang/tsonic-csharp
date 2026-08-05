@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +19,7 @@ import {
   resolveDotnetFrameworkReferenceAssemblies,
 } from "../dist/options/dotnet-framework-reference-packs.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -36,7 +37,10 @@ test("C# framework references resolve through active SDK targeting packs", () =>
     },
   }, repoRoot);
 
-  assert.deepEqual(references.slice(0, 2), ["../lib/Acme.Contracts.dll", "../lib/Direct.Contracts.dll"]);
+  assert.deepEqual(references.slice(0, 2), [
+    resolve(repoRoot, "../lib/Acme.Contracts.dll"),
+    resolve(repoRoot, "../lib/Direct.Contracts.dll"),
+  ]);
   const frameworkReferences = references.slice(2);
   assert.notEqual(frameworkReferences[0], undefined);
   const frameworkDirectory = dirname(frameworkReferences[0]);
@@ -74,7 +78,7 @@ test(".NET reflection provider reads active SDK targeting-pack assemblies as met
     disablePersistentCache: true,
     references,
   });
-  const module = provider.getModule("@tsonic/dotnet/Microsoft.AspNetCore.Http.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/Microsoft.AspNetCore.Http.js", {
     requestedExports: ["HttpContext"],
   });
 
@@ -219,13 +223,13 @@ test("C# provider references are reflection-only provider inputs", () => {
         assemblies: [{ include: "Project.Assembly", hintPath: "../lib/Project.Assembly.dll" }],
       },
       providerReferences: {
-        directories: [referenceDirectory],
+        directories: [relative(repoRoot, referenceDirectory)],
       },
     },
   };
 
   assert.deepEqual(readCsharpReflectionReferencePaths(target, repoRoot), [
-    "../lib/Project.Assembly.dll",
+    resolve(repoRoot, "../lib/Project.Assembly.dll"),
     providerOnlyAssembly,
   ]);
   assert.deepEqual(readCsharpReferences(target), [
@@ -297,7 +301,7 @@ test("C# reflection framework policy has no installed-runtime version selector",
 
 test(".NET reflection provider rejects unparseable target frameworks instead of drifting", () => {
   const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "netbanana" });
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
   assert.match(module.message, /target framework is not supported/u);
@@ -319,7 +323,7 @@ test(".NET reflection provider fails closed for explicit references with missing
     disablePersistentCache: true,
     references: [brokenReference],
   });
-  const module = provider.getModule("@tsonic/dotnet/MissingReference.Consumer.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/MissingReference.Consumer.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
   const evidence = JSON.stringify(module.evidence);
@@ -333,7 +337,7 @@ test(".NET reflection provider resolves transitive assemblies from the explicit 
     disablePersistentCache: true,
     references,
   });
-  const module = provider.getModule("@tsonic/dotnet/MissingReference.Consumer.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/MissingReference.Consumer.js", {
     requestedExports: ["BrokenConsumer"],
   });
 
@@ -346,7 +350,7 @@ test(".NET reflection provider reports recursive delegates unsupported instead o
     disablePersistentCache: true,
     references: [recursiveDelegateFixture()],
   });
-  const module = provider.getModule("@tsonic/dotnet/RecursiveDelegateFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/RecursiveDelegateFixtures.js", {
     requestedExports: ["SelfRecursive", "MutuallyRecursiveA", "MutuallyRecursiveB", "RecursiveDelegateConsumer"],
   });
 

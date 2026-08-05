@@ -8,13 +8,20 @@ import {
 } from "@tsonic/tsts";
 import {
   augmentDotnetModuleWithNativeArray,
+  completeDotnetProviderMaterialization,
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   dotnetProviderTelemetryCounters,
+  emptyIncrementalDotnetProviderMaterialization,
   formatDotnetProviderTelemetrySnapshot,
 } from "../dist/providers/dotnet/index.js";
+import {
+  completeProviderDeclarationRequest,
+  getCompleteDotnetModule,
+  incrementalProviderDeclarationRequest,
+} from "./dotnet-provider.helpers.mjs";
 import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
@@ -46,8 +53,15 @@ test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
   telemetry.providerInstance();
   telemetry.request("module");
-  telemetry.moduleRequest({ requestedExports: ["Convert"], requestedMetadataNames: ["System.Convert"] });
-  telemetry.moduleRequest({ broadImport: true });
+  telemetry.moduleRequest({
+    requestedExports: ["Convert"],
+    requestedMetadataNames: ["System.Convert"],
+    materialization: emptyIncrementalDotnetProviderMaterialization,
+  });
+  telemetry.moduleRequest({
+    broadImport: true,
+    materialization: completeDotnetProviderMaterialization,
+  });
   telemetry.memoryCacheHit();
   telemetry.memoryCacheMiss();
   telemetry.diskCacheHit();
@@ -73,6 +87,9 @@ test(".NET provider telemetry exposes required performance counters", () => {
   assert.equal(counters["provider.requests.module.requestedExports"], 1);
   assert.equal(counters["provider.requests.module.requestedTargetIds"], 0);
   assert.equal(counters["provider.requests.module.requestedMetadataNames"], 1);
+  assert.equal(counters["provider.requests.module.materialization.complete"], 1);
+  assert.equal(counters["provider.requests.module.materialization.incremental"], 1);
+  assert.equal(counters["provider.requests.module.materializedExports"], 0);
   assert.equal(counters["provider.cache.memory.hit"], 1);
   assert.equal(counters["provider.cache.memory.miss"], 1);
   assert.equal(counters["provider.cache.disk.hit"], 1);
@@ -141,10 +158,14 @@ test(".NET target binding provider records virtual declaration model metrics", (
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { broadImport: true });
+  const requestContext = { broadImport: true };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", requestContext);
   assert.equal(resolution.kind, "virtual");
 
-  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  const declarationModel = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
 
   const snapshot = telemetry.snapshot();
@@ -183,10 +204,14 @@ test(".NET target binding provider preserves requested export slices for virtual
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
+  const requestContext = { requestedExports: ["Widget"] };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", requestContext);
   assert.equal(resolution.kind, "virtual");
 
-  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  const declarationModel = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
 
   assert.equal(observedContexts.length, 1);
@@ -207,7 +232,10 @@ test(".NET native Array augmentation stays out of unrelated System export slices
       metadataName: "System.IFormatProvider",
       members: [],
     }],
-  }, { requestedExports: ["IFormatProvider"] });
+  }, {
+    materialization: emptyIncrementalDotnetProviderMaterialization,
+    requestedExports: ["IFormatProvider"],
+  });
 
   assert.deepEqual(module.exports.map((declaration) => declaration.sourceName).sort(), ["IFormatProvider"]);
 });
@@ -334,12 +362,15 @@ test(".NET target binding provider rejects unsliced declaration model requests",
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const declarationModel = bindingProvider.getDeclarationModel({
-    kind: "virtual",
-    moduleSpecifier: "@tsonic/dotnet/Example.js",
-    virtualFileName: "tsts-provider://test.dotnet-provider-unsliced-model/%40tsonic%2Fdotnet%2FExample.js/unsliced.d.ts",
-    providerModuleId: "@tsonic/dotnet/Example.js",
-  });
+  const declarationModel = bindingProvider.getDeclarationModel(
+    {
+      kind: "virtual",
+      moduleSpecifier: "@tsonic/dotnet/Example.js",
+      virtualFileName: "tsts-provider://test.dotnet-provider-unsliced-model/%40tsonic%2Fdotnet%2FExample.js/unsliced.d.ts",
+      providerModuleId: "@tsonic/dotnet/Example.js",
+    },
+    completeProviderDeclarationRequest(),
+  );
 
   assert.equal(declarationModel.extensionCode, "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED", JSON.stringify(declarationModel));
   assert.equal(getModuleCalled, false);
@@ -376,10 +407,14 @@ test(".NET target binding provider fails closed when a requested export is unpro
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
+  const requestContext = { requestedExports: ["Widget"] };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", requestContext);
   assert.equal(resolution.kind, "virtual");
 
-  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  const declarationModel = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal(declarationModel.extensionCode, "DOTNET_PROVIDER_REQUESTED_EXPORT_MISSING", JSON.stringify(declarationModel));
 });
 
@@ -391,7 +426,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
     providerBroker: broker,
     telemetry: firstTelemetry,
   });
-  const firstModule = firstProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const firstModule = getCompleteDotnetModule(firstProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in firstModule, true, JSON.stringify(firstModule));
   assert.equal(firstModule.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(firstProvider.getTelemetrySnapshot().toolInvocations, 2);
@@ -402,7 +437,7 @@ test(".NET reflection provider broker reuses module cache across provider instan
     providerBroker: broker,
     telemetry: secondTelemetry,
   });
-  const secondModule = secondProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const secondModule = getCompleteDotnetModule(secondProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in secondModule, true, JSON.stringify(secondModule));
   assert.deepEqual(secondModule.exports.map((declaration) => declaration.sourceName), firstModule.exports.map((declaration) => declaration.sourceName));
 
@@ -426,14 +461,17 @@ test(".NET reflection provider records metadata target-binding lookups as sliced
   assert.equal(binding.id.endsWith("::System.Convert"), true);
 
   const snapshot = provider.getTelemetrySnapshot();
-  assert.equal(snapshot.toolInvocations, 1);
+  assert.equal(snapshot.toolInvocations, 2);
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests, 1);
+  assert.equal(snapshot.moduleSlicedRequests, 2);
   assert.equal(snapshot.moduleRequestedExports, 0);
   assert.equal(snapshot.moduleRequestedTargetIds, 0);
-  assert.equal(snapshot.moduleRequestedMetadataNames, 1);
+  assert.equal(snapshot.moduleRequestedMetadataNames, 2);
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests, 2);
+  assert.equal(snapshot.moduleMaterializedExports, 1);
   assert.equal(snapshot.requestsByKind.targetBindingByMetadataName, 1);
-  assert.equal(snapshot.requestsByKind.module, 1);
+  assert.equal(snapshot.requestsByKind.module, 2);
 });
 
 test(".NET reflection declaration slices avoid broad unrelated namespace surfaces", () => {
@@ -443,40 +481,32 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
     telemetry,
   });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const requestContext = { requestedExports: ["Convert"] };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  const headerModel = bindingProvider.getDeclarationModel(
+    resolution,
+    incrementalProviderDeclarationRequest(requestContext),
+  );
+  assert.equal("exports" in headerModel, true, JSON.stringify(headerModel));
+  const convertHeader = headerModel.exports.find((declaration) => declaration.name === "Convert");
+  assert.ok(convertHeader);
+  const declarationModel = bindingProvider.getDeclarationModel(
+    resolution,
+    incrementalProviderDeclarationRequest(requestContext, [{
+      exportName: "Convert",
+      exportId: convertHeader.id,
+    }]),
+  );
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
     "Convert",
-    "Range",
-    "SpanSplitEnumerator",
-    "TryWriteInterpolatedStringHandler",
     "Base64FormattingOptions",
-    "DateOnly",
     "DateTime",
-    "DateTimeKind",
-    "DateTimeOffset",
-    "DayOfWeek",
-    "Guid",
-    "IComparable",
-    "IComparable_1",
-    "IEquatable",
     "IFormatProvider",
-    "Index",
-    "ModuleHandle",
     "ReadOnlySpan",
-    "ReadOnlySpan_Enumerator",
-    "RuntimeFieldHandle",
-    "RuntimeMethodHandle",
-    "RuntimeTypeHandle",
     "Span",
-    "Span_Enumerator",
-    "StringComparison",
-    "StringSplitOptions",
-    "TimeOnly",
-    "TimeSpan",
     "Type",
     "TypeCode",
   ]);
@@ -497,11 +527,14 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
 
   const snapshot = provider.getTelemetrySnapshot();
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests, 4);
-  assert.equal(snapshot.moduleRequestedExports, 8);
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests, snapshot.moduleSlicedRequests);
+  assert.equal(snapshot.moduleMaterializedExports, 2);
+  assert.equal(snapshot.moduleSlicedRequests, 3);
+  assert.equal(snapshot.moduleRequestedExports, 3);
 });
 
-test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
+test(".NET reflection provider tool materializes only the exact target-binding export", () => {
   const telemetry = createDotnetProviderTelemetry();
   const runner = createDotnetProviderToolRunner({
     toolProjectPath: resolve("tools/dotnet-type-provider/DotnetTypeProvider.csproj"),
@@ -518,101 +551,8 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   ]);
   assert.equal(byMetadata.status, 0, byMetadata.stderr);
   const metadataModel = JSON.parse(byMetadata.stdout);
-  const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
-  assert.deepEqual(metadataSourceNames, [
-    "Convert",
-    "ArraySegment",
-    "ArraySegment_Enumerator",
-    "AsyncCallback",
-    "Base64FormattingOptions",
-    "Boolean",
-    "Byte",
-    "Char",
-    "CharEnumerator",
-    "DateOnly",
-    "DateTime",
-    "DateTimeKind",
-    "DateTimeOffset",
-    "DayOfWeek",
-    "Decimal",
-    "Delegate",
-    "InvocationListEnumerator",
-    "Double",
-    "Enum",
-    "Func_1",
-    "Func_10",
-    "Func_11",
-    "Func_12",
-    "Func_13",
-    "Func_14",
-    "Func_15",
-    "Func_16",
-    "Func_17",
-    "Func_2",
-    "Func_3",
-    "Func_4",
-    "Func_5",
-    "Func_6",
-    "Func_7",
-    "Func_8",
-    "Func_9",
-    "Guid",
-    "Half",
-    "IAsyncResult",
-    "ICloneable",
-    "IComparable",
-    "IComparable_1",
-    "IConvertible",
-    "IDisposable",
-    "IEquatable",
-    "IFormatProvider",
-    "IFormattable",
-    "IParsable",
-    "ISpanFormattable",
-    "ISpanParsable",
-    "IUtf8SpanFormattable",
-    "IUtf8SpanParsable",
-    "Int128",
-    "Int16",
-    "Int32",
-    "Int64",
-    "IntPtr",
-    "MidpointRounding",
-    "ModuleHandle",
-    "MulticastDelegate",
-    "Object",
-    "ReadOnlySpan",
-    "ReadOnlySpan_Enumerator",
-    "RuntimeFieldHandle",
-    "RuntimeMethodHandle",
-    "RuntimeTypeHandle",
-    "SByte",
-    "Single",
-    "Span",
-    "Span_Enumerator",
-    "String",
-    "StringComparison",
-    "StringSplitOptions",
-    "TimeOnly",
-    "TimeSpan",
-    "Type",
-    "TypeCode",
-    "UInt128",
-    "UInt16",
-    "UInt32",
-    "UInt64",
-    "UIntPtr",
-    "ValueTuple",
-    "ValueTuple_1",
-    "ValueTuple_2",
-    "ValueTuple_3",
-    "ValueTuple_4",
-    "ValueTuple_5",
-    "ValueTuple_6",
-    "ValueTuple_7",
-    "ValueTuple_8",
-    "ValueType",
-  ]);
+  assert.deepEqual(metadataModel.exports.map((declaration) => declaration.sourceName), ["Convert"]);
+  assert.equal(metadataModel.exports[0].members, undefined);
   assert.equal(metadataModel.targetOnlyTypes, undefined);
   assert.equal(metadataModel.unsupportedExports, undefined);
 
@@ -625,6 +565,8 @@ test(".NET reflection provider tool filters target-binding lookups without broad
     "@tsonic/dotnet/System.js",
     "--target-id",
     targetId,
+    "--complete-export-id",
+    targetId,
   ]);
   assert.equal(byTargetId.status, 0, byTargetId.stderr);
   const targetIdModel = JSON.parse(byTargetId.stdout);
@@ -632,6 +574,14 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   assert.equal(targetIdExports.includes(targetId), true);
   assert.equal(targetIdModel.exports.map((declaration) => declaration.sourceName).includes("Environment"), false);
   assert.equal(targetIdModel.targetOnlyTypes, undefined);
+  const completed = targetIdModel.exports.find((declaration) => declaration.targetId === targetId);
+  assert.equal((completed.members?.length ?? 0) > 0, true);
+  assert.deepEqual(
+    targetIdModel.exports
+      .filter((declaration) => (declaration.members?.length ?? 0) > 0)
+      .map((declaration) => declaration.sourceName),
+    ["Convert", "Object"],
+  );
 
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.toolInvocations, 2);

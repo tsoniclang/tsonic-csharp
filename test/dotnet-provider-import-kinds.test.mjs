@@ -2,6 +2,7 @@ import {
   assert,
   createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
+  incrementalProviderDeclarationRequest,
   namedDotnetTypeRef,
   test,
   testTargetId,
@@ -37,14 +38,15 @@ test(".NET provider preserves exact synthetic export slices used by provider her
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", {
+  const context = {
     importSlice: {
       moduleSpecifier: "@tsonic/dotnet/Acme.js",
       kind: "synthetic",
       requestedExports: [{ exportedName: "Base", kind: "value" }],
       typeOnly: false,
     },
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", context);
   assert.deepEqual(resolution, {
     kind: "virtual",
     moduleSpecifier: "@tsonic/dotnet/Acme.js",
@@ -53,7 +55,10 @@ test(".NET provider preserves exact synthetic export slices used by provider her
     packageName: "@tsonic/dotnet",
     evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
   });
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    incrementalProviderDeclarationRequest(context),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Base"]);
   assert.deepEqual(observedContexts.map(({ phase, context }) => ({
@@ -66,7 +71,7 @@ test(".NET provider preserves exact synthetic export slices used by provider her
   ]);
 });
 
-test(".NET provider rejects overlapping declaration transactions instead of replacing requested slices", () => {
+test(".NET provider resolves interleaved declaration requests from each exact request context", () => {
   const provider = {
     identity: {
       id: "acme.dotnet.transactional-slices",
@@ -93,7 +98,7 @@ test(".NET provider rejects overlapping declaration transactions instead of repl
     },
   };
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const request = (exportedName) => bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", {
+  const context = (exportedName) => ({
     importSlice: {
       moduleSpecifier: "@tsonic/dotnet/Acme.js",
       kind: "named",
@@ -101,17 +106,23 @@ test(".NET provider rejects overlapping declaration transactions instead of repl
     },
   });
 
-  const first = request("First");
+  const firstContext = context("First");
+  const secondContext = context("Second");
+  const first = bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", firstContext);
   assert.equal(first.kind, "virtual");
-  const overlap = request("Second");
-  assert.equal(overlap.extensionCode, "DOTNET_PROVIDER_RESOLUTION_OVERLAP");
-
-  const firstModel = bindingProvider.getDeclarationModel(first);
-  assert.deepEqual(firstModel.exports.map((declaration) => declaration.name), ["First"]);
-  const second = request("Second");
+  const second = bindingProvider.resolveModule("@tsonic/dotnet/Acme.js", secondContext);
   assert.equal(second.kind, "virtual");
-  const secondModel = bindingProvider.getDeclarationModel(second);
+  const secondModel = bindingProvider.getDeclarationModel(
+    second,
+    incrementalProviderDeclarationRequest(secondContext),
+  );
+  const firstModel = bindingProvider.getDeclarationModel(
+    first,
+    incrementalProviderDeclarationRequest(firstContext),
+  );
+
   assert.deepEqual(secondModel.exports.map((declaration) => declaration.name), ["Second"]);
+  assert.deepEqual(firstModel.exports.map((declaration) => declaration.name), ["First"]);
 });
 
 test(".NET provider imports external class heritage as values without widening type-only refs", () => {

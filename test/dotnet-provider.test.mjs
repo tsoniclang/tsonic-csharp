@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -62,20 +64,23 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
     elementType: { kind: "source-primitive", name: "int32" },
   });
 
-  const module = augmentDotnetModuleWithNativeArray({
-    moduleSpecifier: "@tsonic/dotnet/System.js",
-    namespaceName: "System",
-    exports: [
-      {
-        kind: "type",
-        typeKind: "class",
-        sourceName: "Array",
-        namespaceName: "System",
-        targetId: testTargetId("System.Array"),
-        metadataName: "System.Array",
-      },
-    ],
-  });
+  const module = augmentDotnetModuleWithNativeArray(
+    {
+      moduleSpecifier: "@tsonic/dotnet/System.js",
+      namespaceName: "System",
+      exports: [
+        {
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Array",
+          namespaceName: "System",
+          targetId: testTargetId("System.Array"),
+          metadataName: "System.Array",
+        },
+      ],
+    },
+    completeDotnetProviderContext({ requestedExports: ["Array"] }),
+  );
   const nativeArray = module.exports.find((declaration) =>
     declaration.kind === "type" && declaration.sourceName === "Array"
   );
@@ -125,7 +130,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
 });
 test(".NET reflection provider returns requested export declaration closures instead of whole namespaces", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
@@ -241,10 +246,10 @@ test(".NET reflection provider returns requested export declaration closures ins
 });
 test(".NET provider preserves exact CLR source-visible member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {
     requestedExports: ["Console", "Environment", "DateTime", "SpecialFolder"],
   });
-  const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
+  const collectionsModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Collections.Generic.js", {
     requestedExports: ["List"],
   });
   assert.equal("exports" in systemModule, true, JSON.stringify(systemModule));
@@ -279,7 +284,7 @@ test(".NET provider preserves exact CLR source-visible member names", () => {
 
 test(".NET reflection provider exposes CLR arity variants as source-visible type families", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Threading.Tasks.js", {
     requestedExports: ["Task"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -403,7 +408,7 @@ test(".NET reflection provider exposes CLR arity variants as source-visible type
 
 test(".NET reflection provider includes full type-family variants for same-module closure refs", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Threading.Tasks.js", {
     requestedExports: ["Parallel"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -451,7 +456,7 @@ test(".NET reflection provider includes full type-family variants for same-modul
 
 test(".NET reflection provider exposes members on source-visible method return closure types", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.IO.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.IO.js", {
     requestedExports: ["File"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -478,7 +483,7 @@ test(".NET reflection provider exposes members on source-visible method return c
 
 test(".NET reflection provider exposes members on source-visible returned closure types", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.Net.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Net.js", {
     requestedExports: ["HttpListener"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -496,11 +501,14 @@ test(".NET reflection provider exposes members on source-visible returned closur
 });
 test(".NET target bindings preserve inherited source signature identity for overridden methods", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const binding = provider.findTargetBindingByMetadataName("System.IO.StreamReader");
+  assert.ok(binding);
   const relations = provider.resolveTargetRelations({
     moduleSpecifier: "@tsonic/dotnet/System.IO.js",
     providerModuleId: "@tsonic/dotnet/System.IO.js",
     artifactFileName: "tsts-provider://test/System.IO.StreamReader.d.ts",
     exportName: "StreamReader",
+    exportId: binding.id,
   });
   assert.equal(
     Array.isArray(relations),
@@ -531,7 +539,7 @@ test(".NET target bindings preserve inherited source signature identity for over
 });
 test(".NET reflection provider exposes conflicted nested closure types through stable provider-owned source names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Collections.Generic.js", {
     requestedExports: ["Dictionary"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -574,12 +582,16 @@ test(".NET reflection provider exposes conflicted nested closure types through s
 test(".NET provider virtual declaration slices retain same-module provider-ref closure exports", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Collections.Generic.js", {
+  const requestContext = {
     requestedExports: ["Dictionary", "List"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Collections.Generic.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   const exportNames = model.exports.map((declaration) => declaration.name);
   assert.deepEqual(exportNames, [
@@ -606,7 +618,7 @@ test(".NET provider virtual declaration slices retain same-module provider-ref c
 });
 test(".NET reflection provider exposes method generic parameters without confusing them for declaring type parameters", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.Text.Json.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Text.Json.js", {
     requestedExports: ["JsonSerializer"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -645,7 +657,7 @@ test(".NET reflection provider reloads requested export slices from persistent c
     cacheRoot,
     telemetry: populateTelemetry,
   });
-  const populated = populateProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const populated = getCompleteDotnetModule(populateProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in populated, true, JSON.stringify(populated));
 
   const cachedTelemetry = createDotnetProviderTelemetry();
@@ -653,7 +665,7 @@ test(".NET reflection provider reloads requested export slices from persistent c
     cacheRoot,
     telemetry: cachedTelemetry,
   });
-  const cached = cachedProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const cached = getCompleteDotnetModule(cachedProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in cached, true, JSON.stringify(cached));
 
   const snapshot = cachedProvider.getTelemetrySnapshot();
@@ -675,16 +687,16 @@ test(".NET reflection provider keeps requested-export memory slices isolated fro
     disablePersistentCache: true,
     telemetry,
   });
-  const sliced = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const sliced = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in sliced, true, JSON.stringify(sliced));
   assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Console"), false);
 
-  const broad = provider.getModule("@tsonic/dotnet/System.js", {});
+  const broad = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in broad, true, JSON.stringify(broad));
   assert.equal(broad.exports.some((declaration) => declaration.sourceName === "Console"), true);
 
-  const slicedAgain = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  const slicedAgain = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
   assert.equal("exports" in slicedAgain, true, JSON.stringify(slicedAgain));
   assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Console"), false);
@@ -697,10 +709,14 @@ test(".NET reflection provider keeps requested-export memory slices isolated fro
 test(".NET reflection provider target-binding cache preserves member-complete bindings after virtual declaration slicing", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Exception"] });
+  const requestContext = { requestedExports: ["Exception"] };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   const exception = model.exports.find((declaration) => declaration.name === "Exception");
   assert.ok(exception);

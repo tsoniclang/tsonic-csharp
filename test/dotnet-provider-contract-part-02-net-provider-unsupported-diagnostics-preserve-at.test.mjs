@@ -1,5 +1,7 @@
 import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "./dotnet-provider-contract.helpers.mjs";
 
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
+
 test(".NET provider unsupported diagnostics preserve attribute and default-value omission facts", () => {
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
@@ -9,7 +11,7 @@ test(".NET provider unsupported diagnostics preserve attribute and default-value
     ],
   });
 
-  const attributeModule = provider.getModule("@tsonic/dotnet/ProviderAttributeFixtures.js", {});
+  const attributeModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", {});
   assert.equal("exports" in attributeModule, true, JSON.stringify(attributeModule));
   assert.equal(validateDotnetModuleModelContract(attributeModule), undefined);
   const unsupportedAttributeTarget = rawType(attributeModule, "UnsupportedAttributeTarget");
@@ -25,7 +27,7 @@ test(".NET provider unsupported diagnostics preserve attribute and default-value
     attribute.reason === unsupportedAttribute.reason
   ));
 
-  const defaultModule = provider.getModule("@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
+  const defaultModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
   assert.equal("exports" in defaultModule, true, JSON.stringify(defaultModule));
   assert.equal(validateDotnetModuleModelContract(defaultModule), undefined);
   const unsupportedDefaultSource = rawType(defaultModule, "UnsupportedDefaultParameterSource");

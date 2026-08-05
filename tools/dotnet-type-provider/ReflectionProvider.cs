@@ -136,7 +136,8 @@ sealed partial class ReflectionProvider : IDisposable
             .Where(type => UnsupportedSourceExportReason(type) is null)
             .ToArray();
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
-        var closureTypes = SourceClosureTypes(allTypes, exportTypes, sourceExportableTargetIds);
+        var completeSourceTargetIds = CompleteSourceTargetIds(allTypes, sourceExportableTargetIds);
+        var closureTypes = SourceClosureTypes(allTypes, exportTypes, sourceExportableTargetIds, completeSourceTargetIds);
         var unsupportedExports = requestedSourceGroups
             .Where(group => group.AllTypes.Length > 1 && !IsProviderTypeFamilyGroup(group.SourceName, group.AllTypes))
             .Select(group => ToUnsupportedTypeFamilyExport(group.SourceName, group.AllTypes))
@@ -150,16 +151,19 @@ sealed partial class ReflectionProvider : IDisposable
             : allTypes;
         var targetOnlyTypes = targetOnlyCandidates
             .Where(type => !exportTypeNames.Contains(TargetId(type)))
-            .Select(ToTypeExport)
+            .Select(type => ToTypeExport(type, true))
             .Where(export => export is not null)
             .Cast<object>()
             .ToArray();
 
         var exports = exportTypes
-            .Select(ToTypeExport)
+            .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes.Select(ToTypeExport).Where(export => export is not null).Cast<object>())
+            .Concat(closureTypes
+                .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
+                .Where(export => export is not null)
+                .Cast<object>())
             .ToArray();
 
         return new

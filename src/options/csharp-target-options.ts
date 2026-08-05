@@ -101,7 +101,7 @@ export function readCsharpReflectionReferencePaths(
   return rejectDuplicateReflectionReferencePaths([
     ...readCsharpReferences(target)
       .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
-      .map((reference) => reference.hintPath ?? reference.include),
+      .map((reference) => resolveProjectPath(projectDirectory, reference.hintPath ?? reference.include)),
     ...resolveDotnetFrameworkReferenceAssemblies(
       readCsharpReferences(target)
         .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "framework" }> => reference.kind === "framework")
@@ -109,7 +109,7 @@ export function readCsharpReflectionReferencePaths(
       readCsharpTargetFramework(target),
       projectDirectory,
     ),
-    ...readCsharpProviderReferencePaths(target),
+    ...readCsharpProviderReferencePaths(target, projectDirectory),
   ]);
 }
 
@@ -235,7 +235,10 @@ function readAssemblyReferences(raw: Readonly<Record<string, unknown>>): readonl
   });
 }
 
-function readCsharpProviderReferencePaths(target: TargetSelection): readonly string[] {
+function readCsharpProviderReferencePaths(
+  target: TargetSelection,
+  projectDirectory: string,
+): readonly string[] {
   const raw = target.options?.providerReferences;
   if (raw === undefined) {
     return [];
@@ -245,17 +248,19 @@ function readCsharpProviderReferencePaths(target: TargetSelection): readonly str
   }
   rejectUnknownKeys(raw, "providerReferences", ["assemblies", "directories"]);
   return [
-    ...readStringArrayProperty(raw, "assemblies").map((reference) => resolve(reference)),
+    ...readStringArrayProperty(raw, "assemblies").map((reference) =>
+      resolveProjectPath(projectDirectory, reference)
+    ),
     ...readStringArrayProperty(raw, "directories").flatMap((directory, index) =>
-      readProviderReferenceDirectory(directory, `providerReferences.directories[${index}]`)
+      readProviderReferenceDirectory(
+        resolveProjectPath(projectDirectory, directory),
+        `providerReferences.directories[${index}]`,
+      )
     ),
   ];
 }
 
 function readProviderReferenceDirectory(directory: string, path: string): readonly string[] {
-  if (!isAbsolute(directory)) {
-    throw new Error(`C# target option '${path}' must be an absolute directory path.`);
-  }
   if (!existsSync(directory) || !statSync(directory).isDirectory()) {
     throw new Error(`C# target option '${path}' directory does not exist: ${directory}`);
   }
@@ -267,6 +272,10 @@ function readProviderReferenceDirectory(directory: string, path: string): readon
     throw new Error(`C# target option '${path}' directory contains no .NET assemblies: ${directory}`);
   }
   return references;
+}
+
+function resolveProjectPath(projectDirectory: string, path: string): string {
+  return isAbsolute(path) ? resolve(path) : resolve(projectDirectory, path);
 }
 
 function rejectDuplicateReferences(references: readonly CsharpProjectReference[]): readonly CsharpProjectReference[] {

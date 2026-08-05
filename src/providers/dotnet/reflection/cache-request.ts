@@ -1,7 +1,10 @@
 import type {
-  DotnetProviderModuleContext,
+  DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
 } from "../provider.js";
+import type {
+  ProviderDeclarationMaterialization,
+} from "@tsonic/tsts";
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
@@ -43,7 +46,7 @@ export interface DotnetReflectionCacheRequestOptions {
 export interface CreateDotnetReflectionCacheRequestInput {
   readonly specifier: string;
   readonly namespaceName: string;
-  readonly context: DotnetProviderModuleContext;
+  readonly context: DotnetProviderDeclarationContext;
   readonly options: DotnetReflectionCacheRequestOptions;
   readonly toolIdentity: DotnetProviderToolIdentity;
 }
@@ -61,6 +64,7 @@ export function createDotnetReflectionCacheRequest(
     requestedExports: sortedNonEmpty(input.context.requestedExports),
     requestedTargetIds: sortedNonEmpty(input.context.requestedTargetIds),
     requestedMetadataNames: sortedNonEmpty(input.context.requestedMetadataNames),
+    materialization: normalizeProviderMaterialization(input.context.materialization),
     broadImport: input.context.broadImport,
     assemblyName: input.context.assemblyName,
     referenceDirectory: input.options.referenceDirectory,
@@ -72,7 +76,7 @@ export function createDotnetReflectionCacheRequest(
 }
 
 export function validateDotnetReflectionTargetFramework(
-  context: DotnetProviderModuleContext,
+  context: DotnetProviderDeclarationContext,
   options: DotnetReflectionCacheRequestOptions,
 ): DotnetProviderDiagnostic | undefined {
   const targetFramework = context.targetFramework ?? options.targetFramework;
@@ -87,7 +91,7 @@ export function validateDotnetReflectionTargetFramework(
 
 export function pushDotnetReflectionReferenceArgs(
   args: string[],
-  context: DotnetProviderModuleContext,
+  context: DotnetProviderDeclarationContext,
   options: DotnetReflectionCacheRequestOptions,
 ): void {
   if (options.moduleSpecifierPolicy !== undefined) {
@@ -113,4 +117,29 @@ export function moduleMemoryCacheKey(request: DotnetProviderCacheRequest): strin
 
 function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
   return values === undefined || values.length === 0 ? undefined : [...new Set(values)].sort();
+}
+
+function normalizeProviderMaterialization(
+  materialization: ProviderDeclarationMaterialization,
+): ProviderDeclarationMaterialization {
+  if (materialization.kind === "complete") {
+    return Object.freeze({ kind: "complete" });
+  }
+  return Object.freeze({
+    kind: "incremental",
+    completeExports: Object.freeze([...materialization.completeExports]
+      .map((request) => Object.freeze({
+        exportName: request.exportName,
+        ...(request.exportId === undefined ? {} : { exportId: request.exportId }),
+      }))
+      .sort((left, right) => left.exportName < right.exportName
+        ? -1
+        : left.exportName > right.exportName
+          ? 1
+          : (left.exportId ?? "") < (right.exportId ?? "")
+            ? -1
+            : (left.exportId ?? "") > (right.exportId ?? "")
+              ? 1
+              : 0)),
+  });
 }

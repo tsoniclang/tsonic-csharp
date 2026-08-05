@@ -8,7 +8,7 @@ import {
   dotnetTypeRefToTargetTypeRef,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
-import { repoRoot } from "./dotnet-provider.helpers.mjs";
+import { getCompleteDotnetModule, repoRoot } from "./dotnet-provider.helpers.mjs";
 
 const fixtureDirectory = join(repoRoot, "test/fixtures/dotnet-provider/delegate-nullability");
 const reference = buildDotnetFixture({
@@ -21,7 +21,7 @@ const reference = buildDotnetFixture({
 
 test(".NET provider projects closed delegate nullability from the member use site", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
     requestedExports: ["CallbackHost"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -57,7 +57,7 @@ test(".NET provider projects closed delegate nullability from the member use sit
 
 test(".NET provider preserves authored non-null type parameters on open generic delegate declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
     requestedExports: ["HeaderSelector"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -76,7 +76,7 @@ test(".NET provider preserves authored non-null type parameters on open generic 
 
 test(".NET provider distinguishes authored T from T? inside generic delegate use sites", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
     requestedExports: ["GenericCallbackHost"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -103,7 +103,7 @@ test(".NET provider distinguishes authored T from T? inside generic delegate use
 
 test(".NET provider projects Queryable expression-tree parameters from exact delegate type arguments", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {
     requestedExports: ["Queryable"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -130,7 +130,7 @@ test(".NET provider projects Queryable expression-tree parameters from exact del
 
 test(".NET provider separates nullable object inputs from non-null object inputs", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
     requestedExports: ["ObjectInputHost"],
   });
   assert.equal("exports" in module, true, JSON.stringify(module));

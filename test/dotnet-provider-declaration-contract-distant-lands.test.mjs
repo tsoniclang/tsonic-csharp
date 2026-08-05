@@ -9,6 +9,7 @@ import {
 } from "../dist/index.js";
 import { tryDotnetTypeRefToProviderType } from "../dist/providers/dotnet/model.js";
 import { dotnetMembersToProviderMembers } from "../dist/providers/dotnet/declaration-model/members.js";
+import { completeProviderDeclarationRequest } from "./dotnet-provider.helpers.mjs";
 
 const moduleSpecifier = "@tsonic/dotnet/System.js";
 
@@ -44,7 +45,10 @@ function getSystemModel(provider) {
     systemRequestContext(),
   );
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const model = provider.getDeclarationModel(resolution);
+  const model = provider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(systemRequestContext()),
+  );
   assert.equal(Array.isArray(model.exports), true, JSON.stringify(model));
   return model;
 }
@@ -172,7 +176,7 @@ test("concrete properties suppress colliding extension-method projections", () =
     targetFramework: "net10.0",
   });
   const linqModuleSpecifier = "@tsonic/dotnet/System.Linq.js";
-  const resolution = provider.resolveModule(linqModuleSpecifier, {
+  const requestContext = {
     containingFile: "App.ts",
     resolutionMode: "import",
     importSlice: {
@@ -180,9 +184,13 @@ test("concrete properties suppress colliding extension-method projections", () =
       kind: "named",
       requestedExports: [{ exportedName: "ILookup", kind: "type" }],
     },
-  });
+  };
+  const resolution = provider.resolveModule(linqModuleSpecifier, requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const model = provider.getDeclarationModel(resolution);
+  const model = provider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
   const lookup = model.exports.find((declaration) =>
     declaration.name === "ILookup");

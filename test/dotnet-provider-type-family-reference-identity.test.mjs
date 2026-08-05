@@ -8,12 +8,13 @@ import {
   checkCsharpSource,
   compileCsharpSource,
 } from "./helpers/direct-csharp-session.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 test(".NET provider source refs use public type-family exports for every concrete arity", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const modules = [
-    requireModule(provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Int32"] })),
-    requireModule(provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", { requestedExports: ["TaskFactory"] })),
+    requireModule(getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["Int32"] })),
+    requireModule(getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Threading.Tasks.js", { requestedExports: ["TaskFactory"] })),
   ];
 
   const observedPublicFamilies = new Set();

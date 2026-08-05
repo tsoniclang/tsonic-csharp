@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import type {
   ExtensionDiagnostic,
+  ProviderDeclarationMaterialization,
   ProviderDeclarationModel,
 } from "@tsonic/tsts";
 import type {
@@ -28,13 +29,14 @@ import {
   augmentDotnetModuleWithNativeArray,
 } from "../native-array.js";
 import type {
+  DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
-  DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
   DotnetTypeDataProvider,
 } from "../provider.js";
 import {
+  emptyIncrementalDotnetProviderMaterialization,
   resolveDotnetProviderDeclarationProjection,
 } from "../provider.js";
 import {
@@ -126,6 +128,7 @@ export interface DotnetProviderTargetRelationRequest {
   readonly providerModuleId: string;
   readonly artifactFileName: string;
   readonly exportName: string;
+  readonly exportId: string;
 }
 
 export function createDotnetReflectionTypeDataProvider(
@@ -157,7 +160,7 @@ export function createDotnetReflectionTypeDataProvider(
     ? undefined
     : createDotnetProviderCache(options.cacheRoot ?? defaultProviderCacheRoot(), telemetry);
 
-  function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
+  function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
     telemetry.moduleRequest(context);
     const parsed = parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy);
@@ -189,7 +192,7 @@ export function createDotnetReflectionTypeDataProvider(
         telemetry.memoryCacheHit();
         return contractDiagnostic;
       }
-      rememberModule(memoryKey, brokerModule);
+      rememberModule(memoryKey, brokerModule, cacheRequest);
       telemetry.memoryCacheHit();
       return completeSameModuleProviderRefClosure(specifier, effectiveContext, brokerModule);
     }
@@ -210,7 +213,7 @@ export function createDotnetReflectionTypeDataProvider(
 
   function completeSameModuleProviderRefClosure(
     specifier: string,
-    moduleContext: DotnetProviderModuleContext,
+    moduleContext: DotnetProviderDeclarationContext,
     moduleResult: DotnetProviderModuleResult,
   ): DotnetProviderModuleResult {
     if (isDotnetProviderDiagnostic(moduleResult) || moduleContext.broadImport === true || moduleContext.requestedExports === undefined) {
@@ -236,7 +239,7 @@ export function createDotnetReflectionTypeDataProvider(
 
   function loadSingleModule(
     cacheRequest: DotnetProviderCacheRequest,
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
   ): DotnetProviderModuleResult {
     const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, reflectionOptions);
     if (targetFrameworkDiagnostic !== undefined) {
@@ -252,7 +255,7 @@ export function createDotnetReflectionTypeDataProvider(
         cachedDiagnostic === undefined &&
         contractDiagnostic === undefined
       ) {
-        rememberModule(memoryKey, module);
+        rememberModule(memoryKey, module, cacheRequest);
         providerBroker?.writeModule(cacheRequest, module);
         telemetry.modelBytes(JSON.stringify(cached).length);
         return module;
@@ -273,6 +276,17 @@ export function createDotnetReflectionTypeDataProvider(
       }
       for (const metadataName of context.requestedMetadataNames ?? []) {
         args.push("--metadata-name", metadataName);
+      }
+    }
+    if (cacheRequest.materialization.kind === "complete") {
+      args.push("--complete-all-exports");
+    } else {
+      for (const request of cacheRequest.materialization.completeExports) {
+        if (request.exportId === undefined) {
+          args.push("--complete-export", request.exportName);
+        } else {
+          args.push("--complete-export-id", request.exportId);
+        }
       }
     }
     pushDotnetReflectionReferenceArgs(args, context, reflectionOptions);
@@ -302,7 +316,7 @@ export function createDotnetReflectionTypeDataProvider(
         return contractDiagnostic;
       }
       persistentCache?.writeModule(cacheRequest, rawModule);
-      rememberModule(memoryKey, module);
+      rememberModule(memoryKey, module, cacheRequest);
       providerBroker?.writeModule(cacheRequest, module);
       return module;
     } catch (error) {
@@ -319,7 +333,7 @@ export function createDotnetReflectionTypeDataProvider(
   function createCacheRequest(
     specifier: string,
     namespaceName: string,
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
   ): DotnetProviderCacheRequest {
     return createDotnetReflectionCacheRequest({
       specifier,
@@ -339,7 +353,7 @@ export function createDotnetReflectionTypeDataProvider(
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },
-    getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
+    getModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
       return loadModule(specifier, context);
     },
     recordVirtualDeclarationModel(model: ProviderDeclarationModel, elapsedMs: number): void {
@@ -363,7 +377,26 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, { requestedTargetIds: [targetId] });
+      const request = { requestedTargetIds: [targetId] } as const;
+      const header = loadModule(moduleSpecifier, {
+        ...request,
+        materialization: emptyIncrementalDotnetProviderMaterialization,
+      });
+      if (isDotnetProviderDiagnostic(header)) {
+        return undefined;
+      }
+      const headerBinding = targetBindingIndex.getByTargetId(targetId);
+      if (headerBinding !== undefined) {
+        return headerBinding;
+      }
+      const materialization = exactSourceTypeMaterialization(
+        header,
+        (declaration) => declaration.targetId === targetId,
+      );
+      if (materialization === undefined) {
+        return undefined;
+      }
+      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -379,7 +412,26 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, { requestedMetadataNames: [metadataName] });
+      const request = { requestedMetadataNames: [metadataName] } as const;
+      const header = loadModule(moduleSpecifier, {
+        ...request,
+        materialization: emptyIncrementalDotnetProviderMaterialization,
+      });
+      if (isDotnetProviderDiagnostic(header)) {
+        return undefined;
+      }
+      const headerBinding = targetBindingIndex.getUniqueByMetadataName(metadataName);
+      if (headerBinding !== undefined) {
+        return headerBinding;
+      }
+      const materialization = exactSourceTypeMaterialization(
+        header,
+        (declaration) => declaration.metadataName === metadataName,
+      );
+      if (materialization === undefined) {
+        return undefined;
+      }
+      const loaded = loadModule(moduleSpecifier, { ...request, materialization });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -403,6 +455,7 @@ export function createDotnetReflectionTypeDataProvider(
           providerModuleId: request.providerModuleId,
         },
         { requestedExports: [request.exportName] },
+        exactProviderExportMaterialization(request.exportName, request.exportId),
         moduleSpecifierPolicy,
       );
       if ("extensionId" in model) {
@@ -416,9 +469,13 @@ export function createDotnetReflectionTypeDataProvider(
   };
   return typeDataProvider;
 
-  function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
+  function rememberModule(
+    memoryKey: string,
+    module: DotnetModuleModel,
+    request: DotnetProviderCacheRequest,
+  ): void {
     modules.set(memoryKey, module);
-    targetBindingIndex.rememberModule(module);
+    targetBindingIndex.rememberModule(module, request);
   }
 
   function validateLoadedModuleContract(
@@ -436,9 +493,9 @@ export function createDotnetReflectionTypeDataProvider(
   }
 
   function contextWithParsedExternAlias(
-    context: DotnetProviderModuleContext,
+    context: DotnetProviderDeclarationContext,
     externAlias: NonNullable<ReturnType<typeof parseDotnetModuleSpecifier>>["externAlias"],
-  ): DotnetProviderModuleContext | DotnetProviderDiagnostic {
+  ): DotnetProviderDeclarationContext | DotnetProviderDiagnostic {
     if (externAlias === undefined) {
       return context;
     }
@@ -462,8 +519,34 @@ export function createDotnetReflectionTypeDataProvider(
   }
 
   function isProviderContextDiagnostic(
-    value: DotnetProviderModuleContext | DotnetProviderDiagnostic,
+    value: DotnetProviderDeclarationContext | DotnetProviderDiagnostic,
   ): value is DotnetProviderDiagnostic {
     return "code" in value && "message" in value;
   }
+}
+
+function exactSourceTypeMaterialization(
+  module: DotnetModuleModel,
+  matches: (declaration: Extract<DotnetModuleModel["exports"][number], { readonly kind: "type" }>) => boolean,
+): ProviderDeclarationMaterialization | undefined {
+  const declarations = module.exports.filter((declaration): declaration is Extract<
+    DotnetModuleModel["exports"][number],
+    { readonly kind: "type" }
+  > => declaration.kind === "type" && matches(declaration));
+  return declarations.length === 1
+    ? exactProviderExportMaterialization(
+        declarations[0]!.sourceTypeFamily?.exportName ?? declarations[0]!.sourceName,
+        declarations[0]!.targetId,
+      )
+    : undefined;
+}
+
+function exactProviderExportMaterialization(
+  exportName: string,
+  exportId: string,
+): ProviderDeclarationMaterialization {
+  return Object.freeze({
+    kind: "incremental",
+    completeExports: Object.freeze([Object.freeze({ exportName, exportId })]),
+  });
 }

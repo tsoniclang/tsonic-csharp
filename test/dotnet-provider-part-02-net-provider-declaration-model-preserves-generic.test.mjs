@@ -1,5 +1,7 @@
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
 
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
+
 test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
   const baseType = {
@@ -340,7 +342,7 @@ test(".NET target binding uses provider-owned target member names", () => {
 test(".NET reflection provider records attribute facts as target data without source-visible fake semantics", () => {
   const reference = buildAttributeFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = provider.getModule("@tsonic/dotnet/ProviderAttributeFixtures.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", {});
   assert.equal("exports" in module, true);
 
   const rawTarget = module.exports.find((declaration) => declaration.sourceName === "AttributeTarget");
@@ -446,7 +448,7 @@ test(".NET reflection provider records attribute facts as target data without so
 });
 test(".NET target bindings preserve provider-proven extension-method receiver passing", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {});
   assert.equal("exports" in module, true);
 
   const enumerable = module.exports.find((declaration) => declaration.sourceName === "Enumerable");
@@ -470,7 +472,7 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
 });
 test(".NET provider source declarations keep extension-method signature identities for explicit calls", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in module, true);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
@@ -507,7 +509,7 @@ test(".NET provider source declarations keep extension-method signature identiti
 });
 test(".NET provider projects extension methods onto proven source receivers without changing target identity", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["String"] });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["String"] });
   assert.equal("exports" in module, true);
 
   const rawString = module.exports.find((declaration) => declaration.sourceName === "String");
@@ -525,7 +527,7 @@ test(".NET provider projects extension methods onto proven source receivers with
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module, {
     resolveModule(specifier, requestedExports) {
-      const resolved = provider.getModule(specifier, { requestedExports });
+      const resolved = getCompleteDotnetModule(provider, specifier, { requestedExports });
       return "exports" in resolved ? resolved : undefined;
     },
   });
@@ -549,7 +551,7 @@ test(".NET provider projects extension methods onto proven source receivers with
 });
 test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.IO.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.IO.js", {});
   assert.equal("exports" in module, true);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
@@ -573,7 +575,7 @@ test(".NET provider declaration model orders source-exact overloads before provi
 });
 test(".NET provider models LINQ ExtensionMethods receiver metadata from target facts", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {});
   assert.equal("exports" in module, true);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);

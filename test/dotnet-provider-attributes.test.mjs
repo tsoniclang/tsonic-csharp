@@ -8,13 +8,14 @@ import {
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const attributeModuleSpecifier = "@tsonic/dotnet/ProviderAttributeFixtures.js";
 
 test(".NET reflection provider records target attributes on types, members, parameters, and returns", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
-  const module = provider.getModule(attributeModuleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, attributeModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const target = getDeclaration(module, "ProviderAttributeFixtures.AttributeTarget");
@@ -49,7 +50,7 @@ test(".NET reflection provider records target attributes on types, members, para
 
 test(".NET target binding facts preserve reflected attributes without exposing attributes as source members", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
-  const module = provider.getModule(attributeModuleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, attributeModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const target = getDeclaration(module, "ProviderAttributeFixtures.AttributeTarget");
@@ -75,7 +76,7 @@ test(".NET target binding facts preserve reflected attributes without exposing a
 
 test(".NET reflection provider records unsupported attribute values instead of dropping them", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
-  const module = provider.getModule(attributeModuleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, attributeModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const unsupportedTarget = getDeclaration(module, "ProviderAttributeFixtures.UnsupportedAttributeTarget");
@@ -97,7 +98,7 @@ test(".NET reflection provider records unsupported attribute values instead of d
 
 test(".NET reflection provider proves attribute type bases, constructors, defaults, and allowed targets", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
-  const module = provider.getModule(attributeModuleSpecifier, {});
+  const module = getCompleteDotnetModule(provider, attributeModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const sampleAttribute = getDeclaration(module, "ProviderAttributeFixtures.SampleAttribute");

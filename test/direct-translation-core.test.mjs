@@ -309,7 +309,7 @@ namespace Tsonic.Generated
         public static string edit(string text, Tsonic.CSharp.Js.JSArray<double> values)
         {
             values.push(Tsonic.CSharp.Js.Number.parseInt(text, 10));
-            return Tsonic.CSharp.Js.String.toUpperCase(Tsonic.CSharp.Js.String.trim(text)) + values.join(",");
+            return Tsonic.CSharp.Js.String.toUpperCase(Tsonic.CSharp.Js.String.trim(text)) + Tsonic.CSharp.Js.Array.join(values, ",");
         }
     }
 }
@@ -473,10 +473,10 @@ namespace Tsonic.Generated
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Object.keys(new __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
+            return Tsonic.CSharp.Js.Array.join(Tsonic.CSharp.Js.Object.keys(new __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
             {
                 text = text,
-            }).join(",");
+            }), ",");
         }
     }
 }

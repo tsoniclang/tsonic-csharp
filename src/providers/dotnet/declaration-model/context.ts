@@ -1,5 +1,6 @@
 import type {
   ProviderMemberDeclaration,
+  ProviderDeclarationMaterialization,
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type {
@@ -10,7 +11,11 @@ import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
-  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
+  readonly resolveModule?: (
+    specifier: string,
+    requestedExports: readonly string[],
+    materialization: ProviderDeclarationMaterialization,
+  ) => DotnetModuleModel | undefined;
 }
 
 export interface DotnetDeclarationContext {
@@ -18,8 +23,7 @@ export interface DotnetDeclarationContext {
   readonly sourceModuleSpecifier: string;
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
-  readonly modulesBySpecifier: Map<string, DotnetModuleModel[]>;
-  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
+  readonly resolveModule?: DotnetProviderDeclarationModelOptions["resolveModule"];
 }
 
 export function createDotnetDeclarationContext(
@@ -33,7 +37,6 @@ export function createDotnetDeclarationContext(
       .filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type")
       .map((declaration) => [declaration.sourceName, declaration])),
     sourceMembersByTargetId: new Map(),
-    modulesBySpecifier: new Map([[module.moduleSpecifier, [module]]]),
     ...(options.resolveModule !== undefined ? { resolveModule: options.resolveModule } : {}),
   };
 }
@@ -41,76 +44,57 @@ export function createDotnetDeclarationContext(
 export function dotnetProviderRefToTypeDeclaration(
   baseType: Extract<ProviderTypeExpression, { readonly kind: "provider-ref" }>,
   context: DotnetDeclarationContext,
+  exportId?: string,
 ): DotnetTypeDeclaration | undefined {
   if (baseType.moduleSpecifier === context.moduleSpecifier) {
     return selectDotnetTypeDeclarationForProviderRef(
       [...context.typesBySourceName.values()],
       baseType,
+      exportId,
     );
   }
-  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.exportName]);
-  if (module === undefined) {
+  const resolved = context.resolveModule?.(
+    baseType.moduleSpecifier,
+    [baseType.exportName],
+    exactDotnetProviderRefMaterialization(baseType.exportName, exportId),
+  );
+  if (resolved === undefined) {
     return undefined;
   }
+  const module = qualifyDotnetModuleProviderRefs(resolved);
   return selectDotnetTypeDeclarationForProviderRef(
     module.exports.filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type"),
     baseType,
+    exportId,
   );
 }
 
 function selectDotnetTypeDeclarationForProviderRef(
   declarations: readonly DotnetTypeDeclaration[],
   providerRef: Extract<ProviderTypeExpression, { readonly kind: "provider-ref" }>,
+  exportId?: string,
 ): DotnetTypeDeclaration | undefined {
   const typeArgumentCount = providerRef.typeArguments?.length ?? 0;
-  return declarations.find((declaration) =>
-    declaration.sourceName === providerRef.exportName &&
-    declaration.sourceTypeFamily === undefined
-  ) ?? declarations.find((declaration) =>
-    declaration.sourceTypeFamily?.exportName === providerRef.exportName &&
-    declaration.sourceTypeFamily.typeArgumentCount === typeArgumentCount
+  const matches = declarations.filter((declaration) =>
+    (declaration.sourceName === providerRef.exportName && declaration.sourceTypeFamily === undefined) ||
+    (declaration.sourceTypeFamily?.exportName === providerRef.exportName &&
+      declaration.sourceTypeFamily.typeArgumentCount === typeArgumentCount)
   );
+  return exportId === undefined
+    ? matches[0]
+    : matches.find((declaration) => declaration.targetId === exportId);
 }
 
-export function getDotnetModuleBySpecifier(
-  moduleSpecifier: string,
-  context: DotnetDeclarationContext,
-  requestedExports: readonly string[],
-): DotnetModuleModel | undefined {
-  const existing = context.modulesBySpecifier.get(moduleSpecifier)
-    ?.find((module) => dotnetModuleIncludesRequestedExports(module, requestedExports));
-  if (existing !== undefined) {
-    return existing;
-  }
-  const resolved = context.resolveModule?.(moduleSpecifier, requestedExports);
-  if (resolved !== undefined) {
-    const qualified = qualifyDotnetModuleProviderRefs(resolved);
-    const modules = context.modulesBySpecifier.get(moduleSpecifier);
-    if (modules === undefined) {
-      context.modulesBySpecifier.set(moduleSpecifier, [qualified]);
-    } else {
-      modules.push(qualified);
-    }
-    return qualified;
-  }
-  return undefined;
-}
-
-export function dotnetModuleExportsSourceName(
-  moduleSpecifier: string,
-  sourceName: string,
-  context: DotnetDeclarationContext,
-): boolean {
-  const module = getDotnetModuleBySpecifier(moduleSpecifier, context, [sourceName]);
-  return module?.exports.some((declaration) =>
-    declaration.kind === "type" && declaration.sourceName === sourceName
-  ) === true;
-}
-
-function dotnetModuleIncludesRequestedExports(module: DotnetModuleModel, requestedExports: readonly string[]): boolean {
-  if (requestedExports.length === 0) {
-    return true;
-  }
-  const sourceNames = new Set(module.exports.map((declaration) => declaration.sourceName));
-  return requestedExports.every((sourceName) => sourceNames.has(sourceName));
+function exactDotnetProviderRefMaterialization(
+  exportName: string,
+  exportId: string | undefined,
+): ProviderDeclarationMaterialization {
+  const completeExport = Object.freeze({
+    exportName,
+    ...(exportId === undefined ? {} : { exportId }),
+  });
+  return Object.freeze({
+    kind: "incremental",
+    completeExports: Object.freeze([completeExport]),
+  });
 }

@@ -95,7 +95,11 @@ function inheritedSourceMembers(
   if (baseType?.kind !== "provider-ref") {
     return { membersByKey, concreteMethodsByKey };
   }
-  const baseDeclaration = dotnetProviderRefToTypeDeclaration(baseType, context);
+  const baseDeclaration = dotnetProviderRefToTypeDeclaration(
+    baseType,
+    context,
+    declaration.baseType?.kind === "named" ? declaration.baseType.targetId : undefined,
+  );
   if (baseDeclaration === undefined) {
     return { membersByKey, concreteMethodsByKey };
   }

@@ -1,4 +1,6 @@
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+
+import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
 
 test(".NET target binding provider preserves requested-export slices through declaration model loading", () => {
   const identity = {
@@ -32,9 +34,10 @@ test(".NET target binding provider preserves requested-export slices through dec
     },
   });
 
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+  const requestContext = {
     requestedExports: ["Convert"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual");
   assert.equal("requestedExports" in resolution, false);
   assert.equal("broadImport" in resolution, false);
@@ -43,13 +46,17 @@ test(".NET target binding provider preserves requested-export slices through dec
     /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\.d\.ts$/u,
   );
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   assert.deepEqual(observedContexts, [{
     specifier: "@tsonic/dotnet/System.js",
     context: {
       containingFile: resolution.virtualFileName,
       requestedExports: ["Convert"],
+      materialization: { kind: "complete" },
     },
   }]);
   assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Convert"]);
@@ -57,13 +64,17 @@ test(".NET target binding provider preserves requested-export slices through dec
 test(".NET target binding provider expands requested slices for same-module provider refs emitted by source-shape conversion", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+  const requestContext = {
     containingFile: "same-module-provider-ref-closure.ts",
     requestedExports: ["Console", "String"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   const exportNames = new Set(model.exports.flatMap((declaration) => [
     declaration.name,
@@ -82,13 +93,17 @@ test(".NET target binding provider expands requested slices for same-module prov
 test(".NET provider source declarations preserve inherited overload signatures on derived members", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.IO.js", {
+  const requestContext = {
     containingFile: "inherited-overload-closure.ts",
     requestedExports: ["FileStream"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.IO.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
   const fileStream = model.exports.find((declaration) => declaration.name === "FileStream");
   assert.ok(fileStream);
@@ -127,7 +142,7 @@ test(".NET reflection provider proves collection constructor array-literal eleme
 test(".NET reflection provider preserves exact constructor facts and unsupported constructor evidence", () => {
   const reference = buildConstructorFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = provider.getModule("@tsonic/dotnet/ProviderConstructorFixtures.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", {});
   assert.equal("exports" in module, true);
 
   const rawTarget = module.exports.find((declaration) => declaration.sourceName === "ConstructorTarget");
@@ -187,6 +202,7 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
     providerModuleId: "@tsonic/dotnet/ProviderConstructorFixtures.js",
     artifactFileName: "tsts-provider://test/ProviderConstructorFixtures.ConstructorTarget.d.ts",
     exportName: "ConstructorTarget",
+    exportId: rawTarget.targetId,
   });
   assert.equal(
     Array.isArray(constructorRelations),
@@ -251,7 +267,7 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
 });
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
   const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" });
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
   assert.match(module.message, /target framework is not supported/);
@@ -262,7 +278,7 @@ test(".NET reflection provider rejects missing explicit references instead of si
   const provider = createDotnetReflectionTypeDataProvider({
     references: ["missing-reference-for-provider-test.dll"],
   });
-  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
 
   assert.equal(module.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
   assert.match(JSON.stringify(module.evidence), /missing-reference-for-provider-test\.dll/);
@@ -290,7 +306,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   assert.equal(specialFolder.kind, "enum");
   assert.equal(requireDotnetMember(specialFolder, "field", "Desktop").static, true);
 
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
   assert.ok(systemModule.exports.some((declaration) =>
     declaration.sourceName === "SpecialFolder" &&
@@ -299,7 +315,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
 });
 test(".NET reflection provider records events as target facts and omits source declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const module = provider.getModule("@tsonic/dotnet/System.Diagnostics.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Diagnostics.js", {});
   assert.equal("exports" in module, true);
 
   const rawProcess = module.exports.find((declaration) => declaration.sourceName === "Process");
@@ -341,7 +357,7 @@ test(".NET reflection provider records events as target facts and omits source d
 test(".NET reflection provider records unsupported source events without dropping target facts", () => {
   const reference = buildUnsupportedEventFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = provider.getModule("@tsonic/dotnet/ProviderEventFixtures.js", {});
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderEventFixtures.js", {});
   assert.equal("exports" in module, true);
 
   const rawEventSource = module.exports.find((declaration) => declaration.sourceName === "EventSource");
@@ -382,7 +398,7 @@ test(".NET reflection provider records unsupported source events without droppin
 test(".NET reflection provider exposes readable source properties with readonly facts", () => {
   const provider = createDotnetReflectionTypeDataProvider();
 
-  const textModule = provider.getModule("@tsonic/dotnet/System.Text.js", {});
+  const textModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Text.js", {});
   assert.equal("exports" in textModule, true);
   const rawStringBuilder = textModule.exports.find((declaration) => declaration.sourceName === "StringBuilder");
   assert.ok(rawStringBuilder);
@@ -408,7 +424,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
   assert.ok(sourceLength);
   assert.equal(sourceLength.readonly, undefined);
 
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
   const rawConsole = systemModule.exports.find((declaration) => declaration.sourceName === "Console");
   assert.ok(rawConsole);
@@ -435,7 +451,7 @@ test(".NET reflection provider exposes readable source properties with readonly 
 });
 test(".NET reflection provider exposes readable fields with readonly facts", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
 
   const rawDateTime = systemModule.exports.find((declaration) => declaration.sourceName === "DateTime");
@@ -459,7 +475,7 @@ test(".NET reflection provider exposes readable fields with readonly facts", () 
 });
 test(".NET provider declaration model preserves static and instance CLR member identities with the same source name", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
-  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["DateTime", "DateTimeOffset"] });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", { requestedExports: ["DateTime", "DateTimeOffset"] });
   assert.equal("exports" in module, true, JSON.stringify(module));
 
   const model = dotnetModuleToProviderDeclarationModel(module);
@@ -482,7 +498,7 @@ test(".NET provider declaration model preserves static and instance CLR member i
 });
 test(".NET reflection provider exposes unique nested CLR types as source declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
 
   const rawEnvironment = systemModule.exports.find((declaration) => declaration.sourceName === "Environment");
@@ -503,7 +519,7 @@ test(".NET reflection provider exposes unique nested CLR types as source declara
 });
 test(".NET reflection provider target identities preserve nested CLR separators instead of collapsing with namespace names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  const systemModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
 
   const specialFolder = systemModule.exports.find((declaration) =>
@@ -520,7 +536,7 @@ test(".NET reflection provider target identities preserve nested CLR separators 
 });
 test(".NET reflection provider preserves cross-namespace source-visible provider refs", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const ioModule = provider.getModule("@tsonic/dotnet/System.IO.js", {});
+  const ioModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.IO.js", {});
   assert.equal("exports" in ioModule, true);
 
   const binaryReader = ioModule.exports.find((declaration) => declaration.sourceName === "BinaryReader");
@@ -576,7 +592,7 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
     },
   }]);
 
-  const tasksModule = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {});
+  const tasksModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Threading.Tasks.js", {});
   assert.equal("exports" in tasksModule, true);
   const rawTaskCanceled = tasksModule.exports.find((declaration) => declaration.sourceName === "TaskCanceledException");
   assert.ok(rawTaskCanceled);
@@ -613,12 +629,16 @@ test(".NET target binding provider fully qualifies every TSTS provider-ref in re
   ];
 
   for (const [moduleSpecifier, requestedExports] of requests) {
-    const resolution = bindingProvider.resolveModule(moduleSpecifier, {
+    const requestContext = {
       containingFile: "provider-ref-regression.ts",
       requestedExports,
-    });
+    };
+    const resolution = bindingProvider.resolveModule(moduleSpecifier, requestContext);
     assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-    const model = bindingProvider.getDeclarationModel(resolution);
+    const model = bindingProvider.getDeclarationModel(
+      resolution,
+      completeProviderDeclarationRequest(requestContext),
+    );
     assert.equal("exports" in model, true, JSON.stringify(model));
     assertProviderDeclarationRefsFullyQualified(model);
   }
@@ -626,12 +646,16 @@ test(".NET target binding provider fully qualifies every TSTS provider-ref in re
 test(".NET target binding provider qualifies CLSCompliantAttribute base provider-ref for TSTS", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+  const requestContext = {
     containingFile: "cls-compliant-attribute-regression.ts",
     requestedExports: ["CLSCompliantAttribute"],
-  });
+  };
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
-  const model = bindingProvider.getDeclarationModel(resolution);
+  const model = bindingProvider.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
   assert.equal("exports" in model, true, JSON.stringify(model));
 
   const clsCompliantAttribute = model.exports.find((declaration) => declaration.name === "CLSCompliantAttribute");
@@ -648,12 +672,12 @@ test(".NET target binding provider qualifies CLSCompliantAttribute base provider
 });
 test(".NET provider source declarations preserve cross-module inherited overloads through heritage", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});
+  const reflectionModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Reflection.js", {});
   assert.equal("exports" in reflectionModule, true);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(reflectionModule, {
     resolveModule(specifier) {
-      const module = provider.getModule(specifier, {});
+      const module = getCompleteDotnetModule(provider, specifier, {});
       return "exports" in module ? module : undefined;
     },
   });
@@ -694,7 +718,7 @@ test(".NET provider source declarations preserve cross-module inherited overload
 });
 test(".NET provider keeps target generic constraints out of source virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
-  const buffersModule = provider.getModule("@tsonic/dotnet/System.Buffers.js", {});
+  const buffersModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Buffers.js", {});
   assert.equal("exports" in buffersModule, true);
 
   const rawSequenceReader = buffersModule.exports.find((declaration) => declaration.sourceName === "SequenceReader");
