@@ -1,4 +1,3 @@
-import { performance } from "node:perf_hooks";
 import type {
   SourceFile,
 } from "@tsonic/tsts";
@@ -73,7 +72,6 @@ export function reconstructCsharpSourceFiles(
     return undefined;
   }
   const diagnosticsByOwner = new Map<string, readonly TargetDiagnostic[]>();
-  const reconstructionStartedAt = performance.now();
   const reconstruction = reconstructTargetArtifacts(
     input.artifacts.contractGraph,
     [...sourceFilesByOwner.keys()].sort((left, right) =>
@@ -145,9 +143,6 @@ export function reconstructCsharpSourceFiles(
     },
     { maximumReconstructionCount },
   );
-  if (process.env["TSONIC_PHASE_TIMINGS"] === "1") {
-    process.stderr.write(`timing: csharp-source-reconstruction=${(performance.now() - reconstructionStartedAt).toFixed(1)}ms attempts=${reconstruction.kind === "completed" || reconstruction.kind === "failed" || reconstruction.kind === "rejected" ? reconstruction.reconstructionCount : 0}\n`);
-  }
   if (reconstruction.kind === "rejected") {
     diagnostics.push(reconstructionDiagnostic(
       reconstruction.code,

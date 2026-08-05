@@ -9,19 +9,21 @@ test("two independently invalid source files report both diagnostics in one buil
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
-      import { firstBroken } from "./broken-a.js";
-      import { secondBroken } from "./broken-b.js";
-      export const combined = \`\${firstBroken("x", "y")}\${secondBroken("x", "y")}\`;
+      import "./broken-a.js";
+      import "./broken-b.js";
+      export const combined = 1;
     `,
     files: {
       "broken-a.ts": `
-        export function firstBroken(left: string, right: string): string {
-          return left || right;
+        function defaultValue(): number { return 1; }
+        export function firstBroken(value: number = defaultValue()): number {
+          return value;
         }
       `,
       "broken-b.ts": `
-        export function secondBroken(left: string, right: string): string {
-          return left || right;
+        function defaultValue(): number { return 2; }
+        export function secondBroken(value: number = defaultValue()): number {
+          return value;
         }
       `,
     },
@@ -31,16 +33,22 @@ test("two independently invalid source files report both diagnostics in one buil
   assert.equal(
     compiled.result.diagnostics.length,
     2,
-    `expected one diagnostic per invalid file, got: ${compiled.result.diagnostics.map((d) => d.message).join("\n")}`,
+    `expected one diagnostic per invalid file, got: ${compiled.result.diagnostics.map((diagnostic) => diagnostic.message).join("\n")}`,
   );
   for (const diagnostic of compiled.result.diagnostics) {
     assert.equal(diagnostic.code, "CSHARP_UNSUPPORTED_AST");
-    assert.match(diagnostic.message, /logical operator '\|\|' requires exact bool operands/u);
+    assert.match(
+      diagnostic.message,
+      /C# parameter defaults require compile-time literal values/u,
+    );
   }
-  assert.notEqual(
-    compiled.result.diagnostics[0].sourceNode,
-    compiled.result.diagnostics[1].sourceNode,
-    "each failure must anchor to its own source file's node",
+  assert.deepEqual(
+    compiled.result.diagnostics.map((diagnostic) =>
+      compiled.source.ast.getPath(
+        compiled.source.ast.getSourceFile(diagnostic.sourceNode),
+      )
+    ),
+    ["/project/broken-a.ts", "/project/broken-b.ts"],
   );
   assert.equal(compiled.artifacts.size, 0, "no artifacts may publish from a failed build");
 });
@@ -55,7 +63,7 @@ test("a fully valid multi-file build retains existing reconstruction behavior", 
     files: {
       "valid.ts": `
         export function greet(name: string): string {
-          return \`hello \${name}\`;
+          return "hello " + name;
         }
       `,
     },
@@ -63,5 +71,9 @@ test("a fully valid multi-file build retains existing reconstruction behavior", 
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.equal(compiled.result.diagnostics.length, 0);
-  assert.ok(compiled.artifacts.size > 0);
+  assert.deepEqual([...compiled.artifacts.keys()], [
+    "TsonicGenerated.csproj",
+    "src/Valid.cs",
+    "src/Index.cs",
+  ]);
 });
