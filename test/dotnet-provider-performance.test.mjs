@@ -17,7 +17,11 @@ import {
   emptyIncrementalDotnetProviderMaterialization,
   formatDotnetProviderTelemetrySnapshot,
 } from "../dist/providers/dotnet/index.js";
-import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
+import {
+  completeProviderDeclarationRequest,
+  getCompleteDotnetModule,
+  incrementalProviderDeclarationRequest,
+} from "./dotnet-provider.helpers.mjs";
 import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
@@ -481,40 +485,28 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
   const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", requestContext);
   assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
 
+  const headerModel = bindingProvider.getDeclarationModel(
+    resolution,
+    incrementalProviderDeclarationRequest(requestContext),
+  );
+  assert.equal("exports" in headerModel, true, JSON.stringify(headerModel));
+  const convertHeader = headerModel.exports.find((declaration) => declaration.name === "Convert");
+  assert.ok(convertHeader);
   const declarationModel = bindingProvider.getDeclarationModel(
     resolution,
-    completeProviderDeclarationRequest(requestContext),
+    incrementalProviderDeclarationRequest(requestContext, [{
+      exportName: "Convert",
+      exportId: convertHeader.id,
+    }]),
   );
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), [
     "Convert",
-    "Range",
-    "SpanSplitEnumerator",
-    "TryWriteInterpolatedStringHandler",
     "Base64FormattingOptions",
-    "DateOnly",
     "DateTime",
-    "DateTimeKind",
-    "DateTimeOffset",
-    "DayOfWeek",
-    "Guid",
-    "IComparable",
-    "IComparable_1",
-    "IEquatable",
     "IFormatProvider",
-    "Index",
-    "ModuleHandle",
     "ReadOnlySpan",
-    "ReadOnlySpan_Enumerator",
-    "RuntimeFieldHandle",
-    "RuntimeMethodHandle",
-    "RuntimeTypeHandle",
     "Span",
-    "Span_Enumerator",
-    "StringComparison",
-    "StringSplitOptions",
-    "TimeOnly",
-    "TimeSpan",
     "Type",
     "TypeCode",
   ]);
@@ -535,8 +527,11 @@ test(".NET reflection declaration slices avoid broad unrelated namespace surface
 
   const snapshot = provider.getTelemetrySnapshot();
   assert.equal(snapshot.moduleBroadRequests, 0);
-  assert.equal(snapshot.moduleSlicedRequests, 4);
-  assert.equal(snapshot.moduleRequestedExports, 8);
+  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(snapshot.moduleIncrementalMaterializationRequests, snapshot.moduleSlicedRequests);
+  assert.equal(snapshot.moduleMaterializedExports, 2);
+  assert.equal(snapshot.moduleSlicedRequests, 3);
+  assert.equal(snapshot.moduleRequestedExports, 3);
 });
 
 test(".NET reflection provider tool materializes only the exact target-binding export", () => {

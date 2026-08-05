@@ -9,6 +9,7 @@ import {
   createDotnetReflectionTypeDataProvider,
   createDotnetProviderTelemetry,
   createDotnetSourceDeclarationProvider,
+  dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import {
   csharpSourceProfileContributions,
@@ -122,6 +123,86 @@ test("target relations materialize the exact selected provider export", () => {
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
   assert.equal(snapshot.moduleMaterializedExports > 0, true);
+});
+
+test("cross-module inherited members materialize only the exact base export", () => {
+  const baseModuleSpecifier = "@acme/dotnet/Base.js";
+  const baseTargetId = "Acme::Example.Base";
+  const observed = [];
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@acme/dotnet/Derived.js",
+    namespaceName: "Example",
+    exports: [{
+      kind: "type",
+      typeKind: "class",
+      sourceName: "Derived",
+      namespaceName: "Example",
+      targetId: "Acme::Example.Derived",
+      metadataName: "Example.Derived",
+      baseType: {
+        kind: "named",
+        targetId: baseTargetId,
+        metadataName: "Example.Base",
+        sourceShape: {
+          kind: "provider-ref",
+          moduleSpecifier: baseModuleSpecifier,
+          exportName: "Base",
+        },
+      },
+      members: [method("Acme::Example.Derived.Read(System.Int32)", {
+        kind: "source-primitive",
+        name: "int32",
+      })],
+    }],
+  }, {
+    resolveModule(specifier, requestedExports, materialization) {
+      observed.push({ specifier, requestedExports, materialization });
+      const baseComplete = materialization.kind === "complete" ||
+        materialization.completeExports.some((request) => request.exportId === baseTargetId);
+      return {
+        moduleSpecifier: baseModuleSpecifier,
+        namespaceName: "Example",
+        exports: [{
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Base",
+          namespaceName: "Example",
+          targetId: baseTargetId,
+          metadataName: "Example.Base",
+          ...(baseComplete ? {
+            members: [method("Acme::Example.Base.Read(System.String)", { kind: "string" })],
+          } : {}),
+        }, {
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Unrelated",
+          namespaceName: "Example",
+          targetId: "Acme::Example.Unrelated",
+          metadataName: "Example.Unrelated",
+          ...(materialization.kind === "complete" ? {
+            members: [method("Acme::Example.Unrelated.Read(System.String)", { kind: "string" })],
+          } : {}),
+        }],
+      };
+    },
+  });
+
+  assert.deepEqual(observed, [{
+    specifier: baseModuleSpecifier,
+    requestedExports: ["Base"],
+    materialization: incremental([{
+      exportName: "Base",
+      exportId: baseTargetId,
+    }]),
+  }]);
+  const derived = model.exports.find((declaration) => declaration.name === "Derived");
+  const read = derived?.members?.find((member) => member.kind === "method" && member.name === "Read");
+  assert.deepEqual(read?.signatures?.map((signature) => signature.id), [
+    "Acme::Example.Base.Read(System.String)",
+    "Acme::Example.Derived.Read(System.Int32)",
+  ]);
+  assert.deepEqual(model.imports?.flatMap((declaration) =>
+    declaration.namedImports?.map((namedImport) => namedImport.exportedName) ?? []), ["Base"]);
 });
 
 test("source declaration requests carry their own immutable slice and materialization", () => {
@@ -307,6 +388,27 @@ function incremental(completeExports) {
   return {
     kind: "incremental",
     completeExports,
+  };
+}
+
+function method(id, parameterType) {
+  return {
+    kind: "method",
+    sourceName: "Read",
+    targetName: "Read",
+    targetId: id,
+    metadataName: id,
+    signatures: [{
+      id,
+      sourceId: id,
+      targetName: "Read",
+      parameters: [{
+        name: "value",
+        type: parameterType,
+        passingMode: "by-value",
+      }],
+      returnType: { kind: "void" },
+    }],
   };
 }
 
