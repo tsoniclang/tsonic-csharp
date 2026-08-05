@@ -94,6 +94,26 @@ test("JS surface Map and iterator types are iterable with for-of under noLib", (
   assert.equal(formatDiagnostics(session.getDiagnostics("all")), "");
 });
 
+test("ECMAScript string iteration remains available in both source profiles", () => {
+  for (const profile of ["csharp", "js"]) {
+    const session = createSourceProfileSession({
+      profile,
+      sourceText: [
+        "let result = \"\";",
+        "for (const character of \"A😀\") result += character;",
+        "export { result };",
+        "",
+      ].join("\n"),
+    });
+    assertNoBundledTypeScriptLibraries(session);
+    assert.equal(
+      formatDiagnostics(session.getDiagnostics("all")),
+      "",
+      `${profile} profile must retain standard ECMAScript string iteration`,
+    );
+  }
+});
+
 function createSourceProfileSession(options) {
   const files = new Map([
     ["/src/index.ts", options.sourceText],

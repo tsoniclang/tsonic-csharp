@@ -45,10 +45,6 @@ sealed partial class ReflectionProvider
             }
             if (constructedNullability is not null && constructedNullability.Type.IsByRef)
             {
-                // Byref parameters surface the byref shell ('T&') in their
-                // nullability info. The shell closes the same delegate when its
-                // element matches, but exposes no per-argument nullability, so
-                // substitution falls back to the nullable metadata blob.
                 if (constructedNullability.Type.GetElementType() != constructedType)
                 {
                     throw new InvalidOperationException($"Delegate nullability type '{constructedNullability.Type}' does not match '{constructedType}'.");
