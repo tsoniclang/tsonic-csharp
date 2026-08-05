@@ -7,7 +7,6 @@ import type {
   DotnetModuleModel,
   DotnetTypeDeclaration,
 } from "../model.js";
-import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
@@ -61,9 +60,8 @@ export function dotnetProviderRefToTypeDeclaration(
   if (resolved === undefined) {
     return undefined;
   }
-  const module = qualifyDotnetModuleProviderRefs(resolved);
   return selectDotnetTypeDeclarationForProviderRef(
-    module.exports.filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type"),
+    resolved.exports.filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type"),
     baseType,
     exportId,
   );

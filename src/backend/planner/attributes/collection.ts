@@ -1,7 +1,6 @@
 import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import {
-  tsonicAttributeBuilderFactKey,
   type TsonicAttributeApplicationFact,
 } from "@tsonic/source-core";
 import {
@@ -32,25 +31,14 @@ export function collectAttributeFactsForSubject(
 }
 
 export function collectAttributeApplicationFacts(input: CsharpTranslationContext): readonly TsonicAttributeApplicationFact[] {
-  const facts: TsonicAttributeApplicationFact[] = [];
-  for (const sourceFile of input.sourceFiles) {
-    facts.push(...collectAttributeApplicationFactsForSourceFile(sourceFile, input));
-  }
-  return facts;
+  return input.attributeApplications.all;
 }
 
 export function collectAttributeApplicationFactsForSourceFile(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): readonly TsonicAttributeApplicationFact[] {
-  const facts: TsonicAttributeApplicationFact[] = [];
-  visitSourceNode(input, sourceFile, (node) => {
-    const fact = input.sourceFacts?.getFact(node, tsonicAttributeBuilderFactKey);
-    if (fact?.kind === "application") {
-      facts.push(fact);
-    }
-  });
-  return facts;
+  return input.attributeApplications.forSourceFile(sourceFile);
 }
 
 function attributeApplicationTargetsSubject(
@@ -64,16 +52,4 @@ function attributeApplicationTargetsSubject(
     return resolution.declaration === subject;
   }
   return resolution.parameter === subject;
-}
-
-function visitSourceNode(
-  input: CsharpTranslationContext,
-  node: Node | undefined,
-  visit: (node: Node) => void,
-): void {
-  if (node === undefined) {
-    return;
-  }
-  visit(node);
-  input.ast.forEachChild(node, (child) => visitSourceNode(input, child, visit));
 }

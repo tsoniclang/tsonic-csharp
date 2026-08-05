@@ -50,6 +50,12 @@ import type {
 import {
   createCsharpSourceNameResolver,
 } from "../names/index.js";
+import type {
+  CsharpAttributeApplicationFactIndex,
+} from "../attributes/application-fact-index.js";
+import {
+  createCsharpAttributeApplicationFactIndex,
+} from "../attributes/application-fact-index.js";
 
 export interface CsharpTranslationContext
   extends CsharpProviderCallSelectionHost {
@@ -69,6 +75,7 @@ export interface CsharpTranslationContext
   readonly artifacts: CsharpTranslationArtifactGraph;
   readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
   readonly names: CsharpSourceNameResolver;
+  readonly attributeApplications: CsharpAttributeApplicationFactIndex;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -161,6 +168,11 @@ export function createCsharpTranslationContext(
     navigation: input.source.navigation,
     outputIdentities,
   });
+  const attributeApplications = createCsharpAttributeApplicationFactIndex({
+    ast: input.source.ast,
+    sourceFiles: input.source.navigation.sourceFiles,
+    sourceFacts: input.source.sourceFacts,
+  });
   return Object.freeze({
     source: input.source,
     ast: input.source.ast,
@@ -178,6 +190,7 @@ export function createCsharpTranslationContext(
     artifacts,
     outputIdentities,
     names,
+    attributeApplications,
     semantics,
     semanticsFor,
     hasSemantics,
