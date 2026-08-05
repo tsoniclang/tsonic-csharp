@@ -46,7 +46,7 @@ import {
 import { planTopLevelVariableStatement } from "./csharp-top-level-variables.js";
 import {
   csharpModuleInitMethodName,
-} from "./csharp-entrypoint-planner.js";
+} from "./csharp-module-initialization.js";
 import type { CsharpModuleInitializationPlan } from "./csharp-module-initialization.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";

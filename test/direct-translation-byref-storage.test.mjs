@@ -5,6 +5,19 @@ import {
   compileCsharpSource,
 } from "./helpers/direct-csharp-session.mjs";
 
+const libraryModuleInitializer = `namespace Tsonic.Generated
+{
+    internal static class TsonicModuleInitializer
+    {
+        [System.Runtime.CompilerServices.ModuleInitializerAttribute]
+        internal static void Initialize()
+        {
+            Index.__tsonic_module_init();
+        }
+    }
+}
+`;
+
 test("selected nullable target outputs reconstruct exact source storage", () => {
   const compiled = compileCsharpSource({
     sourceText: `
@@ -73,6 +86,7 @@ namespace Tsonic.Generated
     }
 }
 `,
+    "generated/TsonicModuleInitializer.cs": libraryModuleInitializer,
   });
 });
 
@@ -194,5 +208,6 @@ namespace Tsonic.Generated
     }
 }
 `,
+    "generated/TsonicModuleInitializer.cs": libraryModuleInitializer,
   });
 });

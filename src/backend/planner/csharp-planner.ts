@@ -1,7 +1,7 @@
 import type { TargetArtifact, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
-import { planCsharpEntrypointSourceFile } from "./csharp-entrypoint-planner.js";
+import { planCsharpStartupSourceFile } from "./csharp-startup-planner.js";
 import { planCsharpModuleInitialization } from "./csharp-module-initialization.js";
 import { reconstructCsharpSourceFiles } from "./source-file-reconstruction.js";
 import { planCsharpProject } from "./project-artifacts.js";
@@ -86,6 +86,18 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
     };
   }
   const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
+  const startup = planCsharpStartupSourceFile(
+    input,
+    plannedSources,
+    moduleInitialization,
+    diagnostics,
+  );
+  if (diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
   const project = planCsharpProject(input, {
     allowUnsafeBlocks:
       plannedSources.some((source) => source.requiresUnsafe) ||
@@ -106,7 +118,7 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
       })),
       ...(objectShapes === undefined ? [] : [objectShapes.source]),
       ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
-      ...[planCsharpEntrypointSourceFile(input, plannedSources, moduleInitialization)].filter((source): source is NonNullable<typeof source> => source !== undefined),
+      ...(startup === undefined ? [] : [startup]),
     ],
   });
   return {

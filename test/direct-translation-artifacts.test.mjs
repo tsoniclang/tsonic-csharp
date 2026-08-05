@@ -24,6 +24,7 @@ test("direct C# translation assigns deterministic source identities and module i
     "TsonicGenerated.csproj",
     "src/models/Models_user.cs",
     "src/Index.cs",
+    "generated/TsonicModuleInitializer.cs",
   ]);
   assert.equal(compiled.artifacts.get("src/models/Models_user.cs"), `using System;
 
@@ -74,6 +75,26 @@ namespace Tsonic.Generated
     }
 }
 `);
+  assert.equal(compiled.artifacts.get("generated/TsonicModuleInitializer.cs"), `namespace Tsonic.Generated
+{
+    internal static class TsonicModuleInitializer
+    {
+        [System.Runtime.CompilerServices.ModuleInitializerAttribute]
+        internal static void Initialize()
+        {
+            Index.__tsonic_module_init();
+        }
+    }
+}
+`);
+});
+
+test("direct C# library translation omits assembly initialization when the module graph has no runtime initialization", () => {
+  const compiled = cleanCompile({
+    sourceText: `export function answer(): number { return 42; }`,
+  });
+
+  assert.equal(compiled.artifacts.has("generated/TsonicModuleInitializer.cs"), false);
 });
 
 test("direct C# executable translation emits one exact generated entrypoint", () => {
@@ -227,6 +248,42 @@ namespace Tsonic.Generated
     }
 }
 `);
+});
+
+test("direct C# library translation rejects asynchronous module initialization without publishing artifacts", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: [
+      "import \"./worker.js\";",
+      "export const done = true;",
+      "",
+    ].join("\n"),
+    files: {
+      "worker.ts": [
+        "export function delay(): Promise<void> {",
+        "  return new Promise<void>((resolve) => { resolve(); });",
+        "}",
+        "await delay();",
+        "",
+      ].join("\n"),
+    },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, [{
+    code: "CSHARP_ASYNC_LIBRARY_MODULE_INITIALIZATION_UNSUPPORTED",
+    category: "error",
+    source: "tsonic-csharp",
+    message:
+      "C# library output cannot preserve TypeScript top-level await during automatic module initialization because CLR module initializers must be synchronous.",
+    evidence: [
+      "The configured library entry module requires asynchronous initialization.",
+      "Generated library members can execute only after the complete entry-module dependency graph has initialized.",
+      "Select executable output or remove top-level await from the library module graph.",
+    ],
+  }]);
+  assert.deepEqual([...compiled.artifacts], []);
 });
 
 test("direct C# translation rejects runtime ES module cycles before publishing artifacts", () => {
