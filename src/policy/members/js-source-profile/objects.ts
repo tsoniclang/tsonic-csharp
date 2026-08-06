@@ -378,6 +378,7 @@ function promiseConstructorMember(
         "PromiseResolve",
         [],
         [csharpNullableTargetType(objectType)],
+        [0],
       )
     : promiseDelegate(
         "PromiseResolve",
@@ -388,6 +389,7 @@ function promiseConstructorMember(
     "PromiseReject",
     [],
     [csharpNullableTargetType(objectType)],
+    [0],
   );
   const executorType = promiseDelegate(
     "PromiseExecutor",
@@ -467,6 +469,7 @@ function promiseDelegate(
   name: string,
   typeArguments: readonly TargetTypeRef[],
   parameters: readonly TargetTypeRef[],
+  optionalParameterIndexes: readonly number[] = [],
 ): TargetTypeRef {
   return csharpTargetNamedType(
     typeArguments.length === 0
@@ -476,8 +479,11 @@ function promiseDelegate(
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
     {
       delegateSignature: {
-      parameters,
-      returnType: voidType,
+        parameters,
+        returnType: voidType,
+        ...(optionalParameterIndexes.length === 0
+          ? {}
+          : { optionalParameterIndexes }),
       },
     },
   );

@@ -30,6 +30,7 @@ import type {
 } from "../../policy/types/index.js";
 import {
   csharpTargetParameterValueType,
+  getCsharpDelegateSignature,
 } from "../../policy/types/index.js";
 import type {
   CsharpTranslationContext,
@@ -65,6 +66,9 @@ import {
 import {
   translateCsharpSelectedReceiver,
 } from "./receivers.js";
+import {
+  planCsharpSourceUndefinedValue,
+} from "./undefined-values.js";
 
 export function translateCsharpCallExpression(
   node: Node,
@@ -801,7 +805,115 @@ export function translateSourceOwnedArguments(
     }
     planned.push(plannedArgument);
   }
+  const boundParameterIndexes = new Set(
+    source.sourceArgumentBindings.map((binding) => binding.sourceParameterIndex),
+  );
+  for (
+    let parameterIndex = 0;
+    parameterIndex < source.sourceSelectedSignatureParameters.length;
+    parameterIndex += 1
+  ) {
+    if (boundParameterIndexes.has(parameterIndex)) {
+      continue;
+    }
+    const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
+    if (parameter === undefined || parameter.rest) {
+      continue;
+    }
+    if (!parameter.acceptsOmission) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Source-owned selected parameter ${parameterIndex} has no exact source argument and does not accept omission.`,
+      ));
+      return undefined;
+    }
+    const exactTargetArity = sourceCalleeRequiresExactTargetArity(
+      source,
+      input,
+    );
+    if (
+      !exactTargetArity ||
+      targetDelegatePreservesOmission(
+        source,
+        parameterIndex,
+        sourceFile,
+        input,
+      )
+    ) {
+      continue;
+    }
+    const declaration = input.ast.as.AsParameterDeclaration(
+      parameter.parameterDeclaration,
+    );
+    if (declaration?.Initializer !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Omitted source-owned delegate parameter ${parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`,
+      ));
+      return undefined;
+    }
+    const targetType = input.types.resolveSourceCallParameter(
+      source,
+      parameterIndex,
+      sourceFile,
+    );
+    if (targetType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Omitted source-owned selected parameter ${parameterIndex} has no closed C# type.`,
+      ));
+      return undefined;
+    }
+    const omitted = planCsharpSourceUndefinedValue(
+      node,
+      targetType,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    if (omitted.kind !== "resolved") {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Omitted source-owned selected parameter ${parameterIndex} has no exact C# representation for source undefined.`,
+      ));
+      return undefined;
+    }
+    planned.push({ kind: "Argument", expression: omitted.expression });
+  }
   return planned;
+}
+
+function targetDelegatePreservesOmission(
+  source: ResolvedSourceCallInfo,
+  parameterIndex: number,
+  sourceFile: SourceFile,
+  input: CsharpTranslationContext,
+): boolean {
+  const targetCalleeType = input.types.resolveNode(
+    source.sourceCallee.expression,
+    sourceFile,
+  );
+  const signature = getCsharpDelegateSignature(targetCalleeType);
+  return signature?.parameters.length ===
+      source.sourceSelectedSignatureParameters.length &&
+    signature.optionalParameterIndexes?.includes(parameterIndex) === true;
+}
+
+function sourceCalleeRequiresExactTargetArity(
+  source: ResolvedSourceCallInfo,
+  input: CsharpTranslationContext,
+): boolean {
+  const declaration = source.sourceCallee.selectedDeclaration;
+  return declaration !== undefined &&
+    (
+      input.ast.is.IsVariableDeclaration(declaration) ||
+      input.ast.is.IsParameterDeclaration(declaration) ||
+      input.ast.is.IsPropertyDeclaration(declaration) ||
+      input.ast.is.IsPropertySignatureDeclaration(declaration) ||
+      input.ast.is.IsBindingElement(declaration) ||
+      input.ast.is.IsArrowFunction(declaration) ||
+      input.ast.is.IsFunctionExpression(declaration)
+    );
 }
 
 function applyCalleeTypeArguments(

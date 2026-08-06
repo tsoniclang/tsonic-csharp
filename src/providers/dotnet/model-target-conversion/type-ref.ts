@@ -154,8 +154,14 @@ function dotnetDelegateSignatureFromSourceShape(
     return undefined;
   }
   const parameters = sourceShape.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type));
+  const optionalParameterIndexes = sourceShape.parameters.flatMap(
+    (parameter, index) => parameter.optional === true ? [index] : [],
+  );
   return {
     parameters,
     returnType: dotnetTypeRefToTargetTypeRef(sourceShape.returnType),
+    ...(optionalParameterIndexes.length === 0
+      ? {}
+      : { optionalParameterIndexes }),
   };
 }

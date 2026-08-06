@@ -173,7 +173,7 @@ export function planProjectSourceModuleMemberReference(
     return sourceTypeMemberReference;
   }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
-  if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
+  if (sourceReference === undefined) {
     return undefined;
   }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
@@ -188,8 +188,20 @@ export function planProjectSourceModuleMemberReference(
   if (isNestedProjectSourceMemberDeclaration(sourceReference.declaration, input)) {
     return undefined;
   }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    !isModuleStaticValueDeclaration(sourceReference.declaration, input)
+  ) {
+    return undefined;
+  }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Project source reference requires a top-level function or variable declaration resolved by TSTS."));
+    return undefined;
+  }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+  ) {
     return undefined;
   }
   return {
@@ -217,9 +229,14 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
   }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined ||
-    sourceReference.sourceFile === sourceFile ||
     isExternalDeclarationReference(sourceReference, sourceFile, input) ||
     !isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
+    return undefined;
+  }
+  if (
+    sourceReference.sourceFile === sourceFile &&
+    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+  ) {
     return undefined;
   }
   return {
@@ -276,9 +293,32 @@ function isProviderVirtualDeclarationIdentifier(
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {
-  return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindExportAssignment);
+  if (
+    HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindExportAssignment)
+  ) {
+    const parent = input.ast.parent(declaration);
+    return parent !== undefined && input.ast.is.IsSourceFile(parent);
+  }
+  if (!HasSourceKind(input.ast, declaration, KindVariableDeclaration)) {
+    return false;
+  }
+  const declarationList = input.ast.parent(declaration);
+  if (
+    declarationList === undefined ||
+    !input.ast.is.IsVariableDeclarationList(declarationList)
+  ) {
+    return false;
+  }
+  const statement = input.ast.parent(declarationList);
+  if (
+    statement === undefined ||
+    !input.ast.is.IsVariableStatement(statement)
+  ) {
+    return false;
+  }
+  const sourceFile = input.ast.parent(statement);
+  return sourceFile !== undefined && input.ast.is.IsSourceFile(sourceFile);
 }
 
 function isModuleTypeValueDeclaration(declaration: Node, input: CsharpTranslationContext): boolean {

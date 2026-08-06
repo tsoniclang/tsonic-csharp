@@ -13,7 +13,11 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
-import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
+import type {
+  CsharpExpression,
+  CsharpLocalDeclaration,
+  CsharpStatement,
+} from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import {
   getTargetTypeRefForNode,
@@ -37,6 +41,9 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
+import {
+  planCsharpSourceUndefinedValue,
+} from "../../translate/expressions/undefined-values.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -52,8 +59,19 @@ export function planLocalDeclaration(
   const explicitType = variable.Type === undefined
     ? undefined
     : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
-  const inferredLambdaType = variable.Initializer !== undefined
-    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType, expectedTargetType)?.type
+  const lambdaInitializer = variable.Initializer !== undefined &&
+    (
+      HasSourceKind(input.ast, variable.Initializer, KindArrowFunction) ||
+      HasSourceKind(input.ast, variable.Initializer, KindFunctionExpression)
+    );
+  const inferredLambdaType = lambdaInitializer
+    ? getLambdaTargetContext(
+        variable.Initializer!,
+        sourceFile,
+        input,
+        explicitType,
+        variable.Type === undefined ? undefined : expectedTargetType,
+      )?.type
     : undefined;
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
@@ -88,13 +106,41 @@ export function planLocalDeclaration(
       : csharpTypeFromTargetTypeRef(inferredTargetType)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
+  let initializer: CsharpExpression | undefined;
+  if (variable.Initializer !== undefined) {
+    initializer = planExpressionWithExpectedType(
+      variable.Initializer,
+      sourceFile,
+      input,
+      diagnostics,
+      type,
+      variable.Type ?? variable.name,
+      state,
+      lambdaInitializer && variable.Type === undefined
+        ? undefined
+        : expectedTargetType,
+    );
+  } else if (inferredTargetType !== undefined) {
+    const undefinedValue = planCsharpSourceUndefinedValue(
+      declarationNode,
+      inferredTargetType,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    initializer = undefinedValue.kind === "resolved"
+      ? undefinedValue.expression
+      : {
+          kind: "DefaultExpression",
+          type,
+          nullForgiving: true,
+        };
+  }
   return {
     kind: "VariableDeclarator",
     name,
     type,
-    ...(variable.Initializer !== undefined
-      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state, expectedTargetType) }
-      : {}),
+    ...(initializer === undefined ? {} : { initializer }),
   };
 }
 
@@ -111,12 +157,57 @@ export function planLocalDeclarationStatements(
     return destructured;
   }
   const local = planLocalDeclaration(declarationNode, sourceFile, input, diagnostics, state);
+  if (
+    variable.Initializer !== undefined &&
+    local.initializer?.kind === "LambdaExpression" &&
+    sourceInitializerReferencesDeclaration(
+      variable.Initializer,
+      declarationNode,
+      input,
+    )
+  ) {
+    return [
+      {
+        kind: "LocalDeclarationStatement",
+        name: local.name,
+        type: local.type,
+        initializer: {
+          kind: "DefaultExpression",
+          type: local.type,
+          nullForgiving: true,
+        },
+      },
+      {
+        kind: "ExpressionStatement",
+        expression: {
+          kind: "AssignmentExpression",
+          left: { kind: "IdentifierName", name: local.name },
+          operatorToken: { kind: "EqualsToken" },
+          right: local.initializer,
+        },
+      },
+    ];
+  }
   return [{
     kind: "LocalDeclarationStatement",
     name: local.name,
     type: local.type,
     ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
   }];
+}
+
+function sourceInitializerReferencesDeclaration(
+  node: Node,
+  declaration: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  if (input.navigation.referenceFor(node)?.declaration === declaration) {
+    return true;
+  }
+  return input.ast.children(node).some((child) =>
+    child !== undefined &&
+    sourceInitializerReferencesDeclaration(child, declaration, input)
+  );
 }
 
 function getInitializerTypeSubject(

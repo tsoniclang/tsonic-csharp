@@ -34,26 +34,26 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
     case "type-parameter":
       return csharpTypeParameterName(type.name);
     case "array": {
-      const elementType = csharpTypeFromEnrichedTargetTypeRef(type.element);
+      const elementType = csharpTypeFromTargetTypeRef(type.element);
       return elementType === undefined
         ? undefined
         : { kind: "ArrayType", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
     }
     case "tuple": {
-      const elements = type.elements.map(csharpTypeFromEnrichedTargetTypeRef);
+      const elements = type.elements.map(csharpTypeFromTargetTypeRef);
       return elements.some((element) => element === undefined)
         ? undefined
         : csharpTupleType(elements as readonly CsharpTypeNode[]);
     }
     case "pointer": {
-      const pointee = csharpTypeFromEnrichedTargetTypeRef(type.pointee);
+      const pointee = csharpTypeFromTargetTypeRef(type.pointee);
       return pointee === undefined
         ? undefined
         : { kind: "PointerType", pointee };
     }
     case "function-pointer": {
-      const parameters = type.args.map(csharpTypeFromEnrichedTargetTypeRef);
-      const returnType = csharpTypeFromEnrichedTargetTypeRef(type.result);
+      const parameters = type.args.map(csharpTypeFromTargetTypeRef);
+      const returnType = csharpTypeFromTargetTypeRef(type.result);
       return returnType === undefined || parameters.some((parameter) => parameter === undefined)
         ? undefined
         : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
@@ -79,7 +79,7 @@ export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): Cs
 }
 
 function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTypeNode | undefined {
-  const typeArguments = (type.typeArguments ?? []).map(csharpTypeFromEnrichedTargetTypeRef);
+  const typeArguments = (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef);
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }

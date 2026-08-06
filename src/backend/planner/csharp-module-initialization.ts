@@ -9,6 +9,8 @@ import {
   SourceFile_FileName,
 } from "./source-ast.js";
 
+export const csharpModuleInitMethodName = "__tsonic_module_init";
+
 export interface CsharpModuleInitializationPlan {
   readonly dependenciesFor: (sourceFile: SourceFile) => readonly SourceFile[];
   readonly requiresInitializer: (sourceFile: SourceFile) => boolean;

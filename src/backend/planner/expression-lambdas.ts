@@ -36,7 +36,10 @@ import {
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
-import { getCsharpTypeForNode } from "./csharp-types.js";
+import {
+  getCsharpTypeForNode,
+  nullableCsharpType,
+} from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -51,8 +54,8 @@ import type {
 } from "./expression-planner-types.js";
 import {
   csharpDelegateTargetType,
+  csharpNullableTargetType,
   csharpSourceTypeArgumentNodes,
-  csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
@@ -382,9 +385,13 @@ export function planLambdaParameters(
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
       }
       const expectedParameterType = expectedParameterTypes[index];
-      const explicitParameterType = parameter.Type === undefined
+      const authoredParameterType = parameter.Type === undefined
         ? undefined
         : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
+      const explicitParameterType = authoredParameterType === undefined ||
+          input.ast.questionToken(parameterNode) === undefined
+        ? authoredParameterType
+        : nullableCsharpType(authoredParameterType);
       return {
         kind: "Parameter",
         name: HasSourceKind(input.ast, parameter.name, KindIdentifier) && state !== undefined
@@ -458,73 +465,38 @@ function getExplicitLambdaSignatureTarget(
   if (expression === undefined) {
     return undefined;
   }
-  const parameterTypes = (expression.Parameters?.Nodes ?? []).map((parameterNode) => {
+  const parameterTargetTypes = (expression.Parameters?.Nodes ?? []).map((parameterNode) => {
     const parameter = AsParameterDeclaration(parameterNode);
-    return parameter?.Type === undefined
+    const authored = parameter?.Type === undefined
       ? undefined
-      : getCsharpTypeForNode(parameter.Type, sourceFile, input);
+      : getTargetTypeRefForNode(input, parameter.Type, sourceFile);
+    return authored === undefined || input.ast.questionToken(parameterNode) === undefined
+      ? authored
+      : csharpNullableTargetType(authored);
   });
-  if (!parameterTypes.every((parameterType): parameterType is CsharpTypeNode => parameterType !== undefined && parameterType.kind !== "InvalidType")) {
-    return undefined;
-  }
-  const parameterTargetTypes = (expression.Parameters?.Nodes ?? []).map(
-    (parameterNode) => {
-      const parameter = AsParameterDeclaration(parameterNode);
-      return parameter?.Type === undefined
-        ? undefined
-        : getTargetTypeRefForNode(input, parameter.Type, sourceFile);
-    },
-  );
   if (!parameterTargetTypes.every(
     (parameterType): parameterType is TargetTypeRef => parameterType !== undefined,
   )) {
     return undefined;
   }
-  const returnType = expression.Type === undefined
-    ? undefined
-    : getCsharpTypeForNode(expression.Type, sourceFile, input);
-  if (returnType === undefined || returnType.kind === "InvalidType") {
-    return undefined;
-  }
-  if (returnType.kind === "PredefinedType" && returnType.name === "void") {
-    const targetType = csharpDelegateTargetType(
-      "System.Action",
-      (expression.Parameters?.Nodes ?? [])
-        .map((parameterNode) => AsParameterDeclaration(parameterNode)?.Type)
-        .filter((typeNode): typeNode is Node => typeNode !== undefined)
-        .map((typeNode) => getTargetTypeRefForNode(input, typeNode, sourceFile))
-        .filter((type): type is TargetTypeRef => type !== undefined),
-    );
-    const context = lambdaTargetContextFromTargetRef(targetType);
-    return context ?? {
-      type: {
-        kind: "IdentifierName",
-        name: "Action",
-        ...(parameterTypes.length === 0 ? {} : { typeArguments: parameterTypes }),
-      },
-      signature: {
-        parameters: parameterTypes,
-        parameterTargetTypes,
-        returnTargetType: csharpVoidTargetType(),
-      },
-    };
-  }
   const returnTargetType = expression.Type === undefined
     ? undefined
     : getTargetTypeRefForNode(input, expression.Type, sourceFile);
-  return {
-    type: {
-      kind: "IdentifierName",
-      name: "Func",
-      typeArguments: [...parameterTypes, returnType],
-    },
-    signature: {
-      parameters: parameterTypes,
-      parameterTargetTypes,
-      returnType,
-      ...(returnTargetType === undefined ? {} : { returnTargetType }),
-    },
-  };
+  if (returnTargetType === undefined) {
+    return undefined;
+  }
+  return lambdaTargetContextFromTargetRef(
+    isCsharpVoidTargetType(returnTargetType)
+      ? csharpDelegateTargetType(
+          "System.Action",
+          parameterTargetTypes,
+        )
+      : csharpDelegateTargetType(
+          "System.Func",
+          parameterTargetTypes,
+          returnTargetType,
+        ),
+  );
 }
 
 export function csharpDelegateSignatureFromTargetTypeRef(
@@ -593,9 +565,13 @@ function createLambdaTranslationContext(
     const authoredTarget = parameter?.Type === undefined
       ? undefined
       : input.types.resolveNode(parameter.Type, sourceFile);
+    const effectiveAuthoredTarget = authoredTarget === undefined ||
+        input.ast.questionToken(binding.declaration) === undefined
+      ? authoredTarget
+      : csharpNullableTargetType(authoredTarget);
     if (
-      authoredTarget !== undefined &&
-      !targetTypeRefEquals(authoredTarget, binding.targetType)
+      effectiveAuthoredTarget !== undefined &&
+      !targetTypeRefEquals(effectiveAuthoredTarget, binding.targetType)
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         binding.declaration,

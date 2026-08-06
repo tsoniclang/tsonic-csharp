@@ -83,6 +83,9 @@ export function substituteTargetTypeParameters(
               csharpDelegateSignature: {
                 parameters: delegateSignature.parameters.map((parameter) => substituteTargetTypeParameters(parameter, substitutions)),
                 returnType: substituteTargetTypeParameters(delegateSignature.returnType, substitutions),
+                ...(delegateSignature.optionalParameterIndexes === undefined
+                  ? {}
+                  : { optionalParameterIndexes: delegateSignature.optionalParameterIndexes }),
               },
             }),
       };
