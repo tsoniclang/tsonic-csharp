@@ -74,6 +74,26 @@ export function csharpRuntimeUndefinedTargetType(): TargetTypeRef {
   return csharpTargetNamedType("Tsonic.CSharp.Runtime.Undefined", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Undefined"));
 }
 
+export function csharpRuntimeLocationTargetType(
+  pointee: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Runtime.Location`1",
+    [pointee],
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Location"),
+  );
+}
+
+export function csharpRuntimeLocationPointee(
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  return type?.kind === "target-named" &&
+      type.id === "Tsonic.CSharp.Runtime.Location`1" &&
+      type.typeArguments?.length === 1
+    ? type.typeArguments[0]
+    : undefined;
+}
+
 export function csharpRuntimeUnionTargetType(
   arms: readonly TargetTypeRef[],
   objectShapes?: readonly (CsharpObjectShapeFact | undefined)[],

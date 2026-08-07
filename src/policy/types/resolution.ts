@@ -2,6 +2,7 @@ import {
   defaultValueFactKey,
   functionPointerFactKey,
   pointerFactKey,
+  pointerOperationFactKey,
   providerVirtualDeclarationFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
@@ -9,6 +10,7 @@ import type {
   AstReader,
   ExtensionFactSubject,
   Node,
+  PointerOperationFact,
   ReadonlySourceFactResolver,
   SourceFile,
   Symbol,
@@ -71,6 +73,8 @@ import {
 } from "./selected-type-evidence.js";
 import {
   csharpAnyTargetType,
+  csharpRuntimeLocationPointee,
+  csharpRuntimeLocationTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   combineCsharpTargetUnionMembers,
@@ -199,6 +203,10 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolvePointerOperationPointee(
+    operation: PointerOperationFact,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
@@ -239,6 +247,7 @@ export function createCsharpTypePolicy(
     resolveSelectedValue,
     resolveSelectedType,
     resolveSelectedResult,
+    resolvePointerOperationPointee,
     resolveSourceCallTypeArguments,
     resolveSourceCallParameter,
     resolveSourceCallResult,
@@ -371,6 +380,40 @@ export function createCsharpTypePolicy(
       host.semantics(selectedSourceFile),
       { depth: 0 },
     );
+  }
+
+  function resolvePointerOperationPointee(
+    operation: PointerOperationFact,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (operation.explicitPointeeTypeNode !== undefined) {
+      return resolveSelectedType(
+        operation.explicitPointeeTypeNode,
+        operation.pointeeType,
+        sourceFile,
+      );
+    }
+    switch (operation.operation) {
+      case "address-of":
+        return resolveSelectedValue(
+          operation.storageExpression,
+          operation.storageType,
+          sourceFile,
+        );
+      case "allocate":
+        return resolveSelectedValue(
+          operation.initialExpression,
+          operation.initialType,
+          sourceFile,
+        );
+      case "load":
+      case "store":
+        return csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.pointerExpression,
+          operation.pointerType,
+          sourceFile,
+        ));
+    }
   }
 
   function resolveSourceCallTypeArguments(
@@ -2024,15 +2067,28 @@ export function createCsharpTypePolicy(
           nextState(state),
         );
         if (pointee !== undefined) {
-          return {
-            kind: "pointer",
-            pointee,
-            mutability: pointer.mutability === "readwrite"
-              ? "mut"
-              : pointer.mutability === "readonly"
-                ? "const"
-                : "target-defined",
-          };
+          return csharpRuntimeLocationTargetType(pointee);
+        }
+      }
+      const pointerOperation = host.sourceFacts?.getFact(
+        subject,
+        pointerOperationFactKey,
+      );
+      if (pointerOperation !== undefined) {
+        const pointee = resolvePointerOperationPointee(
+          pointerOperation,
+          sourceFile,
+        );
+        if (pointee !== undefined) {
+          switch (pointerOperation.operation) {
+            case "address-of":
+            case "allocate":
+              return csharpRuntimeLocationTargetType(pointee);
+            case "load":
+              return pointee;
+            case "store":
+              return csharpVoidTargetType();
+          }
         }
       }
       const functionPointer = host.sourceFacts?.getFact(

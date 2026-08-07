@@ -93,6 +93,9 @@ import {
 import {
   requireCsharpStorageRepresentation,
 } from "../../translate/artifacts/storage-representation.js";
+import {
+  tryPlanCsharpPointerOperation,
+} from "./expression-pointer-operations.js";
 
 export function planExpression(
   node: Node,
@@ -160,6 +163,35 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
+  const pointerOperation = tryPlanCsharpPointerOperation(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    scopedPlanExpression,
+    (
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      expectedTargetType,
+    ) => planExpressionWithExpectedType(
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      state,
+      expectedTargetType,
+    ),
+    state,
+  );
+  if (pointerOperation.handled) {
+    return pointerOperation.expression;
+  }
   const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
   if (sourceSyntax !== undefined) {

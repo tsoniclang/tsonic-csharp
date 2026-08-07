@@ -34,12 +34,12 @@ export function selectCsharpSourceFlowCall(
 
 function sourceFlowMarkerName(
   flowState: FlowStateFact,
-): "borrow" | "borrowMut" | "move" {
+): "shared-borrow" | "mutable-borrow" | "move" {
   switch (flowState.state) {
     case "borrowed-shared":
-      return "borrow";
+      return "shared-borrow";
     case "borrowed-mut":
-      return "borrowMut";
+      return "mutable-borrow";
     case "moved":
       return "move";
   }

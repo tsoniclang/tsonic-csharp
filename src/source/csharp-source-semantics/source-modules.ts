@@ -30,15 +30,15 @@ const csharpPrimitiveAliasDeclarations = [
 ] satisfies SourceSemanticsModule["exports"];
 
 const csharpMarkerAliasDeclarations = [
-  { kind: "call-marker", exportName: "out", marker: "out" },
-  { kind: "call-marker", exportName: "ref", marker: "ref" },
-  { kind: "call-marker", exportName: "inref", marker: "inref" },
+  { kind: "call-marker", exportName: "out", marker: "write-only-reference" },
+  { kind: "call-marker", exportName: "ref", marker: "read-write-reference" },
+  { kind: "call-marker", exportName: "inref", marker: "read-only-reference" },
   { kind: "call-marker", exportName: "struct", marker: "struct" },
   { kind: "call-marker", exportName: "field", marker: "field" },
   { kind: "call-marker", exportName: "attribute", marker: "attribute" },
-  { kind: "call-marker", exportName: "defaultof", marker: "defaultof" },
-  { kind: "type-marker", exportName: "ptr", marker: "ptr" },
-  { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
+  { kind: "call-marker", exportName: "defaultof", marker: "default-value" },
+  { kind: "type-marker", exportName: "ptr", marker: "pointer" },
+  { kind: "type-marker", exportName: "fnptr", marker: "function-pointer" },
 ] satisfies SourceSemanticsModule["exports"];
 
 export function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
