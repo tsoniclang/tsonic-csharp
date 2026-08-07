@@ -28,6 +28,7 @@ export {
   allocateStringIterationNames,
   allocateSyntheticParameter,
   createDestructuringPlannerState,
+  createNestedPlannerState,
   declareCsharpLocalBindingName,
   declareCsharpTypedLocationIdentityName,
   getCsharpLocalBindingName,

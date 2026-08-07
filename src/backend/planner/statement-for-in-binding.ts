@@ -60,6 +60,10 @@ export interface PlannedForInBindingActivation {
   readonly iterationPrelude: readonly CsharpStatement[];
 }
 
+export interface PlannedForInKeyCollectionBindingActivation extends PlannedForInBindingActivation {
+  readonly itemName: string;
+}
+
 export function planForInBinding(
   initializer: Node | undefined,
   targetType: TargetTypeRef,
@@ -276,6 +280,69 @@ export function planForInBindingActivation(
       initializer: keyExpression,
       },
       ...(identity === undefined ? [] : [identity]),
+    ],
+  };
+}
+
+export function planForInKeyCollectionBindingActivation(
+  binding: PlannedForInBinding,
+  keyType: ReturnType<typeof getCsharpTypeForNode>,
+  syntheticItemName: string,
+  input: CsharpTranslationContext,
+  state: DestructuringPlannerState,
+): PlannedForInKeyCollectionBindingActivation {
+  if (
+    binding.kind === "LocalDeclarationStatement" &&
+    binding.declarationKind === "const"
+  ) {
+    const identity = planCsharpTypedLocationIdentityDeclaration(
+      binding.node,
+      input,
+      state,
+    );
+    if (identity === undefined) {
+      return {
+        itemName: binding.name,
+        outerPrelude: [],
+        iterationPrelude: [],
+      };
+    }
+    const activation = planForInBindingActivationWithIdentity(
+      binding,
+      keyType,
+      { kind: "IdentifierName", name: syntheticItemName },
+      identity,
+    );
+    return { itemName: syntheticItemName, ...activation };
+  }
+  return {
+    itemName: syntheticItemName,
+    ...planForInBindingActivation(
+      binding,
+      keyType,
+      { kind: "IdentifierName", name: syntheticItemName },
+      input,
+      state,
+    ),
+  };
+}
+
+function planForInBindingActivationWithIdentity(
+  binding: PlannedForInBinding,
+  keyType: ReturnType<typeof getCsharpTypeForNode>,
+  keyExpression: CsharpExpression,
+  identity: CsharpStatement,
+): PlannedForInBindingActivation {
+  return {
+    outerPrelude: [],
+    iterationPrelude: [
+      {
+        kind: "LocalDeclarationStatement",
+        name: binding.name,
+        type: keyType,
+        initializer: keyExpression,
+      },
+      identity,
     ],
   };
 }

@@ -155,7 +155,14 @@ function planExpressionCore(
     expressionSourceFile: SourceFile,
     expressionInput: CsharpTranslationContext,
     expressionDiagnostics: TargetDiagnostic[],
-  ): CsharpExpression | undefined => planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state);
+    nestedState?: DestructuringPlannerState,
+  ): CsharpExpression | undefined => planExpression(
+    expressionNode,
+    expressionSourceFile,
+    expressionInput,
+    expressionDiagnostics,
+    nestedState ?? state,
+  );
   const scopedPlanCallArgument = (
     argumentNode: Node,
     argumentSourceFile: SourceFile,
@@ -291,13 +298,12 @@ function planExpressionCore(
         sourceFile,
         input,
         diagnostics,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        scopedPlanExpression,
         undefined,
         state,
         undefined,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
-          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType),
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType, nestedState) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, expectedTargetType),
       );
     case KindFunctionExpression:
       return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
@@ -398,10 +404,10 @@ export function planExpressionWithExpectedType(
         : input.types.resolveNode(expectedTypeSubject, sourceFile)
     );
   const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
-    planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
+    planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
+    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType, nestedState) =>
+      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
   }, state, effectiveExpectedTargetType);
   if (plan === undefined || effectiveExpectedTargetType === undefined) {
     return plan?.expression;

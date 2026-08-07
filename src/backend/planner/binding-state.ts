@@ -16,6 +16,7 @@ import {
 } from "./source-ast.js";
 
 export interface DestructuringPlannerState {
+  readonly parent?: DestructuringPlannerState;
   nextTempIndex: number;
   nextParameterIndex: number;
   nextForOfIndex: number;
@@ -75,6 +76,21 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
   };
 }
 
+export function createNestedPlannerState(
+  parent: DestructuringPlannerState,
+  root: Node,
+  ast: AstReader,
+): DestructuringPlannerState {
+  const nested = createDestructuringPlannerState(root, ast);
+  return {
+    ...nested,
+    parent,
+    usedNames: new Set([...parent.usedNames, ...nested.usedNames]),
+    localBoundNames: new Set(parent.localBoundNames),
+    localNameCounts: new Map(parent.localNameCounts),
+  };
+}
+
 export function declareCsharpLocalBindingName(
   node: Node | undefined,
   input: CsharpTranslationContext,
@@ -118,7 +134,7 @@ export function getCsharpLocalBindingName(
   state: DestructuringPlannerState | undefined,
 ): string | undefined {
   const key = state === undefined ? undefined : localBindingKey(node, input);
-  return key === undefined ? undefined : state!.localBindingNames.get(key);
+  return key === undefined ? undefined : findLocalBindingName(state!, key);
 }
 
 export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
@@ -146,7 +162,26 @@ export function getCsharpTypedLocationIdentityName(
   declaration: Node,
   state: DestructuringPlannerState,
 ): string | undefined {
-  return state.typedLocationIdentityNames.get(declaration);
+  for (let current: DestructuringPlannerState | undefined = state; current !== undefined; current = current.parent) {
+    const name = current.typedLocationIdentityNames.get(declaration);
+    if (name !== undefined) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+function findLocalBindingName(
+  state: DestructuringPlannerState,
+  key: object,
+): string | undefined {
+  for (let current: DestructuringPlannerState | undefined = state; current !== undefined; current = current.parent) {
+    const name = current.localBindingNames.get(key);
+    if (name !== undefined) {
+      return name;
+    }
+  }
+  return undefined;
 }
 
 export function allocateForOfItem(state: DestructuringPlannerState): string {

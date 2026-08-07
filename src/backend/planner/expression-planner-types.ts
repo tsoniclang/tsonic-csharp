@@ -13,6 +13,9 @@ import type {
   CsharpExpression,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
+import type {
+  DestructuringPlannerState,
+} from "./bindings.js";
 
 export type PlannedExpression = CsharpExpression | undefined;
 export type PlannedArgument = CsharpArgument | undefined;
@@ -22,6 +25,7 @@ export type ExpressionPlanner = (
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
+  state?: DestructuringPlannerState,
 ) => PlannedExpression;
 
 export type CallArgumentPlanner = (
@@ -44,4 +48,5 @@ export type ExpectedExpressionPlanner = (
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   expectedTargetType?: TargetTypeRef,
+  state?: DestructuringPlannerState,
 ) => PlannedExpression;

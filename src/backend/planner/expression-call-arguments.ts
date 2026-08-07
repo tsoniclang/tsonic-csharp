@@ -25,6 +25,10 @@ import {
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
+import type {
+  ExpectedExpressionPlanner,
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
 import {
   planArrowFunctionExpression,
   planFunctionExpression,
@@ -32,23 +36,6 @@ import {
 import {
   selectCsharpSourceArgument,
 } from "../../policy/members/argument-selection.js";
-
-export type ExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-) => CsharpExpression | undefined;
-
-export type ExpectedExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  expectedTargetType?: TargetTypeRef,
-) => CsharpExpression | undefined;
 
 export function planCallArgumentCore(
   node: Node,

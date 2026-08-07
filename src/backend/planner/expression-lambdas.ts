@@ -31,6 +31,7 @@ import type {
 import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   createDestructuringPlannerState,
+  createNestedPlannerState,
   declareCsharpLocalBindingName,
 } from "./bindings.js";
 import type {
@@ -50,6 +51,7 @@ import type {
   CsharpDelegateSignatureShape,
 } from "../../policy/types/index.js";
 import type {
+  ExpressionPlanner,
   ExpectedExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
@@ -74,13 +76,6 @@ export interface LambdaTargetContext {
     readonly returnTargetType?: TargetTypeRef;
   };
 }
-
-type ExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-) => CsharpExpression | undefined;
 
 export function planArrowFunctionExpression(
   node: Node,
@@ -111,7 +106,9 @@ export function planArrowFunctionExpression(
     return undefined;
   }
   const parameterNodes = expression.Parameters?.Nodes ?? [];
-  const plannerState = state ?? createDestructuringPlannerState(node, input.ast);
+  const plannerState = state === undefined
+    ? createDestructuringPlannerState(node, input.ast)
+    : createNestedPlannerState(state, node, input.ast);
   const parameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
@@ -154,8 +151,9 @@ export function planArrowFunctionExpression(
       returnContext.returnExpressionType,
       returnContext.returnExpressionTypeSubject,
       returnContext.returnExpressionTargetType,
+      plannerState,
     )
-    : planExpression(expression.Body!, sourceFile, scopedInput, diagnostics);
+    : planExpression(expression.Body!, sourceFile, scopedInput, diagnostics, plannerState);
   if (body === undefined) {
     return undefined;
   }
@@ -213,7 +211,9 @@ export function planFunctionExpression(
     return undefined;
   }
   const parameterNodes = expression.Parameters?.Nodes ?? [];
-  const plannerState = state ?? createDestructuringPlannerState(node, input.ast);
+  const plannerState = state === undefined
+    ? createDestructuringPlannerState(node, input.ast)
+    : createNestedPlannerState(state, node, input.ast);
   const parameters = planLambdaParameters(
     parameterNodes,
     sourceFile,

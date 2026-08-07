@@ -238,6 +238,31 @@ test("lambda, destructured, and per-iteration bindings receive one identity per 
   );
 });
 
+test("sibling lambdas isolate local names while retaining captured location identity", () => {
+  const compiled = cleanCompile(`
+    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import type { bool, int32 } from "@tsonic/core/types.js";
+
+    export function compareSiblingLambdas(seed: int32): bool {
+      const first: (value: int32) => bool =
+        (value): bool => equalPointer(addressOf(value), addressOf(value));
+      const second: (value: int32) => bool =
+        (value): bool => equalPointer(addressOf(value), addressOf(value));
+      const captured: () => bool =
+        (): bool => equalPointer(addressOf(seed), addressOf(seed));
+      return first(seed) && second(seed) && captured();
+    }
+  `);
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.equal(occurrences(source, "(int value) =>"), 2);
+  assert.doesNotMatch(source, /\(int value_\d+\) =>/u);
+  assert.match(
+    source,
+    /CreateLocal\((__tsonic_locationIdentity\d+), \(\) => seed,[\s\S]*CreateLocal\(\1, \(\) => seed,/u,
+  );
+});
+
 test("loop bindings preserve assignment, lexical, and function-scoped storage identity", () => {
   const compiled = compileCsharpSource({
     surface: "js",
