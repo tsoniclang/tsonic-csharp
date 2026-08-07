@@ -1,5 +1,4 @@
 import {
-  argumentPassingFactKey,
   type Node,
 } from "@tsonic/tsts";
 import {
@@ -15,6 +14,7 @@ import {
   isCsharpClosedCompatRuntimeCarrier,
 } from "../../policy/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { selectCsharpSourceArgument } from "../../policy/members/index.js";
 
 const tsValueSupportedSourcePrimitives = new Set([
   "bool",
@@ -194,15 +194,15 @@ function sourceFactsWriteBindingWithin(
     if (node === undefined || found) {
       return;
     }
-    const passing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
+    const passing = selectCsharpSourceArgument(input.sourceFacts, node);
     if (
-      passing !== undefined &&
-      passing.mode !== "by-value" &&
-      passing.mode !== "byref-readonly" &&
-      passing.mode !== "borrow-shared"
+      passing.kind === "resolved" &&
+      passing.argument.passingMode !== "by-value" &&
+      passing.argument.passingMode !== "byref-readonly" &&
+      passing.argument.passingMode !== "borrow-shared"
     ) {
       const storageDeclaration = input.navigation.referenceFor(
-        passing.storageExpression,
+        passing.argument.storageExpression,
       )?.declaration;
       if (sourceNodesEqual(input.ast, storageDeclaration, declaration)) {
         found = true;

@@ -15,8 +15,10 @@ Tsonic itself remains the generic compiler shell and host. It consumes this pack
 
 The neutral source contract uses `Pointer<T>` with `addressOf`,
 `allocatePointer`, `loadPointer`, and `storePointer`. The C# target consumes
-the finalized TSTS operation facts and lowers the contract to one closed
-`Tsonic.CSharp.Runtime.Location<T>` representation.
+the finalized TSTS operation facts once, converts them into C#-owned
+typed-location operations, and lowers that target model to one closed
+`Tsonic.CSharp.Runtime.Location<T>` representation. The backend never reads
+the neutral pointer fact directly.
 
 ```ts
 let value: int32 = 1;
@@ -37,3 +39,17 @@ once. `allocatePointer` creates independent storage. The target retains `ptr`
 and `fnptr` only as C#-flavoured type aliases; neutral `Pointer<T>` remains a
 typed location, while CLR provider pointer types remain native C# pointer
 types when provider metadata explicitly selects them.
+
+C#-flavoured source aliases are owned only by `@tsonic/csharp/lang.js`:
+
+| C# alias | Selected source meaning |
+| --- | --- |
+| `out(value)` | write-only reference argument |
+| `ref(value)` | read/write reference argument |
+| `inref(value)` | read-only reference argument |
+| `defaultof<T>()` | default value |
+| `ptr<T>` | native C# pointer type marker |
+| `fnptr<T>` | native C# function-pointer type marker |
+
+Neutral code instead imports `writeOnlyRef`, `readWriteRef`, `readOnlyRef`,
+`defaultValue`, `Pointer`, and `FunctionPointer` from `@tsonic/core`.

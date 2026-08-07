@@ -21,6 +21,7 @@ export * from "./storage-identity.js";
 export * from "./source-profile.js";
 export * from "./source-literal-policy.js";
 export * from "./source-syntax.js";
+export * from "./source-markers.js";
 export * from "./selected-type-evidence.js";
 export * from "./project-types.js";
 export * from "./project-type-constructors.js";

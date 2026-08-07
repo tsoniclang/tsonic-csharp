@@ -1,6 +1,5 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import type {
-  ArgumentPassingFact,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
@@ -33,7 +32,7 @@ export type CallArgumentPlanner = (
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
-  expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+  expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
 ) => PlannedArgument;
 

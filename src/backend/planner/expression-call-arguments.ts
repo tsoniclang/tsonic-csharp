@@ -1,6 +1,5 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  type ArgumentPassingFact,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
@@ -61,7 +60,7 @@ export function planCallArgumentCore(
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
-  expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
+  expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value",
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
@@ -172,7 +171,7 @@ function planCallArgumentExpression(
 }
 
 function csharpSupportsArgumentPassingMode(
-  mode: ArgumentPassingFact["mode"],
+  mode: CsharpTargetParameter["passingMode"],
 ): boolean {
   switch (mode) {
     case "by-value":
@@ -188,7 +187,7 @@ function csharpSupportsArgumentPassingMode(
 }
 
 function getCsharpArgumentPassing(
-  mode: ArgumentPassingFact["mode"],
+  mode: CsharpTargetParameter["passingMode"],
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpArgument["passing"] {

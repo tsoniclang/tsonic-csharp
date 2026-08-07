@@ -1,5 +1,4 @@
 import type {
-  ArgumentPassingMode,
   Node,
 } from "@tsonic/tsts";
 import type {
@@ -175,7 +174,7 @@ function planForwardingParameters(
 }
 
 function csharpPassing(
-  mode: ArgumentPassingMode,
+  mode: CsharpTargetParameter["passingMode"],
 ):
   | { readonly kind: "resolved"; readonly value?: "in" | "out" | "ref" }
   | { readonly kind: "unsupported" } {

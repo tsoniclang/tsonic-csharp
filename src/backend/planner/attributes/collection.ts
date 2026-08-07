@@ -1,8 +1,8 @@
 import type { CsharpTranslationContext } from "../../../translate/context/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import {
-  type TsonicAttributeApplicationFact,
-} from "@tsonic/source-core";
+import type {
+  CsharpAttributeApplication,
+} from "../../../translate/attributes/application-fact-index.js";
 import {
   attributeFactForNodeOrSymbol,
   directAttributeFactAppliesToSubject,
@@ -13,11 +13,11 @@ export function collectAttributeFactsForSubject(
   subject: Node | undefined,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
-): readonly TsonicAttributeApplicationFact[] {
+): readonly CsharpAttributeApplication[] {
   if (subject === undefined) {
     return [];
   }
-  const facts: TsonicAttributeApplicationFact[] = [];
+  const facts: CsharpAttributeApplication[] = [];
   const direct = attributeFactForNodeOrSymbol(subject, input);
   if (directAttributeFactAppliesToSubject(direct)) {
     facts.push(direct);
@@ -30,19 +30,19 @@ export function collectAttributeFactsForSubject(
   return facts;
 }
 
-export function collectAttributeApplicationFacts(input: CsharpTranslationContext): readonly TsonicAttributeApplicationFact[] {
+export function collectAttributeApplicationFacts(input: CsharpTranslationContext): readonly CsharpAttributeApplication[] {
   return input.attributeApplications.all;
 }
 
 export function collectAttributeApplicationFactsForSourceFile(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
-): readonly TsonicAttributeApplicationFact[] {
+): readonly CsharpAttributeApplication[] {
   return input.attributeApplications.forSourceFile(sourceFile);
 }
 
 function attributeApplicationTargetsSubject(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   subject: Node,
   contextSourceFile: SourceFile,
   input: CsharpTranslationContext,

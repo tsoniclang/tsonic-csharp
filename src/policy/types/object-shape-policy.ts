@@ -3,7 +3,6 @@ import {
 } from "node:crypto";
 import {
   providerVirtualDeclarationFactKey,
-  structFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
@@ -39,6 +38,7 @@ import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./equality.js";
+import { readCsharpSourceStruct } from "./source-markers.js";
 import {
   canonicalCsharpObjectShapeImplementedTypes,
   canonicalCsharpObjectShapeMembers,
@@ -327,7 +327,7 @@ export function createCsharpObjectShapePolicy(
     queries: SourceFileSemantics,
   ): CsharpObjectShapeFact | undefined {
     for (const subject of sourceSubjects(node, queries)) {
-      const fact = host.sourceFacts?.getFact(subject, structFactKey);
+      const fact = readCsharpSourceStruct(host.sourceFacts, subject);
       if (fact === undefined) {
         continue;
       }
@@ -335,21 +335,21 @@ export function createCsharpObjectShapePolicy(
       if (targetType === undefined) {
         return undefined;
       }
-      const members = (fact.fields ?? []).map((field) => {
-        const type = host.types.resolveNode(field.type, queries.sourceFile);
-        const sourceType = queries.getTypeFromTypeNode(field.type);
+      const members = fact.fields.map((field) => {
+        const type = host.types.resolveNode(field.sourceType, queries.sourceFile);
+        const sourceType = queries.getTypeFromTypeNode(field.sourceType);
         return type === undefined
           ? undefined
           : {
-              sourceName: field.name,
-              sourceSubjects: [field.type],
+              sourceName: field.sourceName,
+              sourceSubjects: [field.sourceType],
               ...(sourceType === undefined
                 ? {}
                 : { sourceTypes: [sourceType] }),
-              targetName: objectShapeMemberTargetName(field.name),
+              targetName: objectShapeMemberTargetName(field.sourceName),
               memberKind: "property" as const,
               type,
-              ...(field.readonly === true ? { readonly: true } : {}),
+              ...(field.readonly ? { readonly: true } : {}),
             };
       });
       return members.some((member) => member === undefined)

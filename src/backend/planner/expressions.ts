@@ -20,14 +20,19 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import {
-  argumentPassingFactKey,
-  defaultValueFactKey,
-  type ArgumentPassingFact,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpTargetParameter } from "../../policy/types/index.js";
+import {
+  selectCsharpSourceArgument,
+} from "../../policy/members/index.js";
+import {
+  readCsharpSourceDefaultValue,
+} from "../../policy/types/index.js";
+import type {
+  CsharpTargetParameter,
+  TargetTypeRef,
+} from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -114,13 +119,13 @@ function planExpressionCore(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const defaultValue = input.sourceFacts?.getFact(node, defaultValueFactKey);
+  const defaultValue = readCsharpSourceDefaultValue(input.sourceFacts, node);
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
       nullForgiving: true,
       type: getCsharpTypeForNode(
-        defaultValue.type,
+        defaultValue.sourceType,
         sourceFile,
         input,
         undefined,
@@ -128,12 +133,22 @@ function planExpressionCore(
       ),
     };
   }
-  const argumentPassing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
+  const argumentPassing = selectCsharpSourceArgument(input.sourceFacts, node);
   if (
-    argumentPassing?.storageExpression !== undefined &&
-    !sourceNodesEqual(input.ast, argumentPassing.storageExpression, node)
+    argumentPassing.kind === "resolved" &&
+    !sourceNodesEqual(
+      input.ast,
+      argumentPassing.argument.storageExpression,
+      node,
+    )
   ) {
-    return planExpression(argumentPassing.storageExpression, sourceFile, input, diagnostics, state);
+    return planExpression(
+      argumentPassing.argument.storageExpression,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
   }
   const scopedPlanExpression = (
     expressionNode: Node,
@@ -149,7 +164,7 @@ function planExpressionCore(
     expectedType?: CsharpTypeNode,
     expectedTypeSubject?: Node,
     conversionExpectedTargetType?: TargetTypeRef,
-    expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+    expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
     selectedTargetParameter?: CsharpTargetParameter,
   ): CsharpArgument | undefined => planCallArgument(
     argumentNode,
@@ -345,7 +360,7 @@ export function planCallArgument(
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
-  expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+  expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
   return planCallArgumentCore(

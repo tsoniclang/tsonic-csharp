@@ -1,7 +1,4 @@
 import {
-  defaultValueFactKey,
-  functionPointerFactKey,
-  pointerFactKey,
   providerVirtualDeclarationFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
@@ -108,6 +105,11 @@ import {
 import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
+import {
+  readCsharpSourceDefaultValue,
+  readCsharpSourceFunctionPointerType,
+  readCsharpSourcePointerType,
+} from "./source-markers.js";
 import type {
   CsharpProjectTypeCatalog,
   CsharpProjectTypePolicy,
@@ -2045,13 +2047,13 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     for (const subject of subjects) {
-      const defaultValue = host.sourceFacts?.getFact(
+      const defaultValue = readCsharpSourceDefaultValue(
+        host.sourceFacts,
         subject,
-        defaultValueFactKey,
       );
       if (defaultValue !== undefined) {
         const type = resolveNodeWithState(
-          defaultValue.type,
+          defaultValue.sourceType,
           sourceFile,
           nextState(state),
         );
@@ -2063,10 +2065,10 @@ export function createCsharpTypePolicy(
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);
       }
-      const pointer = host.sourceFacts?.getFact(subject, pointerFactKey);
+      const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);
       if (pointer !== undefined) {
         const pointee = resolveNodeWithState(
-          pointer.pointee,
+          pointer.sourcePointee,
           sourceFile,
           nextState(state),
         );
@@ -2095,16 +2097,16 @@ export function createCsharpTypePolicy(
           }
         }
       }
-      const functionPointer = host.sourceFacts?.getFact(
+      const functionPointer = readCsharpSourceFunctionPointerType(
+        host.sourceFacts,
         subject,
-        functionPointerFactKey,
       );
       if (functionPointer !== undefined) {
-        const parameters = functionPointer.parameters.map((parameter) =>
+        const parameters = functionPointer.sourceParameters.map((parameter) =>
           resolveNodeWithState(parameter, sourceFile, nextState(state))
         );
         const result = resolveNodeWithState(
-          functionPointer.result,
+          functionPointer.sourceResult,
           sourceFile,
           nextState(state),
         );

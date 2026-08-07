@@ -23,11 +23,8 @@ import type {
 } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../roslyn/syntax.js";
 import type {
-  TsonicAttributeApplicationFact,
-} from "@tsonic/source-core";
-import {
-  tsonicAttributeBuilderFactKey,
-} from "@tsonic/source-core";
+  CsharpAttributeApplication,
+} from "../../../translate/attributes/application-fact-index.js";
 import { expressionToCsharpType } from "../csharp-types.js";
 import { planExpression } from "../expressions.js";
 import {
@@ -67,14 +64,12 @@ export function isErasedAttributeExpressionStatement(
     return false;
   }
   const expression = AsExpressionStatement(statement)?.Expression;
-  return input.sourceFacts?.getFact(
-    expression,
-    tsonicAttributeBuilderFactKey,
-  ) !== undefined;
+  return expression !== undefined &&
+    input.attributeApplications.forSubject(expression) !== undefined;
 }
 
 function planAttribute(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
@@ -97,7 +92,7 @@ function planAttribute(
 }
 
 function attributeApplicationMemberKindIsValid(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
@@ -121,7 +116,7 @@ function attributeApplicationMemberKindIsValid(
 }
 
 function planAttributeArguments(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
@@ -142,7 +137,7 @@ function planAttributeArguments(
 }
 
 function planAttributeTargetSpecifier(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],

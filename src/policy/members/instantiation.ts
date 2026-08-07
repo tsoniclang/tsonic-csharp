@@ -1,6 +1,5 @@
 import {
   type AstReader,
-  argumentPassingFactKey,
 } from "@tsonic/tsts";
 import type {
   ReadonlySourceFactResolver,
@@ -33,6 +32,7 @@ import {
   compareCsharpImplicitConversionTargets,
   selectCsharpProviderArgumentConversion,
 } from "../conversions/index.js";
+import { csharpSourceArgumentPassingMode } from "./argument-selection.js";
 import {
   mergeCsharpTypeParameterSubstitutions,
   resolveCsharpTargetBindingArguments,
@@ -282,10 +282,10 @@ function validateProviderCallRelation(
     }
     seenSource.add(parameterRelation.sourceParameterIndex);
     seenTarget.add(parameterRelation.targetParameterIndex);
-    const sourcePassingMode = sourceFacts?.getFact(
+    const sourcePassingMode = csharpSourceArgumentPassingMode(
+      sourceFacts,
       sourceParameter.parameterDeclaration ?? sourceParameter.parameterSymbol,
-      argumentPassingFactKey,
-    )?.mode ?? "by-value";
+    );
     if (
       sourcePassingMode !== parameterRelation.sourcePassingMode ||
       targetParameter.passingMode !== parameterRelation.targetPassingMode ||
