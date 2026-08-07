@@ -2,9 +2,6 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import {
-  sourceNodeIdentity,
-} from "@tsonic/target-api";
 import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
@@ -484,8 +481,27 @@ function selectedSourceStorageIdentity(
   declaration: Node | undefined,
   category: string,
 ): string | undefined {
-  const identity = sourceNodeIdentity(input.ast, declaration);
-  return identity === undefined ? undefined : `${category}:${identity}`;
+  if (declaration === undefined) {
+    return undefined;
+  }
+  if (!input.navigation.isProjectDeclaration(declaration)) {
+    return undefined;
+  }
+  const sourceFile = input.ast.getSourceFile(declaration);
+  const syntaxKind = input.ast.kind(declaration);
+  if (sourceFile === undefined || syntaxKind === undefined) {
+    return undefined;
+  }
+  const outputIdentity = input.outputIdentities.resolveRequired(
+    input.ast.getFileName(sourceFile),
+  );
+  return [
+    category,
+    outputIdentity.artifactPath,
+    syntaxKind,
+    input.ast.pos(declaration),
+    input.ast.end(declaration),
+  ].join("\u0000");
 }
 
 function classifyCsharpStorageReceiver(

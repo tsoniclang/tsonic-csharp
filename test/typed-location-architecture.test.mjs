@@ -114,7 +114,8 @@ test("typed-location storage identity is closed over exact declarations, members
     "utf8",
   );
 
-  assert.match(storage, /sourceNodeIdentity/u);
+  assert.match(storage, /outputIdentities\.resolveRequired/u);
+  assert.doesNotMatch(storage, /sourceNodeIdentity/u);
   assert.match(storage, /receiverType\.kind !== "array"/u);
   assert.doesNotMatch(
     storage,

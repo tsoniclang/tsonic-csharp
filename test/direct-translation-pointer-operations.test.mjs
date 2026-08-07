@@ -204,6 +204,47 @@ test("source-core value-type fields preserve exact pointee facts and owner write
   assert.doesNotMatch(source, /Location<double>|ProjectMember<double>/u);
 });
 
+test("source-backed location identities are independent of the absolute project root", () => {
+  const sourceText = `
+    import {
+      addressOf,
+      defaultValue,
+      equalPointer,
+      field,
+      struct,
+    } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    let shared: int32 = 0;
+
+    export const Pair = struct({
+      left: field<int32>(),
+      right: field<int32>(),
+    });
+
+    export function compare(): boolean {
+      let pair: typeof Pair = defaultValue<typeof Pair>();
+      return equalPointer(addressOf(shared), addressOf(shared)) &&
+        equalPointer(addressOf(pair.left), addressOf(pair.left));
+    }
+  `;
+  const first = cleanCompile(sourceText, {
+    projectRoot: "/first-checkout/project",
+  });
+  const second = cleanCompile(sourceText, {
+    projectRoot: "/second-checkout/project",
+  });
+
+  assert.deepEqual(first.artifacts, second.artifacts);
+  const source = first.artifacts.get("src/Index.cs");
+  assert.doesNotMatch(source, /first-checkout|second-checkout/u);
+  assert.equal(
+    source.includes("source-static-storage\\u0000src/Index.cs"),
+    true,
+  );
+  assert.equal(source.includes("source-member\\u0000src/Index.cs"), true);
+});
+
 test("lambda, destructured, and per-iteration bindings receive one identity per activation", () => {
   const compiled = cleanCompile(`
     import { addressOf, equalPointer } from "@tsonic/core/lang.js";
@@ -507,8 +548,8 @@ namespace Tsonic.Generated
 `);
 });
 
-function cleanCompile(sourceText) {
-  const compiled = compileCsharpSource({ sourceText });
+function cleanCompile(sourceText, options = {}) {
+  const compiled = compileCsharpSource({ ...options, sourceText });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
