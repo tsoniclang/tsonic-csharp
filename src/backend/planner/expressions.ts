@@ -20,14 +20,19 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import {
-  argumentPassingFactKey,
-  defaultValueFactKey,
-  type ArgumentPassingFact,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../policy/types/index.js";
-import type { CsharpTargetParameter } from "../../policy/types/index.js";
+import {
+  selectCsharpSourceArgument,
+} from "../../policy/members/index.js";
+import {
+  readCsharpSourceDefaultValue,
+} from "../../policy/types/index.js";
+import type {
+  CsharpTargetParameter,
+  TargetTypeRef,
+} from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -93,6 +98,9 @@ import {
 import {
   requireCsharpStorageRepresentation,
 } from "../../translate/artifacts/storage-representation.js";
+import {
+  tryPlanCsharpTypedLocationOperation,
+} from "./expression-typed-locations.js";
 
 export function planExpression(
   node: Node,
@@ -111,13 +119,13 @@ function planExpressionCore(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const defaultValue = input.sourceFacts?.getFact(node, defaultValueFactKey);
+  const defaultValue = readCsharpSourceDefaultValue(input.sourceFacts, node);
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
       nullForgiving: true,
       type: getCsharpTypeForNode(
-        defaultValue.type,
+        defaultValue.sourceType,
         sourceFile,
         input,
         undefined,
@@ -125,19 +133,36 @@ function planExpressionCore(
       ),
     };
   }
-  const argumentPassing = input.sourceFacts?.getFact(node, argumentPassingFactKey);
+  const argumentPassing = selectCsharpSourceArgument(input.sourceFacts, node);
   if (
-    argumentPassing?.storageExpression !== undefined &&
-    !sourceNodesEqual(input.ast, argumentPassing.storageExpression, node)
+    argumentPassing.kind === "resolved" &&
+    !sourceNodesEqual(
+      input.ast,
+      argumentPassing.argument.storageExpression,
+      node,
+    )
   ) {
-    return planExpression(argumentPassing.storageExpression, sourceFile, input, diagnostics, state);
+    return planExpression(
+      argumentPassing.argument.storageExpression,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
   }
   const scopedPlanExpression = (
     expressionNode: Node,
     expressionSourceFile: SourceFile,
     expressionInput: CsharpTranslationContext,
     expressionDiagnostics: TargetDiagnostic[],
-  ): CsharpExpression | undefined => planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state);
+    nestedState?: DestructuringPlannerState,
+  ): CsharpExpression | undefined => planExpression(
+    expressionNode,
+    expressionSourceFile,
+    expressionInput,
+    expressionDiagnostics,
+    nestedState ?? state,
+  );
   const scopedPlanCallArgument = (
     argumentNode: Node,
     argumentSourceFile: SourceFile,
@@ -146,7 +171,7 @@ function planExpressionCore(
     expectedType?: CsharpTypeNode,
     expectedTypeSubject?: Node,
     conversionExpectedTargetType?: TargetTypeRef,
-    expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+    expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
     selectedTargetParameter?: CsharpTargetParameter,
   ): CsharpArgument | undefined => planCallArgument(
     argumentNode,
@@ -160,6 +185,35 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
+  const typedLocationOperation = tryPlanCsharpTypedLocationOperation(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    scopedPlanExpression,
+    (
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      expectedTargetType,
+    ) => planExpressionWithExpectedType(
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      state,
+      expectedTargetType,
+    ),
+    state,
+  );
+  if (typedLocationOperation.handled) {
+    return typedLocationOperation.expression;
+  }
   const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
   if (sourceSyntax !== undefined) {
@@ -244,13 +298,12 @@ function planExpressionCore(
         sourceFile,
         input,
         diagnostics,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        scopedPlanExpression,
         undefined,
         state,
         undefined,
-        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
-          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType),
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType, nestedState) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, expectedTargetType),
       );
     case KindFunctionExpression:
       return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
@@ -313,7 +366,7 @@ export function planCallArgument(
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
-  expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
+  expectedArgumentPassingMode?: CsharpTargetParameter["passingMode"],
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
   return planCallArgumentCore(
@@ -351,11 +404,11 @@ export function planExpressionWithExpectedType(
         : input.types.resolveNode(expectedTypeSubject, sourceFile)
     );
   const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
-    planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
-  }, effectiveExpectedTargetType);
+    planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
+    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType, nestedState) =>
+      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
+  }, state, effectiveExpectedTargetType);
   if (plan === undefined || effectiveExpectedTargetType === undefined) {
     return plan?.expression;
   }

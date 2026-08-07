@@ -1,10 +1,14 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  fieldFactKey,
-  type FieldFact,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
+import type {
+  CsharpSourceField,
+} from "../../policy/types/index.js";
+import {
+  readCsharpSourceField,
+} from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -56,9 +60,7 @@ import {
 import {
   planAttributesForSubject,
 } from "./attributes.js";
-import {
-  getCsharpTypeForFieldFact,
-} from "./value-types.js";
+import { getCsharpTypeForSourceField } from "./value-types.js";
 
 export function planPropertyDeclaration(
   node: Node,
@@ -69,9 +71,9 @@ export function planPropertyDeclaration(
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "property declaration", diagnostics);
-  const fieldFact = getClassPropertyFieldFact(node, declaration, input);
-  if (fieldFact !== undefined) {
-    const type = getCsharpTypeForFieldFact(fieldFact, "Class field", sourceFile, input, diagnostics);
+  const sourceField = getClassPropertySourceField(node, declaration, input);
+  if (sourceField !== undefined) {
+    const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
       name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
@@ -158,15 +160,17 @@ export function mergeAccessorProperty(
   }
 }
 
-function getClassPropertyFieldFact(
+function getClassPropertySourceField(
   node: Node,
   declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
   input: CsharpTranslationContext,
-): FieldFact | undefined {
-  return input.sourceFacts?.getFact(node, fieldFactKey) ??
-    input.sourceFacts?.getFact(declaration.name, fieldFactKey) ??
-    input.sourceFacts?.getFact(declaration.Type, fieldFactKey) ??
-    input.sourceFacts?.getFact(declaration.Initializer, fieldFactKey);
+): CsharpSourceField | undefined {
+  return readCsharpSourceField(input.sourceFacts, [
+    node,
+    declaration.name,
+    declaration.Type,
+    declaration.Initializer,
+  ]);
 }
 
 function mergeGetterAccessor(

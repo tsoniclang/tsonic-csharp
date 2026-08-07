@@ -40,6 +40,9 @@ import {
 import {
   isCsharpCompatValueTargetType,
 } from "../../policy/types/index.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export type BlockStatementPlanner = (
   blockNode: Node | undefined,
@@ -162,6 +165,11 @@ function planCatchClause(
           },
         };
       }
+      const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+        clause.VariableDeclaration,
+        input,
+        state,
+      );
       return {
         kind: "CatchClause",
         variableType: catchExceptionType,
@@ -175,19 +183,28 @@ function planCatchClause(
               name: sourceVariableName,
               initializer: catchValueInitializer,
             },
+            ...(locationIdentity === undefined ? [] : [locationIdentity]),
             ...planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
           ],
         },
       };
     }
     const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
+    const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+      clause.VariableDeclaration,
+      input,
+      state,
+    );
     return {
       kind: "CatchClause",
       variableType,
       variableName: sourceVariableName,
       body: {
         kind: "Block",
-        statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        statements: [
+          ...(locationIdentity === undefined ? [] : [locationIdentity]),
+          ...planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        ],
       },
     };
   }

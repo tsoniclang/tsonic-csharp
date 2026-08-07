@@ -5,9 +5,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
-  structFactKey,
-} from "@tsonic/tsts";
-import {
   sourceNodeIdentity,
 } from "@tsonic/target-api";
 import type {
@@ -29,6 +26,7 @@ import type {
 import {
   substituteTargetTypeParameters,
 } from "./substitution.js";
+import { readCsharpSourceStruct } from "./source-markers.js";
 import {
   targetTypeRefKey,
 } from "./equality.js";
@@ -613,7 +611,7 @@ function declarationKind(
       : ast.is.IsEnumDeclaration(declaration)
         ? "enum"
         : ast.is.IsVariableDeclaration(declaration) &&
-            host.sourceFacts?.getFact(declaration, structFactKey)?.valueType === true
+            readCsharpSourceStruct(host.sourceFacts, declaration)?.valueType === true
           ? "struct"
         : undefined;
 }

@@ -7,11 +7,8 @@ import {
 } from "../source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
-  TsonicAttributeApplicationFact,
-} from "@tsonic/source-core";
-import {
-  tsonicAttributeBuilderFactKey,
-} from "@tsonic/source-core";
+  CsharpAttributeApplication,
+} from "../../../translate/attributes/application-fact-index.js";
 
 export interface AttributeApplicationResolution {
   readonly applicationTarget?: Node;
@@ -21,7 +18,7 @@ export interface AttributeApplicationResolution {
 }
 
 export function resolveAttributeApplication(
-  attribute: TsonicAttributeApplicationFact,
+  attribute: CsharpAttributeApplication,
   _contextSourceFile: SourceFile,
   input: CsharpTranslationContext,
 ): AttributeApplicationResolution {
@@ -65,17 +62,19 @@ export function attributeSubjectDescription(
 }
 
 export function directAttributeFactAppliesToSubject(
-  attribute: TsonicAttributeApplicationFact | undefined,
-): attribute is TsonicAttributeApplicationFact {
-  return attribute?.kind === "application";
+  attribute: CsharpAttributeApplication | undefined,
+): attribute is CsharpAttributeApplication {
+  return attribute?.kind === "csharp-attribute-application";
 }
 
 export function attributeFactForNodeOrSymbol(
   subject: Node,
   input: CsharpTranslationContext,
-): TsonicAttributeApplicationFact | undefined {
-  const fact = input.sourceFacts?.getFact(subject, tsonicAttributeBuilderFactKey);
-  return fact?.kind === "application" ? fact : undefined;
+): CsharpAttributeApplication | undefined {
+  const operation = input.attributeApplications.forSubject(subject);
+  return operation?.kind === "csharp-attribute-application"
+    ? operation
+    : undefined;
 }
 
 function findConstructorDeclaration(

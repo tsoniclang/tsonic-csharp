@@ -7,10 +7,10 @@ import {
   KindObjectBindingPattern,
 } from "./source-ast.js";
 import {
-  structFactKey,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
+import { readCsharpSourceStruct } from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -55,7 +55,7 @@ export function planTopLevelVariableStatement(
     return;
   }
   for (const declaration of declarations) {
-    const valueType = input.sourceFacts?.getFact(declaration, structFactKey);
+    const valueType = readCsharpSourceStruct(input.sourceFacts, declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;

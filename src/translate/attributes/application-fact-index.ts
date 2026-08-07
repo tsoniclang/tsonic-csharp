@@ -1,18 +1,46 @@
 import type {
   AstReader,
+  ExtensionFactSubject,
   Node,
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
 import {
   tsonicAttributeBuilderFactKey,
-  type TsonicAttributeApplicationFact,
+  type TsonicAttributeBuilderFact,
 } from "@tsonic/source-core";
 
 export interface CsharpAttributeApplicationFactIndex {
-  readonly all: readonly TsonicAttributeApplicationFact[];
-  forSourceFile(sourceFile: SourceFile): readonly TsonicAttributeApplicationFact[];
+  readonly all: readonly CsharpAttributeApplication[];
+  forSourceFile(sourceFile: SourceFile): readonly CsharpAttributeApplication[];
+  forSubject(subject: Node): CsharpAttributeBuilderOperation | undefined;
 }
+
+export interface CsharpAttributeBuilderState {
+  readonly kind: "csharp-attribute-builder-state";
+  readonly applicationTarget: ExtensionFactSubject;
+  readonly selectedMember?: ExtensionFactSubject;
+  readonly applicationMemberKind?: "property" | "method";
+  readonly applicationPlacement?: "declaration" | "constructor";
+  readonly applicationParameterName?: string;
+  readonly applicationTargetSpecifier?: string;
+}
+
+export interface CsharpAttributeApplication {
+  readonly kind: "csharp-attribute-application";
+  readonly attributeType: ExtensionFactSubject;
+  readonly arguments: readonly ExtensionFactSubject[];
+  readonly applicationTarget: ExtensionFactSubject;
+  readonly selectedMember?: ExtensionFactSubject;
+  readonly applicationMemberKind?: "property" | "method";
+  readonly applicationPlacement?: "declaration" | "constructor";
+  readonly applicationParameterName?: string;
+  readonly applicationTargetSpecifier?: string;
+}
+
+export type CsharpAttributeBuilderOperation =
+  | CsharpAttributeBuilderState
+  | CsharpAttributeApplication;
 
 export interface CsharpAttributeApplicationFactIndexInput {
   readonly ast: AstReader;
@@ -26,32 +54,49 @@ export function createCsharpAttributeApplicationFactIndex(
   if (input.sourceFacts === undefined) {
     return emptyAttributeApplicationFactIndex;
   }
-  const all: TsonicAttributeApplicationFact[] = [];
-  const bySourceFile = new Map<SourceFile, readonly TsonicAttributeApplicationFact[]>();
+  const all: CsharpAttributeApplication[] = [];
+  const bySourceFile = new Map<SourceFile, readonly CsharpAttributeApplication[]>();
+  const bySubject = new Map<Node, CsharpAttributeBuilderOperation>();
   for (const sourceFile of input.sourceFiles) {
-    const facts = collectSourceFileAttributeApplications(
+    const indexed = collectSourceFileAttributeBuilderOperations(
       sourceFile,
       input.ast,
       input.sourceFacts,
     );
-    bySourceFile.set(sourceFile, facts);
-    all.push(...facts);
+    const applications = Object.freeze(indexed.flatMap((entry) =>
+      entry.operation.kind === "csharp-attribute-application"
+        ? [entry.operation]
+        : []
+    ));
+    bySourceFile.set(sourceFile, applications);
+    all.push(...applications);
+    for (const entry of indexed) {
+      bySubject.set(entry.sourceSubject, entry.operation);
+    }
   }
   const frozenAll = Object.freeze(all);
   return Object.freeze({
     all: frozenAll,
-    forSourceFile(sourceFile: SourceFile): readonly TsonicAttributeApplicationFact[] {
+    forSourceFile(sourceFile: SourceFile): readonly CsharpAttributeApplication[] {
       return bySourceFile.get(sourceFile) ?? emptyAttributeApplications;
+    },
+    forSubject(subject: Node): CsharpAttributeBuilderOperation | undefined {
+      return bySubject.get(subject);
     },
   });
 }
 
-function collectSourceFileAttributeApplications(
+interface IndexedCsharpAttributeBuilderOperation {
+  readonly sourceSubject: Node;
+  readonly operation: CsharpAttributeBuilderOperation;
+}
+
+function collectSourceFileAttributeBuilderOperations(
   sourceFile: SourceFile,
   ast: AstReader,
   sourceFacts: ReadonlySourceFactResolver,
-): readonly TsonicAttributeApplicationFact[] {
-  const facts: TsonicAttributeApplicationFact[] = [];
+): readonly IndexedCsharpAttributeBuilderOperation[] {
+  const facts: IndexedCsharpAttributeBuilderOperation[] = [];
   const pending: Node[] = [sourceFile];
   while (pending.length > 0) {
     const node = pending.pop();
@@ -59,8 +104,11 @@ function collectSourceFileAttributeApplications(
       continue;
     }
     const fact = sourceFacts.getFact(node, tsonicAttributeBuilderFactKey);
-    if (fact?.kind === "application") {
-      facts.push(fact);
+    if (fact !== undefined) {
+      facts.push({
+        sourceSubject: node,
+        operation: csharpAttributeBuilderOperation(fact),
+      });
     }
     const children: Node[] = [];
     ast.forEachChild(node, (child) => {
@@ -78,11 +126,48 @@ function collectSourceFileAttributeApplications(
   return Object.freeze(facts);
 }
 
-const emptyAttributeApplications = Object.freeze([]) as readonly TsonicAttributeApplicationFact[];
+function csharpAttributeBuilderOperation(
+  fact: TsonicAttributeBuilderFact,
+): CsharpAttributeBuilderOperation {
+  const common = {
+    applicationTarget: fact.applicationTarget,
+    ...(fact.selectedMember === undefined
+      ? {}
+      : { selectedMember: fact.selectedMember }),
+    ...(fact.applicationMemberKind === undefined
+      ? {}
+      : { applicationMemberKind: fact.applicationMemberKind }),
+    ...(fact.applicationPlacement === undefined
+      ? {}
+      : { applicationPlacement: fact.applicationPlacement }),
+    ...(fact.applicationParameterName === undefined
+      ? {}
+      : { applicationParameterName: fact.applicationParameterName }),
+    ...(fact.applicationTargetSpecifier === undefined
+      ? {}
+      : { applicationTargetSpecifier: fact.applicationTargetSpecifier }),
+  };
+  return fact.kind === "builder-state"
+    ? Object.freeze({
+        kind: "csharp-attribute-builder-state",
+        ...common,
+      })
+    : Object.freeze({
+        kind: "csharp-attribute-application",
+        attributeType: fact.attributeType,
+        arguments: Object.freeze([...fact.arguments]),
+        ...common,
+      });
+}
+
+const emptyAttributeApplications = Object.freeze([]) as readonly CsharpAttributeApplication[];
 
 const emptyAttributeApplicationFactIndex: CsharpAttributeApplicationFactIndex = Object.freeze({
   all: emptyAttributeApplications,
-  forSourceFile(): readonly TsonicAttributeApplicationFact[] {
+  forSourceFile(): readonly CsharpAttributeApplication[] {
     return emptyAttributeApplications;
+  },
+  forSubject(): CsharpAttributeBuilderOperation | undefined {
+    return undefined;
   },
 });

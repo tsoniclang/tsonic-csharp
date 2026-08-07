@@ -7,7 +7,6 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
-  CsharpExpression,
   CsharpStatement,
 } from "../roslyn/syntax.js";
 import {
@@ -37,7 +36,7 @@ import type {
 import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
-  planForInKeyBindingStatementFromExpression,
+  planForInKeyCollectionBindingActivation,
 } from "./statement-for-in-binding.js";
 
 export function planKeyCollectionForInStatement(
@@ -83,12 +82,15 @@ export function planKeyCollectionForInStatement(
     return [];
   }
   const { collectionName, keysName } = allocateForInNames(state);
-  const itemName = binding.kind === "LocalDeclarationStatement" ? binding.name : keysName;
-  const keyExpression: CsharpExpression = { kind: "IdentifierName", name: itemName };
-  const bindingStatements = binding.kind === "LocalDeclarationStatement"
-    ? []
-    : [planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression)];
-  return [{
+  const bindingActivation = planForInKeyCollectionBindingActivation(
+    binding,
+    keyType,
+    keysName,
+    input,
+    state,
+  );
+  const itemName = bindingActivation.itemName;
+  return [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",
@@ -111,7 +113,7 @@ export function planKeyCollectionForInStatement(
           body: {
             kind: "Block",
             statements: [
-              ...bindingStatements,
+              ...bindingActivation.iterationPrelude,
               ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
             ],
           },

@@ -54,6 +54,7 @@ export function requireCsharpStorageRepresentation(
   const revision = input.artifacts.revision;
   const request = input.artifacts.requireStorage(expression, {
     kind: "target-representation",
+    declaration: reference.declaration,
     targetType,
   });
   if (request.kind === "rejected") {

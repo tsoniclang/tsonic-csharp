@@ -107,6 +107,7 @@ export interface CsharpTranslationArtifactGraph {
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult;
   requiredStorageType(storageExpression: Node): TargetTypeRef | undefined;
+  consumeTypedLocationIdentity(declaration: Node): boolean;
   publishSourceCallable(
     identity: CsharpSourceCallableArtifactIdentity,
     callable: CsharpSourceCallableContract,
@@ -814,6 +815,14 @@ export function createCsharpTranslationArtifactGraph(
     return storage.requiredType(storageExpression);
   }
 
+  function consumeTypedLocationIdentity(declaration: Node): boolean {
+    const owner = storage.contractOwner(declaration);
+    if (owner !== undefined) {
+      dependOn(owner, "storage-representation");
+    }
+    return storage.consumeTypedLocationIdentity(declaration);
+  }
+
   function publishSourceCallable(
     identity: CsharpSourceCallableArtifactIdentity,
     callable: CsharpSourceCallableContract,
@@ -945,6 +954,7 @@ export function createCsharpTranslationArtifactGraph(
           owner,
           artifact.targetType,
           artifact.nullableWrittenType,
+          artifact.typedLocationIdentity,
         ));
       case "source-file":
         return {
@@ -979,6 +989,7 @@ export function createCsharpTranslationArtifactGraph(
     requireStorage,
     resolveStorageType,
     requiredStorageType,
+    consumeTypedLocationIdentity,
     publishSourceCallable,
     sourceCallable,
     unfulfilledStorageRequirements: storage.unfulfilled,

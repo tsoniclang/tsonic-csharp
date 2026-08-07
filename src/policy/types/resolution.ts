@@ -1,7 +1,4 @@
 import {
-  defaultValueFactKey,
-  functionPointerFactKey,
-  pointerFactKey,
   providerVirtualDeclarationFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
@@ -71,6 +68,8 @@ import {
 } from "./selected-type-evidence.js";
 import {
   csharpAnyTargetType,
+  csharpRuntimeLocationPointee,
+  csharpRuntimeLocationTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   combineCsharpTargetUnionMembers,
@@ -97,9 +96,21 @@ import {
 import {
   selectCsharpNumericBinaryPromotion,
 } from "../operations/numeric-promotion.js";
+import type {
+  CsharpSourceTypedLocationOperation,
+} from "../operations/source-typed-locations.js";
+import {
+  readCsharpSourceTypedLocationOperation,
+} from "../operations/source-typed-locations.js";
 import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
+import {
+  readCsharpSourceDefaultValue,
+  readCsharpSourceField,
+  readCsharpSourceFunctionPointerType,
+  readCsharpSourcePointerType,
+} from "./source-markers.js";
 import type {
   CsharpProjectTypeCatalog,
   CsharpProjectTypePolicy,
@@ -199,6 +210,10 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveTypedLocationOperationPointee(
+    operation: CsharpSourceTypedLocationOperation,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
@@ -239,6 +254,7 @@ export function createCsharpTypePolicy(
     resolveSelectedValue,
     resolveSelectedType,
     resolveSelectedResult,
+    resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments,
     resolveSourceCallParameter,
     resolveSourceCallResult,
@@ -324,6 +340,11 @@ export function createCsharpTypePolicy(
   ): TargetTypeRef | undefined {
     const reference = host.navigation.referenceFor(node);
     const declaration = sourceValueDeclaration(node, reference?.declaration);
+    const scopedTarget = host.scopedTargetType?.(declaration ?? node) ??
+      host.scopedTargetType?.(node);
+    if (scopedTarget !== undefined) {
+      return scopedTarget;
+    }
     if (declaration !== undefined) {
       const declared = resolveSourceValueDeclaration(
         node,
@@ -371,6 +392,50 @@ export function createCsharpTypePolicy(
       host.semantics(selectedSourceFile),
       { depth: 0 },
     );
+  }
+
+  function resolveTypedLocationOperationPointee(
+    operation: CsharpSourceTypedLocationOperation,
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (operation.explicitPointeeTypeNode !== undefined) {
+      return resolveSelectedType(
+        operation.explicitPointeeTypeNode,
+        operation.pointeeType,
+        sourceFile,
+      );
+    }
+    switch (operation.kind) {
+      case "location-address":
+        return resolveSelectedValue(
+          operation.storageExpression,
+          operation.storageType,
+          sourceFile,
+        );
+      case "location-allocate":
+        return resolveSelectedValue(
+          operation.initialExpression,
+          operation.initialType,
+          sourceFile,
+        );
+      case "location-load":
+      case "location-store":
+        return csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.locationExpression,
+          operation.locationType,
+          sourceFile,
+        ));
+      case "location-equal":
+        return csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.leftExpression,
+          operation.leftType,
+          sourceFile,
+        )) ?? csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.rightExpression,
+          operation.rightType,
+          sourceFile,
+        ));
+    }
   }
 
   function resolveSourceCallTypeArguments(
@@ -1172,6 +1237,16 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
     receiverType?: TargetTypeRef,
   ): TargetTypeRef | undefined {
+    const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
+    if (sourceField !== undefined) {
+      const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType) ??
+        queries.sourceFile;
+      return resolveNodeWithState(
+        sourceField.sourceType,
+        fieldSourceFile,
+        nextState(state),
+      );
+    }
     const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
     if (enumMemberTarget !== undefined) {
       return enumMemberTarget;
@@ -1998,13 +2073,13 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     for (const subject of subjects) {
-      const defaultValue = host.sourceFacts?.getFact(
+      const defaultValue = readCsharpSourceDefaultValue(
+        host.sourceFacts,
         subject,
-        defaultValueFactKey,
       );
       if (defaultValue !== undefined) {
         const type = resolveNodeWithState(
-          defaultValue.type,
+          defaultValue.sourceType,
           sourceFile,
           nextState(state),
         );
@@ -2016,35 +2091,50 @@ export function createCsharpTypePolicy(
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);
       }
-      const pointer = host.sourceFacts?.getFact(subject, pointerFactKey);
+      const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);
       if (pointer !== undefined) {
         const pointee = resolveNodeWithState(
-          pointer.pointee,
+          pointer.sourcePointee,
           sourceFile,
           nextState(state),
         );
         if (pointee !== undefined) {
-          return {
-            kind: "pointer",
-            pointee,
-            mutability: pointer.mutability === "readwrite"
-              ? "mut"
-              : pointer.mutability === "readonly"
-                ? "const"
-                : "target-defined",
-          };
+          return csharpRuntimeLocationTargetType(pointee);
         }
       }
-      const functionPointer = host.sourceFacts?.getFact(
+      const pointerOperation = readCsharpSourceTypedLocationOperation(
+        host.sourceFacts,
         subject,
-        functionPointerFactKey,
+      );
+      if (pointerOperation !== undefined) {
+        const pointee = resolveTypedLocationOperationPointee(
+          pointerOperation,
+          sourceFile,
+        );
+        if (pointee !== undefined) {
+          switch (pointerOperation.kind) {
+            case "location-address":
+            case "location-allocate":
+              return csharpRuntimeLocationTargetType(pointee);
+            case "location-load":
+              return pointee;
+            case "location-store":
+              return csharpVoidTargetType();
+            case "location-equal":
+              return csharpSourcePrimitiveTargetType("bool");
+          }
+        }
+      }
+      const functionPointer = readCsharpSourceFunctionPointerType(
+        host.sourceFacts,
+        subject,
       );
       if (functionPointer !== undefined) {
-        const parameters = functionPointer.parameters.map((parameter) =>
+        const parameters = functionPointer.sourceParameters.map((parameter) =>
           resolveNodeWithState(parameter, sourceFile, nextState(state))
         );
         const result = resolveNodeWithState(
-          functionPointer.result,
+          functionPointer.sourceResult,
           sourceFile,
           nextState(state),
         );

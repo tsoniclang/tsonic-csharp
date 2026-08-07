@@ -50,6 +50,7 @@ import type {
 } from "../../policy/types/index.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
+  readonly outerPrelude: readonly CsharpStatement[];
   readonly prelude: readonly CsharpStatement[];
 }
 
@@ -94,7 +95,7 @@ export function planStringCodePointForOfStatement(
   if (collectionExpression === undefined || surrogatePairTest === undefined) {
     return [];
   }
-  return [{
+  const loopBlock: CsharpStatement = {
     kind: "Block",
     body: {
       kind: "Block",
@@ -157,7 +158,8 @@ export function planStringCodePointForOfStatement(
         },
       ],
     },
-  }];
+  };
+  return [...binding.outerPrelude, loopBlock];
 }
 
 function stringHasSurrogatePairAt(

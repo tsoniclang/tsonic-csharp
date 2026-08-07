@@ -42,6 +42,9 @@ import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import {
   getArrayBoundaryCoreCarrierForExpression,
 } from "./array-boundary-facts.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export function planBindingPatternFromExpression(
   patternNode: Node,
@@ -99,18 +102,28 @@ function planBindingNameFromProjection(
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.ast, name, KindIdentifier)) {
-    return [{
-      kind: "LocalDeclarationStatement",
-      name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
-      type: projectedType ??
-        getCsharpTypeFromSemanticType(
-          input.semantics(sourceFile).getTypeAtLocation(name),
-          sourceFile,
+    const identity = projectionNode === undefined
+      ? undefined
+      : planCsharpTypedLocationIdentityDeclaration(
+          projectionNode,
           input,
-        ) ??
-        getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
-      initializer: projected,
-    }];
+          state,
+        );
+    return [
+      ...(identity === undefined ? [] : [identity]),
+      {
+        kind: "LocalDeclarationStatement",
+        name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
+        type: projectedType ??
+          getCsharpTypeFromSemanticType(
+            input.semantics(sourceFile).getTypeAtLocation(name),
+            sourceFile,
+            input,
+          ) ??
+          getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
+        initializer: projected,
+      },
+    ];
   }
   if (HasSourceKind(input.ast, name, KindObjectBindingPattern) || HasSourceKind(input.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);

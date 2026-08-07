@@ -35,6 +35,9 @@ import {
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
@@ -98,6 +101,14 @@ export function planParametersWithPrelude(
         targetParametersClosed = false;
       } else {
         targetParameters.push(targetParameter);
+      }
+      const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+        parameterNode!,
+        input,
+        state,
+      );
+      if (locationIdentity !== undefined) {
+        prelude.push(locationIdentity);
       }
       continue;
     }

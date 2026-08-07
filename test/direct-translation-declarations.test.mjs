@@ -88,16 +88,26 @@ namespace Tsonic.Generated
 `);
 });
 
-test("direct C# declaration translation closes pointer and function-pointer aliases", () => {
+test("direct C# declaration translation separates typed locations from native function pointers", () => {
   const compiled = cleanCompile(`
-    import type { fnptr, ptr } from "@tsonic/core/lang.js";
-    import type { bool, int32 } from "@tsonic/core/types.js";
+    import type { fnptr, ptr } from "@tsonic/csharp/lang.js";
+    import type { bool, FunctionPointer, int32, Pointer } from "@tsonic/core/types.js";
 
-    export function address(value: ptr<int32>): ptr<int32> {
+    export function neutralAddress(value: Pointer<int32>): Pointer<int32> {
       return value;
     }
 
-    export function callback(
+    export function aliasAddress(value: ptr<int32>): ptr<int32> {
+      return value;
+    }
+
+    export function neutralCallback(
+      value: FunctionPointer<[int32, int32], bool>,
+    ): FunctionPointer<[int32, int32], bool> {
+      return value;
+    }
+
+    export function aliasCallback(
       value: fnptr<[int32, int32], bool>,
     ): fnptr<[int32, int32], bool> {
       return value;
@@ -110,11 +120,19 @@ namespace Tsonic.Generated
 {
     public unsafe static class Index
     {
-        public static int* address(int* value)
+        public static Tsonic.CSharp.Runtime.Location<int> neutralAddress(Tsonic.CSharp.Runtime.Location<int> value)
         {
             return value;
         }
-        public static delegate*<int, int, bool> callback(delegate*<int, int, bool> value)
+        public static Tsonic.CSharp.Runtime.Location<int> aliasAddress(Tsonic.CSharp.Runtime.Location<int> value)
+        {
+            return value;
+        }
+        public static delegate*<int, int, bool> neutralCallback(delegate*<int, int, bool> value)
+        {
+            return value;
+        }
+        public static delegate*<int, int, bool> aliasCallback(delegate*<int, int, bool> value)
         {
             return value;
         }

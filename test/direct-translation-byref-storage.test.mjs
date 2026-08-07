@@ -23,7 +23,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
   const compiled = compileCsharpSource({
     sourceText: `
       import { Dictionary } from "@tsonic/dotnet/System.Collections.Generic.js";
-      import { defaultof, out } from "@tsonic/core/lang.js";
+      import { defaultof, out } from "@tsonic/csharp/lang.js";
       import type { int } from "@tsonic/csharp/types.js";
 
       export interface Todo { id: int; }
@@ -104,7 +104,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
       `,
       "state.ts": `
         import { Dictionary } from "@tsonic/dotnet/System.Collections.Generic.js";
-        import { defaultof, out } from "@tsonic/core/lang.js";
+        import { defaultof, out } from "@tsonic/csharp/lang.js";
         import type { int } from "@tsonic/csharp/types.js";
 
         export interface Todo { id: int; }

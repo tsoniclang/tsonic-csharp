@@ -44,6 +44,9 @@ import {
 import {
   planCsharpSourceUndefinedValue,
 } from "../../translate/expressions/undefined-values.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -156,6 +159,13 @@ export function planLocalDeclarationStatements(
   if (destructured !== undefined) {
     return destructured;
   }
+  const locationIdentity = input.ast.is.IsIdentifier(variable.name)
+    ? planCsharpTypedLocationIdentityDeclaration(
+        declarationNode,
+        input,
+        state,
+      )
+    : undefined;
   const local = planLocalDeclaration(declarationNode, sourceFile, input, diagnostics, state);
   if (
     variable.Initializer !== undefined &&
@@ -167,6 +177,7 @@ export function planLocalDeclarationStatements(
     )
   ) {
     return [
+      ...(locationIdentity === undefined ? [] : [locationIdentity]),
       {
         kind: "LocalDeclarationStatement",
         name: local.name,
@@ -188,12 +199,15 @@ export function planLocalDeclarationStatements(
       },
     ];
   }
-  return [{
-    kind: "LocalDeclarationStatement",
-    name: local.name,
-    type: local.type,
-    ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
-  }];
+  return [
+    ...(locationIdentity === undefined ? [] : [locationIdentity]),
+    {
+      kind: "LocalDeclarationStatement",
+      name: local.name,
+      type: local.type,
+      ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
+    },
+  ];
 }
 
 function sourceInitializerReferencesDeclaration(

@@ -75,5 +75,6 @@ test("a fully valid multi-file build retains existing reconstruction behavior", 
     "TsonicGenerated.csproj",
     "src/Valid.cs",
     "src/Index.cs",
+    "generated/TsonicModuleInitializer.cs",
   ]);
 });

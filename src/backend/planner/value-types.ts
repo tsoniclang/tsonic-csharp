@@ -12,12 +12,16 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import {
-  fieldFactKey,
-  type FieldFact,
   type Node,
   type SourceFile,
-  type StructFact,
 } from "@tsonic/tsts";
+import type {
+  CsharpSourceField,
+  CsharpSourceStruct,
+} from "../../policy/types/index.js";
+import {
+  readCsharpSourceField,
+} from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -29,7 +33,7 @@ import { planIdentifierName } from "./names.js";
 
 export function planValueTypeDeclaration(
   declarationNode: Node,
-  valueType: StructFact,
+  valueType: CsharpSourceStruct,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
@@ -44,27 +48,27 @@ export function planValueTypeDeclaration(
     name: planIdentifierName(declaration.name, "AnonymousValueType", input, diagnostics, "Value type name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
-    members: (valueType.fields ?? []).map((field): CsharpFieldDeclaration => ({
+    members: valueType.fields.map((field): CsharpFieldDeclaration => ({
       kind: "FieldDeclaration",
-      name: field.name,
-      modifiers: field.readonly === true ? ["public", "readonly"] : ["public"],
-      type: getCsharpTypeForFieldFact(field, "Value-type field", sourceFile, input, diagnostics),
+      name: field.sourceName,
+      modifiers: field.readonly ? ["public", "readonly"] : ["public"],
+      type: getCsharpTypeForSourceField(field, "Value-type field", sourceFile, input, diagnostics),
     })),
   };
 }
 
-export function getCsharpTypeForFieldFact(
-  field: FieldFact,
+export function getCsharpTypeForSourceField(
+  field: CsharpSourceField,
   diagnosticLabel: string,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode {
   return getCsharpTypeForNode(
-    field.type,
+    field.sourceType,
     sourceFile,
     input,
-    invalidCsharpType(`${diagnosticLabel} '${field.name}' type`),
+    invalidCsharpType(`${diagnosticLabel} '${field.sourceName}' type`),
     diagnostics,
   );
 }
@@ -97,11 +101,11 @@ function diagnoseUnprovenValueTypeFields(
       continue;
     }
     const assignment = AsPropertyAssignment(property)!;
-    if (
-      input.sourceFacts?.getFact(property, fieldFactKey) === undefined &&
-      input.sourceFacts?.getFact(assignment.Initializer, fieldFactKey) === undefined &&
-      input.sourceFacts?.getFact(Node_Name(input.ast, property), fieldFactKey) === undefined
-    ) {
+    if (readCsharpSourceField(input.sourceFacts, [
+      property,
+      assignment.Initializer,
+      Node_Name(input.ast, property),
+    ]) === undefined) {
       const name = Node_Text(input.ast, Node_Name(input.ast, property));
       diagnostics.push(unsupportedNodeDiagnostic(property, `Value-type member '${name}' requires a finalized field fact before C# struct emission.`));
     }

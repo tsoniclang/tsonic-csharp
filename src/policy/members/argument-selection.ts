@@ -1,6 +1,7 @@
 import {
   type ArgumentPassingMode,
   argumentPassingFactKey,
+  type ExtensionFactSubject,
   type Node,
   type ReadonlySourceFactResolver,
 } from "@tsonic/tsts";
@@ -48,4 +49,12 @@ export function selectCsharpSourceArgument(
       storageExpression: passing.storageExpression,
     },
   };
+}
+
+export function csharpSourceArgumentPassingMode(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): ArgumentPassingMode {
+  return sourceFacts?.getFact(subject, argumentPassingFactKey)?.mode ??
+    "by-value";
 }

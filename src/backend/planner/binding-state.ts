@@ -16,16 +16,19 @@ import {
 } from "./source-ast.js";
 
 export interface DestructuringPlannerState {
+  readonly parent?: DestructuringPlannerState;
   nextTempIndex: number;
   nextParameterIndex: number;
   nextForOfIndex: number;
   nextForInIndex: number;
   nextCatchIndex: number;
   nextControlLabelIndex: number;
+  nextTypedLocationIdentityIndex: number;
   usedNames: Set<string>;
   localBoundNames: Set<string>;
   localNameCounts: Map<string, number>;
   localBindingNames: WeakMap<object, string>;
+  typedLocationIdentityNames: WeakMap<object, string>;
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
@@ -63,11 +66,28 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextForInIndex: 0,
     nextCatchIndex: 0,
     nextControlLabelIndex: 0,
+    nextTypedLocationIdentityIndex: 0,
     usedNames,
     localBoundNames: new Set(),
     localNameCounts: new Map(),
     localBindingNames: new WeakMap(),
+    typedLocationIdentityNames: new WeakMap(),
     controlLabels: [],
+  };
+}
+
+export function createNestedPlannerState(
+  parent: DestructuringPlannerState,
+  root: Node,
+  ast: AstReader,
+): DestructuringPlannerState {
+  const nested = createDestructuringPlannerState(root, ast);
+  return {
+    ...nested,
+    parent,
+    usedNames: new Set([...parent.usedNames, ...nested.usedNames]),
+    localBoundNames: new Set(parent.localBoundNames),
+    localNameCounts: new Map(parent.localNameCounts),
   };
 }
 
@@ -114,11 +134,54 @@ export function getCsharpLocalBindingName(
   state: DestructuringPlannerState | undefined,
 ): string | undefined {
   const key = state === undefined ? undefined : localBindingKey(node, input);
-  return key === undefined ? undefined : state!.localBindingNames.get(key);
+  return key === undefined ? undefined : findLocalBindingName(state!, key);
 }
 
 export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
   return allocateSyntheticName(state, "__tsonic_param", "nextParameterIndex");
+}
+
+export function declareCsharpTypedLocationIdentityName(
+  declaration: Node,
+  state: DestructuringPlannerState,
+): string {
+  const existing = state.typedLocationIdentityNames.get(declaration);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const name = allocateSyntheticName(
+    state,
+    "__tsonic_locationIdentity",
+    "nextTypedLocationIdentityIndex",
+  );
+  state.typedLocationIdentityNames.set(declaration, name);
+  return name;
+}
+
+export function getCsharpTypedLocationIdentityName(
+  declaration: Node,
+  state: DestructuringPlannerState,
+): string | undefined {
+  for (let current: DestructuringPlannerState | undefined = state; current !== undefined; current = current.parent) {
+    const name = current.typedLocationIdentityNames.get(declaration);
+    if (name !== undefined) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+function findLocalBindingName(
+  state: DestructuringPlannerState,
+  key: object,
+): string | undefined {
+  for (let current: DestructuringPlannerState | undefined = state; current !== undefined; current = current.parent) {
+    const name = current.localBindingNames.get(key);
+    if (name !== undefined) {
+      return name;
+    }
+  }
+  return undefined;
 }
 
 export function allocateForOfItem(state: DestructuringPlannerState): string {
@@ -183,7 +246,7 @@ export function allocateDestructuringTemp(state: DestructuringPlannerState): str
 function allocateSyntheticName(
   state: DestructuringPlannerState,
   prefix: string,
-  counterName: "nextTempIndex" | "nextParameterIndex" | "nextForOfIndex" | "nextForInIndex" | "nextCatchIndex" | "nextControlLabelIndex",
+  counterName: "nextTempIndex" | "nextParameterIndex" | "nextForOfIndex" | "nextForInIndex" | "nextCatchIndex" | "nextControlLabelIndex" | "nextTypedLocationIdentityIndex",
 ): string {
   for (;;) {
     const name = `${prefix}${state[counterName]}`;

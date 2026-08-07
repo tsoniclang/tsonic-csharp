@@ -8,12 +8,12 @@ test("direct C# translation consumes exact source-core default and struct facts"
   const compiled = compileCsharpSource({
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
-      import { defaultof, field, struct } from "@tsonic/core/lang.js";
+      import { defaultValue, field, struct } from "@tsonic/core/lang.js";
 
       const Point = struct({ x: field<int>(), y: field<int>() });
 
       export function zero(): int {
-        return defaultof<int>();
+        return defaultValue<int>();
       }
     `,
   });
@@ -54,11 +54,11 @@ test("direct C# translation rejects exact source-core flow facts", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
-      import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
+      import { mutableBorrow, move, sharedBorrow } from "@tsonic/core/lang.js";
 
       export function reject(value: int): void {
-        borrow(value);
-        borrowMut(value);
+        sharedBorrow(value);
+        mutableBorrow(value);
         move(value);
       }
     `,
@@ -68,7 +68,7 @@ test("direct C# translation rejects exact source-core flow facts", () => {
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(
     compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-    ["borrow", "borrowMut", "move"].map((marker) => ({
+    ["shared-borrow", "mutable-borrow", "move"].map((marker) => ({
       code: "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED",
       message:
         `C# target does not implement source flow marker '${marker}'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.`,

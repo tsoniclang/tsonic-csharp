@@ -15,6 +15,7 @@ import {
 } from "../../dist/descriptor/csharp-target-pack.js";
 
 export function checkCsharpSource(options) {
+  const projectRoot = options.projectRoot ?? "/project";
   const targetPack = createCsharpTargetPack();
   const target = {
     id: "csharp",
@@ -32,7 +33,7 @@ export function checkCsharpSource(options) {
   const selectedCapabilities = options.capabilities ?? [];
   const targetContext = {
     project,
-    projectDirectory: "/project",
+    projectDirectory: projectRoot,
     target,
     targetPack,
     selectedCapabilities,
@@ -40,7 +41,7 @@ export function checkCsharpSource(options) {
   };
   const sourceProfile = collectTargetSourceProfileContributions({
     project,
-    projectRoot: "/project",
+    projectRoot,
     target,
     targetPack,
     selectedCapabilities,
@@ -50,13 +51,13 @@ export function checkCsharpSource(options) {
     throw new Error(sourceProfile.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
   const files = new Map([
-    ["/project/index.ts", options.sourceText],
-    ...normalizeAdditionalFiles(options.files),
+    [`${projectRoot}/index.ts`, options.sourceText],
+    ...normalizeAdditionalFiles(options.files, projectRoot),
     ...sourceProfile.files.map((file) => [file.path, file.text]),
   ]);
   const composition = createTargetSourceCompilerComposition(targetContext);
   const compiler = createCompilerSessionFromFiles({
-    currentDirectory: "/project",
+    currentDirectory: projectRoot,
     files,
     compilerOptions: {
       noLib: true,
@@ -85,6 +86,7 @@ export function checkCsharpSource(options) {
 }
 
 export function compileCsharpSource(options) {
+  const projectRoot = options.projectRoot ?? "/project";
   const checked = checkCsharpSource(options);
   const result = checked.targetContext.targetPack
     .createBackend(checked.targetContext)
@@ -94,8 +96,8 @@ export function compileCsharpSource(options) {
       target: checked.targetContext.target,
       runtimeReferences: options.runtimeReferences ?? [],
       paths: {
-        projectFilePath: "/project/tsonic.json",
-        projectRoot: "/project",
+        projectFilePath: `${projectRoot}/tsonic.json`,
+        projectRoot,
         outputRoot: "/output",
         targetOutputRoot: "/output/csharp",
       },
@@ -117,13 +119,13 @@ export function compileCsharpSource(options) {
   };
 }
 
-function normalizeAdditionalFiles(files) {
+function normalizeAdditionalFiles(files, projectRoot) {
   if (files === undefined) {
     return [];
   }
   const entries = files instanceof Map ? [...files] : Object.entries(files);
   return entries.map(([path, text]) => [
-    path.startsWith("/") ? path : `/project/${path}`,
+    path.startsWith("/") ? path : `${projectRoot}/${path}`,
     text,
   ]);
 }

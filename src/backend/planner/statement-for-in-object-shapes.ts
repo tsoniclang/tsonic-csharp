@@ -40,7 +40,7 @@ import type {
 } from "./statement-for-in-binding.js";
 import {
   getForInKeyType,
-  planForInKeyBindingStatementFromExpression,
+  planForInBindingActivation,
 } from "./statement-for-in-binding.js";
 
 export function planObjectShapeForInStatement(
@@ -89,6 +89,13 @@ export function planObjectShapeForInStatement(
     receiver: { kind: "IdentifierName", name: keysName },
     argument: { kind: "IdentifierName", name: indexName },
   };
+  const bindingActivation = planForInBindingActivation(
+    binding,
+    keyType,
+    keyExpression,
+    input,
+    state,
+  );
   const plannedLoop: CsharpStatement = {
     kind: "ForStatement",
     initializer: {
@@ -118,12 +125,12 @@ export function planObjectShapeForInStatement(
     body: {
       kind: "Block",
       statements: [
-        planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression),
+        ...bindingActivation.iterationPrelude,
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },
   };
-  return [{
+  return [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",

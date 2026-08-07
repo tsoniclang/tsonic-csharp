@@ -1,6 +1,5 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
-  type ArgumentPassingFact,
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
@@ -26,6 +25,10 @@ import {
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
+import type {
+  ExpectedExpressionPlanner,
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
 import {
   planArrowFunctionExpression,
   planFunctionExpression,
@@ -33,23 +36,6 @@ import {
 import {
   selectCsharpSourceArgument,
 } from "../../policy/members/argument-selection.js";
-
-export type ExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-) => CsharpExpression | undefined;
-
-export type ExpectedExpressionPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: CsharpTranslationContext,
-  diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
-  expectedTypeSubject?: Node,
-  expectedTargetType?: TargetTypeRef,
-) => CsharpExpression | undefined;
 
 export function planCallArgumentCore(
   node: Node,
@@ -61,7 +47,7 @@ export function planCallArgumentCore(
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
-  expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
+  expectedArgumentPassingMode: CsharpTargetParameter["passingMode"] = "by-value",
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
@@ -172,7 +158,7 @@ function planCallArgumentExpression(
 }
 
 function csharpSupportsArgumentPassingMode(
-  mode: ArgumentPassingFact["mode"],
+  mode: CsharpTargetParameter["passingMode"],
 ): boolean {
   switch (mode) {
     case "by-value":
@@ -188,7 +174,7 @@ function csharpSupportsArgumentPassingMode(
 }
 
 function getCsharpArgumentPassing(
-  mode: ArgumentPassingFact["mode"],
+  mode: CsharpTargetParameter["passingMode"],
   node: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpArgument["passing"] {
