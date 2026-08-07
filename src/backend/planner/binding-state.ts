@@ -22,10 +22,12 @@ export interface DestructuringPlannerState {
   nextForInIndex: number;
   nextCatchIndex: number;
   nextControlLabelIndex: number;
+  nextTypedLocationIdentityIndex: number;
   usedNames: Set<string>;
   localBoundNames: Set<string>;
   localNameCounts: Map<string, number>;
   localBindingNames: WeakMap<object, string>;
+  typedLocationIdentityNames: WeakMap<object, string>;
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
@@ -63,10 +65,12 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextForInIndex: 0,
     nextCatchIndex: 0,
     nextControlLabelIndex: 0,
+    nextTypedLocationIdentityIndex: 0,
     usedNames,
     localBoundNames: new Set(),
     localNameCounts: new Map(),
     localBindingNames: new WeakMap(),
+    typedLocationIdentityNames: new WeakMap(),
     controlLabels: [],
   };
 }
@@ -119,6 +123,30 @@ export function getCsharpLocalBindingName(
 
 export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
   return allocateSyntheticName(state, "__tsonic_param", "nextParameterIndex");
+}
+
+export function declareCsharpTypedLocationIdentityName(
+  declaration: Node,
+  state: DestructuringPlannerState,
+): string {
+  const existing = state.typedLocationIdentityNames.get(declaration);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const name = allocateSyntheticName(
+    state,
+    "__tsonic_locationIdentity",
+    "nextTypedLocationIdentityIndex",
+  );
+  state.typedLocationIdentityNames.set(declaration, name);
+  return name;
+}
+
+export function getCsharpTypedLocationIdentityName(
+  declaration: Node,
+  state: DestructuringPlannerState,
+): string | undefined {
+  return state.typedLocationIdentityNames.get(declaration);
 }
 
 export function allocateForOfItem(state: DestructuringPlannerState): string {
@@ -183,7 +211,7 @@ export function allocateDestructuringTemp(state: DestructuringPlannerState): str
 function allocateSyntheticName(
   state: DestructuringPlannerState,
   prefix: string,
-  counterName: "nextTempIndex" | "nextParameterIndex" | "nextForOfIndex" | "nextForInIndex" | "nextCatchIndex" | "nextControlLabelIndex",
+  counterName: "nextTempIndex" | "nextParameterIndex" | "nextForOfIndex" | "nextForInIndex" | "nextCatchIndex" | "nextControlLabelIndex" | "nextTypedLocationIdentityIndex",
 ): string {
   for (;;) {
     const name = `${prefix}${state[counterName]}`;

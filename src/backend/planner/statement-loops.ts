@@ -1,7 +1,6 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsForInOrOfStatement,
-  AsIdentifier,
   AsVariableDeclaration,
   HasSourceKind,
   KindArrayBindingPattern,
@@ -9,7 +8,6 @@ import {
   KindIdentifier,
   KindObjectBindingPattern,
   KindVariableDeclarationList,
-  Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
@@ -19,9 +17,8 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateForOfItem,
@@ -30,7 +27,6 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
-import { requireCsharpIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
@@ -41,6 +37,9 @@ import {
 import type {
   CsharpResolvedIteration,
 } from "../../policy/operations/index.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export { planForInStatement } from "./statement-for-in.js";
 
@@ -93,7 +92,7 @@ export function planForOfStatement(
   if (collection === undefined) {
     return [];
   }
-  return [{
+  const loop: CsharpStatement = {
     kind: "ForEachStatement",
     itemType: binding.type,
     itemName: binding.name,
@@ -105,7 +104,8 @@ export function planForOfStatement(
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },
-  }];
+  };
+  return [...binding.outerPrelude, loop];
 }
 
 function planForOfCollectionExpression(
@@ -138,6 +138,7 @@ function planForOfCollectionExpression(
 }
 
 interface PlannedForOfBinding extends CsharpLocalDeclaration {
+  readonly outerPrelude: readonly CsharpStatement[];
   readonly prelude: readonly CsharpStatement[];
 }
 
@@ -169,6 +170,34 @@ function planForOfBinding(
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
       return undefined;
     }
+    const storageRequirement = input.artifacts.requireStorage(first, {
+      kind: "target-representation",
+      declaration: first,
+      targetType: selectedIteration.elementType,
+    });
+    if (storageRequirement.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        first,
+        storageRequirement.reason,
+      ));
+      return undefined;
+    }
+    const storageType = input.artifacts.resolveStorageType(
+      first,
+      selectedIteration.elementType,
+    );
+    if (storageType.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(first, storageType.reason));
+      return undefined;
+    }
+    const itemStorageType = csharpTypeFromTargetTypeRef(storageType.type);
+    if (itemStorageType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        first,
+        "The exact for-of binding storage representation is not renderable in C#.",
+      ));
+      return undefined;
+    }
     const variable = AsVariableDeclaration(first)!;
     if (variable.Initializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(first, "For-of variable declaration cannot have an initializer."));
@@ -176,9 +205,7 @@ function planForOfBinding(
     const variableName = variable.name;
     if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
       const itemName = allocateForOfItem(state);
-      const itemType = variable.Type === undefined
-        ? getForOfElementType(selectedIteration, first, diagnostics)
-        : getCsharpTypeForNode(variable.Type, sourceFile, input, invalidCsharpType("missing for-of destructuring item type"), diagnostics);
+      const itemType = itemStorageType;
       if (itemType === undefined) {
         return undefined;
       }
@@ -186,6 +213,7 @@ function planForOfBinding(
         kind: "VariableDeclarator",
         name: itemName,
         type: itemType,
+        outerPrelude: [],
         prelude: planBindingPatternFromExpression(
           variableName,
           { kind: "IdentifierName", name: itemName },
@@ -200,50 +228,109 @@ function planForOfBinding(
       };
     }
     if (variable.Type === undefined) {
-      const inferredItemType = getForOfElementType(selectedIteration, first, diagnostics);
-      if (inferredItemType === undefined) {
-        return undefined;
-      }
-      return {
+      const identity = planCsharpTypedLocationIdentityDeclaration(
+        first,
+        input,
+        state,
+      );
+      const binding: CsharpLocalDeclaration = {
         kind: "VariableDeclarator",
         name: declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "For-of binding name", "forOfItem"),
-        type: inferredItemType,
-        prelude: [],
+        type: itemStorageType,
       };
+      return identity === undefined
+        ? { ...binding, outerPrelude: [], prelude: [] }
+        : mutableForOfLocationBinding(
+            binding,
+            identity,
+            input.ast.variableDeclarationKind(initializer),
+            state,
+          );
     }
     const planned = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
-    return {
-      ...planned,
-      prelude: [],
-    };
+    const identity = planCsharpTypedLocationIdentityDeclaration(
+      first,
+      input,
+      state,
+    );
+    return identity === undefined
+      ? { ...planned, outerPrelude: [], prelude: [] }
+      : mutableForOfLocationBinding(
+          planned,
+          identity,
+          input.ast.variableDeclarationKind(initializer),
+          state,
+        );
   }
   if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
-    const identifier = AsIdentifier(initializer)!;
+    const target = planExpression(initializer, sourceFile, input, diagnostics, state);
+    if (target === undefined) {
+      return undefined;
+    }
+    const itemName = allocateForOfItem(state);
     return {
-      name: requireCsharpIdentifier(Node_Text(input.ast, identifier), diagnostics, "For-of assignment target"),
+      name: itemName,
       kind: "VariableDeclarator",
-      type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
-      prelude: [],
+      type: csharpTypeFromTargetTypeRef(selectedIteration.elementType) ??
+        getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
+      outerPrelude: [],
+      prelude: [{
+        kind: "ExpressionStatement",
+        expression: {
+          kind: "AssignmentExpression",
+          left: target,
+          operatorToken: { kind: "EqualsToken" },
+          right: { kind: "IdentifierName", name: itemName },
+        },
+      }],
     };
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));
   return undefined;
 }
 
-function getForOfElementType(
-  selectedIteration: Extract<
-    CsharpResolvedIteration,
-    { readonly iterationKind: "for-of" }
-  >,
-  diagnosticNode: Node,
-  diagnostics: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const elementType = csharpTypeFromTargetTypeRef(
-    selectedIteration.elementType,
-  );
-  if (elementType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of destructuring requires a checked iteration with a renderable target element type."));
-    return undefined;
+function mutableForOfLocationBinding(
+  binding: CsharpLocalDeclaration,
+  identity: CsharpStatement,
+  declarationKind: ReturnType<CsharpTranslationContext["ast"]["variableDeclarationKind"]>,
+  state: DestructuringPlannerState,
+): PlannedForOfBinding {
+  const iterationName = allocateForOfItem(state);
+  if (declarationKind === "var") {
+    return {
+      ...binding,
+      name: iterationName,
+      outerPrelude: [
+        {
+          kind: "LocalDeclarationStatement",
+          name: binding.name,
+          type: binding.type,
+        },
+        identity,
+      ],
+      prelude: [{
+        kind: "ExpressionStatement",
+        expression: {
+          kind: "AssignmentExpression",
+          left: { kind: "IdentifierName", name: binding.name },
+          operatorToken: { kind: "EqualsToken" },
+          right: { kind: "IdentifierName", name: iterationName },
+        },
+      }],
+    };
   }
-  return elementType;
+  return {
+    ...binding,
+    name: iterationName,
+    outerPrelude: [],
+    prelude: [
+      {
+        kind: "LocalDeclarationStatement",
+        name: binding.name,
+        type: binding.type,
+        initializer: { kind: "IdentifierName", name: iterationName },
+      },
+      identity,
+    ],
+  };
 }

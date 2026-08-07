@@ -42,6 +42,13 @@ export type CsharpSourceTypedLocationOperation =
       readonly locationType: Type;
       readonly valueExpression: Node;
       readonly valueType: Type;
+    }
+  | CsharpSourceTypedLocationOperationBase & {
+      readonly kind: "location-equal";
+      readonly leftExpression: Node;
+      readonly leftType: Type;
+      readonly rightExpression: Node;
+      readonly rightType: Type;
     };
 
 export function readCsharpSourceTypedLocationOperation(
@@ -98,6 +105,15 @@ export function readCsharpSourceTypedLocationOperation(
         locationType: operation.pointerType,
         valueExpression: operation.valueExpression,
         valueType: operation.valueType,
+      });
+    case "equal-pointer":
+      return Object.freeze({
+        ...base,
+        kind: "location-equal",
+        leftExpression: operation.leftExpression,
+        leftType: operation.leftType,
+        rightExpression: operation.rightExpression,
+        rightType: operation.rightType,
       });
   }
 }

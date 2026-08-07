@@ -47,6 +47,7 @@ export type CsharpArtifactSnapshot =
       readonly kind: "storage";
       readonly targetType?: TargetTypeRef;
       readonly nullableWrittenType?: TargetTypeRef;
+      readonly typedLocationIdentity: boolean;
     };
 
 export interface CsharpArtifactContractCandidate {
@@ -146,6 +147,7 @@ export function csharpStorageContractCandidate(
   owner: string,
   targetType: TargetTypeRef | undefined,
   nullableWrittenType: TargetTypeRef | undefined,
+  typedLocationIdentity: boolean,
 ): CsharpArtifactContractCandidate {
   return {
     owner,
@@ -160,6 +162,9 @@ export function csharpStorageContractCandidate(
           nullableWrittenType === undefined
             ? "non-null-output"
             : `nullable-output:${targetTypeRefKey(nullableWrittenType)}`,
+          typedLocationIdentity
+            ? "typed-location-identity"
+            : "ordinary-storage-identity",
         ]),
       }],
     },
@@ -170,6 +175,7 @@ export function csharpStorageContractCandidate(
       ...(nullableWrittenType === undefined
         ? {}
         : { nullableWrittenType }),
+      typedLocationIdentity,
     }),
   };
 }

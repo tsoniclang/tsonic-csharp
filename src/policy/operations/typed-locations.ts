@@ -6,46 +6,27 @@ import type {
   CsharpTranslationContext,
 } from "../../translate/context/index.js";
 import {
-  selectCsharpTargetProperty,
-} from "../members/index.js";
-import {
+  csharpRuntimeLocationPointee,
   csharpRuntimeLocationTargetType,
-  isCsharpValueTypeTargetType,
+  isCsharpRuntimeUndefinedTargetType,
   targetTypeRefEquals,
   type TargetTypeRef,
 } from "../types/index.js";
 import {
   readCsharpSourceTypedLocationOperation,
 } from "./source-typed-locations.js";
+import type {
+  CsharpTypedLocationStorage,
+} from "./typed-location-storage.js";
+import {
+  selectCsharpTypedLocationStorage,
+} from "./typed-location-storage.js";
 
-export type CsharpTypedLocationStorage =
-  | {
-      readonly kind: "direct-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "reference-property-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "value-property-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly receiverStorage: CsharpTypedLocationStorage;
-    }
-  | {
-      readonly kind: "reference-element-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-    }
-  | {
-      readonly kind: "value-element-storage";
-      readonly expression: Node;
-      readonly valueType: TargetTypeRef;
-      readonly receiverStorage: CsharpTypedLocationStorage;
-    };
+export type {
+  CsharpTypedLocationDirectIdentity,
+  CsharpTypedLocationStorage,
+  CsharpTypedLocationStorageSelection,
+} from "./typed-location-storage.js";
 
 export type CsharpTypedLocationOperationSelection =
   | { readonly kind: "not-typed-location" }
@@ -60,7 +41,8 @@ export type CsharpTypedLocationOperationKind =
   | "location-address"
   | "location-allocate"
   | "location-load"
-  | "location-store";
+  | "location-store"
+  | "location-equal";
 
 export type CsharpResolvedTypedLocationOperation =
   | {
@@ -91,6 +73,14 @@ export type CsharpResolvedTypedLocationOperation =
       readonly locationType: TargetTypeRef;
       readonly locationExpression: Node;
       readonly valueExpression: Node;
+    }
+  | {
+      readonly kind: "location-equal";
+      readonly call: Node;
+      readonly pointeeType: TargetTypeRef;
+      readonly locationType: TargetTypeRef;
+      readonly leftExpression: Node;
+      readonly rightExpression: Node;
     };
 
 export function selectCsharpTypedLocationOperation(
@@ -138,6 +128,7 @@ export function selectCsharpTypedLocationOperation(
         storageType,
         sourceFile,
         new WeakSet<Node>(),
+        source.storageDeclaration,
       );
       return storage.kind === "rejected"
         ? rejected(source.kind, storage.reason)
@@ -209,248 +200,48 @@ export function selectCsharpTypedLocationOperation(
             valueExpression: source.valueExpression,
           };
     }
-  }
-}
-
-type CsharpTypedLocationStorageSelection =
-  | { readonly kind: "resolved"; readonly storage: CsharpTypedLocationStorage }
-  | { readonly kind: "rejected"; readonly reason: string };
-
-function selectCsharpTypedLocationStorage(
-  input: CsharpTranslationContext,
-  expression: Node,
-  valueType: TargetTypeRef,
-  sourceFile: SourceFile,
-  active: WeakSet<Node>,
-): CsharpTypedLocationStorageSelection {
-  if (active.has(expression)) {
-    return storageRejected(
-      "The selected writable storage contains a cyclic receiver relation.",
-    );
-  }
-  active.add(expression);
-  try {
-    if (input.ast.is.IsIdentifier(expression)) {
+    case "location-equal": {
+      const leftType = input.types.resolveSelectedValue(
+        source.leftExpression,
+        source.leftType,
+        sourceFile,
+      );
+      const rightType = input.types.resolveSelectedValue(
+        source.rightExpression,
+        source.rightType,
+        sourceFile,
+      );
+      if (
+        !isCsharpTypedLocationEqualityOperand(leftType, pointeeType) ||
+        !isCsharpTypedLocationEqualityOperand(rightType, pointeeType)
+      ) {
+        return rejected(
+          source.kind,
+          "Each selected equality operand must be the exact C# typed-location carrier or source undefined.",
+        );
+      }
       return {
-        kind: "resolved",
-        storage: { kind: "direct-storage", expression, valueType },
+        kind: source.kind,
+        call: source.call,
+        pointeeType,
+        locationType,
+        leftExpression: source.leftExpression,
+        rightExpression: source.rightExpression,
       };
     }
-    if (input.ast.is.IsPropertyAccessExpression(expression)) {
-      return selectCsharpPropertyStorage(
-        input,
-        expression,
-        valueType,
-        sourceFile,
-        active,
-      );
-    }
-    if (input.ast.is.IsElementAccessExpression(expression)) {
-      return selectCsharpElementStorage(
-        input,
-        expression,
-        valueType,
-        sourceFile,
-        active,
-      );
-    }
-    return storageRejected(
-      `Writable source storage kind '${input.ast.kindName(expression)}' has no C# typed-location operation.`,
-    );
-  } finally {
-    active.delete(expression);
   }
 }
 
-function selectCsharpPropertyStorage(
-  input: CsharpTranslationContext,
-  expression: Node,
-  valueType: TargetTypeRef,
-  sourceFile: SourceFile,
-  active: WeakSet<Node>,
-): CsharpTypedLocationStorageSelection {
-  const selection = selectCsharpTargetProperty(input, expression, sourceFile);
-  if (selection.kind !== "resolved" && selection.kind !== "source-owned") {
-    const reason = selection.kind === "rejected"
-      ? selection.diagnostic.message
-      : selection.reason;
-    return storageRejected(
-      `The selected writable property has no exact C# member relation: ${reason}`,
-    );
+function isCsharpTypedLocationEqualityOperand(
+  operandType: TargetTypeRef | undefined,
+  pointeeType: TargetTypeRef,
+): boolean {
+  if (isCsharpRuntimeUndefinedTargetType(operandType)) {
+    return true;
   }
-  const source = selection.source;
-  if (!source.writable || source.optionalChain) {
-    return storageRejected(
-      "The selected property is not an exact writable C# member location.",
-    );
-  }
-  const isStatic = selection.kind === "resolved"
-    ? selection.receiver.kind === "none"
-    : source.selectedDeclaration !== undefined &&
-      input.ast.hasModifierKind(source.selectedDeclaration, "static");
-  if (isStatic) {
-    return {
-      kind: "resolved",
-      storage: { kind: "direct-storage", expression, valueType },
-    };
-  }
-  const receiverType = input.types.resolveSelectedValue(
-    source.receiver.expression,
-    source.receiver.type,
-    sourceFile,
-  );
-  const receiverKind = classifyCsharpStorageReceiver(receiverType);
-  if (receiverType === undefined || receiverKind === "unknown") {
-    return storageRejected(
-      "The selected property receiver is neither a proven C# reference nor value type.",
-    );
-  }
-  if (receiverKind === "reference") {
-    return {
-      kind: "resolved",
-      storage: {
-        kind: "reference-property-storage",
-        expression,
-        valueType,
-      },
-    };
-  }
-  const receiverStorage = selectWritableReceiverStorage(
-    input,
-    source.receiver.expression,
-    receiverType,
-    sourceFile,
-    active,
-  );
-  return receiverStorage.kind === "rejected"
-    ? receiverStorage
-    : {
-        kind: "resolved",
-        storage: {
-          kind: "value-property-storage",
-          expression,
-          valueType,
-          receiverStorage: receiverStorage.storage,
-        },
-      };
-}
-
-function selectCsharpElementStorage(
-  input: CsharpTranslationContext,
-  expression: Node,
-  valueType: TargetTypeRef,
-  sourceFile: SourceFile,
-  active: WeakSet<Node>,
-): CsharpTypedLocationStorageSelection {
-  const source = input.semantics(sourceFile)
-    .getResolvedElementAccessInfo(expression);
-  if (source === undefined || !source.writable || source.optionalChain) {
-    return storageRejected(
-      "The selected element is not an exact writable C# index location.",
-    );
-  }
-  const receiverType = input.types.resolveSelectedValue(
-    source.receiver.expression,
-    source.receiver.type,
-    sourceFile,
-  );
-  const receiverKind = classifyCsharpStorageReceiver(receiverType);
-  if (receiverType === undefined || receiverKind === "unknown") {
-    return storageRejected(
-      "The selected element receiver is neither a proven C# reference nor value type.",
-    );
-  }
-  if (receiverKind === "reference") {
-    return {
-      kind: "resolved",
-      storage: {
-        kind: "reference-element-storage",
-        expression,
-        valueType,
-      },
-    };
-  }
-  const receiverStorage = selectWritableReceiverStorage(
-    input,
-    source.receiver.expression,
-    receiverType,
-    sourceFile,
-    active,
-  );
-  return receiverStorage.kind === "rejected"
-    ? receiverStorage
-    : {
-        kind: "resolved",
-        storage: {
-          kind: "value-element-storage",
-          expression,
-          valueType,
-          receiverStorage: receiverStorage.storage,
-        },
-      };
-}
-
-function selectWritableReceiverStorage(
-  input: CsharpTranslationContext,
-  receiver: Node,
-  receiverType: TargetTypeRef,
-  sourceFile: SourceFile,
-  active: WeakSet<Node>,
-): CsharpTypedLocationStorageSelection {
-  const storage = input.semantics(sourceFile).getResolvedStorageInfo(receiver);
-  if (storage === undefined || !storage.writable) {
-    return storageRejected(
-      "A value-type storage receiver has no exact writable owner location.",
-    );
-  }
-  const selectedStorageType = input.types.resolveSelectedValue(
-    storage.storageExpression,
-    storage.type,
-    sourceFile,
-  );
-  if (
-    selectedStorageType === undefined ||
-    !targetTypeRefEquals(selectedStorageType, receiverType)
-  ) {
-    return storageRejected(
-      "A value-type storage receiver and its writable owner do not have one exact C# target type.",
-    );
-  }
-  return selectCsharpTypedLocationStorage(
-    input,
-    storage.storageExpression,
-    receiverType,
-    sourceFile,
-    active,
-  );
-}
-
-function classifyCsharpStorageReceiver(
-  type: TargetTypeRef | undefined,
-): "reference" | "value" | "unknown" {
-  if (type === undefined) {
-    return "unknown";
-  }
-  if (isCsharpValueTypeTargetType(type)) {
-    return "value";
-  }
-  switch (type.kind) {
-    case "array":
-    case "target-named":
-      return "reference";
-    case "source-primitive":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-      return "value";
-    case "source-global":
-    case "type-parameter":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return "unknown";
-  }
+  const operandPointee = csharpRuntimeLocationPointee(operandType);
+  return operandPointee !== undefined &&
+    targetTypeRefEquals(operandPointee, pointeeType);
 }
 
 function rejected(
@@ -458,8 +249,4 @@ function rejected(
   reason: string,
 ): CsharpTypedLocationOperationSelection {
   return { kind: "rejected", operation, reason };
-}
-
-function storageRejected(reason: string): CsharpTypedLocationStorageSelection {
-  return { kind: "rejected", reason };
 }

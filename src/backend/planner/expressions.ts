@@ -402,7 +402,7 @@ export function planExpressionWithExpectedType(
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
     planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
-  }, effectiveExpectedTargetType);
+  }, state, effectiveExpectedTargetType);
   if (plan === undefined || effectiveExpectedTargetType === undefined) {
     return plan?.expression;
   }

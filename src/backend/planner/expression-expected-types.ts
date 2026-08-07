@@ -73,6 +73,9 @@ import {
   csharpConversionIsApplicable,
   selectCsharpConversion,
 } from "../../policy/conversions/index.js";
+import type {
+  DestructuringPlannerState,
+} from "./bindings.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -92,6 +95,7 @@ export function planExpressionWithExpectedTypeCore(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
   planners: ExpectedTypeExpressionPlanners,
+  state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): ExpectedTypeExpressionPlan | undefined {
   const effectiveExpectedTargetType = expectedTargetType ??
@@ -137,12 +141,12 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindArrowFunction)) {
     return expectedRepresentation(
-      planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, undefined, expectedTargetType, planners.planExpressionWithExpectedType),
+      planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, state, expectedTargetType, planners.planExpressionWithExpectedType),
     );
   }
   if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
     return expectedRepresentation(
-      planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, undefined, expectedTargetType),
+      planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, expectedTargetType),
     );
   }
   if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {

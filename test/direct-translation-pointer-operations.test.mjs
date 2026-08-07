@@ -43,8 +43,9 @@ namespace Tsonic.Generated
         }
         public static int run()
         {
+            object __tsonic_locationIdentity0 = new object();
             int local = 1;
-            Tsonic.CSharp.Runtime.Location<int> alias = Tsonic.CSharp.Runtime.Location<int>.Create(() => local, __tsonic_param0 => local = __tsonic_param0);
+            Tsonic.CSharp.Runtime.Location<int> alias = Tsonic.CSharp.Runtime.Location<int>.CreateLocal(__tsonic_locationIdentity0, () => local, __tsonic_param0 => local = __tsonic_param0);
             increment(alias);
             Tsonic.CSharp.Runtime.Location<int> allocated = create();
             increment(allocated);
@@ -87,15 +88,258 @@ namespace Tsonic.Generated
         }
         public static int choose(bool flag)
         {
+            object __tsonic_locationIdentity0 = new object();
             int left = 1;
+            object __tsonic_locationIdentity1 = new object();
             int right = 2;
-            Tsonic.CSharp.Runtime.Location<int> pointer = flag ? Tsonic.CSharp.Runtime.Location<int>.Create(() => left, __tsonic_param0 => left = __tsonic_param0) : Tsonic.CSharp.Runtime.Location<int>.Create(() => right, __tsonic_param1 => right = __tsonic_param1);
+            Tsonic.CSharp.Runtime.Location<int> pointer = flag ? Tsonic.CSharp.Runtime.Location<int>.CreateLocal(__tsonic_locationIdentity0, () => left, __tsonic_param0 => left = __tsonic_param0) : Tsonic.CSharp.Runtime.Location<int>.CreateLocal(__tsonic_locationIdentity1, () => right, __tsonic_param1 => right = __tsonic_param1);
             pointer.Store(3);
             return left + right;
         }
     }
 }
 `);
+});
+
+test("typed-location equality preserves exact carrier identity and undefined", () => {
+  const compiled = cleanCompile(`
+    import { equalPointer } from "@tsonic/core/lang.js";
+    import type { int32, Pointer } from "@tsonic/core/types.js";
+
+    export function same<T>(
+      left: Pointer<T> | undefined,
+      right: Pointer<T> | undefined,
+    ): boolean {
+      return equalPointer(left, right);
+    }
+
+    export function bothMissing(): boolean {
+      return equalPointer<int32>(undefined, undefined);
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static bool same<T>(Tsonic.CSharp.Runtime.Location<T>? left, Tsonic.CSharp.Runtime.Location<T>? right)
+        {
+            return Tsonic.CSharp.Runtime.Location<T>.Same(left, right);
+        }
+        public static bool bothMissing()
+        {
+            return Tsonic.CSharp.Runtime.Location<int>.Same(null, null);
+        }
+    }
+}
+`);
+});
+
+test("independently formed addresses retain canonical local, parameter, member, element, and static identity", () => {
+  const compiled = cleanCompile(`
+    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    let shared: int32 = 0;
+
+    export class Box {
+      value: int32 = 0;
+
+      compare(parameter: int32, values: int32[]): boolean {
+        let local: int32 = 0;
+        return equalPointer(addressOf(local), addressOf(local)) &&
+          equalPointer(addressOf(parameter), addressOf(parameter)) &&
+          equalPointer(addressOf(this.value), addressOf(this.value)) &&
+          equalPointer(addressOf(values[0]), addressOf(values[0])) &&
+          !equalPointer(addressOf(values[0]), addressOf(values[1])) &&
+          equalPointer(addressOf(shared), addressOf(shared));
+      }
+    }
+  `);
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.equal(occurrences(source, "object __tsonic_locationIdentity0 = new object();"), 1);
+  assert.equal(occurrences(source, "object __tsonic_locationIdentity1 = new object();"), 1);
+  assert.equal(occurrences(source, "CreateLocal(__tsonic_locationIdentity0"), 2);
+  assert.equal(occurrences(source, "CreateLocal(__tsonic_locationIdentity1"), 2);
+  assert.equal(occurrences(source, "CreateMember(this,"), 2);
+  assert.equal(occurrences(source, "CreateArrayElement(values, 0)"), 3);
+  assert.equal(occurrences(source, "CreateArrayElement(values, 1)"), 1);
+  assert.equal(occurrences(source, "CreateStatic("), 2);
+});
+
+test("source-core value-type fields preserve exact pointee facts and owner write-back", () => {
+  const compiled = cleanCompile(`
+    import {
+      addressOf,
+      defaultValue,
+      equalPointer,
+      field,
+      loadPointer,
+      storePointer,
+      struct,
+    } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export const Pair = struct({
+      left: field<int32>(),
+      right: field<int32>(),
+    });
+
+    export function updatePair(): int32 {
+      let pair: typeof Pair = defaultValue<typeof Pair>();
+      pair.left = 1;
+      const first = addressOf(pair.left);
+      const second = addressOf(pair.left);
+      storePointer(first, 3);
+      return equalPointer(first, second) ? loadPointer(second) : pair.right;
+    }
+  `);
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /Location<int>\.Same/u);
+  assert.equal(occurrences(source, ".ProjectMember<int>("), 2);
+  assert.doesNotMatch(source, /Location<double>|ProjectMember<double>/u);
+});
+
+test("lambda, destructured, and per-iteration bindings receive one identity per activation", () => {
+  const compiled = cleanCompile(`
+    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import type { bool, int32 } from "@tsonic/core/types.js";
+
+    export function compareForms(values: int32[]): bool {
+      const compare: (value: int32) => bool =
+        (value): bool => equalPointer(addressOf(value), addressOf(value));
+      let [first] = values;
+      let loopSame: bool = true;
+      for (let item of values) {
+        loopSame = loopSame &&
+          equalPointer(addressOf(item), addressOf(item));
+        break;
+      }
+      return compare(first) &&
+        equalPointer(addressOf(first), addressOf(first)) &&
+        loopSame;
+    }
+  `);
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.equal(occurrences(source, "object __tsonic_locationIdentity"), 3);
+  assert.equal(occurrences(source, ".CreateLocal(__tsonic_locationIdentity"), 6);
+  assert.match(
+    source,
+    /\(int value\) =>\s*\{\s*object __tsonic_locationIdentity\d+ = new object\(\);/u,
+  );
+  assert.match(
+    source,
+    /foreach \(int __tsonic_forOfItem\d+ in values\)\s*\{\s*int item = __tsonic_forOfItem\d+;\s*object __tsonic_locationIdentity\d+ = new object\(\);/u,
+  );
+});
+
+test("loop bindings preserve assignment, lexical, and function-scoped storage identity", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import type { bool, int32 } from "@tsonic/core/types.js";
+
+    export function compareLoops(
+      values: int32[],
+      record: Record<string, int32>,
+    ): bool {
+      let result: bool = true;
+      let assigned: int32 = 0;
+      for (assigned of values) {
+        result = result &&
+          equalPointer(addressOf(assigned), addressOf(assigned));
+        break;
+      }
+      for (let key in record) {
+        result = result && equalPointer(addressOf(key), addressOf(key));
+        break;
+      }
+      for (var fromValues of values) {
+        result = result &&
+          equalPointer(addressOf(fromValues), addressOf(fromValues));
+        break;
+      }
+      for (var fromKeys in record) {
+        result = result &&
+          equalPointer(addressOf(fromKeys), addressOf(fromKeys));
+        break;
+      }
+      for (var index: int32 = 0; index < 1; index++) {
+        result = result && equalPointer(addressOf(index), addressOf(index));
+      }
+      return result && equalPointer(addressOf(index), addressOf(index));
+    }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(
+    source,
+    /foreach \(int __tsonic_forOfItem\d+ in values\)\s*\{\s*assigned = __tsonic_forOfItem\d+;/u,
+  );
+  assert.doesNotMatch(source, /foreach \(int assigned in values\)/u);
+  assert.match(
+    source,
+    /foreach \(string __tsonic_forInKeys\d+ in __tsonic_forInTarget\d+\.Keys\)\s*\{\s*string key = __tsonic_forInKeys\d+;\s*object __tsonic_locationIdentity\d+ = new object\(\);/u,
+  );
+  assert.match(
+    source,
+    /int fromValues;\s*object (__tsonic_locationIdentity\d+) = new object\(\);\s*foreach \(int __tsonic_forOfItem\d+ in values\)\s*\{\s*fromValues = __tsonic_forOfItem\d+;[\s\S]*?CreateLocal\(\1, \(\) => fromValues,[\s\S]*?CreateLocal\(\1, \(\) => fromValues,/u,
+  );
+  assert.match(
+    source,
+    /string fromKeys;\s*object (__tsonic_locationIdentity\d+) = new object\(\);[\s\S]*?foreach \(string __tsonic_forInKeys\d+ in __tsonic_forInTarget\d+\.Keys\)\s*\{\s*fromKeys = __tsonic_forInKeys\d+;[\s\S]*?CreateLocal\(\1, \(\) => fromKeys,[\s\S]*?CreateLocal\(\1, \(\) => fromKeys,/u,
+  );
+  assert.match(
+    source,
+    /object (__tsonic_locationIdentity\d+) = new object\(\);\s*int index = 0;\s*for \(; index < 1; index\+\+\)[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?return result && [\s\S]*?CreateLocal\(\1, \(\) => index,[\s\S]*?CreateLocal\(\1, \(\) => index,/u,
+  );
+});
+
+test("unsupported loop activation identities fail closed before C# emission", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { addressOf } from "@tsonic/core/lang.js";
+      import type { int32 } from "@tsonic/core/types.js";
+
+      export function reject(): void {
+        for (let index: int32 = 0; index < 1; index++) {
+          addressOf(index);
+        }
+      }
+
+      export function rejectDestructuredVar(values: [int32][]): void {
+        for (var [item] of values) {
+          addressOf(item);
+        }
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
+    [
+      {
+        code: "CSHARP_UNSUPPORTED_AST",
+        message: "C# 'location-address' lowering requires one exact finalized typed-location operation. Addressing a for-initializer binding requires one function-scoped 'var' location; per-iteration 'let' locations require a dedicated C# loop-binding representation.",
+      },
+      {
+        code: "CSHARP_UNSUPPORTED_AST",
+        message: "C# 'location-address' lowering requires one exact finalized typed-location operation. Addressing a destructured 'var' for-of binding requires a function-scoped destructuring-assignment representation; per-iteration declaration lowering cannot preserve that identity.",
+      },
+    ],
+  );
 });
 
 test("address acquisition evaluates reference receivers and indexes exactly once", () => {
@@ -127,17 +371,37 @@ test("address acquisition evaluates reference receivers and indexes exactly once
   `);
   const source = compiled.artifacts.get("src/Index.cs");
 
-  assert.equal(occurrences(source, "Location<int>.Create(select(box),"), 1);
-  assert.equal(occurrences(source, "Location<int>.Create(values, index(),"), 1);
+  assert.equal(occurrences(source, "Location<int>.CreateMember(select(box),"), 1);
+  assert.equal(occurrences(source, "Location<int>.CreateArrayElement(values, index())"), 1);
   assert.equal(occurrences(source, "select(box)"), 1);
   assert.equal(occurrences(source, "index()"), 2);
   assert.match(
     source,
     /__tsonic_param0 => __tsonic_param0\.value, \(__tsonic_param0, __tsonic_param1\) => __tsonic_param0\.value = __tsonic_param1/u,
   );
-  assert.match(
-    source,
-    /\(__tsonic_param2, __tsonic_param3\) => __tsonic_param2\[__tsonic_param3\], \(__tsonic_param2, __tsonic_param3, __tsonic_param4\) => __tsonic_param2\[__tsonic_param3\] = __tsonic_param4/u,
+});
+
+test("typed-location element identity fails closed for indexers without canonical identity policy", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import { addressOf } from "@tsonic/core/lang.js";
+      import type { int32 } from "@tsonic/core/types.js";
+
+      export function reject(values: Record<string, int32>, key: string): void {
+        addressOf(values[key]);
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
+    [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message: "C# 'location-address' lowering requires one exact finalized typed-location operation. C# typed-location element storage requires the exact built-in array representation; provider and project indexers require an explicit canonical location-identity policy.",
+    }],
   );
 });
 
@@ -182,12 +446,16 @@ test("same-spelled local pointer functions remain ordinary source calls", () => 
   const compiled = cleanCompile(`
     import type { int32 } from "@tsonic/core/types.js";
 
+    function equalPointer(left: int32, right: int32): boolean {
+      return left === right;
+    }
+
     function loadPointer(value: int32): int32 {
       return value;
     }
 
-    export function run(value: int32): int32 {
-      return loadPointer(value);
+    export function run(value: int32): boolean {
+      return equalPointer(loadPointer(value), value);
     }
   `);
 
@@ -197,13 +465,17 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
+        public static bool equalPointer(int left, int right)
+        {
+            return left == right;
+        }
         public static int loadPointer(int value)
         {
             return value;
         }
-        public static int run(int value)
+        public static bool run(int value)
         {
-            return loadPointer(value);
+            return equalPointer(loadPointer(value), value);
         }
     }
 }

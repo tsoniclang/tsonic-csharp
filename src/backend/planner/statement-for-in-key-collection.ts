@@ -37,7 +37,7 @@ import type {
 import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
-  planForInKeyBindingStatementFromExpression,
+  planForInBindingActivation,
 } from "./statement-for-in-binding.js";
 
 export function planKeyCollectionForInStatement(
@@ -83,12 +83,16 @@ export function planKeyCollectionForInStatement(
     return [];
   }
   const { collectionName, keysName } = allocateForInNames(state);
-  const itemName = binding.kind === "LocalDeclarationStatement" ? binding.name : keysName;
+  const itemName = keysName;
   const keyExpression: CsharpExpression = { kind: "IdentifierName", name: itemName };
-  const bindingStatements = binding.kind === "LocalDeclarationStatement"
-    ? []
-    : [planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression)];
-  return [{
+  const bindingActivation = planForInBindingActivation(
+    binding,
+    keyType,
+    keyExpression,
+    input,
+    state,
+  );
+  return [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",
@@ -111,7 +115,7 @@ export function planKeyCollectionForInStatement(
           body: {
             kind: "Block",
             statements: [
-              ...bindingStatements,
+              ...bindingActivation.iterationPrelude,
               ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
             ],
           },

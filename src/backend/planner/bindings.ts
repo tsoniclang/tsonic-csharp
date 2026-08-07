@@ -29,7 +29,9 @@ export {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
+  declareCsharpTypedLocationIdentityName,
   getCsharpLocalBindingName,
+  getCsharpTypedLocationIdentityName,
 } from "./binding-state.js";
 export { planBindingPatternFromExpression } from "./binding-patterns.js";
 export type {

@@ -32,7 +32,12 @@ export type CsharpStorageRequirement =
     }
   | {
       readonly kind: "target-representation";
+      readonly declaration: Node;
       readonly targetType: TargetTypeRef;
+    }
+  | {
+      readonly kind: "typed-location-identity";
+      readonly declaration: Node;
     };
 
 export type CsharpStorageRequirementResult =
@@ -60,6 +65,7 @@ export interface CsharpStorageRequirementRegistry {
     sourceType: TargetTypeRef,
   ): CsharpStorageTypeResult;
   requiredType(storageExpression: Node): TargetTypeRef | undefined;
+  consumeTypedLocationIdentity(declaration: Node): boolean;
   contractOwner(storageExpression: Node): string | undefined;
   unfulfilled(): readonly CsharpUnfulfilledStorageRequirement[];
 }
@@ -75,8 +81,10 @@ interface StoredRequirement {
   readonly artifactOwner: string;
   nullableWrittenType?: TargetTypeRef;
   targetType?: TargetTypeRef;
+  typedLocationIdentity: boolean;
   nullableConsumed: boolean;
   targetConsumed: boolean;
+  typedLocationIdentityConsumed: boolean;
 }
 
 const maximumStorageRequirementCount = 131_072;
@@ -106,17 +114,17 @@ export function createCsharpStorageRequirementRegistry(
         return accepted;
       }
     }
-    const reference = host.navigation.referenceFor(storageExpression);
-    if (reference === undefined) {
+    const declaration = requirement.kind === "nullable-reference-write"
+      ? host.navigation.referenceFor(storageExpression)?.declaration
+      : requirement.declaration;
+    if (declaration === undefined) {
       return rejected(
-        requirement.kind === "target-representation"
-          ? "A selected target operation requires an exact storage representation, but its source storage declaration is unavailable."
-          : "A selected target output can write null, but its exact source storage declaration is unavailable.",
+        "A selected target output can write null, but its exact source storage declaration is unavailable.",
       );
     }
-    const existing = requirements.get(reference.declaration);
+    const existing = requirements.get(declaration);
     const artifactOwner = existing?.artifactOwner ??
-      host.artifactOwner(reference.declaration);
+      host.artifactOwner(declaration);
     if (artifactOwner === undefined) {
       return rejected(
         "A selected target storage requirement has no exact source declaration identity.",
@@ -124,10 +132,12 @@ export function createCsharpStorageRequirementRegistry(
     }
     const current = existing ?? {
       expression: storageExpression,
-      declaration: reference.declaration,
+      declaration,
       artifactOwner,
+      typedLocationIdentity: false,
       nullableConsumed: false,
       targetConsumed: false,
+      typedLocationIdentityConsumed: false,
     };
     if (existing === undefined) {
       if (requirements.size >= maximumStorageRequirementCount) {
@@ -135,6 +145,22 @@ export function createCsharpStorageRequirementRegistry(
           `C# target storage requirements exceed their finite ${maximumStorageRequirementCount}-declaration budget.`,
         );
       }
+    }
+    if (requirement.kind === "typed-location-identity") {
+      if (!current.typedLocationIdentity) {
+        const committed = commitStorageRequirement(
+          current,
+          current.targetType,
+          current.nullableWrittenType,
+          true,
+        );
+        if (committed.kind === "rejected") {
+          return committed;
+        }
+        current.typedLocationIdentity = true;
+        requirements.set(declaration, current);
+      }
+      return accepted;
     }
     if (requirement.kind === "target-representation") {
       if (
@@ -150,12 +176,13 @@ export function createCsharpStorageRequirementRegistry(
           current,
           requirement.targetType,
           current.nullableWrittenType,
+          current.typedLocationIdentity,
         );
         if (committed.kind === "rejected") {
           return committed;
         }
         current.targetType = requirement.targetType;
-        requirements.set(reference.declaration, current);
+        requirements.set(declaration, current);
       }
       return accepted;
     }
@@ -175,12 +202,13 @@ export function createCsharpStorageRequirementRegistry(
         current,
         current.targetType,
         requirement.writtenType,
+        current.typedLocationIdentity,
       );
       if (committed.kind === "rejected") {
         return committed;
       }
       current.nullableWrittenType = requirement.writtenType;
-      requirements.set(reference.declaration, current);
+      requirements.set(declaration, current);
     }
     return accepted;
   }
@@ -210,13 +238,16 @@ export function createCsharpStorageRequirementRegistry(
         expression: declaration,
         declaration,
         artifactOwner,
+        typedLocationIdentity: false,
         nullableConsumed: false,
         targetConsumed: false,
+        typedLocationIdentityConsumed: false,
       };
       const committed = commitStorageRequirement(
         baseline,
         undefined,
         undefined,
+        false,
       );
       if (committed.kind === "rejected") {
         return committed;
@@ -266,6 +297,15 @@ export function createCsharpStorageRequirementRegistry(
       : csharpNullableReferenceTargetType(targetType);
   }
 
+  function consumeTypedLocationIdentity(declaration: Node): boolean {
+    const requirement = requirements.get(declaration);
+    if (requirement?.typedLocationIdentity !== true) {
+      return false;
+    }
+    requirement.typedLocationIdentityConsumed = true;
+    return true;
+  }
+
   function contractOwner(storageExpression: Node): string | undefined {
     const reference = host.navigation.referenceFor(storageExpression);
     return requirements.get(
@@ -297,6 +337,17 @@ export function createCsharpStorageRequirementRegistry(
               })]
             : []
         ),
+        ...(
+          requirement.typedLocationIdentity &&
+            !requirement.typedLocationIdentityConsumed
+            ? [Object.freeze({
+                expression: requirement.expression,
+                declaration: requirement.declaration,
+                reason:
+                  "A selected typed-location address requires canonical storage identity, but no emitted C# storage declaration consumed that requirement.",
+              })]
+            : []
+        ),
       ]),
     );
   }
@@ -308,6 +359,7 @@ export function createCsharpStorageRequirementRegistry(
     require,
     resolve,
     requiredType,
+    consumeTypedLocationIdentity,
     contractOwner,
     unfulfilled,
   });
@@ -316,11 +368,13 @@ export function createCsharpStorageRequirementRegistry(
     requirement: StoredRequirement,
     targetType: TargetTypeRef | undefined,
     nullableWrittenType: TargetTypeRef | undefined,
+    typedLocationIdentity: boolean,
   ): CsharpStorageRequirementResult {
     const candidate = csharpStorageContractCandidate(
       requirement.artifactOwner,
       targetType,
       nullableWrittenType,
+      typedLocationIdentity,
     );
     const committed = contracts.commit(
       candidate.owner,

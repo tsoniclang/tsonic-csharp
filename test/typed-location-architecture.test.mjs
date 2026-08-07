@@ -99,9 +99,33 @@ test("typed-location selection is fact-driven and contains no marker spellings",
   assert.match(selection, /readCsharpSourceTypedLocationOperation/u);
   assert.doesNotMatch(
     selection,
-    /\baddressOf\b|\ballocatePointer\b|\bloadPointer\b|\bstorePointer\b/u,
+    /\baddressOf\b|\ballocatePointer\b|\bequalPointer\b|\bloadPointer\b|\bstorePointer\b/u,
   );
   assert.doesNotMatch(selection, /getSymbolAtLocation|getResolvedSymbol|\.Text\b|\.TypeArguments\b/u);
+});
+
+test("typed-location storage identity is closed over exact declarations, members, and arrays", () => {
+  const storage = readFileSync(
+    join(sourceRoot, "policy/operations/typed-location-storage.ts"),
+    "utf8",
+  );
+  const planner = readFileSync(
+    join(sourceRoot, "backend/planner/expression-typed-locations.ts"),
+    "utf8",
+  );
+
+  assert.match(storage, /sourceNodeIdentity/u);
+  assert.match(storage, /receiverType\.kind !== "array"/u);
+  assert.doesNotMatch(
+    storage,
+    /EqualityComparer|ProjectElement|ElementLocationIdentity|getTypeAtLocation|getSymbolAtLocation|getResolvedSymbol|\.Text\b|\.TypeArguments\b/u,
+  );
+  assert.match(planner, /CreateLocal/u);
+  assert.match(planner, /CreateStatic/u);
+  assert.match(planner, /CreateMember/u);
+  assert.match(planner, /CreateArrayElement/u);
+  assert.match(planner, /ProjectMember/u);
+  assert.doesNotMatch(planner, /ProjectElement|EqualityComparer/u);
 });
 
 test("C#-flavoured aliases are never imported from the neutral module", () => {

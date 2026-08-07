@@ -107,6 +107,7 @@ import {
 } from "./source-syntax.js";
 import {
   readCsharpSourceDefaultValue,
+  readCsharpSourceField,
   readCsharpSourceFunctionPointerType,
   readCsharpSourcePointerType,
 } from "./source-markers.js";
@@ -339,6 +340,11 @@ export function createCsharpTypePolicy(
   ): TargetTypeRef | undefined {
     const reference = host.navigation.referenceFor(node);
     const declaration = sourceValueDeclaration(node, reference?.declaration);
+    const scopedTarget = host.scopedTargetType?.(declaration ?? node) ??
+      host.scopedTargetType?.(node);
+    if (scopedTarget !== undefined) {
+      return scopedTarget;
+    }
     if (declaration !== undefined) {
       const declared = resolveSourceValueDeclaration(
         node,
@@ -417,6 +423,16 @@ export function createCsharpTypePolicy(
         return csharpRuntimeLocationPointee(resolveSelectedValue(
           operation.locationExpression,
           operation.locationType,
+          sourceFile,
+        ));
+      case "location-equal":
+        return csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.leftExpression,
+          operation.leftType,
+          sourceFile,
+        )) ?? csharpRuntimeLocationPointee(resolveSelectedValue(
+          operation.rightExpression,
+          operation.rightType,
           sourceFile,
         ));
     }
@@ -1221,6 +1237,16 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
     receiverType?: TargetTypeRef,
   ): TargetTypeRef | undefined {
+    const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
+    if (sourceField !== undefined) {
+      const fieldSourceFile = host.ast.getSourceFile(sourceField.sourceType) ??
+        queries.sourceFile;
+      return resolveNodeWithState(
+        sourceField.sourceType,
+        fieldSourceFile,
+        nextState(state),
+      );
+    }
     const enumMemberTarget = resolveProjectEnumMemberTarget(declaration);
     if (enumMemberTarget !== undefined) {
       return enumMemberTarget;
@@ -2094,6 +2120,8 @@ export function createCsharpTypePolicy(
               return pointee;
             case "location-store":
               return csharpVoidTargetType();
+            case "location-equal":
+              return csharpSourcePrimitiveTargetType("bool");
           }
         }
       }

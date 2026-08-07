@@ -37,6 +37,9 @@ import {
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export function planForStatement(
   node: Node,
@@ -80,8 +83,10 @@ export function planForStatement(
   };
   const initializerPrelude = initializer?.prelude ?? [];
   return initializerPrelude.length === 0
-      ? [plannedFor]
-    : [{
+    ? [plannedFor]
+    : initializer?.preludeScope === "enclosing"
+      ? [...initializerPrelude, plannedFor]
+      : [{
         kind: "Block",
         body: { kind: "Block", statements: [...initializerPrelude, plannedFor] },
       }];
@@ -90,6 +95,7 @@ export function planForStatement(
 interface PlannedForInitializer {
   readonly initializer?: CsharpForInitializer;
   readonly prelude: readonly CsharpStatement[];
+  readonly preludeScope?: "loop" | "enclosing";
 }
 
 function planForInitializer(
@@ -107,8 +113,25 @@ function planForInitializer(
       return HasSourceKind(input.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.ast, variable.name, KindArrayBindingPattern);
     })) {
       return {
+        ...(input.ast.variableDeclarationKind(node) === "var"
+          ? { preludeScope: "enclosing" as const }
+          : {}),
         prelude: concreteDeclarations.flatMap((declaration) =>
           planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+      };
+    }
+    if (input.ast.variableDeclarationKind(node) === "var") {
+      return {
+        preludeScope: "enclosing",
+        prelude: concreteDeclarations.flatMap((declaration) =>
+          planLocalDeclarationStatements(
+            declaration,
+            sourceFile,
+            input,
+            diagnostics,
+            state,
+          )
+        ),
       };
     }
     const locals = concreteDeclarations
@@ -116,20 +139,31 @@ function planForInitializer(
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {
       return {
-        prelude: locals.map((local) => ({
-          kind: "LocalDeclarationStatement",
-          name: local.name,
-          type: local.type,
-          ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
-        })),
+        prelude: concreteDeclarations.flatMap((declaration) =>
+          planLocalDeclarationStatements(
+            declaration,
+            sourceFile,
+            input,
+            diagnostics,
+            state,
+          )
+        ),
       };
     }
+    const identityPrelude = concreteDeclarations.flatMap((declaration) => {
+      const identity = planCsharpTypedLocationIdentityDeclaration(
+        declaration,
+        input,
+        state,
+      );
+      return identity === undefined ? [] : [identity];
+    });
     return {
       initializer: {
         kind: "VariableDeclaration",
         locals,
       },
-      prelude: [],
+      prelude: identityPrelude,
     };
   }
   const expression = planExpression(node, sourceFile, input, diagnostics, state);

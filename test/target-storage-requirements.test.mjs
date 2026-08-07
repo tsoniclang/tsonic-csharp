@@ -154,6 +154,7 @@ test("target storage requirements select one exact representation and require de
 
   assert.deepEqual(registry.require(expression, {
     kind: "target-representation",
+    declaration,
     targetType: int32,
   }), { kind: "accepted" });
   assert.equal(registry.revision, 1);
@@ -164,6 +165,7 @@ test("target storage requirements select one exact representation and require de
 
   assert.deepEqual(registry.require(expression, {
     kind: "target-representation",
+    declaration,
     targetType: int32,
   }), { kind: "accepted" });
   assert.equal(registry.revision, 1);
@@ -184,10 +186,12 @@ test("target storage requirements reject conflicting exact representations", () 
 
   assert.equal(registry.require(expression, {
     kind: "target-representation",
+    declaration,
     targetType: int32,
   }).kind, "accepted");
   assert.deepEqual(registry.require(expression, {
     kind: "target-representation",
+    declaration,
     targetType: float64,
   }), {
     kind: "rejected",
@@ -198,17 +202,40 @@ test("target storage requirements reject conflicting exact representations", () 
   assert.equal(registry.requiredType(expression), int32);
 });
 
-test("exact target storage requirements fail closed without declaration evidence", () => {
+test("exact target storage requirements fail closed without stable declaration identity", () => {
   const registry = createRegistry();
+  const declaration = {};
 
   assert.deepEqual(registry.require({}, {
     kind: "target-representation",
+    declaration,
     targetType: csharpSourcePrimitiveTargetType("int32"),
   }), {
     kind: "rejected",
     reason:
-      "A selected target operation requires an exact storage representation, but its source storage declaration is unavailable.",
+      "A selected target storage requirement has no exact source declaration identity.",
   });
   assert.equal(registry.revision, 0);
   assert.deepEqual(registry.unfulfilled(), []);
+});
+
+test("typed-location identity strengthens and is consumed by one exact storage declaration", () => {
+  const expression = {};
+  const declaration = {};
+  const registry = createRegistry(new Map([[expression, declaration]]));
+
+  assert.deepEqual(registry.require(expression, {
+    kind: "typed-location-identity",
+    declaration,
+  }), { kind: "accepted" });
+  assert.equal(registry.revision, 1);
+  assert.equal(registry.unfulfilled().length, 1);
+
+  assert.equal(registry.consumeTypedLocationIdentity(declaration), true);
+  assert.deepEqual(registry.unfulfilled(), []);
+  assert.deepEqual(registry.require(expression, {
+    kind: "typed-location-identity",
+    declaration,
+  }), { kind: "accepted" });
+  assert.equal(registry.revision, 1);
 });

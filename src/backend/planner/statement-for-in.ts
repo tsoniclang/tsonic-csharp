@@ -29,7 +29,7 @@ import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
   planForInBinding,
-  planForInKeyBindingStatement,
+  planForInBindingActivationForIndex,
 } from "./statement-for-in-binding.js";
 import {
   planObjectShapeForInStatement,
@@ -47,10 +47,6 @@ export function planForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const binding = planForInBinding(statement.Initializer, sourceFile, input, diagnostics);
-  if (binding === undefined) {
-    return [];
-  }
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
   const selectedIteration = selectCsharpIteration(
     input,
@@ -70,6 +66,16 @@ export function planForInStatement(
       diagnosticNode,
       "C# for-in emission received a non-for-in checked iteration selection.",
     ));
+    return [];
+  }
+  const binding = planForInBinding(
+    statement.Initializer,
+    selectedIteration.elementType,
+    sourceFile,
+    input,
+    diagnostics,
+  );
+  if (binding === undefined) {
     return [];
   }
   if (isCsharpObjectShapeKeyIteration(selectedIteration)) {
@@ -108,14 +114,16 @@ export function planForInStatement(
     return [];
   }
   const { indexName, collectionName } = allocateForInNames(state);
-  const bindingStatement = planForInKeyBindingStatement(
+  const bindingActivation = planForInBindingActivationForIndex(
     binding,
     keyType,
     indexName,
     selectedIteration.lowering,
     diagnostics,
+    input,
+    state,
   );
-  if (bindingStatement === undefined) {
+  if (bindingActivation === undefined) {
     return [];
   }
   const plannedLoop: CsharpStatement = {
@@ -147,12 +155,12 @@ export function planForInStatement(
     body: {
       kind: "Block",
       statements: [
-        bindingStatement,
+        ...bindingActivation.iterationPrelude,
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },
   };
-  return [{
+  return [...bindingActivation.outerPrelude, {
     kind: "Block",
     body: {
       kind: "Block",

@@ -28,7 +28,7 @@ import type {
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
-import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../roslyn/syntax.js";
+import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -61,6 +61,9 @@ import {
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
 import { publishCsharpSourceCallableContract } from "./source-callable-contracts.js";
+import {
+  planCsharpTypedLocationIdentityDeclaration,
+} from "./typed-location-identities.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -107,15 +110,29 @@ export function planArrowFunctionExpression(
   if (scopedInput === undefined) {
     return undefined;
   }
-  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext);
+  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const plannerState = state ?? createDestructuringPlannerState(node, input.ast);
+  const parameters = planLambdaParameters(
+    parameterNodes,
+    sourceFile,
+    scopedInput,
+    diagnostics,
+    plannerState,
+    targetContext,
+  );
+  const parameterIdentityDeclarations = planLambdaParameterIdentityDeclarations(
+    parameterNodes,
+    input,
+    plannerState,
+  );
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
-    const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, state, targetContext, returnContext);
+    const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
     if (body === undefined) {
       return undefined;
     }
     publishLambdaSourceCallableContract(
       node,
-      expression.Parameters?.Nodes ?? [],
+      parameterNodes,
       parameters,
       targetContext,
       input,
@@ -125,7 +142,7 @@ export function planArrowFunctionExpression(
       kind: "LambdaExpression",
       ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
       parameters,
-      body,
+      body: prependLambdaStatements(body, parameterIdentityDeclarations),
     };
   }
   const body = returnContext !== undefined && planExpressionWithExpectedType !== undefined
@@ -144,7 +161,7 @@ export function planArrowFunctionExpression(
   }
   publishLambdaSourceCallableContract(
     node,
-    expression.Parameters?.Nodes ?? [],
+    parameterNodes,
     parameters,
     targetContext,
     input,
@@ -154,7 +171,18 @@ export function planArrowFunctionExpression(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
     parameters,
-    body,
+    body: parameterIdentityDeclarations.length === 0
+      ? body
+      : {
+          kind: "Block",
+          statements: [
+            ...parameterIdentityDeclarations,
+            targetContext?.signature.returnTargetType !== undefined &&
+                isCsharpVoidTargetType(targetContext.signature.returnTargetType)
+              ? { kind: "ExpressionStatement", expression: body }
+              : { kind: "ReturnStatement", expression: body },
+          ],
+        },
   };
 }
 
@@ -184,14 +212,28 @@ export function planFunctionExpression(
   if (scopedInput === undefined) {
     return undefined;
   }
-  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, scopedInput, diagnostics, state, targetContext);
-  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, state, targetContext, returnContext);
+  const parameterNodes = expression.Parameters?.Nodes ?? [];
+  const plannerState = state ?? createDestructuringPlannerState(node, input.ast);
+  const parameters = planLambdaParameters(
+    parameterNodes,
+    sourceFile,
+    scopedInput,
+    diagnostics,
+    plannerState,
+    targetContext,
+  );
+  const parameterIdentityDeclarations = planLambdaParameterIdentityDeclarations(
+    parameterNodes,
+    input,
+    plannerState,
+  );
+  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
   if (body === undefined) {
     return undefined;
   }
   publishLambdaSourceCallableContract(
     node,
-    expression.Parameters?.Nodes ?? [],
+    parameterNodes,
     parameters,
     targetContext,
     input,
@@ -201,8 +243,38 @@ export function planFunctionExpression(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
     parameters,
-    body,
+    body: prependLambdaStatements(body, parameterIdentityDeclarations),
   };
+}
+
+function planLambdaParameterIdentityDeclarations(
+  parameterNodes: readonly (Node | undefined)[],
+  input: CsharpTranslationContext,
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  return parameterNodes.flatMap((parameter) => {
+    if (parameter === undefined) {
+      return [];
+    }
+    const identity = planCsharpTypedLocationIdentityDeclaration(
+      parameter,
+      input,
+      state,
+    );
+    return identity === undefined ? [] : [identity];
+  });
+}
+
+function prependLambdaStatements(
+  body: CsharpBlock,
+  statements: readonly CsharpStatement[],
+): CsharpBlock {
+  return statements.length === 0
+    ? body
+    : {
+        ...body,
+        statements: [...statements, ...body.statements],
+      };
 }
 
 function publishLambdaSourceCallableContract(

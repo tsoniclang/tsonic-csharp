@@ -27,6 +27,7 @@ import type {
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
+  getCsharpTypedLocationIdentityName,
   type DestructuringPlannerState,
 } from "./bindings.js";
 import {
@@ -156,6 +157,32 @@ export function tryPlanCsharpTypedLocationOperation(
           : { expression: invokeMember(location, "Store", [value]) }),
       };
     }
+    case "location-equal": {
+      const left = planExpression(
+        operation.leftExpression,
+        sourceFile,
+        input,
+        diagnostics,
+      );
+      const right = planExpression(
+        operation.rightExpression,
+        sourceFile,
+        input,
+        diagnostics,
+      );
+      return {
+        handled: true,
+        ...(left === undefined || right === undefined
+          ? {}
+          : {
+              expression: invokeMember(
+                locationType,
+                "Same",
+                [left, right],
+              ),
+            }),
+      };
+    }
   }
 }
 
@@ -179,12 +206,20 @@ function planCsharpTypedLocationStorage(
   }
   switch (storage.kind) {
     case "direct-storage":
-      return createDirectLocation(locationType, planned, state);
+      return planDirectLocation(
+        storage,
+        locationType,
+        planned,
+        input,
+        diagnostics,
+        state,
+      );
     case "reference-property-storage":
       return planReferencePropertyLocation(
         planned,
         locationType,
         storage.expression,
+        storage.memberIdentity,
         diagnostics,
         state,
       );
@@ -204,17 +239,6 @@ function planCsharpTypedLocationStorage(
         locationType,
         storage.expression,
         diagnostics,
-        state,
-      );
-    case "value-element-storage":
-      return planValueElementLocation(
-        storage,
-        planned,
-        sourceFile,
-        input,
-        diagnostics,
-        planExpression,
-        state,
       );
   }
 }
@@ -223,6 +247,7 @@ function planReferencePropertyLocation(
   planned: CsharpExpression,
   locationType: CsharpTypeNode,
   sourceNode: Node,
+  memberIdentity: string,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
@@ -238,8 +263,9 @@ function planReferencePropertyLocation(
   const valueName = allocateSyntheticParameter(state);
   const receiver = identifier(receiverName);
   const access = member(receiver, planned.name);
-  return invokeMember(locationType, "Create", [
+  return invokeMember(locationType, "CreateMember", [
     planned.receiver,
+    literal(memberIdentity),
     lambda([receiverName], access),
     lambda(
       [receiverName, valueName],
@@ -297,8 +323,9 @@ function planValuePropertyLocation(
   const access = member(receiver, planned.name);
   return invokeMember(
     owner,
-    "Project",
+    "ProjectMember",
     [
+      literal(storage.memberIdentity),
       lambda([receiverName], access),
       updatingLambda(
         receiverName,
@@ -315,7 +342,6 @@ function planReferenceElementLocation(
   locationType: CsharpTypeNode,
   sourceNode: Node,
   diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (planned.kind !== "ElementAccessExpression") {
     diagnostics.push(typedLocationDiagnostic(
@@ -325,89 +351,91 @@ function planReferenceElementLocation(
     ));
     return undefined;
   }
-  const receiverName = allocateSyntheticParameter(state);
-  const indexName = allocateSyntheticParameter(state);
-  const valueName = allocateSyntheticParameter(state);
-  const access = element(identifier(receiverName), identifier(indexName));
-  return invokeMember(locationType, "Create", [
+  return invokeMember(locationType, "CreateArrayElement", [
     planned.receiver,
     planned.argument,
-    lambda([receiverName, indexName], access),
-    lambda(
-      [receiverName, indexName, valueName],
-      assignment(access, identifier(valueName)),
-    ),
   ]);
 }
 
-function planValueElementLocation(
+function planDirectLocation(
   storage: Extract<CsharpTypedLocationStorage, {
-    readonly kind: "value-element-storage";
+    readonly kind: "direct-storage";
   }>,
+  locationType: CsharpTypeNode,
   planned: CsharpExpression,
-  sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
-  planExpression: ExpressionPlanner,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  if (planned.kind !== "ElementAccessExpression") {
-    diagnostics.push(typedLocationDiagnostic(
-      storage.expression,
-      "location-address",
-      "The selected C# value-element storage did not render as element access.",
-    ));
-    return undefined;
-  }
-  const ownerLocationType = csharpTypeFromTargetTypeRef(
-    csharpRuntimeLocationTargetType(storage.receiverStorage.valueType),
-  );
-  if (ownerLocationType === undefined) {
-    diagnostics.push(typedLocationDiagnostic(
-      storage.expression,
-      "location-address",
-      "The selected C# value-element owner location is not renderable.",
-    ));
-    return undefined;
-  }
-  const owner = planCsharpTypedLocationStorage(
-    storage.receiverStorage,
-    ownerLocationType,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-    state,
-  );
-  if (owner === undefined) {
-    return undefined;
-  }
-  const receiverName = allocateSyntheticParameter(state);
-  const indexName = allocateSyntheticParameter(state);
   const valueName = allocateSyntheticParameter(state);
-  const access = element(identifier(receiverName), identifier(indexName));
-  return invokeMember(owner, "Project", [
-    planned.argument,
-    lambda([receiverName, indexName], access),
-    updatingLambda(
-      receiverName,
-      valueName,
-      assignment(access, identifier(valueName)),
-      indexName,
-    ),
-  ]);
-}
-
-function createDirectLocation(
-  locationType: CsharpTypeNode,
-  storage: CsharpExpression,
-  state: DestructuringPlannerState,
-): CsharpExpression {
-  const valueName = allocateSyntheticParameter(state);
-  return invokeMember(locationType, "Create", [
-    lambda([], storage),
-    lambda([valueName], assignment(storage, identifier(valueName))),
-  ]);
+  switch (storage.identity.kind) {
+    case "local-storage": {
+      const revision = input.artifacts.revision;
+      const requirement = input.artifacts.requireStorage(
+        storage.expression,
+        {
+          kind: "typed-location-identity",
+          declaration: storage.identity.declaration,
+        },
+      );
+      if (requirement.kind === "rejected") {
+        diagnostics.push(typedLocationDiagnostic(
+          storage.expression,
+          "location-address",
+          requirement.reason,
+        ));
+        return undefined;
+      }
+      if (input.artifacts.revision !== revision) {
+        return undefined;
+      }
+      const identityName = getCsharpTypedLocationIdentityName(
+        storage.identity.declaration,
+        state,
+      );
+      if (identityName === undefined) {
+        diagnostics.push(typedLocationDiagnostic(
+          storage.expression,
+          "location-address",
+          "The exact local storage declaration did not emit its required canonical identity.",
+        ));
+        return undefined;
+      }
+      return invokeMember(locationType, "CreateLocal", [
+        identifier(identityName),
+        lambda([], planned),
+        lambda([valueName], assignment(planned, identifier(valueName))),
+      ]);
+    }
+    case "static-storage":
+      return invokeMember(locationType, "CreateStatic", [
+        literal(storage.identity.identity),
+        lambda([], planned),
+        lambda([valueName], assignment(planned, identifier(valueName))),
+      ]);
+    case "instance-member-storage": {
+      if (planned.kind !== "SimpleMemberAccessExpression") {
+        diagnostics.push(typedLocationDiagnostic(
+          storage.expression,
+          "location-address",
+          "The selected direct instance storage did not render as member access.",
+        ));
+        return undefined;
+      }
+      const receiverName = allocateSyntheticParameter(state);
+      const receiver = identifier(receiverName);
+      const access = member(receiver, planned.name);
+      return invokeMember(locationType, "CreateMember", [
+        planned.receiver,
+        literal(storage.identity.memberIdentity),
+        lambda([receiverName], access),
+        lambda(
+          [receiverName, valueName],
+          assignment(access, identifier(valueName)),
+        ),
+      ]);
+    }
+  }
 }
 
 function invokeMember(
@@ -474,15 +502,12 @@ function identifier(name: string): CsharpExpression {
   return { kind: "IdentifierName", name };
 }
 
-function member(receiver: CsharpExpression, name: string): CsharpExpression {
-  return { kind: "SimpleMemberAccessExpression", receiver, name };
+function literal(value: string): CsharpExpression {
+  return { kind: "LiteralExpression", value };
 }
 
-function element(
-  receiver: CsharpExpression,
-  index: CsharpExpression,
-): CsharpExpression {
-  return { kind: "ElementAccessExpression", receiver, argument: index };
+function member(receiver: CsharpExpression, name: string): CsharpExpression {
+  return { kind: "SimpleMemberAccessExpression", receiver, name };
 }
 
 function assignment(
