@@ -2,7 +2,6 @@ import {
   defaultValueFactKey,
   functionPointerFactKey,
   pointerFactKey,
-  pointerOperationFactKey,
   providerVirtualDeclarationFactKey,
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
@@ -10,7 +9,6 @@ import type {
   AstReader,
   ExtensionFactSubject,
   Node,
-  PointerOperationFact,
   ReadonlySourceFactResolver,
   SourceFile,
   Symbol,
@@ -101,6 +99,12 @@ import {
 import {
   selectCsharpNumericBinaryPromotion,
 } from "../operations/numeric-promotion.js";
+import type {
+  CsharpSourceTypedLocationOperation,
+} from "../operations/source-typed-locations.js";
+import {
+  readCsharpSourceTypedLocationOperation,
+} from "../operations/source-typed-locations.js";
 import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
@@ -203,8 +207,8 @@ export interface CsharpTypePolicy {
     selectedType: Type | undefined,
     selectedSourceFile: SourceFile,
   ): TargetTypeRef | undefined;
-  resolvePointerOperationPointee(
-    operation: PointerOperationFact,
+  resolveTypedLocationOperationPointee(
+    operation: CsharpSourceTypedLocationOperation,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
@@ -247,7 +251,7 @@ export function createCsharpTypePolicy(
     resolveSelectedValue,
     resolveSelectedType,
     resolveSelectedResult,
-    resolvePointerOperationPointee,
+    resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments,
     resolveSourceCallParameter,
     resolveSourceCallResult,
@@ -382,8 +386,8 @@ export function createCsharpTypePolicy(
     );
   }
 
-  function resolvePointerOperationPointee(
-    operation: PointerOperationFact,
+  function resolveTypedLocationOperationPointee(
+    operation: CsharpSourceTypedLocationOperation,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined {
     if (operation.explicitPointeeTypeNode !== undefined) {
@@ -393,24 +397,24 @@ export function createCsharpTypePolicy(
         sourceFile,
       );
     }
-    switch (operation.operation) {
-      case "address-of":
+    switch (operation.kind) {
+      case "location-address":
         return resolveSelectedValue(
           operation.storageExpression,
           operation.storageType,
           sourceFile,
         );
-      case "allocate":
+      case "location-allocate":
         return resolveSelectedValue(
           operation.initialExpression,
           operation.initialType,
           sourceFile,
         );
-      case "load":
-      case "store":
+      case "location-load":
+      case "location-store":
         return csharpRuntimeLocationPointee(resolveSelectedValue(
-          operation.pointerExpression,
-          operation.pointerType,
+          operation.locationExpression,
+          operation.locationType,
           sourceFile,
         ));
     }
@@ -2070,23 +2074,23 @@ export function createCsharpTypePolicy(
           return csharpRuntimeLocationTargetType(pointee);
         }
       }
-      const pointerOperation = host.sourceFacts?.getFact(
+      const pointerOperation = readCsharpSourceTypedLocationOperation(
+        host.sourceFacts,
         subject,
-        pointerOperationFactKey,
       );
       if (pointerOperation !== undefined) {
-        const pointee = resolvePointerOperationPointee(
+        const pointee = resolveTypedLocationOperationPointee(
           pointerOperation,
           sourceFile,
         );
         if (pointee !== undefined) {
-          switch (pointerOperation.operation) {
-            case "address-of":
-            case "allocate":
+          switch (pointerOperation.kind) {
+            case "location-address":
+            case "location-allocate":
               return csharpRuntimeLocationTargetType(pointee);
-            case "load":
+            case "location-load":
               return pointee;
-            case "store":
+            case "location-store":
               return csharpVoidTargetType();
           }
         }

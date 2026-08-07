@@ -94,8 +94,8 @@ import {
   requireCsharpStorageRepresentation,
 } from "../../translate/artifacts/storage-representation.js";
 import {
-  tryPlanCsharpPointerOperation,
-} from "./expression-pointer-operations.js";
+  tryPlanCsharpTypedLocationOperation,
+} from "./expression-typed-locations.js";
 
 export function planExpression(
   node: Node,
@@ -163,7 +163,7 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
-  const pointerOperation = tryPlanCsharpPointerOperation(
+  const typedLocationOperation = tryPlanCsharpTypedLocationOperation(
     node,
     sourceFile,
     input,
@@ -189,8 +189,8 @@ function planExpressionCore(
     ),
     state,
   );
-  if (pointerOperation.handled) {
-    return pointerOperation.expression;
+  if (typedLocationOperation.handled) {
+    return typedLocationOperation.expression;
   }
   const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
