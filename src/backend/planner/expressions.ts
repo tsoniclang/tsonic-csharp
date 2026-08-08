@@ -374,10 +374,10 @@ export function planCallArgument(
     sourceFile,
     input,
     diagnostics,
-    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedExpectedTargetType) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, nestedExpectedTargetType),
+    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
+      planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState ?? state),
+    (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedExpectedTargetType, nestedState) =>
+      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state, nestedExpectedTargetType),
     expectedType,
     expectedTypeSubject,
     conversionExpectedTargetType,
