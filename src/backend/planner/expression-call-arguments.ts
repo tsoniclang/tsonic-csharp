@@ -120,6 +120,7 @@ export function planCallArgumentCore(
         sourceFile,
         input,
         diagnostics,
+        state,
       );
   if (expression === undefined) {
     return undefined;
@@ -152,9 +153,9 @@ function planCallArgumentExpression(
     }
   }
   if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType);
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   }
-  return planExpression(node, sourceFile, input, diagnostics);
+  return planExpression(node, sourceFile, input, diagnostics, state);
 }
 
 function csharpSupportsArgumentPassingMode(

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 
 const ignoredDirectories = new Set(["bin", "obj", ".temp"]);
 const trackedExtensions = new Set([".cs", ".csproj", ".props", ".targets"]);
@@ -18,6 +18,9 @@ export function buildDotnetFixture(options) {
 
   mkdirSync(options.outputDirectory, { recursive: true });
   mkdirSync(options.intermediateDirectory, { recursive: true });
+  const intermediateOutputPath = options.intermediateDirectory.endsWith(sep)
+    ? options.intermediateDirectory
+    : `${options.intermediateDirectory}${sep}`;
 
   const result = spawnSync("dotnet", [
     "build",
@@ -27,7 +30,7 @@ export function buildDotnetFixture(options) {
     "quiet",
     "--output",
     options.outputDirectory,
-    `-p:IntermediateOutputPath=${options.intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateOutputPath}`,
   ], { encoding: "utf8" });
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
