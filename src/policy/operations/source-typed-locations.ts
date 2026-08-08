@@ -49,6 +49,10 @@ export type CsharpSourceTypedLocationOperation =
       readonly leftType: Type;
       readonly rightExpression: Node;
       readonly rightType: Type;
+    }
+  | CsharpSourceTypedLocationOperationBase & {
+      readonly kind: "location-hash" | "location-bind" | "location-project";
+      readonly sourceOperation: "hash-pointer" | "bind-pointer" | "project-pointer";
     };
 
 export function readCsharpSourceTypedLocationOperation(
@@ -114,6 +118,24 @@ export function readCsharpSourceTypedLocationOperation(
         leftType: operation.leftType,
         rightExpression: operation.rightExpression,
         rightType: operation.rightType,
+      });
+    case "hash-pointer":
+      return Object.freeze({
+        ...base,
+        kind: "location-hash",
+        sourceOperation: operation.operation,
+      });
+    case "bind-pointer":
+      return Object.freeze({
+        ...base,
+        kind: "location-bind",
+        sourceOperation: operation.operation,
+      });
+    case "project-pointer":
+      return Object.freeze({
+        ...base,
+        kind: "location-project",
+        sourceOperation: operation.operation,
       });
   }
 }
