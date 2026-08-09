@@ -435,6 +435,10 @@ export function createCsharpTypePolicy(
           operation.rightType,
           sourceFile,
         ));
+      case "location-hash":
+      case "location-bind":
+      case "location-project":
+        return undefined;
     }
   }
 
@@ -2122,6 +2126,10 @@ export function createCsharpTypePolicy(
               return csharpVoidTargetType();
             case "location-equal":
               return csharpSourcePrimitiveTargetType("bool");
+            case "location-hash":
+            case "location-bind":
+            case "location-project":
+              return undefined;
           }
         }
       }

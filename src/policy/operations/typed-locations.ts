@@ -42,7 +42,10 @@ export type CsharpTypedLocationOperationKind =
   | "location-allocate"
   | "location-load"
   | "location-store"
-  | "location-equal";
+  | "location-equal"
+  | "location-hash"
+  | "location-bind"
+  | "location-project";
 
 export type CsharpResolvedTypedLocationOperation =
   | {
@@ -94,6 +97,16 @@ export function selectCsharpTypedLocationOperation(
   );
   if (source === undefined) {
     return { kind: "not-typed-location" };
+  }
+  if (
+    source.kind === "location-hash" ||
+    source.kind === "location-bind" ||
+    source.kind === "location-project"
+  ) {
+    return rejected(
+      source.kind,
+      `The selected '${source.sourceOperation}' operation has no accepted C# target contract.`,
+    );
   }
   const pointeeType = input.types.resolveTypedLocationOperationPointee(
     source,

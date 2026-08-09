@@ -471,6 +471,29 @@ test("typed-location element identity fails closed for indexers without canonica
   );
 });
 
+test("selected typed-location operations without a C# contract fail at the target boundary", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { hashPointer } from "@tsonic/core/lang.js";
+      import type { int32, Pointer } from "@tsonic/core/types.js";
+
+      export function reject(pointer: Pointer<int32>): int32 {
+        return hashPointer(pointer);
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
+    [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message: "C# 'location-hash' lowering requires one exact finalized typed-location operation. The selected 'hash-pointer' operation has no accepted C# target contract.",
+    }],
+  );
+});
+
 test("address-of rejects each readonly or non-storage occurrence independently", () => {
   const compiled = compileCsharpSource({
     sourceText: `
