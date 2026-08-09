@@ -471,27 +471,61 @@ test("typed-location element identity fails closed for indexers without canonica
   );
 });
 
-test("selected typed-location operations without a C# contract fail at the target boundary", () => {
-  const compiled = compileCsharpSource({
-    sourceText: `
-      import { hashPointer } from "@tsonic/core/lang.js";
-      import type { int32, Pointer } from "@tsonic/core/types.js";
+test("each selected typed-location operation without a C# contract fails at the target boundary", () => {
+  const cases = [
+    {
+      targetOperation: "location-hash",
+      sourceOperation: "hash-pointer",
+      sourceText: `
+        import { hashPointer } from "@tsonic/core/lang.js";
+        import type { int32, Pointer } from "@tsonic/core/types.js";
 
-      export function reject(pointer: Pointer<int32>): int32 {
-        return hashPointer(pointer);
-      }
-    `,
-  });
+        export function reject(pointer: Pointer<int32>): int32 {
+          return hashPointer(pointer);
+        }
+      `,
+    },
+    {
+      targetOperation: "location-bind",
+      sourceOperation: "bind-pointer",
+      sourceText: `
+        import { bindPointer } from "@tsonic/core/lang.js";
+        import type { int32, Pointer } from "@tsonic/core/types.js";
 
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(
-    compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
-    [{
-      code: "CSHARP_UNSUPPORTED_AST",
-      message: "C# 'location-hash' lowering requires one exact finalized typed-location operation. The selected 'hash-pointer' operation has no accepted C# target contract.",
-    }],
-  );
+        export function reject(value: int32): Pointer<int32> {
+          let storage = value;
+          return bindPointer<int32>({}, () => storage, next => { storage = next; });
+        }
+      `,
+    },
+    {
+      targetOperation: "location-project",
+      sourceOperation: "project-pointer",
+      sourceText: `
+        import { projectPointer } from "@tsonic/core/lang.js";
+        import type { int32, Pointer } from "@tsonic/core/types.js";
+
+        export function reject(pointer: Pointer<int32>): Pointer<int32> | undefined {
+          return projectPointer<int32, int32>(pointer, value => value, value => value);
+        }
+      `,
+    },
+  ];
+
+  for (const { sourceText, sourceOperation, targetOperation } of cases) {
+    const compiled = compileCsharpSource({ sourceText });
+
+    assert.equal(compiled.sourceDiagnosticsText, "", sourceOperation);
+    assert.deepEqual(compiled.extensionDiagnostics, [], sourceOperation);
+    assert.deepEqual(
+      compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
+      [{
+        code: "CSHARP_UNSUPPORTED_AST",
+        message: `C# '${targetOperation}' lowering requires one exact finalized typed-location operation. The selected '${sourceOperation}' operation has no accepted C# target contract.`,
+      }],
+      sourceOperation,
+    );
+  }
 });
 
 test("address-of rejects each readonly or non-storage occurrence independently", () => {
