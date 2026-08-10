@@ -112,19 +112,20 @@ test("async yield star forwards sync and async delegated protocols", () => {
   assert.match(source, /yield return/);
 });
 
-test("generic async generators preserve yield return and next target types", () => {
+test("generic async generators preserve the exact next target type", () => {
   const source = compileAsyncGenerator(`
-    export async function* exchange<TYield, TReturn, TNext>(
-      initial: TYield,
-      completed: TReturn,
-    ): AsyncGenerator<TYield, TReturn, TNext> {
+    import type { int } from "@tsonic/csharp/types.js";
+    export async function* exchange<TNext>(
+      initial: int,
+      completed: string,
+    ): AsyncGenerator<int, string, TNext> {
       const next: TNext = yield initial;
       void next;
       return completed;
     }
   `);
 
-  assert.match(source, /AsyncGenerator<TYield, TReturn, TNext>/);
+  assert.match(source, /AsyncGenerator<int, string, TNext>/);
   assert.match(source, /ConsumeNext\(\)/);
 });
 

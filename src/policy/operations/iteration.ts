@@ -27,6 +27,22 @@ import type {
 export type CsharpResolvedIteration =
   | {
       readonly kind: "resolved";
+      readonly iterationKind: "for-await-of";
+      readonly source: Extract<
+        ResolvedSourceIterationInfo,
+        { readonly iterationKind: "for-await-of" }
+      >;
+      readonly iterableType: TargetTypeRef;
+      readonly elementType: TargetTypeRef;
+      readonly lowering: {
+        readonly kind: "await-foreach" | "await-foreach-sync-adapter";
+      } | {
+        readonly kind: "string-code-point";
+        readonly policy: CsharpStringIterationPolicy;
+      };
+    }
+  | {
+      readonly kind: "resolved";
       readonly iterationKind: "for-of";
       readonly source: Extract<
         ResolvedSourceIterationInfo,
@@ -103,6 +119,11 @@ export type CsharpForOfIteration = Extract<
   { readonly iterationKind: "for-of" }
 >;
 
+export type CsharpForAwaitOfIteration = Extract<
+  CsharpResolvedIteration,
+  { readonly iterationKind: "for-await-of" }
+>;
+
 export function isCsharpObjectShapeKeyIteration(
   selection: CsharpForInIteration,
 ): selection is Extract<
@@ -131,9 +152,9 @@ export function isCsharpIndexKeyIteration(
 }
 
 export function isCsharpStringCodePointIteration(
-  selection: CsharpForOfIteration,
+  selection: CsharpForOfIteration | CsharpForAwaitOfIteration,
 ): selection is Extract<
-  CsharpForOfIteration,
+  CsharpForOfIteration | CsharpForAwaitOfIteration,
   { readonly lowering: { readonly kind: "string-code-point" } }
 > {
   return selection.lowering.kind === "string-code-point";
@@ -166,9 +187,7 @@ export function selectCsharpIteration(
     );
   }
   if (source.iterationKind === "for-await-of") {
-    return rejected(
-      "C# async iteration requires an explicit asynchronous target iteration policy.",
-    );
+    return selectForAwaitOf(source, iterableType);
   }
   if (source.iterationKind === "for-of") {
     return selectForOf(source, iterableType);
@@ -183,6 +202,76 @@ export function selectCsharpIteration(
     );
   }
   return selectForIn(input, source, expression, sourceFile, iterableType, elementType);
+}
+
+function selectForAwaitOf(
+  source: Extract<
+    ResolvedSourceIterationInfo,
+    { readonly iterationKind: "for-await-of" }
+  >,
+  iterableType: TargetTypeRef,
+): CsharpOperationSelection<CsharpResolvedIteration> {
+  if (
+    isCsharpStringTargetType(iterableType) &&
+    (
+      source.mechanism.kind === "string-code-unit-index-adapted-to-async" ||
+      source.mechanism.kind === "synchronous-iterator-adapted-to-async"
+    )
+  ) {
+    const policy = (iterableType as CsharpTargetNamedTypeRef)
+      .csharpStringIteration;
+    return policy === undefined
+      ? rejected(
+          "The selected C# string representation has no exact code-point iteration policy.",
+        )
+      : {
+          kind: "resolved",
+          iterationKind: "for-await-of",
+          source,
+          iterableType,
+          elementType: csharpStringTargetType(),
+          lowering: { kind: "string-code-point", policy },
+        };
+  }
+  const elementType = getCsharpCollectionElementTargetType(iterableType);
+  if (elementType === undefined) {
+    return rejected(
+      "The selected C# async-iterable representation does not prove an enumerable target element.",
+    );
+  }
+  switch (source.mechanism.kind) {
+    case "asynchronous-iterator-protocol":
+      return {
+        kind: "resolved",
+        iterationKind: "for-await-of",
+        source,
+        iterableType,
+        elementType,
+        lowering: { kind: "await-foreach" },
+      };
+    case "synchronous-iterator-adapted-to-async":
+    case "array-like-index-adapted-to-async":
+      return {
+        kind: "resolved",
+        iterationKind: "for-await-of",
+        source,
+        iterableType,
+        elementType,
+        lowering: { kind: "await-foreach-sync-adapter" },
+      };
+    case "string-code-unit-index-adapted-to-async":
+      return rejected(
+        "The exact source string iteration mechanism requires a selected target string carrier.",
+      );
+    case "union":
+      return rejected(
+        "For-await union iteration requires every exact source alternative to select one target iteration policy.",
+      );
+    case "untyped-dynamic-iteration":
+      return rejected(
+        "Untyped dynamic for-await iteration has no closed C# target protocol.",
+      );
+  }
 }
 
 function selectForOf(

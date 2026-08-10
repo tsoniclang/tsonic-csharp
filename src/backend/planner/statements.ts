@@ -130,9 +130,6 @@ export function planStatements(
       return planForInStatement(node, AsForInOrOfStatement(node)!, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(node)!;
-      if (statement.AwaitModifier !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "For-await-of requires async iteration semantics and is not implemented yet."));
-      }
       return planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
     }
     case KindVariableStatement: {

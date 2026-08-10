@@ -115,3 +115,19 @@ test("for await supports arrays through the retained array-to-async adaptation m
   assert.match(source, /await foreach/);
   assert.match(source, /int\[\] values/);
 });
+
+test("for await preserves source string code-point iteration", () => {
+  const source = compileAsyncIteration(`
+    export async function join(): Promise<string> {
+      let result = "";
+      for await (const value of "😀a") {
+        result += value;
+      }
+      return result;
+    }
+  `);
+
+  assert.match(source, /IsHighSurrogate/);
+  assert.match(source, /IsLowSurrogate/);
+  assert.match(source, /Substring/);
+});
