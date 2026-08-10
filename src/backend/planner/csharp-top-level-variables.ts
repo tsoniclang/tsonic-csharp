@@ -55,6 +55,7 @@ export function planTopLevelVariableStatement(
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }
+  const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
     const valueType = readCsharpSourceStruct(input.sourceFacts, declaration);
     if (valueType !== undefined) {
@@ -66,13 +67,23 @@ export function planTopLevelVariableStatement(
       ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
       : undefined;
     if (destructured !== undefined) {
-      const planned = topLevelBindingFields(destructured, diagnostics, declaration);
+      const planned = topLevelBindingFields(
+        destructured,
+        diagnostics,
+        declaration,
+        reassignable,
+      );
       moduleMembers.push(...planned.fields);
       topLevelStatements.push(...planned.statements);
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
-    moduleMembers.push(topLevelBindingMember(field.name, field.type, "public"));
+    moduleMembers.push(topLevelBindingMember(
+      field.name,
+      field.type,
+      "public",
+      reassignable,
+    ));
     if (field.initializer !== undefined) {
       topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
     }
@@ -102,6 +113,7 @@ function topLevelBindingFields(
   statements: readonly CsharpStatement[],
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
+  reassignable: boolean,
 ): TopLevelBindingPlan {
   const fields: CsharpTypeMember[] = [];
   const initializers: CsharpStatement[] = [];
@@ -115,6 +127,7 @@ function topLevelBindingFields(
       statement.name,
       statement.type,
       synthetic ? "private" : "public",
+      reassignable,
     ));
     if (statement.initializer !== undefined) {
       initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));
@@ -130,6 +143,7 @@ function topLevelBindingMember(
   name: string,
   type: CsharpTypeNode,
   accessibility: "public" | "private",
+  reassignable = false,
 ): CsharpTypeMember {
   const initializer = {
     kind: "DefaultExpression",
@@ -145,7 +159,9 @@ function topLevelBindingMember(
     autoGetter: true,
     autoSetter: true,
     ...(accessibility === "public"
-      ? { autoSetterModifiers: ["internal"] as const }
+      ? {
+          autoSetterModifiers: [reassignable ? "internal" : "private"] as const,
+        }
       : {}),
   };
 }

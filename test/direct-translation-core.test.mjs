@@ -20,12 +20,12 @@ namespace Tsonic.Generated
         public static int[] tail
         {
             get;
-            internal set;
+            private set;
         } = default(int[])!;
         public static int[] values
         {
             get;
-            internal set;
+            private set;
         } = default(int[])!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -267,7 +267,7 @@ namespace Tsonic.Generated
         public static double one
         {
             get;
-            internal set;
+            private set;
         } = default(double)!;
         public static int second((string, int) pair)
         {

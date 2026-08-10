@@ -44,7 +44,7 @@ namespace Tsonic.Generated
         public static Func<Base, string?> fromArrow
         {
             get;
-            internal set;
+            private set;
         } = default(Func<Base, string?>)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()

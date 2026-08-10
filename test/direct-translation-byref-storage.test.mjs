@@ -59,7 +59,7 @@ namespace Tsonic.Generated
         public static System.Collections.Generic.Dictionary<int, Todo> todos
         {
             get;
-            internal set;
+            private set;
         } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
         public static Todo? getById(int id)
         {
@@ -137,7 +137,7 @@ namespace Tsonic.Generated
         public static System.Collections.Generic.Dictionary<int, Todo> values
         {
             get;
-            internal set;
+            private set;
         } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
         public static Todo? current
         {
