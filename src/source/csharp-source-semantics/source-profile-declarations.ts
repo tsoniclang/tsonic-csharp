@@ -55,15 +55,23 @@ declare var Promise: PromiseConstructor;
 interface SymbolConstructor {
   readonly iterator: unique symbol;
   readonly asyncIterator: unique symbol;
+  readonly dispose: unique symbol;
+  readonly asyncDispose: unique symbol;
 }
 declare var Symbol: SymbolConstructor;
 
-interface IteratorResult<T, TReturn = unknown> {
-  done?: boolean;
-  value: T | TReturn;
+interface IteratorYieldResult<TYield> {
+  done: false;
+  value: TYield;
 }
+interface IteratorReturnResult<TReturn> {
+  done: true;
+  value: TReturn;
+}
+type IteratorResult<T, TReturn = unknown> = IteratorYieldResult<T> | IteratorReturnResult<TReturn>;
 interface Iterator<T, TReturn = unknown, TNext = unknown> {
-  next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
+  next(): IteratorResult<T, TReturn>;
+  next(value: TNext): IteratorResult<T, TReturn>;
 }
 interface Iterable<T, TReturn = unknown, TNext = unknown> {
   [Symbol.iterator](): Iterator<T, TReturn, TNext>;
@@ -72,13 +80,34 @@ interface IterableIterator<T, TReturn = unknown, TNext = unknown> extends Iterat
   [Symbol.iterator](): IterableIterator<T, TReturn, TNext>;
 }
 interface AsyncIterator<T, TReturn = unknown, TNext = unknown> {
-  next(...args: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
+  next(): Promise<IteratorResult<T, TReturn>>;
+  next(value: TNext): Promise<IteratorResult<T, TReturn>>;
 }
 interface AsyncIterable<T, TReturn = unknown, TNext = unknown> {
   [Symbol.asyncIterator](): AsyncIterator<T, TReturn, TNext>;
 }
 interface AsyncIterableIterator<T, TReturn = unknown, TNext = unknown> extends AsyncIterator<T, TReturn, TNext> {
   [Symbol.asyncIterator](): AsyncIterableIterator<T, TReturn, TNext>;
+}
+interface Generator<T = unknown, TReturn = unknown, TNext = unknown> extends Iterator<T, TReturn, TNext> {
+  next(): IteratorResult<T, TReturn>;
+  next(value: TNext): IteratorResult<T, TReturn>;
+  return(value: TReturn): IteratorResult<T, TReturn>;
+  throw(error: unknown): IteratorResult<T, TReturn>;
+  [Symbol.iterator](): Generator<T, TReturn, TNext>;
+}
+interface AsyncGenerator<T = unknown, TReturn = unknown, TNext = unknown> extends AsyncIterator<T, TReturn, TNext> {
+  next(): Promise<IteratorResult<T, TReturn>>;
+  next(value: TNext): Promise<IteratorResult<T, TReturn>>;
+  return(value: TReturn): Promise<IteratorResult<T, TReturn>>;
+  throw(error: unknown): Promise<IteratorResult<T, TReturn>>;
+  [Symbol.asyncIterator](): AsyncGenerator<T, TReturn, TNext>;
+}
+interface Disposable {
+  [Symbol.dispose](): void;
+}
+interface AsyncDisposable {
+  [Symbol.asyncDispose](): void | PromiseLike<void>;
 }
 
 type Partial<T> = { [P in keyof T]?: T[P] };

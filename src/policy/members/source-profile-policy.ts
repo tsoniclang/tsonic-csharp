@@ -42,6 +42,8 @@ export interface CsharpSourceProfileIdentitySelector {
   readonly owner: CsharpSourceProfileOwner;
   readonly kind: CsharpSourceProfileDeclarationIdentity["kind"];
   readonly declaringName?: string;
+  readonly declaringNames?: readonly string[];
+  readonly declarationCardinality?: "single" | "multiple";
   readonly name?: string;
 }
 
@@ -172,15 +174,17 @@ export function selectCsharpSourceProfilePropertyPolicy(
   sourceFile: SourceFile,
   policies: readonly CsharpSourceProfilePropertyPolicy[],
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
-  const identity = csharpSourceProfileDeclarationIdentity(
-    host.ast,
-    source.selectedDeclaration,
+  const identities = sourceProfilePropertyIdentities(
+    host,
+    source,
+    sourceFile,
   );
+  const identity = identities[0];
   if (identity === undefined) {
     return undefined;
   }
   const matches = policies.filter((policy) =>
-    sourceProfileIdentityMatches(policy.source, identity)
+    sourceProfilePropertyIdentityMatches(policy.source, identities)
   );
   const selected = selectExactlyOnePolicy(matches, identity);
   return selected.kind === "missing"
@@ -188,6 +192,49 @@ export function selectCsharpSourceProfilePropertyPolicy(
     : selected.kind === "ambiguous"
       ? { kind: "rejected", diagnostic: selected.diagnostic }
       : selected.policy.select({ host, source, sourceFile, identity });
+}
+
+function sourceProfilePropertyIdentityMatches(
+  selector: CsharpSourceProfileIdentitySelector,
+  identities: readonly CsharpSourceProfileDeclarationIdentity[],
+): boolean {
+  const cardinality = identities.length === 1 ? "single" : "multiple";
+  return (
+    selector.declarationCardinality === undefined ||
+    selector.declarationCardinality === cardinality
+  ) && identities.every((identity) =>
+    sourceProfileIdentityMatches(selector, identity)
+  );
+}
+
+function sourceProfilePropertyIdentities(
+  host: CsharpProviderCallSelectionHost,
+  source: ResolvedSourcePropertyAccessInfo,
+  sourceFile: SourceFile,
+): readonly CsharpSourceProfileDeclarationIdentity[] {
+  if (source.selectedDeclaration !== undefined) {
+    const identity = csharpSourceProfileDeclarationIdentity(
+      host.ast,
+      source.selectedDeclaration,
+    );
+    return identity === undefined ? [] : [identity];
+  }
+  if (source.selectedSymbol === undefined) {
+    return [];
+  }
+  const declarations = host.semantics(sourceFile).getSymbolDeclarations(
+    source.selectedSymbol,
+  );
+  const identities = declarations.map((declaration) =>
+    csharpSourceProfileDeclarationIdentity(host.ast, declaration)
+  );
+  return identities.length > 0 &&
+      identities.every(
+        (candidate): candidate is CsharpSourceProfileDeclarationIdentity =>
+          candidate !== undefined,
+      )
+    ? identities
+    : [];
 }
 
 export function selectCsharpSourceProfileElementPolicy(
@@ -376,6 +423,11 @@ function sourceProfileIdentityMatches(
     (
       selector.declaringName === undefined ||
       selector.declaringName === identity.declaringName
+    ) &&
+    (
+      selector.declaringNames === undefined ||
+      identity.declaringName !== undefined &&
+        selector.declaringNames.includes(identity.declaringName)
     ) &&
     (selector.name === undefined || selector.name === identity.name);
 }

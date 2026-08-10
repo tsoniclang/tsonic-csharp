@@ -66,6 +66,10 @@ import { publishCsharpSourceCallableContract } from "./source-callable-contracts
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import {
+  hasCsharpGeneratorSyntax,
+  planCsharpGeneratorFunction,
+} from "./generators.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -196,8 +200,11 @@ export function planFunctionExpression(
   const expression = AsFunctionExpression(node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
-  const returnContext = getLambdaReturnContext(node, targetContext, input, diagnostics);
-  if (isAsyncExpression(input.ast, node) && returnContext === undefined) {
+  const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
+  const returnContext = generatorSyntax
+    ? undefined
+    : getLambdaReturnContext(node, targetContext, input, diagnostics);
+  if (!generatorSyntax && isAsyncExpression(input.ast, node) && returnContext === undefined) {
     return undefined;
   }
   const scopedInput = createLambdaTranslationContext(
@@ -227,6 +234,34 @@ export function planFunctionExpression(
     input,
     plannerState,
   );
+  if (generatorSyntax) {
+    const generator = planCsharpGeneratorFunction(
+      node,
+      expression.Body,
+      sourceFile,
+      scopedInput,
+      diagnostics,
+      plannerState,
+      parameterIdentityDeclarations,
+      planBlockStatements,
+    );
+    if (generator === undefined) {
+      return undefined;
+    }
+    publishLambdaSourceCallableContract(
+      node,
+      parameterNodes,
+      parameters,
+      targetContext,
+      input,
+      diagnostics,
+    );
+    return {
+      kind: "LambdaExpression",
+      parameters,
+      body: generator.body,
+    };
+  }
   const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
   if (body === undefined) {
     return undefined;

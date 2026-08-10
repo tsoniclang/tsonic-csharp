@@ -12,6 +12,7 @@ import type {
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
+  type CsharpTargetNamedTypeRef,
   combineCsharpTargetUnionMembers,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
@@ -80,6 +81,13 @@ export function planFlowReadUseSiteProjection(
       "The checked source value refinement is ambiguous, so C# cannot select one storage-read projection.",
     ));
     return undefined;
+  }
+  if (
+    storageType.kind === "target-named" &&
+    (storageType as CsharpTargetNamedTypeRef)
+        .csharpFlowRefinementRepresentation === "identity"
+  ) {
+    return baseExpression;
   }
   const refinedMembers = sourceRefinement.refinement.kind === "members"
     ? sourceRefinement.refinement.types.map((member) =>

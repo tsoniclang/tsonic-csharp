@@ -25,6 +25,8 @@ export {
   allocateControlLabel,
   allocateForInNames,
   allocateForOfItem,
+  allocateGeneratorNames,
+  allocateGeneratorDelegationNames,
   allocateStringIterationNames,
   allocateSyntheticParameter,
   createDestructuringPlannerState,

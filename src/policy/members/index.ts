@@ -11,6 +11,7 @@ export * from "./value-selection.js";
 export * from "./source-profile-identity.js";
 export * from "./source-profile-policy.js";
 export * from "./native-source-profile.js";
+export * from "./generator-source-profile.js";
 export * from "./source-profile-selection.js";
 export * from "./js-source-profile/index.js";
 export * from "./target-selection.js";

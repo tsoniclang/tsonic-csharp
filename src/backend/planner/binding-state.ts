@@ -2,11 +2,12 @@ import type {
   CsharpTranslationContext } from "../../translate/context/index.js";
 import { requireCsharpIdentifier,
   tryCsharpIdentifier } from "./identifiers.js";
-import type { CsharpTypeNode } from "../roslyn/syntax.js";
+import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../policy/types/index.js";
+import type { CsharpGeneratorProtocol } from "../../policy/types/index.js";
 import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
@@ -24,11 +25,14 @@ export interface DestructuringPlannerState {
   nextCatchIndex: number;
   nextControlLabelIndex: number;
   nextTypedLocationIdentityIndex: number;
+  nextGeneratorIndex: number;
+  nextGeneratorDelegationIndex: number;
   usedNames: Set<string>;
   localBoundNames: Set<string>;
   localNameCounts: Map<string, number>;
   localBindingNames: WeakMap<object, string>;
   typedLocationIdentityNames: WeakMap<object, string>;
+  expressionOverrides: WeakMap<object, CsharpExpression>;
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
@@ -37,6 +41,23 @@ export interface DestructuringPlannerState {
   currentReturnExpressionTargetType?: TargetTypeRef;
   observedReturnTargetTypes?: TargetTypeRef[];
   returnTargetObservationIncomplete?: boolean;
+  generator?: CsharpGeneratorPlannerContext;
+}
+
+export interface CsharpGeneratorPlannerContext {
+  readonly declaration: Node;
+  readonly controllerName: string;
+  readonly protocol: CsharpGeneratorProtocol;
+}
+
+export interface GeneratorSyntheticNames {
+  readonly controllerName: string;
+  readonly iteratorName: string;
+}
+
+export interface GeneratorDelegationSyntheticNames {
+  readonly generatorName: string;
+  readonly resultName: string;
 }
 
 export interface ControlLabelTarget {
@@ -67,13 +88,58 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextCatchIndex: 0,
     nextControlLabelIndex: 0,
     nextTypedLocationIdentityIndex: 0,
+    nextGeneratorIndex: 0,
+    nextGeneratorDelegationIndex: 0,
     usedNames,
     localBoundNames: new Set(),
     localNameCounts: new Map(),
     localBindingNames: new WeakMap(),
     typedLocationIdentityNames: new WeakMap(),
+    expressionOverrides: new WeakMap(),
     controlLabels: [],
   };
+}
+
+export function allocateGeneratorDelegationNames(
+  state: DestructuringPlannerState,
+): GeneratorDelegationSyntheticNames {
+  for (;;) {
+    const index = state.nextGeneratorDelegationIndex;
+    state.nextGeneratorDelegationIndex += 1;
+    const names = {
+      generatorName: `__tsonic_delegate${index}`,
+      resultName: `__tsonic_delegateResult${index}`,
+    };
+    if (
+      !state.usedNames.has(names.generatorName) &&
+      !state.usedNames.has(names.resultName)
+    ) {
+      state.usedNames.add(names.generatorName);
+      state.usedNames.add(names.resultName);
+      return names;
+    }
+  }
+}
+
+export function allocateGeneratorNames(
+  state: DestructuringPlannerState,
+): GeneratorSyntheticNames {
+  for (;;) {
+    const index = state.nextGeneratorIndex;
+    state.nextGeneratorIndex += 1;
+    const names = {
+      controllerName: `__tsonic_generator${index}`,
+      iteratorName: `__tsonic_iterator${index}`,
+    };
+    if (
+      !state.usedNames.has(names.controllerName) &&
+      !state.usedNames.has(names.iteratorName)
+    ) {
+      state.usedNames.add(names.controllerName);
+      state.usedNames.add(names.iteratorName);
+      return names;
+    }
+  }
 }
 
 export function createNestedPlannerState(

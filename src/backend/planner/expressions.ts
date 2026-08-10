@@ -119,6 +119,10 @@ function planExpressionCore(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  const expressionOverride = state?.expressionOverrides.get(node);
+  if (expressionOverride !== undefined) {
+    return expressionOverride;
+  }
   const defaultValue = readCsharpSourceDefaultValue(input.sourceFacts, node);
   if (defaultValue !== undefined) {
     return {

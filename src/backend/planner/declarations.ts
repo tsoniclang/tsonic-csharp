@@ -58,6 +58,10 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
+import {
+  hasCsharpGeneratorSyntax,
+  planCsharpGeneratorFunction,
+} from "./generators.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -185,6 +189,37 @@ export function planFunctionDeclaration(
     input,
   );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
+  const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
+  if (generatorSyntax) {
+    const generator = planCsharpGeneratorFunction(
+      node,
+      declaration.Body,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+      parameters.prelude,
+      planBlockStatements,
+    );
+    const effectiveReturnTargetType = generator?.generatorType ?? declaredReturnTargetType;
+    publishCsharpSourceCallableContract(
+      node,
+      parameters.targetParameters,
+      effectiveReturnTargetType,
+      input,
+      diagnostics,
+    );
+    return {
+      kind: "MethodDeclaration",
+      name,
+      modifiers: ["public", "static"],
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+      returnType: generator?.generatorTypeNode ?? declaredReturnType,
+      parameters: parameters.parameters,
+      body: generator?.body ?? { kind: "Block", statements: [] },
+    };
+  }
   const async = isAsyncNode(input.ast, node);
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;

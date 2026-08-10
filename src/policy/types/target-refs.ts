@@ -21,6 +21,9 @@ export function csharpTargetNamedType(
     readonly indexableLengthMemberName?: string;
     readonly collectionSemantics?: CsharpTargetNamedTypeRef["csharpCollectionSemantics"];
     readonly delegateSignature?: CsharpTargetNamedTypeRef["csharpDelegateSignature"];
+    readonly generatorProtocol?: CsharpTargetNamedTypeRef["csharpGeneratorProtocol"];
+    readonly iteratorResultProtocol?: CsharpTargetNamedTypeRef["csharpIteratorResultProtocol"];
+    readonly flowRefinementRepresentation?: CsharpTargetNamedTypeRef["csharpFlowRefinementRepresentation"];
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
     readonly baseType?: TargetTypeRef;
@@ -50,6 +53,11 @@ export function csharpTargetNamedType(
       ? { csharpCollectionSemantics: metadata.collectionSemantics }
       : {}),
     ...(metadata.delegateSignature !== undefined ? { csharpDelegateSignature: metadata.delegateSignature } : {}),
+    ...(metadata.generatorProtocol !== undefined ? { csharpGeneratorProtocol: metadata.generatorProtocol } : {}),
+    ...(metadata.iteratorResultProtocol !== undefined ? { csharpIteratorResultProtocol: metadata.iteratorResultProtocol } : {}),
+    ...(metadata.flowRefinementRepresentation !== undefined
+      ? { csharpFlowRefinementRepresentation: metadata.flowRefinementRepresentation }
+      : {}),
     ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
     ...(metadata.baseType !== undefined ? { csharpBaseType: metadata.baseType } : {}),

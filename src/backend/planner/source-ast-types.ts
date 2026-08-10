@@ -6,6 +6,7 @@ export interface SourceAstNodeList<T = SourceAstNode> {
 
 export type SourceAstNode<T extends object = object> = Node & T & {
   readonly ArgumentExpression?: SourceAstNode;
+  readonly AsteriskToken?: SourceAstNode;
   readonly Arguments?: SourceAstNodeList;
   readonly AwaitModifier?: SourceAstNode;
   readonly Block?: SourceAstNode;

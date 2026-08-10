@@ -9,6 +9,7 @@ export * from "./render-shapes.js";
 export * from "./scalar-types.js";
 export * from "./nullable.js";
 export * from "./delegates.js";
+export * from "./generators.js";
 export * from "./collections.js";
 export * from "./runtime-carriers.js";
 export * from "./runtime-union-object-shapes.js";
