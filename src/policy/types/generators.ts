@@ -12,7 +12,11 @@ import {
 } from "./target-refs.js";
 import {
   csharpObjectTargetType,
+  csharpUnitTargetType,
 } from "./scalar-types.js";
+import {
+  isCsharpVoidTargetType,
+} from "./identity.js";
 
 export function csharpGeneratorTargetType(
   protocol: Omit<CsharpGeneratorProtocol, "kind">,
@@ -76,8 +80,11 @@ export function getCsharpIteratorResultProtocol(
 export function closeCsharpGeneratorProtocolType(
   type: TargetTypeRef,
 ): TargetTypeRef {
-  return type.kind === "opaque" && type.id === "unknown"
-    ? csharpObjectTargetType()
+  if (type.kind === "opaque" && type.id === "unknown") {
+    return csharpObjectTargetType();
+  }
+  return isCsharpVoidTargetType(type)
+    ? csharpUnitTargetType()
     : type;
 }
 

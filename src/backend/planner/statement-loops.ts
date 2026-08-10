@@ -42,6 +42,10 @@ import type {
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import {
+  planResourceRegistrationStatement,
+  planResourceScopeStatements,
+} from "./resource-management.js";
 
 export { planForInStatement } from "./statement-for-in.js";
 
@@ -103,6 +107,42 @@ export function planForOfStatement(
   if (collection === undefined) {
     return [];
   }
+  const resourceDeclaration = forOfResourceDeclaration(
+    statement.Initializer,
+    input,
+  );
+  const planBody = (): readonly CsharpStatement[] => {
+    const registration = resourceDeclaration === undefined
+      ? undefined
+      : planResourceRegistrationStatement(
+          resourceDeclaration.declaration,
+          binding,
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+        );
+    return [
+      ...binding.prelude,
+      ...(registration === undefined ? [] : [registration]),
+      ...planNestedStatementBody(
+        statement.Statement,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+      ),
+    ];
+  };
+  const bodyStatements = resourceDeclaration === undefined
+    ? planBody()
+    : planResourceScopeStatements(
+        resourceDeclaration.declaration,
+        resourceDeclaration.kind,
+        diagnostics,
+        state,
+        planBody,
+      );
   const loop: CsharpStatement = {
     kind: "ForEachStatement",
     ...(selectedIteration.iterationKind === "for-await-of"
@@ -113,13 +153,37 @@ export function planForOfStatement(
     collection,
     body: {
       kind: "Block",
-      statements: [
-        ...binding.prelude,
-        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
-      ],
+      statements: bodyStatements,
     },
   };
   return [...binding.outerPrelude, loop];
+}
+
+function forOfResourceDeclaration(
+  initializer: Node | undefined,
+  input: CsharpTranslationContext,
+): {
+  readonly declaration: Node;
+  readonly kind: "sync" | "async";
+} | undefined {
+  if (!HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
+    return undefined;
+  }
+  const declarations = input.ast.children(initializer).filter(
+    (declaration): declaration is Node =>
+      declaration !== undefined &&
+      input.ast.is.IsVariableDeclaration(declaration),
+  );
+  const declaration = declarations.length === 1 ? declarations[0] : undefined;
+  if (declaration === undefined) {
+    return undefined;
+  }
+  const kind = input.ast.variableDeclarationKind(declaration);
+  return kind === "using"
+    ? { declaration, kind: "sync" }
+    : kind === "await using"
+      ? { declaration, kind: "async" }
+      : undefined;
 }
 
 function planForOfCollectionExpression(

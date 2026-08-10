@@ -123,7 +123,8 @@ export function combineCsharpTargetUnionMembers(
   for (const member of members) {
     byIdentity.set(targetTypeRefKey(member), member);
   }
-  const canonicalMembers = [...byIdentity.values()];
+  const canonicalMembers = [...byIdentity.values()].sort((left, right) =>
+    targetTypeRefKey(left).localeCompare(targetTypeRefKey(right)));
   const nonNullishMembers = canonicalMembers.filter(
     (member) =>
       !isCsharpRuntimeNullTargetType(member) &&

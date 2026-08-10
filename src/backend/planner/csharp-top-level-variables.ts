@@ -26,6 +26,7 @@ import { planStatements } from "./statements.js";
 import { planValueTypeDeclaration } from "./value-types.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { planResourceRegistrationStatement } from "./resource-management.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -74,6 +75,20 @@ export function planTopLevelVariableStatement(
     moduleMembers.push(topLevelBindingMember(field.name, field.type, "public"));
     if (field.initializer !== undefined) {
       topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
+    }
+    const resourceKind = input.ast.variableDeclarationKind(declaration);
+    if (resourceKind === "using" || resourceKind === "await using") {
+      const registration = planResourceRegistrationStatement(
+        declaration,
+        field,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+      );
+      if (registration !== undefined) {
+        topLevelStatements.push(registration);
+      }
     }
   }
 }
@@ -130,7 +145,7 @@ function topLevelBindingMember(
     autoGetter: true,
     autoSetter: true,
     ...(accessibility === "public"
-      ? { autoSetterModifiers: ["private"] as const }
+      ? { autoSetterModifiers: ["internal"] as const }
       : {}),
   };
 }

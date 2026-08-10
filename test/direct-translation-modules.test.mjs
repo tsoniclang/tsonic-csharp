@@ -26,7 +26,7 @@ test("direct C# translation emits namespace-imported project functions through e
 test("direct C# translation qualifies same-module values only across generated type owners", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      const offset: number = 8;
+      let offset: number = 8;
       export function top(value: number): number { return value + offset; }
       export class Counter {
         value: number;
@@ -34,6 +34,9 @@ test("direct C# translation qualifies same-module values only across generated t
         shifted(): number {
           const local = this.value;
           return local + offset;
+        }
+        setOffset(value: number): void {
+          offset = value;
         }
       }
     `,
@@ -51,7 +54,7 @@ namespace Tsonic.Generated
         public static double offset
         {
             get;
-            private set;
+            internal set;
         } = default(double)!;
         public static double top(double value)
         {
@@ -79,6 +82,10 @@ namespace Tsonic.Generated
         {
             double local = this.value;
             return local + Index.offset;
+        }
+        public void setOffset(double value)
+        {
+            Index.offset = value;
         }
     }
 }

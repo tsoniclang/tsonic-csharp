@@ -48,6 +48,9 @@ import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
 import {
+  planResourceRegistrationStatement,
+} from "./resource-management.js";
+import {
   directSourceYieldExpression,
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
@@ -163,6 +166,48 @@ export function planLocalDeclarationStatements(
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const variable = AsVariableDeclaration(declarationNode)!;
+  const declarationKind = input.ast.variableDeclarationKind(declarationNode);
+  if (declarationKind === "using" || declarationKind === "await using") {
+    if (!input.ast.is.IsIdentifier(variable.name)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        variable.name ?? declarationNode,
+        "A resource declaration requires one exact identifier binding in C#.",
+      ));
+      return [];
+    }
+    const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+      declarationNode,
+      input,
+      state,
+    );
+    const local = planLocalDeclaration(
+      declarationNode,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+    const registration = planResourceRegistrationStatement(
+      declarationNode,
+      local,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+    return [
+      ...(locationIdentity === undefined ? [] : [locationIdentity]),
+      {
+        kind: "LocalDeclarationStatement",
+        name: local.name,
+        type: local.type,
+        ...(local.initializer === undefined
+          ? {}
+          : { initializer: local.initializer }),
+      },
+      ...(registration === undefined ? [] : [registration]),
+    ];
+  }
   const directYield = state.generator === undefined
     ? undefined
     : directSourceYieldExpression(variable.Initializer, input);

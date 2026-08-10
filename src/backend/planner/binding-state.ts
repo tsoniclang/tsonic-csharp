@@ -27,6 +27,7 @@ export interface DestructuringPlannerState {
   nextTypedLocationIdentityIndex: number;
   nextGeneratorIndex: number;
   nextGeneratorDelegationIndex: number;
+  nextResourceScopeIndex: number;
   usedNames: Set<string>;
   localBoundNames: Set<string>;
   localNameCounts: Map<string, number>;
@@ -42,12 +43,24 @@ export interface DestructuringPlannerState {
   observedReturnTargetTypes?: TargetTypeRef[];
   returnTargetObservationIncomplete?: boolean;
   generator?: CsharpGeneratorPlannerContext;
+  resourceScope?: CsharpResourceScopePlannerContext;
 }
 
 export interface CsharpGeneratorPlannerContext {
   readonly declaration: Node;
   readonly controllerName: string;
   readonly protocol: CsharpGeneratorProtocol;
+}
+
+export interface CsharpResourceScopePlannerContext {
+  readonly stackName: string;
+  readonly kind: "sync" | "async";
+}
+
+export interface ResourceScopeSyntheticNames {
+  readonly stackName: string;
+  readonly errorName: string;
+  readonly caughtErrorName: string;
 }
 
 export interface GeneratorSyntheticNames {
@@ -90,6 +103,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextTypedLocationIdentityIndex: 0,
     nextGeneratorIndex: 0,
     nextGeneratorDelegationIndex: 0,
+    nextResourceScopeIndex: 0,
     usedNames,
     localBoundNames: new Set(),
     localNameCounts: new Map(),
@@ -98,6 +112,26 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     expressionOverrides: new WeakMap(),
     controlLabels: [],
   };
+}
+
+export function allocateResourceScopeNames(
+  state: DestructuringPlannerState,
+): ResourceScopeSyntheticNames {
+  for (;;) {
+    const index = state.nextResourceScopeIndex;
+    state.nextResourceScopeIndex += 1;
+    const names = {
+      stackName: `__tsonic_resources${index}`,
+      errorName: `__tsonic_resourceError${index}`,
+      caughtErrorName: `__tsonic_caughtResourceError${index}`,
+    };
+    if (Object.values(names).every((name) => !state.usedNames.has(name))) {
+      for (const name of Object.values(names)) {
+        state.usedNames.add(name);
+      }
+      return names;
+    }
+  }
 }
 
 export function allocateGeneratorDelegationNames(

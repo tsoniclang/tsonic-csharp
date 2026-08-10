@@ -27,6 +27,7 @@ export {
   allocateForOfItem,
   allocateGeneratorNames,
   allocateGeneratorDelegationNames,
+  allocateResourceScopeNames,
   allocateStringIterationNames,
   allocateSyntheticParameter,
   createDestructuringPlannerState,

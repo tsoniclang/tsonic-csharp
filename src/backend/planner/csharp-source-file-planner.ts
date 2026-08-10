@@ -60,6 +60,9 @@ import { createDestructuringPlannerState } from "./bindings.js";
 import {
   finalizeCsharpCompilationUnit,
 } from "./csharp-compilation-unit.js";
+import {
+  planResourceManagedSourceFileStatements,
+} from "./resource-management.js";
 
 export interface PlannedCsharpSourceFile {
   readonly fileName: string;
@@ -94,61 +97,70 @@ export function planSourceFile(
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
   const topLevelState = createDestructuringPlannerState(sourceFile, input.ast);
-  for (const statement of sourceFile.Statements?.Nodes ?? []) {
-    if (statement === undefined) {
-      continue;
-    }
-    if (isErasedAttributeExpressionStatement(statement, input)) {
-      continue;
-    }
-    switch (input.ast.kindName(statement)) {
-      case KindImportDeclaration:
-      case KindTypeAliasDeclaration:
-      case KindExportDeclaration:
-        continue;
-      case KindExportAssignment: {
-        const exportMember = planExportAssignment(statement, sourceFile, input, diagnostics);
-        if (exportMember !== undefined) {
-          members.push(exportMember);
+  const plannedTopLevelStatements = planResourceManagedSourceFileStatements(
+    sourceFile,
+    input,
+    diagnostics,
+    topLevelState,
+    () => {
+      for (const statement of sourceFile.Statements?.Nodes ?? []) {
+        if (statement === undefined) {
+          continue;
         }
-        break;
-      }
-      case KindInterfaceDeclaration:
-        namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
-        break;
-      case KindEnumDeclaration:
-        namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
-        break;
-      case KindFunctionDeclaration:
-        if (AsFunctionDeclaration(statement)?.Body !== undefined) {
-          members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
+        if (isErasedAttributeExpressionStatement(statement, input)) {
+          continue;
         }
-        break;
-      case KindClassDeclaration:
-        namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
-        break;
-      case KindVariableStatement:
-        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, hasModuleInitializer);
-        break;
-      case KindExpressionStatement:
-      case KindIfStatement:
-      case KindWhileStatement:
-      case KindDoStatement:
-      case KindForStatement:
-      case KindForOfStatement:
-      case KindReturnStatement:
-      case KindThrowStatement:
-      case KindSwitchStatement:
-      case KindTryStatement:
-      case KindDebuggerStatement:
-      case KindLabeledStatement:
-        topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, topLevelState));
-        break;
-      default:
-        diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level statement is outside the current C# planning surface."));
-        break;
+        switch (input.ast.kindName(statement)) {
+          case KindImportDeclaration:
+          case KindTypeAliasDeclaration:
+          case KindExportDeclaration:
+            continue;
+          case KindExportAssignment: {
+            const exportMember = planExportAssignment(statement, sourceFile, input, diagnostics);
+            if (exportMember !== undefined) {
+              members.push(exportMember);
+            }
+            break;
+          }
+          case KindInterfaceDeclaration:
+            namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
+            break;
+          case KindEnumDeclaration:
+            namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
+            break;
+          case KindFunctionDeclaration:
+            if (AsFunctionDeclaration(statement)?.Body !== undefined) {
+              members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
+            }
+            break;
+          case KindClassDeclaration:
+            namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
+            break;
+          case KindVariableStatement:
+            planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, hasModuleInitializer);
+            break;
+          case KindExpressionStatement:
+          case KindIfStatement:
+          case KindWhileStatement:
+          case KindDoStatement:
+          case KindForStatement:
+          case KindForOfStatement:
+          case KindReturnStatement:
+          case KindThrowStatement:
+          case KindSwitchStatement:
+          case KindTryStatement:
+          case KindDebuggerStatement:
+          case KindLabeledStatement:
+            topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, topLevelState));
+            break;
+          default:
+            diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level statement is outside the current C# planning surface."));
+            break;
+        }
       }
-  }
+      return topLevelStatements;
+    },
+  );
   diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [
@@ -162,7 +174,7 @@ export function planSourceFile(
             ),
             moduleInitialization.isAsync(dependency),
           )),
-      ...topLevelStatements,
+      ...plannedTopLevelStatements,
     ];
     if (asyncModuleInitializer) {
       const taskType = qualifiedCsharpType(

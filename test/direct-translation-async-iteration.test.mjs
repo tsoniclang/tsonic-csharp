@@ -98,6 +98,8 @@ test("for await preserves destructuring and exact selected element types", () =>
   assert.match(source, /await foreach/);
   assert.match(source, /string name/);
   assert.match(source, /int value/);
+  assert.match(source, /AsyncGenerator<\(string, int\), System\.ValueTuple, object>/);
+  assert.doesNotMatch(source, /Generator<[^>]*\bvoid\b/);
 });
 
 test("for await supports arrays through the retained array-to-async adaptation mechanism", () => {

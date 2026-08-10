@@ -3,6 +3,7 @@ export * from "./syntax.js";
 export * from "./regexp-literal.js";
 export * from "./js-array-mutations.js";
 export * from "./iteration.js";
+export * from "./resource-management.js";
 export * from "./numeric-promotion.js";
 export * from "./source-flow.js";
 export * from "./source-typed-locations.js";

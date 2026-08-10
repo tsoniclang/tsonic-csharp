@@ -71,6 +71,12 @@ export function planMethodDeclaration(
   );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
   const modifiers = planMethodModifiers(node, declaration.name, sourceFile, input);
+  const name = planMethodDeclarationName(
+    node,
+    declaration.name,
+    input,
+    diagnostics,
+  );
   if (hasCsharpGeneratorSyntax(node, input)) {
     const generator = planCsharpGeneratorFunction(
       node,
@@ -92,7 +98,7 @@ export function planMethodDeclaration(
     );
     return {
       kind: "MethodDeclaration",
-      name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Method name"),
+      name,
       modifiers: modifiers.filter((modifier) => modifier !== "async"),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -152,7 +158,7 @@ export function planMethodDeclaration(
   );
   return {
     kind: "MethodDeclaration",
-    name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Method name"),
+    name,
     modifiers,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -166,4 +172,29 @@ export function planMethodDeclaration(
       ],
     },
   };
+}
+
+function planMethodDeclarationName(
+  declaration: Node,
+  nameNode: Node | undefined,
+  input: CsharpTranslationContext,
+  diagnostics: TargetDiagnostic[],
+): string {
+  if (nameNode !== undefined && input.ast.is.IsComputedPropertyName(nameNode)) {
+    const selected = input.semanticsFor(declaration)
+      .getResolvedWellKnownSymbolInfo(nameNode);
+    if (selected?.kind === "dispose") {
+      return "Dispose";
+    }
+    if (selected?.kind === "async-dispose") {
+      return "DisposeAsync";
+    }
+  }
+  return planIdentifierName(
+    nameNode,
+    "MethodDeclaration",
+    input,
+    diagnostics,
+    "Method name",
+  );
 }
