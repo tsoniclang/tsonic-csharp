@@ -59,7 +59,7 @@ namespace Tsonic.Generated
         public static System.Collections.Generic.Dictionary<int, Todo> todos
         {
             get;
-            private set;
+            internal set;
         } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
         public static Todo? getById(int id)
         {
@@ -137,12 +137,12 @@ namespace Tsonic.Generated
         public static System.Collections.Generic.Dictionary<int, Todo> values
         {
             get;
-            private set;
+            internal set;
         } = default(System.Collections.Generic.Dictionary<int, Todo>)!;
         public static Todo? current
         {
             get;
-            private set;
+            internal set;
         } = default(Todo?)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()

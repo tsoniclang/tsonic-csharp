@@ -30,12 +30,12 @@ namespace Tsonic.Generated
         public static Func<string, string> parse
         {
             get;
-            private set;
+            internal set;
         } = default(Func<string, string>)!;
         public static Func<string, string?, string> join
         {
             get;
-            private set;
+            internal set;
         } = default(Func<string, string?, string>)!;
         public static string run()
         {

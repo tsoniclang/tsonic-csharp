@@ -36,16 +36,146 @@ const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
 ]);
 const instanceReceiver = { kind: "instance" } as const;
 
+type GeneratorKind = "sync" | "async";
+type GeneratorParameterType = "next-value" | "return-value" | "selected-argument";
+
+interface GeneratorDeclarationPolicy {
+  readonly sourceName: "Generator" | "AsyncGenerator";
+  readonly generatorKind: GeneratorKind;
+}
+
+interface GeneratorCallParameterPolicy {
+  readonly name: string;
+  readonly type: GeneratorParameterType;
+  readonly argumentIndex?: number;
+  readonly constraint?: "throwable";
+}
+
+interface GeneratorCallSignaturePolicy {
+  readonly parameterCount: number;
+  readonly parameters: readonly GeneratorCallParameterPolicy[];
+}
+
+interface GeneratorCallPolicySpec {
+  readonly identity: string;
+  readonly sourceName: "next" | "return" | "throw";
+  readonly targetNames: Readonly<Record<GeneratorKind, string>>;
+  readonly signatures: readonly GeneratorCallSignaturePolicy[];
+}
+
+type IteratorResultValuePolicy =
+  | "done"
+  | "combined-value"
+  | "yield-value"
+  | "return-value";
+
+interface IteratorResultPropertyPolicySpec {
+  readonly identity: string;
+  readonly source: Omit<CsharpSourceProfileIdentitySelector, "owner">;
+  readonly sourceName: "done" | "value";
+  readonly targetName: "Done" | "Value" | "YieldValue" | "ReturnValue";
+  readonly valuePolicy: IteratorResultValuePolicy;
+}
+
+const generatorDeclarationPolicies: readonly GeneratorDeclarationPolicy[] = Object.freeze([
+  { sourceName: "Generator", generatorKind: "sync" },
+  { sourceName: "AsyncGenerator", generatorKind: "async" },
+]);
+
+const generatorCallPolicySpecs = Object.freeze([
+  {
+    identity: "tsonic.csharp.generator.advance",
+    sourceName: "next",
+    targetNames: Object.freeze({ sync: "Next", async: "NextAsync" }),
+    signatures: Object.freeze([
+      generatorCallSignature(0, []),
+      generatorCallSignature(1, [{ name: "value", type: "next-value" }]),
+    ]),
+  },
+  {
+    identity: "tsonic.csharp.generator.complete",
+    sourceName: "return",
+    targetNames: Object.freeze({ sync: "Return", async: "ReturnAsync" }),
+    signatures: Object.freeze([
+      generatorCallSignature(1, [{ name: "value", type: "return-value" }]),
+    ]),
+  },
+  {
+    identity: "tsonic.csharp.generator.raise",
+    sourceName: "throw",
+    targetNames: Object.freeze({ sync: "Throw", async: "ThrowAsync" }),
+    signatures: Object.freeze([
+      generatorCallSignature(1, [{
+        name: "error",
+        type: "selected-argument",
+        argumentIndex: 0,
+        constraint: "throwable",
+      }]),
+    ]),
+  },
+] satisfies readonly GeneratorCallPolicySpec[]);
+
+const iteratorResultPropertyPolicySpecs:
+  readonly IteratorResultPropertyPolicySpec[] = Object.freeze([
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.combined.done",
+      ["IteratorYieldResult", "IteratorReturnResult"],
+      "done",
+      "Done",
+      "done",
+    ),
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.combined.value",
+      ["IteratorYieldResult", "IteratorReturnResult"],
+      "value",
+      "Value",
+      "combined-value",
+    ),
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.yield.done",
+      "IteratorYieldResult",
+      "done",
+      "Done",
+      "done",
+    ),
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.yield.value",
+      "IteratorYieldResult",
+      "value",
+      "YieldValue",
+      "yield-value",
+    ),
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.return.done",
+      "IteratorReturnResult",
+      "done",
+      "Done",
+      "done",
+    ),
+    iteratorResultPropertyPolicy(
+      "tsonic.csharp.generator.iterator-result.return.value",
+      "IteratorReturnResult",
+      "value",
+      "ReturnValue",
+      "return-value",
+    ),
+  ]);
+
 export const csharpGeneratorSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze(
     owners.flatMap((owner) =>
-      ["Generator", "AsyncGenerator"].flatMap((declaringName) =>
-        ["next", "return", "throw"].map((name) => ({
-          source: generatorMemberIdentity(owner, declaringName, name),
+      generatorDeclarationPolicies.flatMap((declaration) =>
+        generatorCallPolicySpecs.map((policy) => ({
+          source: {
+            owner,
+            kind: "member" as const,
+            declaringName: declaration.sourceName,
+            name: policy.sourceName,
+          },
           select(
             context: CsharpSourceProfileCallPolicyContext,
           ): CsharpSourceProfileCallPolicyResult {
-            return selectGeneratorCall(context, declaringName, name);
+            return selectGeneratorCall(context, declaration, policy);
           },
         })),
       ),
@@ -55,89 +185,30 @@ export const csharpGeneratorSourceProfileCallPolicies:
 export const csharpGeneratorSourceProfilePropertyPolicies:
   readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze(
     owners.flatMap((owner) =>
-      [
-        {
-          source: {
-            owner,
-            kind: "member" as const,
-            declaringNames: [
-              "IteratorYieldResult",
-              "IteratorReturnResult",
-            ],
-            declarationCardinality: "multiple" as const,
-            name: "done",
-          },
-          select(
-            context: CsharpSourceProfilePropertyPolicyContext,
-          ): CsharpSourceProfilePropertyPolicyResult {
-            return selectIteratorResultProperty(
-              context,
-              "combined",
-              "done",
-            );
-          },
+      iteratorResultPropertyPolicySpecs.map((policy) => ({
+        source: { owner, ...policy.source },
+        select(
+          context: CsharpSourceProfilePropertyPolicyContext,
+        ): CsharpSourceProfilePropertyPolicyResult {
+          return selectIteratorResultProperty(context, policy);
         },
-        {
-          source: {
-            owner,
-            kind: "member" as const,
-            declaringNames: [
-              "IteratorYieldResult",
-              "IteratorReturnResult",
-            ],
-            declarationCardinality: "multiple" as const,
-            name: "value",
-          },
-          select(
-            context: CsharpSourceProfilePropertyPolicyContext,
-          ): CsharpSourceProfilePropertyPolicyResult {
-            return selectIteratorResultProperty(
-              context,
-              "combined",
-              "value",
-            );
-          },
-        },
-        ...["IteratorYieldResult", "IteratorReturnResult"].flatMap(
-          (declaringName) => ({
-            source: ["done", "value"].map((name) => ({
-              ...generatorMemberIdentity(owner, declaringName, name),
-              declarationCardinality: "single" as const,
-            })),
-            declaringName,
-          }),
-        ).flatMap(({ source, declaringName }) =>
-          source.map((identity) => ({
-            source: identity,
-            select(
-              context: CsharpSourceProfilePropertyPolicyContext,
-            ): CsharpSourceProfilePropertyPolicyResult {
-              return selectIteratorResultProperty(
-                context,
-                declaringName,
-                identity.name!,
-              );
-            },
-          }))
-        ),
-      ],
+      })),
     ),
   );
 
 function selectGeneratorCall(
   context: CsharpSourceProfileCallPolicyContext,
-  declaringName: string,
-  sourceName: string,
+  declaration: GeneratorDeclarationPolicy,
+  policy: GeneratorCallPolicySpec,
 ): CsharpSourceProfileCallPolicyResult {
   const receiverType = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceReceiver,
   );
   const protocol = getCsharpGeneratorProtocol(receiverType);
-  const expectedKind = declaringName === "Generator" ? "sync" : "async";
-  if (receiverType === undefined || protocol?.kind !== expectedKind) {
+  if (receiverType === undefined || protocol?.kind !== declaration.generatorKind) {
     return rejectedGeneratorCall(
-      `The exact ${declaringName}.${sourceName} receiver does not resolve to its closed C# generator protocol.`,
+      `The exact ${declaration.sourceName}.${policy.sourceName} receiver does not resolve to its closed C# generator protocol.`,
     );
   }
   const resultType = csharpIteratorResultTargetType(protocol);
@@ -145,37 +216,21 @@ function selectGeneratorCall(
     ? resultType
     : csharpTaskTargetType(resultType);
   const parameterCount = context.source.sourceSelectedSignatureParameters.length;
-  const throwArgumentType = sourceName === "throw"
-    ? resolveCsharpSelectedSourceValue(
-        context,
-        context.source.sourceArguments[0],
-      )
-    : undefined;
-  if (
-    sourceName === "throw" &&
-    !isCsharpThrowableType(context.host, throwArgumentType)
-  ) {
-    return rejectedGeneratorCall(
-      "Generator.throw requires an exact statically throwable C# argument carrier.",
-    );
-  }
-  const targetName = generatorTargetMemberName(protocol.kind, sourceName);
   const parameters = generatorTargetParameters(
-    sourceName,
+    context,
+    policy,
     parameterCount,
-    protocol.nextType,
-    protocol.returnType,
-    throwArgumentType,
+    protocol,
   );
-  if (targetName === undefined || parameters === undefined) {
+  if (parameters === undefined) {
     return rejectedGeneratorCall(
-      `The exact selected ${declaringName}.${sourceName} signature has no matching native generator protocol member.`,
+      `The exact selected ${declaration.sourceName}.${policy.sourceName} signature has no matching native generator protocol member.`,
     );
   }
   const targetMember: CsharpTargetMember = Object.freeze({
-    id: `tsonic.csharp.generator.${protocol.kind}.${sourceName}.${parameterCount}`,
-    sourceName,
-    targetName,
+    id: `${policy.identity}.${protocol.kind}.${parameterCount}`,
+    sourceName: policy.sourceName,
+    targetName: policy.targetNames[protocol.kind],
     kind: "method",
     declaringType: receiverType,
     parameters,
@@ -188,15 +243,14 @@ function selectGeneratorCall(
   );
   return call === undefined
     ? rejectedGeneratorCall(
-        `The exact selected ${declaringName}.${sourceName} arguments do not form a closed C# generator protocol call.`,
+        `The exact selected ${declaration.sourceName}.${policy.sourceName} arguments do not form a closed C# generator protocol call.`,
       )
     : { kind: "resolved", call };
 }
 
 function selectIteratorResultProperty(
   context: CsharpSourceProfilePropertyPolicyContext,
-  selection: "combined" | string,
-  sourceName: string,
+  policy: IteratorResultPropertyPolicySpec,
 ): CsharpSourceProfilePropertyPolicyResult {
   const receiverType = context.host.types.resolveStorage(
     context.source.receiver.expression,
@@ -212,37 +266,21 @@ function selectIteratorResultProperty(
   const protocol = getCsharpIteratorResultProtocol(receiverType);
   if (receiverType === undefined || protocol === undefined) {
     return rejectedGeneratorProperty(
-      `The exact iterator-result ${sourceName} receiver does not resolve to a closed C# iterator-result protocol.`,
+      `The exact iterator-result ${policy.sourceName} receiver does not resolve to a closed C# iterator-result protocol.`,
     );
   }
-  const returnType = sourceName === "done"
-    ? csharpSourcePrimitiveTargetType("bool")
-    : selection === "combined"
-      ? combineCsharpTargetUnionMembers([
-          protocol.yieldType,
-          protocol.returnType,
-        ])
-      : selection === "IteratorYieldResult"
-      ? protocol.yieldType
-      : protocol.returnType;
+  const returnType = iteratorResultPropertyType(policy.valuePolicy, protocol);
   if (returnType === undefined) {
     return rejectedGeneratorProperty(
       "The exact iterator-result value cannot be represented by the closed C# runtime-union contract.",
     );
   }
-  const targetName = sourceName === "done"
-    ? "Done"
-    : selection === "combined"
-      ? "Value"
-      : selection === "IteratorYieldResult"
-      ? "YieldValue"
-      : "ReturnValue";
   return {
     kind: "resolved",
     targetMember: Object.freeze({
-      id: `tsonic.csharp.generator.iterator-result.${selection}.${sourceName}`,
-      sourceName,
-      targetName,
+      id: policy.identity,
+      sourceName: policy.sourceName,
+      targetName: policy.targetName,
       kind: "property",
       declaringType: receiverType,
       parameters: [],
@@ -253,47 +291,105 @@ function selectIteratorResultProperty(
   };
 }
 
-function generatorTargetMemberName(
-  kind: "sync" | "async",
-  sourceName: string,
-): string | undefined {
-  switch (sourceName) {
-    case "next":
-      return kind === "sync" ? "Next" : "NextAsync";
-    case "return":
-      return kind === "sync" ? "Return" : "ReturnAsync";
-    case "throw":
-      return kind === "sync" ? "Throw" : "ThrowAsync";
-    default:
-      return undefined;
+function generatorTargetParameters(
+  context: CsharpSourceProfileCallPolicyContext,
+  policy: GeneratorCallPolicySpec,
+  parameterCount: number,
+  protocol: NonNullable<ReturnType<typeof getCsharpGeneratorProtocol>>,
+): readonly CsharpTargetParameter[] | undefined {
+  const signature = policy.signatures.find((candidate) =>
+    candidate.parameterCount === parameterCount);
+  if (signature === undefined) {
+    return undefined;
+  }
+  const parameters = signature.parameters.map((parameter) => {
+    const type = generatorParameterType(context, parameter, protocol);
+    return type === undefined ||
+        parameter.constraint === "throwable" &&
+          !isCsharpThrowableType(context.host, type)
+      ? undefined
+      : targetParameter(parameter.name, type);
+  });
+  return parameters.some((parameter) => parameter === undefined)
+    ? undefined
+    : parameters as readonly CsharpTargetParameter[];
+}
+
+function generatorParameterType(
+  context: CsharpSourceProfileCallPolicyContext,
+  parameter: GeneratorCallParameterPolicy,
+  protocol: NonNullable<ReturnType<typeof getCsharpGeneratorProtocol>>,
+): TargetTypeRef | undefined {
+  switch (parameter.type) {
+    case "next-value":
+      return protocol.nextType;
+    case "return-value":
+      return protocol.returnType;
+    case "selected-argument":
+      return parameter.argumentIndex === undefined
+        ? undefined
+        : resolveCsharpSelectedSourceValue(
+            context,
+            context.source.sourceArguments[parameter.argumentIndex],
+          );
   }
 }
 
-function generatorTargetParameters(
-  sourceName: string,
+function iteratorResultPropertyType(
+  policy: IteratorResultValuePolicy,
+  protocol: NonNullable<ReturnType<typeof getCsharpIteratorResultProtocol>>,
+): TargetTypeRef | undefined {
+  switch (policy) {
+    case "done":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "combined-value":
+      return combineCsharpTargetUnionMembers([
+        protocol.yieldType,
+        protocol.returnType,
+      ]);
+    case "yield-value":
+      return protocol.yieldType;
+    case "return-value":
+      return protocol.returnType;
+  }
+}
+
+function iteratorResultPropertyPolicy(
+  identity: string,
+  declaring: string | readonly string[],
+  sourceName: IteratorResultPropertyPolicySpec["sourceName"],
+  targetName: IteratorResultPropertyPolicySpec["targetName"],
+  valuePolicy: IteratorResultValuePolicy,
+): IteratorResultPropertyPolicySpec {
+  return Object.freeze({
+    identity,
+    source: Array.isArray(declaring)
+      ? {
+          kind: "member" as const,
+          declaringNames: Object.freeze([...declaring]),
+          declarationCardinality: "multiple" as const,
+          name: sourceName,
+        }
+      : {
+          kind: "member" as const,
+          declaringName: declaring as string,
+          declarationCardinality: "single" as const,
+          name: sourceName,
+        },
+    sourceName,
+    targetName,
+    valuePolicy,
+  });
+}
+
+function generatorCallSignature(
   parameterCount: number,
-  nextType: TargetTypeRef,
-  returnType: TargetTypeRef,
-  throwType: TargetTypeRef | undefined,
-): readonly CsharpTargetParameter[] | undefined {
-  if (sourceName === "next") {
-    return parameterCount === 0
-      ? []
-      : parameterCount === 1
-        ? [targetParameter("value", nextType)]
-        : undefined;
-  }
-  if (sourceName === "return" && parameterCount === 1) {
-    return [targetParameter("value", returnType)];
-  }
-  if (
-    sourceName === "throw" &&
-    parameterCount === 1 &&
-    throwType !== undefined
-  ) {
-    return [targetParameter("error", throwType)];
-  }
-  return undefined;
+  parameters: readonly GeneratorCallParameterPolicy[],
+): GeneratorCallSignaturePolicy {
+  return Object.freeze({
+    parameterCount,
+    parameters: Object.freeze([...parameters]),
+  });
 }
 
 function targetParameter(
@@ -301,14 +397,6 @@ function targetParameter(
   type: TargetTypeRef,
 ): CsharpTargetParameter {
   return { name, type, passingMode: "by-value" };
-}
-
-function generatorMemberIdentity(
-  owner: CsharpSourceProfileOwner,
-  declaringName: string,
-  name: string,
-): CsharpSourceProfileIdentitySelector {
-  return { owner, kind: "member", declaringName, name };
 }
 
 function rejectedGeneratorCall(

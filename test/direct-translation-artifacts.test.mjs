@@ -147,7 +147,7 @@ namespace Tsonic.Generated
         public static int count
         {
             get;
-            private set;
+            internal set;
         } = default(int)!;
         public static int increment()
         {
@@ -223,7 +223,7 @@ namespace Tsonic.Generated
         public static bool done
         {
             get;
-            private set;
+            internal set;
         } = default(bool)!;
         private static readonly System.Lazy<System.Threading.Tasks.Task> __tsonic_module_initialization = new System.Lazy<System.Threading.Tasks.Task>(() => __tsonic_module_init_core());
         private static async System.Threading.Tasks.Task __tsonic_module_init_core()

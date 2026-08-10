@@ -112,7 +112,7 @@ namespace Tsonic.Generated
         public static __TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13 nextId
         {
             get;
-            private set;
+            internal set;
         } = default(__TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13)!;
         public static int takeNext()
         {
@@ -285,7 +285,7 @@ namespace Tsonic.Generated
         public static Func<int, string, ItemDto> makeItem
         {
             get;
-            private set;
+            internal set;
         } = default(Func<int, string, ItemDto>)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -367,7 +367,7 @@ namespace Tsonic.Generated
         public static Func<string, int?> parseValue
         {
             get;
-            private set;
+            internal set;
         } = default(Func<string, int?>)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
@@ -395,7 +395,7 @@ namespace Tsonic.Generated
         public static Func<string, int?> parseRequired
         {
             get;
-            private set;
+            internal set;
         } = default(Func<string, int?>)!;
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
