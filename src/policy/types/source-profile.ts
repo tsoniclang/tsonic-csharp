@@ -17,6 +17,9 @@ export type CsharpSourceProfileTypeKind =
   | "array"
   | "readonly-array"
   | "promise"
+  | "iterator-result"
+  | "generator"
+  | "async-generator"
   | "record"
   | "date"
   | "regexp"
@@ -48,6 +51,9 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("csharp-provider", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("csharp-provider", "Promise", "promise"),
   sourceProfileTypePolicy("csharp-provider", "PromiseLike", "promise"),
+  sourceProfileTypePolicy("csharp-provider", "IteratorResult", "iterator-result"),
+  sourceProfileTypePolicy("csharp-provider", "Generator", "generator"),
+  sourceProfileTypePolicy("csharp-provider", "AsyncGenerator", "async-generator"),
   sourceProfileTypePolicy("csharp-provider", "Record", "record"),
   sourceProfileTypePolicy("csharp-provider", "RegExp", "regexp"),
   sourceProfileTypePolicy("csharp-provider", "Iterable", "iterable"),
@@ -63,6 +69,9 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),
   sourceProfileTypePolicy("js", "PromiseLike", "promise"),
+  sourceProfileTypePolicy("js", "IteratorResult", "iterator-result"),
+  sourceProfileTypePolicy("js", "Generator", "generator"),
+  sourceProfileTypePolicy("js", "AsyncGenerator", "async-generator"),
   sourceProfileTypePolicy("js", "Record", "record"),
   sourceProfileTypePolicy("js", "Date", "date"),
   sourceProfileTypePolicy("js", "RegExp", "regexp"),

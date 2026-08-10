@@ -96,6 +96,7 @@ export const KindVariableDeclarationList = "KindVariableDeclarationList";
 export const KindVariableStatement = "KindVariableStatement";
 export const KindVoidExpression = "KindVoidExpression";
 export const KindWhileStatement = "KindWhileStatement";
+export const KindYieldExpression = "KindYieldExpression";
 
 export function SourceKind(ast: AstReader, node: Node | undefined): string {
   return ast.kindName(node);

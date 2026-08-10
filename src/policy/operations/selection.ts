@@ -679,6 +679,12 @@ function supportsIntrinsicEquality(
   if (isCsharpStringTargetType(left) || isCsharpStringTargetType(right)) {
     return isCsharpStringTargetType(left) && isCsharpStringTargetType(right);
   }
+  if (
+    runtimeUnionSupportsArmEquality(left, right) ||
+    runtimeUnionSupportsArmEquality(right, left)
+  ) {
+    return true;
+  }
   return (
     left.kind === "source-primitive" &&
     right.kind === "source-primitive"
@@ -693,6 +699,15 @@ function supportsIntrinsicEquality(
     targetTypeRefEquals(left, right) &&
     input.projectTypes.catalog.definitionForTarget(left)?.kind === "class"
   );
+}
+
+function runtimeUnionSupportsArmEquality(
+  union: TargetTypeRef,
+  arm: TargetTypeRef,
+): boolean {
+  return getCsharpRuntimeUnionArms(union)?.some((candidate) =>
+    targetTypeRefEquals(candidate, arm)
+  ) === true;
 }
 
 function supportsIntrinsicBitwise(

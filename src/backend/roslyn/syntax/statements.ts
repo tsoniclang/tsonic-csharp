@@ -1,4 +1,5 @@
 import type { CsharpExpression } from "./expressions.js";
+import type { CsharpParameter } from "./members.js";
 import type { CsharpTypeNode } from "./types.js";
 
 export interface CsharpBlock {
@@ -8,6 +9,8 @@ export interface CsharpBlock {
 
 export type CsharpStatement =
   | { readonly kind: "ReturnStatement"; readonly expression?: CsharpExpression }
+  | { readonly kind: "YieldReturnStatement"; readonly expression: CsharpExpression }
+  | { readonly kind: "YieldBreakStatement" }
   | { readonly kind: "ExpressionStatement"; readonly expression: CsharpExpression }
   | { readonly kind: "LocalDeclarationStatement"; readonly name: string; readonly type: CsharpTypeNode; readonly initializer?: CsharpExpression }
   | { readonly kind: "Block"; readonly body: CsharpBlock }
@@ -19,7 +22,15 @@ export type CsharpStatement =
   | { readonly kind: "LabeledStatement"; readonly name: string; readonly statement: CsharpStatement }
   | { readonly kind: "SwitchStatement"; readonly expression: CsharpExpression; readonly sections: readonly CsharpSwitchSection[] }
   | { readonly kind: "TryStatement"; readonly tryBody: CsharpBlock; readonly catchClause?: CsharpCatchClause; readonly finallyBody?: CsharpBlock }
-  | { readonly kind: "ForEachStatement"; readonly itemType: CsharpTypeNode; readonly itemName: string; readonly collection: CsharpExpression; readonly body: CsharpBlock }
+  | { readonly kind: "ForEachStatement"; readonly await?: boolean; readonly itemType: CsharpTypeNode; readonly itemName: string; readonly collection: CsharpExpression; readonly body: CsharpBlock }
+  | {
+      readonly kind: "LocalFunctionStatement";
+      readonly name: string;
+      readonly async?: boolean;
+      readonly returnType: CsharpTypeNode;
+      readonly parameters: readonly CsharpParameter[];
+      readonly body: CsharpBlock;
+    }
   | { readonly kind: "IfStatement"; readonly condition: CsharpExpression; readonly thenBody: CsharpBlock; readonly elseBody?: CsharpBlock }
   | { readonly kind: "WhileStatement"; readonly condition: CsharpExpression; readonly body: CsharpBlock }
   | { readonly kind: "DoStatement"; readonly body: CsharpBlock; readonly condition: CsharpExpression }

@@ -47,6 +47,14 @@ import {
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import {
+  planResourceRegistrationStatement,
+} from "./resource-management.js";
+import {
+  directSourceYieldExpression,
+  convertCsharpYieldResumeExpression,
+  planCsharpYieldValue,
+} from "./statement-yield.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -54,6 +62,7 @@ export function planLocalDeclaration(
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  initializerOverride?: CsharpExpression,
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
   const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
@@ -110,7 +119,9 @@ export function planLocalDeclaration(
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   let initializer: CsharpExpression | undefined;
-  if (variable.Initializer !== undefined) {
+  if (initializerOverride !== undefined) {
+    initializer = initializerOverride;
+  } else if (variable.Initializer !== undefined) {
     initializer = planExpressionWithExpectedType(
       variable.Initializer,
       sourceFile,
@@ -155,6 +166,110 @@ export function planLocalDeclarationStatements(
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const variable = AsVariableDeclaration(declarationNode)!;
+  const declarationKind = input.ast.variableDeclarationKind(declarationNode);
+  if (declarationKind === "using" || declarationKind === "await using") {
+    if (!input.ast.is.IsIdentifier(variable.name)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        variable.name ?? declarationNode,
+        "A resource declaration requires one exact identifier binding in C#.",
+      ));
+      return [];
+    }
+    const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+      declarationNode,
+      input,
+      state,
+    );
+    const local = planLocalDeclaration(
+      declarationNode,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+    const registration = planResourceRegistrationStatement(
+      declarationNode,
+      local,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+    return [
+      ...(locationIdentity === undefined ? [] : [locationIdentity]),
+      {
+        kind: "LocalDeclarationStatement",
+        name: local.name,
+        type: local.type,
+        ...(local.initializer === undefined
+          ? {}
+          : { initializer: local.initializer }),
+      },
+      ...(registration === undefined ? [] : [registration]),
+    ];
+  }
+  const directYield = state.generator === undefined
+    ? undefined
+    : directSourceYieldExpression(variable.Initializer, input);
+  if (directYield !== undefined) {
+    if (!input.ast.is.IsIdentifier(variable.name)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        variable.name ?? declarationNode,
+        "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.",
+      ));
+      return [];
+    }
+    const yieldPlan = planCsharpYieldValue(
+      directYield,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+    );
+    if (yieldPlan === undefined) {
+      return [];
+    }
+    const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+      declarationNode,
+      input,
+      state,
+    );
+    const local = planLocalDeclaration(
+      declarationNode,
+      sourceFile,
+      input,
+      diagnostics,
+      state,
+      yieldPlan.resumeExpression,
+    );
+    const targetType = input.types.resolveStorage(
+      declarationNode,
+      sourceFile,
+    );
+    const initializer = targetType === undefined
+      ? yieldPlan.resumeExpression
+      : convertCsharpYieldResumeExpression(
+          directYield,
+          yieldPlan,
+          targetType,
+          sourceFile,
+          input,
+          diagnostics,
+        );
+    if (initializer === undefined) {
+      return [];
+    }
+    return [
+      ...yieldPlan.statements,
+      ...(locationIdentity === undefined ? [] : [locationIdentity]),
+      {
+        kind: "LocalDeclarationStatement",
+        name: local.name,
+        type: local.type,
+        initializer,
+      },
+    ];
+  }
   const destructured = planVariableBindingStatements(variable.name, variable.Initializer, sourceFile, input, diagnostics, state);
   if (destructured !== undefined) {
     return destructured;

@@ -29,6 +29,10 @@ function statementRequiresUnsafe(statement: CsharpStatement): boolean {
   switch (statement.kind) {
     case "ReturnStatement":
       return optionalExpressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+    case "YieldReturnStatement":
+      return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+    case "YieldBreakStatement":
+      return false;
     case "ExpressionStatement":
       return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
     case "LocalDeclarationStatement":
@@ -50,6 +54,12 @@ function statementRequiresUnsafe(statement: CsharpStatement): boolean {
     case "ForEachStatement":
       return csharpTypeRequiresUnsafe(statement.itemType) ||
         expressionRequiresUnsafe(statement.collection, blockRequiresUnsafe) ||
+        blockRequiresUnsafe(statement.body);
+    case "LocalFunctionStatement":
+      return csharpTypeRequiresUnsafe(statement.returnType) ||
+        statement.parameters.some((parameter) =>
+          csharpTypeRequiresUnsafe(parameter.type)
+        ) ||
         blockRequiresUnsafe(statement.body);
     case "IfStatement":
       return expressionRequiresUnsafe(statement.condition, blockRequiresUnsafe) ||

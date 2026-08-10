@@ -147,7 +147,7 @@ namespace Tsonic.Generated
         public static int count
         {
             get;
-            private set;
+            internal set;
         } = default(int)!;
         public static int increment()
         {

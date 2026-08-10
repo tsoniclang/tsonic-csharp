@@ -93,6 +93,15 @@ export function csharpVoidTargetType(): CsharpTargetNamedTypeRef {
   });
 }
 
+export function csharpUnitTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "System.ValueTuple",
+    undefined,
+    csharpQualifiedTypeRenderShape("System", "ValueTuple"),
+    { valueType: true },
+  );
+}
+
 export function csharpNeverTargetType(): TargetTypeRef {
   return { kind: "opaque", id: "never" };
 }

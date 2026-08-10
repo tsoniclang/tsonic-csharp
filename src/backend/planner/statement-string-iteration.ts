@@ -43,7 +43,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import type {
-  CsharpResolvedIteration,
+  CsharpForAwaitOfIteration,
+  CsharpForOfIteration,
 } from "../../policy/operations/index.js";
 import type {
   CsharpStaticTargetMethod,
@@ -59,8 +60,8 @@ export function planStringCodePointForOfStatement(
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedStringForOfBinding,
   selectedIteration: Extract<
-    CsharpResolvedIteration,
-    { readonly iterationKind: "for-of" }
+    CsharpForOfIteration | CsharpForAwaitOfIteration,
+    { readonly lowering: { readonly kind: "string-code-point" } }
   >,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
@@ -166,8 +167,8 @@ function stringHasSurrogatePairAt(
   collection: CsharpExpression,
   index: CsharpExpression,
   selectedIteration: Extract<
-    CsharpResolvedIteration,
-    { readonly iterationKind: "for-of" }
+    CsharpForOfIteration | CsharpForAwaitOfIteration,
+    { readonly lowering: { readonly kind: "string-code-point" } }
   >,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,

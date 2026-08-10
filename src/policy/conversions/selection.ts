@@ -240,7 +240,7 @@ export function selectCsharpConversion(
         "Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation.",
     };
   }
-  const runtimeUnion = selectRuntimeUnionConversion(source, target);
+  const runtimeUnion = selectRuntimeUnionConversion(source, target, mode);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
   }
@@ -659,12 +659,34 @@ function selectAnyConversion(
 function selectRuntimeUnionConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
+  mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
-  const arms = getCsharpRuntimeUnionArms(target);
-  if (arms === undefined) {
+  const sourceArms = getCsharpRuntimeUnionArms(source);
+  if (sourceArms !== undefined && mode === "explicit") {
+    const matchingArms = sourceArms.flatMap((armType, armIndex) =>
+      targetTypeRefEquals(armType, target)
+        ? [{ armIndex, armType }]
+        : []
+    );
+    if (matchingArms.length === 1) {
+      return {
+        kind: "runtime-union-projection",
+        ...matchingArms[0]!,
+      };
+    }
+    return {
+      kind: "rejected",
+      reason:
+        matchingArms.length === 0
+          ? "Explicit C# runtime-union projection requires the target representation to match one exact union arm."
+          : "Explicit C# runtime-union projection matched more than one structurally identical union arm.",
+    };
+  }
+  const targetArms = getCsharpRuntimeUnionArms(target);
+  if (targetArms === undefined) {
     return undefined;
   }
-  const matchingArms = arms.flatMap((armType, armIndex) =>
+  const matchingArms = targetArms.flatMap((armType, armIndex) =>
     targetTypeRefEquals(armType, source)
       ? [{ armIndex, armType }]
       : []

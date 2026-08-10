@@ -1,6 +1,7 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsBreakStatement,
+  AsBinaryExpression,
   AsContinueStatement,
   AsExpressionStatement,
   AsParenthesizedExpression,
@@ -66,6 +67,18 @@ import {
   planDiscardedExpression,
   planExplicitlyDiscardedExpression,
 } from "./statement-output.js";
+import {
+  directSourceYieldExpression,
+  convertCsharpYieldResumeExpression,
+  planCsharpYieldValue,
+  planDiscardedCsharpYield,
+} from "./statement-yield.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import {
+  isCsharpGeneratorReturnInsideFinally,
+} from "./generators.js";
 
 export function planReturnStatement(
   node: Node,
@@ -75,6 +88,78 @@ export function planReturnStatement(
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsReturnStatement(node)!;
+  if (state.generator !== undefined) {
+    const returnType = csharpTypeFromTargetTypeRef(
+      state.generator.protocol.returnType,
+    );
+    if (returnType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "The exact generator return type has no closed C# source representation.",
+      ));
+      return [];
+    }
+    if (isCsharpGeneratorReturnInsideFinally(node, state.generator.declaration, input)) {
+      diagnostics.push({
+        code: "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION",
+        category: "error",
+        source: "tsonic-csharp",
+        message: "C# native iterators cannot leave a finally clause through a generator return.",
+      });
+      return [];
+    }
+    const directYield = directSourceYieldExpression(statement.Expression, input);
+    const yieldPlan = directYield === undefined
+      ? undefined
+      : planCsharpYieldValue(
+          directYield,
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+        );
+    const expression = yieldPlan !== undefined && directYield !== undefined
+      ? convertCsharpYieldResumeExpression(
+          directYield,
+          yieldPlan,
+          state.generator.protocol.returnType,
+          sourceFile,
+          input,
+          diagnostics,
+        )
+      : statement.Expression === undefined
+      ? {
+          kind: "DefaultExpression" as const,
+          type: returnType,
+          nullForgiving: true,
+        }
+      : planExpressionWithExpectedType(
+          statement.Expression,
+          sourceFile,
+          input,
+          diagnostics,
+          returnType,
+          statement.Expression,
+          state,
+          state.generator.protocol.returnType,
+        );
+    if (expression === undefined) {
+      return [];
+    }
+    return [
+      ...(yieldPlan?.statements ?? []),
+      expressionStatement({
+        kind: "AssignmentExpression",
+        left: {
+          kind: "IdentifierName",
+          name: state.generator.returnValueName,
+        },
+        operatorToken: { kind: "EqualsToken" },
+        right: expression,
+      }),
+      { kind: "GotoStatement", label: state.generator.exitLabel },
+    ];
+  }
   if (
     HasSourceKind(input.ast, statement.Expression, KindVoidExpression) &&
     state.currentReturnType !== undefined &&
@@ -250,6 +335,48 @@ export function planExpressionStatement(
     return [];
   }
   const expression = AsExpressionStatement(node)!.Expression;
+  const directYield = state === undefined || expression === undefined
+    ? undefined
+    : directSourceYieldExpression(expression, input);
+  if (directYield !== undefined) {
+    return planDiscardedCsharpYield(
+      directYield,
+      sourceFile,
+      input,
+      diagnostics,
+      state!,
+    );
+  }
+  if (
+    state?.generator !== undefined &&
+    expression !== undefined &&
+    input.ast.is.IsBinaryExpression(expression)
+  ) {
+    const binary = AsBinaryExpression(expression);
+    const rightYield = directSourceYieldExpression(binary?.Right, input);
+    if (
+      rightYield !== undefined &&
+      binary?.Left !== undefined &&
+      input.ast.is.IsIdentifier(binary.Left)
+    ) {
+      const yieldPlan = planCsharpYieldValue(
+        rightYield,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+      );
+      if (yieldPlan === undefined) {
+        return [];
+      }
+      state.expressionOverrides.set(rightYield, yieldPlan.resumeExpression);
+      const planned = planExpression(expression, sourceFile, input, diagnostics, state);
+      state.expressionOverrides.delete(rightYield);
+      return planned === undefined
+        ? []
+        : [...yieldPlan.statements, expressionStatement(planDiscardedExpression(planned))];
+    }
+  }
   const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
     return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.ast), planExpression, planExpressionWithExpectedType) ?? [];

@@ -59,6 +59,9 @@ import {
   planReturnStatement,
   planThrowStatement,
 } from "./statement-simple.js";
+import {
+  planResourceManagedBlockStatements,
+} from "./resource-management.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -71,8 +74,22 @@ export function planBlockStatements(
     return [];
   }
   const block = AsBlock(blockNode)!;
-  return (block.Statements?.Nodes ?? []).flatMap((statement) =>
-    statement === undefined ? [] : planStatements(statement, sourceFile, input, diagnostics, state));
+  return planResourceManagedBlockStatements(
+    blockNode,
+    input,
+    diagnostics,
+    state,
+    () => (block.Statements?.Nodes ?? []).flatMap((statement) =>
+      statement === undefined
+        ? []
+        : planStatements(
+            statement,
+            sourceFile,
+            input,
+            diagnostics,
+            state,
+          )),
+  );
 }
 
 export function planStatements(
@@ -130,9 +147,6 @@ export function planStatements(
       return planForInStatement(node, AsForInOrOfStatement(node)!, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(node)!;
-      if (statement.AwaitModifier !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "For-await-of requires async iteration semantics and is not implemented yet."));
-      }
       return planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
     }
     case KindVariableStatement: {

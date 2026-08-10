@@ -19,6 +19,7 @@ import type {
   CsharpStatement,
 } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
+import { qualifiedCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateForOfItem,
@@ -35,11 +36,16 @@ import {
   selectCsharpIteration,
 } from "../../policy/operations/index.js";
 import type {
-  CsharpResolvedIteration,
+  CsharpForAwaitOfIteration,
+  CsharpForOfIteration,
 } from "../../policy/operations/index.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "./typed-location-identities.js";
+import {
+  planResourceRegistrationStatement,
+  planResourceScopeStatements,
+} from "./resource-management.js";
 
 export { planForInStatement } from "./statement-for-in.js";
 
@@ -74,7 +80,10 @@ export function planForOfStatement(
     ));
     return [];
   }
-  if (selectedIteration.iterationKind !== "for-of") {
+  if (
+    selectedIteration.iterationKind !== "for-of" &&
+    selectedIteration.iterationKind !== "for-await-of"
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,
       "C# for-of emission received a non-for-of checked iteration selection.",
@@ -88,24 +97,93 @@ export function planForOfStatement(
   if (isCsharpStringCodePointIteration(selectedIteration)) {
     return planStringCodePointForOfStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  const collection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
+  const sourceCollection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
+  const collection = sourceCollection === undefined
+    ? undefined
+    : selectedIteration.iterationKind === "for-await-of" &&
+        selectedIteration.lowering.kind === "await-foreach-sync-adapter"
+      ? adaptSyncCollectionToAsync(sourceCollection, binding.type)
+      : sourceCollection;
   if (collection === undefined) {
     return [];
   }
+  const resourceDeclaration = forOfResourceDeclaration(
+    statement.Initializer,
+    input,
+  );
+  const planBody = (): readonly CsharpStatement[] => {
+    const registration = resourceDeclaration === undefined
+      ? undefined
+      : planResourceRegistrationStatement(
+          resourceDeclaration.declaration,
+          binding,
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+        );
+    return [
+      ...binding.prelude,
+      ...(registration === undefined ? [] : [registration]),
+      ...planNestedStatementBody(
+        statement.Statement,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+      ),
+    ];
+  };
+  const bodyStatements = resourceDeclaration === undefined
+    ? planBody()
+    : planResourceScopeStatements(
+        resourceDeclaration.declaration,
+        resourceDeclaration.kind,
+        diagnostics,
+        state,
+        planBody,
+      );
   const loop: CsharpStatement = {
     kind: "ForEachStatement",
+    ...(selectedIteration.iterationKind === "for-await-of"
+      ? { await: true }
+      : {}),
     itemType: binding.type,
     itemName: binding.name,
     collection,
     body: {
       kind: "Block",
-      statements: [
-        ...binding.prelude,
-        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
-      ],
+      statements: bodyStatements,
     },
   };
   return [...binding.outerPrelude, loop];
+}
+
+function forOfResourceDeclaration(
+  initializer: Node | undefined,
+  input: CsharpTranslationContext,
+): {
+  readonly declaration: Node;
+  readonly kind: "sync" | "async";
+} | undefined {
+  if (!HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
+    return undefined;
+  }
+  const declarations = input.ast.children(initializer).filter(
+    (declaration): declaration is Node =>
+      declaration !== undefined &&
+      input.ast.is.IsVariableDeclaration(declaration),
+  );
+  const declaration = declarations.length === 1 ? declarations[0] : undefined;
+  if (declaration === undefined) {
+    return undefined;
+  }
+  const kind = input.ast.variableDeclarationKind(declaration);
+  return kind === "using"
+    ? { declaration, kind: "sync" }
+    : kind === "await using"
+      ? { declaration, kind: "async" }
+      : undefined;
 }
 
 function planForOfCollectionExpression(
@@ -144,10 +222,7 @@ interface PlannedForOfBinding extends CsharpLocalDeclaration {
 
 function planForOfBinding(
   initializer: Node | undefined,
-  selectedIteration: Extract<
-    CsharpResolvedIteration,
-    { readonly iterationKind: "for-of" }
-  >,
+  selectedIteration: CsharpForOfIteration | CsharpForAwaitOfIteration,
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
@@ -287,6 +362,25 @@ function planForOfBinding(
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));
   return undefined;
+}
+
+function adaptSyncCollectionToAsync(
+  collection: CsharpExpression,
+  elementType: CsharpLocalDeclaration["type"],
+): CsharpExpression {
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: qualifiedCsharpType(
+        "Tsonic.CSharp.Runtime",
+        "AsyncEnumerableAdapters",
+      ),
+      name: "FromSync",
+      typeArguments: [elementType],
+    },
+    arguments: [{ kind: "Argument", expression: collection }],
+  };
 }
 
 function mutableForOfLocationBinding(

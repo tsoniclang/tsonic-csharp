@@ -78,6 +78,7 @@ export const AsVariableDeclarationList = cast;
 export const AsVariableStatement = cast;
 export const AsVoidExpression = cast;
 export const AsWhileStatement = cast;
+export const AsYieldExpression = cast;
 
 function cast(node: Node | undefined): SourceAstNode | undefined {
   return node as SourceAstNode | undefined;

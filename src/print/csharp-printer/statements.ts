@@ -15,6 +15,10 @@ export function printCsharpStatement(
   switch (statement.kind) {
     case "ReturnStatement":
       return statement.expression === undefined ? "return;" : `return ${context.printExpression(statement.expression)};`;
+    case "YieldReturnStatement":
+      return `yield return ${context.printExpression(statement.expression)};`;
+    case "YieldBreakStatement":
+      return "yield break;";
     case "ExpressionStatement":
       return `${context.printExpression(statement.expression)};`;
     case "LocalDeclarationStatement":
@@ -66,7 +70,14 @@ export function printCsharpStatement(
       ].join("\n");
     case "ForEachStatement":
       return [
-        `foreach (${context.printType(statement.itemType)} ${statement.itemName} in ${context.printExpression(statement.collection)})`,
+        `${statement.await === true ? "await " : ""}foreach (${context.printType(statement.itemType)} ${statement.itemName} in ${context.printExpression(statement.collection)})`,
+        "{",
+        ...indentLines(context.printStatements(statement.body.statements)),
+        "}",
+      ].join("\n");
+    case "LocalFunctionStatement":
+      return [
+        `${statement.async === true ? "async " : ""}${context.printType(statement.returnType)} ${statement.name}(${statement.parameters.map(context.printParameter).join(", ")})`,
         "{",
         ...indentLines(context.printStatements(statement.body.statements)),
         "}",

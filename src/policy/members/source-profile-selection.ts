@@ -17,6 +17,10 @@ import {
   csharpNativeSourceProfileElementPolicies,
   csharpNativeSourceProfilePropertyPolicies,
 } from "./native-source-profile.js";
+import {
+  csharpGeneratorSourceProfileCallPolicies,
+  csharpGeneratorSourceProfilePropertyPolicies,
+} from "./generator-source-profile.js";
 import type {
   CsharpSourceProfileCallPolicyResult,
   CsharpSourceProfileElementPolicyResult,
@@ -39,11 +43,13 @@ type ResolvedSourceElementAccessInfo = NonNullable<
 
 const callPolicies = Object.freeze([
   ...csharpNativeSourceProfileCallPolicies,
+  ...csharpGeneratorSourceProfileCallPolicies,
   ...csharpJsSourceProfileCallPolicies,
 ]);
 
 const propertyPolicies = Object.freeze([
   ...csharpNativeSourceProfilePropertyPolicies,
+  ...csharpGeneratorSourceProfilePropertyPolicies,
   ...csharpJsSourceProfilePropertyPolicies,
 ]);
 

@@ -53,6 +53,12 @@ import {
   csharpTaskTargetType,
 } from "./delegates.js";
 import {
+  csharpAsyncGeneratorTargetType,
+  csharpGeneratorTargetType,
+  csharpIteratorResultTargetType,
+  closeCsharpGeneratorProtocolType,
+} from "./generators.js";
+import {
   getCsharpNullableElementTargetType,
   csharpNullableTargetType,
 } from "./nullable.js";
@@ -2266,6 +2272,22 @@ export function createCsharpTypePolicy(
           ? undefined
           : csharpTaskTargetType(resultType);
       }
+      case "iterator-result": {
+        const protocol = generatorResultProtocol(typeArguments);
+        return protocol === undefined
+          ? undefined
+          : csharpIteratorResultTargetType(protocol);
+      }
+      case "generator":
+      case "async-generator": {
+        const protocol = generatorProtocol(typeArguments);
+        if (protocol === undefined) {
+          return undefined;
+        }
+        return identity.kind === "generator"
+          ? csharpGeneratorTargetType(protocol)
+          : csharpAsyncGeneratorTargetType(protocol);
+      }
       case "record": {
         if (typeArguments.length !== 2) {
           return undefined;
@@ -2321,6 +2343,30 @@ export function createCsharpTypePolicy(
           : undefined;
     }
   }
+
+  function generatorProtocol(
+    typeArguments: readonly TargetTypeRef[],
+  ): { readonly yieldType: TargetTypeRef; readonly returnType: TargetTypeRef; readonly nextType: TargetTypeRef } | undefined {
+    return typeArguments.length === 3
+      ? {
+          yieldType: closeCsharpGeneratorProtocolType(typeArguments[0]!),
+          returnType: closeCsharpGeneratorProtocolType(typeArguments[1]!),
+          nextType: closeCsharpGeneratorProtocolType(typeArguments[2]!),
+        }
+      : undefined;
+  }
+
+  function generatorResultProtocol(
+    typeArguments: readonly TargetTypeRef[],
+  ): { readonly yieldType: TargetTypeRef; readonly returnType: TargetTypeRef } | undefined {
+    return typeArguments.length === 2
+      ? {
+          yieldType: closeCsharpGeneratorProtocolType(typeArguments[0]!),
+          returnType: closeCsharpGeneratorProtocolType(typeArguments[1]!),
+        }
+      : undefined;
+  }
+
 
   function resolveUnionType(
     type: Type,

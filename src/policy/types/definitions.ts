@@ -161,11 +161,26 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
   readonly csharpTaskResultType?: TargetTypeRef;
+  readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
+  readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;
+  readonly csharpFlowRefinementRepresentation?: "identity";
   readonly csharpRuntimeUnionArms?: readonly TargetTypeRef[];
   readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
   readonly csharpJsSurfaceKind?: "map" | "set" | "date" | "regexp";
   readonly csharpCollectionSurface?: "record";
 };
+
+export interface CsharpGeneratorProtocol {
+  readonly kind: "sync" | "async";
+  readonly yieldType: TargetTypeRef;
+  readonly returnType: TargetTypeRef;
+  readonly nextType: TargetTypeRef;
+}
+
+export interface CsharpIteratorResultProtocol {
+  readonly yieldType: TargetTypeRef;
+  readonly returnType: TargetTypeRef;
+}
 
 export type CsharpNullableReferenceTargetTypeRef = TargetTypeRef & {
   readonly csharpNullableReference?: true;
