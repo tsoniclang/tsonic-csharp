@@ -70,13 +70,15 @@ import {
 import {
   directSourceYieldExpression,
   convertCsharpYieldResumeExpression,
-  invokeGeneratorController,
   planCsharpYieldValue,
   planDiscardedCsharpYield,
 } from "./statement-yield.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  isCsharpGeneratorReturnInsideFinally,
+} from "./generators.js";
 
 export function planReturnStatement(
   node: Node,
@@ -95,6 +97,15 @@ export function planReturnStatement(
         node,
         "The exact generator return type has no closed C# source representation.",
       ));
+      return [];
+    }
+    if (isCsharpGeneratorReturnInsideFinally(node, state.generator.declaration, input)) {
+      diagnostics.push({
+        code: "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION",
+        category: "error",
+        source: "tsonic-csharp",
+        message: "C# native iterators cannot leave a finally clause through a generator return.",
+      });
       return [];
     }
     const directYield = directSourceYieldExpression(statement.Expression, input);
@@ -137,12 +148,16 @@ export function planReturnStatement(
     }
     return [
       ...(yieldPlan?.statements ?? []),
-      expressionStatement(invokeGeneratorController(
-        state.generator.controllerName,
-        "Complete",
-        [expression],
-      )),
-      { kind: "YieldBreakStatement" },
+      expressionStatement({
+        kind: "AssignmentExpression",
+        left: {
+          kind: "IdentifierName",
+          name: state.generator.returnValueName,
+        },
+        operatorToken: { kind: "EqualsToken" },
+        right: expression,
+      }),
+      { kind: "GotoStatement", label: state.generator.exitLabel },
     ];
   }
   if (

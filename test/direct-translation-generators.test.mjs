@@ -26,6 +26,10 @@ test("synchronous generators lower through native C# iterators without Task mach
   assert.match(source, /Tsonic\.CSharp\.Runtime\.Generator<int, string,/);
   assert.match(source, /System\.Collections\.Generic\.IEnumerable</);
   assert.match(source, /yield return/);
+  assert.match(source, /string __tsonic_generatorReturn0 = default\(string\)!;/);
+  assert.match(source, /__tsonic_generatorReturn0 = "complete";\s+goto __tsonic_generatorExit0;/);
+  assert.match(source, /__tsonic_generatorExit0:\s+__tsonic_generator0\.Complete\(__tsonic_generatorReturn0\);/);
+  assert.equal((source.match(/\.Complete\(/g) ?? []).length, 1);
   assert.doesNotMatch(source, /(?:Task|ValueTask)</);
 });
 
@@ -114,6 +118,58 @@ test("synchronous generator return and throw commands unwind non-yielding finall
   assert.match(source, /finally/);
   assert.match(source, /closed = true/);
   assert.match(source, /yield return/);
+  assert.match(source, /__tsonic_generatorReturn0 = "normal";\s+goto __tsonic_generatorExit0;/);
+  assert.match(source, /finally[\s\S]*closed = true;[\s\S]*__tsonic_generatorExit0:/);
+});
+
+test("synchronous generator branches converge on one native completion tail", () => {
+  const source = compileGenerator(`
+    import type { int } from "@tsonic/csharp/types.js";
+    export function* choose(first: boolean): Generator<int, string, unknown> {
+      yield 1;
+      if (first) {
+        return "first";
+      }
+      return "second";
+    }
+  `);
+
+  assert.equal((source.match(/goto __tsonic_generatorExit0;/g) ?? []).length, 2);
+  assert.equal((source.match(/\.Complete\(/g) ?? []).length, 1);
+});
+
+test("generator fallthrough ignores nested returns and needs no synthetic label", () => {
+  const source = compileGenerator(`
+    import type { int } from "@tsonic/csharp/types.js";
+    export function* values(): Generator<int, void, unknown> {
+      const nested = (): int => {
+        return 1;
+      };
+      yield nested();
+    }
+  `);
+
+  assert.doesNotMatch(source, /__tsonic_generatorExit0/);
+  assert.equal((source.match(/\.Complete\(/g) ?? []).length, 1);
+});
+
+test("synchronous generators reject return from a finally clause at the native boundary", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function* unsupported(): Generator<int, string, unknown> {
+        try {
+          yield 1;
+        } finally {
+          return "done";
+        }
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.targetDiagnostics.length, 1);
+  assert.equal(compiled.targetDiagnostics[0]?.code, "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION");
 });
 
 test("yield star forwards bidirectional commands and delegated return values", () => {

@@ -49,6 +49,8 @@ export interface DestructuringPlannerState {
 export interface CsharpGeneratorPlannerContext {
   readonly declaration: Node;
   readonly controllerName: string;
+  readonly returnValueName: string;
+  readonly exitLabel: string;
   readonly protocol: CsharpGeneratorProtocol;
 }
 
@@ -66,6 +68,8 @@ export interface ResourceScopeSyntheticNames {
 export interface GeneratorSyntheticNames {
   readonly controllerName: string;
   readonly iteratorName: string;
+  readonly returnValueName: string;
+  readonly exitLabel: string;
 }
 
 export interface GeneratorDelegationSyntheticNames {
@@ -164,13 +168,13 @@ export function allocateGeneratorNames(
     const names = {
       controllerName: `__tsonic_generator${index}`,
       iteratorName: `__tsonic_iterator${index}`,
+      returnValueName: `__tsonic_generatorReturn${index}`,
+      exitLabel: `__tsonic_generatorExit${index}`,
     };
-    if (
-      !state.usedNames.has(names.controllerName) &&
-      !state.usedNames.has(names.iteratorName)
-    ) {
-      state.usedNames.add(names.controllerName);
-      state.usedNames.add(names.iteratorName);
+    if (Object.values(names).every((name) => !state.usedNames.has(name))) {
+      for (const name of Object.values(names)) {
+        state.usedNames.add(name);
+      }
       return names;
     }
   }

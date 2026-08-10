@@ -27,6 +27,8 @@ test("async generators lower through native C# async iterators", () => {
   assert.match(source, /System\.Collections\.Generic\.IAsyncEnumerable</);
   assert.match(source, /async/);
   assert.match(source, /yield return await nextValue\(\)/);
+  assert.match(source, /__tsonic_generatorReturn0 = "complete";\s+goto __tsonic_generatorExit0;/);
+  assert.equal((source.match(/\.Complete\(/g) ?? []).length, 1);
 });
 
 test("async generator yield expressions receive exact queued next values", () => {
@@ -127,6 +129,25 @@ test("generic async generators preserve the exact next target type", () => {
 
   assert.match(source, /AsyncGenerator<int, string, TNext>/);
   assert.match(source, /ConsumeNext\(\)/);
+});
+
+test("async generators reject return from a finally clause at the native boundary", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export async function* unsupported(): AsyncGenerator<int, string, unknown> {
+        try {
+          yield 1;
+        } finally {
+          return "done";
+        }
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.equal(compiled.targetDiagnostics.length, 1);
+  assert.equal(compiled.targetDiagnostics[0]?.code, "CSHARP_UNSUPPORTED_GENERATOR_RETURN_REGION");
 });
 
 for (const [name, body] of [

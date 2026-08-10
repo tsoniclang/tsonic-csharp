@@ -66,6 +66,28 @@ export function hasCsharpGeneratorSyntax(
   );
 }
 
+export function isCsharpGeneratorReturnInsideFinally(
+  returnStatement: Node,
+  generatorDeclaration: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  for (
+    let current = input.ast.parent(returnStatement);
+    current !== undefined && current !== generatorDeclaration;
+    current = input.ast.parent(current)
+  ) {
+    const parent = input.ast.parent(current);
+    if (parent === undefined || !input.ast.is.IsTryStatement(parent)) {
+      continue;
+    }
+    const tryStatement = input.ast.as.AsTryStatement(parent)!;
+    if (tryStatement.FinallyBlock === current) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function planCsharpGeneratorFunction(
   declaration: Node,
   bodyNode: Node | undefined,
@@ -142,6 +164,8 @@ export function planCsharpGeneratorFunction(
   state.generator = Object.freeze({
     declaration,
     controllerName: names.controllerName,
+    returnValueName: names.returnValueName,
+    exitLabel: names.exitLabel,
     protocol,
   });
   state.currentReturnType = returnTypeNode;
@@ -149,17 +173,46 @@ export function planCsharpGeneratorFunction(
   state.currentReturnExpressionTargetType = protocol.returnType;
   state.observedReturnTargetTypes = undefined;
   state.returnTargetObservationIncomplete = undefined;
-  const iteratorStatements = unsupportedYield === undefined
-    ? [
-        ...prelude,
-        ...planBlock(bodyNode, sourceFile, input, diagnostics, state),
-        completeGeneratorStatement(names.controllerName, returnTypeNode),
-        { kind: "YieldBreakStatement" as const },
-      ]
-    : [
-        completeGeneratorStatement(names.controllerName, returnTypeNode),
-        { kind: "YieldBreakStatement" as const },
-      ];
+  const hasExplicitReturn = unsupportedYield === undefined &&
+    hasSupportedGeneratorReturn(declaration, bodyNode, input);
+  const iteratorStatements: readonly CsharpStatement[] = [
+    {
+      kind: "LocalDeclarationStatement",
+      name: names.returnValueName,
+      type: returnTypeNode,
+      initializer: {
+        kind: "DefaultExpression",
+        type: returnTypeNode,
+        nullForgiving: true,
+      },
+    },
+    ...(unsupportedYield === undefined
+      ? [{
+          kind: "Block" as const,
+          body: {
+            kind: "Block" as const,
+            statements: [
+              ...prelude,
+              ...planBlock(bodyNode, sourceFile, input, diagnostics, state),
+            ],
+          },
+        }]
+      : []),
+    hasExplicitReturn
+      ? {
+          kind: "LabeledStatement",
+          name: names.exitLabel,
+          statement: completeGeneratorStatement(
+            names.controllerName,
+            names.returnValueName,
+          ),
+        }
+      : completeGeneratorStatement(
+          names.controllerName,
+          names.returnValueName,
+        ),
+    { kind: "YieldBreakStatement" },
+  ];
   const localFunction: CsharpStatement = {
     kind: "LocalFunctionStatement",
     name: names.iteratorName,
@@ -192,6 +245,57 @@ export function planCsharpGeneratorFunction(
       ],
     },
   };
+}
+
+function hasSupportedGeneratorReturn(
+  declaration: Node,
+  body: Node | undefined,
+  input: CsharpTranslationContext,
+): boolean {
+  if (body === undefined) {
+    return false;
+  }
+  let found = false;
+  const visit = (node: Node): void => {
+    if (found) {
+      return;
+    }
+    if (node !== body && isFunctionLikeBoundary(node, input)) {
+      return;
+    }
+    if (
+      input.ast.is.IsReturnStatement(node) &&
+      !isCsharpGeneratorReturnInsideFinally(node, declaration, input)
+    ) {
+      found = true;
+      return;
+    }
+    input.ast.forEachChild(node, (child) => {
+      if (child !== undefined) {
+        visit(child);
+      }
+    });
+  };
+  visit(body);
+  return found;
+}
+
+function isFunctionLikeBoundary(
+  node: Node,
+  input: CsharpTranslationContext,
+): boolean {
+  switch (input.ast.kindName(node)) {
+    case "KindArrowFunction":
+    case "KindConstructor":
+    case "KindFunctionDeclaration":
+    case "KindFunctionExpression":
+    case "KindGetAccessor":
+    case "KindMethodDeclaration":
+    case "KindSetAccessor":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function firstUnsupportedGeneratorYield(
@@ -261,7 +365,7 @@ function generatorControllerParameter(
 
 function completeGeneratorStatement(
   controllerName: string,
-  returnType: CsharpTypeNode,
+  returnValueName: string,
 ): CsharpStatement {
   return {
     kind: "ExpressionStatement",
@@ -274,11 +378,7 @@ function completeGeneratorStatement(
       },
       arguments: [{
         kind: "Argument",
-        expression: {
-          kind: "DefaultExpression",
-          type: returnType,
-          nullForgiving: true,
-        },
+        expression: { kind: "IdentifierName", name: returnValueName },
       }],
     },
   };
