@@ -1,4 +1,5 @@
 import type {
+  AstReader,
   Node,
   SourcePrimitiveKind,
 } from "@tsonic/tsts";
@@ -51,8 +52,11 @@ export function csharpLiteralIsRepresentableAs(
       return input.ast.kindName(node) === "KindTrueKeyword" ||
         input.ast.kindName(node) === "KindFalseKeyword";
     case "char":
-      return input.ast.is.IsStringLiteral(node) &&
-        [...input.ast.text(node)].length === 1;
+      return (
+        input.ast.is.IsStringLiteral(node) ||
+        input.ast.is.IsNoSubstitutionTemplateLiteral(node)
+      ) &&
+        input.ast.text(node).length === 1;
     case "int8":
     case "uint8":
     case "int16":
@@ -78,39 +82,33 @@ export function csharpLiteralIsRepresentableAs(
     case "uint64":
     case "int128":
     case "uint128": {
-      const value = bigintLiteralValue(input, node);
+      const value = csharpBigIntLiteralValue(input.ast, node);
       return value !== undefined &&
-        bigintFitsSourcePrimitive(value, target.name);
+        csharpBigIntFitsSourcePrimitive(value, target.name);
     }
   }
 }
 
-function bigintLiteralValue(
-  input: Pick<CsharpTranslationContext, "ast">,
+export function csharpBigIntLiteralValue(
+  ast: AstReader,
   node: Node,
 ): bigint | undefined {
-  if (
-    input.ast.is.IsBigIntLiteral(node) ||
-    input.ast.is.IsNumericLiteral(node)
-  ) {
-    return parseBigIntLiteral(input.ast.text(node));
+  if (ast.is.IsBigIntLiteral(node) || ast.is.IsNumericLiteral(node)) {
+    return parseBigIntLiteral(ast.text(node));
   }
-  if (!input.ast.is.IsPrefixUnaryExpression(node)) {
+  if (!ast.is.IsPrefixUnaryExpression(node)) {
     return undefined;
   }
-  const operator = input.ast.operatorKindName(node);
-  const operand = input.ast.as.AsPrefixUnaryExpression(node)?.Operand;
+  const operator = ast.operatorKindName(node);
+  const operand = ast.as.AsPrefixUnaryExpression(node)?.Operand;
   if (
     (operator !== "KindPlusToken" && operator !== "KindMinusToken") ||
     operand === undefined ||
-    (
-      !input.ast.is.IsBigIntLiteral(operand) &&
-      !input.ast.is.IsNumericLiteral(operand)
-    )
+    (!ast.is.IsBigIntLiteral(operand) && !ast.is.IsNumericLiteral(operand))
   ) {
     return undefined;
   }
-  const value = parseBigIntLiteral(input.ast.text(operand));
+  const value = parseBigIntLiteral(ast.text(operand));
   return value === undefined
     ? undefined
     : operator === "KindMinusToken"
@@ -118,7 +116,7 @@ function bigintLiteralValue(
       : value;
 }
 
-function bigintFitsSourcePrimitive(
+export function csharpBigIntFitsSourcePrimitive(
   value: bigint,
   primitive: SourcePrimitiveKind,
 ): boolean {

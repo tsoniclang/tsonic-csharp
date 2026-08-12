@@ -41,6 +41,9 @@ import {
 import type {
   CsharpTranslationContext,
 } from "../context/index.js";
+import {
+  planCsharpExactLiteralConversion,
+} from "./literal-conversions.js";
 
 export function applyCsharpConversionSelection(
   node: Node,
@@ -59,6 +62,24 @@ export function applyCsharpConversionSelection(
     case "identity":
       return expression;
     case "implicit":
+      if (selection.proof === "literal") {
+        const literal = planCsharpExactLiteralConversion(input, node, targetType);
+        if (literal.kind === "resolved") {
+          return literal.expression;
+        }
+        if (literal.kind === "rejected") {
+          diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
+          return undefined;
+        }
+        if (literal.kind === "source-representation") {
+          return expression;
+        }
+        diagnostics.push(unsupportedNodeDiagnostic(
+          node,
+          "A selected C# literal conversion requires an exact target literal representation.",
+        ));
+        return undefined;
+      }
       return selection.proof === "runtime-union-arm"
         ? applyRuntimeUnionArmConversion(
             node,

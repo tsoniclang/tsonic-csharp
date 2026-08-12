@@ -45,6 +45,25 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("printer preserves exact 64-bit integer literal digits", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "IntegerLiteralExpression",
+      digits: "18446744073709551615",
+      suffix: "UL",
+    }),
+    "18446744073709551615UL",
+  );
+  assert.throws(
+    () => printCsharpExpression({
+      kind: "IntegerLiteralExpression",
+      digits: "1; Console.WriteLine(2)",
+      suffix: "L",
+    }),
+    /integer literal digits must be canonical unsigned decimal text/u,
+  );
+});
+
 test("printer renders explicit unsafe statement and expression nodes", () => {
   assert.equal(
     printCsharpStatement({

@@ -1,11 +1,8 @@
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsConditionalExpression,
-  AsNoSubstitutionTemplateLiteral,
-  AsNumericLiteral,
   AsParenthesizedExpression,
   AsSatisfiesExpression,
-  AsStringLiteral,
   HasSourceKind,
   KindArrayLiteralExpression,
   KindArrowFunction,
@@ -14,13 +11,10 @@ import {
   KindConditionalExpression,
   KindFunctionExpression,
   KindIdentifier,
-  KindNoSubstitutionTemplateLiteral,
   KindNonNullExpression,
-  KindNumericLiteral,
   KindObjectLiteralExpression,
   KindParenthesizedExpression,
   KindSatisfiesExpression,
-  KindStringLiteral,
   KindTypeAssertionExpression,
   Node_Text,
   SourceKind,
@@ -54,9 +48,6 @@ import {
   tryPlanRecordDictionaryLiteralWithExpectedType,
 } from "./expression-dictionary-literals.js";
 import {
-  parseFiniteNumberLiteral,
-} from "../../source/source-literal-values.js";
-import {
   tryPlanBinaryExpressionWithExpectedType,
 } from "./expression-operators.js";
 import {
@@ -76,6 +67,9 @@ import {
 import type {
   DestructuringPlannerState,
 } from "./bindings.js";
+import {
+  planCsharpExactLiteralConversion,
+} from "../../translate/expressions/literal-conversions.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -104,9 +98,17 @@ export function planExpressionWithExpectedTypeCore(
   if (expectedRuntimeNullishLiteral !== undefined) {
     return expectedRepresentation(expectedRuntimeNullishLiteral);
   }
-  const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
-  if (expectedTypeLiteral !== undefined) {
-    return expectedRepresentation(expectedTypeLiteral);
+  const expectedTypeLiteral = planCsharpExactLiteralConversion(
+    input,
+    node,
+    effectiveExpectedTargetType,
+  );
+  if (expectedTypeLiteral.kind === "resolved") {
+    return expectedRepresentation(expectedTypeLiteral.expression);
+  }
+  if (expectedTypeLiteral.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, expectedTypeLiteral.reason));
+    return undefined;
   }
   if (HasSourceKind(input.ast, node, KindAsExpression)) {
     return sourceRepresentation(
@@ -360,55 +362,4 @@ function isGlobalUndefinedLiteral(
   const targetType = input.types.resolveNode(node, sourceFile);
   return targetType !== undefined &&
     targetTypeRefEquals(targetType, csharpRuntimeUndefinedTargetType());
-}
-
-function planExpectedTypeLiteral(
-  node: Node,
-  input: CsharpTranslationContext,
-  expectedType: CsharpTypeNode,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
-  if (isCsharpFloatLiteralType(expectedType) && HasSourceKind(input.ast, node, KindNumericLiteral)) {
-      const value = parseFiniteNumberLiteral(Node_Text(input.ast, AsNumericLiteral(node)));
-    if (value === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
-      return undefined;
-    }
-    return {
-      kind: "NumericLiteralExpression",
-      value,
-      suffix: expectedType.name === "float" ? "F" : "M",
-    };
-  }
-  if (isCsharpCharType(expectedType)) {
-    const text = getStringLiteralText(node, input);
-    if (text === undefined) {
-      return undefined;
-    }
-    if (text.length !== 1) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
-      return undefined;
-    }
-    return { kind: "CharacterLiteralExpression", value: text };
-  }
-  return undefined;
-}
-
-function getStringLiteralText(node: Node, input: CsharpTranslationContext): string | undefined {
-  switch (SourceKind(input.ast, node)) {
-    case KindStringLiteral:
-      return Node_Text(input.ast, AsStringLiteral(node));
-    case KindNoSubstitutionTemplateLiteral:
-      return Node_Text(input.ast, AsNoSubstitutionTemplateLiteral(node));
-    default:
-      return undefined;
-  }
-}
-
-function isCsharpCharType(type: CsharpTypeNode): boolean {
-  return type.kind === "PredefinedType" && type.name === "char";
-}
-
-function isCsharpFloatLiteralType(type: CsharpTypeNode): type is Extract<CsharpTypeNode, { readonly kind: "PredefinedType" }> {
-  return type.kind === "PredefinedType" && (type.name === "float" || type.name === "decimal");
 }
