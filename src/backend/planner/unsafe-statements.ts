@@ -11,7 +11,9 @@ import {
 } from "./target-types.js";
 import {
   expressionRequiresUnsafe,
+  expressionRequiresUnsafePermission,
   optionalExpressionRequiresUnsafe,
+  optionalExpressionRequiresUnsafePermission,
 } from "./unsafe-expressions.js";
 import {
   optionalTypeRequiresUnsafe,
@@ -22,60 +24,81 @@ export function optionalBlockRequiresUnsafe(block: CsharpBlock | undefined): boo
 }
 
 export function blockRequiresUnsafe(block: CsharpBlock): boolean {
-  return block.statements.some(statementRequiresUnsafe);
+  return block.statements.some((statement) =>
+    statementContainsUnsafe(statement, "context")
+  );
 }
 
-function statementRequiresUnsafe(statement: CsharpStatement): boolean {
+export function blockRequiresUnsafePermission(block: CsharpBlock): boolean {
+  return block.statements.some((statement) =>
+    statementContainsUnsafe(statement, "permission")
+  );
+}
+
+type CsharpUnsafeScanMode = "context" | "permission";
+
+function statementContainsUnsafe(
+  statement: CsharpStatement,
+  mode: CsharpUnsafeScanMode,
+): boolean {
   switch (statement.kind) {
     case "ReturnStatement":
-      return optionalExpressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+      return optionalExpressionContainsUnsafe(statement.expression, mode);
     case "YieldReturnStatement":
-      return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+      return expressionContainsUnsafe(statement.expression, mode);
     case "YieldBreakStatement":
       return false;
     case "ExpressionStatement":
-      return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+      return expressionContainsUnsafe(statement.expression, mode);
     case "LocalDeclarationStatement":
-      return csharpTypeRequiresUnsafe(statement.type) ||
-        optionalExpressionRequiresUnsafe(statement.initializer, blockRequiresUnsafe);
+      return (mode === "context" && csharpTypeRequiresUnsafe(statement.type)) ||
+        optionalExpressionContainsUnsafe(statement.initializer, mode);
     case "Block":
-      return blockRequiresUnsafe(statement.body);
+      return blockContainsUnsafe(statement.body, mode);
+    case "UnsafeStatement":
+      return mode === "permission";
     case "ThrowStatement":
-      return optionalExpressionRequiresUnsafe(statement.expression, blockRequiresUnsafe);
+      return optionalExpressionContainsUnsafe(statement.expression, mode);
     case "LabeledStatement":
-      return statementRequiresUnsafe(statement.statement);
+      return statementContainsUnsafe(statement.statement, mode);
     case "SwitchStatement":
-      return expressionRequiresUnsafe(statement.expression, blockRequiresUnsafe) ||
-        statement.sections.some(switchSectionRequiresUnsafe);
+      return expressionContainsUnsafe(statement.expression, mode) ||
+        statement.sections.some((section) =>
+          switchSectionContainsUnsafe(section, mode)
+        );
     case "TryStatement":
-      return blockRequiresUnsafe(statement.tryBody) ||
-        optionalCatchRequiresUnsafe(statement.catchClause) ||
-        optionalBlockRequiresUnsafe(statement.finallyBody);
+      return blockContainsUnsafe(statement.tryBody, mode) ||
+        optionalCatchContainsUnsafe(statement.catchClause, mode) ||
+        optionalBlockContainsUnsafe(statement.finallyBody, mode);
     case "ForEachStatement":
-      return csharpTypeRequiresUnsafe(statement.itemType) ||
-        expressionRequiresUnsafe(statement.collection, blockRequiresUnsafe) ||
-        blockRequiresUnsafe(statement.body);
+      return (mode === "context" && csharpTypeRequiresUnsafe(
+        statement.itemType,
+      )) || expressionContainsUnsafe(statement.collection, mode) ||
+        blockContainsUnsafe(statement.body, mode);
     case "LocalFunctionStatement":
-      return csharpTypeRequiresUnsafe(statement.returnType) ||
+      return (mode === "context" && (
+        csharpTypeRequiresUnsafe(statement.returnType) ||
         statement.parameters.some((parameter) =>
           csharpTypeRequiresUnsafe(parameter.type)
-        ) ||
-        blockRequiresUnsafe(statement.body);
+        )
+      )) || blockContainsUnsafe(statement.body, mode);
     case "IfStatement":
-      return expressionRequiresUnsafe(statement.condition, blockRequiresUnsafe) ||
-        blockRequiresUnsafe(statement.thenBody) ||
-        optionalBlockRequiresUnsafe(statement.elseBody);
+      return expressionContainsUnsafe(statement.condition, mode) ||
+        blockContainsUnsafe(statement.thenBody, mode) ||
+        optionalBlockContainsUnsafe(statement.elseBody, mode);
     case "WhileStatement":
-      return expressionRequiresUnsafe(statement.condition, blockRequiresUnsafe) || blockRequiresUnsafe(statement.body);
+      return expressionContainsUnsafe(statement.condition, mode) ||
+        blockContainsUnsafe(statement.body, mode);
     case "DoStatement":
-      return blockRequiresUnsafe(statement.body) || expressionRequiresUnsafe(statement.condition, blockRequiresUnsafe);
+      return blockContainsUnsafe(statement.body, mode) ||
+        expressionContainsUnsafe(statement.condition, mode);
     case "ForStatement":
-      return optionalForInitializerRequiresUnsafe(statement.initializer) ||
-        optionalExpressionRequiresUnsafe(statement.condition, blockRequiresUnsafe) ||
-        optionalExpressionRequiresUnsafe(statement.incrementor, blockRequiresUnsafe) ||
-        blockRequiresUnsafe(statement.body);
+      return optionalForInitializerContainsUnsafe(statement.initializer, mode) ||
+        optionalExpressionContainsUnsafe(statement.condition, mode) ||
+        optionalExpressionContainsUnsafe(statement.incrementor, mode) ||
+        blockContainsUnsafe(statement.body, mode);
     case "GotoSwitchStatement":
-      return switchLabelRequiresUnsafe(statement.label);
+      return switchLabelContainsUnsafe(statement.label, mode);
     case "BreakStatement":
     case "ContinueStatement":
     case "GotoStatement":
@@ -83,26 +106,85 @@ function statementRequiresUnsafe(statement: CsharpStatement): boolean {
   }
 }
 
-function switchSectionRequiresUnsafe(section: CsharpSwitchSection): boolean {
-  return switchLabelRequiresUnsafe(section.label) || section.statements.some(statementRequiresUnsafe);
+function blockContainsUnsafe(
+  block: CsharpBlock,
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return mode === "context"
+    ? blockRequiresUnsafe(block)
+    : blockRequiresUnsafePermission(block);
 }
 
-function switchLabelRequiresUnsafe(label: CsharpSwitchLabel): boolean {
-  return label.kind === "CaseSwitchLabel" && expressionRequiresUnsafe(label.expression, blockRequiresUnsafe);
+function optionalBlockContainsUnsafe(
+  block: CsharpBlock | undefined,
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return block !== undefined && blockContainsUnsafe(block, mode);
 }
 
-function optionalCatchRequiresUnsafe(catchClause: CsharpCatchClause | undefined): boolean {
+function expressionContainsUnsafe(
+  expression: Parameters<typeof expressionRequiresUnsafe>[0],
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return mode === "context"
+    ? expressionRequiresUnsafe(expression, blockRequiresUnsafe)
+    : expressionRequiresUnsafePermission(
+        expression,
+        blockRequiresUnsafePermission,
+      );
+}
+
+function optionalExpressionContainsUnsafe(
+  expression: Parameters<typeof optionalExpressionRequiresUnsafe>[0],
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return mode === "context"
+    ? optionalExpressionRequiresUnsafe(expression, blockRequiresUnsafe)
+    : optionalExpressionRequiresUnsafePermission(
+        expression,
+        blockRequiresUnsafePermission,
+      );
+}
+
+function switchSectionContainsUnsafe(
+  section: CsharpSwitchSection,
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return switchLabelContainsUnsafe(section.label, mode) ||
+    section.statements.some((statement) =>
+      statementContainsUnsafe(statement, mode)
+    );
+}
+
+function switchLabelContainsUnsafe(
+  label: CsharpSwitchLabel,
+  mode: CsharpUnsafeScanMode,
+): boolean {
+  return label.kind === "CaseSwitchLabel" &&
+    expressionContainsUnsafe(label.expression, mode);
+}
+
+function optionalCatchContainsUnsafe(
+  catchClause: CsharpCatchClause | undefined,
+  mode: CsharpUnsafeScanMode,
+): boolean {
   return catchClause !== undefined &&
-    (optionalTypeRequiresUnsafe(catchClause.variableType) || blockRequiresUnsafe(catchClause.body));
+    ((mode === "context" && optionalTypeRequiresUnsafe(
+      catchClause.variableType,
+    )) || blockContainsUnsafe(catchClause.body, mode));
 }
 
-function optionalForInitializerRequiresUnsafe(initializer: CsharpForInitializer | undefined): boolean {
+function optionalForInitializerContainsUnsafe(
+  initializer: CsharpForInitializer | undefined,
+  mode: CsharpUnsafeScanMode,
+): boolean {
   if (initializer === undefined) {
     return false;
   }
   return initializer.kind === "Expression"
-    ? expressionRequiresUnsafe(initializer.expression, blockRequiresUnsafe)
+    ? expressionContainsUnsafe(initializer.expression, mode)
     : initializer.locals.some((local) =>
-      csharpTypeRequiresUnsafe(local.type) || optionalExpressionRequiresUnsafe(local.initializer, blockRequiresUnsafe)
+      (mode === "context" && csharpTypeRequiresUnsafe(local.type)) ||
+        optionalExpressionContainsUnsafe(local.initializer, mode)
     );
 }

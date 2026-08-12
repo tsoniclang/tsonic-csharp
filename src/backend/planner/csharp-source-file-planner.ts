@@ -61,8 +61,15 @@ import {
   finalizeCsharpCompilationUnit,
 } from "./csharp-compilation-unit.js";
 import {
+  readCsharpLanguageDialect,
+} from "../../options/csharp-target-options.js";
+import {
   planResourceManagedSourceFileStatements,
 } from "./resource-management.js";
+import {
+  diagnoseCsharpSafetyApplications,
+  isErasedSafetyExpressionStatement,
+} from "./explicit-safety.js";
 
 export interface PlannedCsharpSourceFile {
   readonly fileName: string;
@@ -107,7 +114,10 @@ export function planSourceFile(
         if (statement === undefined) {
           continue;
         }
-        if (isErasedAttributeExpressionStatement(statement, input)) {
+        if (
+          isErasedAttributeExpressionStatement(statement, input) ||
+          isErasedSafetyExpressionStatement(statement, input)
+        ) {
           continue;
         }
         switch (input.ast.kindName(statement)) {
@@ -162,6 +172,7 @@ export function planSourceFile(
     },
   );
   diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
+  diagnoseCsharpSafetyApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
     const initializationStatements = [
       ...moduleInitialization.dependenciesFor(sourceFile)
@@ -307,7 +318,10 @@ export function planSourceFile(
       members: namespaceMembers,
     }],
   };
-  const finalized = finalizeCsharpCompilationUnit(unit);
+  const finalized = finalizeCsharpCompilationUnit(
+    unit,
+    readCsharpLanguageDialect(input.target),
+  );
   return {
     fileName,
     moduleClassName,

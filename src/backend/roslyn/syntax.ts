@@ -11,6 +11,7 @@ export type {
   CsharpUsing,
 } from "./syntax/declarations.js";
 export type {
+  CsharpAccessorModifier,
   CsharpAttribute,
   CsharpAttributeTargetSpecifier,
   CsharpConstructorDeclaration,

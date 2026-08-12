@@ -88,7 +88,7 @@ namespace Tsonic.Generated
 `);
 });
 
-test("direct C# declaration translation separates typed locations from native function pointers", () => {
+test("direct C# declaration translation separates typed locations from native pointers and function pointers", () => {
   const compiled = cleanCompile(`
     import type { fnptr, ptr } from "@tsonic/csharp/lang.js";
     import type { bool, FunctionPointer, int32, Pointer } from "@tsonic/core/types.js";
@@ -118,21 +118,21 @@ test("direct C# declaration translation separates typed locations from native fu
 
 namespace Tsonic.Generated
 {
-    public unsafe static class Index
+    public static class Index
     {
         public static Tsonic.CSharp.Runtime.Location<int> neutralAddress(Tsonic.CSharp.Runtime.Location<int> value)
         {
             return value;
         }
-        public static Tsonic.CSharp.Runtime.Location<int> aliasAddress(Tsonic.CSharp.Runtime.Location<int> value)
+        public static unsafe int* aliasAddress(int* value)
         {
             return value;
         }
-        public static delegate*<int, int, bool> neutralCallback(delegate*<int, int, bool> value)
+        public static unsafe delegate*<int, int, bool> neutralCallback(delegate*<int, int, bool> value)
         {
             return value;
         }
-        public static delegate*<int, int, bool> aliasCallback(delegate*<int, int, bool> value)
+        public static unsafe delegate*<int, int, bool> aliasCallback(delegate*<int, int, bool> value)
         {
             return value;
         }

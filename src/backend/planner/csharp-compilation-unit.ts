@@ -1,8 +1,11 @@
 import type {
   CsharpCompilationUnit,
 } from "../roslyn/syntax.js";
+import type {
+  CsharpLanguageDialect,
+} from "../../options/csharp-target-options.js";
 import {
-  markCompilationUnitUnsafe,
+  applyCsharpLanguageRequiredUnsafeContexts,
 } from "./unsafe-marking.js";
 import {
   compilationUnitRequiresUnsafe,
@@ -15,16 +18,22 @@ export interface FinalizedCsharpCompilationUnit {
 
 export function finalizeCsharpCompilationUnit(
   unit: CsharpCompilationUnit,
+  dialect: CsharpLanguageDialect,
 ): FinalizedCsharpCompilationUnit {
-  const requiresUnsafe = compilationUnitRequiresUnsafe(unit);
-  const unsafeUnit = requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit;
-  const aliases = collectExternAliases(unsafeUnit);
+  const contextualizedUnit = applyCsharpLanguageRequiredUnsafeContexts(
+    unit,
+    dialect,
+  );
+  const requiresUnsafe = compilationUnitRequiresUnsafe(
+    contextualizedUnit,
+  );
+  const aliases = collectExternAliases(contextualizedUnit);
   return {
     requiresUnsafe,
     unit: aliases.length === 0
-      ? unsafeUnit
+      ? contextualizedUnit
       : {
-          ...unsafeUnit,
+          ...contextualizedUnit,
           externAliases: aliases,
         },
   };

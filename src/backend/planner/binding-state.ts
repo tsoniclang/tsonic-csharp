@@ -28,6 +28,7 @@ export interface DestructuringPlannerState {
   nextGeneratorIndex: number;
   nextGeneratorDelegationIndex: number;
   nextResourceScopeIndex: number;
+  explicitUnsafeContextDepth: number;
   usedNames: Set<string>;
   localBoundNames: Set<string>;
   localNameCounts: Map<string, number>;
@@ -108,6 +109,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextGeneratorIndex: 0,
     nextGeneratorDelegationIndex: 0,
     nextResourceScopeIndex: 0,
+    explicitUnsafeContextDepth: 0,
     usedNames,
     localBoundNames: new Set(),
     localNameCounts: new Map(),
@@ -192,6 +194,7 @@ export function createNestedPlannerState(
     usedNames: new Set([...parent.usedNames, ...nested.usedNames]),
     localBoundNames: new Set(parent.localBoundNames),
     localNameCounts: new Map(parent.localNameCounts),
+    explicitUnsafeContextDepth: parent.explicitUnsafeContextDepth,
   };
 }
 

@@ -37,7 +37,6 @@ const csharpMarkerAliasDeclarations = [
   { kind: "call-marker", exportName: "field", marker: "field" },
   { kind: "call-marker", exportName: "attribute", marker: "attribute" },
   { kind: "call-marker", exportName: "defaultof", marker: "default-value" },
-  { kind: "type-marker", exportName: "ptr", marker: "pointer" },
   { kind: "type-marker", exportName: "fnptr", marker: "function-pointer" },
 ] satisfies SourceSemanticsModule["exports"];
 

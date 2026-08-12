@@ -79,6 +79,9 @@ import {
 import {
   isCsharpGeneratorReturnInsideFinally,
 } from "./generators.js";
+import {
+  isErasedSafetyExpressionStatement,
+} from "./explicit-safety.js";
 
 export function planReturnStatement(
   node: Node,
@@ -331,7 +334,10 @@ export function planExpressionStatement(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (isErasedAttributeExpressionStatement(node, input)) {
+  if (
+    isErasedAttributeExpressionStatement(node, input) ||
+    isErasedSafetyExpressionStatement(node, input)
+  ) {
     return [];
   }
   const expression = AsExpressionStatement(node)!.Expression;

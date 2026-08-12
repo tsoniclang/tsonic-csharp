@@ -19,6 +19,15 @@ This repo follows the Tsonic “airplane-grade” architecture rules.
 - Build-time provider tooling may inspect known first-party assemblies or source metadata, but generated user code must remain statically closed.
 - Missing finalized facts or provider metadata must produce deterministic diagnostics instead of guessing.
 
+## Explicit Target Semantics (IMPORTANT)
+
+- Explicit is the default: represent each independently controllable C# behavior with its own fact, marker, dialect rule, or project setting. Absence means that behavior was not selected; never derive it from a neighboring control.
+- Preserve independent target-language controls as independent compiler contracts. Do not make one marker, fact, project option, or emitted construct imply another unless the target language specification itself defines that implication.
+- In particular, native pointer shape, lexical `unsafe` context, declaration-level caller safety, and project permission to compile unsafe code are separate C# semantics.
+- Emit only the target-language implications that are mandatory for the selected language version. Never add broader implicit behavior for convenience, because future target versions may change one control without changing the others.
+- Tie every mandatory implicit coupling to the selected C# language version and prove that exact rule in tests. Current Roslyn acceptance, convention, proximity, or convenience is not a semantic contract.
+- If source evidence does not explicitly select a target semantic and the target specification does not require it, omit it or reject precisely; do not infer it from nearby syntax, types, configuration, or another marker.
+
 ## .NET Toolchain Config Boundary
 
 - Advanced .NET build/toolchain configuration belongs in user-owned `.csproj`/MSBuild files, not in `tsonic.json`.

@@ -10,6 +10,7 @@ export type CsharpExpression =
   | { readonly kind: "ParenthesizedExpression"; readonly expression: CsharpExpression }
   | { readonly kind: "InvocationExpression"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "AwaitExpression"; readonly expression: CsharpExpression }
+  | { readonly kind: "UnsafeExpression"; readonly expression: CsharpExpression }
   | CsharpObjectCreationExpression
   | { readonly kind: "CastExpression"; readonly type: CsharpTypeNode; readonly expression: CsharpExpression }
   | { readonly kind: "SimpleMemberAccessExpression"; readonly receiver: CsharpExpression; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
@@ -65,6 +66,7 @@ export type CsharpAssignmentOperatorToken =
   | { readonly kind: "GreaterThanGreaterThanGreaterThanEqualsToken" };
 
 export type CsharpPrefixUnaryOperatorToken =
+  | { readonly kind: "AsteriskToken" }
   | { readonly kind: "PlusToken" }
   | { readonly kind: "MinusToken" }
   | { readonly kind: "TildeToken" }

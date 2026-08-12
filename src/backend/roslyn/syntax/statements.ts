@@ -14,6 +14,7 @@ export type CsharpStatement =
   | { readonly kind: "ExpressionStatement"; readonly expression: CsharpExpression }
   | { readonly kind: "LocalDeclarationStatement"; readonly name: string; readonly type: CsharpTypeNode; readonly initializer?: CsharpExpression }
   | { readonly kind: "Block"; readonly body: CsharpBlock }
+  | { readonly kind: "UnsafeStatement"; readonly body: CsharpBlock }
   | { readonly kind: "BreakStatement" }
   | { readonly kind: "ContinueStatement" }
   | { readonly kind: "GotoStatement"; readonly label: string }

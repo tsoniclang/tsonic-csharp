@@ -52,6 +52,8 @@ export function printCsharpExpression(
       return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
     case "AwaitExpression":
       return `await ${context.printExpression(expression.expression)}`;
+    case "UnsafeExpression":
+      return `unsafe(${context.printExpression(expression.expression)})`;
     case "ObjectCreationExpression":
       if (expression.collectionInitializers !== undefined) {
         return printCsharpCollectionInitializer(expression.type, expression.arguments ?? [], expression.collectionInitializers, context);
@@ -119,6 +121,7 @@ function postfixOperandRequiresParentheses(
   }
   switch (expression.kind) {
     case "AwaitExpression":
+    case "UnsafeExpression":
     case "CastExpression":
     case "BinaryExpression":
     case "AssignmentExpression":
@@ -235,6 +238,8 @@ function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken
 
 function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorToken): string {
   switch (token.kind) {
+    case "AsteriskToken":
+      return "*";
     case "PlusToken":
       return "+";
     case "MinusToken":

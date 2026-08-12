@@ -39,6 +39,9 @@ import {
 import {
   collectCsharpCapabilityContributions,
 } from "../contributions.js";
+import {
+  csharpBuiltInProviderPolicies,
+} from "./built-in-source-types.js";
 
 export type CsharpProviderRelationResolution =
   | {
@@ -88,7 +91,13 @@ export function createCsharpProviderRelationResolver(
       (registration) => registration.provider,
     ),
   ]);
-  const staticCatalogs = contributions.providerPolicies.map((contribution) => ({
+  const staticCatalogs = [
+    ...csharpBuiltInProviderPolicies().map((policy) => ({
+      ...policy,
+      rejections: [],
+    })),
+    ...contributions.providerPolicies,
+  ].map((contribution) => ({
     providerId: contribution.providerId,
     providerVersion: contribution.providerVersion,
     relationCatalog: createCsharpProviderRelationCatalog([

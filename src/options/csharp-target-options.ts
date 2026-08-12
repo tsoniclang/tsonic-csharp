@@ -23,10 +23,14 @@ export type CsharpProjectReference =
   | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
 
 export type CsharpOutputType = "Exe" | "Library";
+export type CsharpLanguageDialect = "csharp14" | "csharp15-preview";
+export type CsharpMemorySafetyRules = "legacy" | "preview";
 
 const supportedCsharpTargetOptionKeys = Object.freeze([
   "assemblyName",
   "implicitUsings",
+  "languageDialect",
+  "memorySafetyRules",
   "namespace",
   "nullable",
   "outputType",
@@ -45,10 +49,48 @@ export function validateCsharpTargetOptions(target: TargetSelection): void {
     return;
   }
   rejectUnknownKeys(options, "options", supportedCsharpTargetOptionKeys);
+  if (
+    readCsharpMemorySafetyRules(target) === "preview" &&
+    readCsharpLanguageDialect(target) !== "csharp15-preview"
+  ) {
+    throw new Error(
+      "C# target option memorySafetyRules='preview' requires languageDialect='csharp15-preview'.",
+    );
+  }
 }
 
 export function readCsharpTargetFramework(target: TargetSelection): string {
   return readStringOption(target, "targetFramework", "net10.0");
+}
+
+export function readCsharpLanguageDialect(
+  target: TargetSelection,
+): CsharpLanguageDialect {
+  const value = readOptionalStringOption(target, "languageDialect");
+  if (value === undefined) {
+    return "csharp14";
+  }
+  if (value !== "csharp14" && value !== "csharp15-preview") {
+    throw new Error(
+      "C# target option 'languageDialect' must be either 'csharp14' or 'csharp15-preview'.",
+    );
+  }
+  return value;
+}
+
+export function readCsharpMemorySafetyRules(
+  target: TargetSelection,
+): CsharpMemorySafetyRules {
+  const value = readOptionalStringOption(target, "memorySafetyRules");
+  if (value === undefined) {
+    return "legacy";
+  }
+  if (value !== "legacy" && value !== "preview") {
+    throw new Error(
+      "C# target option 'memorySafetyRules' must be either 'legacy' or 'preview'.",
+    );
+  }
+  return value;
 }
 
 export function readCsharpTypescriptCompatibilityMode(target: TargetSelection): TargetTypescriptCompatibilityMode {

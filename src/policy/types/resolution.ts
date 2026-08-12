@@ -109,6 +109,12 @@ import {
   readCsharpSourceTypedLocationOperation,
 } from "../operations/source-typed-locations.js";
 import {
+  readCsharpSourceNativePointerOperation,
+} from "../operations/source-native-pointers.js";
+import {
+  readCsharpSourceUnsafeContext,
+} from "../operations/source-explicit-safety.js";
+import {
   csharpSourceTypeArgumentNodes,
 } from "./source-syntax.js";
 import {
@@ -2101,6 +2107,20 @@ export function createCsharpTypePolicy(
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);
       }
+      const unsafeContext = readCsharpSourceUnsafeContext(
+        host.sourceFacts,
+        subject,
+      );
+      if (unsafeContext?.kind === "expression") {
+        const type = resolveNodeWithState(
+          unsafeContext.expression,
+          sourceFile,
+          nextState(state),
+        );
+        if (type !== undefined) {
+          return type;
+        }
+      }
       const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);
       if (pointer !== undefined) {
         const pointee = resolveNodeWithState(
@@ -2136,6 +2156,27 @@ export function createCsharpTypePolicy(
             case "location-bind":
             case "location-project":
               return undefined;
+          }
+        }
+      }
+      const nativePointerOperation = readCsharpSourceNativePointerOperation(
+        host.sourceFacts,
+        subject,
+      );
+      if (nativePointerOperation !== undefined) {
+        const pointerType = resolveSelectedValue(
+          nativePointerOperation.pointerExpression,
+          nativePointerOperation.pointerType,
+          sourceFile,
+        );
+        if (pointerType?.kind === "pointer") {
+          switch (nativePointerOperation.operation) {
+            case "load":
+              return pointerType.pointee;
+            case "store":
+              return csharpVoidTargetType();
+            case "offset":
+              return pointerType;
           }
         }
       }
