@@ -1,20 +1,30 @@
 import type {
+  ProviderDeclarationModel,
   ProviderImportDeclaration,
   SourceDeclarationProvider,
 } from "@tsonic/tsts";
 import {
   createSourceSemanticsVirtualModuleProvider,
+  nativePointerProviderDeclaration,
+  providerExportDeclarationsForSemanticsModule,
+  safetyProviderDeclarations,
   tsonicCoreLangModule,
+  unsafeContextProviderDeclaration,
 } from "@tsonic/source-core";
 import {
   csharpLangModule,
   csharpProviderVersion,
+  csharpSourceVirtualModulesProviderId,
 } from "./identity.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
+import {
+  csharpNativePointerExport,
+  csharpSafetyProviderNames,
+} from "./explicit-safety.js";
 
 export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
   return createSourceSemanticsVirtualModuleProvider({
-    id: "tsonic.csharp.source-virtual-modules",
+    id: csharpSourceVirtualModulesProviderId,
     version: csharpProviderVersion,
     displayName: "Tsonic C# source alias modules",
     virtualDirectory: "csharp-source",
@@ -24,6 +34,7 @@ export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationPro
         ? csharpLangProviderImports()
         : [];
     },
+    exportsForModule: csharpProviderExportsForModule,
     evidenceMessage:
       "C# target supplies source alias semantics as a complete virtual module.",
     diagnostics: {
@@ -37,6 +48,22 @@ export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationPro
       },
     },
   });
+}
+
+export function csharpProviderExportsForModule(
+  module: ReturnType<typeof csharpSourceSemanticsModules>[number],
+): ProviderDeclarationModel["exports"] {
+  const semantics = providerExportDeclarationsForSemanticsModule(module);
+  return module.moduleSpecifier !== csharpLangModule
+    ? semantics
+    : [
+        ...semantics,
+        nativePointerProviderDeclaration(
+          csharpNativePointerExport,
+        ),
+        unsafeContextProviderDeclaration(csharpSafetyProviderNames),
+        ...safetyProviderDeclarations(csharpSafetyProviderNames),
+      ];
 }
 
 function csharpLangProviderImports(): readonly ProviderImportDeclaration[] {

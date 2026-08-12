@@ -52,6 +52,9 @@ import {
   hasCsharpGeneratorSyntax,
   planCsharpGeneratorFunction,
 } from "./generators.js";
+import {
+  withCsharpSafetyModifiers,
+} from "./explicit-safety.js";
 
 export function planMethodDeclaration(
   node: Node,
@@ -70,7 +73,12 @@ export function planMethodDeclaration(
     input,
   );
   const declaredReturnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
-  const modifiers = planMethodModifiers(node, declaration.name, sourceFile, input);
+  const modifiers = withCsharpSafetyModifiers(
+    planMethodModifiers(node, declaration.name, sourceFile, input),
+    node,
+    "declaration",
+    input,
+  );
   const name = planMethodDeclarationName(
     node,
     declaration.name,

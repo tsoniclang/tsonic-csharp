@@ -109,6 +109,31 @@ test("project artifact emits NativeAOT only as an explicit C# target project pro
   assert.match(text, /<PublishAot>true<\/PublishAot>/);
 });
 
+test("project artifact keeps language syntax and memory-safety rules independent", () => {
+  const syntaxOnly = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
+    languageDialect: "csharp15-preview",
+  })));
+  const updatedRules = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
+    languageDialect: "csharp15-preview",
+    memorySafetyRules: "preview",
+  })));
+
+  assert.match(syntaxOnly, /<LangVersion>preview<\/LangVersion>/);
+  assert.doesNotMatch(syntaxOnly, /<Features>/);
+  assert.match(updatedRules, /<LangVersion>preview<\/LangVersion>/);
+  assert.match(
+    updatedRules,
+    /<Features>updated-memory-safety-rules<\/Features>/,
+  );
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    memorySafetyRules: "preview",
+  })), /requires languageDialect='csharp15-preview'/u);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    languageDialect: "csharp15-preview",
+    memorySafetyRules: "latest",
+  })), /memorySafetyRules/u);
+});
+
 test("project artifact rejects invalid executable/library output shapes", () => {
   assert.throws(() => planCsharpProjectFile(fakeInput({
     outputType: "WinExe",
@@ -158,6 +183,11 @@ test("project artifact rejects unsupported custom project property shapes", () =
   assert.throws(() => planCsharpProjectFile(fakeInput({
     properties: {
       PublishAot: true,
+    },
+  })), /target-owned/);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    properties: {
+      Features: "updated-memory-safety-rules",
     },
   })), /target-owned/);
 });

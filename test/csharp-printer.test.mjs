@@ -45,6 +45,84 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("printer renders explicit unsafe statement and expression nodes", () => {
+  assert.equal(
+    printCsharpStatement({
+      kind: "UnsafeStatement",
+      body: {
+        kind: "Block",
+        statements: [{
+          kind: "ReturnStatement",
+          expression: {
+            kind: "PrefixUnaryExpression",
+            operatorToken: { kind: "AsteriskToken" },
+            operand: { kind: "IdentifierName", name: "pointer" },
+          },
+        }],
+      },
+    }),
+    "unsafe\n{\n    return *pointer;\n}",
+  );
+  assert.equal(
+    printCsharpExpression({
+      kind: "UnsafeExpression",
+      expression: {
+        kind: "PrefixUnaryExpression",
+        operatorToken: { kind: "AsteriskToken" },
+        operand: { kind: "IdentifierName", name: "pointer" },
+      },
+    }),
+    "unsafe(*pointer)",
+  );
+});
+
+test("printer keeps declaration and accessor safety controls independent", () => {
+  assert.equal(
+    printCsharpCompilationUnit({
+      kind: "CompilationUnit",
+      usings: [],
+      members: [{
+        kind: "ClassDeclaration",
+        name: "NativeApi",
+        modifiers: ["public"],
+        members: [{
+          kind: "MethodDeclaration",
+          name: "Read",
+          modifiers: ["public", "unsafe"],
+          returnType: { kind: "PredefinedType", name: "int" },
+          parameters: [],
+          body: { kind: "Block", statements: [] },
+        }, {
+          kind: "PropertyDeclaration",
+          name: "Value",
+          modifiers: ["public"],
+          type: { kind: "PredefinedType", name: "int" },
+          getter: { kind: "Block", statements: [] },
+          getterModifiers: ["safe"],
+          setter: { kind: "Block", statements: [] },
+          setterModifiers: ["unsafe"],
+        }],
+      }],
+    }),
+    `public class NativeApi
+{
+    public unsafe int Read()
+    {
+    }
+    public int Value
+    {
+        safe get
+        {
+        }
+        unsafe set
+        {
+        }
+    }
+}
+`,
+  );
+});
+
 test("printer preserves a cast as the receiver of every postfix operation", () => {
   const cast = {
     kind: "CastExpression",

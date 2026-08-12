@@ -41,6 +41,9 @@ import {
 import {
   readNamespace,
 } from "./project-artifacts.js";
+import {
+  readCsharpLanguageDialect,
+} from "../../options/csharp-target-options.js";
 
 export {
   objectShapeStorageMemberName,
@@ -196,7 +199,10 @@ export function planCsharpObjectShapeSourceFile(
       members: declarations,
     }],
   };
-  const finalized = finalizeCsharpCompilationUnit(unit);
+  const finalized = finalizeCsharpCompilationUnit(
+    unit,
+    readCsharpLanguageDialect(input.target),
+  );
   return {
     source: {
       path: "generated/TsonicObjectShapes.cs",

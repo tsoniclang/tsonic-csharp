@@ -14,6 +14,7 @@ import type {
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
+  CsharpModifier,
   CsharpParameter,
 } from "../roslyn/syntax.js";
 import {
@@ -28,6 +29,9 @@ import {
 import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
+import {
+  csharpSafetyModifiersForDeclaration,
+} from "./explicit-safety.js";
 
 export function planImplicitForwardingConstructors(
   declaration: Node,
@@ -44,6 +48,11 @@ export function planImplicitForwardingConstructors(
     ));
     return [];
   }
+  const safetyModifiers = csharpSafetyModifiersForDeclaration(
+    declaration,
+    "constructor",
+    input,
+  );
   return constructors.flatMap((constructor) => {
     publishCsharpProjectConstructorCallableContract(
       constructor,
@@ -53,6 +62,7 @@ export function planImplicitForwardingConstructors(
     return planForwardingConstructorOverloads(
       constructor,
       className,
+      safetyModifiers,
       diagnostics,
     );
   });
@@ -61,6 +71,7 @@ export function planImplicitForwardingConstructors(
 function planForwardingConstructorOverloads(
   constructor: CsharpProjectForwardingConstructor,
   className: string,
+  safetyModifiers: readonly CsharpModifier[],
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpConstructorDeclaration[] {
   const variants = forwardingParameterVariants(
@@ -85,7 +96,7 @@ function planForwardingConstructorOverloads(
     return [{
       kind: "ConstructorDeclaration" as const,
       name: className,
-      modifiers: ["public" as const],
+      modifiers: ["public" as const, ...safetyModifiers],
       parameters: planned.parameters,
       baseArguments: planned.baseArguments,
       body: { kind: "Block" as const, statements: [] },

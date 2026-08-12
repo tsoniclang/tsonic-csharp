@@ -46,6 +46,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>14.0</LangVersion>
     <OutputType>Library</OutputType>
   </PropertyGroup>
 </Project>
@@ -124,6 +125,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>14.0</LangVersion>
     <OutputType>Library</OutputType>
   </PropertyGroup>
 </Project>

@@ -14,8 +14,12 @@ import {
   csharpLangModule,
   csharpProviderVersion,
   csharpSourceSemanticsExtensionId,
+  csharpSourceVirtualModulesProviderId,
 } from "./identity.js";
 import {
+  analyzeSafetyBuilderCalls,
+  analyzeUnsafeContextCalls,
+  sourceSafetySignatureIds,
   tsonicCoreSourceExtensionId,
 } from "@tsonic/source-core";
 import {
@@ -23,7 +27,13 @@ import {
 } from "./source-modules.js";
 import {
   createCsharpSourceVirtualModulesProvider,
+  csharpProviderExportsForModule,
 } from "./source-virtual-modules.js";
+import {
+  csharpSafetyBuilderFactKey,
+  csharpSafetyProviderNames,
+  csharpUnsafeContextFactKey,
+} from "./explicit-safety.js";
 import {
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProviderSet,
@@ -81,6 +91,40 @@ export function createCsharpSourceSemanticsExtension(context: TargetProviderCont
       }
     },
     analyzeSource(context): void {
+      analyzeUnsafeContextCalls(context, {
+        blockSelector: {
+          kind: "export-signature",
+          providerId: csharpSourceVirtualModulesProviderId,
+          providerVersion: csharpProviderVersion,
+          providerModuleId: csharpLangModule,
+          exportId: csharpSafetyProviderNames.unsafeContextExport,
+          signatureId: sourceSafetySignatureIds.unsafeContextBlock,
+        },
+        expressionSelector: {
+          kind: "export-signature",
+          providerId: csharpSourceVirtualModulesProviderId,
+          providerVersion: csharpProviderVersion,
+          providerModuleId: csharpLangModule,
+          exportId: csharpSafetyProviderNames.unsafeContextExport,
+          signatureId: sourceSafetySignatureIds.unsafeContextExpression,
+        },
+        factKey: csharpUnsafeContextFactKey,
+        extensionId: csharpSourceSemanticsExtensionId,
+        invalidPositionCode: "CSHARP_UNSAFE_CONTEXT_BLOCK_POSITION_INVALID",
+        invalidPositionNumber: 9100171,
+        factWriteCode: "CSHARP_UNSAFE_CONTEXT_FACT_WRITE_FAILED",
+        factWriteNumber: 9100172,
+      });
+      analyzeSafetyBuilderCalls(context, {
+        providerId: csharpSourceVirtualModulesProviderId,
+        providerVersion: csharpProviderVersion,
+        providerModuleId: csharpLangModule,
+        names: csharpSafetyProviderNames,
+        factKey: csharpSafetyBuilderFactKey,
+        extensionId: csharpSourceSemanticsExtensionId,
+        diagnosticPrefix: "CSHARP_SAFETY",
+        diagnosticNumberBase: 9100180,
+      });
       for (const sourceFile of context.source.getSourceFiles()) {
         if (sourceFile === undefined || context.source.ast.getFileName(sourceFile).endsWith(".d.ts")) {
           continue;
@@ -104,7 +148,12 @@ const unsupportedCsharpLangReExportDiagnostic = {
 const csharpLangExportNames = new Set(
   csharpSourceSemanticsModules()
     .find((module) => module.moduleSpecifier === csharpLangModule)
-    ?.exports.map((entry) => entry.exportName) ?? [],
+    ? csharpProviderExportsForModule(
+        csharpSourceSemanticsModules().find(
+          (module) => module.moduleSpecifier === csharpLangModule,
+        )!,
+      ).map((entry) => entry.name)
+    : [],
 );
 
 type DiagnosticSink = {

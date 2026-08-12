@@ -25,6 +25,8 @@ export function printCsharpStatement(
       return `${printCsharpLocalDeclaration(statement, context)};`;
     case "Block":
       return ["{", ...indentLines(context.printStatements(statement.body.statements)), "}"].join("\n");
+    case "UnsafeStatement":
+      return ["unsafe", "{", ...indentLines(context.printStatements(statement.body.statements)), "}"].join("\n");
     case "BreakStatement":
       return "break;";
     case "ContinueStatement":

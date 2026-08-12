@@ -17,6 +17,9 @@ const neutralFactReaders = new Map([
   ["pointerFactKey", ["src/policy/types/source-markers.ts"]],
   ["pointerOperationFactKey", ["src/policy/operations/source-typed-locations.ts"]],
   ["structFactKey", ["src/policy/types/source-markers.ts"]],
+  ["tsonicNativePointerOperationFactKey", ["src/policy/operations/source-native-pointers.ts"]],
+  ["tsonicSafetyBuilderFactKey", ["src/policy/operations/source-explicit-safety.ts"]],
+  ["tsonicUnsafeContextFactKey", ["src/policy/operations/source-explicit-safety.ts"]],
   ["tsonicAttributeBuilderFactKey", ["src/translate/attributes/application-fact-index.ts"]],
 ]);
 
@@ -62,6 +65,10 @@ test("C# backend consumes target-owned marker models only", () => {
     "StructFact",
     "TsonicAttributeApplicationFact",
     "TsonicAttributeBuilderFact",
+    "TsonicNativePointerOperationFact",
+    "TsonicSafetyApplicationFact",
+    "TsonicSafetyBuilderFact",
+    "TsonicUnsafeContextFact",
   ];
   const failures = sourceFiles(join(sourceRoot, "backend"))
     .flatMap((path) => {

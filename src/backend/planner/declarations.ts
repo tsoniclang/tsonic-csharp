@@ -62,6 +62,10 @@ import {
   hasCsharpGeneratorSyntax,
   planCsharpGeneratorFunction,
 } from "./generators.js";
+import {
+  csharpSafetyModifiersForDeclaration,
+  withCsharpSafetyModifiers,
+} from "./explicit-safety.js";
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
@@ -89,6 +93,11 @@ export function planClassDeclaration(
     input,
     diagnostics,
   );
+  const safetyDefaultConstructors = members.some((member) =>
+      member.kind === "ConstructorDeclaration") ||
+      implicitConstructors.length > 0
+    ? []
+    : defaultSafetyConstructors(node, className, input);
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -102,11 +111,33 @@ export function planClassDeclaration(
     members: jsonSerializable && objectShape !== undefined
       ? [
           ...implicitConstructors,
+          ...safetyDefaultConstructors,
           ...members,
           renderJsonSerializableObjectShapeMethod(objectShape),
         ]
-      : [...implicitConstructors, ...members],
+      : [...implicitConstructors, ...safetyDefaultConstructors, ...members],
   };
+}
+
+function defaultSafetyConstructors(
+  declaration: Node,
+  className: string,
+  input: CsharpTranslationContext,
+): CsharpClassDeclaration["members"] {
+  const safetyModifiers = csharpSafetyModifiersForDeclaration(
+    declaration,
+    "constructor",
+    input,
+  );
+  return safetyModifiers.length === 0
+    ? []
+    : [{
+        kind: "ConstructorDeclaration",
+        name: className,
+        modifiers: ["public", ...safetyModifiers],
+        parameters: [],
+        body: { kind: "Block", statements: [] },
+      }];
 }
 
 function getImplementedInterfacePropertyNames(
@@ -212,7 +243,12 @@ export function planFunctionDeclaration(
     return {
       kind: "MethodDeclaration",
       name,
-      modifiers: ["public", "static"],
+      modifiers: withCsharpSafetyModifiers(
+        ["public", "static"],
+        node,
+        "declaration",
+        input,
+      ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
       returnType: generator?.generatorTypeNode ?? declaredReturnType,
@@ -273,7 +309,12 @@ export function planFunctionDeclaration(
   return {
     kind: "MethodDeclaration",
     name,
-    modifiers: async ? ["public", "static", "async"] : ["public", "static"],
+    modifiers: withCsharpSafetyModifiers(
+      async ? ["public", "static", "async"] : ["public", "static"],
+      node,
+      "declaration",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,

@@ -61,6 +61,11 @@ import {
   planAttributesForSubject,
 } from "./attributes.js";
 import { getCsharpTypeForSourceField } from "./value-types.js";
+import {
+  csharpSafetyAccessorModifiersForDeclaration,
+  diagnoseUnavailableCsharpSafetyAccessors,
+  withCsharpSafetyModifiers,
+} from "./explicit-safety.js";
 
 export function planPropertyDeclaration(
   node: Node,
@@ -73,11 +78,22 @@ export function planPropertyDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "property declaration", diagnostics);
   const sourceField = getClassPropertySourceField(node, declaration, input);
   if (sourceField !== undefined) {
+    diagnoseUnavailableCsharpSafetyAccessors(
+      node,
+      [],
+      input,
+      diagnostics,
+    );
     const type = getCsharpTypeForSourceField(sourceField, "Class field", sourceFile, input, diagnostics);
     return {
       kind: "FieldDeclaration",
       name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
-      modifiers: planClassMemberModifiers(node, declaration.name, input),
+      modifiers: withCsharpSafetyModifiers(
+        planClassMemberModifiers(node, declaration.name, input),
+        node,
+        "declaration",
+        input,
+      ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       type,
     };
@@ -94,10 +110,21 @@ export function planPropertyDeclaration(
     : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   if (!shouldEmitAutoProperty(node, propertyName, autoPropertyNames, sourceFile, input)) {
+    diagnoseUnavailableCsharpSafetyAccessors(
+      node,
+      [],
+      input,
+      diagnostics,
+    );
     return {
       kind: "FieldDeclaration",
       name: propertyName,
-      modifiers: planClassMemberModifiers(node, declaration.name, input),
+      modifiers: withCsharpSafetyModifiers(
+        planClassMemberModifiers(node, declaration.name, input),
+        node,
+        "declaration",
+        input,
+      ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       type,
       ...(declaration.Initializer !== undefined
@@ -108,11 +135,26 @@ export function planPropertyDeclaration(
   return {
     kind: "PropertyDeclaration",
     name: propertyName,
-    modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
+    modifiers: withCsharpSafetyModifiers(
+      planPropertyModifiers(node, declaration.name, sourceFile, input),
+      node,
+      "declaration",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     autoGetter: true,
     autoSetter: true,
+    getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "getter",
+      input,
+    ),
+    setterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "setter",
+      input,
+    ),
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),
@@ -188,14 +230,31 @@ function mergeGetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
+    modifiers: withCsharpSafetyModifiers(
+      existing?.modifiers ?? planPropertyModifiers(
+        node,
+        declaration.name,
+        sourceFile,
+        input,
+      ),
+      node,
+      "declaration",
+      input,
+    ),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     },
+    getterModifiers: mergeAccessorModifiers(
+      existing?.getterModifiers,
+      csharpSafetyAccessorModifiersForDeclaration(node, "getter", input),
+    ),
     ...(existing?.setter === undefined ? {} : { setter: existing.setter }),
+    ...(existing?.setterModifiers === undefined
+      ? {}
+      : { setterModifiers: existing.setterModifiers }),
   };
 }
 
@@ -240,15 +299,39 @@ function mergeSetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
+    modifiers: withCsharpSafetyModifiers(
+      existing?.modifiers ?? planPropertyModifiers(
+        node,
+        declaration.name,
+        sourceFile,
+        input,
+      ),
+      node,
+      "declaration",
+      input,
+    ),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
+    ...(existing?.getterModifiers === undefined
+      ? {}
+      : { getterModifiers: existing.getterModifiers }),
     setter: {
       kind: "Block",
       statements: planSetAccessorStatements(declaration.Body, parameterAlias, parameterPrelude, sourceFile, input, diagnostics, state),
     },
+    setterModifiers: mergeAccessorModifiers(
+      existing?.setterModifiers,
+      csharpSafetyAccessorModifiersForDeclaration(node, "setter", input),
+    ),
   };
+}
+
+function mergeAccessorModifiers(
+  left: CsharpPropertyDeclaration["getterModifiers"],
+  right: CsharpPropertyDeclaration["getterModifiers"],
+): CsharpPropertyDeclaration["getterModifiers"] {
+  return [...new Set([...(left ?? []), ...(right ?? [])])];
 }
 
 function planSetAccessorStatements(

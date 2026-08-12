@@ -56,6 +56,12 @@ import type {
 import {
   createCsharpAttributeApplicationFactIndex,
 } from "../attributes/application-fact-index.js";
+import type {
+  CsharpSafetyApplicationFactIndex,
+} from "../safety/application-fact-index.js";
+import {
+  createCsharpSafetyApplicationFactIndex,
+} from "../safety/application-fact-index.js";
 
 export interface CsharpTranslationContext
   extends CsharpProviderCallSelectionHost {
@@ -76,6 +82,7 @@ export interface CsharpTranslationContext
   readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
   readonly names: CsharpSourceNameResolver;
   readonly attributeApplications: CsharpAttributeApplicationFactIndex;
+  readonly safetyApplications: CsharpSafetyApplicationFactIndex;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -173,6 +180,12 @@ export function createCsharpTranslationContext(
     sourceFiles: input.source.navigation.sourceFiles,
     sourceFacts: input.source.sourceFacts,
   });
+  const safetyApplications = createCsharpSafetyApplicationFactIndex({
+    ast: input.source.ast,
+    sourceFiles: input.source.navigation.sourceFiles,
+    sourceFacts: input.source.sourceFacts,
+    navigation: input.source.navigation,
+  });
   return Object.freeze({
     source: input.source,
     ast: input.source.ast,
@@ -191,6 +204,7 @@ export function createCsharpTranslationContext(
     outputIdentities,
     names,
     attributeApplications,
+    safetyApplications,
     semantics,
     semanticsFor,
     hasSemantics,

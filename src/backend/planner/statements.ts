@@ -62,6 +62,10 @@ import {
 import {
   planResourceManagedBlockStatements,
 } from "./resource-management.js";
+import {
+  isExplicitUnsafeBlockMarker,
+  withExplicitUnsafeContext,
+} from "./explicit-safety.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -74,22 +78,33 @@ export function planBlockStatements(
     return [];
   }
   const block = AsBlock(blockNode)!;
-  return planResourceManagedBlockStatements(
+  const statements = (block.Statements?.Nodes ?? []).filter(
+    (statement): statement is Node => statement !== undefined,
+  );
+  const explicitUnsafe = isExplicitUnsafeBlockMarker(statements[0], input);
+  const plan = () => planResourceManagedBlockStatements(
     blockNode,
     input,
     diagnostics,
     state,
-    () => (block.Statements?.Nodes ?? []).flatMap((statement) =>
-      statement === undefined
-        ? []
-        : planStatements(
-            statement,
-            sourceFile,
-            input,
-            diagnostics,
-            state,
-          )),
+    () => (explicitUnsafe ? statements.slice(1) : statements).flatMap(
+      (statement) => planStatements(
+        statement,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+      ),
+    ),
   );
+  if (!explicitUnsafe) {
+    return plan();
+  }
+  const planned = withExplicitUnsafeContext(state, plan);
+  return [{
+    kind: "UnsafeStatement",
+    body: { kind: "Block", statements: planned },
+  }];
 }
 
 export function planStatements(

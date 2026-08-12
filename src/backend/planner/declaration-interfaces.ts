@@ -51,6 +51,11 @@ import {
 import {
   publishCsharpSourceCallableContract,
 } from "./source-callable-contracts.js";
+import {
+  csharpSafetyAccessorModifiersForDeclaration,
+  csharpSafetyModifiersForDeclaration,
+  diagnoseUnavailableCsharpSafetyAccessors,
+} from "./explicit-safety.js";
 
 export function planInterfaceDeclaration(
   node: Node,
@@ -131,6 +136,11 @@ function planInterfaceMethodDeclaration(
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
+    modifiers: csharpSafetyModifiersForDeclaration(
+      node,
+      "declaration",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
@@ -162,11 +172,33 @@ function planInterfacePropertyDeclaration(
     invalidCsharpType("interface property type"),
     diagnostics,
   );
+  const writable = !input.ast.hasModifierKind(node, "readonly");
+  diagnoseUnavailableCsharpSafetyAccessors(
+    node,
+    writable ? ["getter", "setter"] : ["getter"],
+    input,
+    diagnostics,
+  );
   return {
     kind: "PropertyDeclaration",
     name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
+    modifiers: csharpSafetyModifiersForDeclaration(
+      node,
+      "declaration",
+      input,
+    ),
+    getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "getter",
+      input,
+    ),
+    setterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "setter",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    writable: !input.ast.hasModifierKind(node, "readonly"),
+    writable,
     type: input.ast.questionToken(node) === undefined
       ? type
       : nullableCsharpType(type),
@@ -193,10 +225,32 @@ function planInterfaceIndexerDeclaration(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface index signature requires exactly one key parameter."));
   }
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
+  const writable = !input.ast.hasModifierKind(node, "readonly");
+  diagnoseUnavailableCsharpSafetyAccessors(
+    node,
+    writable ? ["getter", "setter"] : ["getter"],
+    input,
+    diagnostics,
+  );
   return {
     kind: "IndexerDeclaration",
+    modifiers: csharpSafetyModifiersForDeclaration(
+      node,
+      "declaration",
+      input,
+    ),
+    getterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "getter",
+      input,
+    ),
+    setterModifiers: csharpSafetyAccessorModifiersForDeclaration(
+      node,
+      "setter",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    writable: !input.ast.hasModifierKind(node, "readonly"),
+    writable,
     keyName: planIdentifierName(parameterDeclaration?.name, "key", input, diagnostics, "Interface indexer key name"),
     keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
     valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),

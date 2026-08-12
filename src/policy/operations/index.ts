@@ -8,4 +8,7 @@ export * from "./numeric-promotion.js";
 export * from "./source-flow.js";
 export * from "./source-typed-locations.js";
 export * from "./typed-locations.js";
+export * from "./source-native-pointers.js";
+export * from "./native-pointers.js";
+export * from "./source-explicit-safety.js";
 export * from "./typeof.js";

@@ -43,6 +43,9 @@ import {
 import {
   publishCsharpSourceCallableContract,
 } from "./source-callable-contracts.js";
+import {
+  withCsharpSafetyModifiers,
+} from "./explicit-safety.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -96,7 +99,12 @@ export function planConstructorDeclaration(
     return {
       kind: "ConstructorDeclaration",
       name: className,
-      modifiers: ["public"],
+      modifiers: withCsharpSafetyModifiers(
+        ["public"],
+        node,
+        "constructor",
+        input,
+      ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       parameters: parameters.parameters,
       body: { kind: "Block", statements: [] },
@@ -108,7 +116,12 @@ export function planConstructorDeclaration(
   return {
     kind: "ConstructorDeclaration",
     name: className,
-    modifiers: ["public"],
+    modifiers: withCsharpSafetyModifiers(
+      ["public"],
+      node,
+      "constructor",
+      input,
+    ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     parameters: parameters.parameters,
     ...(leadingSuperCall === undefined

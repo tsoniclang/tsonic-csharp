@@ -112,23 +112,26 @@ function printInterfaceMemberLines(
 ): string[] {
   switch (member.kind) {
     case "MethodDeclaration": {
+      const modifiers = member.modifiers === undefined || member.modifiers.length === 0
+        ? ""
+        : `${member.modifiers.join(" ")} `;
       const typeParameters = context.printTypeParameters(member.typeParameters);
       const constraints = context.printTypeParameterConstraintSuffix(member.typeParameters);
       const parameters = member.parameters.map(context.printParameter).join(", ");
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
+        `${modifiers}${context.printType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
       ];
     }
     case "PropertyDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.type)} ${member.name} { get;${member.writable ? " set;" : ""} }`,
+        `${printOptionalModifiers(member.modifiers)}${context.printType(member.type)} ${member.name} { ${printOptionalModifiers(member.getterModifiers)}get;${member.writable ? ` ${printOptionalModifiers(member.setterModifiers)}set;` : ""} }`,
       ];
     case "IndexerDeclaration":
       return [
         ...context.printAttributes(member.attributes),
-        `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get;${member.writable ? " set;" : ""} }`,
+        `${printOptionalModifiers(member.modifiers)}${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { ${printOptionalModifiers(member.getterModifiers)}get;${member.writable ? ` ${printOptionalModifiers(member.setterModifiers)}set;` : ""} }`,
       ];
   }
   return failUnsupportedCsharpSyntax(member, "interface member");
@@ -206,17 +209,18 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
   const initializer = property.initializer === undefined ? "" : ` = ${context.printExpression(property.initializer)};`;
   const accessors: string[] = [];
   if (property.autoGetter === true) {
-    accessors.push("get;");
+    accessors.push(`${printOptionalModifiers(property.getterModifiers)}get;`);
   } else if (property.getter !== undefined) {
-    accessors.push("get", "{", ...indentLines(context.printStatements(property.getter.statements)), "}");
+    accessors.push(`${printOptionalModifiers(property.getterModifiers)}get`, "{", ...indentLines(context.printStatements(property.getter.statements)), "}");
   }
   if (property.autoSetter === true) {
-    const setterModifiers = property.autoSetterModifiers === undefined || property.autoSetterModifiers.length === 0
-      ? ""
-      : `${property.autoSetterModifiers.join(" ")} `;
+    const setterModifiers = printOptionalModifiers([
+      ...(property.autoSetterModifiers ?? []),
+      ...(property.setterModifiers ?? []),
+    ]);
     accessors.push(`${setterModifiers}set;`);
   } else if (property.setter !== undefined) {
-    accessors.push("set", "{", ...indentLines(context.printStatements(property.setter.statements)), "}");
+    accessors.push(`${printOptionalModifiers(property.setterModifiers)}set`, "{", ...indentLines(context.printStatements(property.setter.statements)), "}");
   }
   return [
     ...context.printAttributes(property.attributes),
@@ -225,4 +229,12 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
     ...indentLines(accessors),
     `}${initializer}`,
   ];
+}
+
+function printOptionalModifiers(
+  modifiers: readonly string[] | undefined,
+): string {
+  return modifiers === undefined || modifiers.length === 0
+    ? ""
+    : `${modifiers.join(" ")} `;
 }

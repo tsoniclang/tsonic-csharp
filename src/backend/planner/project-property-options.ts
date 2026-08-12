@@ -10,13 +10,17 @@ import {
   readStringOption,
 } from "./project-option-values.js";
 import {
+  readCsharpLanguageDialect,
+  readCsharpMemorySafetyRules,
   readCsharpOutputType,
   readCsharpTargetFramework,
 } from "../../options/csharp-target-options.js";
 
 const targetOwnedProjectProperties = new Set([
   "AllowUnsafeBlocks",
+  "Features",
   "ImplicitUsings",
+  "LangVersion",
   "Nullable",
   "OutputType",
   "PublishAot",
@@ -31,7 +35,16 @@ export function readCsharpProjectProperties(
   properties.set("TargetFramework", readCsharpTargetFramework(input.target));
   properties.set("Nullable", readStringOption(input, "nullable", "enable"));
   properties.set("ImplicitUsings", readStringOption(input, "implicitUsings", "disable"));
+  properties.set(
+    "LangVersion",
+    readCsharpLanguageDialect(input.target) === "csharp14"
+      ? "14.0"
+      : "preview",
+  );
   properties.set("OutputType", readCsharpOutputType(input.target));
+  if (readCsharpMemorySafetyRules(input.target) === "preview") {
+    properties.set("Features", "updated-memory-safety-rules");
+  }
   if (options.allowUnsafeBlocks === true) {
     properties.set("AllowUnsafeBlocks", "true");
   }

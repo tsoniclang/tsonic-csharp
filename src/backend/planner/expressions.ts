@@ -101,6 +101,12 @@ import {
 import {
   tryPlanCsharpTypedLocationOperation,
 } from "./expression-typed-locations.js";
+import {
+  tryPlanCsharpExplicitSafetyExpression,
+} from "./explicit-safety.js";
+import {
+  tryPlanCsharpNativePointerOperation,
+} from "./expression-native-pointers.js";
 
 export function planExpression(
   node: Node,
@@ -189,6 +195,47 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
+  const explicitSafety = tryPlanCsharpExplicitSafetyExpression(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+    planExpression,
+  );
+  if (explicitSafety.handled) {
+    return explicitSafety.expression;
+  }
+  const nativePointerOperation = tryPlanCsharpNativePointerOperation(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    scopedPlanExpression,
+    (
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      expectedTargetType,
+      nestedState,
+    ) => planExpressionWithExpectedType(
+      expressionNode,
+      expressionSourceFile,
+      expressionInput,
+      expressionDiagnostics,
+      expressionExpectedType,
+      expectedTypeSubject,
+      nestedState ?? state,
+      expectedTargetType,
+    ),
+    state,
+  );
+  if (nativePointerOperation.handled) {
+    return nativePointerOperation.expression;
+  }
   const typedLocationOperation = tryPlanCsharpTypedLocationOperation(
     node,
     sourceFile,
