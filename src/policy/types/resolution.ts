@@ -1578,7 +1578,11 @@ export function createCsharpTypePolicy(
         nextState(state),
       ) ?? declaredTarget;
     }
-    const selectedInitializerTarget = resolveSelectedExpressionType(
+    const selectedInitializerTarget = resolveDirectSourceFacts(
+      [syntax.initializer],
+      sourceFile,
+      nextState(state),
+    ) ?? resolveSelectedExpressionType(
       syntax.initializer,
       declarationQueries,
       nextState(state),

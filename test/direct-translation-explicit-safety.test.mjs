@@ -78,6 +78,37 @@ test("native pointer operations lower only inside an explicit unsafe block", () 
   );
 });
 
+test("native pointer operation results retain exact pointee types through inferred locals", () => {
+  const compiled = cleanCompile(`
+    import {
+      loadNativePointer,
+      offsetNativePointer,
+      storeNativePointer,
+      unsafeContext,
+    } from "@tsonic/core/lang.js";
+    import type { NativePointer, int32, nativeInt } from "@tsonic/core/types.js";
+
+    export function copyAndRead(
+      source: NativePointer<int32>,
+      destination: NativePointer<int32>,
+      elementOffset: nativeInt,
+    ): int32 {
+      unsafeContext();
+      const selected = offsetNativePointer(source, elementOffset);
+      const value = loadNativePointer(selected);
+      storeNativePointer(destination, value);
+      return value;
+    }
+  `);
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /int\* selected = source \+ elementOffset;/u);
+  assert.match(source, /int value = \*selected;/u);
+  assert.match(source, /\*destination = value;/u);
+  assert.match(source, /return value;/u);
+  assert.doesNotMatch(source, /double (?:selected|value)/u);
+});
+
 test("native pointer operations fail closed outside explicit unsafe context", () => {
   const compiled = compileCsharpSource({
     sourceText: `

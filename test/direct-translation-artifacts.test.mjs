@@ -109,6 +109,7 @@ test("direct C# executable translation emits one exact generated entrypoint", ()
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>14.0</LangVersion>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 </Project>
