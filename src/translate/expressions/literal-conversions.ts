@@ -35,7 +35,9 @@ export function planCsharpExactLiteralConversion(
   }
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
-    return { kind: "not-applicable" };
+    return csharpLiteralIsRepresentableAs(input, node, target)
+      ? { kind: "source-representation" }
+      : { kind: "not-applicable" };
   }
   switch (targetType.name) {
     case "char": {
