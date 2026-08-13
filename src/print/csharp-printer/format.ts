@@ -16,6 +16,13 @@ export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | und
   return `${String(value)}${suffix ?? ""}`;
 }
 
+export function printIntegerLiteral(value: string, suffix: "L" | "UL"): string {
+  if (!/^(?:0|[1-9][0-9]*)$/u.test(value)) {
+    throw new Error("C# integer literal digits must be canonical unsigned decimal text.");
+  }
+  return `${value}${suffix}`;
+}
+
 export function printCharLiteral(value: string): string {
   return `'${escapeCsharpCharLiteral(value)}'`;
 }

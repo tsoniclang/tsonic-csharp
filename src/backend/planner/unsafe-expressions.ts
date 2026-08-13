@@ -236,6 +236,7 @@ function expressionContainsUnsafe(
       );
     case "LiteralExpression":
     case "NumericLiteralExpression":
+    case "IntegerLiteralExpression":
     case "CharacterLiteralExpression":
       return false;
   }

@@ -1,6 +1,21 @@
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "./dotnet-provider.helpers.mjs";
+import { mergeProviderSignatures } from "../dist/providers/dotnet/declaration-model/signatures.js";
 
 import { getCompleteDotnetModule } from "./dotnet-provider.helpers.mjs";
+
+test(".NET provider source selection preserves every wide primitive as bigint", () => {
+  const signatures = ["int64", "uint64", "int128", "uint128"].map((name) => ({
+    id: "Example.Wide",
+    parameters: [{ name: "value", type: { kind: "source-primitive", name } }],
+    returnType: { kind: "source-primitive", name },
+  }));
+
+  assert.deepEqual(mergeProviderSignatures(signatures), [{
+    id: "Example.Wide",
+    parameters: [{ name: "value", type: { kind: "bigint" } }],
+    returnType: { kind: "bigint" },
+  }]);
+});
 
 test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };

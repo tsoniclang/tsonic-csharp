@@ -3,6 +3,7 @@ import type {
   ProviderSignatureDeclaration,
 } from "@tsonic/tsts";
 import type { DotnetMemberDeclaration, DotnetSignatureDeclaration } from "../model.js";
+import { csharpSourcePrimitiveRuntimeKind } from "../../../policy/types/scalar-types.js";
 import {
   dotnetTypeParameterToProviderTypeParameter,
   tryDotnetTypeRefToProviderType,
@@ -217,7 +218,7 @@ function providerTypeExpressionSourceProjection(
 ): readonly import("@tsonic/tsts").ProviderTypeExpression[] {
   switch (type.kind) {
     case "source-primitive":
-      return [{ kind: sourcePrimitiveSourceRuntimeKind(type.name) }];
+      return [{ kind: csharpSourcePrimitiveRuntimeKind(type.name) }];
     case "source-global":
       return [{
         ...type,
@@ -472,7 +473,7 @@ function providerTypeExpressionSourceShapeKey(
     case "literal":
       return { kind: "literal", value: type.value };
     case "source-primitive":
-      return { kind: sourcePrimitiveSourceRuntimeKind(type.name) };
+      return { kind: csharpSourcePrimitiveRuntimeKind(type.name) };
     case "source-global":
       return {
         kind: "source-global",
@@ -577,16 +578,6 @@ function providerRefSourceSpecificityScore(type: Extract<import("@tsonic/tsts").
   return 8 +
     sumProviderTypeExpressionScores(typeArguments) -
     (typeArguments.length * 4);
-}
-
-function sourcePrimitiveSourceRuntimeKind(name: string): "boolean" | "string" | "number" {
-  if (name === "bool") {
-    return "boolean";
-  }
-  if (name === "char") {
-    return "string";
-  }
-  return "number";
 }
 
 function dotnetSourceProjectionSignatureId(

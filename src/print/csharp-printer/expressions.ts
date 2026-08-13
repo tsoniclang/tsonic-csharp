@@ -17,6 +17,7 @@ import {
   escapeCsharpInterpolatedStringText,
   indentLines,
   printCharLiteral,
+  printIntegerLiteral,
   printLiteral,
   printNumericLiteral,
 } from "./format.js";
@@ -34,6 +35,8 @@ export function printCsharpExpression(
       return printLiteral(expression.value);
     case "NumericLiteralExpression":
       return printNumericLiteral(expression.value, expression.suffix);
+    case "IntegerLiteralExpression":
+      return printIntegerLiteral(expression.digits, expression.suffix);
     case "CharacterLiteralExpression":
       return printCharLiteral(expression.value);
     case "InterpolatedStringExpression":
@@ -134,6 +137,7 @@ function postfixOperandRequiresParentheses(
       return true;
     case "LiteralExpression":
     case "NumericLiteralExpression":
+    case "IntegerLiteralExpression":
     case "CharacterLiteralExpression":
     case "InterpolatedStringExpression":
     case "ParenthesizedExpression":

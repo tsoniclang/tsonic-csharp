@@ -53,6 +53,9 @@ import {
   applyCsharpConversionSelection,
 } from "../../translate/expressions/conversions.js";
 import {
+  planCsharpExactLiteralConversion,
+} from "../../translate/expressions/literal-conversions.js";
+import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
 import {
@@ -283,8 +286,25 @@ function planAssertionExpression(
     targetType,
     "explicit",
   );
+  if (selection.kind === "implicit" && selection.proof === "literal") {
+    const literal = planCsharpExactLiteralConversion(
+      input,
+      expressionNode,
+      targetType,
+    );
+    if (literal.kind === "resolved") {
+      return literal.expression;
+    }
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expressionNode,
+      literal.kind === "rejected"
+        ? literal.reason
+        : "A selected C# assertion-literal conversion requires an exact target literal representation.",
+    ));
+    return undefined;
+  }
   return applyCsharpConversionSelection(
-    node,
+    expressionNode,
     sourceFile,
     input,
     diagnostics,
