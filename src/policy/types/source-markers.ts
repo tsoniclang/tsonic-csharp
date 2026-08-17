@@ -5,6 +5,9 @@ import {
   pointerFactKey,
   structFactKey,
 } from "@tsonic/tsts";
+import {
+  tsonicFixedArrayFactKey,
+} from "@tsonic/source-core";
 import type {
   ExtensionFactSubject,
   Node,
@@ -39,6 +42,12 @@ export interface CsharpSourceFunctionPointerType {
   readonly sourceParameters: readonly Node[];
   readonly sourceResult: Node;
   readonly abi: readonly string[];
+}
+
+export interface CsharpSourceFixedArrayType {
+  readonly kind: "csharp-fixed-array";
+  readonly sourceElementType: Node;
+  readonly length: number;
 }
 
 export function readCsharpSourceDefaultValue(
@@ -115,6 +124,20 @@ export function readCsharpSourceFunctionPointerType(
         sourceParameters: Object.freeze([...fact.parameters]),
         sourceResult: fact.result,
         abi: Object.freeze([...fact.abi]),
+      });
+}
+
+export function readCsharpSourceFixedArrayType(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): CsharpSourceFixedArrayType | undefined {
+  const fact = sourceFacts?.getFact(subject, tsonicFixedArrayFactKey);
+  return fact === undefined
+    ? undefined
+    : Object.freeze({
+        kind: "csharp-fixed-array",
+        sourceElementType: fact.elementType,
+        length: fact.length,
       });
 }
 

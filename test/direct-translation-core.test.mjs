@@ -43,6 +43,40 @@ namespace Tsonic.Generated
 `);
 });
 
+test("direct C# translation consumes the exact shared FixedArray contract", () => {
+  const compiled = cleanCompile(`
+    import type { FixedArray, int32, uint8 } from "@tsonic/core/types.js";
+
+    export function update(values: FixedArray<uint8, 4>, index: int32): uint8 {
+      values[index] = 9;
+      return values[0];
+    }
+
+    export function size(values: FixedArray<uint8, 4>): int32 {
+      return values.length;
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static byte update(byte[] values, int index)
+        {
+            values[index] = 9;
+            return values[0];
+        }
+        public static int size(byte[] values)
+        {
+            return values.Length;
+        }
+    }
+}
+`);
+});
+
 test("direct C# translation lowers optional and rest parameters from checked source types", () => {
   const compiled = cleanCompile(`
     import type { int } from "@tsonic/csharp/types.js";

@@ -120,6 +120,7 @@ import {
 import {
   readCsharpSourceDefaultValue,
   readCsharpSourceField,
+  readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
   readCsharpSourcePointerType,
 } from "./source-markers.js";
@@ -2110,6 +2111,20 @@ export function createCsharpTypePolicy(
       const primitive = host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);
+      }
+      const fixedArray = readCsharpSourceFixedArrayType(
+        host.sourceFacts,
+        subject,
+      );
+      if (fixedArray !== undefined) {
+        const element = resolveNodeWithState(
+          fixedArray.sourceElementType,
+          sourceFile,
+          nextState(state),
+        );
+        if (element !== undefined) {
+          return { kind: "array", element };
+        }
       }
       const unsafeContext = readCsharpSourceUnsafeContext(
         host.sourceFacts,
