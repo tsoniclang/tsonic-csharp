@@ -265,7 +265,7 @@ export function staticMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpCallFinalization" | "csharpInvocation"
+    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
   return Object.freeze({
@@ -308,6 +308,10 @@ export function receiverHelperMethod(
   receiverType: TargetTypeRef,
   parameters: readonly CsharpTargetParameter[],
   returnType: TargetTypeRef,
+  options: Pick<
+    CsharpTargetMember,
+    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
+  > = {},
 ): CsharpTargetMember {
   return Object.freeze({
     ...staticMethod(
@@ -317,6 +321,7 @@ export function receiverHelperMethod(
       declaringType,
       [targetParameter("receiver", receiverType), ...parameters],
       returnType,
+      options,
     ),
     receiverPassing: "first-argument",
   });

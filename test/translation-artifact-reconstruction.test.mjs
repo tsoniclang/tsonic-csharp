@@ -49,10 +49,11 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     kind: "accepted",
   });
   assert.deepEqual(
-    artifacts.requireJsonSerialization(
+    artifacts.requireObjectShapeCapability(
       undefined,
       outerType,
       {},
+      "json-serialization",
       "object-shape",
     ),
     { kind: "accepted" },
@@ -65,13 +66,14 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
     contract: artifacts.contractGraph.contract(outerOwner),
     dependencies: [
       { owner: innerOwner, facet: "object-shape-type-surface" },
-      { owner: innerOwner, facet: "object-shape-serialization" },
+      { owner: innerOwner, facet: "object-shape-behavior" },
     ],
     artifact: {
       kind: "object-shape",
       fact: outer,
       materialization: "synthetic",
-      jsonSerializable: true,
+      capabilities: ["json-serialization"],
+      projections: [],
     },
   });
 });

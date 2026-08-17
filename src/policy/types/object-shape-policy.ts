@@ -300,9 +300,9 @@ export function createCsharpObjectShapePolicy(
     node: Node,
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
-    const canonical = rememberTargetShape(shape);
-    nodeShapes.set(node, canonical);
-    return canonical;
+    rememberTargetShape(shape);
+    nodeShapes.set(node, shape);
+    return shape;
   }
 
   function rememberTargetShape(
@@ -482,6 +482,9 @@ export function createCsharpObjectShapePolicy(
       sourceSubjects: declarations.length === 0
         ? [property.symbol]
         : [property.symbol, ...declarations],
+      ...(declarations.length === 0
+        ? {}
+        : { sourceDeclarations: Object.freeze([...declarations]) }),
       sourceTypes: [sourceType],
       targetName: objectShapeMemberTargetName(sourceName),
       memberKind: method ? "method" : "property",
@@ -875,6 +878,10 @@ function mergeCsharpObjectShapeSubjects(
         ...(member.sourceTypes ?? []),
         ...(other.sourceTypes ?? []),
       ]);
+      const sourceDeclarations = new Set([
+        ...(member.sourceDeclarations ?? []),
+        ...(other.sourceDeclarations ?? []),
+      ]);
       return {
         ...member,
         ...(subjects.size === 0
@@ -883,6 +890,9 @@ function mergeCsharpObjectShapeSubjects(
         ...(sourceTypes.size === 0
           ? {}
           : { sourceTypes: Object.freeze([...sourceTypes]) }),
+        ...(sourceDeclarations.size === 0
+          ? {}
+          : { sourceDeclarations: Object.freeze([...sourceDeclarations]) }),
       };
     }),
   };

@@ -25,10 +25,12 @@ import type {
 } from "../../policy/members/index.js";
 import type {
   CsharpTargetMember,
+  CsharpObjectShapeProjection,
   CsharpTargetParameter,
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
+  csharpObjectShapeProjectionMethodName,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
 } from "../../policy/types/index.js";
@@ -320,16 +322,15 @@ function translateSelectedTargetCall(
     ));
     return undefined;
   }
-  if (
-    !registerSelectedCallArtifacts(
+  const registeredArtifacts = registerSelectedCallArtifacts(
       node,
       source,
       selection.targetMember,
       sourceFile,
       input,
       diagnostics,
-    )
-  ) {
+    );
+  if (registeredArtifacts === undefined) {
     return undefined;
   }
   const arguments_ = translateSelectedTargetArguments(
@@ -350,6 +351,18 @@ function translateSelectedTargetCall(
       node,
       selection.targetMember,
       arguments_,
+      diagnostics,
+    );
+  }
+  if (
+    selection.targetMember.csharpInvocation?.kind ===
+      "object-shape-projection"
+  ) {
+    return translateObjectShapeProjectionCall(
+      node,
+      selection.targetMember,
+      arguments_,
+      registeredArtifacts.objectShapeProjection,
       diagnostics,
     );
   }
@@ -378,33 +391,120 @@ function registerSelectedCallArtifacts(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
-): boolean {
-  const requirement = member.csharpCallFinalization;
-  if (requirement === undefined) {
-    return true;
+): { readonly objectShapeProjection?: CsharpObjectShapeProjection } | undefined {
+  const requirements = member.csharpArtifactRequirements;
+  if (requirements === undefined || requirements.length === 0) {
+    return {};
   }
-  const argument = source.sourceArguments[requirement.argumentIndex]?.expression;
-  const targetType = input.types.resolveNode(argument, sourceFile);
-  if (argument === undefined || targetType === undefined) {
+  let objectShapeProjection: CsharpObjectShapeProjection | undefined;
+  for (const requirement of requirements) {
+    const subject = requirement.source.kind === "receiver"
+      ? source.sourceReceiver?.expression
+      : source.sourceArguments[requirement.source.index]?.expression;
+    const requirementName = requirement.kind === "object-shape-capability"
+      ? requirement.capability
+      : requirement.projection;
+    if (subject === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected target call '${member.id}' requires exact '${requirementName}' source-value evidence.`,
+      ));
+      return undefined;
+    }
+    const targetType = input.types.resolveNode(subject, sourceFile);
+    if (targetType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected target call '${member.id}' requires exact '${requirementName}' source-value type evidence.`,
+      ));
+      return undefined;
+    }
+    if (requirement.kind === "object-shape-capability") {
+      const result = input.artifacts.requireObjectShapeCapability(
+          subject,
+          targetType,
+          sourceFile,
+          requirement.capability,
+          requirement.rootKind,
+        );
+      if (result.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(subject, result.reason));
+        return undefined;
+      }
+      continue;
+    }
+    if (member.returnType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        subject,
+        `Selected target call '${member.id}' has no result type for its exact '${requirement.projection}' object projection.`,
+      ));
+      return undefined;
+    }
+    const result = input.artifacts.requireObjectShapeProjection(
+      subject,
+      targetType,
+      sourceFile,
+      requirement.projection,
+      member.returnType,
+      requirement.rootKind,
+    );
+    if (result.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(subject, result.reason));
+      return undefined;
+    }
+    if (
+      result.projection === undefined ||
+      objectShapeProjection !== undefined
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        subject,
+        `Selected target call '${member.id}' does not have one exact object-shape projection artifact.`,
+      ));
+      return undefined;
+    }
+    objectShapeProjection = result.projection;
+  }
+  return objectShapeProjection === undefined
+    ? {}
+    : { objectShapeProjection };
+}
+
+function translateObjectShapeProjectionCall(
+  node: Node,
+  member: CsharpTargetMember,
+  arguments_: readonly CsharpArgument[],
+  projection: CsharpObjectShapeProjection | undefined,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const invocation = member.csharpInvocation;
+  if (
+    invocation?.kind !== "object-shape-projection" ||
+    projection === undefined ||
+    projection.kind !== invocation.projection ||
+    member.returnType === undefined ||
+    invocation.targetParameterIndex !== 0 ||
+    arguments_.length === 0
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      `Selected target call '${member.id}' requires a closed JSON argument at source index ${requirement.argumentIndex}.`,
+      "Selected object-shape projection does not contain one exact receiver parameter and result type.",
     ));
-    return false;
+    return undefined;
   }
-  const result = input.artifacts.requireJsonSerialization(
-    argument,
-    targetType,
-    sourceFile,
-    requirement.kind === "closed-json-object-shape"
-      ? "object-shape"
-      : "value",
-  );
-  if (result.kind === "accepted") {
-    return true;
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(argument, result.reason));
-  return false;
+  const receiver = arguments_[0]!.expression;
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver,
+      name: csharpObjectShapeProjectionMethodName(
+        invocation.projection,
+        member.returnType,
+        projection.propertyOrder,
+      ),
+    },
+    arguments: arguments_.slice(1),
+  };
 }
 
 function translateSelectedTargetCallee(

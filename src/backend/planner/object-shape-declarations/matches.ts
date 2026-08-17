@@ -6,6 +6,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
+  CsharpObjectShapeProjection,
 } from "../../../policy/types/index.js";
 import {
   sameCsharpType,
@@ -26,11 +27,15 @@ import {
   csharpJsonValueInterfaceType,
   csharpJsonValueWriterMethodName,
 } from "../json-object-shapes.js";
+import {
+  csharpObjectShapeProjectionMethodName,
+} from "../../../policy/types/index.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
+  projections: readonly CsharpObjectShapeProjection[] = [],
 ): boolean {
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
@@ -39,7 +44,10 @@ export function objectShapeDeclarationMatches(
   const baseInterfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
   const interfaces = baseInterfaces === undefined
     ? undefined
-    : jsonSerializable ? [...baseInterfaces, csharpJsonValueInterfaceType()] : baseInterfaces;
+    : [
+        ...baseInterfaces,
+        ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+      ];
   if (interfaces === undefined || !objectShapeInterfacesMatch(declaration.interfaces, interfaces)) {
     return false;
   }
@@ -65,9 +73,27 @@ export function objectShapeDeclarationMatches(
   if (jsonSerializable && !declaration.members.some((member) => member.kind === "MethodDeclaration" && member.name === csharpJsonValueWriterMethodName)) {
     return false;
   }
+  const projectionMethodNames = new Set(
+    projections.map((projection) =>
+      csharpObjectShapeProjectionMethodName(
+        projection.kind,
+        projection.resultType,
+        projection.propertyOrder,
+      )
+    ),
+  );
+  if ([...projectionMethodNames].some((name) =>
+    !declaration.members.some((member) =>
+      member.kind === "MethodDeclaration" && member.name === name
+    ))) {
+    return false;
+  }
   return declaration.members.every((member) => {
     if (member.kind === "MethodDeclaration") {
       if (jsonSerializable && member.name === csharpJsonValueWriterMethodName) {
+        return true;
+      }
+      if (projectionMethodNames.has(member.name)) {
         return true;
       }
       return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);

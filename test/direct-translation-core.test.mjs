@@ -507,10 +507,10 @@ namespace Tsonic.Generated
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Array.join(Tsonic.CSharp.Js.Object.keys(new __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
+            return Tsonic.CSharp.Js.Array.join(new __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
             {
                 text = text,
-            }), ",");
+            }.__tsonicObjectKeys_48e9fd789833(), ",");
         }
     }
 }
@@ -524,10 +524,80 @@ namespace Tsonic.Generated
     public class __TsonicShape_7c3b331cd5d1373643f5977483d6aa93166da6914d799c49e21ed27cf150e1f8
     {
         public required string text;
+        public Tsonic.CSharp.Js.JSArray<string> __tsonicObjectKeys_48e9fd789833()
+        {
+            return new Tsonic.CSharp.Js.JSArray<string>(new string[] { "text" });
+        }
     }
 }
 `,
   );
+});
+
+test("direct JS translation emits exact closed own-property projections", () => {
+  const compiled = cleanCompile(`
+    export function project(): boolean {
+      const value = { tail: "tail", 10: "ten", 2: "two", "01": "leading" };
+      const keys = Object.keys(value);
+      const values = Object.values(value);
+      const entries = Object.entries(value);
+      const reordered = { "01": "leading", tail: "tail", 2: "two", 10: "ten" };
+      const reorderedKeys = Object.keys(reordered);
+      return keys.length === 4 && values.length === 4 && entries.length === 4 &&
+        reorderedKeys.length === 4 && Object.hasOwn(value, "tail") &&
+        value.hasOwnProperty("01");
+    }
+  `, { surface: "js" });
+
+  const source = compiled.artifacts.get("src/Index.cs");
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+  assert.doesNotMatch(source, /Tsonic\.CSharp\.Js\.Object\.(?:keys|values|entries|hasOwn)/u);
+  assert.match(source, /\.__tsonicObjectKeys_[a-f0-9]{12}\(\)/u);
+  assert.match(source, /\.__tsonicObjectValues_[a-f0-9]{12}\(\)/u);
+  assert.match(source, /\.__tsonicObjectEntries_[a-f0-9]{12}\(\)/u);
+  assert.equal(source.match(/\.__tsonicObjectHasOwn_[a-f0-9]{12}\(/gu)?.length, 2);
+  assert.match(
+    shapes,
+    /new string\[\] \{ "2", "10", "tail", "01" \}/u,
+  );
+  assert.match(
+    shapes,
+    /new string\[\] \{ "2", "10", "01", "tail" \}/u,
+  );
+  assert.equal(
+    new Set(source.match(/__tsonicObjectKeys_[a-f0-9]{12}/gu)).size,
+    2,
+  );
+  assert.match(shapes, /public Tsonic\.CSharp\.Js\.JSArray<string> __tsonicObjectValues_/u);
+  assert.match(shapes, /public Tsonic\.CSharp\.Js\.JSArray<\(string, string\)> __tsonicObjectEntries_/u);
+  assert.match(
+    shapes,
+    /key == "01" \|\| key == "10" \|\| key == "2" \|\| key == "tail"/u,
+  );
+});
+
+test("direct JS translation rejects open nominal own-property projections", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      interface Named { name: string }
+      export function keys(value: Named): string[] {
+        return Object.keys(value);
+      }
+    `,
+    surface: "js",
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(
+    compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
+    [{
+      code: "CSHARP_UNSUPPORTED_AST",
+      message:
+        "Selected 'keys' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.",
+    }],
+  );
+  assert.deepEqual([...compiled.artifacts], []);
 });
 
 test("direct C# translation retains a project interface as object-literal context", () => {

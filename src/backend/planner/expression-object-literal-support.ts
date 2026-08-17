@@ -2,6 +2,7 @@ import type { CsharpTranslationContext } from "../../translate/context/index.js"
 import {
   HasSourceKind,
   KindIdentifier,
+  KindNumericLiteral,
   KindStringLiteral,
   Node_Name,
   Node_Text,
@@ -33,6 +34,9 @@ import {
   getCsharpObjectShapeFactForNode,
   getCsharpObjectShapeFactForTargetType,
 } from "./csharp-fact-queries.js";
+import {
+  parseFiniteNumberLiteral,
+} from "../../source/source-literal-values.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
@@ -79,8 +83,30 @@ export function getObjectLiteralPropertySourceName(
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
-  if (nameNode === undefined || (!HasSourceKind(input.ast, nameNode, KindIdentifier) && !HasSourceKind(input.ast, nameNode, KindStringLiteral))) {
-    diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Object-shape object initializers require identifier or string-literal property names."));
+  if (nameNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      property,
+      "Object-shape object initializers require an exact authored property name.",
+    ));
+    return undefined;
+  }
+  if (HasSourceKind(input.ast, nameNode, KindNumericLiteral)) {
+    const value = parseFiniteNumberLiteral(Node_Text(input.ast, nameNode));
+    if (value === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        nameNode,
+        "Object-shape numeric property names require exact finite source literal semantics.",
+      ));
+      return undefined;
+    }
+    return String(value);
+  }
+  if (!HasSourceKind(input.ast, nameNode, KindIdentifier) &&
+    !HasSourceKind(input.ast, nameNode, KindStringLiteral)) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      nameNode,
+      "Object-shape object initializers require identifier, string-literal, or numeric-literal property names.",
+    ));
     return undefined;
   }
   return Node_Text(input.ast, nameNode);

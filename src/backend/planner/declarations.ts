@@ -107,15 +107,20 @@ export function planClassDeclaration(
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(heritage.interfaces.length === 0 && !jsonSerializable
       ? {}
-      : { interfaces: jsonSerializable ? [...heritage.interfaces, csharpJsonValueInterfaceType()] : heritage.interfaces }),
-    members: jsonSerializable && objectShape !== undefined
-      ? [
-          ...implicitConstructors,
-          ...safetyDefaultConstructors,
-          ...members,
-          renderJsonSerializableObjectShapeMethod(objectShape),
-        ]
-      : [...implicitConstructors, ...safetyDefaultConstructors, ...members],
+      : {
+          interfaces: [
+            ...heritage.interfaces,
+            ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+          ],
+        }),
+    members: [
+      ...implicitConstructors,
+      ...safetyDefaultConstructors,
+      ...members,
+      ...(jsonSerializable && objectShape !== undefined
+        ? [renderJsonSerializableObjectShapeMethod(objectShape)]
+        : []),
+    ],
   };
 }
 

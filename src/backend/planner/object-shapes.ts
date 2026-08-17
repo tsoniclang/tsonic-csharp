@@ -36,6 +36,9 @@ import {
   renderJsonSerializableObjectShapeMethod,
 } from "./json-object-shapes.js";
 import {
+  renderObjectShapeProjectionMethods,
+} from "./closed-object-shapes.js";
+import {
   finalizeCsharpCompilationUnit,
 } from "./csharp-compilation-unit.js";
 import {
@@ -148,8 +151,10 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const declaration = renderObjectShapeDeclaration(
+      input,
       artifact.fact,
-      artifact.jsonSerializable,
+      artifact.capabilities,
+      artifact.projections,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -161,7 +166,8 @@ export function materializeObjectShapeDeclarations(
       !objectShapeDeclarationMatches(
         existing,
         artifact.fact,
-        artifact.jsonSerializable,
+        artifact.capabilities.includes("json-serialization"),
+        artifact.projections,
       )
     ) {
       diagnostics.push({
@@ -213,10 +219,13 @@ export function planCsharpObjectShapeSourceFile(
 }
 
 function renderObjectShapeDeclaration(
+  input: CsharpTranslationContext,
   fact: CsharpObjectShapeFact,
-  jsonSerializable: boolean,
+  capabilities: readonly import("../../policy/types/index.js").CsharpObjectShapeCapability[],
+  projections: readonly import("../../policy/types/index.js").CsharpObjectShapeProjection[],
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {
+  const jsonSerializable = capabilities.includes("json-serialization");
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
   if (targetType === undefined || targetType.kind !== "IdentifierName") {
     diagnostics.push({
@@ -260,13 +269,21 @@ function renderObjectShapeDeclaration(
     ...(interfaces.length === 0 && !jsonSerializable
       ? {}
       : {
-          interfaces: jsonSerializable
-            ? [...interfaces, csharpJsonValueInterfaceType()]
-            : interfaces,
+          interfaces: [
+            ...interfaces,
+            ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+          ],
         }),
-    members: jsonSerializable
-      ? [...members, renderJsonSerializableObjectShapeMethod(fact)]
-      : members,
+    members: [
+      ...members,
+      ...(jsonSerializable ? [renderJsonSerializableObjectShapeMethod(fact)] : []),
+      ...renderObjectShapeProjectionMethods(
+        input,
+        fact,
+        projections,
+        diagnostics,
+      ),
+    ],
   };
 }
 
