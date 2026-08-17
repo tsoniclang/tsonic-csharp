@@ -12,6 +12,8 @@ import {
   sameCsharpType,
 } from "../csharp-types.js";
 import {
+  objectShapeAccessorGetterStorageMemberName,
+  objectShapeAccessorSetterStorageMemberName,
   objectShapeStorageMemberName,
 } from "../object-shape-storage.js";
 import {
@@ -62,6 +64,20 @@ export function objectShapeDeclarationMatches(
       }
       continue;
     }
+    if (member.accessor !== undefined) {
+      const getterName = objectShapeAccessorGetterStorageMemberName(fact, member);
+      const setterName = objectShapeAccessorSetterStorageMemberName(fact, member);
+      if (!declaration.members.some((candidate) =>
+        candidate.kind === "FieldDeclaration" && candidate.name === getterName
+      ) || member.accessor.setter && !declaration.members.some((candidate) =>
+        candidate.kind === "FieldDeclaration" && candidate.name === setterName
+      ) || !declaration.members.some((candidate) =>
+        candidate.kind === "PropertyDeclaration" && candidate.name === member.targetName
+      )) {
+        return false;
+      }
+      continue;
+    }
     const renderedType = csharpTypeFromTargetTypeRef(member.type);
     const declarationMember = declaration.members
       .filter(isObjectShapeStorageDeclaration)
@@ -100,7 +116,14 @@ export function objectShapeDeclarationMatches(
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
       return fact.members.some((candidate) =>
-        (candidate.memberKind === "method" ? objectShapeStorageMemberName(fact, candidate) : candidate.targetName) === member.name);
+        candidate.memberKind === "method"
+          ? objectShapeStorageMemberName(fact, candidate) === member.name
+          : candidate.accessor === undefined
+            ? candidate.targetName === member.name
+            : candidate.targetName === member.name ||
+              objectShapeAccessorGetterStorageMemberName(fact, candidate) === member.name ||
+              candidate.accessor.setter &&
+                objectShapeAccessorSetterStorageMemberName(fact, candidate) === member.name);
     }
     return true;
   });

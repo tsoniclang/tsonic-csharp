@@ -26,6 +26,7 @@ export function canUseCsharpCompatObjectShapeCarrier(
   return (implemented?.length ?? 0) === 0 &&
     members.every((member) =>
       member.memberKind === "property" &&
+      member.accessor === undefined &&
       isCsharpCompatValueTargetType(member.type)
     );
 }

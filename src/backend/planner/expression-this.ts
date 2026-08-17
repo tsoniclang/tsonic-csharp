@@ -33,14 +33,22 @@ export function planThisExpression(
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const binding = classifyThisBinding(node, input);
-  if (binding.kind === "unsupported") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, binding.reason));
-    return undefined;
+  if (input.sourceThisBinding === undefined) {
+    const binding = classifyThisBinding(node, input);
+    if (binding.kind === "unsupported") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, binding.reason));
+      return undefined;
+    }
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
-  if (probeCarrierFromResolution(carrierResolution) === undefined) {
-    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the TSTS-selected this receiver.");
+  const runtimeResolution = resolveRuntimeCarrierForExpression(
+    input,
+    node,
+    sourceFile,
+  );
+  const carrier = input.sourceThisBinding?.targetType ??
+    probeCarrierFromResolution(runtimeResolution);
+  if (carrier === undefined) {
+    const detail = missingCarrierDiagnosticDetail(runtimeResolution, "Runtime carrier fact is missing for the TSTS-selected this receiver.");
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       `C# this emission requires a finalized runtime carrier fact for the TSTS-selected instance receiver. ${detail.reason}`,
@@ -48,7 +56,10 @@ export function planThisExpression(
     ));
     return undefined;
   }
-  return { kind: "IdentifierName", name: "this" };
+  return {
+    kind: "IdentifierName",
+    name: input.sourceThisBinding?.name ?? "this",
+  };
 }
 
 type ThisBindingClassification =

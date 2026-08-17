@@ -11,6 +11,9 @@ import {
   csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,
 } from "./nullable.js";
+import {
+  targetTypeRefEquals,
+} from "./equality.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,
@@ -109,6 +112,95 @@ export function substituteTargetTypeParameters(
     case "target-specific":
       return type;
   }
+}
+
+export function inferCsharpTargetTypeParameterBindings(
+  pattern: TargetTypeRef,
+  actual: TargetTypeRef,
+  parameterNames: ReadonlySet<string>,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const bindings = new Map<string, TargetTypeRef>();
+  return match(pattern, actual) ? bindings : undefined;
+
+  function match(left: TargetTypeRef, right: TargetTypeRef): boolean {
+    if (left.kind === "type-parameter" && parameterNames.has(left.name)) {
+      const existing = bindings.get(left.name);
+      if (existing === undefined) {
+        bindings.set(left.name, right);
+        return true;
+      }
+      return targetTypeRefEquals(existing, right);
+    }
+    if (left.kind !== right.kind) {
+      return false;
+    }
+    switch (left.kind) {
+      case "source-global": {
+        if (right.kind !== "source-global" || left.name !== right.name) {
+          return false;
+        }
+        return matchArguments(left.typeArguments, right.typeArguments);
+      }
+      case "target-named": {
+        if (right.kind !== "target-named" || left.id !== right.id) {
+          return false;
+        }
+        return matchArguments(left.typeArguments, right.typeArguments);
+      }
+      case "array":
+        return right.kind === "array" &&
+          (left.rank ?? 1) === (right.rank ?? 1) &&
+          match(left.element, right.element);
+      case "tuple":
+        return right.kind === "tuple" &&
+          left.elements.length === right.elements.length &&
+          left.elements.every((element, index) =>
+            match(element, right.elements[index]!));
+      case "pointer":
+        return right.kind === "pointer" &&
+          (left.mutability ?? "target-defined") ===
+            (right.mutability ?? "target-defined") &&
+          match(left.pointee, right.pointee);
+      case "function-pointer":
+        return right.kind === "function-pointer" &&
+          stringListsEqual(left.abi, right.abi) &&
+          left.args.length === right.args.length &&
+          left.args.every((argument, index) =>
+            match(argument, right.args[index]!)) &&
+          match(left.result, right.result);
+      case "associated-type":
+        return right.kind === "associated-type" &&
+          left.name === right.name &&
+          match(left.owner, right.owner);
+      case "source-primitive":
+      case "type-parameter":
+      case "opaque":
+      case "lifetime":
+      case "target-specific":
+        return targetTypeRefEquals(left, right);
+    }
+  }
+
+  function matchArguments(
+    left: readonly TargetTypeRef[] | undefined,
+    right: readonly TargetTypeRef[] | undefined,
+  ): boolean {
+    const leftArguments = left ?? [];
+    const rightArguments = right ?? [];
+    return leftArguments.length === rightArguments.length &&
+      leftArguments.every((argument, index) =>
+        match(argument, rightArguments[index]!));
+  }
+}
+
+function stringListsEqual(
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): boolean {
+  const leftValues = left ?? [];
+  const rightValues = right ?? [];
+  return leftValues.length === rightValues.length &&
+    leftValues.every((value, index) => value === rightValues[index]);
 }
 
 function substituteObjectShapeFactTargetTypeParameters(

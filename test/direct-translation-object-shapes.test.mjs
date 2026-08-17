@@ -152,3 +152,82 @@ namespace Tsonic.Generated
 `,
   );
 });
+
+test("object-literal accessors lower through exact getter and setter delegates", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function update(seed: number): number {
+        let backing = seed;
+        const value = {
+          get current(): number { return backing; },
+          set current(next: number) { backing = next; },
+          get doubled(): number { return this.current * 2; },
+        };
+        value.current += 3;
+        return value.doubled;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  assert.match(source, /__tsonic_shape_accessor_getter_\w+ =/u);
+  assert.match(source, /__tsonic_shape_accessor_setter_\w+ =/u);
+  assert.match(source, /value\.current \+= 3/u);
+  assert.match(source, /return value\.doubled/u);
+  assert.match(shapes, /public required Func<[^,>]+, double> __tsonic_shape_accessor_getter_/u);
+  assert.match(shapes, /public required Action<[^,>]+, double> __tsonic_shape_accessor_setter_/u);
+  assert.match(shapes, /return __tsonic_shape_accessor_getter_\w+\(this\)/u);
+  assert.match(shapes, /__tsonic_shape_accessor_setter_\w+\(this, value\)/u);
+});
+
+test("getter-only object literals preserve readonly property contracts", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      type Snapshot = { readonly value: number };
+      export function read(seed: number): number {
+        const snapshot: Snapshot = {
+          get value(): number { return seed; },
+        };
+        return snapshot.value;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  assert.match(shapes, /public double value/u);
+  assert.doesNotMatch(shapes, /set\s*\{/u);
+});
+
+test("object-literal accessors fail closed without a complete native property contract", () => {
+  const setterOnly = compileCsharpSource({
+    sourceText: `
+      export function write(): void {
+        const value = { set current(next: number) {} };
+        value.current = 1;
+      }
+    `,
+  });
+  assert.equal(setterOnly.sourceDiagnosticsText, "");
+  assert.ok(setterOnly.targetDiagnostics.some(({ message }) =>
+    message.includes("has no getter and therefore no exact native read carrier")));
+
+  const writableContract = compileCsharpSource({
+    sourceText: `
+      type Mutable = { value: number };
+      export function read(): number {
+        const value: Mutable = { get value(): number { return 1; } };
+        return value.value;
+      }
+    `,
+  });
+  assert.equal(writableContract.sourceDiagnosticsText, "");
+  assert.ok(writableContract.targetDiagnostics.some(({ message }) =>
+    message.includes("cannot satisfy the selected writable property contract")));
+});

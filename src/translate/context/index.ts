@@ -83,6 +83,10 @@ export interface CsharpTranslationContext
   readonly names: CsharpSourceNameResolver;
   readonly attributeApplications: CsharpAttributeApplicationFactIndex;
   readonly safetyApplications: CsharpSafetyApplicationFactIndex;
+  readonly sourceThisBinding?: {
+    readonly name: string;
+    readonly targetType: TargetTypeRef;
+  };
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
@@ -260,8 +264,12 @@ export function createCsharpScopedTranslationContext(
     resolveType(type, sourceFile) {
       return input.objectShapes.resolveType(type, sourceFile);
     },
-    resolveObjectLiteralTargetShape(expectedShape) {
-      return input.objectShapes.resolveObjectLiteralTargetShape(expectedShape);
+    resolveObjectLiteralTargetShape(expectedShape, objectLiteral, sourceFile) {
+      return input.objectShapes.resolveObjectLiteralTargetShape(
+        expectedShape,
+        objectLiteral,
+        sourceFile,
+      );
     },
     resolveProjectConstructibleSelectedType(
       targetType,
@@ -288,4 +296,15 @@ export function createCsharpScopedTranslationContext(
       objectShapes,
     }),
   };
+}
+
+export function createCsharpThisBindingTranslationContext(
+  input: CsharpTranslationContext,
+  name: string,
+  targetType: TargetTypeRef,
+): CsharpTranslationContext {
+  return Object.freeze({
+    ...input,
+    sourceThisBinding: Object.freeze({ name, targetType }),
+  });
 }

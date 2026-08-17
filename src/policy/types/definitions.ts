@@ -17,6 +17,11 @@ export interface CsharpObjectShapeMemberFact {
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
   readonly optional?: boolean;
+  readonly readonly?: boolean;
+  readonly accessor?: {
+    readonly getter: true;
+    readonly setter: boolean;
+  };
 }
 
 export interface CsharpObjectShapeFact {

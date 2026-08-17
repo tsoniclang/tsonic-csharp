@@ -79,20 +79,46 @@ export function selectCsharpObjectShapePropertyOrder(
         );
   }
   const selected = fact.members.map((member) => {
-    const declarations = member.sourceDeclarations?.filter((declaration) =>
-      ast.is.IsPropertyAssignment(declaration) ||
-      ast.is.IsShorthandPropertyAssignment(declaration) ||
-      ast.is.IsMethodDeclaration(declaration)
-    ) ?? [];
-    if (declarations.length !== 1 || member.sourceDeclarations?.length !== 1) {
+    const declarations = member.sourceDeclarations?.filter((declaration) => {
+      const owner = ast.parent(declaration);
+      return owner !== undefined && ast.is.IsObjectLiteralExpression(owner) && (
+        ast.is.IsPropertyAssignment(declaration) ||
+        ast.is.IsShorthandPropertyAssignment(declaration) ||
+        ast.is.IsMethodDeclaration(declaration) ||
+        ast.is.IsGetAccessorDeclaration(declaration) ||
+        ast.is.IsSetAccessorDeclaration(declaration)
+      );
+    }) ?? [];
+    const getters = declarations.filter((declaration) =>
+      ast.is.IsGetAccessorDeclaration(declaration)
+    );
+    const setters = declarations.filter((declaration) =>
+      ast.is.IsSetAccessorDeclaration(declaration)
+    );
+    const expectedDeclarationCount = member.accessor === undefined
+      ? 1
+      : member.accessor.setter
+        ? 2
+        : 1;
+    if (declarations.length !== expectedDeclarationCount ||
+      (member.accessor === undefined && (getters.length !== 0 || setters.length !== 0)) ||
+      (member.accessor !== undefined && (
+        getters.length !== 1 || setters.length !== (member.accessor.setter ? 1 : 0)
+      ))) {
       return undefined;
     }
-    const declaration = declarations[0]!;
-    const owner = ast.parent(declaration);
-    const range = ast.authoredRange(declaration);
+    const owner = ast.parent(declarations[0]!);
+    const ranges = declarations.map((declaration) => ast.authoredRange(declaration));
     return owner !== undefined && ast.is.IsObjectLiteralExpression(owner) &&
-        range.kind === "authored"
-      ? { member, declaration, owner, start: range.start }
+        declarations.every((declaration) => ast.parent(declaration) === owner) &&
+        ranges.every((range) => range.kind === "authored")
+      ? {
+          member,
+          declarations,
+          owner,
+          start: Math.min(...ranges.map((range) =>
+            range.kind === "authored" ? range.start : Number.MAX_SAFE_INTEGER)),
+        }
       : undefined;
   });
   if (selected.some((entry) => entry === undefined)) {
@@ -103,11 +129,11 @@ export function selectCsharpObjectShapePropertyOrder(
   const entries = selected as readonly NonNullable<typeof selected[number]>[];
   const owner = entries[0]!.owner;
   const ownerProperties = ast.properties(owner);
-  const declarations = new Set(entries.map((entry) => entry.declaration));
+  const declarations = new Set(entries.flatMap((entry) => entry.declarations));
   if (
     entries.some((entry) => entry.owner !== owner) ||
     new Set(entries.map((entry) => entry.start)).size !== entries.length ||
-    ownerProperties.length !== entries.length ||
+    ownerProperties.length !== declarations.size ||
     ownerProperties.some((property) =>
       property === undefined || !declarations.has(property)
     )

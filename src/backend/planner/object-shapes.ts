@@ -49,6 +49,9 @@ import {
 } from "../../options/csharp-target-options.js";
 
 export {
+  objectShapeAccessorGetterStorageMemberName,
+  objectShapeAccessorSetterStorageMemberName,
+  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
 

@@ -871,9 +871,9 @@ export function translateSourceOwnedArguments(
     const parameter = source.sourceSelectedSignatureParameters[
       first.sourceParameterIndex
     ];
-    const targetType = input.types.resolveSourceCallParameter(
+    const targetType = input.types.resolveSourceCallArgumentParameter(
       source,
-      first.sourceParameterIndex,
+      first,
       sourceFile,
     );
     if (parameter === undefined || targetType === undefined) {

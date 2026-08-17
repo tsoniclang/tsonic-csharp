@@ -3,9 +3,11 @@ import {
   AsPropertyAssignment,
   AsShorthandPropertyAssignment,
   KindMethodDeclaration,
+  KindGetAccessor,
   KindPropertyAssignment,
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
+  KindSetAccessor,
   Node_Name,
   SourceKind,
 } from "./source-ast.js";
@@ -45,6 +47,9 @@ import {
   planObjectShapeMethodMemberAssignment,
 } from "./expression-object-literal-methods.js";
 import {
+  planObjectShapeAccessorMemberAssignment,
+} from "./expression-object-literal-accessors.js";
+import {
   planObjectShapeSpreadAssignments,
 } from "./expression-object-literal-spread.js";
 
@@ -78,6 +83,17 @@ export function planObjectShapeLiteralAssignment(
     }
     case KindMethodDeclaration: {
       const assignment = planObjectShapeMethodMemberAssignment(property, objectShape, sourceFile, input, diagnostics);
+      return assignment === undefined ? undefined : [assignment];
+    }
+    case KindGetAccessor:
+    case KindSetAccessor: {
+      const assignment = planObjectShapeAccessorMemberAssignment(
+        property,
+        objectShape,
+        sourceFile,
+        input,
+        diagnostics,
+      );
       return assignment === undefined ? undefined : [assignment];
     }
     case KindSpreadAssignment:

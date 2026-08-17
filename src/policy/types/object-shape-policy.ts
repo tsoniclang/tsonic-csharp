@@ -15,6 +15,11 @@ import type {
   SourceFileSemantics,
 } from "@tsonic/target-api";
 import {
+  selectSourceObjectLiteralAccessors,
+  sourcePropertyTypeEvidenceNodes,
+  sourceTransformedTypeFactEvidenceNodes,
+} from "@tsonic/target-api";
+import {
   isPlainCsharpIdentifier,
 } from "../../csharp-identifiers.js";
 import {
@@ -69,10 +74,13 @@ export interface CsharpObjectShapePolicy {
   resolveType(
     type: Type | undefined,
     sourceFile: SourceFile,
+    authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined;
   resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact,
-  ): CsharpObjectShapeFact;
+    expectedShape: CsharpObjectShapeFact | undefined,
+    objectLiteral: Node,
+    sourceFile: SourceFile,
+  ): CsharpObjectLiteralTargetShapeResolution;
   resolveProjectConstructibleSelectedType(
     targetType: TargetTypeRef,
     explicitTypeNode: Node | undefined,
@@ -81,6 +89,15 @@ export interface CsharpObjectShapePolicy {
     sourceFile: SourceFile,
   ): CsharpProjectConstructibleTypeProjection;
 }
+
+export type CsharpObjectLiteralTargetShapeResolution =
+  | { readonly kind: "not-applicable" }
+  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
+  | {
+      readonly kind: "rejected";
+      readonly subject: Node;
+      readonly reason: string;
+    };
 
 export type CsharpProjectConstructibleTypeProjection =
   | { readonly kind: "unchanged" }
@@ -172,6 +189,7 @@ export function createCsharpObjectShapePolicy(
   function resolveType(
     type: Type | undefined,
     sourceFile: SourceFile,
+    authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined {
     if (type === undefined) {
       return undefined;
@@ -180,29 +198,148 @@ export function createCsharpObjectShapePolicy(
       type,
       undefined,
       host.semantics(sourceFile),
+      undefined,
+      authoredTypeRoot,
     );
     return shape === undefined ? undefined : rememberTargetShape(shape);
   }
 
   function resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact,
-  ): CsharpObjectShapeFact {
-    if (
-      expectedShape.targetType.kind !== "target-named" ||
-      (expectedShape.targetType as CsharpTargetNamedTypeRef)
-          .csharpSourceDeclarationKind !== "interface"
-    ) {
-      return expectedShape;
+    expectedShape: CsharpObjectShapeFact | undefined,
+    objectLiteral: Node,
+    sourceFile: SourceFile,
+  ): CsharpObjectLiteralTargetShapeResolution {
+    const accessors = selectSourceObjectLiteralAccessors(
+      host.ast,
+      host.semantics(sourceFile),
+      objectLiteral,
+    );
+    if (accessors.kind === "rejected") {
+      return {
+        kind: "rejected",
+        subject: accessors.element,
+        reason: accessors.reason,
+      };
     }
-    return rememberTargetShape({
+    if (expectedShape === undefined) {
+      if (accessors.kind === "none") {
+        return { kind: "not-applicable" };
+      }
+      const setterOnly = accessors.members.find((member) =>
+        member.getter === undefined
+      );
+      return setterOnly === undefined
+        ? {
+            kind: "rejected",
+            subject: accessors.members[0]!.getter!.element,
+            reason:
+              "Object-literal accessor has no exact finalized property-shape contract.",
+          }
+        : {
+            kind: "rejected",
+            subject: setterOnly.setter!.element,
+            reason: `Object-literal setter '${setterOnly.sourceName}' has no getter and therefore no exact native read carrier.`,
+          };
+    }
+    const implemented = expectedShape.targetType.kind === "target-named" &&
+        (expectedShape.targetType as CsharpTargetNamedTypeRef)
+            .csharpSourceDeclarationKind === "interface"
+      ? [expectedShape.targetType]
+      : expectedShape.implements;
+    if (accessors.kind === "none" && implemented === expectedShape.implements) {
+      return { kind: "resolved", shape: expectedShape };
+    }
+    const members = [...expectedShape.members];
+    if (accessors.kind === "resolved") {
+      for (const accessor of accessors.members) {
+        const selectedSubjects = [
+          accessor.sourceSelectedSymbol,
+          ...accessor.sourceSelectedDeclarations,
+        ];
+        const selectedTypes = [
+          ...(accessor.getter === undefined
+            ? []
+            : [accessor.getter.sourceSelectedType]),
+          ...(accessor.setter === undefined
+            ? []
+            : [accessor.setter.sourceSelectedType]),
+        ];
+        const matches = members
+          .map((member, index) => ({ member, index }))
+          .filter(({ member }) =>
+            member.sourceSubjects?.some((subject) =>
+              selectedSubjects.some((selected) => selected === subject)
+            ) === true &&
+            selectedTypes.every((selectedType) =>
+              member.sourceTypes?.some((sourceType) =>
+                sourceType === selectedType
+              ) === true
+            )
+          );
+        if (matches.length !== 1 || matches[0]!.member.memberKind !== "property") {
+          return {
+            kind: "rejected",
+            subject: accessor.getter?.element ?? accessor.setter!.element,
+            reason: `Object-literal accessor '${accessor.sourceName}' does not match one exact finalized property-shape member.`,
+          };
+        }
+        const matched = matches[0]!;
+        if (accessor.getter === undefined) {
+          return {
+            kind: "rejected",
+            subject: accessor.setter!.element,
+            reason: `Object-literal setter '${accessor.sourceName}' has no getter and therefore no exact native read carrier.`,
+          };
+        }
+        if (matched.member.readonly !== true && accessor.setter === undefined) {
+          return {
+            kind: "rejected",
+            subject: accessor.getter.element,
+            reason: `Object-literal getter '${accessor.sourceName}' cannot satisfy the selected writable property contract without an exact setter.`,
+          };
+        }
+        members[matched.index] = {
+          ...matched.member,
+          sourceSubjects: Object.freeze([
+            ...(matched.member.sourceSubjects ?? []),
+            accessor.sourceSelectedSymbol,
+            ...accessor.sourceSelectedDeclarations,
+            accessor.getter.element,
+            ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
+          ]),
+          sourceDeclarations: Object.freeze([
+            ...(matched.member.sourceDeclarations ?? []),
+            accessor.getter.element,
+            ...(accessor.setter === undefined ? [] : [accessor.setter.element]),
+          ]),
+          sourceTypes: Object.freeze([
+            ...(matched.member.sourceTypes ?? []),
+            accessor.getter.sourceSelectedType,
+            accessor.getter.sourceElementType,
+            ...(accessor.setter === undefined
+              ? []
+              : [
+                  accessor.setter.sourceSelectedType,
+                  accessor.setter.sourceElementType,
+                ]),
+          ]),
+          accessor: {
+            getter: true,
+            setter: accessor.setter !== undefined,
+          },
+        };
+      }
+    }
+    const shape = rememberTargetShape({
       targetType: createStructuralObjectShapeTarget(
-        expectedShape.members,
-        [expectedShape.targetType],
+        members,
+        implemented,
         host,
       ),
-      members: expectedShape.members,
-      implements: [expectedShape.targetType],
+      members,
+      ...(implemented === undefined ? {} : { implements: implemented }),
     });
+    return { kind: "resolved", shape };
   }
 
   function resolveProjectConstructibleSelectedType(
@@ -368,6 +505,7 @@ export function createCsharpObjectShapePolicy(
     node: Node | undefined,
     queries: SourceFileSemantics,
     selectedTarget?: TargetTypeRef,
+    authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined {
     if (
       type === undefined ||
@@ -399,7 +537,7 @@ export function createCsharpObjectShapePolicy(
       if (declaredKind === "enum") {
         return undefined;
       }
-      const members = deriveMembers(type, queries);
+      const members = deriveMembers(type, queries, authoredTypeRoot);
       if (members === undefined) {
         return undefined;
       }
@@ -446,9 +584,10 @@ export function createCsharpObjectShapePolicy(
   function deriveMembers(
     ownerType: Type,
     queries: SourceFileSemantics,
+    authoredTypeRoot?: Node,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const members = queries.getPropertyInfos(ownerType).map((property) =>
-      deriveMember(property, queries)
+      deriveMember(property, queries, authoredTypeRoot)
     );
     return members.some((member) => member === undefined)
       ? undefined
@@ -458,21 +597,42 @@ export function createCsharpObjectShapePolicy(
   function deriveMember(
     property: TypePropertyInfo,
     queries: SourceFileSemantics,
+    authoredTypeRoot?: Node,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourceName = property.name;
     if (sourceName.length === 0) {
       return undefined;
     }
-    const declarations = queries.getSymbolDeclarations(property.symbol)
+    const declarations = [...new Set([
+      ...queries.getSymbolDeclarations(property.symbol),
+      ...property.rootSymbols.flatMap((symbol) =>
+        queries.getSymbolDeclarations(symbol)
+      ),
+    ])]
       .filter((declaration): declaration is Node => declaration !== undefined);
     const sourceType = property.type;
     const method = declarations.some((declaration) =>
       host.ast.is.IsMethodDeclaration(declaration) ||
       host.ast.is.IsMethodSignatureDeclaration(declaration)
     );
+    const getters = declarations.filter((declaration) =>
+      host.ast.is.IsGetAccessorDeclaration(declaration)
+    );
+    const setters = declarations.filter((declaration) =>
+      host.ast.is.IsSetAccessorDeclaration(declaration)
+    );
+    if (getters.length > 1 || setters.length > 1 ||
+      (getters.length === 0 && setters.length > 0)) {
+      return undefined;
+    }
     const memberType = method
       ? host.types.resolveType(sourceType, queries.sourceFile)
-      : resolvePropertyType(declarations, sourceType, queries);
+      : resolvePropertyType(
+          property,
+          sourceType,
+          queries,
+          authoredTypeRoot,
+        );
     if (memberType === undefined) {
       return undefined;
     }
@@ -490,20 +650,35 @@ export function createCsharpObjectShapePolicy(
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
       ...(optional ? { optional: true } : {}),
+      ...(property.readonly ? { readonly: true } : {}),
+      ...(getters.length === 0
+        ? {}
+        : {
+            accessor: {
+              getter: true as const,
+              setter: setters.length === 1,
+            },
+          }),
     };
   }
 
   function resolvePropertyType(
-    declarations: readonly Node[],
+    property: TypePropertyInfo,
     sourceType: Type,
     queries: SourceFileSemantics,
+    authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined {
-    const authoredTypeNodes = declarations
-      .filter((declaration) =>
-        host.navigation.isProjectDeclaration(declaration)
-      )
-      .map(propertyDeclarationTypeNode)
-      .filter((typeNode): typeNode is Node => typeNode !== undefined);
+    const authoredTypeNodes = [
+      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
+      ...(authoredTypeRoot === undefined
+        ? []
+        : sourceTransformedTypeFactEvidenceNodes(
+            host.ast,
+            queries,
+            authoredTypeRoot,
+            sourceType,
+          )),
+    ];
     if (authoredTypeNodes.length === 0) {
       return host.types.resolveType(sourceType, queries.sourceFile);
     }
@@ -523,21 +698,6 @@ export function createCsharpObjectShapePolicy(
       )
       ? first
       : undefined;
-  }
-
-  function propertyDeclarationTypeNode(
-    declaration: Node,
-  ): Node | undefined {
-    if (host.ast.is.IsPropertyDeclaration(declaration)) {
-      return host.ast.as.AsPropertyDeclaration(declaration)?.Type;
-    }
-    if (host.ast.is.IsPropertySignatureDeclaration(declaration)) {
-      return host.ast.as.AsPropertySignatureDeclaration(declaration)?.Type;
-    }
-    if (host.ast.is.IsGetAccessorDeclaration(declaration)) {
-      return host.ast.as.AsGetAccessorDeclaration(declaration)?.Type;
-    }
-    return undefined;
   }
 
   return Object.freeze({
@@ -915,6 +1075,8 @@ export function csharpObjectShapesEqual(
         member.targetName === other.targetName &&
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&
+        member.accessor?.getter === other.accessor?.getter &&
+        member.accessor?.setter === other.accessor?.setter &&
         targetTypeRefEquals(member.type, other.type);
     });
 }

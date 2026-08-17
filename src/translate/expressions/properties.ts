@@ -353,6 +353,7 @@ function translateSourceOwnedProperty(
   const selectedReadType = resolveCsharpObjectShapeMemberReadTargetType(
     shapeMember.member,
     selection.source.sourceReadType,
+    (left, right) => semantics.getTypeRelationship(left, right) !== "unrelated",
   ) ?? input.types.resolveSelectedResult(
       selection.source.selectedDeclaration,
       selection.source.sourceReadType,

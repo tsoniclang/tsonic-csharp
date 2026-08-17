@@ -1,4 +1,5 @@
 import type {
+  ExtensionFactSubject,
   Node,
   SourceFile,
   Type,
@@ -9,6 +10,10 @@ import type {
 import {
   createCsharpObjectShapePolicy,
 } from "./object-shape-policy.js";
+import {
+  resolveCsharpObjectShapeMemberBySelectedSubject,
+  resolveCsharpObjectShapeMemberReadTargetType,
+} from "./object-shape-members.js";
 import type {
   CsharpTypePolicy,
   CsharpTypePolicyBaseHost,
@@ -32,6 +37,9 @@ import {
 import {
   csharpTargetTypeComponents,
 } from "./target-type-components.js";
+import type {
+  TargetTypeRef,
+} from "./definitions.js";
 
 export interface CsharpTypeSystem {
   readonly types: CsharpTypePolicy;
@@ -84,13 +92,45 @@ export function createCsharpTypeSystem(
       resolveType(
         type: Type,
         sourceFile: SourceFile,
+        authoredTypeRoot?: Node,
       ) {
         if (objectShapes === undefined) {
           throw new Error(
             "C# structural type resolution ran before the type system was fully initialized.",
           );
         }
-        return objectShapes.resolveType(type, sourceFile)?.targetType;
+        return objectShapes.resolveType(
+          type,
+          sourceFile,
+          authoredTypeRoot,
+        )?.targetType;
+      },
+      resolveSelectedProperty(
+        receiverType: TargetTypeRef | undefined,
+        selectedSubjects: readonly ExtensionFactSubject[],
+        selectedType: Type | undefined,
+        sourceFile: SourceFile,
+      ) {
+        if (objectShapes === undefined || receiverType === undefined) {
+          return undefined;
+        }
+        const shape = objectShapes.resolveTarget(receiverType);
+        if (shape === undefined) {
+          return undefined;
+        }
+        const selected = resolveCsharpObjectShapeMemberBySelectedSubject(
+          shape,
+          selectedSubjects,
+        );
+        return selected.kind === "resolved"
+          ? resolveCsharpObjectShapeMemberReadTargetType(
+              selected.member,
+              selectedType,
+              (left, right) =>
+                host.semantics(sourceFile).getTypeRelationship(left, right) !==
+                  "unrelated",
+            )
+          : undefined;
       },
     },
   });

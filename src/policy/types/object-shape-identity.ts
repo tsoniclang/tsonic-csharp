@@ -14,7 +14,11 @@ export function csharpObjectShapeMemberContractParts(
     member.targetName,
     member.memberKind,
     member.optional === true ? "optional" : "required",
-    "mutable",
+    member.accessor === undefined
+      ? "mutable"
+      : member.accessor.setter
+        ? "getter-setter"
+        : "getter",
     targetTypeRefKey(member.type),
   ];
 }

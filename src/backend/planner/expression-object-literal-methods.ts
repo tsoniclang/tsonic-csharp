@@ -1,3 +1,6 @@
+import {
+  createCsharpThisBindingTranslationContext,
+} from "../../translate/context/index.js";
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsMethodDeclaration,
@@ -12,7 +15,6 @@ import type {
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
@@ -22,10 +24,15 @@ import {
 } from "./diagnostics.js";
 import {
   objectShapeStorageMemberName,
+  objectShapeMethodStorageTargetType,
 } from "./object-shapes.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  allocateSyntheticParameter,
+  createDestructuringPlannerState,
+} from "./bindings.js";
 import {
   isAsyncExpression,
   csharpDelegateSignatureFromTargetTypeRef,
@@ -51,8 +58,15 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;
   }
-  const memberType = csharpTypeFromTargetTypeRef(member.type);
-  if (memberType === undefined) {
+  const storageTargetType = objectShapeMethodStorageTargetType(
+    objectShape,
+    member,
+  );
+  const storageType = storageTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(storageTargetType);
+  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType);
+  if (storageTargetType === undefined || storageType === undefined || selfType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
     return undefined;
   }
@@ -60,7 +74,15 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`));
     return undefined;
   }
-  const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType, member.type);
+  const expression = planObjectLiteralMethodAsLambda(
+    methodNode,
+    sourceFile,
+    input,
+    diagnostics,
+    objectShape,
+    member.type,
+    selfType,
+  );
   if (expression === undefined) {
     return undefined;
   }
@@ -76,11 +98,11 @@ function planObjectLiteralMethodAsLambda(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
+  objectShape: CsharpObjectShapeFact,
   expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
+  selfType: NonNullable<ReturnType<typeof csharpTypeFromTargetTypeRef>>,
 ): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
-  void expectedType;
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
     return undefined;
@@ -93,15 +115,40 @@ function planObjectLiteralMethodAsLambda(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
     return undefined;
   }
+  const state = createDestructuringPlannerState(methodNode, input.ast);
+  const selfName = allocateSyntheticParameter(state);
+  const scopedInput = createCsharpThisBindingTranslationContext(
+    input,
+    selfName,
+    objectShape.targetType,
+  );
   const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
-  const body = planLambdaBlockBody(methodNode, method.Body, sourceFile, input, diagnostics, undefined, targetContext);
+  const body = planLambdaBlockBody(
+    methodNode,
+    method.Body,
+    sourceFile,
+    scopedInput,
+    diagnostics,
+    state,
+    targetContext,
+  );
   if (body === undefined) {
     return undefined;
   }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
-    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, targetContext),
+    parameters: [
+      { kind: "Parameter", name: selfName, type: selfType },
+      ...planLambdaParameters(
+        method.Parameters?.Nodes ?? [],
+        sourceFile,
+        scopedInput,
+        diagnostics,
+        state,
+        targetContext,
+      ),
+    ],
     body,
   };
 }
