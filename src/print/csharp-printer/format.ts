@@ -7,7 +7,7 @@ export function printLiteral(value: string | number | boolean | null): string {
     return "null";
   }
   if (typeof value === "string") {
-    return JSON.stringify(value);
+    return `"${escapeCsharpStringText(value, false)}"`;
   }
   return String(value);
 }
@@ -28,14 +28,76 @@ export function printCharLiteral(value: string): string {
 }
 
 export function escapeCsharpInterpolatedStringText(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, "\\\"")
-    .replace(/{/g, "{{")
-    .replace(/}/g, "}}")
-    .replace(/\r/g, "\\r")
-    .replace(/\n/g, "\\n")
-    .replace(/\t/g, "\\t");
+  return escapeCsharpStringText(value, true);
+}
+
+function escapeCsharpStringText(value: string, interpolated: boolean): string {
+  let result = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]!;
+    const code = value.charCodeAt(index);
+    switch (character) {
+      case "\\":
+        result += "\\\\";
+        break;
+      case "\"":
+        result += "\\\"";
+        break;
+      case "\0":
+        result += "\\0";
+        break;
+      case "\b":
+        result += "\\b";
+        break;
+      case "\f":
+        result += "\\f";
+        break;
+      case "\n":
+        result += "\\n";
+        break;
+      case "\r":
+        result += "\\r";
+        break;
+      case "\t":
+        result += "\\t";
+        break;
+      case "\v":
+        result += "\\v";
+        break;
+      case "{":
+        result += interpolated ? "{{" : character;
+        break;
+      case "}":
+        result += interpolated ? "}}" : character;
+        break;
+      default:
+        if (code >= 0xd800 && code <= 0xdbff) {
+          const nextCode = value.charCodeAt(index + 1);
+          if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+            result += character + value[index + 1]!;
+            index += 1;
+          } else {
+            result += unicodeEscape(code);
+          }
+        } else if (
+          code < 0x20 ||
+          code >= 0x7f && code <= 0x9f ||
+          code >= 0xdc00 && code <= 0xdfff ||
+          code === 0x2028 ||
+          code === 0x2029
+        ) {
+          result += unicodeEscape(code);
+        } else {
+          result += character;
+        }
+        break;
+    }
+  }
+  return result;
+}
+
+function unicodeEscape(code: number): string {
+  return `\\u${code.toString(16).padStart(4, "0")}`;
 }
 
 function escapeCsharpCharLiteral(value: string): string {
