@@ -237,6 +237,29 @@ test("printer parenthesizes conditional expressions inside interpolation holes",
   );
 });
 
+test("printer emits ordinary and interpolated strings as textual C# source", () => {
+  const controls = "\0\b\f\n\r\t\v\u0001\u007f\u0085\u009f\u2028\u2029\ud800😀";
+  const ordinary = printCsharpExpression({
+    kind: "LiteralExpression",
+    value: `before:${controls}:after`,
+  });
+  assert.equal(
+    ordinary,
+    '"before:\\0\\b\\f\\n\\r\\t\\v\\u0001\\u007f\\u0085\\u009f\\u2028\\u2029\\ud800😀:after"',
+  );
+  assert.equal(ordinary.includes("\0"), false);
+
+  const interpolated = printCsharpExpression({
+    kind: "InterpolatedStringExpression",
+    parts: [{ kind: "InterpolatedStringText", text: `before:{${controls}}:after` }],
+  });
+  assert.equal(
+    interpolated,
+    '$"before:{{\\0\\b\\f\\n\\r\\t\\v\\u0001\\u007f\\u0085\\u009f\\u2028\\u2029\\ud800😀}}:after"',
+  );
+  assert.equal(interpolated.includes("\0"), false);
+});
+
 test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
     () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
