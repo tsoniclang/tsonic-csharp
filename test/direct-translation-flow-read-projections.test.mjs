@@ -93,6 +93,17 @@ test("direct C# translation projects exact checker flow types for property value
         if (!(holder.value instanceof Derived)) return undefined;
         return (holder.value as Derived).value;
       }
+      export function direct(holder: Holder): string | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        return holder.value.value;
+      }
+      class Box<T> {
+        value: T;
+        constructor(value: T) { this.value = value; }
+      }
+      export function generic(box: Box<string>): string {
+        return box.value as string;
+      }
     `,
   });
 
@@ -101,5 +112,9 @@ test("direct C# translation projects exact checker flow types for property value
   assert.deepEqual(compiled.targetDiagnostics, []);
   const artifact = compiled.artifacts.get("src/Index.cs");
   assert.match(artifact, /Derived narrowed = \(Derived\)holder\.value;/u);
-  assert.match(artifact, /return \(\(Derived\)holder\.value\)\.value;/u);
+  assert.equal(
+    [...artifact.matchAll(/return \(\(Derived\)holder\.value\)\.value;/gu)].length,
+    2,
+  );
+  assert.match(artifact, /return box\.value;/u);
 });

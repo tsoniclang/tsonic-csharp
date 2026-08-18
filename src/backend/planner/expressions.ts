@@ -107,9 +107,6 @@ import {
 import {
   tryPlanCsharpNativePointerOperation,
 } from "./expression-native-pointers.js";
-import {
-  planFlowReadUseSiteProjection,
-} from "./flow-read-projections.js";
 
 export function planExpression(
   node: Node,
@@ -118,35 +115,7 @@ export function planExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const planned = planExpressionCore(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    state,
-  );
-  if (planned === undefined) {
-    return undefined;
-  }
-  return isSourceValueReference(node, input)
-    ? planFlowReadUseSiteProjection(
-        node,
-        planned,
-        sourceFile,
-        input,
-        diagnostics,
-      )
-    : planned;
-}
-
-function isSourceValueReference(
-  node: Node,
-  input: CsharpTranslationContext,
-): boolean {
-  const kind = SourceKind(input.ast, node);
-  return kind === KindIdentifier ||
-    kind === KindPropertyAccessExpression ||
-    kind === KindElementAccessExpression;
+  return planExpressionCore(node, sourceFile, input, diagnostics, state);
 }
 
 function planExpressionCore(

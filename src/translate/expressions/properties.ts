@@ -345,30 +345,44 @@ function translateSourceOwnedProperty(
     return undefined;
   }
   if (
-    shapeMember?.kind !== "resolved" ||
-    selection.source.accessMode !== "read"
+    selection.source.accessMode !== "read" ||
+    selection.source.callCallee
   ) {
     return planned;
   }
-  const selectedReadType = resolveCsharpObjectShapeMemberReadTargetType(
-    shapeMember.member,
-    selection.source.sourceReadType,
-    (left, right) => semantics.getTypeRelationship(left, right) !== "unrelated",
-  ) ?? input.types.resolveSelectedResult(
-      selection.source.selectedDeclaration,
-      selection.source.sourceReadType,
-      sourceFile,
-    );
-  if (selectedReadType === undefined) {
+  const rawReadType = shapeMember?.kind === "resolved"
+    ? shapeMember.member.type
+    : input.types.resolveReadStorage(node, sourceFile);
+  const selectedReadType = shapeMember?.kind === "resolved"
+    ? resolveCsharpObjectShapeMemberReadTargetType(
+        shapeMember.member,
+        selection.source.sourceReadType,
+        (left, right) => semantics.getTypeRelationship(left, right) !== "unrelated",
+      ) ?? input.types.resolveSelectedResult(
+        selection.source.selectedDeclaration,
+        selection.source.sourceReadType,
+        sourceFile,
+      )
+    : selection.source.sourceReadType === undefined
+      ? undefined
+      : input.types.resolveSelectedValue(
+          node,
+          selection.source.sourceReadType,
+          sourceFile,
+        );
+  if (shapeMember?.kind === "resolved" && selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "The exact selected source property read has no closed C# flow representation.",
     ));
     return undefined;
   }
+  if (rawReadType === undefined || selectedReadType === undefined) {
+    return planned;
+  }
   const conversion = selectCsharpFlowReadConversion(
     input,
-    shapeMember.member.type,
+    rawReadType,
     selectedReadType,
   );
   return applyCsharpConversionSelection(
@@ -376,7 +390,7 @@ function translateSourceOwnedProperty(
     sourceFile,
     input,
     diagnostics,
-    shapeMember.member.type,
+    rawReadType,
     selectedReadType,
     conversion,
     planned,

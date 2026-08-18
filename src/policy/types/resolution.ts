@@ -218,6 +218,7 @@ export type CsharpScopedTypePolicyResult =
 export interface CsharpTypePolicy {
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
+  resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
   resolveValue(
     node: Node | undefined,
@@ -283,6 +284,7 @@ export function createCsharpTypePolicy(
   const policy: CsharpTypePolicy = {
     resolveNode,
     resolveStorage,
+    resolveReadStorage,
     resolveType,
     resolveValue,
     resolveSelectedValue,
@@ -339,6 +341,35 @@ export function createCsharpTypePolicy(
       declaration,
       reference?.sourceFile ?? host.ast.getSourceFile(declaration) ?? sourceFile,
     );
+  }
+
+  function resolveReadStorage(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (node === undefined) {
+      return undefined;
+    }
+    if (!host.ast.is.IsPropertyAccessExpression(node)) {
+      return resolveStorage(node, sourceFile);
+    }
+    if (activeNodes.has(node)) {
+      return undefined;
+    }
+    activeNodes.add(node);
+    try {
+      const queries = sourceFile === undefined
+        ? host.semanticsFor(node)
+        : host.semantics(sourceFile);
+      return resolvePropertyAccessTargetType(
+        node,
+        queries,
+        { depth: 0 },
+        "storage",
+      );
+    } finally {
+      activeNodes.delete(node);
+    }
   }
 
   function catchVariableStorageCarrier(
@@ -1056,54 +1087,12 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     if (host.ast.is.IsPropertyAccessExpression(node)) {
-      const selection = selectCsharpTargetProperty(
-        { ...host, projectTypes: host.projectTypes(), types: policy },
+      return resolvePropertyAccessTargetType(
         node,
-        queries.sourceFile,
+        queries,
+        state,
+        "selected",
       );
-      if (selection.kind === "resolved") {
-        return optionalAccessTargetType(
-          selection.targetMember.returnType,
-          selection.source.optionalChain,
-        );
-      }
-      if (selection.kind === "source-owned") {
-        const receiverType = resolveSelectedReceiverTargetType(
-          selection.source.receiver,
-          queries,
-          state,
-        );
-        const selectedSourceType = selection.source.sourceReadType ??
-          selection.source.sourceWriteType;
-        const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
-          receiverType,
-          queries.getSelectedFactSubjects(
-            selection.source.selectedSymbol,
-            selection.source.selectedDeclaration,
-          ),
-          selectedSourceType,
-          queries.sourceFile,
-        );
-        const selectedSymbolType = selection.source.selectedSymbol === undefined
-          ? undefined
-          : resolveSelectedSymbolType(
-              selection.source.selectedSymbol,
-              selectedSourceType,
-              queries,
-              state,
-            );
-        return optionalAccessTargetType(
-          structuralMemberType ?? selectedSymbolType ?? resolveSelectedDeclarationResult(
-              selection.source.selectedDeclaration,
-              selectedSourceType,
-              queries,
-              state,
-              receiverType,
-            ),
-          selection.source.optionalChain,
-        );
-      }
-      return undefined;
     }
     if (host.ast.is.IsElementAccessExpression(node)) {
       const selection = selectCsharpTargetElement(
@@ -1153,6 +1142,65 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     return undefined;
+  }
+
+  function resolvePropertyAccessTargetType(
+    node: Node,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    mode: "selected" | "storage",
+  ): TargetTypeRef | undefined {
+    const selection = selectCsharpTargetProperty(
+      { ...host, projectTypes: host.projectTypes(), types: policy },
+      node,
+      queries.sourceFile,
+    );
+    if (selection.kind === "resolved") {
+      return optionalAccessTargetType(
+        selection.targetMember.returnType,
+        selection.source.optionalChain,
+      );
+    }
+    if (selection.kind !== "source-owned") {
+      return undefined;
+    }
+    const receiverType = resolveSelectedReceiverTargetType(
+      selection.source.receiver,
+      queries,
+      state,
+    );
+    const selectedSourceType = mode === "selected"
+      ? selection.source.sourceReadType ?? selection.source.sourceWriteType
+      : undefined;
+    const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
+      receiverType,
+      queries.getSelectedFactSubjects(
+        selection.source.selectedSymbol,
+        selection.source.selectedDeclaration,
+      ),
+      selectedSourceType,
+      queries.sourceFile,
+    );
+    const selectedSymbolType = selectedSourceType === undefined ||
+        selection.source.selectedSymbol === undefined
+      ? undefined
+      : resolveSelectedSymbolType(
+          selection.source.selectedSymbol,
+          selectedSourceType,
+          queries,
+          state,
+        );
+    return optionalAccessTargetType(
+      structuralMemberType ?? selectedSymbolType ??
+        resolveSelectedDeclarationResult(
+          selection.source.selectedDeclaration,
+          selectedSourceType,
+          queries,
+          state,
+          receiverType,
+        ),
+      selection.source.optionalChain,
+    );
   }
 
   function resolveNonNullExpressionType(
