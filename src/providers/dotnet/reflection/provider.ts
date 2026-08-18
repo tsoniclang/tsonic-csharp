@@ -9,25 +9,25 @@ import type {
 } from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
-} from "../model.js";
+} from "../model/index.js";
 import {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
-} from "../module-specifier.js";
+} from "../modules/specifier.js";
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "../module-specifier.js";
+} from "../modules/specifier.js";
 import type {
   DotnetProviderIdentity,
-} from "../model.js";
+} from "../model/index.js";
 import {
   validateDotnetModuleModelContract,
-} from "../model-contract.js";
+} from "../model/contract.js";
 import {
   augmentDotnetModuleWithNativeArray,
-} from "../native-array.js";
+} from "../modules/native-array.js";
 import type {
   DotnetProviderDeclarationContext,
   DotnetProviderDiagnostic,
@@ -51,7 +51,7 @@ import type {
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
-} from "../module-lookup.js";
+} from "../modules/lookup.js";
 import {
   dotnetProviderGlobalTelemetry,
 } from "./telemetry.js";
@@ -79,16 +79,16 @@ import {
 } from "./module-request-validation.js";
 import {
   missingDotnetSameModuleProviderRefExports,
-} from "../provider-slices.js";
+} from "../modules/slices.js";
 import {
   createDotnetTargetBindingIndex,
 } from "./target-binding-index.js";
 import {
   dotnetProviderTargetRelationTemplates,
-} from "../target-relations.js";
+} from "../relations/target-relations.js";
 import type {
   DotnetProviderTargetRelationTemplate,
-} from "../target-relations.js";
+} from "../relations/target-relations.js";
 import {
   createDotnetReflectionCacheRequest,
   moduleMemoryCacheKey,

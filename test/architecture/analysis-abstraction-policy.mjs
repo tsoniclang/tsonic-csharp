@@ -173,7 +173,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "target-member-helper",
     pattern: /(?<!function\s)\btarget(?:Method|Property|Constructor)\s*\(/g,
-    allowedFilePattern: /(?:^|\/)src\/policy\/members\/js-source-profile\/[^/]+\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/policy\/members\/source-profiles\/js\/[^/]+\.ts$/,
     replacement:
       "Represent target members as provider metadata or explicit policy exceptions.",
   },
@@ -266,7 +266,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-name-runtime-member-filter",
     pattern: /\.filter\s*\(\s*\(?\s*(?:member|row|candidate|record)\s*\)?\s*=>\s*(?:member|row|candidate|record)\.sourceName\s*(?:={2,3}|!={1,2})/g,
-    allowedFilePattern: /(?:^|\/)src\/policy\/types\/object-shape-members\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/policy\/types\/objects\/object-shape-members\.ts$/,
     replacement:
       "Do not select target/runtime members by filtering sourceName at execution time; use declarative rows indexed by selected source identity or explicit operation metadata.",
   },
@@ -279,7 +279,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-id-executable-policy-hook",
     pattern: /(?:^|[{,]\s*)\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))/gm,
-    allowedFilePattern: /(?:^|\/)src\/policy\/members\/js-source-profile\/[^/]+\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/policy\/members\/source-profiles\/js\/[^/]+\.ts$/,
     replacement:
       "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
   },

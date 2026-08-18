@@ -1,6 +1,6 @@
 import type {
   DotnetModuleModel,
-} from "../model.js";
+} from "../model/index.js";
 import type {
   DotnetProviderDiagnostic,
 } from "../provider.js";

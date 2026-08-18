@@ -9,10 +9,10 @@ import {
 } from "../../../tsonic/packages/host/dist/index.js";
 import {
   createTargetSourceProgram,
-} from "../../../tsonic/packages/target-api/dist/index.js";
+} from "../../../tsonic/packages/target-api/dist/public/source.js";
 import {
   createCsharpTargetPack,
-} from "../../dist/descriptor/csharp-target-pack.js";
+} from "../../dist/public/index.js";
 
 export function checkCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";

@@ -1,31 +1,30 @@
-import type { TargetArtifact, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpTranslationContext } from "../../translate/context/index.js";
-import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
-import { planCsharpStartupSourceFile } from "./csharp-startup-planner.js";
-import { planCsharpModuleInitialization } from "./csharp-module-initialization.js";
-import { reconstructCsharpSourceFiles } from "./source-file-reconstruction.js";
-import { planCsharpProject } from "./project-artifacts.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpPlanningContext } from "./context.js";
+import type { CsharpOutputPlan } from "../artifacts/model.js";
+import { planCsharpStartupSourceFile } from "./program/startup.js";
+import { planCsharpModuleInitialization } from "./program/module-initialization.js";
+import { reconstructCsharpSourceFiles } from "./artifacts/source-file-reconstruction.js";
+import { planCsharpProject } from "./project/project-artifacts.js";
 import {
   sourceFileArtifactPath,
   validateSourceFileOutputIdentities,
-} from "./source-paths.js";
+} from "./artifacts/source-paths.js";
 import {
   planCsharpObjectShapeSourceFile,
-} from "./object-shapes.js";
+} from "./objects/index.js";
 import {
   planCsharpGeneratedHelperSourceFile,
-} from "./generated-helpers.js";
+} from "./artifacts/generated-helper-source.js";
 import {
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 
-export interface CsharpPlanningResult {
-  readonly artifacts: readonly TargetArtifact[];
-  readonly diagnostics: readonly TargetDiagnostic[];
-}
+export type CsharpPlanningResult =
+  | { readonly kind: "planned"; readonly plan: CsharpOutputPlan }
+  | { readonly kind: "rejected"; readonly diagnostics: readonly TargetDiagnostic[] };
 
-export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlanningResult {
+export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
   const diagnostics: TargetDiagnostic[] = input.projectTypes.issues.map(
     (issue) => targetPolicyDiagnostic(
       issue.node,
@@ -35,21 +34,21 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
   );
   if (diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
   validateSourceFileOutputIdentities(input, diagnostics);
   if (diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
   const moduleInitialization = planCsharpModuleInitialization(input, diagnostics);
   if (diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
@@ -60,7 +59,7 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
   );
   if (plannedSources === undefined || diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
@@ -74,14 +73,14 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
       )
     ));
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
   const objectShapes = planCsharpObjectShapeSourceFile(input, diagnostics);
   if (diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
@@ -94,7 +93,7 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
   );
   if (diagnostics.length > 0) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
@@ -105,11 +104,11 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
   }, diagnostics);
   if (diagnostics.length > 0 || project === undefined) {
     return {
-      artifacts: [],
+      kind: "rejected",
       diagnostics,
     };
   }
-  const artifacts = materializeCsharpOutputPlan({
+  const plan: CsharpOutputPlan = {
     project,
     sources: [
       ...plannedSources.map((source) => ({
@@ -120,9 +119,6 @@ export function planCsharpArtifacts(input: CsharpTranslationContext): CsharpPlan
       ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
       ...(startup === undefined ? [] : [startup]),
     ],
-  });
-  return {
-    artifacts,
-    diagnostics,
   };
+  return { kind: "planned", plan };
 }

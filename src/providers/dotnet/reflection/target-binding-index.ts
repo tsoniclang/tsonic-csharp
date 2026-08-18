@@ -4,21 +4,21 @@ import type {
 } from "../../../policy/types/index.js";
 import type {
   DotnetModuleModel,
-} from "../model.js";
+} from "../model/index.js";
 import {
   dotnetExportToTargetBinding,
-} from "../model.js";
+} from "../model/index.js";
 import type {
   DotnetTargetBindingFact,
-} from "../model-target-conversion/index.js";
+} from "../target-projection/index.js";
 import {
   dotnetTypeTargetMemberProjections,
   providerSignatureProjectionKey,
-} from "../target-relations.js";
+} from "../relations/target-relations.js";
 import type {
   DotnetTargetMemberProjection,
   DotnetTargetRelationLookup,
-} from "../target-relations.js";
+} from "../relations/target-relations.js";
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";

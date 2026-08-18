@@ -26,12 +26,12 @@ export type {
   DotnetUnsupportedConstraintDeclaration,
   DotnetValueDeclaration,
   DotnetUnsupportedMemberDeclaration,
-} from "./model.js";
+} from "./model/index.js";
 export {
   dotnetConstraintToTargetConstraint,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
-} from "./model.js";
+} from "./model/index.js";
 export type {
   DotnetBindingProviderOptions,
   DotnetProviderDeclarationContext,
@@ -51,7 +51,7 @@ export {
 export {
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
-} from "./model-contract.js";
+} from "./model/contract.js";
 export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
@@ -84,17 +84,23 @@ export {
   dotnetModuleSpecifierPolicy,
   normalizeDotnetAssemblySourcePackages,
   parseDotnetModuleSpecifier,
-} from "./module-specifier.js";
+} from "./modules/specifier.js";
 export type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifier,
   DotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
+} from "./modules/specifier.js";
 export {
   augmentDotnetModuleWithNativeArray,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
   dotnetNativeArrayTypeId,
-} from "./native-array.js";
-export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
+} from "./modules/native-array.js";
+export { dotnetModuleToProviderDeclarationModel } from "./declarations/index.js";
+export {
+  csharpDotnetProviderContributionKind,
+} from "./contributions.js";
+export type {
+  CsharpDotnetProviderContribution,
+} from "./contributions.js";

@@ -1,0 +1,93 @@
+import type { CsharpPlanningContext } from "../context.js";
+import {
+  AsSpreadAssignment,
+  HasSourceKind,
+  KindIdentifier,
+} from "@tsonic/target-api/source";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpObjectInitializerAssignment,
+} from "../../roslyn/syntax.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../../policy/types/index.js";
+import {
+  csharpObjectShapeMemberLookupFailureMessage,
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../../policy/types/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import {
+  objectShapeStorageMemberName,
+} from "../objects/index.js";
+import type {
+  ExpressionPlanner,
+} from "./expression-planner-types.js";
+import {
+  getExpectedObjectShapeFact,
+  objectShapeMemberTypesMatch,
+} from "./expression-object-literal-support.js";
+
+export function planObjectShapeSpreadAssignments(
+  spreadNode: Node,
+  targetShape: CsharpObjectShapeFact,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): readonly CsharpObjectInitializerAssignment[] | undefined {
+  const spread = AsSpreadAssignment(input.ast, spreadNode);
+  const expression = spread?.Expression;
+  if (expression === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a source expression."));
+    return undefined;
+  }
+  if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
+    diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a single-evaluation provider lowering for non-identifier spread expressions before C# emission."));
+    return undefined;
+  }
+  const sourceShape = getExpectedObjectShapeFact(expression, sourceFile, input);
+  if (sourceShape === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
+    return undefined;
+  }
+  const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
+  if (sourceExpression === undefined) {
+    return undefined;
+  }
+  const assignments: CsharpObjectInitializerAssignment[] = [];
+  for (const sourceMember of sourceShape.members) {
+    const targetMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+      targetShape,
+      sourceMember.sourceName,
+      "finalized-object-spread-member",
+    );
+    if (targetMemberLookup.kind !== "resolved") {
+      const message = targetMemberLookup.reason === "not-in-finalized-shape"
+        ? `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`
+        : csharpObjectShapeMemberLookupFailureMessage(targetMemberLookup, "Object literal spread target shape");
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, message));
+      return undefined;
+    }
+    const targetMember = targetMemberLookup.member;
+    if (!objectShapeMemberTypesMatch(sourceMember, targetMember)) {
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`));
+      return undefined;
+    }
+    assignments.push({
+      kind: "AssignmentExpression",
+      name: objectShapeStorageMemberName(targetShape, targetMember),
+      expression: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: sourceExpression,
+        name: objectShapeStorageMemberName(sourceShape, sourceMember),
+      },
+    });
+  }
+  return assignments;
+}
