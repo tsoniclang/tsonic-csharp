@@ -1549,6 +1549,22 @@ export function createCsharpTypePolicy(
     if (direct !== undefined) {
       return direct;
     }
+    const standardTransformation = semanticType === undefined
+      ? undefined
+      : queries.selectStandardTypeTransformation(node, semanticType);
+    if (
+      standardTransformation !== undefined &&
+      standardTransformation.kind !== "structural" &&
+      semanticType !== undefined
+    ) {
+      return resolveStandardSourceTypeTransformation(
+        standardTransformation,
+        queries,
+        state,
+        node,
+        semanticType,
+      );
+    }
     const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
       resolveNodeWithState(argument, queries.sourceFile, nextState(state))
     );
@@ -1571,9 +1587,6 @@ export function createCsharpTypePolicy(
     if (sourceProfileType !== undefined) {
       return sourceProfileType;
     }
-    const standardTransformation = semanticType === undefined
-      ? undefined
-      : queries.selectStandardTypeTransformation(node, semanticType);
     if (
       standardTransformation !== undefined &&
       semanticType !== undefined
@@ -1728,16 +1741,16 @@ export function createCsharpTypePolicy(
         state,
       );
     }
-    if (transformation.kind === "tuple") {
-      const elements = transformation.elements.map((element) =>
-        resolveSignatureParameterEvidence(element, queries, state)
+    if (transformation.kind === "parameter-list") {
+      const elements = transformation.parameters.map((element) =>
+        resolveSignatureParameterEvidence(element, queries, state, "parameter-list")
       );
       return elements.some((element) => element === undefined)
         ? undefined
-        : {
-            kind: "tuple",
-            elements: elements as readonly TargetTypeRef[],
-          };
+        : resolveSignatureParameterListTarget(
+            transformation.parameters,
+            elements as readonly TargetTypeRef[],
+          );
     }
     if (transformation.kind === "structural") {
       return host.structuralTypes.resolveType(
@@ -1751,6 +1764,40 @@ export function createCsharpTypePolicy(
       queries,
       state,
     );
+  }
+
+  function resolveSignatureParameterListTarget(
+    parameters: SourceCallableTypeEvidence["parameters"],
+    elements: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined {
+    const restIndexes = parameters.flatMap((parameter, index) =>
+      parameter.parameterKind === "rest" ? [index] : []
+    );
+    if (restIndexes.length === 0) {
+      return { kind: "tuple", elements };
+    }
+    if (restIndexes.length !== 1) {
+      return undefined;
+    }
+    const restIndex = restIndexes[0]!;
+    const restElement = getCsharpCollectionElementTargetType(
+      elements[restIndex],
+    );
+    if (restElement === undefined) {
+      return undefined;
+    }
+    const homogeneous = elements.every((element, index) => {
+      const value = index === restIndex
+        ? restElement
+        : getCsharpNullableElementTargetType(element) ?? element;
+      return targetTypeRefEquals(value, restElement);
+    });
+    if (!homogeneous) {
+      return undefined;
+    }
+    return selectedCsharpSourceProfileOwner(host.target) === "js"
+      ? csharpJsArrayTargetType(restElement)
+      : { kind: "array", element: restElement };
   }
 
   function resolveEvidenceNodesToCommonTarget(
@@ -2892,39 +2939,10 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const rawSignatures = queries.getCallSignatures(type);
-    const signatures = definedValues(rawSignatures);
-    if (signatures.length !== rawSignatures.length) {
-      return undefined;
-    }
-    if (signatures.length !== 1) {
-      return undefined;
-    }
-    const signature = signatures[0]!;
-    const declaration = queries.getSignatureDeclaration(signature);
-    const selectedResultType = queries.getReturnTypeOfSignature(signature);
-    if (selectedResultType === undefined) {
-      return undefined;
-    }
-    const authoredResultType = declarationResultTypeNode(declaration);
-    return resolveCallableEvidence(
-      {
-        parameters: queries.getSignatureParameterInfos(signature),
-        result: {
-          selectedType: selectedResultType,
-          ...(declaration === undefined
-            ? {}
-            : {
-                declaration,
-                ...(authoredResultType === undefined
-                  ? {}
-                  : { authoredTypeNode: authoredResultType }),
-              }),
-        },
-      },
-      queries,
-      state,
-    );
+    const callable = queries.selectCallableType(type);
+    return callable === undefined
+      ? undefined
+      : resolveCallableEvidence(callable, queries, state);
   }
 
   function resolveCallableEvidence(
@@ -2933,7 +2951,7 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const parameterTypes = callable.parameters.map((parameter) =>
-      resolveSignatureParameterEvidence(parameter, queries, state)
+      resolveSignatureParameterEvidence(parameter, queries, state, "callable")
     );
     if (parameterTypes.some((parameter) => parameter === undefined)) {
       return undefined;
@@ -2963,6 +2981,7 @@ export function createCsharpTypePolicy(
     parameter: SourceCallableTypeEvidence["parameters"][number],
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
+    use: "callable" | "parameter-list",
   ): TargetTypeRef | undefined {
     const resolved = resolveSourceTypeComponentEvidence(
       {
@@ -2983,7 +3002,10 @@ export function createCsharpTypePolicy(
       queries,
       state,
     );
-    return resolved === undefined || parameter.parameterKind !== "optional"
+    const nullable = use === "parameter-list"
+      ? parameter.parameterKind === "optional"
+      : parameter.omissionKind === "undefined";
+    return resolved === undefined || !nullable
       ? resolved
       : csharpNullableTargetType(resolved);
   }
