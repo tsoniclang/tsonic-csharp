@@ -53,7 +53,6 @@ export const expectedSharedSourceQuerySites = Object.freeze(new Map([
   ...querySite("src/policy/members/source-profile-policy.ts", "source-query.getSignatureDeclaration", 1, "Resolve source-profile evidence for an already-selected source signature."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getTypeFromTypeNode", 3, "Resolve canonical source types from authored type syntax."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getTypeAtLocation", 7, "Resolve canonical source types and compare exact declaration, initializer, non-null assertion, and flow-selected types—including declarations without initializers—through shared refinement policy."),
-  ...querySite("src/policy/types/resolution.ts", "source-query.getSignatureDeclaration", 1, "Read declarations from already-selected source signatures."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getResolvedSymbolOrNil", 1, "Resolve canonical source declaration identity for type policy."),
   ...querySite("src/policy/types/resolution.ts", "source-query.getSymbolAtLocation", 1, "Resolve canonical source declaration identity for type policy."),
   ...querySite("src/policy/types/object-shape-policy.ts", "source-query.getTypeAtLocation", 1, "Resolve an object-shape source type through shared semantics."),
