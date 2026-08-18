@@ -1,3 +1,6 @@
+import {
+  createCsharpThisBindingTranslationContext,
+} from "../../translate/context/index.js";
 import type { CsharpTranslationContext } from "../../translate/context/index.js";
 import {
   AsMethodDeclaration,
@@ -6,13 +9,13 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TargetDiagnostic,
+import {
+  sourceCallableUsesLexicalThis,
+  type TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import type {
   CsharpObjectShapeFact,
@@ -22,10 +25,15 @@ import {
 } from "./diagnostics.js";
 import {
   objectShapeStorageMemberName,
+  objectShapeMethodStorageTargetType,
 } from "./object-shapes.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  allocateSyntheticParameter,
+  createDestructuringPlannerState,
+} from "./bindings.js";
 import {
   isAsyncExpression,
   csharpDelegateSignatureFromTargetTypeRef,
@@ -51,8 +59,44 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;
   }
-  const memberType = csharpTypeFromTargetTypeRef(member.type);
-  if (memberType === undefined) {
+  const usesLexicalThis = sourceCallableUsesLexicalThis(input.ast, methodNode);
+  if (usesLexicalThis && member.memberKind !== "method") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      methodNode,
+      `Object literal callable property '${member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`,
+    ));
+    return undefined;
+  }
+  if (usesLexicalThis) {
+    const required = input.artifacts.requireObjectShapeMethodReceiver(
+      objectShape,
+      member,
+    );
+    if (required.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(methodNode, required.reason));
+      return undefined;
+    }
+  }
+  const receiverBound = member.memberKind === "method" &&
+    input.artifacts.objectShapeMethodUsesReceiver(objectShape, member);
+  const storageTargetType = member.memberKind === "method"
+    ? objectShapeMethodStorageTargetType(
+        objectShape,
+        member,
+        receiverBound,
+      )
+    : member.type;
+  const storageType = storageTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(storageTargetType);
+  const selfType = receiverBound
+    ? csharpTypeFromTargetTypeRef(objectShape.targetType)
+    : undefined;
+  if (
+    storageTargetType === undefined ||
+    storageType === undefined ||
+    (receiverBound && selfType === undefined)
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
     return undefined;
   }
@@ -60,7 +104,15 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`));
     return undefined;
   }
-  const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType, member.type);
+  const expression = planObjectLiteralMethodAsLambda(
+    methodNode,
+    sourceFile,
+    input,
+    diagnostics,
+    objectShape,
+    member.type,
+    selfType,
+  );
   if (expression === undefined) {
     return undefined;
   }
@@ -76,11 +128,11 @@ function planObjectLiteralMethodAsLambda(
   sourceFile: SourceFile,
   input: CsharpTranslationContext,
   diagnostics: TargetDiagnostic[],
-  expectedType: CsharpTypeNode,
+  objectShape: CsharpObjectShapeFact,
   expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
+  selfType: ReturnType<typeof csharpTypeFromTargetTypeRef>,
 ): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
-  void expectedType;
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
     return undefined;
@@ -93,15 +145,46 @@ function planObjectLiteralMethodAsLambda(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
     return undefined;
   }
+  const state = createDestructuringPlannerState(methodNode, input.ast);
+  const selfName = selfType === undefined
+    ? undefined
+    : allocateSyntheticParameter(state);
+  const scopedInput = selfName === undefined
+    ? input
+    : createCsharpThisBindingTranslationContext(
+        input,
+        selfName,
+        objectShape.targetType,
+      );
   const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
-  const body = planLambdaBlockBody(methodNode, method.Body, sourceFile, input, diagnostics, undefined, targetContext);
+  const body = planLambdaBlockBody(
+    methodNode,
+    method.Body,
+    sourceFile,
+    scopedInput,
+    diagnostics,
+    state,
+    targetContext,
+  );
   if (body === undefined) {
     return undefined;
   }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
-    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, targetContext),
+    parameters: [
+      ...(selfName === undefined || selfType === undefined
+        ? []
+        : [{ kind: "Parameter" as const, name: selfName, type: selfType }]),
+      ...planLambdaParameters(
+        method.Parameters?.Nodes ?? [],
+        sourceFile,
+        scopedInput,
+        diagnostics,
+        state,
+        targetContext,
+      ),
+    ],
     body,
   };
 }

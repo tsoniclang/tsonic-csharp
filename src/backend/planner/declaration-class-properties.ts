@@ -39,6 +39,7 @@ import {
   nullableCsharpType,
 } from "./csharp-types.js";
 import {
+  targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
@@ -109,6 +110,14 @@ export function planPropertyDeclaration(
     ? declaredType
     : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
+  const modifiers = planClassMemberModifiers(node, declaration.name, input);
+  if (declaration.Initializer === undefined && modifiers.includes("static")) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED",
+      "A static class field requires an explicit initializer. Use defaultValue<T>() when target-native default initialization is intended; an uninitialized TypeScript field has undefined runtime semantics and cannot be replaced by a C# default value.",
+    ));
+  }
   if (!shouldEmitAutoProperty(node, propertyName, autoPropertyNames, sourceFile, input)) {
     diagnoseUnavailableCsharpSafetyAccessors(
       node,
@@ -120,7 +129,7 @@ export function planPropertyDeclaration(
       kind: "FieldDeclaration",
       name: propertyName,
       modifiers: withCsharpSafetyModifiers(
-        planClassMemberModifiers(node, declaration.name, input),
+        modifiers,
         node,
         "declaration",
         input,

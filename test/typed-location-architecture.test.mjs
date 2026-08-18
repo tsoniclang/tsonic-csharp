@@ -160,7 +160,7 @@ function forbiddenNeutralAliasImports(path) {
   const text = readFileSync(path, "utf8");
   const failures = [];
   const imports = text.matchAll(
-    /(?:import|export)\s+(?:type\s+)?\{([\s\S]*?)\}\s+from\s+["']@tsonic\/core\/(lang|types)\.js["']/gu,
+    /(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']@tsonic\/core\/(lang|types)\.js["']/gu,
   );
   for (const match of imports) {
     const forbidden = match[2] === "lang"

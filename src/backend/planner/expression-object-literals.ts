@@ -54,9 +54,19 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
-  const objectShape = expectedObjectShape === undefined
-    ? getExpectedObjectShapeFact(node, sourceFile, input)
-    : input.objectShapes.resolveObjectLiteralTargetShape(expectedObjectShape);
+  const resolved = input.objectShapes.resolveObjectLiteralTargetShape(
+    expectedObjectShape ?? getExpectedObjectShapeFact(node, sourceFile, input),
+    node,
+    sourceFile,
+  );
+  if (resolved.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      resolved.subject,
+      resolved.reason,
+    ));
+    return undefined;
+  }
+  const objectShape = resolved.kind === "resolved" ? resolved.shape : undefined;
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType);
   }

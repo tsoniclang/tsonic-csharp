@@ -95,7 +95,12 @@ export function planInterfaceDeclaration(
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(interfaces.length === 0 && !jsonSerializable
       ? {}
-      : { interfaces: jsonSerializable ? [...interfaces, csharpJsonValueInterfaceType()] : interfaces }),
+      : {
+          interfaces: [
+            ...interfaces,
+            ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+          ],
+        }),
     members,
   };
 }

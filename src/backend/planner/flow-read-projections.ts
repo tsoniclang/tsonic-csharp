@@ -37,7 +37,7 @@ export function planFlowReadUseSiteProjection(
   diagnostics: TargetDiagnostic[],
   selectedType: TargetTypeRef | undefined = input.types.resolveNode(node, sourceFile),
 ): CsharpExpression | undefined {
-  const storageType = input.types.resolveStorage(node, sourceFile);
+  const storageType = input.types.resolveReadStorage(node, sourceFile);
   if (storageType === undefined) {
     return baseExpression;
   }

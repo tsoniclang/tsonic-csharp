@@ -380,7 +380,16 @@ test("object shape methods require explicit delegate signature metadata", () => 
       },
     }],
   };
-  assert.equal(renderObjectShapeMembers(rawDelegateShape, false, undefined, undefined), undefined);
+  assert.equal(
+    renderObjectShapeMembers(
+      rawDelegateShape,
+      false,
+      new Set(),
+      undefined,
+      undefined,
+    ),
+    undefined,
+  );
 
   const metadataBackedShape = {
     ...rawDelegateShape,
@@ -389,7 +398,13 @@ test("object shape methods require explicit delegate signature metadata", () => 
       type: csharpDelegateTargetType("System.Action", [{ kind: "source-primitive", name: "int32" }]),
     }],
   };
-  const members = renderObjectShapeMembers(metadataBackedShape, false, undefined, undefined);
+  const members = renderObjectShapeMembers(
+    metadataBackedShape,
+    false,
+    new Set(),
+    undefined,
+    undefined,
+  );
   assert.ok(members);
   assert.equal(members.length, 2);
   assert.deepEqual(members[0].modifiers, ["public", "required"]);
@@ -412,7 +427,16 @@ test("object shape methods require explicit delegate signature metadata", () => 
     }],
   };
   const diagnostics = [];
-  assert.equal(renderObjectShapeMembers(missingReturnFactShape, false, diagnostics, { Kind: "KindTypeLiteral" }), undefined);
+  assert.equal(
+    renderObjectShapeMembers(
+      missingReturnFactShape,
+      false,
+      new Set(),
+      diagnostics,
+      { Kind: "KindTypeLiteral" },
+    ),
+    undefined,
+  );
   assert.match(diagnostics[0].message, /explicit return facts/);
 });
 
@@ -438,12 +462,24 @@ test("object shape declarations enforce required members while leaving optional 
     }],
   };
 
-  const fields = renderObjectShapeMembers(shape, false, undefined, undefined);
+  const fields = renderObjectShapeMembers(
+    shape,
+    false,
+    new Set(),
+    undefined,
+    undefined,
+  );
   assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
     requiredValue: ["public", "required"],
   });
-  const properties = renderObjectShapeMembers(shape, true, undefined, undefined);
+  const properties = renderObjectShapeMembers(
+    shape,
+    true,
+    new Set(),
+    undefined,
+    undefined,
+  );
   assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
     requiredValue: ["public", "required"],

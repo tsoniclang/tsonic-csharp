@@ -21,7 +21,10 @@ export function objectShapeRequiresJsonSerialization(
   input: CsharpTranslationContext,
   fact: CsharpObjectShapeFact,
 ): boolean {
-  return input.artifacts.objectShapeRequiresJsonSerialization(fact);
+  return input.artifacts.objectShapeHasCapability(
+    fact,
+    "json-serialization",
+  );
 }
 
 export function csharpJsonValueInterfaceType(): CsharpTypeNode {

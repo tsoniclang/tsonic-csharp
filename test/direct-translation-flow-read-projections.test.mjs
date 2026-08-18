@@ -71,3 +71,58 @@ namespace Tsonic.Generated
 }
 `);
 });
+
+test("direct C# translation projects exact checker flow types for property value references", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      class Base {}
+      class Derived extends Base {
+        value: string;
+        constructor(value: string) { super(); this.value = value; }
+      }
+      class Holder {
+        value: Base;
+        constructor(value: Base) { this.value = value; }
+      }
+      export function assigned(holder: Holder): Derived | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        const narrowed = holder.value as Derived;
+        return narrowed;
+      }
+      export function nested(holder: Holder): string | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        return (holder.value as Derived).value;
+      }
+      export function direct(holder: Holder): string | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        return holder.value.value;
+      }
+      class Box<T> {
+        value: T;
+        constructor(value: T) { this.value = value; }
+      }
+      export function generic(box: Box<string>): string {
+        return box.value as string;
+      }
+      class NumberHolder {
+        value: number;
+        constructor(value: number) { this.value = value; }
+      }
+      export function optional(holder: NumberHolder | undefined): number {
+        return holder?.value ?? 0;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const artifact = compiled.artifacts.get("src/Index.cs");
+  assert.match(artifact, /Derived narrowed = \(Derived\)holder\.value;/u);
+  assert.equal(
+    [...artifact.matchAll(/return \(\(Derived\)holder\.value\)\.value;/gu)].length,
+    2,
+  );
+  assert.match(artifact, /return box\.value;/u);
+  assert.match(artifact, /return holder\?\.value \?\? 0;/u);
+});

@@ -13,11 +13,15 @@ import type {
 } from "@tsonic/tsts";
 import type {
   SourceDeclarationReference,
+  SourceCallableTypeEvidence,
   SourceFileSemantics,
   SourceProgramNavigation,
+  SourceTypeComponentEvidence,
   TargetSelection,
 } from "@tsonic/target-api";
 import {
+  sourceTransformedTypeFactEvidenceNodes,
+  sourceTupleElementTypeEvidenceNodes,
   sourceTypeSyntaxIsCompositional,
 } from "@tsonic/target-api";
 import type {
@@ -49,6 +53,7 @@ import {
 } from "./collections.js";
 import {
   csharpDelegateTargetType,
+  getCsharpDelegateSignature,
   getCsharpTaskResultTargetType,
   csharpTaskTargetType,
 } from "./delegates.js";
@@ -120,6 +125,7 @@ import {
 import {
   readCsharpSourceDefaultValue,
   readCsharpSourceField,
+  readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
   readCsharpSourcePointerType,
 } from "./source-markers.js";
@@ -141,6 +147,10 @@ import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 import {
+  csharpTargetParameterValueType,
+} from "./member-facts.js";
+import {
+  inferCsharpTargetTypeParameterBindings,
   substituteTargetTypeParameters,
 } from "./substitution.js";
 
@@ -179,6 +189,13 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
     resolveType(
       type: Type,
       sourceFile: SourceFile,
+      authoredTypeRoot?: Node,
+    ): TargetTypeRef | undefined;
+    resolveSelectedProperty(
+      receiverType: TargetTypeRef | undefined,
+      selectedSubjects: readonly ExtensionFactSubject[],
+      selectedType: Type | undefined,
+      sourceFile: SourceFile,
     ): TargetTypeRef | undefined;
   };
 }
@@ -201,6 +218,7 @@ export type CsharpScopedTypePolicyResult =
 export interface CsharpTypePolicy {
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
+  resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveType(type: Type | undefined, sourceFile: SourceFile): TargetTypeRef | undefined;
   resolveValue(
     node: Node | undefined,
@@ -235,6 +253,11 @@ export interface CsharpTypePolicy {
     parameterIndex: number,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveSourceCallArgumentParameter(
+    source: ResolvedSourceCallInfo,
+    binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined;
   resolveSourceCallResult(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
@@ -261,6 +284,7 @@ export function createCsharpTypePolicy(
   const policy: CsharpTypePolicy = {
     resolveNode,
     resolveStorage,
+    resolveReadStorage,
     resolveType,
     resolveValue,
     resolveSelectedValue,
@@ -269,6 +293,7 @@ export function createCsharpTypePolicy(
     resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments,
     resolveSourceCallParameter,
+    resolveSourceCallArgumentParameter,
     resolveSourceCallResult,
     resolveDeclaredNamedType,
     withSourceTargetBindings,
@@ -316,6 +341,35 @@ export function createCsharpTypePolicy(
       declaration,
       reference?.sourceFile ?? host.ast.getSourceFile(declaration) ?? sourceFile,
     );
+  }
+
+  function resolveReadStorage(
+    node: Node | undefined,
+    sourceFile?: SourceFile,
+  ): TargetTypeRef | undefined {
+    if (node === undefined) {
+      return undefined;
+    }
+    if (!host.ast.is.IsPropertyAccessExpression(node)) {
+      return resolveStorage(node, sourceFile);
+    }
+    if (activeNodes.has(node)) {
+      return undefined;
+    }
+    activeNodes.add(node);
+    try {
+      const queries = sourceFile === undefined
+        ? host.semanticsFor(node)
+        : host.semantics(sourceFile);
+      return resolvePropertyAccessTargetType(
+        node,
+        queries,
+        { depth: 0 },
+        "storage",
+      );
+    } finally {
+      activeNodes.delete(node);
+    }
   }
 
   function catchVariableStorageCarrier(
@@ -463,6 +517,7 @@ export function createCsharpTypePolicy(
       source,
       sourceFile,
       callable?.methodTypeParameterNames,
+      callable,
     )?.arguments;
   }
 
@@ -493,6 +548,13 @@ export function createCsharpTypePolicy(
         { depth: 0 },
       );
     }
+    const delegateParameter = sourceCallCalleeDelegateSignature(
+      source,
+      sourceFile,
+    )?.parameters[parameterIndex];
+    if (delegateParameter !== undefined) {
+      return delegateParameter;
+    }
     return resolveSourceCallSelectedType(
           source,
           parameter.parameterDeclaration,
@@ -501,6 +563,63 @@ export function createCsharpTypePolicy(
           sourceFile,
           { depth: 0 },
         );
+  }
+
+  function resolveSourceCallArgumentParameter(
+    source: ResolvedSourceCallInfo,
+    binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
+    sourceFile: SourceFile,
+  ): TargetTypeRef | undefined {
+    const parameter = source.sourceSelectedSignatureParameters[
+      binding.sourceParameterIndex
+    ];
+    if (parameter === undefined) {
+      return undefined;
+    }
+    const callable = host.sourceCallable(source, sourceFile);
+    const contractedParameter = callable?.parameters[
+      binding.sourceParameterIndex
+    ];
+    if (callable !== undefined && contractedParameter !== undefined) {
+      if (
+        contractedParameter.sourceParameter !==
+          parameter.parameterDeclaration ||
+        !sourceCallableTypeParametersMatch(source, callable)
+      ) {
+        return undefined;
+      }
+      const contracted = resolveSourceCallableContractType(
+        source,
+        callable,
+        contractedParameter.targetParameter.type,
+        sourceFile,
+        { depth: 0 },
+      );
+      return contracted === undefined
+        ? undefined
+        : csharpTargetParameterValueType(
+            {
+              ...contractedParameter.targetParameter,
+              type: contracted,
+            },
+            binding.sourceForm,
+          );
+    }
+    const delegateParameter = sourceCallCalleeDelegateSignature(
+      source,
+      sourceFile,
+    )?.parameters[binding.effectiveArgumentIndex];
+    if (delegateParameter !== undefined) {
+      return delegateParameter;
+    }
+    return resolveSourceCallSelectedType(
+      source,
+      parameter.parameterDeclaration,
+      parameter.authoredTypeNode,
+      binding.selectedParameterType,
+      sourceFile,
+      { depth: 0 },
+    );
   }
 
   function resolveSourceCallResult(
@@ -532,6 +651,13 @@ export function createCsharpTypePolicy(
         sourceFile,
         state,
       );
+    }
+    const delegateResult = sourceCallCalleeDelegateSignature(
+      source,
+      sourceFile,
+    )?.returnType;
+    if (delegateResult !== undefined) {
+      return delegateResult;
     }
     const result = host.semantics(sourceFile).selectCallResult(source);
     if (result === undefined) {
@@ -961,36 +1087,12 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     if (host.ast.is.IsPropertyAccessExpression(node)) {
-      const selection = selectCsharpTargetProperty(
-        { ...host, projectTypes: host.projectTypes(), types: policy },
+      return resolvePropertyAccessTargetType(
         node,
-        queries.sourceFile,
+        queries,
+        state,
+        "selected",
       );
-      if (selection.kind === "resolved") {
-        return optionalAccessTargetType(
-          selection.targetMember.returnType,
-          selection.source.optionalChain,
-        );
-      }
-      if (selection.kind === "source-owned") {
-        const receiverType = resolveSelectedReceiverTargetType(
-          selection.source.receiver,
-          queries,
-          state,
-        );
-        return optionalAccessTargetType(
-          resolveSelectedDeclarationResult(
-            selection.source.selectedDeclaration,
-            selection.source.sourceReadType ??
-              selection.source.sourceWriteType,
-            queries,
-            state,
-            receiverType,
-          ),
-          selection.source.optionalChain,
-        );
-      }
-      return undefined;
     }
     if (host.ast.is.IsElementAccessExpression(node)) {
       const selection = selectCsharpTargetElement(
@@ -1040,6 +1142,65 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     return undefined;
+  }
+
+  function resolvePropertyAccessTargetType(
+    node: Node,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    mode: "selected" | "storage",
+  ): TargetTypeRef | undefined {
+    const selection = selectCsharpTargetProperty(
+      { ...host, projectTypes: host.projectTypes(), types: policy },
+      node,
+      queries.sourceFile,
+    );
+    if (selection.kind === "resolved") {
+      return optionalAccessTargetType(
+        selection.targetMember.returnType,
+        selection.source.optionalChain,
+      );
+    }
+    if (selection.kind !== "source-owned") {
+      return undefined;
+    }
+    const receiverType = resolveSelectedReceiverTargetType(
+      selection.source.receiver,
+      queries,
+      state,
+    );
+    const selectedSourceType = mode === "selected"
+      ? selection.source.sourceReadType ?? selection.source.sourceWriteType
+      : undefined;
+    const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
+      receiverType,
+      queries.getSelectedFactSubjects(
+        selection.source.selectedSymbol,
+        selection.source.selectedDeclaration,
+      ),
+      selectedSourceType,
+      queries.sourceFile,
+    );
+    const selectedSymbolType = selectedSourceType === undefined ||
+        selection.source.selectedSymbol === undefined
+      ? undefined
+      : resolveSelectedSymbolType(
+          selection.source.selectedSymbol,
+          selectedSourceType,
+          queries,
+          state,
+        );
+    return optionalAccessTargetType(
+      structuralMemberType ?? selectedSymbolType ??
+        resolveSelectedDeclarationResult(
+          selection.source.selectedDeclaration,
+          selectedSourceType,
+          queries,
+          state,
+          receiverType,
+        ),
+      selection.source.optionalChain,
+    );
   }
 
   function resolveNonNullExpressionType(
@@ -1410,9 +1571,25 @@ export function createCsharpTypePolicy(
     if (sourceProfileType !== undefined) {
       return sourceProfileType;
     }
+    const standardTransformation = semanticType === undefined
+      ? undefined
+      : queries.selectStandardTypeTransformation(node, semanticType);
+    if (
+      standardTransformation !== undefined &&
+      semanticType !== undefined
+    ) {
+      return resolveStandardSourceTypeTransformation(
+        standardTransformation,
+        queries,
+        state,
+        node,
+        semanticType,
+      );
+    }
     const sourceAlias = resolveCompositionalSourceTypeAlias(
       typeName,
       typeArguments as readonly TargetTypeRef[],
+      semanticType,
       state,
     );
     if (sourceAlias.kind === "resolved") {
@@ -1430,6 +1607,18 @@ export function createCsharpTypePolicy(
     if (projectType !== undefined) {
       return projectType;
     }
+    const transformedTarget = sourceAlias.kind === "checker-transformed-alias" &&
+        semanticType !== undefined
+      ? resolveCheckerTransformedSourceType(
+          node,
+          semanticType,
+          queries,
+          state,
+        )
+      : undefined;
+    if (transformedTarget !== undefined) {
+      return transformedTarget;
+    }
     const semanticTarget = resolveTypeWithState(
       semanticType,
       queries.sourceFile,
@@ -1446,16 +1635,164 @@ export function createCsharpTypePolicy(
       : semanticTarget;
   }
 
+  function resolveCheckerTransformedSourceType(
+    authoredRoot: Node,
+    selectedType: Type,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const standard = queries.selectStandardTypeTransformation(
+      authoredRoot,
+      selectedType,
+    );
+    if (standard !== undefined) {
+      return resolveStandardSourceTypeTransformation(
+        standard,
+        queries,
+        state,
+        authoredRoot,
+        selectedType,
+      );
+    }
+    const direct = resolveEvidenceNodesToCommonTarget(
+      sourceTransformedTypeFactEvidenceNodes(
+        host.ast,
+        queries,
+        authoredRoot,
+        selectedType,
+      ),
+      selectedType,
+      queries,
+      state,
+    );
+    if (direct !== undefined) {
+      return direct;
+    }
+    if (queries.isTuple(selectedType)) {
+      const infos = queries.getTupleElementInfos(selectedType);
+      const elements = infos.map((element) => {
+        const evidence = [
+          ...sourceTupleElementTypeEvidenceNodes(host.ast, queries, element),
+          ...sourceTransformedTypeFactEvidenceNodes(
+            host.ast,
+            queries,
+            authoredRoot,
+            element.type,
+          ),
+        ];
+        return resolveEvidenceNodesToCommonTarget(
+          evidence,
+          element.type,
+          queries,
+          state,
+        ) ?? resolveTypeWithState(
+          element.type,
+          queries.sourceFile,
+          nextState(state),
+        );
+      });
+      return infos.length === 0 || elements.some((element) => element === undefined)
+        ? undefined
+        : {
+            kind: "tuple",
+            elements: elements as readonly TargetTypeRef[],
+          };
+    }
+    const callable = resolveCallableType(selectedType, queries, state);
+    if (callable !== undefined) {
+      return callable;
+    }
+    return host.structuralTypes.resolveType(
+      selectedType,
+      queries.sourceFile,
+      authoredRoot,
+    );
+  }
+
+  function resolveStandardSourceTypeTransformation(
+    transformation: NonNullable<
+      ReturnType<SourceFileSemantics["selectStandardTypeTransformation"]>
+    >,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+    authoredRoot: Node,
+    selectedType: Type,
+  ): TargetTypeRef | undefined {
+    if (transformation.kind === "unresolved") {
+      return undefined;
+    }
+    if (transformation.kind === "component") {
+      return resolveSourceTypeComponentEvidence(
+        transformation.component,
+        queries,
+        state,
+      );
+    }
+    if (transformation.kind === "tuple") {
+      const elements = transformation.elements.map((element) =>
+        resolveSignatureParameterEvidence(element, queries, state)
+      );
+      return elements.some((element) => element === undefined)
+        ? undefined
+        : {
+            kind: "tuple",
+            elements: elements as readonly TargetTypeRef[],
+          };
+    }
+    if (transformation.kind === "structural") {
+      return host.structuralTypes.resolveType(
+        selectedType,
+        queries.sourceFile,
+        authoredRoot,
+      );
+    }
+    return resolveCallableEvidence(
+      transformation.callable,
+      queries,
+      state,
+    );
+  }
+
+  function resolveEvidenceNodesToCommonTarget(
+    nodes: readonly Node[],
+    selectedType: Type,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    if (nodes.length === 0) {
+      return undefined;
+    }
+    const targets = [...new Set(nodes)].map((node) =>
+      resolveAuthoredAndSelectedSourceType(
+        node,
+        host.ast.getSourceFile(node) ?? queries.sourceFile,
+        selectedType,
+        queries.sourceFile,
+        nextState(state),
+      )
+    );
+    if (targets.some((target) => target === undefined)) {
+      return undefined;
+    }
+    const first = targets[0]!;
+    return targets.every((target) =>
+        target !== undefined && targetTypeRefEquals(first, target)
+      )
+      ? first
+      : undefined;
+  }
+
   function resolveCompositionalSourceTypeAlias(
     typeName: Node,
     typeArguments: readonly TargetTypeRef[],
+    selectedType: Type | undefined,
     state: CsharpTypeResolutionState,
   ):
     | { readonly kind: "not-alias" }
     | { readonly kind: "checker-transformed-alias" }
     | { readonly kind: "resolved"; readonly type: TargetTypeRef }
     | { readonly kind: "rejected" } {
-    const reference = host.navigation.referenceFor(typeName);
+    const reference = host.navigation.sourceReferenceFor(typeName);
     if (
       reference === undefined ||
       !host.ast.is.IsTypeAliasDeclaration(reference.declaration)
@@ -1466,9 +1803,6 @@ export function createCsharpTypePolicy(
       reference.declaration,
     );
     const target = declaration?.Type;
-    if (!sourceTypeSyntaxIsCompositional(host.ast, target)) {
-      return { kind: "checker-transformed-alias" };
-    }
     const parameters = host.ast.typeParameters(reference.declaration);
     if (target === undefined || parameters.length !== typeArguments.length) {
       return { kind: "rejected" };
@@ -1487,17 +1821,29 @@ export function createCsharpTypePolicy(
       }
       substitutions.set(key, argument);
     }
-    const resolved = resolveNodeWithState(
-      target,
-      reference.sourceFile,
-      nextState(state),
-    );
-    return resolved === undefined
-      ? { kind: "rejected" }
-      : {
-          kind: "resolved",
-          type: substituteTargetTypeParameters(resolved, substitutions),
-        };
+    const resolved = target === undefined
+      ? undefined
+      : sourceTypeSyntaxIsCompositional(host.ast, target)
+        ? resolveNodeWithState(
+            target,
+            reference.sourceFile,
+            nextState(state),
+          )
+        : selectedType === undefined
+          ? undefined
+          : resolveCheckerTransformedSourceType(
+              target,
+              selectedType,
+              host.semantics(reference.sourceFile),
+              nextState(state),
+            );
+    if (resolved === undefined) {
+      return { kind: "checker-transformed-alias" };
+    }
+    return {
+      kind: "resolved",
+      type: substituteTargetTypeParameters(resolved, substitutions),
+    };
   }
 
   function targetPreservesAuthoredSourcePrimitiveFacts(
@@ -1717,6 +2063,7 @@ export function createCsharpTypePolicy(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
     expectedTypeParameterNames?: readonly string[],
+    callable?: CsharpSourceCallableContract,
   ):
     | {
         readonly arguments: readonly TargetTypeRef[];
@@ -1747,6 +2094,23 @@ export function createCsharpTypePolicy(
         substitutions: new Map(),
       };
     }
+    const inferredParameterNames = new Set(
+      selectedArguments
+        .filter((argument) => argument.explicitTypeNode === undefined)
+        .map((argument) => argument.typeParameterName),
+    );
+    const inferredTargetArguments = callable === undefined ||
+        inferredParameterNames.size === 0
+      ? new Map<string, TargetTypeRef>()
+      : inferSourceCallTargetTypeArguments(
+          source,
+          callable,
+          sourceFile,
+          inferredParameterNames,
+        );
+    if (inferredTargetArguments === undefined) {
+      return undefined;
+    }
     const selectedParameters = new Set<Type>();
     const arguments_: TargetTypeRef[] = [];
     const substitutions = new Map<string, TargetTypeRef>();
@@ -1758,11 +2122,18 @@ export function createCsharpTypePolicy(
       ) {
         return undefined;
       }
-      const targetArgument = resolveSelectedType(
-        selected.explicitTypeNode,
-        selected.selectedType,
-        sourceFile,
-      );
+      const targetArgument = selected.explicitTypeNode === undefined
+        ? inferredTargetArguments.get(selected.typeParameterName) ??
+          resolveSelectedType(
+            undefined,
+            selected.selectedType,
+            sourceFile,
+          )
+        : resolveSelectedType(
+            selected.explicitTypeNode,
+            selected.selectedType,
+            sourceFile,
+          );
       if (targetArgument === undefined) {
         return undefined;
       }
@@ -1852,6 +2223,7 @@ export function createCsharpTypePolicy(
       source,
       selectedSourceFile,
       callable.methodTypeParameterNames,
+      callable,
     );
     if (instantiation === undefined) {
       return undefined;
@@ -1880,6 +2252,54 @@ export function createCsharpTypePolicy(
       : substituted;
   }
 
+  function inferSourceCallTargetTypeArguments(
+    source: ResolvedSourceCallInfo,
+    callable: CsharpSourceCallableContract,
+    sourceFile: SourceFile,
+    parameterNames: ReadonlySet<string>,
+  ): ReadonlyMap<string, TargetTypeRef> | undefined {
+    const inferred = new Map<string, TargetTypeRef>();
+    for (const binding of source.sourceArgumentBindings) {
+      const parameter = callable.parameters[binding.sourceParameterIndex]
+        ?.targetParameter;
+      const argument = source.sourceArguments[binding.sourceArgumentIndex];
+      if (parameter === undefined || argument === undefined) {
+        return undefined;
+      }
+      const actual = resolveSelectedValue(
+        argument.expression,
+        argument.type,
+        sourceFile,
+      );
+      if (actual === undefined) {
+        continue;
+      }
+      const pattern = csharpTargetParameterValueType(
+        parameter,
+        binding.sourceForm,
+      );
+      const candidates = inferCsharpTargetTypeParameterBindings(
+        pattern,
+        actual,
+        parameterNames,
+      );
+      if (candidates === undefined) {
+        continue;
+      }
+      for (const [name, candidate] of candidates) {
+        const existing = inferred.get(name);
+        if (
+          existing !== undefined &&
+          !targetTypeRefEquals(existing, candidate)
+        ) {
+          return undefined;
+        }
+        inferred.set(name, candidate);
+      }
+    }
+    return inferred;
+  }
+
   function sourceCallSelectedDeclaration(
     source: ResolvedSourceCallInfo,
   ): Node | undefined {
@@ -1903,6 +2323,17 @@ export function createCsharpTypePolicy(
           host.semantics(selectedSourceFile),
           state,
         );
+  }
+
+  function sourceCallCalleeDelegateSignature(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): ReturnType<typeof getCsharpDelegateSignature> {
+    return getCsharpDelegateSignature(resolveSelectedValue(
+      source.sourceCallee.expression,
+      source.sourceCallee.type,
+      sourceFile,
+    ));
   }
 
   function sourceCallableTypeParametersMatch(
@@ -1995,6 +2426,14 @@ export function createCsharpTypePolicy(
     const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
     if (direct !== undefined) {
       return direct;
+    }
+    const substitutionBase = queries.getSubstitutionBaseType(type);
+    if (substitutionBase !== undefined) {
+      return resolveTypeWithState(
+        substitutionBase,
+        sourceFile,
+        nextState(state),
+      );
     }
     const targetTypeArguments = resolveSemanticTypeArguments(type, queries, state);
     if (targetTypeArguments === undefined) {
@@ -2110,6 +2549,20 @@ export function createCsharpTypePolicy(
       const primitive = host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey);
       if (primitive !== undefined) {
         return csharpSourcePrimitiveTargetType(primitive.kind);
+      }
+      const fixedArray = readCsharpSourceFixedArrayType(
+        host.sourceFacts,
+        subject,
+      );
+      if (fixedArray !== undefined) {
+        const element = resolveNodeWithState(
+          fixedArray.sourceElementType,
+          sourceFile,
+          nextState(state),
+        );
+        if (element !== undefined) {
+          return { kind: "array", element };
+        }
       }
       const unsafeContext = readCsharpSourceUnsafeContext(
         host.sourceFacts,
@@ -2448,34 +2901,45 @@ export function createCsharpTypePolicy(
       return undefined;
     }
     const signature = signatures[0]!;
-    const rawParameters = queries.getSignatureParameters(signature);
-    const parameters = definedValues(rawParameters);
-    if (parameters.length !== rawParameters.length) {
+    const declaration = queries.getSignatureDeclaration(signature);
+    const selectedResultType = queries.getReturnTypeOfSignature(signature);
+    if (selectedResultType === undefined) {
       return undefined;
     }
-    const parameterTypes = parameters.map((parameter) => {
-      const resolved = resolveSymbolType(
-        parameter,
-        queries,
-        nextState(state),
-      );
-      if (resolved === undefined) {
-        return undefined;
-      }
-      return queries.getSymbolDeclarations(parameter).some((declaration) =>
-          declaration !== undefined &&
-          host.ast.is.IsParameterDeclaration(declaration) &&
-          host.ast.questionToken(declaration) !== undefined
-        )
-        ? csharpNullableTargetType(resolved)
-        : resolved;
-    });
+    const authoredResultType = declarationResultTypeNode(declaration);
+    return resolveCallableEvidence(
+      {
+        parameters: queries.getSignatureParameterInfos(signature),
+        result: {
+          selectedType: selectedResultType,
+          ...(declaration === undefined
+            ? {}
+            : {
+                declaration,
+                ...(authoredResultType === undefined
+                  ? {}
+                  : { authoredTypeNode: authoredResultType }),
+              }),
+        },
+      },
+      queries,
+      state,
+    );
+  }
+
+  function resolveCallableEvidence(
+    callable: SourceCallableTypeEvidence,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const parameterTypes = callable.parameters.map((parameter) =>
+      resolveSignatureParameterEvidence(parameter, queries, state)
+    );
     if (parameterTypes.some((parameter) => parameter === undefined)) {
       return undefined;
     }
-    const returnType = resolveSelectedDeclarationResult(
-      queries.getSignatureDeclaration(signature),
-      queries.getReturnTypeOfSignature(signature),
+    const returnType = resolveSourceTypeComponentEvidence(
+      callable.result,
       queries,
       state,
     );
@@ -2495,44 +2959,96 @@ export function createCsharpTypePolicy(
         );
   }
 
-  function resolveSymbolType(
-    symbol: Symbol,
+  function resolveSignatureParameterEvidence(
+    parameter: SourceCallableTypeEvidence["parameters"][number],
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const direct = resolveDirectSourceFacts(
-      [
-        symbol,
-        ...definedValues(queries.getSymbolDeclarations(symbol)),
-      ],
-      queries.sourceFile,
+    const resolved = resolveSourceTypeComponentEvidence(
+      {
+        selectedType: parameter.type,
+        ...(parameter.declaration === undefined
+          ? {}
+          : {
+              declaration: parameter.declaration,
+              ...(host.ast.typeNode(parameter.declaration) === undefined
+                ? {}
+                : {
+                    authoredTypeNode: host.ast.typeNode(
+                      parameter.declaration,
+                    ),
+                  }),
+            }),
+      },
+      queries,
       state,
     );
-    if (direct !== undefined) {
-      return direct;
+    return resolved === undefined || parameter.parameterKind !== "optional"
+      ? resolved
+      : csharpNullableTargetType(resolved);
+  }
+
+  function resolveSourceTypeComponentEvidence(
+    component: SourceTypeComponentEvidence,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    const authoredSourceFile = component.authoredTypeNode === undefined
+      ? queries.sourceFile
+      : host.ast.getSourceFile(component.authoredTypeNode) ??
+        queries.sourceFile;
+    return component.authoredTypeNode === undefined
+      ? resolveTypeWithState(
+          component.selectedType,
+          queries.sourceFile,
+          nextState(state),
+        )
+      : resolveAuthoredAndSelectedSourceType(
+          component.authoredTypeNode,
+          authoredSourceFile,
+          component.selectedType,
+          queries.sourceFile,
+          nextState(state),
+        );
+  }
+
+  function resolveSelectedSymbolType(
+    symbol: Symbol,
+    selectedType: Type | undefined,
+    queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined {
+    if (selectedType === undefined) {
+      return undefined;
     }
-    for (const declaration of definedValues(
-      queries.getSymbolDeclarations(symbol),
-    )) {
-      if (host.ast.is.IsParameterDeclaration(declaration)) {
-        const typeNode = host.ast.as.AsParameterDeclaration(declaration)!.Type;
-        if (typeNode !== undefined) {
-          const declared = resolveNodeWithState(
-            typeNode,
-            queries.sourceFile,
-            nextState(state),
-          );
-          if (declared !== undefined) {
-            return declared;
-          }
-        }
-      }
+    const roots = definedValues(queries.getRootSymbols(symbol));
+    const selectedSymbols = roots.length === 0 ? [symbol] : roots;
+    const typeNodes = definedValues(selectedSymbols.flatMap((selected) =>
+      definedValues(queries.getSymbolDeclarations(selected)).map((declaration) =>
+        declarationResultTypeNode(declaration)
+      )
+    ));
+    if (typeNodes.length === 0) {
+      return undefined;
     }
-    return resolveTypeWithState(
-      queries.getTypeOfSymbol(symbol),
-      queries.sourceFile,
-      nextState(state),
+    const targets = typeNodes.map((typeNode) =>
+      resolveAuthoredAndSelectedSourceType(
+        typeNode,
+        host.ast.getSourceFile(typeNode) ?? queries.sourceFile,
+        selectedType,
+        queries.sourceFile,
+        nextState(state),
+      )
     );
+    if (targets.some((target) => target === undefined)) {
+      return undefined;
+    }
+    const first = targets[0]!;
+    return targets.every((target) =>
+        target !== undefined && targetTypeRefEquals(target, first)
+      )
+      ? first
+      : undefined;
   }
 
   function resolveProjectSourceSemanticType(

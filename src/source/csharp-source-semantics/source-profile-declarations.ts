@@ -1,5 +1,6 @@
 import {
   targetSourceProfileDeclaration,
+  typescriptNoLibUtilityDeclarations,
 } from "@tsonic/target-api";
 import type {
   TargetProviderSourceProfileContext,
@@ -110,24 +111,6 @@ interface AsyncDisposable {
   [Symbol.asyncDispose](): void | PromiseLike<void>;
 }
 
-type Partial<T> = { [P in keyof T]?: T[P] };
-type Required<T> = { [P in keyof T]-?: T[P] };
-type Readonly<T> = { readonly [P in keyof T]: T[P] };
-type Pick<T, K extends keyof T> = { [P in K]: T[P] };
-type Exclude<T, U> = T extends U ? never : T;
-type Extract<T, U> = T extends U ? T : never;
-type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
-type Record<K extends keyof any, T> = { [P in K]: T };
-type NonNullable<T> = T & {};
-type Uppercase<S extends string> = intrinsic;
-type Lowercase<S extends string> = intrinsic;
-type Capitalize<S extends string> = intrinsic;
-type Uncapitalize<S extends string> = intrinsic;
-type Parameters<T extends (...args: any) => any> = T extends (...args: infer P) => any ? P : never;
-type ConstructorParameters<T extends abstract new (...args: any) => any> = T extends abstract new (...args: infer P) => any ? P : never;
-type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : any;
-type InstanceType<T extends abstract new (...args: any) => any> = T extends abstract new (...args: any) => infer R ? R : any;
-type Awaited<T> = T extends null | undefined ? T : T extends Promise<infer V> ? Awaited<V> : T;
 `.trim();
 
 const csharpProfileDeclarations = `
@@ -545,6 +528,10 @@ export function csharpSourceProfileContributions(context: TargetProviderSourcePr
   }
   return {
     declarations: [
+      targetSourceProfileDeclaration(
+        "typescript-utilities.d.ts",
+        typescriptNoLibUtilityDeclarations,
+      ),
       targetSourceProfileDeclaration("csharp-globals.d.ts", csharpProfileDeclarations),
     ],
   };
@@ -553,6 +540,10 @@ export function csharpSourceProfileContributions(context: TargetProviderSourcePr
 export function csharpJsSurfaceSourceProfileContributions(): TargetSourceProfileContributions {
   return {
     declarations: [
+      targetSourceProfileDeclaration(
+        "typescript-utilities.d.ts",
+        typescriptNoLibUtilityDeclarations,
+      ),
       targetSourceProfileDeclaration("js-globals.d.ts", jsSurfaceProfileDeclarations),
     ],
   };

@@ -4,6 +4,8 @@ import type {
 } from "@tsonic/target-api";
 import type {
   CsharpObjectShapeFact,
+  CsharpObjectShapeCapability,
+  CsharpObjectShapeProjection,
   CsharpSourceCallableContract,
   TargetTypeRef,
 } from "../../policy/types/index.js";
@@ -16,8 +18,8 @@ import {
 
 export type CsharpArtifactFacet =
   | "generated-helper-surface"
+  | "object-shape-behavior"
   | "object-shape-materialization"
-  | "object-shape-serialization"
   | "object-shape-type-surface"
   | "source-file-implementation"
   | "source-file-public-surface"
@@ -33,7 +35,9 @@ export type CsharpArtifactSnapshot =
       readonly kind: "object-shape";
       readonly fact: CsharpObjectShapeFact;
       readonly materialization: "source" | "synthetic";
-      readonly jsonSerializable: boolean;
+      readonly capabilities: readonly CsharpObjectShapeCapability[];
+      readonly projections: readonly CsharpObjectShapeProjection[];
+      readonly receiverBoundMethodKeys: readonly string[];
     }
   | {
       readonly kind: "source-callable";
@@ -80,24 +84,51 @@ export function csharpObjectShapeContractCandidate(
   owner: string,
   fact: CsharpObjectShapeFact,
   materialization: "source" | "synthetic",
-  jsonSerializable: boolean,
+  capabilities: ReadonlySet<CsharpObjectShapeCapability> | readonly CsharpObjectShapeCapability[],
+  projections: readonly CsharpObjectShapeProjection[],
+  receiverBoundMethodKeys: ReadonlySet<string> | readonly string[],
   dependencies: readonly string[],
 ): CsharpArtifactContractCandidate {
+  const canonicalCapabilities = Object.freeze(
+    [...capabilities].sort(),
+  );
+  const canonicalProjections = Object.freeze(
+    [...projections].sort((left, right) =>
+      objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
+    ),
+  );
+  const canonicalReceiverBoundMethodKeys = Object.freeze(
+    [...receiverBoundMethodKeys].sort(),
+  );
   return {
     owner,
     contract: {
       facets: [
         {
+          facet: "object-shape-behavior",
+          value: encodeContractParts([
+            "object-shape-behavior",
+            ...canonicalCapabilities,
+            ...canonicalProjections.map((projection) =>
+              encodeContractParts([
+                "projection",
+                projection.kind,
+                targetTypeRefKey(projection.resultType),
+                ...projection.propertyOrder,
+              ])
+            ),
+          ]),
+        },
+        {
           facet: "object-shape-materialization",
           value: materialization,
         },
         {
-          facet: "object-shape-serialization",
-          value: jsonSerializable ? "json-serializable" : "plain",
-        },
-        {
           facet: "object-shape-type-surface",
-          value: csharpObjectShapeTypeSurface(fact),
+          value: csharpObjectShapeTypeSurface(
+            fact,
+            canonicalReceiverBoundMethodKeys,
+          ),
         },
       ],
     },
@@ -106,10 +137,10 @@ export function csharpObjectShapeContractCandidate(
         owner: dependency,
         facet: "object-shape-type-surface" as const,
       },
-      ...(jsonSerializable
+      ...(canonicalCapabilities.length > 0 || canonicalProjections.length > 0
         ? [{
             owner: dependency,
-            facet: "object-shape-serialization" as const,
+            facet: "object-shape-behavior" as const,
           }]
         : []),
     ])),
@@ -117,13 +148,26 @@ export function csharpObjectShapeContractCandidate(
       kind: "object-shape",
       fact,
       materialization,
-      jsonSerializable,
+      capabilities: canonicalCapabilities,
+      projections: canonicalProjections,
+      receiverBoundMethodKeys: canonicalReceiverBoundMethodKeys,
     }),
   };
 }
 
+export function objectShapeProjectionKey(
+  projection: CsharpObjectShapeProjection,
+): string {
+  return encodeContractParts([
+    projection.kind,
+    targetTypeRefKey(projection.resultType),
+    ...projection.propertyOrder,
+  ]);
+}
+
 export function csharpObjectShapeTypeSurface(
   fact: CsharpObjectShapeFact,
+  receiverBoundMethodKeys: readonly string[] = [],
 ): string {
   return encodeContractParts([
     "object-shape",
@@ -140,6 +184,9 @@ export function csharpObjectShapeTypeSurface(
       "member",
       ...csharpObjectShapeMemberContractParts(member),
     ])),
+    ...[...receiverBoundMethodKeys].sort().map((memberKey) =>
+      encodeContractParts(["receiver-bound-method", memberKey])
+    ),
   ]);
 }
 

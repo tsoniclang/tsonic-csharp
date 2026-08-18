@@ -88,6 +88,36 @@ namespace Tsonic.Generated
 `);
 });
 
+test("static class fields require explicit source initialization semantics", () => {
+  const rejected = compileCsharpSource({
+    sourceText: `
+      import type { int32 } from "@tsonic/core/types.js";
+      export class Counter {
+        static total: int32;
+      }
+    `,
+  });
+
+  assert.equal(rejected.sourceDiagnosticsText, "");
+  assert.deepEqual(rejected.extensionDiagnostics, []);
+  assert.deepEqual(rejected.targetDiagnostics.map(({ code }) => code), [
+    "CSHARP_STATIC_FIELD_INITIALIZER_REQUIRED",
+  ]);
+
+  const explicitDefault = cleanCompile(`
+    import { defaultValue } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    export class Counter {
+      static total: int32 = defaultValue<int32>();
+    }
+  `);
+
+  assert.match(
+    explicitDefault.artifacts.get("src/Index.cs"),
+    /public static int total = default\(int\)!;/u,
+  );
+});
+
 test("direct C# declaration translation separates typed locations from native pointers and function pointers", () => {
   const compiled = cleanCompile(`
     import type { fnptr, ptr } from "@tsonic/csharp/lang.js";
@@ -171,6 +201,38 @@ namespace Tsonic.Generated
         public static int run(int seed)
         {
             return identity<int>(seed);
+        }
+    }
+}
+`);
+});
+
+test("explicit source-owned type arguments do not depend on argument inference", () => {
+  const compiled = cleanCompile(`
+    import type { int } from "@tsonic/csharp/types.js";
+
+    function transform<T, U>(value: T, fn: (input: T) => U): U {
+      return fn(value);
+    }
+
+    export function main(): string {
+      return transform<int, string>(7, (value) => "N=" + value);
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static U transform<T, U>(T value, Func<T, U> fn)
+        {
+            return fn(value);
+        }
+        public static string main()
+        {
+            return transform<int, string>(7, (int value) => "N=" + value);
         }
     }
 }

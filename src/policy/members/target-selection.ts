@@ -33,6 +33,10 @@ import {
   selectCsharpComposedSourceProfileElement,
   selectCsharpComposedSourceProfileProperty,
 } from "./source-profile-selection.js";
+import {
+  selectCsharpSourceCoreFixedArrayElement,
+  selectCsharpSourceCoreFixedArrayProperty,
+} from "./source-core-fixed-array.js";
 import type {
   CsharpSelectedTargetCall,
   CsharpTargetElementInvocation,
@@ -189,6 +193,22 @@ export function selectCsharpTargetProperty(
   if (provider.kind !== "not-provider") {
     return provider;
   }
+  const fixedArray = selectCsharpSourceCoreFixedArrayProperty(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (fixedArray !== undefined) {
+    return fixedArray.kind === "rejected"
+      ? fixedArray
+      : {
+          kind: "resolved",
+          source: provider.source,
+          targetMember: fixedArray.targetMember,
+          receiver: fixedArray.receiver,
+          origin: "source-profile",
+        };
+  }
   const profile = selectCsharpComposedSourceProfileProperty(
     host,
     provider.source,
@@ -235,6 +255,24 @@ export function selectCsharpTargetElement(
   }
   if (provider.kind !== "not-provider") {
     return provider;
+  }
+  const fixedArray = selectCsharpSourceCoreFixedArrayElement(
+    host,
+    provider.source,
+    sourceFile,
+  );
+  if (fixedArray !== undefined) {
+    return fixedArray.kind === "rejected"
+      ? fixedArray
+      : {
+          kind: "resolved",
+          source: provider.source,
+          targetMember: fixedArray.targetMember,
+          targetParameterIndex: fixedArray.targetParameterIndex,
+          receiver: fixedArray.receiver,
+          invocation: fixedArray.invocation,
+          origin: "source-profile",
+        };
   }
   const project = selectCsharpProjectElement(
     host,

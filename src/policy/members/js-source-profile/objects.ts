@@ -1,4 +1,10 @@
 import type {
+  Node,
+} from "@tsonic/tsts";
+import type {
+  CsharpCallArtifactRequirement,
+  CsharpObjectShapeProjectionKind,
+  CsharpTargetInvocation,
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../types/index.js";
@@ -209,6 +215,13 @@ function objectCollectionMember(
         objectRuntimeType,
         [targetParameter("value", argumentType)],
         refinedResultType,
+        objectShapeProjectionOptions(
+          context,
+          context.source.sourceArguments[0],
+          argumentType,
+          row.result,
+          0,
+        ),
       );
 }
 
@@ -259,6 +272,13 @@ function objectHasOwnMember(
           targetParameter("key", stringType),
         ],
         boolType,
+        objectShapeProjectionOptions(
+          context,
+          context.source.sourceArguments[0],
+          valueType,
+          "has-own",
+          0,
+        ),
       );
 }
 
@@ -301,6 +321,14 @@ function objectPrototypeHasOwnMember(
         receiverType,
         [targetParameter("key", stringType)],
         boolType,
+        objectShapeProjectionOptions(
+          context,
+          context.source.sourceReceiver,
+          receiverType,
+          "has-own",
+          0,
+          { kind: "receiver" },
+        ),
       );
 }
 
@@ -347,12 +375,52 @@ function jsonStringifyMember(
         ],
         stringType,
         {
-          csharpCallFinalization: {
-            kind: "closed-json-value",
-            argumentIndex: 0,
-          },
+          csharpArtifactRequirements: [{
+            kind: "object-shape-capability",
+            source: { kind: "argument", index: 0 },
+            capability: "json-serialization",
+            rootKind: "value",
+          }],
         },
       );
+}
+
+function objectShapeProjectionOptions(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  sourceValue: { readonly expression: Node } | undefined,
+  selectedTargetType: TargetTypeRef,
+  projection: CsharpObjectShapeProjectionKind,
+  targetParameterIndex: number,
+  source: CsharpCallArtifactRequirement["source"] = {
+    kind: "argument",
+    index: 0,
+  },
+): {
+  readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
+  readonly csharpInvocation?: CsharpTargetInvocation;
+} {
+  if (sourceValue === undefined) {
+    return {};
+  }
+  const shape = context.host.objectShapes?.resolveNode(
+    sourceValue.expression,
+    context.sourceFile,
+  ) ?? context.host.objectShapes?.resolveTarget(selectedTargetType);
+  return shape === undefined
+    ? {}
+    : {
+        csharpArtifactRequirements: [{
+          kind: "object-shape-projection",
+          source,
+          projection,
+          rootKind: "object-shape",
+        }],
+        csharpInvocation: {
+          kind: "object-shape-projection",
+          targetParameterIndex,
+          projection,
+        },
+      };
 }
 
 function promiseConstructorMember(

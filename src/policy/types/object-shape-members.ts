@@ -100,9 +100,13 @@ export function resolveCsharpObjectShapeMemberBySelectedSubject(
 export function resolveCsharpObjectShapeMemberReadTargetType(
   member: CsharpObjectShapeMemberFact,
   selectedSourceType: Type | undefined,
+  sourceTypesAgree: (left: Type, right: Type) => boolean =
+    (left, right) => left === right,
 ): TargetTypeRef | undefined {
   return selectedSourceType !== undefined &&
-      member.sourceTypes?.includes(selectedSourceType) === true
+      member.sourceTypes?.some((sourceType) =>
+        sourceTypesAgree(sourceType, selectedSourceType)
+      ) === true
     ? member.type
     : undefined;
 }

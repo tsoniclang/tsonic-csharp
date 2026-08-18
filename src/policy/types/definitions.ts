@@ -1,6 +1,7 @@
 import type {
   ArgumentPassingMode,
   ExtensionFactSubject,
+  Node,
   SourcePrimitiveKind,
   Type,
 } from "@tsonic/tsts";
@@ -10,11 +11,17 @@ export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint"
 export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
+  readonly sourceDeclarations?: readonly Node[];
   readonly sourceTypes?: readonly Type[];
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
   readonly optional?: boolean;
+  readonly readonly?: boolean;
+  readonly accessor?: {
+    readonly getter: true;
+    readonly setter: boolean;
+  };
 }
 
 export interface CsharpObjectShapeFact {
@@ -235,14 +242,36 @@ export interface CsharpTargetParameter extends TargetParameter {
   readonly csharpOmittableOptionalArgument?: true;
 }
 
-export type CsharpCallFinalizationRequirement =
-  | {
-      readonly kind: "closed-json-value";
-      readonly argumentIndex: number;
+export type CsharpObjectShapeCapability =
+  | "json-serialization";
+
+export type CsharpObjectShapeProjectionKind =
+  | "keys"
+  | "values"
+  | "entries"
+  | "has-own";
+
+export interface CsharpObjectShapeProjection {
+  readonly kind: CsharpObjectShapeProjectionKind;
+  readonly resultType: TargetTypeRef;
+  readonly propertyOrder: readonly string[];
+}
+
+interface CsharpCallArtifactRequirementBase {
+  readonly source:
+    | { readonly kind: "receiver" }
+    | { readonly kind: "argument"; readonly index: number };
+  readonly rootKind: "value" | "object-shape";
+}
+
+export type CsharpCallArtifactRequirement =
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-capability";
+      readonly capability: CsharpObjectShapeCapability;
     }
-  | {
-      readonly kind: "closed-json-object-shape";
-      readonly argumentIndex: number;
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-projection";
+      readonly projection: CsharpObjectShapeProjectionKind;
     };
 
 export interface CsharpMethodTypeArgumentProjection {
@@ -264,7 +293,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
-  readonly csharpCallFinalization?: CsharpCallFinalizationRequirement;
+  readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
   readonly csharpMethodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjection[];
   readonly csharpInvocation?: CsharpTargetInvocation;
 }
@@ -277,6 +306,11 @@ export type CsharpTargetInvocation =
   | {
       readonly kind: "array-creation";
       readonly lengthParameterIndex: number;
+    }
+  | {
+      readonly kind: "object-shape-projection";
+      readonly targetParameterIndex: number;
+      readonly projection: CsharpObjectShapeProjectionKind;
     };
 
 export interface CsharpTargetConversionOperatorFact {

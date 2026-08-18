@@ -36,6 +36,9 @@ import {
   renderJsonSerializableObjectShapeMethod,
 } from "./json-object-shapes.js";
 import {
+  renderObjectShapeProjectionMethods,
+} from "./closed-object-shapes.js";
+import {
   finalizeCsharpCompilationUnit,
 } from "./csharp-compilation-unit.js";
 import {
@@ -46,6 +49,9 @@ import {
 } from "../../options/csharp-target-options.js";
 
 export {
+  objectShapeAccessorGetterStorageMemberName,
+  objectShapeAccessorSetterStorageMemberName,
+  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
 
@@ -148,8 +154,11 @@ export function materializeObjectShapeDeclarations(
       continue;
     }
     const declaration = renderObjectShapeDeclaration(
+      input,
       artifact.fact,
-      artifact.jsonSerializable,
+      artifact.capabilities,
+      artifact.projections,
+      artifact.receiverBoundMethodKeys,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -161,7 +170,9 @@ export function materializeObjectShapeDeclarations(
       !objectShapeDeclarationMatches(
         existing,
         artifact.fact,
-        artifact.jsonSerializable,
+        artifact.capabilities.includes("json-serialization"),
+        artifact.projections,
+        new Set(artifact.receiverBoundMethodKeys),
       )
     ) {
       diagnostics.push({
@@ -213,10 +224,14 @@ export function planCsharpObjectShapeSourceFile(
 }
 
 function renderObjectShapeDeclaration(
+  input: CsharpTranslationContext,
   fact: CsharpObjectShapeFact,
-  jsonSerializable: boolean,
+  capabilities: readonly import("../../policy/types/index.js").CsharpObjectShapeCapability[],
+  projections: readonly import("../../policy/types/index.js").CsharpObjectShapeProjection[],
+  receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {
+  const jsonSerializable = capabilities.includes("json-serialization");
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
   if (targetType === undefined || targetType.kind !== "IdentifierName") {
     diagnostics.push({
@@ -236,6 +251,7 @@ function renderObjectShapeDeclaration(
   const members = renderObjectShapeMembers(
     fact,
     (interfaces?.length ?? 0) > 0,
+    new Set(receiverBoundMethodKeys),
     undefined,
     undefined,
   );
@@ -260,13 +276,21 @@ function renderObjectShapeDeclaration(
     ...(interfaces.length === 0 && !jsonSerializable
       ? {}
       : {
-          interfaces: jsonSerializable
-            ? [...interfaces, csharpJsonValueInterfaceType()]
-            : interfaces,
+          interfaces: [
+            ...interfaces,
+            ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+          ],
         }),
-    members: jsonSerializable
-      ? [...members, renderJsonSerializableObjectShapeMethod(fact)]
-      : members,
+    members: [
+      ...members,
+      ...(jsonSerializable ? [renderJsonSerializableObjectShapeMethod(fact)] : []),
+      ...renderObjectShapeProjectionMethods(
+        input,
+        fact,
+        projections,
+        diagnostics,
+      ),
+    ],
   };
 }
 

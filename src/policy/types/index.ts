@@ -34,6 +34,7 @@ export * from "./object-shape-members.js";
 export * from "./object-shape-identity.js";
 export * from "./object-shape-policy.js";
 export * from "./compat-object-shapes.js";
+export * from "./closed-object-projection.js";
 export * from "./binding-projection-policy.js";
 export * from "./binding-array-carrier.js";
 export * from "./system.js";
