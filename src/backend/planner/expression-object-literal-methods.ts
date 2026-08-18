@@ -9,8 +9,9 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TargetDiagnostic,
+import {
+  sourceCallableUsesLexicalThis,
+  type TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
   CsharpExpression,
@@ -58,15 +59,44 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;
   }
-  const storageTargetType = objectShapeMethodStorageTargetType(
-    objectShape,
-    member,
-  );
+  const usesLexicalThis = sourceCallableUsesLexicalThis(input.ast, methodNode);
+  if (usesLexicalThis && member.memberKind !== "method") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      methodNode,
+      `Object literal callable property '${member.sourceName}' cannot bind lexical 'this' without an exact receiver-bearing method contract.`,
+    ));
+    return undefined;
+  }
+  if (usesLexicalThis) {
+    const required = input.artifacts.requireObjectShapeMethodReceiver(
+      objectShape,
+      member,
+    );
+    if (required.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(methodNode, required.reason));
+      return undefined;
+    }
+  }
+  const receiverBound = member.memberKind === "method" &&
+    input.artifacts.objectShapeMethodUsesReceiver(objectShape, member);
+  const storageTargetType = member.memberKind === "method"
+    ? objectShapeMethodStorageTargetType(
+        objectShape,
+        member,
+        receiverBound,
+      )
+    : member.type;
   const storageType = storageTargetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(storageTargetType);
-  const selfType = csharpTypeFromTargetTypeRef(objectShape.targetType);
-  if (storageTargetType === undefined || storageType === undefined || selfType === undefined) {
+  const selfType = receiverBound
+    ? csharpTypeFromTargetTypeRef(objectShape.targetType)
+    : undefined;
+  if (
+    storageTargetType === undefined ||
+    storageType === undefined ||
+    (receiverBound && selfType === undefined)
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
     return undefined;
   }
@@ -100,7 +130,7 @@ function planObjectLiteralMethodAsLambda(
   diagnostics: TargetDiagnostic[],
   objectShape: CsharpObjectShapeFact,
   expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
-  selfType: NonNullable<ReturnType<typeof csharpTypeFromTargetTypeRef>>,
+  selfType: ReturnType<typeof csharpTypeFromTargetTypeRef>,
 ): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
   if (method === undefined) {
@@ -116,12 +146,16 @@ function planObjectLiteralMethodAsLambda(
     return undefined;
   }
   const state = createDestructuringPlannerState(methodNode, input.ast);
-  const selfName = allocateSyntheticParameter(state);
-  const scopedInput = createCsharpThisBindingTranslationContext(
-    input,
-    selfName,
-    objectShape.targetType,
-  );
+  const selfName = selfType === undefined
+    ? undefined
+    : allocateSyntheticParameter(state);
+  const scopedInput = selfName === undefined
+    ? input
+    : createCsharpThisBindingTranslationContext(
+        input,
+        selfName,
+        objectShape.targetType,
+      );
   const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
   const body = planLambdaBlockBody(
     methodNode,
@@ -139,7 +173,9 @@ function planObjectLiteralMethodAsLambda(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
     parameters: [
-      { kind: "Parameter", name: selfName, type: selfType },
+      ...(selfName === undefined || selfType === undefined
+        ? []
+        : [{ kind: "Parameter" as const, name: selfName, type: selfType }]),
       ...planLambdaParameters(
         method.Parameters?.Nodes ?? [],
         sourceFile,

@@ -207,6 +207,38 @@ namespace Tsonic.Generated
 `);
 });
 
+test("explicit source-owned type arguments do not depend on argument inference", () => {
+  const compiled = cleanCompile(`
+    import type { int } from "@tsonic/csharp/types.js";
+
+    function transform<T, U>(value: T, fn: (input: T) => U): U {
+      return fn(value);
+    }
+
+    export function main(): string {
+      return transform<int, string>(7, (value) => "N=" + value);
+    }
+  `);
+
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
+
+namespace Tsonic.Generated
+{
+    public static class Index
+    {
+        public static U transform<T, U>(T value, Func<T, U> fn)
+        {
+            return fn(value);
+        }
+        public static string main()
+        {
+            return transform<int, string>(7, (int value) => "N=" + value);
+        }
+    }
+}
+`);
+});
+
 test("generic delegate calls consume the selected signature return type", () => {
   const compiled = cleanCompile(`
     export function transform<T, U>(

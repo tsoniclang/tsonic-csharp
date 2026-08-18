@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type {
+  TargetArtifactContractGraph,
   TargetArtifactDependency,
   TargetArtifactReconstruction,
   TargetDiagnostic,
@@ -88,6 +89,15 @@ export function reconstructCsharpSourceFiles(
 
       const revision = graph.revision;
       const candidateDiagnostics: TargetDiagnostic[] = [];
+      const moduleDependencies = sourceFilePublicDependencies(
+        input,
+        sourceFile,
+        owner,
+        ownerBySourceFile,
+      );
+      if (moduleDependencies.kind === "rejected") {
+        return moduleDependencies;
+      }
       const captured = input.artifacts.captureDependencies(owner, () =>
         planSourceFile(
           sourceFile,
@@ -104,6 +114,18 @@ export function reconstructCsharpSourceFiles(
         };
       }
       if (candidateDiagnostics.length > 0) {
+        const unpublished = unpublishedDependencies(
+          graph,
+          [...moduleDependencies.dependencies, ...captured.dependencies],
+        );
+        if (unpublished.length > 0) {
+          return {
+            kind: "blocked",
+            reason:
+              "C# source planning requires finalized imported public surfaces before its diagnostics are authoritative.",
+            dependencies: unpublished,
+          };
+        }
         diagnosticsByOwner.set(owner, Object.freeze([...candidateDiagnostics]));
         return {
           kind: "rejected",
@@ -111,15 +133,6 @@ export function reconstructCsharpSourceFiles(
           reason:
             `C# source artifact '${owner}' produced target diagnostics during reconstruction.`,
         };
-      }
-      const moduleDependencies = sourceFilePublicDependencies(
-        input,
-        sourceFile,
-        owner,
-        ownerBySourceFile,
-      );
-      if (moduleDependencies.kind === "rejected") {
-        return moduleDependencies;
       }
       const candidate = csharpSourceFileContractCandidate(
         owner,
@@ -176,6 +189,31 @@ export function reconstructCsharpSourceFiles(
       return planned === undefined ? [] : [planned];
     }),
   );
+}
+
+function unpublishedDependencies(
+  graph: TargetArtifactContractGraph<
+    CsharpArtifactFacet,
+    CsharpArtifactSnapshot
+  >,
+  dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
+): readonly TargetArtifactDependency<CsharpArtifactFacet>[] {
+  const byKey = new Map<string, TargetArtifactDependency<CsharpArtifactFacet>>();
+  for (const dependency of dependencies) {
+    const available = graph.contract(dependency.owner)?.facets.some((facet) =>
+      facet.facet === dependency.facet
+    ) === true;
+    if (!available) {
+      byKey.set(
+        `${dependency.owner.length}:${dependency.owner}${dependency.facet.length}:${dependency.facet}`,
+        dependency,
+      );
+    }
+  }
+  return Object.freeze([...byKey.values()].sort((left, right) =>
+    left.owner.localeCompare(right.owner) ||
+    left.facet.localeCompare(right.facet)
+  ));
 }
 
 function csharpArtifactReconstructionBudget(

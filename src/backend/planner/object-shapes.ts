@@ -158,6 +158,7 @@ export function materializeObjectShapeDeclarations(
       artifact.fact,
       artifact.capabilities,
       artifact.projections,
+      artifact.receiverBoundMethodKeys,
       diagnostics,
     );
     if (declaration === undefined) {
@@ -171,6 +172,7 @@ export function materializeObjectShapeDeclarations(
         artifact.fact,
         artifact.capabilities.includes("json-serialization"),
         artifact.projections,
+        new Set(artifact.receiverBoundMethodKeys),
       )
     ) {
       diagnostics.push({
@@ -226,6 +228,7 @@ function renderObjectShapeDeclaration(
   fact: CsharpObjectShapeFact,
   capabilities: readonly import("../../policy/types/index.js").CsharpObjectShapeCapability[],
   projections: readonly import("../../policy/types/index.js").CsharpObjectShapeProjection[],
+  receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {
   const jsonSerializable = capabilities.includes("json-serialization");
@@ -248,6 +251,7 @@ function renderObjectShapeDeclaration(
   const members = renderObjectShapeMembers(
     fact,
     (interfaces?.length ?? 0) > 0,
+    new Set(receiverBoundMethodKeys),
     undefined,
     undefined,
   );

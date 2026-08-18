@@ -13,6 +13,9 @@ import type {
   TargetTypeRef,
 } from "./definitions.js";
 import { targetTypeRefKey } from "./equality.js";
+import {
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "./object-shape-members.js";
 
 const projectionPrefix = "__tsonicObject";
 
@@ -167,10 +170,12 @@ export function csharpObjectShapeProjectionMembers(
     return undefined;
   }
   const members = projection.propertyOrder.map((sourceName) => {
-    const matches = fact.members.filter((member) =>
-      member.sourceName === sourceName
+    const selected = resolveCsharpObjectShapeMemberBySourceContract(
+      fact,
+      sourceName,
+      "finalized-object-spread-member",
     );
-    return matches.length === 1 ? matches[0] : undefined;
+    return selected.kind === "resolved" ? selected.member : undefined;
   });
   return members.some((member) => member === undefined)
     ? undefined

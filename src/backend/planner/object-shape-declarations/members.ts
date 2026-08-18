@@ -26,6 +26,7 @@ import {
 } from "../target-types.js";
 import {
   canonicalCsharpObjectShapeMembers,
+  csharpObjectShapeMemberContractKey,
   csharpDelegateTargetType,
   isCsharpVoidTargetType,
 } from "../../../policy/types/index.js";
@@ -33,6 +34,7 @@ import {
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,
   implementsInterface: boolean,
+  receiverBoundMethodKeys: ReadonlySet<string>,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): CsharpClassDeclaration["members"] | undefined {
@@ -45,7 +47,15 @@ export function renderObjectShapeMembers(
       return [undefined];
     }
     if (member.memberKind === "method") {
-      return renderObjectShapeMethodMember(fact, member, diagnostics, diagnosticSubject);
+      return renderObjectShapeMethodMember(
+        fact,
+        member,
+        receiverBoundMethodKeys.has(
+          csharpObjectShapeMemberContractKey(member),
+        ),
+        diagnostics,
+        diagnosticSubject,
+      );
     }
     if (member.accessor !== undefined) {
       return renderObjectShapeAccessorMember(
@@ -180,6 +190,7 @@ function invokeAccessor(
 function renderObjectShapeMethodMember(
   objectShape: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],
+  receiverBound: boolean,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): readonly (CsharpTypeMember | undefined)[] {
@@ -187,6 +198,7 @@ function renderObjectShapeMethodMember(
   const storageTargetType = objectShapeMethodStorageTargetType(
     objectShape,
     member,
+    receiverBound,
   );
   const storageType = storageTargetType === undefined
     ? undefined
@@ -209,10 +221,15 @@ function renderObjectShapeMethodMember(
       name: backingName,
     },
     arguments: [
-      {
-        kind: "Argument",
-        expression: { kind: "IdentifierName", name: "this" },
-      },
+      ...(receiverBound
+        ? [{
+            kind: "Argument" as const,
+            expression: {
+              kind: "IdentifierName" as const,
+              name: "this",
+            },
+          }]
+        : []),
       ...parameters.map((parameter) => ({
         kind: "Argument" as const,
         expression: {

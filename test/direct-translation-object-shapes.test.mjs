@@ -153,6 +153,68 @@ namespace Tsonic.Generated
   );
 });
 
+test("object-literal method receiver requirements replan every implementation of one structural shape", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      type Box = { value: number; read(): number };
+      export function total(): number {
+        const direct: Box = {
+          value: 3,
+          read(): number { return 3; },
+        };
+        const receiver: Box = {
+          value: 7,
+          read(): number { return this.value; },
+        };
+        return direct.read() + receiver.read();
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  assert.equal((source.match(/__tsonic_shape_method_\w+ =/gu) ?? []).length, 2);
+  assert.match(
+    shapes,
+    /public required Func<__TsonicShape_[a-f0-9]{64}, double> __tsonic_shape_method_/u,
+  );
+  assert.match(shapes, /return __tsonic_shape_method_\w+\(this\);/u);
+});
+
+test("object-literal callable properties remain ordinary delegates and reject unproven receiver binding", () => {
+  const accepted = compileCsharpSource({
+    sourceText: `
+      type Handler = { run: (value: number) => number };
+      export function create(): Handler {
+        return { run(value): number { return value + 1; } };
+      }
+    `,
+  });
+  assert.equal(accepted.sourceDiagnosticsText, "");
+  assert.deepEqual(accepted.extensionDiagnostics, []);
+  assert.deepEqual(accepted.targetDiagnostics, []);
+  const shapes = accepted.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
+  assert.match(shapes, /public required Func<double, double> run;/u);
+  assert.doesNotMatch(shapes, /__tsonic_shape_method_/u);
+
+  const rejected = compileCsharpSource({
+    sourceText: `
+      type Handler = { value: number; run: () => number };
+      export function create(): Handler {
+        return { value: 1, run(): number { return this.value; } };
+      }
+    `,
+  });
+  assert.equal(rejected.sourceDiagnosticsText, "");
+  assert.ok(rejected.targetDiagnostics.some(({ message }) =>
+    message.includes("cannot bind lexical 'this' without an exact receiver-bearing method contract")
+  ));
+  assert.equal(rejected.result.artifacts.length, 0);
+});
+
 test("object-literal accessors lower through exact getter and setter delegates", () => {
   const compiled = compileCsharpSource({
     sourceText: `

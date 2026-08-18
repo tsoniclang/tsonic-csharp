@@ -37,6 +37,7 @@ export type CsharpArtifactSnapshot =
       readonly materialization: "source" | "synthetic";
       readonly capabilities: readonly CsharpObjectShapeCapability[];
       readonly projections: readonly CsharpObjectShapeProjection[];
+      readonly receiverBoundMethodKeys: readonly string[];
     }
   | {
       readonly kind: "source-callable";
@@ -85,6 +86,7 @@ export function csharpObjectShapeContractCandidate(
   materialization: "source" | "synthetic",
   capabilities: ReadonlySet<CsharpObjectShapeCapability> | readonly CsharpObjectShapeCapability[],
   projections: readonly CsharpObjectShapeProjection[],
+  receiverBoundMethodKeys: ReadonlySet<string> | readonly string[],
   dependencies: readonly string[],
 ): CsharpArtifactContractCandidate {
   const canonicalCapabilities = Object.freeze(
@@ -94,6 +96,9 @@ export function csharpObjectShapeContractCandidate(
     [...projections].sort((left, right) =>
       objectShapeProjectionKey(left).localeCompare(objectShapeProjectionKey(right))
     ),
+  );
+  const canonicalReceiverBoundMethodKeys = Object.freeze(
+    [...receiverBoundMethodKeys].sort(),
   );
   return {
     owner,
@@ -120,7 +125,10 @@ export function csharpObjectShapeContractCandidate(
         },
         {
           facet: "object-shape-type-surface",
-          value: csharpObjectShapeTypeSurface(fact),
+          value: csharpObjectShapeTypeSurface(
+            fact,
+            canonicalReceiverBoundMethodKeys,
+          ),
         },
       ],
     },
@@ -142,6 +150,7 @@ export function csharpObjectShapeContractCandidate(
       materialization,
       capabilities: canonicalCapabilities,
       projections: canonicalProjections,
+      receiverBoundMethodKeys: canonicalReceiverBoundMethodKeys,
     }),
   };
 }
@@ -158,6 +167,7 @@ export function objectShapeProjectionKey(
 
 export function csharpObjectShapeTypeSurface(
   fact: CsharpObjectShapeFact,
+  receiverBoundMethodKeys: readonly string[] = [],
 ): string {
   return encodeContractParts([
     "object-shape",
@@ -174,6 +184,9 @@ export function csharpObjectShapeTypeSurface(
       "member",
       ...csharpObjectShapeMemberContractParts(member),
     ])),
+    ...[...receiverBoundMethodKeys].sort().map((memberKey) =>
+      encodeContractParts(["receiver-bound-method", memberKey])
+    ),
   ]);
 }
 

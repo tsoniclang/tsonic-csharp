@@ -28,6 +28,7 @@ export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact,
 export function objectShapeMethodStorageTargetType(
   objectShape: CsharpObjectShapeFact,
   member: CsharpObjectShapeFact["members"][number],
+  receiverBound: boolean,
 ): TargetTypeRef | undefined {
   if (member.memberKind !== "method") {
     return undefined;
@@ -35,6 +36,9 @@ export function objectShapeMethodStorageTargetType(
   const signature = getCsharpDelegateSignature(member.type);
   if (signature === undefined) {
     return undefined;
+  }
+  if (!receiverBound) {
+    return member.type;
   }
   const parameters = [objectShape.targetType, ...signature.parameters];
   return isCsharpVoidTargetType(signature.returnType)

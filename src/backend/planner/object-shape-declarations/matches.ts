@@ -14,6 +14,7 @@ import {
 import {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
+  objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
 } from "../object-shape-storage.js";
 import {
@@ -30,6 +31,7 @@ import {
   csharpJsonValueWriterMethodName,
 } from "../json-object-shapes.js";
 import {
+  csharpObjectShapeMemberContractKey,
   csharpObjectShapeProjectionMethodName,
 } from "../../../policy/types/index.js";
 
@@ -38,6 +40,7 @@ export function objectShapeDeclarationMatches(
   fact: CsharpObjectShapeFact,
   jsonSerializable = false,
   projections: readonly CsharpObjectShapeProjection[] = [],
+  receiverBoundMethodKeys: ReadonlySet<string> = new Set(),
 ): boolean {
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
@@ -56,7 +59,21 @@ export function objectShapeDeclarationMatches(
   for (const member of fact.members) {
     if (member.memberKind === "method") {
       const storageName = objectShapeStorageMemberName(fact, member);
-      if (!declaration.members.some((candidate) => candidate.kind === "FieldDeclaration" && candidate.name === storageName)) {
+      const storageTargetType = objectShapeMethodStorageTargetType(
+        fact,
+        member,
+        receiverBoundMethodKeys.has(
+          csharpObjectShapeMemberContractKey(member),
+        ),
+      );
+      const storageType = storageTargetType === undefined
+        ? undefined
+        : csharpTypeFromTargetTypeRef(storageTargetType);
+      if (storageType === undefined || !declaration.members.some((candidate) =>
+        candidate.kind === "FieldDeclaration" &&
+        candidate.name === storageName &&
+        sameCsharpType(candidate.type, storageType)
+      )) {
         return false;
       }
       if (!declaration.members.some((candidate) => candidate.kind === "MethodDeclaration" && candidate.name === member.targetName)) {

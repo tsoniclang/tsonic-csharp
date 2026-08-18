@@ -1514,6 +1514,15 @@ export function createCsharpTypePolicy(
     if (providerType !== undefined) {
       return providerType;
     }
+    const sourceProfileType = semanticType === undefined
+      ? undefined
+      : resolveSourceProfileType(
+          classifyCsharpSourceProfileType(semanticType, queries, host.ast),
+          typeArguments as readonly TargetTypeRef[],
+        );
+    if (sourceProfileType !== undefined) {
+      return sourceProfileType;
+    }
     const standardTransformation = semanticType === undefined
       ? undefined
       : queries.selectStandardTypeTransformation(node, semanticType);
@@ -1540,15 +1549,6 @@ export function createCsharpTypePolicy(
     }
     if (sourceAlias.kind === "rejected") {
       return undefined;
-    }
-    const sourceProfileType = semanticType === undefined
-      ? undefined
-      : resolveSourceProfileType(
-          classifyCsharpSourceProfileType(semanticType, queries, host.ast),
-          typeArguments as readonly TargetTypeRef[],
-        );
-    if (sourceProfileType !== undefined) {
-      return sourceProfileType;
     }
     const projectType = resolveProjectSourceType(
       typeName,
@@ -2046,14 +2046,19 @@ export function createCsharpTypePolicy(
         substitutions: new Map(),
       };
     }
-    const inferredTargetArguments = callable === undefined
+    const inferredParameterNames = new Set(
+      selectedArguments
+        .filter((argument) => argument.explicitTypeNode === undefined)
+        .map((argument) => argument.typeParameterName),
+    );
+    const inferredTargetArguments = callable === undefined ||
+        inferredParameterNames.size === 0
       ? new Map<string, TargetTypeRef>()
       : inferSourceCallTargetTypeArguments(
           source,
           callable,
           sourceFile,
-          new Set(selectedArguments.map((argument) =>
-            argument.typeParameterName)),
+          inferredParameterNames,
         );
     if (inferredTargetArguments === undefined) {
       return undefined;
