@@ -104,6 +104,13 @@ test("direct C# translation projects exact checker flow types for property value
       export function generic(box: Box<string>): string {
         return box.value as string;
       }
+      class NumberHolder {
+        value: number;
+        constructor(value: number) { this.value = value; }
+      }
+      export function optional(holder: NumberHolder | undefined): number {
+        return holder?.value ?? 0;
+      }
     `,
   });
 
@@ -117,4 +124,5 @@ test("direct C# translation projects exact checker flow types for property value
     2,
   );
   assert.match(artifact, /return box\.value;/u);
+  assert.match(artifact, /return holder\?\.value \?\? 0;/u);
 });

@@ -350,6 +350,18 @@ function translateSourceOwnedProperty(
   ) {
     return planned;
   }
+  const selectedDeclaration = selection.source.selectedDeclaration;
+  if (
+    shapeMember?.kind !== "resolved" &&
+    (
+      selectedDeclaration === undefined ||
+      !input.ast.is.IsPropertyDeclaration(selectedDeclaration) &&
+        !input.ast.is.IsPropertySignatureDeclaration(selectedDeclaration) &&
+        !input.ast.is.IsGetAccessorDeclaration(selectedDeclaration)
+    )
+  ) {
+    return planned;
+  }
   const rawReadType = shapeMember?.kind === "resolved"
     ? shapeMember.member.type
     : input.types.resolveReadStorage(node, sourceFile);
@@ -363,13 +375,7 @@ function translateSourceOwnedProperty(
         selection.source.sourceReadType,
         sourceFile,
       )
-    : selection.source.sourceReadType === undefined
-      ? undefined
-      : input.types.resolveSelectedValue(
-          node,
-          selection.source.sourceReadType,
-          sourceFile,
-        );
+    : input.types.resolveNode(node, sourceFile);
   if (shapeMember?.kind === "resolved" && selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
