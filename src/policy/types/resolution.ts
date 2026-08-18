@@ -1549,6 +1549,21 @@ export function createCsharpTypePolicy(
     if (direct !== undefined) {
       return direct;
     }
+    const standardTransformation = semanticType === undefined
+      ? undefined
+      : queries.selectStandardTypeTransformation(node, semanticType);
+    if (
+      standardTransformation !== undefined &&
+      semanticType !== undefined
+    ) {
+      return resolveStandardSourceTypeTransformation(
+        standardTransformation,
+        queries,
+        state,
+        node,
+        semanticType,
+      );
+    }
     const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
       resolveNodeWithState(argument, queries.sourceFile, nextState(state))
     );
@@ -1570,21 +1585,6 @@ export function createCsharpTypePolicy(
         );
     if (sourceProfileType !== undefined) {
       return sourceProfileType;
-    }
-    const standardTransformation = semanticType === undefined
-      ? undefined
-      : queries.selectStandardTypeTransformation(node, semanticType);
-    if (
-      standardTransformation !== undefined &&
-      semanticType !== undefined
-    ) {
-      return resolveStandardSourceTypeTransformation(
-        standardTransformation,
-        queries,
-        state,
-        node,
-        semanticType,
-      );
     }
     const sourceAlias = resolveCompositionalSourceTypeAlias(
       typeName,
@@ -1728,16 +1728,16 @@ export function createCsharpTypePolicy(
         state,
       );
     }
-    if (transformation.kind === "tuple") {
-      const elements = transformation.elements.map((element) =>
+    if (transformation.kind === "parameter-list") {
+      const elements = transformation.parameters.map((element) =>
         resolveSignatureParameterEvidence(element, queries, state)
       );
       return elements.some((element) => element === undefined)
         ? undefined
-        : {
-            kind: "tuple",
-            elements: elements as readonly TargetTypeRef[],
-          };
+        : resolveSignatureParameterListTarget(
+            transformation.parameters,
+            elements as readonly TargetTypeRef[],
+          );
     }
     if (transformation.kind === "structural") {
       return host.structuralTypes.resolveType(
@@ -1751,6 +1751,40 @@ export function createCsharpTypePolicy(
       queries,
       state,
     );
+  }
+
+  function resolveSignatureParameterListTarget(
+    parameters: SourceCallableTypeEvidence["parameters"],
+    elements: readonly TargetTypeRef[],
+  ): TargetTypeRef | undefined {
+    const restIndexes = parameters.flatMap((parameter, index) =>
+      parameter.parameterKind === "rest" ? [index] : []
+    );
+    if (restIndexes.length === 0) {
+      return { kind: "tuple", elements };
+    }
+    if (restIndexes.length !== 1) {
+      return undefined;
+    }
+    const restIndex = restIndexes[0]!;
+    const restElement = getCsharpCollectionElementTargetType(
+      elements[restIndex],
+    );
+    if (restElement === undefined) {
+      return undefined;
+    }
+    const homogeneous = elements.every((element, index) => {
+      const value = index === restIndex
+        ? restElement
+        : getCsharpNullableElementTargetType(element) ?? element;
+      return targetTypeRefEquals(value, restElement);
+    });
+    if (!homogeneous) {
+      return undefined;
+    }
+    return selectedCsharpSourceProfileOwner(host.target) === "js"
+      ? csharpJsArrayTargetType(restElement)
+      : { kind: "array", element: restElement };
   }
 
   function resolveEvidenceNodesToCommonTarget(

@@ -196,12 +196,31 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "tuple") {
     return expectedRepresentation(
-      planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, csharpTypeFromTargetTypeRef(expectedTargetType)),
+      planTupleLiteralExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        planners,
+        csharpTypeFromTargetTypeRef(expectedTargetType),
+        expectedTargetType,
+      ),
     );
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
+    const resolvedTupleTarget = input.types.resolveNode(node, sourceFile);
     return expectedRepresentation(
-      planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, expectedType),
+      planTupleLiteralExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        planners,
+        expectedType,
+        resolvedTupleTarget?.kind === "tuple"
+          ? resolvedTupleTarget
+          : undefined,
+      ),
     );
   }
   if (

@@ -120,7 +120,15 @@ export function planArrayLiteralExpressionWithCarrier(
     return planNativeCollectionArrayLiteralExpression(node, sourceFile, input, diagnostics, constructionCarrier, collectionElementCarrier, planner);
   }
   if (constructionCarrier?.kind === "tuple") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planner, csharpTypeFromTargetTypeRef(constructionCarrier));
+    return planTupleLiteralExpression(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      planner,
+      csharpTypeFromTargetTypeRef(constructionCarrier),
+      constructionCarrier,
+    );
   }
   const detail = missingCarrierDiagnosticDetail(carrierResolution ?? resolveRuntimeCarrierForExpression(input, node, sourceFile), "Runtime carrier fact is missing for the array literal.");
   diagnostics.push(unsupportedNodeDiagnostic(node, `Array literal emission requires finalized TSTS/provider array runtime-carrier facts with array element type evidence before C# emission. ${detail.reason}`, detail.evidence));
