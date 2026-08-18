@@ -200,10 +200,7 @@ function unpublishedDependencies(
 ): readonly TargetArtifactDependency<CsharpArtifactFacet>[] {
   const byKey = new Map<string, TargetArtifactDependency<CsharpArtifactFacet>>();
   for (const dependency of dependencies) {
-    const available = graph.contract(dependency.owner)?.facets.some((facet) =>
-      facet.facet === dependency.facet
-    ) === true;
-    if (!available) {
+    if (!graph.hasPublishedFacet(dependency)) {
       byKey.set(
         `${dependency.owner.length}:${dependency.owner}${dependency.facet.length}:${dependency.facet}`,
         dependency,
