@@ -1554,6 +1554,7 @@ export function createCsharpTypePolicy(
       : queries.selectStandardTypeTransformation(node, semanticType);
     if (
       standardTransformation !== undefined &&
+      standardTransformation.kind !== "structural" &&
       semanticType !== undefined
     ) {
       return resolveStandardSourceTypeTransformation(
@@ -1585,6 +1586,18 @@ export function createCsharpTypePolicy(
         );
     if (sourceProfileType !== undefined) {
       return sourceProfileType;
+    }
+    if (
+      standardTransformation !== undefined &&
+      semanticType !== undefined
+    ) {
+      return resolveStandardSourceTypeTransformation(
+        standardTransformation,
+        queries,
+        state,
+        node,
+        semanticType,
+      );
     }
     const sourceAlias = resolveCompositionalSourceTypeAlias(
       typeName,
@@ -1730,7 +1743,7 @@ export function createCsharpTypePolicy(
     }
     if (transformation.kind === "parameter-list") {
       const elements = transformation.parameters.map((element) =>
-        resolveSignatureParameterEvidence(element, queries, state)
+        resolveSignatureParameterEvidence(element, queries, state, "parameter-list")
       );
       return elements.some((element) => element === undefined)
         ? undefined
@@ -2926,39 +2939,10 @@ export function createCsharpTypePolicy(
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
-    const rawSignatures = queries.getCallSignatures(type);
-    const signatures = definedValues(rawSignatures);
-    if (signatures.length !== rawSignatures.length) {
-      return undefined;
-    }
-    if (signatures.length !== 1) {
-      return undefined;
-    }
-    const signature = signatures[0]!;
-    const declaration = queries.getSignatureDeclaration(signature);
-    const selectedResultType = queries.getReturnTypeOfSignature(signature);
-    if (selectedResultType === undefined) {
-      return undefined;
-    }
-    const authoredResultType = declarationResultTypeNode(declaration);
-    return resolveCallableEvidence(
-      {
-        parameters: queries.getSignatureParameterInfos(signature),
-        result: {
-          selectedType: selectedResultType,
-          ...(declaration === undefined
-            ? {}
-            : {
-                declaration,
-                ...(authoredResultType === undefined
-                  ? {}
-                  : { authoredTypeNode: authoredResultType }),
-              }),
-        },
-      },
-      queries,
-      state,
-    );
+    const callable = queries.selectCallableType(type);
+    return callable === undefined
+      ? undefined
+      : resolveCallableEvidence(callable, queries, state);
   }
 
   function resolveCallableEvidence(
@@ -2967,7 +2951,7 @@ export function createCsharpTypePolicy(
     state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const parameterTypes = callable.parameters.map((parameter) =>
-      resolveSignatureParameterEvidence(parameter, queries, state)
+      resolveSignatureParameterEvidence(parameter, queries, state, "callable")
     );
     if (parameterTypes.some((parameter) => parameter === undefined)) {
       return undefined;
@@ -2997,6 +2981,7 @@ export function createCsharpTypePolicy(
     parameter: SourceCallableTypeEvidence["parameters"][number],
     queries: SourceFileSemantics,
     state: CsharpTypeResolutionState,
+    use: "callable" | "parameter-list",
   ): TargetTypeRef | undefined {
     const resolved = resolveSourceTypeComponentEvidence(
       {
@@ -3017,7 +3002,10 @@ export function createCsharpTypePolicy(
       queries,
       state,
     );
-    return resolved === undefined || parameter.parameterKind !== "optional"
+    const nullable = use === "parameter-list"
+      ? parameter.parameterKind === "optional"
+      : parameter.omissionKind === "undefined";
+    return resolved === undefined || !nullable
       ? resolved
       : csharpNullableTargetType(resolved);
   }

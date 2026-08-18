@@ -77,13 +77,13 @@ const expectedFunctions = [
 
 const edgeUtilitySource = `
 import type { int32 } from "@tsonic/core/types.js";
-import type { Overloaded } from "./overloads.js";
-import type {
+ import type { Overloaded } from "./overloads.js";
+ import type {
   OmitThisParameter as LocalOmitThisParameter,
   Parameters as LocalParameters,
   Partial as LocalPartial,
   ReturnType as LocalReturnType,
-} from "./shadows.js";
+ } from "./shadows.js";
 
 interface Nested { value: int32; }
 interface ModifierModel {
