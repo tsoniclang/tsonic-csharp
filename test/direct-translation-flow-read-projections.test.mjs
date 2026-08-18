@@ -71,3 +71,35 @@ namespace Tsonic.Generated
 }
 `);
 });
+
+test("direct C# translation projects exact checker flow types for property value references", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      class Base {}
+      class Derived extends Base {
+        value: string;
+        constructor(value: string) { super(); this.value = value; }
+      }
+      class Holder {
+        value: Base;
+        constructor(value: Base) { this.value = value; }
+      }
+      export function assigned(holder: Holder): Derived | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        const narrowed = holder.value as Derived;
+        return narrowed;
+      }
+      export function nested(holder: Holder): string | undefined {
+        if (!(holder.value instanceof Derived)) return undefined;
+        return (holder.value as Derived).value;
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const artifact = compiled.artifacts.get("src/Index.cs");
+  assert.match(artifact, /Derived narrowed = \(Derived\)holder\.value;/u);
+  assert.match(artifact, /return \(\(Derived\)holder\.value\)\.value;/u);
+});
