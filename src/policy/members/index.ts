@@ -15,4 +15,4 @@ export * from "./source-profiles/generator-source-profile.js";
 export * from "./source-profiles/source-profile-selection.js";
 export * from "./source-profiles/js/index.js";
 export * from "./selection/target-selection.js";
-export * from "./project/compat-object-shape-property.js";
+export * from "./project/js-value-object-shape-property.js";

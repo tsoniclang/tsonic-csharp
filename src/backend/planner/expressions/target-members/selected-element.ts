@@ -7,8 +7,8 @@ import {
   selectCsharpTargetElement,
 } from "../../../../policy/members/index.js";
 import {
-  selectCsharpCompatAnyReceiverOperation,
-} from "../../../../policy/compat/index.js";
+  selectCsharpJsValueReceiverExpressionOperation,
+} from "../../../../policy/js-value-operations/index.js";
 import type {
   CsharpTargetElementSelection,
 } from "../../../../policy/members/index.js";
@@ -40,9 +40,9 @@ import type {
   CsharpPlanningContext,
 } from "../../context.js";
 import {
-  translateCsharpCompatInvocation,
-  translateCsharpCompatValueFactory,
-} from "../compat.js";
+  translateCsharpJsValueInvocation,
+  translateCsharpJsValueFactory,
+} from "../js-value-operations.js";
 import {
   applyCsharpConversionSelection,
 } from "../conversions.js";
@@ -61,18 +61,18 @@ export function translateCsharpElementAccess(
   const expression = input.ast.as.AsElementAccessExpression(node);
   const receiverNode = expression?.Expression;
   const argumentNode = expression?.ArgumentExpression;
-  const compat = selectCsharpCompatAnyReceiverOperation(
+  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
     input,
     receiverNode,
     sourceFile,
     "element-read",
     expression?.QuestionDotToken !== undefined,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const receiver = receiverNode === undefined
       ? undefined
       : planExpression(receiverNode, sourceFile, input, diagnostics);
@@ -82,16 +82,16 @@ export function translateCsharpElementAccess(
     if (receiver === undefined || argument === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility element read requires an exact receiver and key.",
+        "A JS-value element read requires an exact receiver and key.",
       ));
       return undefined;
     }
-    return translateCsharpCompatInvocation(
-      compat,
+    return translateCsharpJsValueInvocation(
+      jsValueOperation,
       receiver,
       expression?.QuestionDotToken === undefined
         ? [argument]
-        : [translateCsharpCompatValueFactory(argument)],
+        : [translateCsharpJsValueFactory(argument)],
     );
   }
   const selection = selectCsharpTargetElement(input, node, sourceFile);

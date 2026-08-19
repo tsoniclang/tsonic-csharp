@@ -6,7 +6,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetSelection,
-  TargetTypescriptCompatibilityMode,
 } from "@tsonic/target-api";
 import type {
   SourceFileSemantics,
@@ -33,7 +32,6 @@ export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly navigation: SourceProgramNavigation;
   readonly target: TargetSelection;
-  readonly typescriptCompatibility: TargetTypescriptCompatibilityMode;
   readonly providers: CsharpProviderRelationResolver;
   readonly types: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;

@@ -13,7 +13,7 @@ import {
   csharpSourcePrimitiveTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
-  isCsharpAnyRuntimeCarrier,
+  isCsharpJsValueTargetType,
   isCsharpIntegralTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
@@ -487,8 +487,8 @@ function validateBinaryTargetSemantics(
   if (operator === "=") {
     return undefined;
   }
-  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
-    return `Source operator '${operator}' over opaque any requires an explicit closed compatibility-runtime policy.`;
+  if (isCsharpJsValueTargetType(left) || isCsharpJsValueTargetType(right)) {
+    return `Source operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
   }
   if (left.kind === "type-parameter" || right.kind === "type-parameter") {
     return `Source operator '${operator}' over a type parameter requires an exact target constraint policy.`;
@@ -550,8 +550,8 @@ function validateUnaryTargetSemantics(
   operand: TargetTypeRef,
   input: CsharpPolicyContext,
 ): string | undefined {
-  if (isCsharpAnyRuntimeCarrier(operand)) {
-    return `Source unary operator '${operator}' over opaque any requires an explicit closed compatibility-runtime policy.`;
+  if (isCsharpJsValueTargetType(operand)) {
+    return `Source unary operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
   }
   if (operand.kind === "type-parameter") {
     return `Source unary operator '${operator}' over a type parameter requires an exact target constraint policy.`;

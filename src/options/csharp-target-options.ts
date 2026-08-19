@@ -1,7 +1,4 @@
-import type {
-  TargetSelection,
-  TargetTypescriptCompatibilityMode,
-} from "@tsonic/target-api";
+import type { TargetSelection } from "@tsonic/target-api";
 import {
   existsSync,
   readdirSync,
@@ -24,7 +21,7 @@ export type CsharpProjectReference =
 
 export type CsharpOutputType = "Exe" | "Library";
 export type CsharpLanguageDialect = "csharp14" | "csharp15-preview";
-export type CsharpMemorySafetyRules = "legacy" | "preview";
+export type CsharpMemorySafetyRules = "csharp14" | "preview";
 
 const supportedCsharpTargetOptionKeys = Object.freeze([
   "assemblyName",
@@ -40,7 +37,6 @@ const supportedCsharpTargetOptionKeys = Object.freeze([
   "publishAot",
   "references",
   "targetFramework",
-  "typescriptCompatibility",
 ]);
 
 export function validateCsharpTargetOptions(target: TargetSelection): void {
@@ -83,23 +79,12 @@ export function readCsharpMemorySafetyRules(
 ): CsharpMemorySafetyRules {
   const value = readOptionalStringOption(target, "memorySafetyRules");
   if (value === undefined) {
-    return "legacy";
+    return "csharp14";
   }
-  if (value !== "legacy" && value !== "preview") {
+  if (value !== "csharp14" && value !== "preview") {
     throw new Error(
-      "C# target option 'memorySafetyRules' must be either 'legacy' or 'preview'.",
+      "C# target option 'memorySafetyRules' must be either 'csharp14' or 'preview'.",
     );
-  }
-  return value;
-}
-
-export function readCsharpTypescriptCompatibilityMode(target: TargetSelection): TargetTypescriptCompatibilityMode {
-  const value = target.options?.typescriptCompatibility;
-  if (value === undefined) {
-    return "strict-native";
-  }
-  if (value !== "strict-native" && value !== "compat") {
-    throw new Error("C# target option 'typescriptCompatibility' must be either 'strict-native' or 'compat'.");
   }
   return value;
 }

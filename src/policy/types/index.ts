@@ -33,7 +33,7 @@ export * from "./resolution/index.js";
 export * from "./objects/object-shape-members.js";
 export * from "./objects/object-shape-identity.js";
 export * from "./objects/object-shape-policy.js";
-export * from "./objects/compat-object-shapes.js";
+export * from "./objects/js-value-object-shapes.js";
 export * from "./objects/closed-object-projection.js";
 export * from "./objects/binding-projection-policy.js";
 export * from "./storage/binding-array-carrier.js";

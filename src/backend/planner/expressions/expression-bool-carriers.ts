@@ -28,11 +28,11 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  selectCsharpCompatAnyCondition,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsValueCondition,
+} from "../../../policy/js-value-operations/index.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 
 export function planCsharpConditionExpression(
   expression: Node,
@@ -45,16 +45,16 @@ export function planCsharpConditionExpression(
   if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics);
   }
-  const compat = selectCsharpCompatAnyCondition(
+  const jsValueOperation = selectCsharpJsValueCondition(
     input,
     expression,
     sourceFile,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(expression, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(expression, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const planned = planExpression(
       expression,
       sourceFile,
@@ -63,8 +63,8 @@ export function planCsharpConditionExpression(
     );
     return planned === undefined
       ? undefined
-      : translateCsharpCompatInvocation(
-          compat,
+      : translateCsharpJsValueInvocation(
+          jsValueOperation,
           undefined,
           [planned],
         );

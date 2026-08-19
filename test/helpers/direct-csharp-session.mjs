@@ -8,6 +8,9 @@ import {
   getTargetRequiredProviderModules,
 } from "../../../tsonic/packages/host/dist/index.js";
 import {
+  collectTargetSourcePackageGraph,
+} from "../../../tsonic/packages/host/dist/source-package-inputs.js";
+import {
   createTargetSourceProgram,
 } from "../../../tsonic/packages/target-api/dist/public/source.js";
 import {
@@ -50,9 +53,17 @@ export function checkCsharpSource(options) {
   if (sourceProfile.diagnostics.length !== 0) {
     throw new Error(sourceProfile.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
-  const files = new Map([
+  const projectFiles = new Map([
     [`${projectRoot}/index.ts`, options.sourceText],
     ...normalizeAdditionalFiles(options.files, projectRoot),
+  ]);
+  const sourcePackages = collectTargetSourcePackageGraph(
+    projectRoot,
+    projectRoot,
+    projectFiles,
+  );
+  const files = new Map([
+    ...projectFiles,
     ...sourceProfile.files.map((file) => [file.path, file.text]),
   ]);
   const composition = createTargetSourceCompilerComposition(targetContext);
@@ -79,6 +90,7 @@ export function checkCsharpSource(options) {
   return {
     compiler,
     source,
+    sourcePackages,
     targetContext,
     sourceDiagnosticsText: formatDiagnostics(source.diagnostics),
     extensionDiagnostics: source.extensionDiagnostics,
@@ -92,6 +104,7 @@ export function compileCsharpSource(options) {
     .createBackend(checked.targetContext)
     .compile({
       source: createTargetSourceProgram(checked.source),
+      sourcePackages: checked.sourcePackages,
       project: checked.targetContext.project,
       target: checked.targetContext.target,
       runtimeReferences: options.runtimeReferences ?? [],

@@ -8,8 +8,7 @@ import type { CsharpExpression, CsharpTypeNode } from "../../roslyn/syntax.js";
 import {
   csharpExceptionTargetType,
   csharpTsThrownValueExceptionTargetType,
-  isCsharpAnyRuntimeCarrier,
-  isCsharpClosedCompatRuntimeCarrier,
+  isCsharpClosedJsRuntimeCarrier,
 } from "../../../policy/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { selectCsharpSourceArgument } from "../../../policy/members/index.js";
@@ -52,11 +51,11 @@ const tsValueSupportedTargetNamedTypes = new Set([
   "Tsonic.CSharp.Js.TsFunction",
 ]);
 
-export function isCsharpCompatThrowableValueCarrier(carrier: TargetTypeRef | undefined): boolean {
+export function isCsharpJsThrowableValueCarrier(carrier: TargetTypeRef | undefined): boolean {
   if (carrier === undefined) {
     return false;
   }
-  if (isCsharpAnyRuntimeCarrier(carrier) || isCsharpClosedCompatRuntimeCarrier(carrier)) {
+  if (isCsharpClosedJsRuntimeCarrier(carrier)) {
     return true;
   }
   if (carrier.kind === "source-primitive") {

@@ -31,8 +31,8 @@ export function csharpTargetNamedType(
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
     readonly absorbsNullish?: true;
-    readonly compatValueCarrier?: true;
-    readonly compatObjectShape?: true;
+    readonly jsValueCarrier?: true;
+    readonly jsObjectShape?: true;
   } = {},
 ): CsharpTargetNamedTypeRef {
   return {
@@ -65,11 +65,11 @@ export function csharpTargetNamedType(
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),
     ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
-    ...(metadata.compatValueCarrier === true
-      ? { csharpCompatValueCarrier: true }
+    ...(metadata.jsValueCarrier === true
+      ? { csharpJsValueCarrier: true }
       : {}),
-    ...(metadata.compatObjectShape === true
-      ? { csharpCompatObjectShape: true }
+    ...(metadata.jsObjectShape === true
+      ? { csharpJsObjectShape: true }
       : {}),
   } satisfies CsharpTargetNamedTypeRef;
 }

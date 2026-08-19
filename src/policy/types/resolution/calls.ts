@@ -99,9 +99,10 @@ export function resolveAuthoredAndSelectedSourceType(
 
 
 export function resolveSourceCallInstantiation(
-  { inferSourceCallTargetTypeArguments, resolveSelectedType }: CsharpTypeResolutionScope,
+  { inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
   callable?: CsharpSourceCallableContract,
 ):
@@ -147,6 +148,7 @@ export function resolveSourceCallInstantiation(
         callable,
         sourceFile,
         inferredParameterNames,
+        nextState(state),
       );
   if (inferredTargetArguments === undefined) {
     return undefined;
@@ -164,15 +166,19 @@ export function resolveSourceCallInstantiation(
     }
     const targetArgument = selected.explicitTypeNode === undefined
       ? inferredTargetArguments.get(selected.typeParameterName) ??
-        resolveSelectedType(
+        resolveAuthoredAndSelectedSourceType(
           undefined,
+          sourceFile,
           selected.selectedType,
           sourceFile,
+          nextState(state),
         )
-      : resolveSelectedType(
+      : resolveAuthoredAndSelectedSourceType(
           selected.explicitTypeNode,
+          sourceFile,
           selected.selectedType,
           sourceFile,
+          nextState(state),
         );
     if (targetArgument === undefined) {
       return undefined;
@@ -198,6 +204,7 @@ export function resolveSourceCallSelectedType(
   const instantiation = resolveSourceCallInstantiation(
     source,
     selectedSourceFile,
+    nextState(state),
   );
   if (instantiation === undefined) {
     return undefined;
@@ -264,6 +271,7 @@ export function resolveSourceCallableContractType(
   const instantiation = resolveSourceCallInstantiation(
     source,
     selectedSourceFile,
+    nextState(state),
     callable.methodTypeParameterNames,
     callable,
   );
@@ -296,11 +304,12 @@ export function resolveSourceCallableContractType(
 
 
 export function inferSourceCallTargetTypeArguments(
-  { resolveSelectedValue }: CsharpTypeResolutionScope,
+  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
+  state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const inferred = new Map<string, TargetTypeRef>();
   for (const binding of source.sourceArgumentBindings) {
@@ -310,10 +319,11 @@ export function inferSourceCallTargetTypeArguments(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const actual = resolveSelectedValue(
+    const actual = resolveSelectedValueWithState(
       argument.expression,
       argument.type,
       sourceFile,
+      nextState(state),
     );
     if (actual === undefined) {
       continue;
@@ -375,14 +385,16 @@ export function resolveSourceCallReceiverTargetType(
 
 
 export function sourceCallCalleeDelegateSignature(
-  { resolveSelectedValue }: CsharpTypeResolutionScope,
+  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
 ): ReturnType<typeof getCsharpDelegateSignature> {
-  return getCsharpDelegateSignature(resolveSelectedValue(
+  return getCsharpDelegateSignature(resolveSelectedValueWithState(
     source.sourceCallee.expression,
     source.sourceCallee.type,
     sourceFile,
+    nextState(state),
   ));
 }
 

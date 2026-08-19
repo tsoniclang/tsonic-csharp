@@ -1,7 +1,7 @@
 import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture, repoRoot, testAssemblyId, supportedPassingModes, testTargetId, hasEvidencePath, assertRawModuleContractInvariants, assertProviderDeclarationContractInvariants, assertTargetBindingContractInvariants, assertRawSignatureInvariant, assertTypeParameterInvariant, assertDotnetTypeRefInvariant, assertProviderTypeExpressionInvariant, assertAssemblyReference, assertTargetIdentity, walkDotnetTypeDeclarationRefs, walkDotnetTypeRef, walkProviderExportRefs, walkProviderTypeExpression, rawType, rawMethod, sourceType, sourceMember, rawConstructor, rawIndexer, idHasShape, stripAssemblyQualifiers, escapeRegExp, buildConstraintFixture, buildSignatureIdentityFixture, buildUnsupportedMemberFixture, buildAttributeFixture, buildUnsupportedDefaultParameterFixture } from "../../../fixtures/dotnet-provider/dotnet-provider-contract.helpers.mjs";
 import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
-test(".NET provider model contract rejects legacy and incomplete provider refs", () => {
+test(".NET provider model contract rejects incomplete provider refs", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
@@ -19,7 +19,6 @@ test(".NET provider model contract rejects legacy and incomplete provider refs",
           metadataName: "ProviderContractFixtures.Base",
           sourceShape: {
             kind: "provider-ref",
-            name: "Base",
           },
         },
       },
@@ -27,7 +26,6 @@ test(".NET provider model contract rejects legacy and incomplete provider refs",
   });
 
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.moduleSpecifier"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].baseType.sourceShape.exportName"), true);
 });
@@ -63,18 +61,6 @@ test(".NET provider model requires an explicit source identity for every target 
     hasEvidencePath(
       diagnostic,
       "$.exports[0].members[0].signatures[0].sourceId",
-    ),
-    true,
-  );
-  const signature = model.exports[0].members[0].signatures[0];
-  signature.sourceId = testTargetId("ProviderContractFixtures.Base.Run()");
-  signature.providerSourceSignatureId = signature.sourceId;
-  const legacyDiagnostic = validateDotnetModuleModelContract(model);
-  assert.equal(legacyDiagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
-  assert.equal(
-    hasEvidencePath(
-      legacyDiagnostic,
-      "$.exports[0].members[0].signatures[0].providerSourceSignatureId",
     ),
     true,
   );

@@ -14,8 +14,9 @@ import type {
   CsharpObjectShapePolicy,
 } from "./object-shape-policy.js";
 import type {
-  CsharpTypePolicy,
-} from "../resolution/index.js";
+  CsharpRecursiveTypeResolver,
+  CsharpTypeResolutionState,
+} from "../resolution/model.js";
 import type {
   TargetTypeRef,
 } from "../model/definitions.js";
@@ -23,18 +24,20 @@ import {
   csharpArrayBindingProjectionTarget,
   resolveCsharpArrayBindingCarrier,
 } from "../storage/binding-array-carrier.js";
+import { nextState } from "../resolution/state.js";
 
 export interface CsharpBindingProjectionPolicyHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
-  readonly types: CsharpTypePolicy;
+  readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpObjectShapePolicy;
 }
 
 export interface CsharpBindingProjectionPolicy {
   resolveNode(
     node: Node | undefined,
-    sourceFile?: SourceFile,
+    sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined;
 }
 
@@ -45,7 +48,8 @@ export function createCsharpBindingProjectionPolicy(
 
   function resolveNode(
     node: Node | undefined,
-    sourceFile?: SourceFile,
+    sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState,
   ): TargetTypeRef | undefined {
     const binding = selectedBindingElement(node, host);
     if (binding === undefined || activeBindings.has(binding)) {
@@ -61,6 +65,7 @@ export function createCsharpBindingProjectionPolicy(
         host.ast.parent(pattern),
         pattern,
         sourceFile ?? host.ast.getSourceFile(binding),
+        state,
         host,
         resolveNode,
       );
@@ -108,6 +113,7 @@ function resolveBindingOwnerType(
   owner: Node | undefined,
   pattern: Node,
   sourceFile: SourceFile | undefined,
+  state: CsharpTypeResolutionState,
   host: CsharpBindingProjectionPolicyHost,
   resolveProjection: CsharpBindingProjectionPolicy["resolveNode"],
 ): TargetTypeRef | undefined {
@@ -116,22 +122,24 @@ function resolveBindingOwnerType(
   }
   if (host.ast.is.IsVariableDeclaration(owner)) {
     const declaration = host.ast.as.AsVariableDeclaration(owner);
-    return host.types.resolveNode(
+    return host.typeResolver.resolveNode(
       declaration?.Type ?? declaration?.Initializer,
       sourceFile,
+      nextState(state),
     );
   }
   if (host.ast.is.IsParameterDeclaration(owner)) {
-    return host.types.resolveNode(
+    return host.typeResolver.resolveNode(
       host.ast.as.AsParameterDeclaration(owner)?.Type,
       sourceFile,
+      nextState(state),
     );
   }
   if (
     host.ast.is.IsBindingElement(owner) &&
     host.ast.as.AsBindingElement(owner)?.name === pattern
   ) {
-    return resolveProjection(owner, sourceFile);
+    return resolveProjection(owner, sourceFile, nextState(state));
   }
   return undefined;
 }

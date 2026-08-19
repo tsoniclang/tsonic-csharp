@@ -6,10 +6,7 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
-import type {
-  TargetSelection,
-  TargetTypescriptCompatibilityMode,
-} from "@tsonic/target-api";
+import type { TargetSelection } from "@tsonic/target-api";
 import type {
   SourceDeclarationReference,
   SourceFileSemantics,
@@ -32,7 +29,6 @@ export interface CsharpTypePolicyBaseHost {
   readonly navigation: SourceProgramNavigation;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
-  readonly typescriptCompatibility: TargetTypescriptCompatibilityMode;
   readonly scopedTargetType?: (
     node: Node,
   ) => TargetTypeRef | undefined;
@@ -53,10 +49,12 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
     resolveNode(
       node: Node,
       sourceFile: SourceFile,
+      state: CsharpTypeResolutionState,
     ): TargetTypeRef | undefined;
     resolveType(
       type: Type,
       sourceFile: SourceFile,
+      state: CsharpTypeResolutionState,
       authoredTypeRoot?: Node,
     ): TargetTypeRef | undefined;
     resolveSelectedProperty(
@@ -141,6 +139,25 @@ export interface CsharpTypePolicy {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
+}
+
+export interface CsharpRecursiveTypeResolver {
+  resolveNode(
+    node: Node | undefined,
+    sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined;
+  resolveType(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined;
+  resolveSelectedType(
+    authoredTypeNode: Node | undefined,
+    selectedType: Type | undefined,
+    selectedSourceFile: SourceFile,
+    state: CsharpTypeResolutionState,
+  ): TargetTypeRef | undefined;
 }
 
 export const maximumTypeResolutionDepth = 128;

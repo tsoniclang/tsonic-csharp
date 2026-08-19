@@ -4,13 +4,12 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  resolveCsharpCompatObjectShapeProperty,
+  resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
 } from "../../../../policy/members/index.js";
 import {
-  selectCsharpCompatAnyReceiverOperation,
-  selectCsharpCompatValueReceiverOperation,
-} from "../../../../policy/compat/index.js";
+  selectCsharpJsValueReceiverExpressionOperation,
+} from "../../../../policy/js-value-operations/index.js";
 import type {
   CsharpTargetPropertySelection,
 } from "../../../../policy/members/index.js";
@@ -33,21 +32,18 @@ import {
   resolveCsharpObjectShapeMemberReadTargetType,
   resolveCsharpRuntimeUnionObjectShapeProperty,
 } from "../../../../policy/types/index.js";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../../../policy/conversions/index.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";
 import {
-  translateCsharpCompatInvocation,
-} from "../compat.js";
-import {
-  applyCsharpConversionSelection,
-} from "../conversions.js";
+  translateCsharpJsValueInvocation,
+} from "../js-value-operations.js";
 import {
   translateCsharpSelectedReceiver,
 } from "../receivers.js";
+import {
+  planFlowReadUseSiteProjection,
+} from "../flow-read-projections.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -56,37 +52,6 @@ export function translateCsharpPropertyAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const expression = input.ast.as.AsPropertyAccessExpression(node);
-  const receiverNode = expression?.Expression;
-  const compat = selectCsharpCompatAnyReceiverOperation(
-    input,
-    receiverNode,
-    sourceFile,
-    "property-read",
-    expression?.QuestionDotToken !== undefined,
-  );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
-    return undefined;
-  }
-  if (compat.kind === "resolved") {
-    const nameNode = expression?.name;
-    const receiver = receiverNode === undefined
-      ? undefined
-      : planExpression(receiverNode, sourceFile, input, diagnostics);
-    if (nameNode === undefined || receiver === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        "C# compatibility property read requires an exact receiver and property name.",
-      ));
-      return undefined;
-    }
-    return translateCsharpCompatInvocation(
-      compat,
-      receiver,
-      [{ kind: "LiteralExpression", value: input.ast.text(nameNode) }],
-    );
-  }
   const selection = selectCsharpTargetProperty(input, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
@@ -203,6 +168,17 @@ function translateSourceOwnedProperty(
 ): CsharpExpression | undefined {
   const declaration = selection.source.selectedDeclaration;
   const semantics = input.semantics(sourceFile);
+  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
+    input,
+    selection.source.receiver.expression,
+    sourceFile,
+    "property-read",
+    selection.source.optionalChain,
+  );
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
+    return undefined;
+  }
   const objectShape = input.objectShapes.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
@@ -239,18 +215,18 @@ function translateSourceOwnedProperty(
       planExpression,
     );
   }
-  const compatProperty = resolveCsharpCompatObjectShapeProperty(
+  const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
     input.objectShapes,
     semantics,
     selection,
     sourceFile,
   );
-  if (compatProperty.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compatProperty.reason));
+  if (jsValueProperty.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueProperty.reason));
     return undefined;
   }
-  const shapeMember = compatProperty.kind === "resolved"
-    ? compatProperty
+  const shapeMember = jsValueProperty.kind === "resolved"
+    ? jsValueProperty
     : objectShape === undefined
     ? undefined
     : resolveCsharpObjectShapeMemberBySelectedSubject(
@@ -266,6 +242,7 @@ function translateSourceOwnedProperty(
   }
   if (
     shapeMember?.kind !== "resolved" &&
+    jsValueOperation.kind !== "resolved" &&
     (
       declaration === undefined ||
       !input.navigation.isProjectDeclaration(declaration)
@@ -278,7 +255,13 @@ function translateSourceOwnedProperty(
     return undefined;
   }
   const expression = input.ast.as.AsPropertyAccessExpression(node);
-  const nameNode = input.ast.name(declaration) ?? expression?.name;
+  const syntaxName = expression?.name;
+  const jsValueSourceName = jsValueProperty.kind === "resolved"
+    ? jsValueProperty.member.sourceName
+    : syntaxName === undefined
+      ? undefined
+      : input.ast.text(syntaxName);
+  const nameNode = input.ast.name(declaration) ?? syntaxName;
   const name = shapeMember?.kind === "resolved"
     ? shapeMember.member.targetName
     : nameNode === undefined
@@ -289,10 +272,16 @@ function translateSourceOwnedProperty(
     : name?.kind === "resolved"
       ? name.name
       : undefined;
-  if (resolvedName === undefined) {
+  if (
+    jsValueOperation.kind === "resolved"
+      ? jsValueSourceName === undefined
+      : resolvedName === undefined
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      typeof name === "object" && name?.kind === "rejected"
+      jsValueOperation.kind === "resolved"
+        ? "A JS-value property read requires an exact authored property name."
+        : typeof name === "object" && name?.kind === "rejected"
         ? `The exact selected source property has no C#-representable declaration name. ${name.reason}`
         : "The exact selected source property has no C#-representable declaration name.",
     ));
@@ -308,26 +297,14 @@ function translateSourceOwnedProperty(
   if (receiver === undefined) {
     return undefined;
   }
-  const compat = compatProperty.kind === "resolved"
-    ? selectCsharpCompatValueReceiverOperation(
-        compatProperty.shape.targetType,
-        "property-read",
-        selection.source.optionalChain,
-      )
-    : { kind: "not-any" as const };
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
-    return undefined;
-  }
-  const compatSourceName = compatProperty.kind === "resolved"
-    ? compatProperty.member.sourceName
-    : undefined;
-  const planned = compat.kind === "resolved" && compatSourceName !== undefined
-    ? translateCsharpCompatInvocation(
-        compat,
+  const planned = jsValueOperation.kind === "resolved" && jsValueSourceName !== undefined
+    ? translateCsharpJsValueInvocation(
+        jsValueOperation,
         receiver,
-        [{ kind: "LiteralExpression", value: compatSourceName }],
+        [{ kind: "LiteralExpression", value: jsValueSourceName }],
       )
+    : resolvedName === undefined
+    ? undefined
     : {
         kind: selection.source.optionalChain
           ? "ConditionalAccessExpression"
@@ -338,7 +315,7 @@ function translateSourceOwnedProperty(
   if (planned === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "The selected compatibility object-shape property read has no closed runtime operation.",
+      "The selected JS-value object-shape property read has no closed runtime operation.",
     ));
     return undefined;
   }
@@ -361,7 +338,9 @@ function translateSourceOwnedProperty(
     return planned;
   }
   const rawReadType = shapeMember?.kind === "resolved"
-    ? shapeMember.member.type
+    ? jsValueOperation.kind === "resolved"
+      ? jsValueOperation.resultType
+      : shapeMember.member.type
     : input.types.resolveReadStorage(node, sourceFile);
   const selectedReadType = shapeMember?.kind === "resolved"
     ? resolveCsharpObjectShapeMemberReadTargetType(
@@ -381,23 +360,16 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
-  if (rawReadType === undefined || selectedReadType === undefined) {
-    return planned;
-  }
-  const conversion = selectCsharpFlowReadConversion(
-    input,
-    rawReadType,
-    selectedReadType,
-  );
-  return applyCsharpConversionSelection(
+  return planFlowReadUseSiteProjection(
     node,
+    planned,
     sourceFile,
     input,
     diagnostics,
-    rawReadType,
-    selectedReadType,
-    conversion,
-    planned,
+    {
+      ...(rawReadType === undefined ? {} : { storageType: rawReadType }),
+      ...(selectedReadType === undefined ? {} : { selectedType: selectedReadType }),
+    },
   );
 }
 
@@ -471,20 +443,16 @@ function translateRuntimeUnionObjectShapeProperty(
     ));
     return undefined;
   }
-  const conversion = selectCsharpFlowReadConversion(
-    input,
-    property.resultType,
-    selectedReadType,
-  );
-  return applyCsharpConversionSelection(
+  return planFlowReadUseSiteProjection(
     node,
+    projected,
     sourceFile,
     input,
     diagnostics,
-    property.resultType,
-    selectedReadType,
-    conversion,
-    projected,
+    {
+      storageType: property.resultType,
+      selectedType: selectedReadType,
+    },
   );
 }
 

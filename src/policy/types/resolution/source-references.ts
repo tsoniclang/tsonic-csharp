@@ -215,6 +215,7 @@ export function resolveCheckerTransformedSourceType(
   return host.structuralTypes.resolveType(
     selectedType,
     queries.sourceFile,
+    nextState(state),
     authoredRoot,
   );
 }
@@ -255,6 +256,7 @@ export function resolveStandardSourceTypeTransformation(
     return host.structuralTypes.resolveType(
       selectedType,
       queries.sourceFile,
+      nextState(state),
       authoredRoot,
     );
   }

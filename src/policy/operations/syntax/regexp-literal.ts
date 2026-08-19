@@ -256,7 +256,7 @@ function validateEscape(
       result: {
         kind: "unsupported",
         message:
-          "Numeric backreferences and legacy numeric escapes are not in the proven subset.",
+          "Numeric backreferences and Annex B numeric escapes are not in the proven subset.",
       },
       nextIndex: slashIndex + 1,
     };

@@ -35,11 +35,11 @@ export const replacementContracts = Object.freeze({
       "../tsonic/test/cli-build/core/declarations/generics-interfaces.test.mjs",
     ],
   ),
-  compat: contract(
+  "dynamic-values": contract(
     `declare const value: any;\nconst result = value.child(1)["name"];`,
     [
       "test/backend/planner/expressions/direct-translation-core.test.mjs",
-      "../tsonic/test/cli-build/runtime/compatibility/runtime.test.mjs",
+      "../tsonic/test/cli-build/runtime/dynamic-values/runtime.test.mjs",
       "../tsonic/test/cli-build/core/control-flow/rejections.test.mjs",
     ],
   ),
@@ -143,9 +143,9 @@ export const obsoleteTargetFactTests = Object.freeze([
   row("test/call-operation-facts.helpers.mjs", 0, "703834613e0e008f0940cc61301043539e53ec2714ed909879cf244afab71615", ["deleted-target-fact-architecture"]),
   row("test/call-operation-facts.test.mjs", 30, "05b7ad83b9decfca9b9e8b7eac4edb92913f6d1eabb4943597972a144a843852", ["provider-relations", "contextual-translation", "types-conversions", "deleted-target-fact-architecture"]),
   row("test/checked-operation-finalization-ownership.test.mjs", 2, "bcc65f3679992c28d489a16bc72d7b012fa30db54dc649e72cebccb9df3b5350", ["contextual-translation", "deleted-target-fact-architecture"]),
-  row("test/compat-runtime-planner.test.mjs", 16, "f081889417519d85049b0265c15f1deef592a84f5993e167fb38bbfaac8afe42", ["compat", "deleted-target-fact-architecture"]),
-  row("test/compat-runtime.helpers.mjs", 1, "b678c76dbaa4ca190e07bcc706cd8e49189c3b4ebfbaab14296e4086525efe21", ["compat", "deleted-target-fact-architecture"]),
-  row("test/compat-runtime.test.mjs", 21, "b8cc780b21a2a434c81fefa3cb111b8aadd2dd5c077ee9b694184542e10baaa1", ["compat", "diagnostics"]),
+  row("test/compat-runtime-planner.test.mjs", 16, "f081889417519d85049b0265c15f1deef592a84f5993e167fb38bbfaac8afe42", ["dynamic-values", "deleted-target-fact-architecture"]),
+  row("test/compat-runtime.helpers.mjs", 1, "b678c76dbaa4ca190e07bcc706cd8e49189c3b4ebfbaab14296e4086525efe21", ["dynamic-values", "deleted-target-fact-architecture"]),
+  row("test/compat-runtime.test.mjs", 21, "b8cc780b21a2a434c81fefa3cb111b8aadd2dd5c077ee9b694184542e10baaa1", ["dynamic-values", "diagnostics"]),
   row("test/conversions.test.mjs", 13, "03779f09d673e6dddedfd715d9ecf3aaf669399f67a4c556716e3526ebe2b11c", ["types-conversions", "provider-relations", "deleted-target-fact-architecture"]),
   row("test/csharp-runtime-carrier-facts.test.mjs", 13, "1912c9077e30aa5de80a0c530976685a236b9e85975f1bf3524add29c1d408f9", ["types-conversions", "contextual-translation", "deleted-target-fact-architecture"]),
   row("test/declaration-classes.test.mjs", 11, "930a8a2044e3cf59b2dcf70d6f44f0cb16c40263ab2e7dfc4a3b6bf54c9e2dc3", ["declarations", "operators-control", "diagnostics"]),

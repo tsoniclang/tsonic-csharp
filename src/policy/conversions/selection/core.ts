@@ -8,7 +8,7 @@ import {
   targetTypeRefKey,
 } from "../../types/index.js";
 import { csharpConversionIsApplicable } from "./expression.js";
-import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectAnyConversion, selectCompatValueConversion, selectDelegateConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
+import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "../source-primitives.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
@@ -18,7 +18,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.
 export function selectCsharpConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
@@ -34,17 +34,12 @@ export function selectCsharpConversion(
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
   }
-  const compatValueConversion = selectCompatValueConversion(
+  const jsValueConversion = selectJsValueConversion(
     source,
     target,
-    mode,
   );
-  if (compatValueConversion !== undefined) {
-    return compatValueConversion;
-  }
-  const anyConversion = selectAnyConversion(input, source, target);
-  if (anyConversion !== undefined) {
-    return anyConversion;
+  if (jsValueConversion !== undefined) {
+    return jsValueConversion;
   }
   if (
     getCsharpTaskResultTargetType(source) !== undefined ||
@@ -123,7 +118,7 @@ export function selectCsharpConversion(
 function selectTupleConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef,
   target: TargetTypeRef,

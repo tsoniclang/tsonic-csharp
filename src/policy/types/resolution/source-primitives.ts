@@ -1,4 +1,3 @@
-import type { TargetTypescriptCompatibilityMode } from "@tsonic/target-api";
 import type { TargetTypeRef } from "../model/definitions.js";
 import {
   csharpBigIntegerTargetType,
@@ -11,7 +10,6 @@ import { csharpAnyTargetType, csharpTsValueTargetType } from "../storage/runtime
 
 export function resolveKeywordType(
   kind: string,
-  typescriptCompatibility: TargetTypescriptCompatibilityMode,
 ): TargetTypeRef | undefined {
   switch (kind) {
     case "KindBooleanKeyword":
@@ -25,11 +23,9 @@ export function resolveKeywordType(
     case "KindVoidKeyword":
       return csharpVoidTargetType();
     case "KindAnyKeyword":
-      return csharpAnyTargetType(typescriptCompatibility);
+      return csharpAnyTargetType();
     case "KindUnknownKeyword":
-      return typescriptCompatibility === "compat"
-        ? csharpTsValueTargetType()
-        : { kind: "opaque", id: "unknown" };
+      return csharpTsValueTargetType();
     case "KindNeverKeyword":
       return csharpNeverTargetType();
     default:

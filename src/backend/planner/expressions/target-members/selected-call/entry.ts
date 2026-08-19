@@ -1,8 +1,8 @@
-import { selectCsharpCompatAnyCallOperation } from "../../../../../policy/compat/index.js";
+import { selectCsharpJsValueCallOperation } from "../../../../../policy/js-value-operations/index.js";
 import { selectCsharpSourceFlowCall } from "../../../../../policy/operations/index.js";
 import { selectCsharpTargetCall } from "../../../../../policy/members/index.js";
 import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import { translateCsharpCompatArgumentFactory, translateCsharpCompatInvocation, translateCsharpCompatValueFactory } from "../../compat.js";
+import { translateCsharpJsValueArgumentFactory, translateCsharpJsValueInvocation, translateCsharpJsValueFactory } from "../../js-value-operations.js";
 import { translateSelectedTargetCall } from "./target.js";
 import { translateSourceOwnedCall } from "./source.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
@@ -33,20 +33,20 @@ export function translateCsharpCallExpression(
   }
   const calleeNode = sourceCall?.sourceCallee.expression ??
     expression?.Expression;
-  const compatShape = compatCallShape(input, sourceCall);
-  const compat = selectCsharpCompatAnyCallOperation(
+  const jsValueShape = jsValueCallShape(input, sourceCall);
+  const jsValueOperation = selectCsharpJsValueCallOperation(
     input,
     calleeNode,
-    compatShape.receiver,
+    jsValueShape.receiver,
     sourceFile,
-    compatShape.kind,
+    jsValueShape.kind,
     expression?.QuestionDotToken !== undefined,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const sourceArguments = input.ast.arguments(node)
       .filter((argument): argument is Node => argument !== undefined);
     if (
@@ -57,11 +57,11 @@ export function translateCsharpCallExpression(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility calls over TypeScript any require exact non-spread source arguments.",
+        "JS-value calls require exact non-spread source arguments.",
       ));
       return undefined;
     }
-    const receiverNode = compatShape.receiver ?? calleeNode;
+    const receiverNode = jsValueShape.receiver ?? calleeNode;
     const receiver = receiverNode === undefined
       ? undefined
       : planExpression(receiverNode, sourceFile, input, diagnostics);
@@ -74,9 +74,9 @@ export function translateCsharpCallExpression(
     ) {
       return undefined;
     }
-    const invocationArguments = compatCallArguments(
+    const invocationArguments = jsValueCallArguments(
       input,
-      compatShape,
+      jsValueShape,
       expression?.QuestionDotToken !== undefined,
       arguments_ as readonly CsharpExpression[],
       sourceFile,
@@ -86,12 +86,12 @@ export function translateCsharpCallExpression(
     if (invocationArguments === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility member calls require an exact selected property name or element key.",
+        "JS-value member calls require an exact selected property name or element key.",
       ));
       return undefined;
     }
-    return translateCsharpCompatInvocation(
-      compat,
+    return translateCsharpJsValueInvocation(
+      jsValueOperation,
       receiver,
       invocationArguments,
     );
@@ -150,7 +150,7 @@ export function translateCsharpCallExpression(
       return undefined;
   }
 }
-type CompatCallShape =
+type JsValueCallShape =
   | { readonly kind: "direct"; readonly receiver?: undefined }
   | {
       readonly kind: "property";
@@ -165,10 +165,10 @@ type CompatCallShape =
       readonly optionalReceiver: boolean;
     };
 
-function compatCallShape(
+function jsValueCallShape(
   input: CsharpPlanningContext,
   source: ResolvedSourceCallInfo | undefined,
-): CompatCallShape {
+): JsValueCallShape {
   const access = source?.sourceCalleeAccess;
   if (
     access?.kind === "property" &&
@@ -197,9 +197,9 @@ function compatCallShape(
   return { kind: "direct" };
 }
 
-function compatCallArguments(
+function jsValueCallArguments(
   input: CsharpPlanningContext,
-  shape: CompatCallShape,
+  shape: JsValueCallShape,
   optionalCall: boolean,
   arguments_: readonly CsharpExpression[],
   sourceFile: SourceFile,
@@ -209,7 +209,7 @@ function compatCallArguments(
   switch (shape.kind) {
     case "direct":
       return optionalCall
-        ? [translateCsharpCompatArgumentFactory(arguments_)]
+        ? [translateCsharpJsValueArgumentFactory(arguments_)]
         : arguments_;
     case "property":
       return shape.name === undefined
@@ -218,7 +218,7 @@ function compatCallArguments(
             { kind: "LiteralExpression", value: input.ast.text(shape.name) },
             { kind: "LiteralExpression", value: shape.optionalReceiver },
             { kind: "LiteralExpression", value: optionalCall },
-            translateCsharpCompatArgumentFactory(arguments_),
+            translateCsharpJsValueArgumentFactory(arguments_),
           ];
     case "element": {
       const key = shape.key === undefined
@@ -232,10 +232,10 @@ function compatCallArguments(
       return key === undefined
         ? undefined
         : [
-            translateCsharpCompatValueFactory(key),
+            translateCsharpJsValueFactory(key),
             { kind: "LiteralExpression", value: shape.optionalReceiver },
             { kind: "LiteralExpression", value: optionalCall },
-            translateCsharpCompatArgumentFactory(arguments_),
+            translateCsharpJsValueArgumentFactory(arguments_),
           ];
     }
   }

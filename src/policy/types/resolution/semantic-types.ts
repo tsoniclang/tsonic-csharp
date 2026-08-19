@@ -70,14 +70,10 @@ export function resolveTypeWithState(
     return typeParameter;
   }
   if (queries.isAny(type)) {
-    return csharpAnyTargetType(
-      host.typescriptCompatibility,
-    );
+    return csharpAnyTargetType();
   }
   if (queries.isUnknown(type)) {
-    return host.typescriptCompatibility === "compat"
-      ? csharpTsValueTargetType()
-      : { kind: "opaque", id: "unknown" };
+    return csharpTsValueTargetType();
   }
   if (queries.isNever(type)) {
     return csharpNeverTargetType();
@@ -145,12 +141,16 @@ export function resolveTypeWithState(
   if (queries.isVoidLike(type)) {
     return csharpVoidTargetType();
   }
-  return host.structuralTypes.resolveType(type, sourceFile);
+  return host.structuralTypes.resolveType(
+    type,
+    sourceFile,
+    nextState(state),
+  );
 }
 
 
 export function resolveDirectSourceFacts(
-  { host, resolveNodeWithState, resolveSelectedValue, resolveTypedLocationOperationPointee }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolveSelectedValueWithState, resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   subjects: readonly ExtensionFactSubject[],
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -218,9 +218,10 @@ export function resolveDirectSourceFacts(
       subject,
     );
     if (pointerOperation !== undefined) {
-      const pointee = resolveTypedLocationOperationPointee(
+      const pointee = resolveTypedLocationOperationPointeeWithState(
         pointerOperation,
         sourceFile,
+        nextState(state),
       );
       if (pointee !== undefined) {
         switch (pointerOperation.kind) {
@@ -245,10 +246,11 @@ export function resolveDirectSourceFacts(
       subject,
     );
     if (nativePointerOperation !== undefined) {
-      const pointerType = resolveSelectedValue(
+      const pointerType = resolveSelectedValueWithState(
         nativePointerOperation.pointerExpression,
         nativePointerOperation.pointerType,
         sourceFile,
+        nextState(state),
       );
       if (pointerType?.kind === "pointer") {
         switch (nativePointerOperation.operation) {

@@ -27,6 +27,25 @@ test("C# backend and tests consume structured target carrier resolutions", () =>
   assert.deepEqual(failures, []);
 });
 
+test("recursive object-shape policies cannot re-enter the public type resolver", () => {
+  const recursivePolicyFiles = [
+    ...filesUnder(join(repoRoot, "src/policy/types/objects/object-shape-policy")),
+    join(repoRoot, "src/policy/types/objects/binding-projection-policy.ts"),
+  ].filter((filePath) => filePath.endsWith(".ts"));
+  const failures = [];
+  for (const filePath of recursivePolicyFiles) {
+    const text = readFileSync(filePath, "utf8");
+    if (/\b(?:host|input)\.types\.(?:resolveNode|resolveSelectedType|resolveType)\b/u.test(text)) {
+      failures.push(`${repoRelative(filePath)}: re-enters the public type resolver from recursive shape analysis`);
+    }
+    if (/\bcreateCsharpTypePolicy\b/u.test(text)) {
+      failures.push(`${repoRelative(filePath)}: constructs a fresh public type resolver during recursive shape analysis`);
+    }
+  }
+
+  assert.deepEqual(failures, []);
+});
+
 function sourceAndTestFiles() {
   return [
     ...filesUnder(join(repoRoot, "src")),

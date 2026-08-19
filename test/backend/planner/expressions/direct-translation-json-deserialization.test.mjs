@@ -174,7 +174,6 @@ test("provider arguments retain an object literal's contextual project interface
 test("JS structural views retain one closed value carrier through assertions, flow, mutation, identity, and literals", () => {
   const compiled = compileCsharpSource({
     surface: "js",
-    targetOptions: { typescriptCompatibility: "compat" },
     sourceText: `
       export function parse(json: string): string | undefined {
         const obj = JSON.parse(json) as { title?: unknown };
@@ -215,29 +214,29 @@ namespace Tsonic.Generated
         public static string? parse(string json)
         {
             Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
-            if (Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title")) != "string")
+            if (Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title")) != "string")
             {
                 return null;
             }
-            return Tsonic.CSharp.Js.TsValue.CastCompat<string>(obj.ReadCompatSlot("title"));
+            return Tsonic.CSharp.Js.TsValue.CastDynamic<string>(obj.ReadDynamicSlot("title"));
         }
         public static string update(string json)
         {
             Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
-            obj.WriteCompatSlot("title", Tsonic.CSharp.Js.TsValue.from(1));
-            return Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title"));
+            obj.WriteDynamicSlot("title", Tsonic.CSharp.Js.TsValue.from((double)1));
+            return Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
         }
         public static bool identity(string json)
         {
             Tsonic.CSharp.Js.TsValue raw = Tsonic.CSharp.Js.JSON.parse(json);
             Tsonic.CSharp.Js.TsValue left = Tsonic.CSharp.Js.TsValue.from(raw);
             Tsonic.CSharp.Js.TsValue right = Tsonic.CSharp.Js.TsValue.from(raw);
-            return Tsonic.CSharp.Js.TsValue.ApplyCompatBinaryBoolean(left, "===", right);
+            return Tsonic.CSharp.Js.TsValue.ApplyDynamicBinaryBoolean(left, "===", right);
         }
         public static string create()
         {
-            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.CreateCompatObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
-            return Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(obj.ReadCompatSlot("title"));
+            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.CreateDynamicObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
+            return Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
         }
     }
 }
@@ -245,4 +244,31 @@ namespace Tsonic.Generated
   assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
   assert.equal(source.includes("dynamic"), false);
   assert.equal(source.includes("System.Reflection"), false);
+});
+
+test("broad value object literals lower directly into nested closed JS-value carriers", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      export function createUnknown(): unknown {
+        return { value: 1, child: { label: "ready" } };
+      }
+      export function createAny(): any {
+        return { enabled: true };
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.match(
+    source,
+    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Js\.TsValue\.from\(\(int\)1\), "child", Tsonic\.CSharp\.Js\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Js\.TsValue\.from\("ready"\)\)\)/u,
+  );
+  assert.match(
+    source,
+    /TsValue createAny\(\)[\s\S]*TsValue\.CreateDynamicObject\("enabled", Tsonic\.CSharp\.Js\.TsValue\.from\(true\)\)/u,
+  );
+  assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
 });

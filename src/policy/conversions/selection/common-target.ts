@@ -8,7 +8,7 @@ import type { TargetTypeRef } from "../../types/index.js";
 export function selectCsharpCommonImplicitTarget(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   sources: readonly TargetTypeRef[],
   candidates: readonly TargetTypeRef[] = sources,
@@ -59,7 +59,7 @@ export function selectCsharpCommonImplicitTarget(
 export function compareCsharpImplicitConversionTargets(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   left: TargetTypeRef,
   right: TargetTypeRef,

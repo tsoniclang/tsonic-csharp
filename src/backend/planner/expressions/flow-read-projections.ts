@@ -33,9 +33,15 @@ export function planFlowReadUseSiteProjection(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  selectedType: TargetTypeRef | undefined = input.types.resolveNode(node, sourceFile),
+  options: {
+    readonly storageType?: TargetTypeRef;
+    readonly selectedType?: TargetTypeRef;
+  } = {},
 ): CsharpExpression | undefined {
-  const storageType = input.types.resolveReadStorage(node, sourceFile);
+  const storageType = options.storageType ??
+    input.types.resolveReadStorage(node, sourceFile);
+  const selectedType = options.selectedType ??
+    input.types.resolveNode(node, sourceFile);
   if (storageType === undefined) {
     return baseExpression;
   }

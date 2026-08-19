@@ -54,9 +54,9 @@ export type CsharpConversionSelection =
       readonly sourceElementType: TargetTypeRef;
       readonly targetElementType: TargetTypeRef;
     }
-  | { readonly kind: "compat-box" }
+  | { readonly kind: "js-value-box" }
   | {
-      readonly kind: "compat-cast";
+      readonly kind: "js-value-cast";
       readonly runtimeUnionArms?: readonly TargetTypeRef[];
     }
   | {

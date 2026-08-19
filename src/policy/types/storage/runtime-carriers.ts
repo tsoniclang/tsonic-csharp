@@ -3,7 +3,6 @@ import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "../model/definitions.js";
-import type { TargetTypescriptCompatibilityMode } from "@tsonic/target-api";
 import type {
   CsharpRuntimeUnionTargetTypeRef,
 } from "../model/definitions.js";
@@ -20,25 +19,8 @@ import {
   csharpNullableTargetType,
 } from "./nullable.js";
 
-export function csharpAnyTargetType(
-  mode: TargetTypescriptCompatibilityMode,
-): TargetTypeRef {
-  return mode === "compat"
-    ? csharpCompatAnyTargetType()
-    : { kind: "opaque", id: "any" };
-}
-
-export function csharpCompatAnyTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType(
-    "tsonic.csharp.compat:any",
-    undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"),
-    {
-      valueType: true,
-      absorbsNullish: true,
-      compatValueCarrier: true,
-    },
-  );
+export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTsValueTargetType();
 }
 
 export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
@@ -49,7 +31,7 @@ export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
     {
       valueType: true,
       absorbsNullish: true,
-      compatValueCarrier: true,
+      jsValueCarrier: true,
     },
   );
 }
@@ -151,31 +133,23 @@ export function combineCsharpTargetUnionMembers(
       ]);
 }
 
-export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
-  return type !== undefined &&
-    (
-      type.kind === "opaque" && type.id === "any" ||
-      type.kind === "target-named" && type.id === "tsonic.csharp.compat:any"
-    );
-}
-
-export function isCsharpCompatValueTargetType(
+export function isCsharpJsValueTargetType(
   type: TargetTypeRef | undefined,
 ): boolean {
   return type?.kind === "target-named" &&
-    (type as CsharpTargetNamedTypeRef).csharpCompatValueCarrier === true;
+    (type as CsharpTargetNamedTypeRef).csharpJsValueCarrier === true;
 }
 
 export function isCsharpClosedJsonRuntimeLeaf(
   type: TargetTypeRef | undefined,
 ): boolean {
-  return isCsharpCompatValueTargetType(type) ||
+  return isCsharpJsValueTargetType(type) ||
     type?.kind === "target-named" &&
       type.id === "Tsonic.CSharp.Js.JSObject";
 }
 
-export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
-  return isCsharpCompatValueTargetType(type) ||
+export function isCsharpClosedJsRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return isCsharpJsValueTargetType(type) ||
     type?.kind === "target-named" &&
     (
       type.id === "Tsonic.CSharp.Js.TsObject" ||
