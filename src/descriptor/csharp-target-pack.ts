@@ -4,14 +4,18 @@ import type {
   TargetBackend,
   TargetBackendContext,
   TargetPack,
-  TargetProviderContext,
-  TargetRuntimeContributionContext,
-  TargetRuntimeContributions,
-  TargetRuntimeReference,
-  TargetSourceCompilerContributions,
   TargetToolchain,
   TargetToolchainContext,
 } from "@tsonic/target-api";
+import type {
+  TargetProviderContext,
+  TargetRuntimeContributionContext,
+  TargetSourceCompilerContributions,
+} from "@tsonic/target-api/provider";
+import type {
+  TargetRuntimeContributions,
+  TargetRuntimeReference,
+} from "@tsonic/target-api/artifacts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
   readCsharpTypescriptCompatibilityMode,
@@ -19,17 +23,17 @@ import {
 } from "../options/csharp-target-options.js";
 import {
   createCsharpSourceSemanticsExtension,
-} from "../source/csharp-source-semantics.js";
+} from "./csharp-source-semantics-extension.js";
 import {
   csharpSourceSemanticsModules,
-} from "../source/csharp-source-semantics/source-modules.js";
+} from "../source/profiles/source-modules.js";
 import {
   csharpJsSurfaceSourceProfileContributions,
   csharpSourceProfileContributions,
-} from "../source/csharp-source-semantics/source-profile-declarations.js";
+} from "../source/profiles/source-profile-declarations.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
+import { csharpTargetId } from "../source/identities.js";
 
-export const csharpTargetId = "csharp";
 const require = createRequire(import.meta.url);
 
 export function createCsharpTargetPack(): TargetPack {

@@ -1,0 +1,45 @@
+export type {
+  DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
+  DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
+  DotnetExportDeclaration,
+  DotnetFunctionDeclaration,
+  DotnetMemberDeclaration,
+  DotnetMemberKind,
+  DotnetModuleModel,
+  DotnetNamespaceDeclaration,
+  DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
+  DotnetProviderIdentity,
+  DotnetSignatureDeclaration,
+  DotnetTypeDeclaration,
+  DotnetTypeKind,
+  DotnetTypeParameterDeclaration,
+  DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedConstraintDeclaration,
+  DotnetUnsupportedDefaultValueDeclaration,
+  DotnetUnsupportedMemberDeclaration,
+  DotnetUnsupportedExportDeclaration,
+  DotnetUnsupportedTypeExportDeclaration,
+  DotnetUnsupportedTypeFamilyExportDeclaration,
+  DotnetValueDeclaration,
+} from "./types.js";
+export {
+  dotnetTypeParameterToProviderTypeParameter,
+  dotnetTypeRefToProviderType,
+  tryDotnetTypeRefToProviderType,
+} from "../declarations/provider-conversion.js";
+export {
+  dotnetConstraintToTargetConstraint,
+  dotnetExportToTargetBinding,
+  dotnetTypeRefToTargetTypeRef,
+} from "../target-projection/index.js";
+export type {
+  DotnetTargetMember,
+  DotnetTargetParameter,
+} from "../target-projection/index.js";

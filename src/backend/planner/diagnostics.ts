@@ -2,7 +2,7 @@ import type {
   ExtensionDiagnostic,
   Node,
 } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function selectedPolicyDiagnostic(
   node: Node,

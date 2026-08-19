@@ -14,24 +14,24 @@ import type {
   ProviderOwnership,
   SourceDeclarationProvider,
 } from "@tsonic/tsts";
-import { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
+import { dotnetModuleToProviderDeclarationModel } from "./declarations/index.js";
 import {
   validateDotnetProviderDeclarationModelContract,
-} from "./model-contract.js";
+} from "./model/contract.js";
 import type {
   DotnetModuleModel,
   DotnetProviderIdentity,
   DotnetUnsupportedExportDeclaration,
-} from "./model.js";
+} from "./model/index.js";
 import {
   augmentDotnetModuleWithNativeArray,
-} from "./native-array.js";
+} from "./modules/native-array.js";
 import {
   dotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
+} from "./modules/specifier.js";
 import type {
   DotnetModuleSpecifierPolicy,
-} from "./module-specifier.js";
+} from "./modules/specifier.js";
 import {
   dotnetExtensionDiagnostic,
   dotnetProviderDeclarationModelInvalidDiagnostic,
@@ -40,20 +40,20 @@ import {
   dotnetProviderRequestedExportUnsupportedDiagnostic,
   dotnetProviderRequestSliceRequiredDiagnostic,
   isDotnetProviderDiagnostic,
-} from "./provider-diagnostics.js";
+} from "./diagnostics.js";
 import {
   dotnetProviderModuleContext,
   dotnetProviderModuleRequest,
   providerVirtualDeclarationFileName,
-} from "./provider-request.js";
+} from "./modules/request.js";
 import {
   dotnetProviderResolutionContext,
   missingDotnetRequestedExports,
   sliceDotnetModuleExports,
-} from "./provider-slices.js";
+} from "./modules/slices.js";
 import type {
   DotnetProviderResolutionContext,
-} from "./provider-slices.js";
+} from "./modules/slices.js";
 
 export interface DotnetTypeDataProvider {
   readonly identity: DotnetProviderIdentity;

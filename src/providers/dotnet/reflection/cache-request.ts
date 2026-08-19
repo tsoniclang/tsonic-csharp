@@ -8,13 +8,13 @@ import type {
 import type {
   DotnetAssemblySourcePackage,
   DotnetModuleSpecifierPolicy,
-} from "../module-specifier.js";
+} from "../modules/specifier.js";
 import {
   normalizeDotnetAssemblySourcePackages,
-} from "../module-specifier.js";
+} from "../modules/specifier.js";
 import type {
   DotnetProviderIdentity,
-} from "../model.js";
+} from "../model/index.js";
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";

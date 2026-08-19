@@ -5,10 +5,10 @@ import type {
 } from "@tsonic/tsts";
 import {
   parseBigIntLiteral,
-} from "../../source/source-literal-values.js";
+} from "../../source/literal-values.js";
 import type {
-  CsharpTranslationContext,
-} from "../../translate/context/index.js";
+  CsharpPolicyContext,
+} from "../context.js";
 import type {
   TargetTypeRef,
 } from "../types/index.js";
@@ -20,10 +20,10 @@ import {
 import {
   csharpNumericLiteralFitsSourcePrimitive,
   csharpNumericLiteralValue,
-} from "../types/source-literal-policy.js";
+} from "../types/resolution/source-literal-policy.js";
 
 export function csharpLiteralIsRepresentableAs(
-  input: Pick<CsharpTranslationContext, "ast">,
+  input: Pick<CsharpPolicyContext, "ast">,
   node: Node,
   target: TargetTypeRef,
 ): boolean {

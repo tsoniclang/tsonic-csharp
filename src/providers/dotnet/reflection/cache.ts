@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "
 import { dirname, join, resolve } from "node:path";
 import type {
   DotnetModuleModel,
-} from "../model.js";
+} from "../model/index.js";
 import type {
   DotnetProviderTelemetry,
 } from "./telemetry.js";

@@ -2,12 +2,9 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../../options/csharp-target-options.js";
 import type {
-  CsharpTranslationContext,
-} from "../../translate/context/index.js";
+  CsharpPolicyContext,
+} from "../context.js";
 import {
   isCsharpAnyRuntimeCarrier,
   isCsharpCompatValueTargetType,
@@ -52,7 +49,7 @@ export function selectCsharpCompatObjectLiteralOperation(): Extract<
 }
 
 export function selectCsharpCompatAnyReceiverOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   receiver: Node | undefined,
   sourceFile: SourceFile,
   operation: CsharpCompatAnyReceiverOperation,
@@ -93,7 +90,7 @@ export function selectCsharpCompatValueReceiverOperation(
 }
 
 export function selectCsharpCompatAnyCallOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   callee: Node | undefined,
   receiver: Node | undefined,
   sourceFile: SourceFile,
@@ -132,7 +129,7 @@ export function selectCsharpCompatAnyCallOperation(
 }
 
 export function selectCsharpCompatAnyBinaryOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   left: Node | undefined,
   right: Node | undefined,
   sourceFile: SourceFile,
@@ -179,7 +176,7 @@ export function selectCsharpCompatAnyBinaryOperation(
 }
 
 export function selectCsharpCompatAnyUnaryOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   operand: Node | undefined,
   sourceFile: SourceFile,
   operator: string,
@@ -216,7 +213,7 @@ export function selectCsharpCompatAnyUnaryOperation(
 }
 
 export function selectCsharpCompatTypeofOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   operand: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
@@ -240,7 +237,7 @@ export function selectCsharpCompatTypeofOperation(
 }
 
 export function selectCsharpCompatAnyVoidOperation(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   operand: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
@@ -256,7 +253,7 @@ export function selectCsharpCompatAnyVoidOperation(
 }
 
 export function selectCsharpCompatAnyCondition(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   expression: Node | undefined,
   sourceFile: SourceFile,
 ): CsharpCompatAnySelection {
@@ -277,7 +274,7 @@ export function selectCsharpCompatAnyCondition(
 }
 
 function selectAnyMode(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   nodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
   operation: string,
@@ -291,7 +288,7 @@ function selectAnyMode(
   if (!usesAny) {
     return { kind: "not-any" };
   }
-  return readCsharpTypescriptCompatibilityMode(input.target) === "compat"
+  return input.typescriptCompatibility === "compat"
     ? { kind: "compat" }
     : {
         kind: "rejected",
@@ -301,7 +298,7 @@ function selectAnyMode(
 }
 
 function selectCompatValueMode(
-  input: CsharpTranslationContext,
+  input: CsharpPolicyContext,
   nodes: readonly (Node | undefined)[],
   sourceFile: SourceFile,
   operation: string,
@@ -312,7 +309,7 @@ function selectCompatValueMode(
     node === undefined ? undefined : input.types.resolveNode(node, sourceFile)
   );
   if (types.some((type) => isCsharpAnyRuntimeCarrier(type))) {
-    return readCsharpTypescriptCompatibilityMode(input.target) === "compat"
+    return input.typescriptCompatibility === "compat"
       ? { kind: "compat" }
       : {
           kind: "rejected",
@@ -322,7 +319,7 @@ function selectCompatValueMode(
   if (!types.some((type) => isCsharpCompatValueTargetType(type))) {
     return { kind: "not-any" };
   }
-  return readCsharpTypescriptCompatibilityMode(input.target) === "compat"
+  return input.typescriptCompatibility === "compat"
     ? { kind: "compat" }
     : {
         kind: "rejected",

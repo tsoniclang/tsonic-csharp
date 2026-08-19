@@ -1,0 +1,20 @@
+import type { ProviderParameterDeclaration } from "@tsonic/tsts";
+import type { DotnetParameterDeclaration } from "../model/index.js";
+import { tryDotnetTypeRefToProviderType } from "../model/index.js";
+
+export function dotnetParameterToProviderParameter(
+  parameter: DotnetParameterDeclaration,
+  identityPath: string,
+): ProviderParameterDeclaration | undefined {
+  const type = tryDotnetTypeRefToProviderType(parameter.sourceType ?? parameter.type, `${identityPath}.type`);
+  if (type === undefined) {
+    return undefined;
+  }
+  return {
+    name: parameter.name,
+    type,
+    ...(parameter.passingMode !== "by-value" ? { passingMode: parameter.passingMode } : {}),
+    ...(parameter.optional === true ? { optional: true } : {}),
+    ...(parameter.rest === true ? { rest: true } : {}),
+  };
+}

@@ -1,15 +1,15 @@
 import type {
   TargetTypeRef,
-} from "./definitions.js";
+} from "./model/definitions.js";
 import type {
   CsharpTargetNamedTypeRef,
-} from "./definitions.js";
+} from "./model/definitions.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "./render-shapes.js";
 import {
   csharpTargetNamedType,
-} from "./target-refs.js";
+} from "./model/target-refs.js";
 
 export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   const constructionType = csharpListTargetType(elementType);

@@ -11,6 +11,14 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./provider": {
+      "types": "./dist/public/provider.d.ts",
+      "default": "./dist/public/provider.js"
+    },
+    "./provider/dotnet": {
+      "types": "./dist/public/provider-dotnet.d.ts",
+      "default": "./dist/public/provider-dotnet.js"
+    },
     "./package.json": "./package.json"
   },
   "tsonic": {
@@ -20,8 +28,8 @@
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "test": "node ../tsonic/scripts/test/run-parallel.mjs --scope tsonic-csharp --with-preruns",
-    "test:parallel": "node ../tsonic/scripts/test/run-parallel.mjs --scope tsonic-csharp"
+    "test": "node ../tsonic/test/scripts/run-parallel.mjs --scope tsonic-csharp --with-preruns",
+    "test:parallel": "node ../tsonic/test/scripts/run-parallel.mjs --scope tsonic-csharp"
   },
   "peerDependencies": {
     "@tsonic/source-core": "0.0.1",
