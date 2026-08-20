@@ -6,11 +6,11 @@ import {
 } from "../object-shape-identity.js";
 import { canUseCsharpJsValueObjectShapeCarrier } from "../js-value-object-shapes.js";
 import { createHash } from "node:crypto";
-import { csharpTargetNamedType } from "../../model/target-refs.js";
+import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
 import { csharpTsValueTargetType } from "../../storage/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../names/identifiers.js";
 import { targetTypeRefKey } from "../../model/equality.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../model/definitions.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],

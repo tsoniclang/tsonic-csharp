@@ -13,7 +13,7 @@ import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
@@ -45,7 +45,7 @@ export function planObjectShapeBindingPattern(
   planBindingNameFromProjection: BindingProjectionPlanner,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  const elements = AsBindingPattern(input.ast, patternNode)?.Elements?.Nodes ?? [];
+  const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   const explicitlyExtractedSourceNames = collectObjectShapeExtractedSourceNames(elements, input);
   return elements.flatMap((elementNode) => {
     if (elementNode === undefined) {
@@ -67,7 +67,7 @@ function planObjectShapeBindingElement(
   planBindingNameFromProjection: BindingProjectionPlanner,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding pattern element must be a binding element."));
     return [];
@@ -126,9 +126,9 @@ function planObjectShapeRestBindingElement(
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
 ): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   const name = element?.name;
-  if (name === undefined || !HasSourceKind(input.ast, name, KindIdentifier)) {
+  if (name === undefined || !HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
     return [];
   }
@@ -201,7 +201,7 @@ function collectObjectShapeExtractedSourceNames(
     if (elementNode === undefined) {
       continue;
     }
-    const element = AsBindingElement(input.ast, elementNode);
+    const element = AsBindingElement(input.program.source.ast, elementNode);
     if (element === undefined || element.DotDotDotToken !== undefined) {
       continue;
     }
@@ -218,7 +218,7 @@ function getObjectShapeBindingPropertySourceName(
   input: CsharpPlanningContext,
   diagnostics?: TargetDiagnostic[],
 ): string | undefined {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
     return undefined;
   }
@@ -226,9 +226,9 @@ function getObjectShapeBindingPropertySourceName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, propertyName, KindIdentifier) && !HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
+  if (!HasSourceKind(input.program.source.ast, propertyName, KindIdentifier) && !HasSourceKind(input.program.source.ast, propertyName, KindStringLiteral)) {
     diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(input.ast, propertyName);
+  return Node_Text(input.program.source.ast, propertyName);
 }

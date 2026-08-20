@@ -2,7 +2,6 @@ import type { CsharpPlanningContext } from "../context.js";
 import { relative, resolve } from "node:path";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { readCsharpOutputType } from "../../../options/csharp-target-options.js";
 import { SourceFile_FileName } from "@tsonic/target-api/source";
 
 export const csharpModuleInitMethodName = "__tsonic_module_init";
@@ -23,8 +22,8 @@ interface ModuleInitializationEntry {
 export function planCsharpModuleInitialization(input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpModuleInitializationPlan {
   const entries = new Map<string, ModuleInitializationEntry>();
   const runtimeImportTargets = new Set<string>();
-  for (const sourceFile of input.sourceFiles) {
-    const dependencies = input.navigation.moduleDependencies(sourceFile)
+  for (const sourceFile of input.program.sourceFiles) {
+    const dependencies = input.program.source.navigation.moduleDependencies(sourceFile)
       .map((dependency) => dependency.sourceFile);
     for (const dependency of dependencies) {
       runtimeImportTargets.add(normalizedFileName(input, dependency));
@@ -36,8 +35,8 @@ export function planCsharpModuleInitialization(input: CsharpPlanningContext, dia
     });
   }
   diagnoseRuntimeModuleCycles(input, entries, diagnostics);
-  const entrypointFileName = normalizedPath(resolve(input.paths.projectRoot, input.project.entryPoint));
-  const entrypointRequiresInitializer = readCsharpOutputType(input.target) === "Exe";
+  const entrypointFileName = normalizedPath(resolve(input.input.paths.projectRoot, input.input.project.entryPoint));
+  const entrypointRequiresInitializer = input.program.configuration.outputType === "Exe";
   const asyncModules = new Map<string, boolean>();
   const isAsync = (sourceFile: SourceFile): boolean =>
     moduleRequiresAsyncInitialization(
@@ -80,7 +79,7 @@ function moduleRequiresAsyncInitialization(
     return false;
   }
   visiting.add(fileName);
-  const result = input.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
+  const result = input.program.source.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
     entry.dependencies.some((dependency) =>
       moduleRequiresAsyncInitialization(
         normalizedFileName(input, dependency),
@@ -98,7 +97,7 @@ function normalizedFileName(
   input: CsharpPlanningContext,
   sourceFile: SourceFile,
 ): string {
-  return normalizedPath(SourceFile_FileName(input.ast, sourceFile));
+  return normalizedPath(SourceFile_FileName(input.program.source.ast, sourceFile));
 }
 
 function normalizedPath(path: string): string {
@@ -183,7 +182,7 @@ function reportRuntimeModuleCycle(
 }
 
 function projectRelativeFileName(input: CsharpPlanningContext, fileName: string): string {
-  const projectRoot = normalizedPath(resolve(input.paths.projectRoot));
+  const projectRoot = normalizedPath(resolve(input.input.paths.projectRoot));
   const normalizedFileName = normalizedPath(resolve(fileName));
   const relativeName = normalizedPath(relative(projectRoot, normalizedFileName));
   return relativeName.length > 0 && relativeName !== "." && !relativeName.startsWith("../") && relativeName !== ".."

@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";

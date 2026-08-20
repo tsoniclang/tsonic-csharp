@@ -1,4 +1,4 @@
-import type { CsharpProjectFile, CsharpProjectReference } from "../../backend/project-model/csharp-project.js";
+import type { CsharpProjectFile, CsharpProjectReference } from "../../backend/artifact-model/project/model.js";
 
 export function printCsharpProjectFile(project: CsharpProjectFile): string {
   return [

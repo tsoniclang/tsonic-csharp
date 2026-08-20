@@ -8,18 +8,18 @@ const root = new URL("../..", import.meta.url).pathname;
 
 test("C# backend exposes Roslyn syntax as the only output AST boundary", async () => {
   assert.equal(existsSync(join(root, "src/backend/ast/csharp-ast.ts")), false);
-  assert.equal(existsSync(join(root, "src/backend/roslyn/syntax.ts")), true);
+  assert.equal(existsSync(join(root, "src/backend/target-ast/roslyn/index.ts")), true);
 
-  const syntax = await readFile(join(root, "src/backend/roslyn/syntax.ts"), "utf8");
-  assert.match(syntax, /from "\.\/syntax\/declarations\.js"/);
-  assert.match(syntax, /from "\.\/syntax\/members\.js"/);
-  assert.match(syntax, /from "\.\/syntax\/expressions\.js"/);
-  assert.match(syntax, /from "\.\/syntax\/statements\.js"/);
+  const syntax = await readFile(join(root, "src/backend/target-ast/roslyn/index.ts"), "utf8");
+  assert.match(syntax, /from "\.\/declarations\.js"/);
+  assert.match(syntax, /from "\.\/members\.js"/);
+  assert.match(syntax, /from "\.\/expressions\.js"/);
+  assert.match(syntax, /from "\.\/statements\.js"/);
 
-  const declarations = await readFile(join(root, "src/backend/roslyn/syntax/declarations.ts"), "utf8");
-  const members = await readFile(join(root, "src/backend/roslyn/syntax/members.ts"), "utf8");
-  const expressions = await readFile(join(root, "src/backend/roslyn/syntax/expressions.ts"), "utf8");
-  const statements = await readFile(join(root, "src/backend/roslyn/syntax/statements.ts"), "utf8");
+  const declarations = await readFile(join(root, "src/backend/target-ast/roslyn/declarations.ts"), "utf8");
+  const members = await readFile(join(root, "src/backend/target-ast/roslyn/members.ts"), "utf8");
+  const expressions = await readFile(join(root, "src/backend/target-ast/roslyn/expressions.ts"), "utf8");
+  const statements = await readFile(join(root, "src/backend/target-ast/roslyn/statements.ts"), "utf8");
   assert.match(declarations, /kind: "CompilationUnit"/);
   assert.match(members, /kind: "MethodDeclaration"/);
   assert.match(expressions, /kind: "InvocationExpression"/);
@@ -59,7 +59,7 @@ test("printer and planner do not emit legacy custom statement kind names", async
 });
 
 test("Roslyn syntax model exposes no raw semantic output node kinds", async () => {
-  const sources = await collectSourceFiles(join(root, "src/backend/roslyn"));
+  const sources = await collectSourceFiles(join(root, "src/backend/target-ast/roslyn"));
   const bannedKinds = [
     '"RawExpression"',
     '"RawStatement"',

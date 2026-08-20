@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../roslyn/syntax.js";
+import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   selectCsharpRegularExpressionLiteral,
@@ -15,7 +15,7 @@ export function planRegularExpressionLiteral(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const selection = selectCsharpRegularExpressionLiteral(
-    input,
+    input.policy,
     node,
     sourceFile,
   );

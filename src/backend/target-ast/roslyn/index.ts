@@ -9,7 +9,7 @@ export type {
   CsharpStructDeclaration,
   CsharpTypeDeclaration,
   CsharpUsing,
-} from "./syntax/declarations.js";
+} from "./declarations.js";
 export type {
   CsharpAccessorModifier,
   CsharpAttribute,
@@ -28,8 +28,8 @@ export type {
   CsharpStaticConstructorDeclaration,
   CsharpTypeMember,
   CsharpTypeParameter,
-} from "./syntax/members.js";
-export type { CsharpTypeNode } from "./syntax/types.js";
+} from "./members.js";
+export type { CsharpTypeNode } from "./types.js";
 export type {
   CsharpBlock,
   CsharpCatchClause,
@@ -38,7 +38,7 @@ export type {
   CsharpStatement,
   CsharpSwitchLabel,
   CsharpSwitchSection,
-} from "./syntax/statements.js";
+} from "./statements.js";
 export type {
   CsharpArgument,
   CsharpAssignmentOperatorToken,
@@ -51,4 +51,4 @@ export type {
   CsharpObjectInitializerAssignment,
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
-} from "./syntax/expressions.js";
+} from "./expressions.js";

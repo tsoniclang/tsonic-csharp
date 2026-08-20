@@ -31,7 +31,7 @@ import type {
   CsharpCollectionInitializerElement,
   CsharpExpression,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   parseFiniteNumberLiteral,
 } from "../../../source/literal-values.js";
@@ -62,7 +62,7 @@ export function tryPlanRecordDictionaryLiteralWithExpectedType(
   expectedTypeSubject: Node | undefined,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
+  if (!HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
     return undefined;
   }
   const dictionaryType = getExpectedRecordDictionaryTargetType(node, expectedTypeSubject, sourceFile, input);
@@ -80,7 +80,7 @@ function planRecordDictionaryLiteral(
   dictionaryType: TargetTypeRef,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  const properties = (AsObjectLiteralExpression(input.ast, node)!.Properties?.Nodes ?? [])
+  const properties = (AsObjectLiteralExpression(input.program.source.ast, node)!.Properties?.Nodes ?? [])
     .filter((property): property is Node => property !== undefined);
   const type = csharpTypeFromTargetTypeRef(dictionaryType);
   if (type === undefined) {
@@ -127,9 +127,9 @@ function planRecordDictionaryInitializer(
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpCollectionInitializerElement | undefined {
-  switch (SourceKind(input.ast, property)) {
+  switch (SourceKind(input.program.source.ast, property)) {
     case KindPropertyAssignment: {
-      const propertyAssignment = AsPropertyAssignment(input.ast, property)!;
+      const propertyAssignment = AsPropertyAssignment(input.program.source.ast, property)!;
       if (propertyAssignment.Initializer === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary property assignment must have an initializer."));
         return undefined;
@@ -149,13 +149,13 @@ function planRecordDictionaryInitializer(
       };
     }
     case KindShorthandPropertyAssignment: {
-      const shorthand = AsShorthandPropertyAssignment(input.ast, property)!;
+      const shorthand = AsShorthandPropertyAssignment(input.program.source.ast, property)!;
       if (shorthand.ObjectAssignmentInitializer !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary shorthand defaults require finalized default-value semantics before C# emission."));
         return undefined;
       }
       const key = planRecordDictionaryKey(property, keyType, input, diagnostics);
-      const nameNode = Node_Name(input.ast, property);
+      const nameNode = Node_Name(input.program.source.ast, property);
       if (key === undefined || nameNode === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary shorthand must carry a finalized source name and value carrier before C# emission."));
         return undefined;
@@ -191,7 +191,7 @@ function planRecordDictionaryValue(
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (isCsharpRecordDictionaryTargetType(valueType) && HasSourceKind(input.ast, valueNode, KindObjectLiteralExpression)) {
+  if (isCsharpRecordDictionaryTargetType(valueType) && HasSourceKind(input.program.source.ast, valueNode, KindObjectLiteralExpression)) {
     return planRecordDictionaryLiteral(valueNode, sourceFile, input, diagnostics, valueType, planExpressionWithExpectedType);
   }
   return planExpressionWithExpectedType(valueNode, sourceFile, input, diagnostics, valueCsharpType, valueNode);
@@ -203,12 +203,12 @@ function planRecordDictionaryKey(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
-  const sourceName = nameNode === undefined ? "" : Node_Text(input.ast, nameNode);
+  const nameNode = input.program.source.ast.name(property) ?? Node_Name(input.program.source.ast, property);
+  const sourceName = nameNode === undefined ? "" : Node_Text(input.program.source.ast, nameNode);
   if (nameNode !== undefined && isCsharpStringTargetType(keyType) && isStringKeyNameNode(nameNode, input)) {
     return { kind: "LiteralExpression", value: sourceName };
   }
-  if (nameNode !== undefined && isNumericRecordKeyType(keyType) && HasSourceKind(input.ast, nameNode, KindNumericLiteral)) {
+  if (nameNode !== undefined && isNumericRecordKeyType(keyType) && HasSourceKind(input.program.source.ast, nameNode, KindNumericLiteral)) {
     const value = parseFiniteNumberLiteral(sourceName);
     if (value !== undefined) {
       return { kind: "LiteralExpression", value };
@@ -219,9 +219,9 @@ function planRecordDictionaryKey(
 }
 
 function isStringKeyNameNode(node: Node, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, node, KindIdentifier) ||
-    HasSourceKind(input.ast, node, KindStringLiteral) ||
-    HasSourceKind(input.ast, node, KindNumericLiteral);
+  return HasSourceKind(input.program.source.ast, node, KindIdentifier) ||
+    HasSourceKind(input.program.source.ast, node, KindStringLiteral) ||
+    HasSourceKind(input.program.source.ast, node, KindNumericLiteral);
 }
 
 function isNumericRecordKeyType(type: TargetTypeRef): boolean {

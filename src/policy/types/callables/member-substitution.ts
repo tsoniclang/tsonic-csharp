@@ -2,7 +2,7 @@ import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   substituteTargetTypeParameters,
 } from "./substitution.js";

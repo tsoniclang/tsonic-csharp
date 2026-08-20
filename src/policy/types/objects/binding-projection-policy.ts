@@ -19,7 +19,7 @@ import type {
 } from "../resolution/model.js";
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpArrayBindingProjectionTarget,
   resolveCsharpArrayBindingCarrier,

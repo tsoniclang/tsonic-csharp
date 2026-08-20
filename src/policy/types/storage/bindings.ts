@@ -1,17 +1,17 @@
 import type {
   TargetBindingFact,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpTargetBindingFact,
   CsharpTargetNamedTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   substituteTargetTypeParameters,
 } from "../callables/substitution.js";
 import {
   csharpTargetNamedType,
-} from "../model/target-refs.js";
+} from "../../../target-model/types/factories.js";
 
 export function csharpTargetTypeFromBinding(
   binding: TargetBindingFact,

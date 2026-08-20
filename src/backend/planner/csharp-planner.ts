@@ -1,6 +1,13 @@
-import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import {
+  rejectedTargetStage,
+  resolvedTargetStage,
+} from "@tsonic/target-api/artifacts";
+import type {
+  TargetDiagnostic,
+  TargetStageResult,
+} from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "./context.js";
-import type { CsharpOutputPlan } from "../artifacts/model.js";
+import type { CsharpOutputPlan } from "../artifact-model/output.js";
 import { planCsharpStartupSourceFile } from "./program/startup.js";
 import { planCsharpModuleInitialization } from "./program/module-initialization.js";
 import { reconstructCsharpSourceFiles } from "./artifacts/source-file-reconstruction.js";
@@ -20,12 +27,10 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 
-export type CsharpPlanningResult =
-  | { readonly kind: "planned"; readonly plan: CsharpOutputPlan }
-  | { readonly kind: "rejected"; readonly diagnostics: readonly TargetDiagnostic[] };
+export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
-  const diagnostics: TargetDiagnostic[] = input.projectTypes.issues.map(
+  const diagnostics: TargetDiagnostic[] = input.types.projectTypes.issues.map(
     (issue) => targetPolicyDiagnostic(
       issue.node,
       issue.code,
@@ -33,24 +38,15 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     ),
   );
   if (diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   validateSourceFileOutputIdentities(input, diagnostics);
   if (diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const moduleInitialization = planCsharpModuleInitialization(input, diagnostics);
   if (diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const plannedSources = reconstructCsharpSourceFiles(
     input,
@@ -58,10 +54,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     diagnostics,
   );
   if (plannedSources === undefined || diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const unfulfilledStorageRequirements =
     input.artifacts.unfulfilledStorageRequirements();
@@ -72,17 +65,11 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
         requirement.reason,
       )
     ));
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const objectShapes = planCsharpObjectShapeSourceFile(input, diagnostics);
   if (diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const generatedHelpers = planCsharpGeneratedHelperSourceFile(input);
   const startup = planCsharpStartupSourceFile(
@@ -92,25 +79,16 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     diagnostics,
   );
   if (diagnostics.length > 0) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
+    return rejectedTargetStage(diagnostics);
   }
   const project = planCsharpProject(input, {
     allowUnsafeBlocks:
       plannedSources.some((source) => source.requiresUnsafe) ||
       objectShapes?.requiresUnsafe === true,
-  }, diagnostics);
-  if (diagnostics.length > 0 || project === undefined) {
-    return {
-      kind: "rejected",
-      diagnostics,
-    };
-  }
-  const plan: CsharpOutputPlan = {
+  });
+  const plan: CsharpOutputPlan = Object.freeze({
     project,
-    sources: [
+    sources: Object.freeze([
       ...plannedSources.map((source) => ({
         path: sourceFileArtifactPath(input, source.fileName),
         unit: source.unit,
@@ -118,7 +96,7 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
       ...(objectShapes === undefined ? [] : [objectShapes.source]),
       ...(generatedHelpers === undefined ? [] : [generatedHelpers]),
       ...(startup === undefined ? [] : [startup]),
-    ],
-  };
-  return { kind: "planned", plan };
+    ].map((source) => Object.freeze(source))),
+  });
+  return resolvedTargetStage(plan);
 }

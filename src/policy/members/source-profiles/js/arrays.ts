@@ -28,9 +28,7 @@ import type {
   CsharpSourceProfileElementPolicy,
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
-import {
-  resolveCsharpSelectedSourceValue,
-} from "../source-profile-policy.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import {
   instanceMethod,
   jsCallIdentity,
@@ -638,9 +636,11 @@ function arrayConstructionMember(
   if (resultType === undefined || element === undefined) {
     return undefined;
   }
+  const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.semantics(context.sourceFile).isNumberLike(
-      context.source.sourceArguments[0]?.type,
+    sourceArgument !== undefined &&
+    context.host.semantics(context.sourceFile).types.isNumberLike(
+      sourceArgument.type,
     );
   if (numericLength) {
     return Object.freeze({
@@ -677,9 +677,11 @@ function arrayCallMember(
   if (resultType === undefined || element === undefined) {
     return undefined;
   }
+  const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.semantics(context.sourceFile).isNumberLike(
-      context.source.sourceArguments[0]?.type,
+    sourceArgument !== undefined &&
+    context.host.semantics(context.sourceFile).types.isNumberLike(
+      sourceArgument.type,
     );
   return staticMethod(
     numericLength
@@ -861,9 +863,11 @@ function arrayFromTypeParameterNames(
 function arrayConstructionTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
+  const sourceArgument = context.source.sourceArguments[0];
   const numericLength = context.source.sourceArguments.length === 1 &&
-    context.host.semantics(context.sourceFile).isNumberLike(
-      context.source.sourceArguments[0]?.type,
+    sourceArgument !== undefined &&
+    context.host.semantics(context.sourceFile).types.isNumberLike(
+      sourceArgument.type,
     );
   return numericLength ? [] : arrayConstructorElementTypeArguments(context);
 }

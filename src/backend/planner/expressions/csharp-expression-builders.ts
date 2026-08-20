@@ -3,7 +3,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
   return {

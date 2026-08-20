@@ -1,7 +1,7 @@
 import type {
   TargetTypeParameter,
   TargetTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   targetTypeRefEquals,
 } from "./equality.js";

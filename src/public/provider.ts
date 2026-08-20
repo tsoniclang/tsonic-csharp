@@ -7,8 +7,8 @@ export type {
   TargetMember,
   TargetParameter,
   TargetTypeRef,
-} from "../policy/types/model/definitions.js";
-export { csharpTargetNamedType } from "../policy/types/model/target-refs.js";
+} from "../target-model/types/model.js";
+export { csharpTargetNamedType } from "../target-model/types/factories.js";
 export {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -55,4 +55,4 @@ export type {
 } from "../providers/relations/index.js";
 export { substituteTargetTypeParameters } from "../policy/types/callables/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";
-export { csharpProviderVersion } from "../source/extension/identity.js";
+export { csharpProviderVersion } from "../target-model/identities/source.js";

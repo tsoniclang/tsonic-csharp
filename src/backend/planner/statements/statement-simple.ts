@@ -20,7 +20,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -87,7 +87,7 @@ export function planReturnStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const statement = AsReturnStatement(input.ast, node)!;
+  const statement = AsReturnStatement(input.program.source.ast, node)!;
   if (state.generator !== undefined) {
     const returnType = csharpTypeFromTargetTypeRef(
       state.generator.protocol.returnType,
@@ -161,16 +161,16 @@ export function planReturnStatement(
     ];
   }
   if (
-    HasSourceKind(input.ast, statement.Expression, KindVoidExpression) &&
+    HasSourceKind(input.program.source.ast, statement.Expression, KindVoidExpression) &&
     state.currentReturnType !== undefined &&
     isVoidCsharpType(state.currentReturnType)
   ) {
-    const voidExpression = AsVoidExpression(input.ast, statement.Expression)!;
+    const voidExpression = AsVoidExpression(input.program.source.ast, statement.Expression)!;
     const discarded = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
     if (discarded === undefined) {
       return [];
     }
-    const discardedType = input.types.resolveNode(
+    const discardedType = input.types.policy.resolveNode(
       voidExpression.Expression,
       sourceFile,
     );
@@ -195,7 +195,7 @@ export function planReturnStatement(
     statement.Expression !== undefined &&
     state.observedReturnTargetTypes !== undefined
   ) {
-    const observed = input.types.resolveNode(statement.Expression, sourceFile);
+    const observed = input.types.policy.resolveNode(statement.Expression, sourceFile);
     if (observed === undefined) {
       state.returnTargetObservationIncomplete = true;
     } else {
@@ -259,7 +259,7 @@ export function planThrowStatement(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const statement = AsThrowStatement(input.ast, node)!;
+  const statement = AsThrowStatement(input.program.source.ast, node)!;
   if (statement.Expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
@@ -273,7 +273,7 @@ export function planThrowStatement(
     sourceFile,
   );
   const carrier = probeCarrierFromResolution(carrierResolution);
-  if (!isCsharpThrowableCarrier(carrier, input)) {
+  if (!isCsharpThrowableCarrier(carrier, input.policy)) {
     if (isCsharpJsThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
       const boxed = expression === undefined
@@ -344,7 +344,7 @@ export function planExpressionStatement(
   ) {
     return [];
   }
-  const expression = AsExpressionStatement(input.ast, node)!.Expression;
+  const expression = AsExpressionStatement(input.program.source.ast, node)!.Expression;
   const directYield = state === undefined || expression === undefined
     ? undefined
     : directSourceYieldExpression(expression, input);
@@ -360,14 +360,14 @@ export function planExpressionStatement(
   if (
     state?.generator !== undefined &&
     expression !== undefined &&
-    input.ast.is.IsBinaryExpression(expression)
+    input.program.source.ast.is.IsBinaryExpression(expression)
   ) {
-    const binary = AsBinaryExpression(input.ast, expression);
+    const binary = AsBinaryExpression(input.program.source.ast, expression);
     const rightYield = directSourceYieldExpression(binary?.Right, input);
     if (
       rightYield !== undefined &&
       binary?.Left !== undefined &&
-      input.ast.is.IsIdentifier(binary.Left)
+      input.program.source.ast.is.IsIdentifier(binary.Left)
     ) {
       const yieldPlan = planCsharpYieldValue(
         rightYield,
@@ -387,14 +387,14 @@ export function planExpressionStatement(
         : [...yieldPlan.statements, expressionStatement(planDiscardedExpression(planned))];
     }
   }
-  const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.ast);
+  const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression, input.program.source.ast);
   if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
-    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.ast), planExpression, planExpressionWithExpectedType) ?? [];
+    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.program.source.ast), planExpression, planExpressionWithExpectedType) ?? [];
   }
-  if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
-    const voidExpression = AsVoidExpression(input.ast, expression!)!;
+  if (HasSourceKind(input.program.source.ast, expression, KindVoidExpression)) {
+    const voidExpression = AsVoidExpression(input.program.source.ast, expression!)!;
     const planned = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
-    const discardedType = input.types.resolveNode(
+    const discardedType = input.types.policy.resolveNode(
       voidExpression.Expression,
       sourceFile,
     );

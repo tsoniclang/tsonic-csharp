@@ -12,10 +12,10 @@ import type {
 import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpTargetBindingFact,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpTypePolicy,
 } from "../resolution/index.js";
@@ -28,7 +28,7 @@ import {
 } from "../model/equality.js";
 import {
   csharpTargetNamedType,
-} from "../model/target-refs.js";
+} from "../../../target-model/types/factories.js";
 import type {
   CsharpProjectConstructorPolicy,
   CsharpProjectForwardingConstructor,

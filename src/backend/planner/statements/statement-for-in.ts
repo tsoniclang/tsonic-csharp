@@ -4,7 +4,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { predefined, sameCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
@@ -45,7 +45,7 @@ export function planForInStatement(
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
   const selectedIteration = selectCsharpIteration(
-    input,
+    input.policy,
     statementNode,
     statement.Expression,
     sourceFile,

@@ -19,7 +19,7 @@ import type {
 } from "../../../providers/relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
-} from "../../../providers/relations/evidence.js";
+} from "../../members/providers/evidence.js";
 import type {
   CsharpProjectTypeDefinition,
   CsharpProjectTypeHeritage,
@@ -30,7 +30,7 @@ import type {
   CsharpTargetNamedTypeRef,
   CsharpTargetParameter,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpTypePolicy,
 } from "../resolution/index.js";

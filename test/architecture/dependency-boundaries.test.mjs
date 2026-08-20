@@ -19,9 +19,25 @@ import {
   csharpLayerPolicies,
   csharpLayerRules,
   csharpRootPolicies,
+  csharpSourceRules,
 } from "./layer-policy.mjs";
 
 const repositoryRoot = resolve(new URL("../..", import.meta.url).pathname);
+
+test("C# architecture rules reject target-specific boundary mutations", () => {
+  const mutations = [
+    ["ARCH-CSHARP-CONFIG-001", "src/backend/planner/project.ts", "configuration.projectFile"],
+    ["ARCH-CSHARP-PROGRAM-001", "src/analysis/program/model.ts", "readonly values: Map<string, string>;"],
+    ["ARCH-CSHARP-SELECTION-001", "src/policy/members/selection/call.ts", "semantics.types.callSignatures(type);"],
+  ];
+  for (const [ruleId, file, source] of mutations) {
+    assert.equal(
+      csharpSourceRules.some((rule) => rule.ruleId === ruleId && rule.matches(file, source)),
+      true,
+      `${ruleId} did not reject its mutation`,
+    );
+  }
+});
 
 test("C# product imports conform to the declared architecture", () => {
   const sourceFiles = readSourceInventory(repositoryRoot, {
@@ -38,6 +54,7 @@ test("C# product imports conform to the declared architecture", () => {
     forbiddenPackages: csharpForbiddenPackages,
     forbiddenDirectories: csharpForbiddenDirectories,
     rootPolicies: csharpRootPolicies,
+    sourceRules: csharpSourceRules,
   });
   const barrelFindings = evaluateBarrelModules(moduleAnalysis.modules, {
     allowedImplementationFiles: csharpAllowedImplementationIndexes,

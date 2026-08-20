@@ -26,7 +26,7 @@ import type {
   TargetTypeRef,
 } from "../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpBlock, CsharpExpression, CsharpLambdaParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   createDestructuringPlannerState,
   createNestedPlannerState,
@@ -90,11 +90,11 @@ export function planArrowFunctionExpression(
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  const expression = AsArrowFunction(input.ast, node)!;
+  const expression = AsArrowFunction(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
   const returnContext = getLambdaReturnContext(node, targetContext, input, diagnostics);
-  if (isAsyncExpression(input.ast, node) && returnContext === undefined) {
+  if (isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
   const scopedInput = createLambdaPlanningContext(
@@ -109,8 +109,8 @@ export function planArrowFunctionExpression(
   }
   const parameterNodes = expression.Parameters?.Nodes ?? [];
   const plannerState = state === undefined
-    ? createDestructuringPlannerState(node, input.ast)
-    : createNestedPlannerState(state, node, input.ast);
+    ? createDestructuringPlannerState(node, input.program.source.ast)
+    : createNestedPlannerState(state, node, input.program.source.ast);
   const parameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
@@ -124,7 +124,7 @@ export function planArrowFunctionExpression(
     input,
     plannerState,
   );
-  if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
+  if (HasSourceKind(input.program.source.ast, expression.Body, KindBlock)) {
     const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
     if (body === undefined) {
       return undefined;
@@ -139,7 +139,7 @@ export function planArrowFunctionExpression(
     );
     return {
       kind: "LambdaExpression",
-      ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
+      ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
       parameters,
       body: prependLambdaStatements(body, parameterIdentityDeclarations),
     };
@@ -169,7 +169,7 @@ export function planArrowFunctionExpression(
   );
   return {
     kind: "LambdaExpression",
-    ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
+    ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body: parameterIdentityDeclarations.length === 0
       ? body
@@ -195,14 +195,14 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
-  const expression = AsFunctionExpression(input.ast, node)!;
+  const expression = AsFunctionExpression(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
   const generatorSyntax = hasCsharpGeneratorSyntax(node, input);
   const returnContext = generatorSyntax
     ? undefined
     : getLambdaReturnContext(node, targetContext, input, diagnostics);
-  if (!generatorSyntax && isAsyncExpression(input.ast, node) && returnContext === undefined) {
+  if (!generatorSyntax && isAsyncExpression(input.program.source.ast, node) && returnContext === undefined) {
     return undefined;
   }
   const scopedInput = createLambdaPlanningContext(
@@ -217,8 +217,8 @@ export function planFunctionExpression(
   }
   const parameterNodes = expression.Parameters?.Nodes ?? [];
   const plannerState = state === undefined
-    ? createDestructuringPlannerState(node, input.ast)
-    : createNestedPlannerState(state, node, input.ast);
+    ? createDestructuringPlannerState(node, input.program.source.ast)
+    : createNestedPlannerState(state, node, input.program.source.ast);
   const parameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
@@ -274,7 +274,7 @@ export function planFunctionExpression(
   );
   return {
     kind: "LambdaExpression",
-    ...(isAsyncExpression(input.ast, node) ? { async: true } : {}),
+    ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
     body: prependLambdaStatements(body, parameterIdentityDeclarations),
   };
@@ -326,7 +326,7 @@ function publishLambdaSourceCallableContract(
   );
   const contracts = sourceParameters.map(
     (sourceParameter, index): CsharpSourceCallableParameterContract | undefined => {
-      const parameter = AsParameterDeclaration(input.ast, sourceParameter);
+      const parameter = AsParameterDeclaration(input.program.source.ast, sourceParameter);
       const plannedParameter = parameters[index];
       const targetType = targetContext.signature.parameterTargetTypes[index];
       if (
@@ -340,7 +340,7 @@ function publishLambdaSourceCallableContract(
         name: plannedParameter.name,
         type: targetType,
         passingMode: "by-value",
-        ...(input.ast.questionToken(sourceParameter) !== undefined ||
+        ...(input.program.source.ast.questionToken(sourceParameter) !== undefined ||
             parameter.Initializer !== undefined
           ? { optional: true }
           : {}),
@@ -388,10 +388,10 @@ export function planLambdaBlockBody(
   targetContext: LambdaTargetContext | undefined,
   returnContext: LambdaReturnContext | undefined = getLambdaReturnContext(lambdaNode, targetContext, input, diagnostics),
 ): CsharpBlock | undefined {
-  if (isAsyncExpression(input.ast, lambdaNode) && returnContext === undefined) {
+  if (isAsyncExpression(input.program.source.ast, lambdaNode) && returnContext === undefined) {
     return undefined;
   }
-  const lambdaState = state ?? createDestructuringPlannerState(lambdaNode, input.ast);
+  const lambdaState = state ?? createDestructuringPlannerState(lambdaNode, input.program.source.ast);
   const previousReturnExpressionType = lambdaState.currentReturnExpressionType;
   const previousReturnExpressionTypeSubject = lambdaState.currentReturnExpressionTypeSubject;
   const previousReturnExpressionTargetType = lambdaState.currentReturnExpressionTargetType;
@@ -426,12 +426,12 @@ function getLambdaReturnContext(
   if (targetContext === undefined) {
     return undefined;
   }
-  if (!isAsyncExpression(input.ast, node)) {
+  if (!isAsyncExpression(input.program.source.ast, node)) {
     const returnExpressionType = targetContext.signature.returnType;
     if (returnExpressionType === undefined) {
       return undefined;
     }
-    const returnExpressionTypeSubject = getAuthoredLambdaReturnTypeNode(node, input.ast);
+    const returnExpressionTypeSubject = getAuthoredLambdaReturnTypeNode(node, input.program.source.ast);
     return {
       returnExpressionType,
       ...(returnExpressionTypeSubject === undefined ? {} : { returnExpressionTypeSubject }),
@@ -481,12 +481,12 @@ export function planLambdaParameters(
   const sourceParameters = parameterNodes
     .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
     .map((parameterNode, index): CsharpLambdaParameter => {
-      const parameter = AsParameterDeclaration(input.ast, parameterNode)!;
-      diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, parameterNode, "lambda parameter declaration", diagnostics);
+      const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
+      diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode, "lambda parameter declaration", diagnostics);
       if (parameter.DotDotDotToken !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
       }
-      if (!HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
+      if (!HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
       }
       const expectedParameterType = expectedParameterTypes[index];
@@ -494,15 +494,15 @@ export function planLambdaParameters(
         ? undefined
         : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
       const explicitParameterType = authoredParameterType === undefined ||
-          input.ast.questionToken(parameterNode) === undefined
+          input.program.source.ast.questionToken(parameterNode) === undefined
         ? authoredParameterType
         : nullableCsharpType(authoredParameterType);
       return {
         kind: "Parameter",
-        name: HasSourceKind(input.ast, parameter.name, KindIdentifier) && state !== undefined
+        name: HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier) && state !== undefined
           ? declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg")
-          : HasSourceKind(input.ast, parameter.name, KindIdentifier)
-            ? requireCsharpIdentifier(Node_Text(input.ast, parameter.name), diagnostics, "Lambda parameter")
+          : HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)
+            ? requireCsharpIdentifier(Node_Text(input.program.source.ast, parameter.name), diagnostics, "Lambda parameter")
             : "arg",
         ...(explicitParameterType !== undefined
           ? { type: explicitParameterType }
@@ -541,7 +541,7 @@ export function getLambdaTargetContext(
   expectedType?: CsharpTypeNode,
   expectedTargetType?: TargetTypeRef,
 ): LambdaTargetContext | undefined {
-  if (!HasSourceKind(input.ast, node, KindArrowFunction) && !HasSourceKind(input.ast, node, KindFunctionExpression)) {
+  if (!HasSourceKind(input.program.source.ast, node, KindArrowFunction) && !HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return undefined;
   }
   const expectedTargetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
@@ -566,16 +566,16 @@ function getExplicitLambdaSignatureTarget(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): LambdaTargetContext | undefined {
-  const expression = AsArrowFunction(input.ast, node) ?? AsFunctionExpression(input.ast, node);
+  const expression = AsArrowFunction(input.program.source.ast, node) ?? AsFunctionExpression(input.program.source.ast, node);
   if (expression === undefined) {
     return undefined;
   }
   const parameterTargetTypes = (expression.Parameters?.Nodes ?? []).map((parameterNode) => {
-    const parameter = AsParameterDeclaration(input.ast, parameterNode);
+    const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode);
     const authored = parameter?.Type === undefined
       ? undefined
       : getTargetTypeRefForNode(input, parameter.Type, sourceFile);
-    return authored === undefined || input.ast.questionToken(parameterNode) === undefined
+    return authored === undefined || input.program.source.ast.questionToken(parameterNode) === undefined
       ? authored
       : csharpNullableTargetType(authored);
   });
@@ -666,12 +666,12 @@ function createLambdaPlanningContext(
     targetType: targetContext.signature.parameterTargetTypes[index]!,
   }));
   for (const binding of bindings) {
-    const parameter = AsParameterDeclaration(input.ast, binding.declaration);
+    const parameter = AsParameterDeclaration(input.program.source.ast, binding.declaration);
     const authoredTarget = parameter?.Type === undefined
       ? undefined
-      : input.types.resolveNode(parameter.Type, sourceFile);
+      : input.types.policy.resolveNode(parameter.Type, sourceFile);
     const effectiveAuthoredTarget = authoredTarget === undefined ||
-        input.ast.questionToken(binding.declaration) === undefined
+        input.program.source.ast.questionToken(binding.declaration) === undefined
       ? authoredTarget
       : csharpNullableTargetType(authoredTarget);
     if (
@@ -705,14 +705,14 @@ function getContextualTargetRef(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
-  return input.types.resolveType(
-    input.semantics(sourceFile).getContextualType(node),
+  return input.types.policy.resolveType(
+    input.program.source.semantics.forFile(sourceFile).types.contextualType(node),
     sourceFile,
   );
 }
 
 function getAsyncLambdaReturnExpressionSubject(node: Node, input: CsharpPlanningContext): Node | undefined {
-  const expression = AsArrowFunction(input.ast, node) ?? AsFunctionExpression(input.ast, node);
-  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, expression?.Type);
+  const expression = AsArrowFunction(input.program.source.ast, node) ?? AsFunctionExpression(input.program.source.ast, node);
+  const typeArguments = csharpSourceTypeArgumentNodes(input.program.source.ast, expression?.Type);
   return typeArguments[0];
 }

@@ -3,7 +3,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpMethodDeclaration,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { AsMethodDeclaration } from "@tsonic/target-api/source";
 import {
   createDestructuringPlannerState,
@@ -58,9 +58,9 @@ export function planMethodDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
-  const declaration = AsMethodDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "method declaration", diagnostics);
-  const state = createDestructuringPlannerState(node, input.ast);
+  const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = getDeclarationReturnTargetType(
     declaration.Type,
@@ -135,7 +135,7 @@ export function planMethodDeclaration(
       ? undefined
       : { kind: "resolved" as const, type: declaredReturnTargetType }
     : reconcileInferredReturnTargetContract(
-        input,
+        input.policy,
         declaredReturnTargetType,
         state.observedReturnTargetTypes ?? [],
         state.returnTargetObservationIncomplete === true,
@@ -184,9 +184,9 @@ function planMethodDeclarationName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string {
-  if (nameNode !== undefined && input.ast.is.IsComputedPropertyName(nameNode)) {
-    const selected = input.semanticsFor(declaration)
-      .getResolvedWellKnownSymbolInfo(nameNode);
+  if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
+    const selected = input.program.source.semantics.forNode(declaration)
+      .operations.wellKnownSymbol(nameNode);
     if (selected?.kind === "dispose") {
       return "Dispose";
     }

@@ -2,7 +2,7 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpObjectShapePolicy,
 } from "./object-shape-policy.js";

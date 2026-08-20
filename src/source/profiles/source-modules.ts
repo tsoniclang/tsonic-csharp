@@ -9,7 +9,7 @@ import type {
 import {
   csharpLangModule,
   csharpTypesModule,
-} from "../extension/identity.js";
+} from "../../target-model/identities/source.js";
 
 const csharpPrimitiveAliasDeclarations = [
   sourcePrimitive("bool", "bool", "boolean"),

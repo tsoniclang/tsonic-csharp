@@ -10,7 +10,7 @@ export function createDotnetToolchain(_context: TargetToolchainContext): TargetT
     prepare(input: TargetToolchainInput): TargetToolchainResult {
       return {
         diagnostics: [],
-        producedArtifacts: input.compileResult.artifacts.map((artifact) => artifact.path),
+        producedArtifacts: input.compileOutput.artifacts.map((artifact) => artifact.path),
       };
     },
   };

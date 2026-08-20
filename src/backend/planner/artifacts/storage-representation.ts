@@ -24,25 +24,25 @@ export function requireCsharpStorageRepresentation(
   sourceFile: SourceFile,
   targetType: TargetTypeRef,
 ): CsharpStorageRepresentationRequest {
-  const reference = input.navigation.referenceFor(expression);
+  const reference = input.program.source.navigation.referenceFor(expression);
   if (
     reference === undefined ||
-    !input.ast.is.IsVariableDeclaration(reference.declaration)
+    !input.program.source.ast.is.IsVariableDeclaration(reference.declaration)
   ) {
     return { kind: "not-applicable" };
   }
-  const declaration = input.ast.as.AsVariableDeclaration(reference.declaration);
+  const declaration = input.program.source.ast.as.AsVariableDeclaration(reference.declaration);
   if (declaration?.Type !== undefined || declaration?.Initializer === undefined) {
     return { kind: "not-applicable" };
   }
-  const initializerSourceFile = input.ast.getSourceFile(declaration.Initializer) ??
+  const initializerSourceFile = input.program.source.ast.getSourceFile(declaration.Initializer) ??
     reference.sourceFile ?? sourceFile;
-  const initializerType = input.types.resolveNode(
+  const initializerType = input.types.policy.resolveNode(
     declaration.Initializer,
     initializerSourceFile,
   );
   const initializerConversion = selectCsharpExpressionConversion(
-    input,
+    input.policy,
     declaration.Initializer,
     initializerType,
     targetType,

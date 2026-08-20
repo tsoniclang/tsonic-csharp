@@ -9,13 +9,16 @@ import {
 } from "../../../source/literal-values.js";
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpSourcePrimitiveTargetType,
 } from "../model/scalar-types.js";
 import {
   selectedCsharpSourceProfileOwner,
 } from "./source-profile.js";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
 
 export interface CsharpSourceLiteralPolicyHost {
   readonly ast: AstReader;
@@ -31,7 +34,7 @@ export function resolveCsharpSourceLiteralTargetType(
     return undefined;
   }
   if (
-    selectedCsharpSourceProfileOwner(host.target) === "csharp-provider" &&
+    selectedCsharpSourceProfileOwner(host.target) === csharpTargetId &&
     Number.isInteger(value) &&
     value >= -2147483648 &&
     value <= 2147483647

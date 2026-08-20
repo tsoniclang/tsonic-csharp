@@ -1,8 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
 import { sanitizeIdentifier } from "../../../policy/names/identifiers.js";
-import {
-  readOptionalStringOption,
-} from "./project-option-values.js";
 
 export {
   readCsharpProjectProperties,
@@ -12,11 +9,11 @@ export {
 } from "./project-reference-options.js";
 
 export function readNamespace(input: CsharpPlanningContext): string {
-  return formatNamespace(readOptionalStringOption(input, "namespace") ?? "Tsonic.Generated");
+  return formatNamespace(input.program.configuration.namespace ?? "Tsonic.Generated");
 }
 
 export function readAssemblyName(input: CsharpPlanningContext): string {
-  return formatAssemblyName(readOptionalStringOption(input, "assemblyName") ?? "TsonicGenerated");
+  return formatAssemblyName(input.program.configuration.assemblyName ?? "TsonicGenerated");
 }
 
 function formatNamespace(value: string): string {

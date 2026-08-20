@@ -2,7 +2,7 @@ import type { CsharpSourceCallableContract } from "../callables/source-callable-
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../storage/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../callables/member-facts.js";
 import { getCsharpDelegateSignature } from "../callables/delegates.js";
@@ -41,7 +41,7 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     );
   }
-  const authoredSemanticType = authoredQueries?.getTypeFromTypeNode(
+  const authoredSemanticType = authoredQueries?.types.authoredType(
     authoredTypeNode,
   );
   if (authoredSemanticType === undefined) {
@@ -51,7 +51,7 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     );
   }
-  const authoredSelection = authoredQueries.selectAuthoredType(
+  const authoredSelection = authoredQueries.types.authoredSelection(
     authoredTypeNode,
     selectedType,
   );
@@ -93,7 +93,7 @@ export function resolveAuthoredAndSelectedSourceType(
       selectedSourceFile,
       nextState(state),
     ),
-    authoredQueries.getTypeRelationship(authoredSemanticType, selectedType),
+    authoredQueries.types.relationship(authoredSemanticType, selectedType),
   );
 }
 

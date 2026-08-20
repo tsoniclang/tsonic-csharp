@@ -6,7 +6,7 @@ import { translateCsharpSelectedReceiver } from "../../receivers.js";
 import { translateSelectedTargetArguments } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression } from "../../../../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../policy/members/index.js";
 import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../policy/types/index.js";
@@ -122,7 +122,7 @@ function registerSelectedCallArtifacts(
       ));
       return undefined;
     }
-    const targetType = input.types.resolveNode(subject, sourceFile);
+    const targetType = input.types.policy.resolveNode(subject, sourceFile);
     if (targetType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

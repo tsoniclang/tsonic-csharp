@@ -9,7 +9,7 @@ import {
   printCsharpExpression,
   printCsharpStatement,
   printCsharpType,
-} from "../../../dist/print/csharp/index.js";
+} from "../../../dist/print/source/index.js";
 import {
   csharpDelegateTargetType,
   csharpTargetTypeFromBinding,

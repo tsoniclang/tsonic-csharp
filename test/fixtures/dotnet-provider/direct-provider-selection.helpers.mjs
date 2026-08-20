@@ -504,18 +504,22 @@ export function directProviderHost(options = {}) {
         assert.equal(candidate, sourceFile);
         return Object.freeze({
           sourceFile,
-          getResolvedCallInfo(node) {
-            return callEvidenceByNode.get(node);
-          },
-          getResolvedPropertyAccessInfo(node) {
-            return propertyEvidenceByNode.get(node);
-          },
-          getResolvedElementAccessInfo(node) {
-            return elementEvidenceByNode.get(node);
-          },
-          getSignatureDeclaration(signature) {
-            return signatureDeclarations.get(signature);
-          },
+          operations: Object.freeze({
+            call(node) {
+              return callEvidenceByNode.get(node);
+            },
+            propertyAccess(node) {
+              return propertyEvidenceByNode.get(node);
+            },
+            elementAccess(node) {
+              return elementEvidenceByNode.get(node);
+            },
+          }),
+          declarations: Object.freeze({
+            signatureDeclaration(signature) {
+              return signatureDeclarations.get(signature);
+            },
+          }),
         });
       },
     }),

@@ -1,4 +1,4 @@
 export {
   csharpLangModule,
   csharpTypesModule,
-} from "./extension/identity.js";
+} from "../target-model/identities/source.js";

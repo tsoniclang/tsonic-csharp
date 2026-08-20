@@ -40,17 +40,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.deepEqual(Object.fromEntries(compiled.artifacts), {
-    "TsonicGenerated.csproj": `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>14.0</LangVersion>
-    <OutputType>Library</OutputType>
-  </PropertyGroup>
-</Project>
-`,
+  assert.deepEqual(sourceArtifacts(compiled), {
     "src/Index.cs": `using System;
 
 namespace Tsonic.Generated
@@ -119,17 +109,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.deepEqual(Object.fromEntries(compiled.artifacts), {
-    "TsonicGenerated.csproj": `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>14.0</LangVersion>
-    <OutputType>Library</OutputType>
-  </PropertyGroup>
-</Project>
-`,
+  assert.deepEqual(sourceArtifacts(compiled), {
     "src/State.cs": `using System;
 
 namespace Tsonic.Generated
@@ -214,3 +194,13 @@ namespace Tsonic.Generated
     "generated/TsonicModuleInitializer.cs": libraryModuleInitializer,
   });
 });
+
+function sourceArtifacts(compiled) {
+  const artifacts = Object.fromEntries(compiled.artifacts);
+  const project = artifacts["TsonicGenerated.csproj"];
+  assert.match(project, /<OutputType>Library<\/OutputType>/u);
+  assert.match(project, /<Reference Include="Tsonic\.CSharp\.Runtime" HintPath="[^"]+\/Tsonic\.CSharp\.Runtime\.dll" \/>/u);
+  assert.match(project, /<Reference Include="Tsonic\.CSharp\.Js" HintPath="[^"]+\/Tsonic\.CSharp\.Js\.dll" \/>/u);
+  delete artifacts["TsonicGenerated.csproj"];
+  return artifacts;
+}

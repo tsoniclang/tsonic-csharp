@@ -383,8 +383,11 @@ test("element selection rejects absent TSTS selected evidence", () => {
       const semantics = fixture.host.semantics(sourceFile);
       return {
         ...semantics,
-        getResolvedElementAccessInfo() {
-          return undefined;
+        operations: {
+          ...semantics.operations,
+          elementAccess() {
+            return undefined;
+          },
         },
       };
     },

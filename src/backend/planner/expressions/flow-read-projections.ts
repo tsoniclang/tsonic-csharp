@@ -22,7 +22,7 @@ import {
 } from "./conversions.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -39,13 +39,13 @@ export function planFlowReadUseSiteProjection(
   } = {},
 ): CsharpExpression | undefined {
   const storageType = options.storageType ??
-    input.types.resolveReadStorage(node, sourceFile);
+    input.types.policy.resolveReadStorage(node, sourceFile);
   const selectedType = options.selectedType ??
-    input.types.resolveNode(node, sourceFile);
+    input.types.policy.resolveNode(node, sourceFile);
   if (storageType === undefined) {
     return baseExpression;
   }
-  const sourceRefinement = input.source.semantics
+  const sourceRefinement = input.program.source.semantics
     .selectValueTypeRefinement(node);
   if (sourceRefinement.kind === "not-project-reference") {
     if (
@@ -95,10 +95,10 @@ export function planFlowReadUseSiteProjection(
   }
   const refinedMembers = sourceRefinement.refinement.kind === "members"
     ? sourceRefinement.refinement.types.map((member) =>
-        input.types.resolveType(member, sourceFile)
+        input.types.policy.resolveType(member, sourceFile)
       )
     : undefined;
-  const selectedValueType = input.types.resolveSelectedValue(
+  const selectedValueType = input.types.policy.resolveSelectedValue(
     node,
     sourceRefinement.selectedType,
     sourceFile,
@@ -107,7 +107,7 @@ export function planFlowReadUseSiteProjection(
       !targetTypeRefEquals(storageType, selectedValueType)
     ? selectedValueType
     : refinedMembers === undefined
-      ? input.types.resolveType(sourceRefinement.selectedType, sourceFile)
+      ? input.types.policy.resolveType(sourceRefinement.selectedType, sourceFile)
       : refinedMembers.some((member) => member === undefined)
         ? undefined
         : combineCsharpTargetUnionMembers(
@@ -130,7 +130,7 @@ export function planFlowReadUseSiteProjection(
     diagnostics,
     storageType,
     refinedSelectedType,
-    selectCsharpFlowReadConversion(input, storageType, refinedSelectedType),
+    selectCsharpFlowReadConversion(input.policy, storageType, refinedSelectedType),
     baseExpression,
   );
 }

@@ -8,7 +8,7 @@ import type {
 } from "../../context.js";
 import type {
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   targetPolicyDiagnostic,
   unsupportedNodeDiagnostic,
@@ -30,11 +30,11 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
-  const targetType = input.types.resolveNode(node, sourceFile);
+  const targetType = input.types.policy.resolveNode(node, sourceFile);
   if (targetType === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(
       node,
-      `C# type policy could not resolve source node kind '${input.ast.kindName(node)}' to a closed target type.`,
+      `C# type policy could not resolve source node kind '${input.program.source.ast.kindName(node)}' to a closed target type.`,
     ));
     return errorType;
   }

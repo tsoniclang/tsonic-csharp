@@ -1,14 +1,14 @@
 import { createCsharpTargetPack } from "../descriptor/csharp-target-pack.js";
-import { csharpTargetId } from "../source/identities.js";
+import { csharpTargetId } from "../target-model/identities/source.js";
 
 export { createCsharpTargetPack } from "../descriptor/csharp-target-pack.js";
-export { csharpTargetId } from "../source/identities.js";
+export { csharpTargetId } from "../target-model/identities/source.js";
 export type {
   CsharpLanguageDialect,
   CsharpMemorySafetyRules,
   CsharpOutputType,
-  CsharpProjectReference,
-} from "../options/csharp-target-options.js";
+} from "../target-model/configuration/model.js";
+export type { CsharpProjectReference } from "../target-model/project/references.js";
 
 export function createTsonicPlugin() {
   return {

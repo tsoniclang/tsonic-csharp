@@ -19,7 +19,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpPostfixUnaryOperatorTokenFromText,
   csharpPrefixUnaryOperatorTokenFromText,
@@ -41,9 +41,9 @@ export function planPrefixUnaryExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const operandNode = input.ast.as.AsPrefixUnaryExpression(node)?.Operand;
+  const operandNode = input.program.source.ast.as.AsPrefixUnaryExpression(node)?.Operand;
   const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
+    input.program.source.ast.operatorKindName(node),
   );
   if (
     rejectUnloweredJsValueObjectShapeUpdate(
@@ -59,7 +59,7 @@ export function planPrefixUnaryExpression(
   }
   if (sourceOperator !== undefined) {
     const jsValueOperation = selectCsharpJsValueUnaryOperation(
-      input,
+      input.policy,
       operandNode,
       sourceFile,
       sourceOperator,
@@ -84,7 +84,7 @@ export function planPrefixUnaryExpression(
           );
     }
   }
-  const selection = selectCsharpUnaryOperation(input, node, sourceFile);
+  const selection = selectCsharpUnaryOperation(input.policy, node, sourceFile);
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -121,9 +121,9 @@ export function planPostfixUnaryExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const operandNode = input.ast.as.AsPostfixUnaryExpression(node)?.Operand;
+  const operandNode = input.program.source.ast.as.AsPostfixUnaryExpression(node)?.Operand;
   const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
+    input.program.source.ast.operatorKindName(node),
   );
   if (
     rejectUnloweredJsValueObjectShapeUpdate(
@@ -139,7 +139,7 @@ export function planPostfixUnaryExpression(
   }
   if (sourceOperator !== undefined) {
     const jsValueOperation = selectCsharpJsValueUnaryOperation(
-      input,
+      input.policy,
       operandNode,
       sourceFile,
       sourceOperator,
@@ -164,7 +164,7 @@ export function planPostfixUnaryExpression(
           );
     }
   }
-  const selection = selectCsharpUnaryOperation(input, node, sourceFile);
+  const selection = selectCsharpUnaryOperation(input.policy, node, sourceFile);
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -205,17 +205,17 @@ function rejectUnloweredJsValueObjectShapeUpdate(
   if (
     (sourceOperator !== "++" && sourceOperator !== "--") ||
     operand === undefined ||
-    !input.ast.is.IsPropertyAccessExpression(operand)
+    !input.program.source.ast.is.IsPropertyAccessExpression(operand)
   ) {
     return false;
   }
-  const selection = selectCsharpTargetProperty(input, operand, sourceFile);
+  const selection = selectCsharpTargetProperty(input.policy, operand, sourceFile);
   if (selection.kind !== "source-owned") {
     return false;
   }
   const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    input.objectShapes,
-    input.semantics(sourceFile),
+    input.types.objectShapes,
+    input.program.source.semantics.forFile(sourceFile),
     selection,
     sourceFile,
   );

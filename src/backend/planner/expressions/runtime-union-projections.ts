@@ -10,7 +10,7 @@ import {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -78,7 +78,7 @@ function getRuntimeUnionStorageCarrier(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
-  const storageCarrier = input.types.resolveStorage(node, sourceFile);
+  const storageCarrier = input.types.policy.resolveStorage(node, sourceFile);
   return isCsharpRuntimeUnionTargetType(storageCarrier)
     ? storageCarrier
     : undefined;

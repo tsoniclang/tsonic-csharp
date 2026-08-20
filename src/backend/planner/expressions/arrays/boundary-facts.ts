@@ -11,5 +11,5 @@ export function getArrayBoundaryCoreCarrierForExpression(
   node: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.resolveNode(node, sourceFile);
+  return input.types.policy.resolveNode(node, sourceFile);
 }

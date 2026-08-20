@@ -1,7 +1,7 @@
 import type { SourceTypeRelationship } from "@tsonic/target-api/source";
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   targetTypeRefEquals,
   targetTypeRefIsClosed,

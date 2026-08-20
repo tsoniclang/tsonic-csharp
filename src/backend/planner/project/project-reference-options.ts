@@ -1,17 +1,18 @@
 import type { CsharpPlanningContext } from "../context.js";
 import {
   type CsharpProjectReference,
-  readCsharpReferences,
-} from "../../../options/csharp-target-options.js";
+} from "../../../target-model/project/references.js";
 
 export function readReferencesOption(input: CsharpPlanningContext): readonly CsharpProjectReference[] {
   return rejectDuplicateReferences([
-    ...readCsharpReferences(input.target),
-    ...input.runtimeReferences.map(csharpProjectReferenceFromRuntimeReference),
+    ...input.program.configuration.references,
+    ...input.input.runtimeReferences.map(csharpProjectReferenceFromRuntimeReference),
   ]);
 }
 
-function csharpProjectReferenceFromRuntimeReference(reference: CsharpPlanningContext["runtimeReferences"][number]): CsharpProjectReference {
+function csharpProjectReferenceFromRuntimeReference(
+  reference: CsharpPlanningContext["input"]["runtimeReferences"][number],
+): CsharpProjectReference {
   switch (reference.kind) {
     case "project":
       return { kind: "project", include: reference.include };

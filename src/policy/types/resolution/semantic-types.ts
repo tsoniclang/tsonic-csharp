@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import {
   csharpAnyTargetType,
   csharpRuntimeLocationTargetType,
@@ -44,12 +44,12 @@ export function resolveTypeWithState(
     return undefined;
   }
   const queries = host.semantics(sourceFile);
-  const subjects = queries.getTypeFactSubjects(type);
+  const subjects = queries.facts.typeSubjects(type);
   const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
   if (direct !== undefined) {
     return direct;
   }
-  const substitutionBase = queries.getSubstitutionBaseType(type);
+  const substitutionBase = queries.types.substitutionBaseType(type);
   if (substitutionBase !== undefined) {
     return resolveTypeWithState(
       substitutionBase,
@@ -69,25 +69,25 @@ export function resolveTypeWithState(
   if (typeParameter !== undefined) {
     return typeParameter;
   }
-  if (queries.isAny(type)) {
+  if (queries.types.isAny(type)) {
     return csharpAnyTargetType();
   }
-  if (queries.isUnknown(type)) {
+  if (queries.types.isUnknown(type)) {
     return csharpTsValueTargetType();
   }
-  if (queries.isNever(type)) {
+  if (queries.types.isNever(type)) {
     return csharpNeverTargetType();
   }
-  if (queries.isNullish(type)) {
+  if (queries.types.isNullish(type)) {
     return isUndefinedType(type, queries)
       ? csharpRuntimeUndefinedTargetType()
       : csharpRuntimeNullTargetType();
   }
-  if (queries.isUnion(type)) {
+  if (queries.types.isUnion(type)) {
     return resolveUnionType(type, queries, state);
   }
-  if (queries.isTuple(type)) {
-    const rawSourceElements = queries.getTupleElementTypes(type);
+  if (queries.types.isTuple(type)) {
+    const rawSourceElements = queries.types.tupleElementTypes(type);
     const sourceElements = definedValues(
       rawSourceElements,
     );
@@ -126,19 +126,19 @@ export function resolveTypeWithState(
   if (callable !== undefined) {
     return callable;
   }
-  if (queries.isBooleanLike(type)) {
+  if (queries.types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");
   }
-  if (queries.isNumberLike(type)) {
+  if (queries.types.isNumberLike(type)) {
     return csharpSourcePrimitiveTargetType("float64");
   }
-  if (queries.isStringLike(type)) {
+  if (queries.types.isStringLike(type)) {
     return csharpStringTargetType();
   }
-  if (queries.isBigIntLike(type)) {
+  if (queries.types.isBigIntLike(type)) {
     return csharpBigIntegerTargetType();
   }
-  if (queries.isVoidLike(type)) {
+  if (queries.types.isVoidLike(type)) {
     return csharpVoidTargetType();
   }
   return host.structuralTypes.resolveType(
@@ -345,10 +345,10 @@ export function resolveSemanticTypeArguments(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): readonly TargetTypeRef[] | undefined {
-  if (!queries.isTypeReference(type)) {
+  if (!queries.types.isTypeReference(type)) {
     return [];
   }
-  const sourceArguments = queries.getEffectiveTypeArguments(type);
+  const sourceArguments = queries.types.effectiveTypeArguments(type);
   if (sourceArguments === undefined) {
     return undefined;
   }

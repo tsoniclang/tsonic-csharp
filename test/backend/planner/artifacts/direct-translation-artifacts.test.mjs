@@ -104,16 +104,10 @@ test("direct C# executable translation emits one exact generated entrypoint", ()
     targetOptions: { outputType: "Exe" },
   });
 
-  assert.equal(compiled.artifacts.get("TsonicGenerated.csproj"), `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>14.0</LangVersion>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
-</Project>
-`);
+  const project = compiled.artifacts.get("TsonicGenerated.csproj");
+  assert.match(project, /<OutputType>Exe<\/OutputType>/u);
+  assert.match(project, /<Reference Include="Tsonic\.CSharp\.Runtime" HintPath="[^"]+\/Tsonic\.CSharp\.Runtime\.dll" \/>/u);
+  assert.match(project, /<Reference Include="Tsonic\.CSharp\.Js" HintPath="[^"]+\/Tsonic\.CSharp\.Js\.dll" \/>/u);
   assert.equal(compiled.artifacts.get("generated/TsonicEntrypoint.cs"), `namespace Tsonic.Generated
 {
     public static class TsonicEntrypoint

@@ -1,9 +1,8 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpModuleInitializationPlan } from "./module-initialization.js";
-import type { CsharpOutputSourceFile } from "../../artifacts/model.js";
+import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { readCsharpOutputType } from "../../../options/csharp-target-options.js";
 import { csharpModuleInitMethodName } from "./module-initialization.js";
 import {
   predefined,
@@ -22,8 +21,8 @@ export function planCsharpStartupSourceFile(
   const entrypointSourceFile = moduleInitialization.entrypointInitializer();
   const entrypointPlannedSource = entrypointSourceFile === undefined
     ? undefined
-    : plannedSourcesByFileName.get(input.ast.getFileName(entrypointSourceFile));
-  if (readCsharpOutputType(input.target) === "Library") {
+    : plannedSourcesByFileName.get(input.program.source.ast.getFileName(entrypointSourceFile));
+  if (input.program.configuration.outputType === "Library") {
     if (
       entrypointSourceFile === undefined ||
       entrypointPlannedSource?.hasModuleInitializer !== true

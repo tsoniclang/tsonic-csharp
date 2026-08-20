@@ -138,7 +138,7 @@ function sourceProfileFiles(profile) {
     const declarations = csharpSourceProfileContributions(sourceProfileContext([])).declarations ?? [];
     return declarationFiles(csharpSourceProfileOwnerId, declarations);
   }
-  const csharpDeclarations = csharpSourceProfileContributions(sourceProfileContext([{ id: csharpJsSourceProfileOwnerId }])).declarations ?? [];
+  const csharpDeclarations = csharpSourceProfileContributions(sourceProfileContext([csharpJsSourceProfileOwnerId])).declarations ?? [];
   assert.deepEqual(csharpDeclarations, []);
   const jsDeclarations = csharpJsSurfaceSourceProfileContributions().declarations ?? [];
   return declarationFiles(csharpJsSourceProfileOwnerId, jsDeclarations);
@@ -151,13 +151,19 @@ function declarationFiles(ownerId, declarations) {
   }));
 }
 
-function sourceProfileContext(selectedSurfaces) {
+function sourceProfileContext(selectedSurfaceIds) {
   return {
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    projectDirectory: "/src",
     target: { id: "csharp" },
-    targetPack: { id: "csharp", displayName: "C#" },
-    selectedCapabilities: [],
-    selectedSurfaces,
+    paths: {
+      projectFilePath: "/src/tsonic.json",
+      projectRoot: "/src",
+      outputRoot: "/src/out",
+      targetOutputRoot: "/src/out/csharp",
+    },
+    selectedSurfaceIds,
+    capabilities: [],
   };
 }
 

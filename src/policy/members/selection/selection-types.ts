@@ -17,7 +17,7 @@ import type {
 } from "../../types/index.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
 export interface CsharpSelectedCallArgument {

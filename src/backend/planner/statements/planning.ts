@@ -29,7 +29,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   createDestructuringPlannerState,
@@ -75,7 +75,7 @@ export function planBlockStatements(
   if (blockNode === undefined) {
     return [];
   }
-  const block = AsBlock(input.ast, blockNode)!;
+  const block = AsBlock(input.program.source.ast, blockNode)!;
   const statements = (block.Statements?.Nodes ?? []).filter(
     (statement): statement is Node => statement !== undefined,
   );
@@ -112,7 +112,7 @@ export function planStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
-  switch (SourceKind(input.ast, node)) {
+  switch (SourceKind(input.program.source.ast, node)) {
     case KindEmptyStatement:
       return [];
     case KindBlock:
@@ -126,15 +126,15 @@ export function planStatements(
     case KindReturnStatement:
       return planReturnStatement(node, sourceFile, input, diagnostics, state);
     case KindBreakStatement:
-      return planBreakStatement(node, input.ast, diagnostics, state);
+      return planBreakStatement(node, input.program.source.ast, diagnostics, state);
     case KindContinueStatement:
-      return planContinueStatement(node, input.ast, diagnostics, state);
+      return planContinueStatement(node, input.program.source.ast, diagnostics, state);
     case KindThrowStatement:
       return planThrowStatement(node, sourceFile, input, diagnostics, state);
     case KindDebuggerStatement:
       return planDebuggerStatement();
     case KindLabeledStatement: {
-      const statement = AsLabeledStatement(input.ast, node)!;
+      const statement = AsLabeledStatement(input.program.source.ast, node)!;
       return [planLabeledStatement(statement, sourceFile, input, diagnostics, state, planNestedStatementBody)];
     }
     case KindSwitchStatement: {
@@ -157,17 +157,17 @@ export function planStatements(
     case KindForStatement:
       return planForStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindForInStatement:
-      return planForInStatement(node, AsForInOrOfStatement(input.ast, node)!, sourceFile, input, diagnostics, state, planNestedStatementBody);
+      return planForInStatement(node, AsForInOrOfStatement(input.program.source.ast, node)!, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindForOfStatement: {
-      const statement = AsForInOrOfStatement(input.ast, node)!;
+      const statement = AsForInOrOfStatement(input.program.source.ast, node)!;
       return planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
     }
     case KindVariableStatement: {
-      const declarationList = AsVariableStatement(input.ast, node)!.DeclarationList;
+      const declarationList = AsVariableStatement(input.program.source.ast, node)!.DeclarationList;
       const declarations = declarationList === undefined
         ? []
-        : input.ast.children(declarationList)
-          .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+        : input.program.source.ast.children(declarationList)
+          .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
       if (declarations.length === 0) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
         return [];
@@ -190,7 +190,7 @@ function planNestedStatementBody(
   if (node === undefined) {
     return [];
   }
-  if (HasSourceKind(input.ast, node, KindBlock)) {
+  if (HasSourceKind(input.program.source.ast, node, KindBlock)) {
     return planBlockStatements(node, sourceFile, input, diagnostics, state);
   }
   return planStatements(node, sourceFile, input, diagnostics, state);

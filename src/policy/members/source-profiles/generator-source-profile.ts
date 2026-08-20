@@ -29,9 +29,12 @@ import {
 import type {
   CsharpSourceProfileOwner,
 } from "./source-profile-identity.js";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
 
 const owners: readonly CsharpSourceProfileOwner[] = Object.freeze([
-  "csharp-provider",
+  csharpTargetId,
   "js",
 ]);
 const instanceReceiver = { kind: "instance" } as const;

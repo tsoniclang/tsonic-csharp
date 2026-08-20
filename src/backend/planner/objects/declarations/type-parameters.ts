@@ -2,7 +2,7 @@ import type { TargetTypeRef } from "../../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeParameter,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../../policy/types/index.js";

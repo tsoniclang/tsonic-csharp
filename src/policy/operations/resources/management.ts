@@ -53,7 +53,7 @@ export function selectCsharpResourceManagement(
   sourceFile: SourceFile,
 ): CsharpOperationSelection<CsharpResolvedResourceManagement> {
   const source = input.semantics(sourceFile)
-    .getResolvedResourceManagementInfo(declaration);
+    .operations.resourceManagement(declaration);
   if (source === undefined) {
     return rejected(
       "TSTS did not retain exact checked resource-management evidence for this declaration.",

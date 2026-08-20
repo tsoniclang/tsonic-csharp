@@ -4,9 +4,12 @@ import {
 } from "@tsonic/tsts";
 import {
   collectTargetSourceProfileContributions,
+} from "../../../tsonic/packages/host/dist/index.js";
+import {
+  captureTargetCapabilityContributions,
   createTargetSourceCompilerComposition,
   getTargetRequiredProviderModules,
-} from "../../../tsonic/packages/host/dist/index.js";
+} from "../../../tsonic/packages/host/dist/target/extensions.js";
 import {
   collectTargetSourcePackageGraph,
 } from "../../../tsonic/packages/host/dist/source-package-inputs.js";
@@ -17,7 +20,7 @@ import {
   createCsharpTargetPack,
 } from "../../dist/public/index.js";
 
-export function checkCsharpSource(options) {
+function createCheckedCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
   const targetPack = createCsharpTargetPack();
   const target = {
@@ -33,24 +36,42 @@ export function checkCsharpSource(options) {
   const selectedSurfaces = options.surface === "js"
     ? [targetPack.surfaces.find((surface) => surface.id === "js")]
     : [];
+  if (selectedSurfaces.some((surface) => surface === undefined)) {
+    throw new Error("C# target pack does not expose the requested JavaScript surface.");
+  }
   const selectedCapabilities = options.capabilities ?? [];
-  const targetContext = {
+  const paths = {
+    projectFilePath: `${projectRoot}/tsonic.json`,
+    projectRoot,
+    outputRoot: "/output",
+    targetOutputRoot: "/output/csharp",
+  };
+  const targetSession = targetPack.createCompilationSession({
     project,
     projectDirectory: projectRoot,
     target,
-    targetPack,
-    selectedCapabilities,
-    selectedSurfaces,
-  };
+    paths,
+    selectedSurfaceIds: selectedSurfaces.map((surface) => surface.id),
+    capabilities: captureTargetCapabilityContributions({
+      project,
+      projectDirectory: projectRoot,
+      target,
+      selectedCapabilities,
+      selectedSurfaces,
+    }),
+  });
   const sourceProfile = collectTargetSourceProfileContributions({
     project,
     projectRoot,
+    projectDirectory: projectRoot,
     target,
-    targetPack,
+    targetPackId: targetPack.id,
     selectedCapabilities,
     selectedSurfaces,
+    targetContributions: targetSession.sourceProfileContributions(),
   });
   if (sourceProfile.diagnostics.length !== 0) {
+    targetSession.close();
     throw new Error(sourceProfile.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
   const projectFiles = new Map([
@@ -66,7 +87,15 @@ export function checkCsharpSource(options) {
     ...projectFiles,
     ...sourceProfile.files.map((file) => [file.path, file.text]),
   ]);
-  const composition = createTargetSourceCompilerComposition(targetContext);
+  const composition = createTargetSourceCompilerComposition({
+    project,
+    projectDirectory: projectRoot,
+    target,
+    targetPack,
+    selectedCapabilities,
+    selectedSurfaces,
+    targetContributions: targetSession.sourceCompilerContributions(),
+  });
   const compiler = createCompilerSessionFromFiles({
     currentDirectory: projectRoot,
     files,
@@ -80,8 +109,8 @@ export function checkCsharpSource(options) {
     extensionHostOptions: {
       extensions: composition.extensions,
       requiredProviderModules: getTargetRequiredProviderModules(
-        targetPack,
         target,
+        targetPack.provider,
         selectedCapabilities,
       ),
     },
@@ -91,30 +120,46 @@ export function checkCsharpSource(options) {
     compiler,
     source,
     sourcePackages,
-    targetContext,
+    targetPack,
+    targetSession,
+    project,
+    target,
+    paths,
     sourceDiagnosticsText: formatDiagnostics(source.diagnostics),
     extensionDiagnostics: source.extensionDiagnostics,
   };
 }
 
+export function checkCsharpSource(options) {
+  const checked = createCheckedCsharpSource(options);
+  checked.targetSession.close();
+  return checked;
+}
+
 export function compileCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
-  const checked = checkCsharpSource(options);
-  const result = checked.targetContext.targetPack
-    .createBackend(checked.targetContext)
-    .compile({
+  const checked = createCheckedCsharpSource(options);
+  const runtime = checked.targetSession.runtimeContributions();
+  let compiled;
+  try {
+    compiled = checked.targetSession.compile({
       source: createTargetSourceProgram(checked.source),
       sourcePackages: checked.sourcePackages,
-      project: checked.targetContext.project,
-      target: checked.targetContext.target,
-      runtimeReferences: options.runtimeReferences ?? [],
-      paths: {
-        projectFilePath: `${projectRoot}/tsonic.json`,
-        projectRoot,
-        outputRoot: "/output",
-        targetOutputRoot: "/output/csharp",
-      },
+      project: checked.project,
+      target: checked.target,
+      runtimeReferences: [
+        ...(runtime.references ?? []),
+        ...(options.runtimeReferences ?? []),
+      ],
+      paths: checked.paths,
     });
+  } finally {
+    checked.targetSession.close();
+  }
+  const result = {
+    artifacts: compiled.kind === "resolved" ? compiled.value.artifacts : [],
+    diagnostics: compiled.diagnostics,
+  };
   return {
     ...checked,
     result,

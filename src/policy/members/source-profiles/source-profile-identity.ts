@@ -3,8 +3,11 @@ import type {
   Node,
 } from "@tsonic/tsts";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
 
-export type CsharpSourceProfileOwner = "csharp-provider" | "js";
+export type CsharpSourceProfileOwner = typeof csharpTargetId | "js";
 
 export interface CsharpSourceProfileDeclarationIdentity {
   readonly owner: CsharpSourceProfileOwner;
@@ -90,8 +93,8 @@ export function csharpSourceProfileDeclarationIdentity(
 function csharpSourceProfileOwner(
   fileName: string,
 ): CsharpSourceProfileOwner | undefined {
-  if (isTsonicSourceProfileDeclarationPath(fileName, "csharp-provider")) {
-    return "csharp-provider";
+  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
+    return csharpTargetId;
   }
   return isTsonicSourceProfileDeclarationPath(fileName, "js")
     ? "js"

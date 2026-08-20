@@ -41,7 +41,7 @@ import { runtimeArrayHelperCall } from "../../expressions/arrays/helpers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
 import type { CsharpArrayBindingCarrier } from "../../../../policy/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpObjectShapeFact } from "../../../../policy/types/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringAssignmentArrayElement, DestructuringAssignmentObjectElement, DestructuringAssignmentPattern, DestructuringAssignmentTarget } from "./entry.js";
@@ -87,7 +87,7 @@ function planAssignmentTargetFromProjection(
       kind: "ExpressionStatement",
       expression: {
         kind: "AssignmentExpression",
-        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(input.ast, target.node), diagnostics, "Destructuring assignment target") },
+        left: { kind: "IdentifierName", name: requireCsharpIdentifier(Node_Text(input.program.source.ast, target.node), diagnostics, "Destructuring assignment target") },
         operatorToken: { kind: "EqualsToken" },
         right: projected,
       },
@@ -496,7 +496,7 @@ function planObjectAssignmentRestElement(
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  if (element.target.kind !== "node" || !HasSourceKind(input.ast, element.target.node, KindIdentifier)) {
+  if (element.target.kind !== "node" || !HasSourceKind(input.program.source.ast, element.target.node, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object rest destructuring assignment requires an identifier assignment target."));
     return [];
   }
@@ -586,11 +586,11 @@ function getObjectAssignmentPropertySourceName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, propertyName, KindIdentifier) && !HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
+  if (!HasSourceKind(input.program.source.ast, propertyName, KindIdentifier) && !HasSourceKind(input.program.source.ast, propertyName, KindStringLiteral)) {
     diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
-  return Node_Text(input.ast, propertyName);
+  return Node_Text(input.program.source.ast, propertyName);
 }
 
 export function destructuringAssignmentPattern(
@@ -610,7 +610,7 @@ export function destructuringAssignmentPattern(
     return {
       kind: "object",
       sourceNode: node,
-      elements: AsObjectLiteralExpression(input.ast, node)?.Properties?.Nodes?.flatMap((property) => {
+      elements: AsObjectLiteralExpression(input.program.source.ast, node)?.Properties?.Nodes?.flatMap((property) => {
         const element = property === undefined ? undefined : destructuringAssignmentObjectElement(property, input);
         return element === undefined ? [] : [element];
       }) ?? [],
@@ -627,8 +627,8 @@ function destructuringAssignmentArrayElement(
     return undefined;
   }
   if (hasDestructuringAssignmentKind(node, input, KindSpreadElement)) {
-    const spread = AsSpreadElement(input.ast, node);
-    const target = Node_Expression(input.ast, node) ?? spread?.Expression;
+    const spread = AsSpreadElement(input.program.source.ast, node);
+    const target = Node_Expression(input.program.source.ast, node) ?? spread?.Expression;
     return target === undefined ? undefined : {
       kind: "array-element",
       sourceNode: node,
@@ -659,7 +659,7 @@ function destructuringAssignmentObjectElement(
   input: CsharpPlanningContext,
 ): DestructuringAssignmentObjectElement | undefined {
   if (hasDestructuringAssignmentKind(node, input, KindSpreadAssignment)) {
-    const spread = AsSpreadAssignment(input.ast, node);
+    const spread = AsSpreadAssignment(input.program.source.ast, node);
     return spread?.Expression === undefined ? undefined : {
       kind: "object-rest",
       sourceNode: node,
@@ -667,7 +667,7 @@ function destructuringAssignmentObjectElement(
     };
   }
   if (hasDestructuringAssignmentKind(node, input, KindShorthandPropertyAssignment)) {
-    const shorthand = AsShorthandPropertyAssignment(input.ast, node);
+    const shorthand = AsShorthandPropertyAssignment(input.program.source.ast, node);
     const defaultInitializer = shorthand?.ObjectAssignmentInitializer;
     return shorthand?.name === undefined ? undefined : {
       kind: "object-property",
@@ -677,7 +677,7 @@ function destructuringAssignmentObjectElement(
     };
   }
   if (hasDestructuringAssignmentKind(node, input, KindPropertyAssignment)) {
-    const property = AsPropertyAssignment(input.ast, node);
+    const property = AsPropertyAssignment(input.program.source.ast, node);
     const target = property?.Initializer;
     const defaulted = target === undefined ? undefined : destructuringAssignmentDefaultTarget(target, input);
     const assignmentTarget = defaulted?.target ?? (target === undefined ? undefined : destructuringAssignmentTarget(target, input));
@@ -709,8 +709,8 @@ function destructuringAssignmentDefaultTarget(
   if (!hasDestructuringAssignmentKind(node, input, KindBinaryExpression)) {
     return undefined;
   }
-  const expression = AsBinaryExpression(input.ast, node);
-  if (input.ast.operatorKindName(node) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
+  const expression = AsBinaryExpression(input.program.source.ast, node);
+  if (input.program.source.ast.operatorKindName(node) !== KindEqualsToken || expression?.Left === undefined || expression.Right === undefined) {
     return undefined;
   }
   return {
@@ -724,5 +724,5 @@ function hasDestructuringAssignmentKind(
   input: CsharpPlanningContext,
   expected: string,
 ): boolean {
-  return HasSourceKind(input.ast, node, expected);
+  return HasSourceKind(input.program.source.ast, node, expected);
 }

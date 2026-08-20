@@ -12,7 +12,7 @@ import { type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../policy/types/index.js";
@@ -55,7 +55,7 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;
   }
-  const usesLexicalThis = sourceCallableUsesLexicalThis(input.ast, methodNode);
+  const usesLexicalThis = sourceCallableUsesLexicalThis(input.program.source.ast, methodNode);
   if (usesLexicalThis && member.memberKind !== "method") {
     diagnostics.push(unsupportedNodeDiagnostic(
       methodNode,
@@ -128,7 +128,7 @@ function planObjectLiteralMethodAsLambda(
   expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
   selfType: ReturnType<typeof csharpTypeFromTargetTypeRef>,
 ): CsharpExpression | undefined {
-  const method = AsMethodDeclaration(input.ast, methodNode);
+  const method = AsMethodDeclaration(input.program.source.ast, methodNode);
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
     return undefined;
@@ -141,7 +141,7 @@ function planObjectLiteralMethodAsLambda(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
     return undefined;
   }
-  const state = createDestructuringPlannerState(methodNode, input.ast);
+  const state = createDestructuringPlannerState(methodNode, input.program.source.ast);
   const selfName = selfType === undefined
     ? undefined
     : allocateSyntheticParameter(state);
@@ -167,7 +167,7 @@ function planObjectLiteralMethodAsLambda(
   }
   return {
     kind: "LambdaExpression",
-    ...(isAsyncExpression(input.ast, methodNode) ? { async: true } : {}),
+    ...(isAsyncExpression(input.program.source.ast, methodNode) ? { async: true } : {}),
     parameters: [
       ...(selfName === undefined || selfType === undefined
         ? []

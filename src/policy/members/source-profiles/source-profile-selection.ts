@@ -33,10 +33,10 @@ import type {
   ResolvedSourceCallInfo,
 } from "../selection/selection-types.js";
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
 const callPolicies = Object.freeze([

@@ -41,7 +41,7 @@ export function resolveCsharpJsValueObjectShapeProperty(
   }
   const member = resolveCsharpJsValueObjectShapeMember(
     shape,
-    semantics.getSelectedFactSubjects(
+    semantics.facts.selectedSubjects(
       selection.source.selectedSymbol,
       selection.source.selectedDeclaration,
     ),

@@ -16,11 +16,19 @@ import type { CsharpProjectTypeCatalog, CsharpProjectTypePolicy } from "../proje
 import type { CsharpProviderRelationResolver } from "../../../providers/model/relation-resolver.js";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
+
+export interface CsharpPlanningRepresentationQueries {
+  scopedTargetType(node: Node): TargetTypeRef | undefined;
+  sourceCallable(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): CsharpSourceCallableContract | undefined;
+}
 
 export interface CsharpTypePolicyBaseHost {
   readonly ast: AstReader;
@@ -29,19 +37,13 @@ export interface CsharpTypePolicyBaseHost {
   readonly navigation: SourceProgramNavigation;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
-  readonly scopedTargetType?: (
-    node: Node,
-  ) => TargetTypeRef | undefined;
-  sourceCallable(
-    source: ResolvedSourceCallInfo,
-    sourceFile: SourceFile,
-  ): CsharpSourceCallableContract | undefined;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;
 }
 
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];

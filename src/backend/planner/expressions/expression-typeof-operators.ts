@@ -23,7 +23,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   expressionToCsharpType,
 } from "../types/index.js";
@@ -50,12 +50,12 @@ export function planTypeofExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!input.ast.is.IsTypeOfExpression(node)) {
+  if (!input.program.source.ast.is.IsTypeOfExpression(node)) {
     return undefined;
   }
-  const operand = input.ast.as.AsTypeOfExpression(node)?.Expression;
+  const operand = input.program.source.ast.as.AsTypeOfExpression(node)?.Expression;
   const jsValueOperation = selectCsharpJsTypeofOperation(
-    input,
+    input.policy,
     operand,
     sourceFile,
   );
@@ -75,7 +75,7 @@ export function planTypeofExpression(
           [planned],
         );
   }
-  const operandType = input.types.resolveNode(operand, sourceFile);
+  const operandType = input.types.policy.resolveNode(operand, sourceFile);
   const runtimeKind = getCsharpTypeofRuntimeKind(operandType);
   if (operand === undefined || runtimeKind === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -95,12 +95,12 @@ export function tryPlanTypeTestExpression(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   if (
-    !input.ast.is.IsBinaryExpression(node) ||
-    sourceOperatorFromKindName(input.ast.operatorKindName(node)) !== "instanceof"
+    !input.program.source.ast.is.IsBinaryExpression(node) ||
+    sourceOperatorFromKindName(input.program.source.ast.operatorKindName(node)) !== "instanceof"
   ) {
     return undefined;
   }
-  const expression = input.ast.as.AsBinaryExpression(node);
+  const expression = input.program.source.ast.as.AsBinaryExpression(node);
   const left = expression?.Left;
   const right = expression?.Right;
   if (left === undefined || right === undefined) {
@@ -115,7 +115,7 @@ export function tryPlanTypeTestExpression(
   if (planned === undefined || targetType === undefined) {
     return undefined;
   }
-  if (isCsharpJsValueTargetType(input.types.resolveNode(left, sourceFile))) {
+  if (isCsharpJsValueTargetType(input.types.policy.resolveNode(left, sourceFile))) {
     const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
     return runtimeType === undefined
       ? undefined
@@ -144,11 +144,11 @@ export function tryPlanTypeofComparisonExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!input.ast.is.IsBinaryExpression(node)) {
+  if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
   const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
+    input.program.source.ast.operatorKindName(node),
   );
   if (
     sourceOperator !== "===" &&
@@ -158,7 +158,7 @@ export function tryPlanTypeofComparisonExpression(
   ) {
     return undefined;
   }
-  const expression = input.ast.as.AsBinaryExpression(node);
+  const expression = input.program.source.ast.as.AsBinaryExpression(node);
   const comparison = getTypeofComparison(
     expression?.Left,
     expression?.Right,
@@ -171,13 +171,13 @@ export function tryPlanTypeofComparisonExpression(
   if (comparison === undefined) {
     return undefined;
   }
-  const operandType = input.types.resolveNode(
+  const operandType = input.types.policy.resolveNode(
     comparison.operand,
     sourceFile,
   );
   const negated = sourceOperator === "!==" || sourceOperator === "!=";
   const jsValueOperation = selectCsharpJsTypeofOperation(
-    input,
+    input.policy,
     comparison.operand,
     sourceFile,
   );
@@ -270,13 +270,13 @@ function getTypeofComparison(
   if (
     typeofNode === undefined ||
     literalNode === undefined ||
-    !input.ast.is.IsTypeOfExpression(typeofNode) ||
-    !input.ast.is.IsStringLiteral(literalNode)
+    !input.program.source.ast.is.IsTypeOfExpression(typeofNode) ||
+    !input.program.source.ast.is.IsStringLiteral(literalNode)
   ) {
     return undefined;
   }
-  const operand = input.ast.as.AsTypeOfExpression(typeofNode)?.Expression;
-  const runtimeKind = runtimeKindLiteral(input.ast.text(literalNode));
+  const operand = input.program.source.ast.as.AsTypeOfExpression(typeofNode)?.Expression;
+  const runtimeKind = runtimeKindLiteral(input.program.source.ast.text(literalNode));
   return operand === undefined || runtimeKind === undefined
     ? undefined
     : { operand, runtimeKind };

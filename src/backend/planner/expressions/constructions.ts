@@ -14,7 +14,7 @@ import type {
 } from "../../../policy/members/index.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
@@ -49,10 +49,10 @@ export function translateCsharpConstruction(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const expression = input.ast.as.AsNewExpression(node);
+  const expression = input.program.source.ast.as.AsNewExpression(node);
   const calleeNode = expression?.Expression;
   const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input,
+    input.policy,
     calleeNode,
     sourceFile,
     "construct",
@@ -62,12 +62,12 @@ export function translateCsharpConstruction(
     return undefined;
   }
   if (jsValueOperation.kind === "resolved") {
-    const sourceArguments = input.ast.arguments(node)
+    const sourceArguments = input.program.source.ast.arguments(node)
       .filter((argument): argument is Node => argument !== undefined);
     if (
-      sourceArguments.length !== input.ast.arguments(node).length ||
+      sourceArguments.length !== input.program.source.ast.arguments(node).length ||
       sourceArguments.some((argument) =>
-        input.ast.is.IsSpreadElement(argument)
+        input.program.source.ast.is.IsSpreadElement(argument)
       )
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -94,7 +94,7 @@ export function translateCsharpConstruction(
       arguments_ as readonly CsharpExpression[],
     );
   }
-  const selection = selectCsharpTargetCall(input, node, sourceFile);
+  const selection = selectCsharpTargetCall(input.policy, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
       return translateSelectedConstruction(
@@ -249,11 +249,11 @@ function translateSourceOwnedConstruction(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const declaration = input.semantics(sourceFile)
-    .getSignatureDeclaration(selection.source.selectedSignature);
+  const declaration = input.program.source.semantics.forFile(sourceFile)
+    .declarations.signatureDeclaration(selection.source.selectedSignature);
   if (
-    !input.navigation.isProjectDeclaration(declaration) &&
-    !input.navigation.isProjectConstructibleObject(
+    !input.program.source.navigation.isProjectDeclaration(declaration) &&
+    !input.program.source.navigation.isProjectConstructibleObject(
       selection.source.sourceCallee.expression,
     )
   ) {
@@ -263,7 +263,7 @@ function translateSourceOwnedConstruction(
     ));
     return undefined;
   }
-  const targetType = input.types.resolveNode(node, sourceFile);
+  const targetType = input.types.policy.resolveNode(node, sourceFile);
   const type = targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType);

@@ -16,7 +16,7 @@ import {
 } from "../../../policy/types/index.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -53,7 +53,7 @@ export function planCsharpSourceUndefinedValue(
     return { kind: "not-representable" };
   }
   const selection = selectCsharpConversion(
-    input,
+    input.policy,
     sourceType,
     targetType,
     "implicit",

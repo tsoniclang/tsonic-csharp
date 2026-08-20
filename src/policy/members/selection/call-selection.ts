@@ -25,7 +25,7 @@ import {
 } from "../instantiation/instantiation.js";
 
 type ResolvedSourceCallInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["call"]>
 >;
 
 export type CsharpProviderCallSelection =
@@ -68,7 +68,7 @@ export function selectCsharpProviderCall(
   call: Node,
   sourceFile: SourceFile,
 ): CsharpProviderCallSelection {
-  const source = host.semantics(sourceFile).getResolvedCallInfo(
+  const source = host.semantics(sourceFile).operations.call(
     call,
   );
   if (source === undefined) {

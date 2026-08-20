@@ -12,7 +12,7 @@ import type {
 import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   isCsharpJsValueTargetType,
 } from "../storage/runtime-carriers.js";

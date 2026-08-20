@@ -16,8 +16,8 @@ export function arrayLiteralHasElision(
   node: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  const literal = AsArrayLiteralExpression(input.ast, node);
-  return (literal?.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node);
+  return (literal?.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.program.source.ast, element, KindOmittedExpression));
 }
 
 export function rejectSparseArrayLiteralElision(

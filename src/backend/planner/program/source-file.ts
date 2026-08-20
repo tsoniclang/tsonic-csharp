@@ -34,7 +34,7 @@ import type {
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "../declarations/attributes.js";
 import {
   getCsharpTypeForNode,
@@ -58,9 +58,6 @@ import { createDestructuringPlannerState } from "../bindings/index.js";
 import {
   finalizeCsharpCompilationUnit,
 } from "./compilation-unit.js";
-import {
-  readCsharpLanguageDialect,
-} from "../../../options/csharp-target-options.js";
 import {
   planResourceManagedSourceFileStatements,
 } from "../statements/resource-management.js";
@@ -89,7 +86,7 @@ export function planSourceFile(
   diagnostics: TargetDiagnostic[],
   moduleInitialization: CsharpModuleInitializationPlan,
 ): PlannedCsharpSourceFile | undefined {
-  const fileName = SourceFile_FileName(input.ast, sourceFile);
+  const fileName = SourceFile_FileName(input.program.source.ast, sourceFile);
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
@@ -101,7 +98,7 @@ export function planSourceFile(
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
-  const topLevelState = createDestructuringPlannerState(sourceFile, input.ast);
+  const topLevelState = createDestructuringPlannerState(sourceFile, input.program.source.ast);
   const plannedTopLevelStatements = planResourceManagedSourceFileStatements(
     sourceFile,
     input,
@@ -118,7 +115,7 @@ export function planSourceFile(
         ) {
           continue;
         }
-        switch (input.ast.kindName(statement)) {
+        switch (input.program.source.ast.kindName(statement)) {
           case KindImportDeclaration:
           case KindTypeAliasDeclaration:
           case KindExportDeclaration:
@@ -137,7 +134,7 @@ export function planSourceFile(
             namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
             break;
           case KindFunctionDeclaration:
-            if (AsFunctionDeclaration(input.ast, statement)?.Body !== undefined) {
+            if (AsFunctionDeclaration(input.program.source.ast, statement)?.Body !== undefined) {
               members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
             }
             break;
@@ -179,7 +176,7 @@ export function planSourceFile(
           createModuleInitializerCall(
             sourceFileClassName(
               input,
-              SourceFile_FileName(input.ast, dependency),
+              SourceFile_FileName(input.program.source.ast, dependency),
             ),
             moduleInitialization.isAsync(dependency),
           )),
@@ -318,7 +315,7 @@ export function planSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    readCsharpLanguageDialect(input.target),
+    input.program.configuration.languageDialect,
   );
   return {
     fileName,
@@ -387,7 +384,7 @@ function hasRuntimeTopLevel(sourceFile: SourceFile, input: CsharpPlanningContext
     if (statement === undefined || isErasedAttributeExpressionStatement(statement, input)) {
       continue;
     }
-    switch (input.ast.kindName(statement)) {
+    switch (input.program.source.ast.kindName(statement)) {
       case KindImportDeclaration:
       case KindTypeAliasDeclaration:
       case KindExportDeclaration:
@@ -411,7 +408,7 @@ function planExportAssignment(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeMember | undefined {
-  const assignment = AsExportAssignment(input.ast, node)!;
+  const assignment = AsExportAssignment(input.program.source.ast, node)!;
   if (assignment.IsExportEquals) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Export equals requires finalized TSTS CommonJS module-export facts before C# emission."));
     return undefined;

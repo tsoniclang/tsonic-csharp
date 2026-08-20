@@ -5,5 +5,5 @@ import type {
 
 export function isProviderVirtualSourceFile(input: CsharpPlanningContext, sourceFile: SourceFile | undefined): boolean {
   return sourceFile !== undefined &&
-    input.ast.getFileName(sourceFile).startsWith("tsts-provider://");
+    input.program.source.ast.getFileName(sourceFile).startsWith("tsts-provider://");
 }

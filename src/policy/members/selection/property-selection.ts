@@ -22,7 +22,7 @@ import {
 } from "../providers/operations.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;
 type CsharpProviderPropertyRelation = Extract<
   CsharpProviderTargetRelation,
@@ -66,7 +66,7 @@ export function selectCsharpProviderProperty(
   sourceFile: SourceFile,
 ): CsharpProviderPropertySelection {
   const source = host.semantics(sourceFile)
-    .getResolvedPropertyAccessInfo(propertyAccess);
+    .operations.propertyAccess(propertyAccess);
   if (source === undefined) {
     return {
       kind: "missing",

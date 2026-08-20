@@ -1,7 +1,7 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../../policy/types/index.js";

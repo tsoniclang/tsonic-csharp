@@ -4,13 +4,13 @@ import type {
 import type {
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "../render-shapes.js";
 import {
   csharpTargetNamedType,
-} from "./target-refs.js";
+} from "../../../target-model/types/factories.js";
 
 export interface CsharpSourcePrimitiveMetadata {
   readonly csharpPredefinedName: string;

@@ -10,7 +10,7 @@ import type {
   ResolvedSourceCallInfo,
 } from "../../../../../policy/members/index.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument } from "../../../../roslyn/syntax.js";
+import type { CsharpArgument } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../policy/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";

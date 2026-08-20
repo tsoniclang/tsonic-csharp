@@ -2,16 +2,16 @@ import type {
   CsharpObjectShapeFact,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpRuntimeUnionTargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "../render-shapes.js";
 import {
   csharpTargetNamedType,
-} from "../model/target-refs.js";
+} from "../../../target-model/types/factories.js";
 import {
   targetTypeRefKey,
 } from "../model/equality.js";

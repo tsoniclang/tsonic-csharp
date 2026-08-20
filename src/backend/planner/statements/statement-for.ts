@@ -15,7 +15,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpForInitializer,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -48,7 +48,7 @@ export function planForStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const statement = AsForStatement(input.ast, node)!;
+  const statement = AsForStatement(input.program.source.ast, node)!;
   const resource = forInitializerResource(statement.Initializer, input);
   return resource === undefined
     ? planForStatementCore(
@@ -138,10 +138,10 @@ function planForInitializer(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): PlannedForInitializer {
-  if (HasSourceKind(input.ast, node, KindVariableDeclarationList)) {
-    const concreteDeclarations = input.ast.children(node)
-      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
-    const declarationKind = input.ast.variableDeclarationKind(node);
+  if (HasSourceKind(input.program.source.ast, node, KindVariableDeclarationList)) {
+    const concreteDeclarations = input.program.source.ast.children(node)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
+    const declarationKind = input.program.source.ast.variableDeclarationKind(node);
     if (declarationKind === "using" || declarationKind === "await using") {
       return {
         prelude: concreteDeclarations.flatMap((declaration) =>
@@ -155,18 +155,18 @@ function planForInitializer(
       };
     }
     if (concreteDeclarations.some((declaration) => {
-      const variable = AsVariableDeclaration(input.ast, declaration)!;
-      return HasSourceKind(input.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.ast, variable.name, KindArrayBindingPattern);
+      const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;
+      return HasSourceKind(input.program.source.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variable.name, KindArrayBindingPattern);
     })) {
       return {
-        ...(input.ast.variableDeclarationKind(node) === "var"
+        ...(input.program.source.ast.variableDeclarationKind(node) === "var"
           ? { preludeScope: "enclosing" as const }
           : {}),
         prelude: concreteDeclarations.flatMap((declaration) =>
           planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
       };
     }
-    if (input.ast.variableDeclarationKind(node) === "var") {
+    if (input.program.source.ast.variableDeclarationKind(node) === "var") {
       return {
         preludeScope: "enclosing",
         prelude: concreteDeclarations.flatMap((declaration) =>
@@ -229,15 +229,15 @@ function forInitializerResource(
   readonly declaration: Node;
   readonly kind: "sync" | "async";
 } | undefined {
-  if (!HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
+  if (!HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
     return undefined;
   }
-  const declarations = input.ast.children(initializer).filter(
+  const declarations = input.program.source.ast.children(initializer).filter(
     (declaration): declaration is Node =>
-      declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration),
+      declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration),
   );
   const resourceDeclarations = declarations.filter((declaration) => {
-    const kind = input.ast.variableDeclarationKind(declaration);
+    const kind = input.program.source.ast.variableDeclarationKind(declaration);
     return kind === "using" || kind === "await using";
   });
   const first = resourceDeclarations[0];
@@ -247,7 +247,7 @@ function forInitializerResource(
   return {
     declaration: first,
     kind: resourceDeclarations.some((declaration) =>
-        input.ast.variableDeclarationKind(declaration) === "await using"
+        input.program.source.ast.variableDeclarationKind(declaration) === "await using"
       )
       ? "async"
       : "sync",

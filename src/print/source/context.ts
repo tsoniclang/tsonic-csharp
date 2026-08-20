@@ -6,7 +6,7 @@ import type {
   CsharpStatement,
   CsharpTypeNode,
   CsharpTypeParameter,
-} from "../../backend/roslyn/syntax.js";
+} from "../../backend/target-ast/roslyn/index.js";
 
 export interface CsharpPrintContext {
   readonly printArgument: (argument: CsharpArgument) => string;

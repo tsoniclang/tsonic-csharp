@@ -1,6 +1,6 @@
 import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers } from "../object-shape-identity.js";
 import { targetTypeRefEquals } from "../../model/equality.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../model/definitions.js";
+import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 
 export function csharpObjectShapesEqual(
   left: CsharpObjectShapeFact,

@@ -1,7 +1,7 @@
 import type {
   CsharpObjectShapeMemberFact,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   targetTypeRefKey,
 } from "../model/equality.js";

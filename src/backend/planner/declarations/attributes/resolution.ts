@@ -22,16 +22,16 @@ export function resolveAttributeApplication(
   _contextSourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): AttributeApplicationResolution {
-  const applicationTarget = isAstNode(input.ast, attribute.applicationTarget) ? attribute.applicationTarget : undefined;
+  const applicationTarget = isAstNode(input.program.source.ast, attribute.applicationTarget) ? attribute.applicationTarget : undefined;
   if (applicationTarget === undefined) {
     return {};
   }
-  const selectedDeclaration = isAstNode(input.ast, attribute.selectedMember)
+  const selectedDeclaration = isAstNode(input.program.source.ast, attribute.selectedMember)
     ? attribute.selectedMember
-    : input.navigation.referenceFor(applicationTarget)?.declaration ??
-      input.navigation.declarationFor(applicationTarget);
+    : input.program.source.navigation.referenceFor(applicationTarget)?.declaration ??
+      input.program.source.navigation.declarationFor(applicationTarget);
   if (attribute.applicationPlacement === "constructor") {
-    const constructor = SourceKind(input.ast, selectedDeclaration) === KindConstructor
+    const constructor = SourceKind(input.program.source.ast, selectedDeclaration) === KindConstructor
       ? selectedDeclaration
       : findConstructorDeclaration(selectedDeclaration, input);
     const parameter = attribute.applicationParameterName === undefined
@@ -58,7 +58,7 @@ export function attributeSubjectDescription(
   subject: Node | undefined,
   input: CsharpPlanningContext,
 ): string {
-  return subject === undefined ? "an unresolved source declaration" : input.ast.kindName(subject);
+  return subject === undefined ? "an unresolved source declaration" : input.program.source.ast.kindName(subject);
 }
 
 export function directAttributeFactAppliesToSubject(
@@ -71,7 +71,7 @@ export function attributeFactForNodeOrSymbol(
   subject: Node,
   input: CsharpPlanningContext,
 ): CsharpAttributeApplication | undefined {
-  const operation = input.attributeApplications.forSubject(subject);
+  const operation = input.program.attributeApplications.forSubject(subject);
   return operation?.kind === "csharp-attribute-application"
     ? operation
     : undefined;
@@ -81,9 +81,9 @@ function findConstructorDeclaration(
   declaration: Node | undefined,
   input: CsharpPlanningContext,
 ): Node | undefined {
-  const classDeclaration = AsClassDeclaration(input.ast, declaration);
+  const classDeclaration = AsClassDeclaration(input.program.source.ast, declaration);
   return classDeclaration?.Members?.Nodes
-    ?.find((candidate): candidate is Node => candidate !== undefined && SourceKind(input.ast, candidate) === KindConstructor);
+    ?.find((candidate): candidate is Node => candidate !== undefined && SourceKind(input.program.source.ast, candidate) === KindConstructor);
 }
 
 function findParameter(
@@ -91,7 +91,7 @@ function findParameter(
   parameterName: string,
   input: CsharpPlanningContext,
 ): Node | undefined {
-  return input.ast.parameters(declaration)
+  return input.program.source.ast.parameters(declaration)
     .find((candidate): candidate is Node =>
-      candidate !== undefined && input.ast.text(input.ast.name(candidate)) === parameterName);
+      candidate !== undefined && input.program.source.ast.text(input.program.source.ast.name(candidate)) === parameterName);
 }

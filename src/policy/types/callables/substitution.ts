@@ -1,12 +1,12 @@
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpObjectShapeFact,
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   CsharpTaskTargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,

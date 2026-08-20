@@ -6,10 +6,10 @@ import type {
 } from "../project/project-types.js";
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpTargetBindingFact,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpBaseTargetTypeFromBinding,
 } from "../storage/bindings.js";

@@ -3,7 +3,7 @@ import type {
   CsharpBinaryOperatorToken,
   CsharpPostfixUnaryOperatorToken,
   CsharpPrefixUnaryOperatorToken,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export function csharpBinaryOperatorTokenFromText(text: string): CsharpBinaryOperatorToken | undefined {
   switch (text) {

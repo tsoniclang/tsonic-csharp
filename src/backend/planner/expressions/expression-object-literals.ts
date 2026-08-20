@@ -22,7 +22,7 @@ import {
   selectCsharpJsObjectLiteralOperation,
 } from "../../../policy/js-value-operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
@@ -54,7 +54,7 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
-  const resolved = input.objectShapes.resolveObjectLiteralTargetShape(
+  const resolved = input.types.objectShapes.resolveObjectLiteralTargetShape(
     expectedObjectShape ?? getExpectedObjectShapeFact(node, sourceFile, input),
     node,
     sourceFile,
@@ -115,7 +115,7 @@ function planObjectLiteralExpressionWithObjectShape(
   if (type === undefined) {
     return undefined;
   }
-  const literal = AsObjectLiteralExpression(input.ast, node)!;
+  const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const property of literal.Properties?.Nodes ?? []) {
     if (property === undefined) {
@@ -147,13 +147,13 @@ function planJsValueObjectLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, carrierRejection));
     return undefined;
   }
-  const literal = AsObjectLiteralExpression(input.ast, node)!;
+  const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
   const arguments_: CsharpExpression[] = [];
   for (const property of literal.Properties?.Nodes ?? []) {
     if (property === undefined) {
       continue;
     }
-    const kind = SourceKind(input.ast, property);
+    const kind = SourceKind(input.program.source.ast, property);
     if (
       kind === KindSpreadAssignment ||
       kind === KindMethodDeclaration ||

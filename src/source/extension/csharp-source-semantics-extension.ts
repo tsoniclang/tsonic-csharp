@@ -6,14 +6,14 @@ import type {
   CompilerExtension,
   ExtensionEvidence,
   Node,
+  SourceDeclarationProvider,
 } from "@tsonic/tsts";
-import type { TargetProviderContext } from "@tsonic/target-api/provider";
 import {
   csharpLangModule,
   csharpProviderVersion,
   csharpSourceSemanticsExtensionId,
   csharpSourceVirtualModulesProviderId,
-} from "../source/extension/identity.js";
+} from "../../target-model/identities/source.js";
 import {
   analyzeSafetyBuilderCalls,
   analyzeUnsafeContextCalls,
@@ -24,55 +24,19 @@ import {
 } from "@tsonic/source-core/facts";
 import {
   csharpSourceSemanticsModules,
-} from "../source/profiles/source-modules.js";
+} from "../profiles/source-modules.js";
 import {
   createCsharpSourceVirtualModulesProvider,
   csharpProviderExportsForModule,
-} from "../source/profiles/source-virtual-modules.js";
+} from "../profiles/source-virtual-modules.js";
 import {
   csharpSafetyBuilderFactKey,
   csharpSafetyProviderNames,
   csharpUnsafeContextFactKey,
-} from "../source/extension/explicit-safety.js";
-import {
-  createDotnetReflectionTypeDataProvider,
-  createDotnetSourceDeclarationProviderSet,
-  dotnetModuleSpecifierPolicy,
-} from "../providers/dotnet/index.js";
-import {
-  readCsharpReflectionReferencePaths,
-  readCsharpTargetFramework,
-  validateCsharpTargetOptions,
-} from "../options/csharp-target-options.js";
-import {
-  collectCsharpCapabilityContributions,
-  createCapabilityDotnetProviders,
-} from "../providers/dotnet/contributions.js";
-
-export function createCsharpSourceSemanticsExtension(context: TargetProviderContext): CompilerExtension {
-  validateCsharpTargetOptions(context.target);
-  const references = readCsharpReflectionReferencePaths(context.target, context.projectDirectory);
-  const targetFramework = readCsharpTargetFramework(context.target);
-  const dotnetProvider = createDotnetReflectionTypeDataProvider({
-    references,
-    targetFramework,
-  });
-  const capabilityProviders = createCapabilityDotnetProviders(
-    context,
-    collectCsharpCapabilityContributions(context),
-  );
-  const sourceDeclarationProviders = createDotnetSourceDeclarationProviderSet([
-    {
-      provider: dotnetProvider,
-      moduleSpecifierPolicy: dotnetModuleSpecifierPolicy,
-      targetFramework,
-    },
-    ...capabilityProviders.map((capabilityProvider) => ({
-      provider: capabilityProvider.provider,
-      moduleSpecifierPolicy: capabilityProvider.moduleSpecifierPolicy,
-      targetFramework: capabilityProvider.targetFramework,
-    })),
-  ]);
+} from "./explicit-safety.js";
+export function createCsharpSourceSemanticsExtension(
+  sourceDeclarationProviders: readonly SourceDeclarationProvider[],
+): CompilerExtension {
   return {
     identity: {
       id: csharpSourceSemanticsExtensionId,

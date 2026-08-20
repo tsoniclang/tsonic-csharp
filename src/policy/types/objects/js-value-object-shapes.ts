@@ -3,7 +3,7 @@ import type {
   CsharpObjectShapeMemberFact,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,

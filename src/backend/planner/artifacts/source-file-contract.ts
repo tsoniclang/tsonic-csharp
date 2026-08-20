@@ -12,7 +12,7 @@ import type {
   CsharpNamespace,
   CsharpTypeDeclaration,
   CsharpTypeMember,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export type CsharpSourceFileContractResult =
   | {

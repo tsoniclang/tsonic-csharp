@@ -15,7 +15,7 @@ import type {
 } from "../../../../policy/members/index.js";
 import type {
   CsharpExpression,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
@@ -52,7 +52,7 @@ export function translateCsharpPropertyAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpTargetProperty(input, node, sourceFile);
+  const selection = selectCsharpTargetProperty(input.policy, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
       return translateSelectedProperty(
@@ -167,9 +167,9 @@ function translateSourceOwnedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const declaration = selection.source.selectedDeclaration;
-  const semantics = input.semantics(sourceFile);
+  const semantics = input.program.source.semantics.forFile(sourceFile);
   const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input,
+    input.policy,
     selection.source.receiver.expression,
     sourceFile,
     "property-read",
@@ -179,21 +179,21 @@ function translateSourceOwnedProperty(
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  const objectShape = input.objectShapes.resolveNode(
+  const objectShape = input.types.objectShapes.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
   );
-  const selectedSubjects = semantics.getSelectedFactSubjects(
+  const selectedSubjects = semantics.facts.selectedSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,
   );
-  const selectedReceiverType = input.types.resolveSelectedValue(
+  const selectedReceiverType = input.types.policy.resolveSelectedValue(
     selection.source.receiver.expression,
     selection.source.receiver.type,
     sourceFile,
   );
   const runtimeUnionProperty = resolveCsharpRuntimeUnionObjectShapeProperty(
-    input.objectShapes,
+    input.types.objectShapes,
     selectedReceiverType,
     selectedSubjects,
   );
@@ -216,7 +216,7 @@ function translateSourceOwnedProperty(
     );
   }
   const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    input.objectShapes,
+    input.types.objectShapes,
     semantics,
     selection,
     sourceFile,
@@ -245,7 +245,7 @@ function translateSourceOwnedProperty(
     jsValueOperation.kind !== "resolved" &&
     (
       declaration === undefined ||
-      !input.navigation.isProjectDeclaration(declaration)
+      !input.program.source.navigation.isProjectDeclaration(declaration)
     )
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -254,14 +254,14 @@ function translateSourceOwnedProperty(
     ));
     return undefined;
   }
-  const expression = input.ast.as.AsPropertyAccessExpression(node);
+  const expression = input.program.source.ast.as.AsPropertyAccessExpression(node);
   const syntaxName = expression?.name;
   const jsValueSourceName = jsValueProperty.kind === "resolved"
     ? jsValueProperty.member.sourceName
     : syntaxName === undefined
       ? undefined
-      : input.ast.text(syntaxName);
-  const nameNode = input.ast.name(declaration) ?? syntaxName;
+      : input.program.source.ast.text(syntaxName);
+  const nameNode = input.program.source.ast.name(declaration) ?? syntaxName;
   const name = shapeMember?.kind === "resolved"
     ? shapeMember.member.targetName
     : nameNode === undefined
@@ -330,9 +330,9 @@ function translateSourceOwnedProperty(
     shapeMember?.kind !== "resolved" &&
     (
       selectedDeclaration === undefined ||
-      !input.ast.is.IsPropertyDeclaration(selectedDeclaration) &&
-        !input.ast.is.IsPropertySignatureDeclaration(selectedDeclaration) &&
-        !input.ast.is.IsGetAccessorDeclaration(selectedDeclaration)
+      !input.program.source.ast.is.IsPropertyDeclaration(selectedDeclaration) &&
+        !input.program.source.ast.is.IsPropertySignatureDeclaration(selectedDeclaration) &&
+        !input.program.source.ast.is.IsGetAccessorDeclaration(selectedDeclaration)
     )
   ) {
     return planned;
@@ -341,18 +341,18 @@ function translateSourceOwnedProperty(
     ? jsValueOperation.kind === "resolved"
       ? jsValueOperation.resultType
       : shapeMember.member.type
-    : input.types.resolveReadStorage(node, sourceFile);
+    : input.types.policy.resolveReadStorage(node, sourceFile);
   const selectedReadType = shapeMember?.kind === "resolved"
     ? resolveCsharpObjectShapeMemberReadTargetType(
         shapeMember.member,
         selection.source.sourceReadType,
-        (left, right) => semantics.getTypeRelationship(left, right) !== "unrelated",
-      ) ?? input.types.resolveSelectedResult(
+        (left, right) => semantics.types.relationship(left, right) !== "unrelated",
+      ) ?? input.types.policy.resolveSelectedResult(
         selection.source.selectedDeclaration,
         selection.source.sourceReadType,
         sourceFile,
       )
-    : input.types.resolveNode(node, sourceFile);
+    : input.types.policy.resolveNode(node, sourceFile);
   if (shapeMember?.kind === "resolved" && selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -431,7 +431,7 @@ function translateRuntimeUnionObjectShapeProperty(
       };
     }),
   };
-  const selectedReadType = input.types.resolveSelectedResult(
+  const selectedReadType = input.types.policy.resolveSelectedResult(
     selection.source.selectedDeclaration,
     selection.source.sourceReadType,
     sourceFile,

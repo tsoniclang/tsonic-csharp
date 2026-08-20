@@ -1,5 +1,5 @@
-import type { CsharpCompilationUnit } from "../roslyn/syntax.js";
-import type { CsharpProjectPlan } from "../project-model/csharp-project.js";
+import type { CsharpCompilationUnit } from "../target-ast/roslyn/index.js";
+import type { CsharpProjectPlan } from "./project/model.js";
 
 export interface CsharpOutputPlan {
   readonly project: CsharpProjectPlan;

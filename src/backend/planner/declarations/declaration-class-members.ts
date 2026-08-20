@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpPropertyDeclaration,
   CsharpTypeMember,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   AsConstructorDeclaration,
   AsMethodDeclaration,
@@ -45,9 +45,9 @@ export function planClassMembers(
     if (member === undefined) {
       continue;
     }
-    switch (SourceKind(input.ast, member)) {
+    switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
-        if (AsConstructorDeclaration(input.ast, member)?.Body !== undefined) {
+        if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
           planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
         }
         break;
@@ -55,7 +55,7 @@ export function planClassMembers(
         planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
-        if (AsMethodDeclaration(input.ast, member)?.Body !== undefined) {
+        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined) {
           planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
         }
         break;

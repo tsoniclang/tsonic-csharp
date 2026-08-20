@@ -5,28 +5,24 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function sourceFactSubjectsForNode(
   node: Node,
-  queries: SourceFileSemantics,
+  navigation: SourceProgramNavigation,
   parent?: Node,
 ): readonly ExtensionFactSubject[] {
-  const symbols = definedValues([
-    queries.getResolvedSymbolOrNil(node),
-    queries.getSymbolAtLocation(node),
-  ]);
+  const reference = navigation.sourceReferenceFor(node);
   const subjects: ExtensionFactSubject[] = [];
   if (parent !== undefined) {
     subjects.push(parent);
   }
-  subjects.push(node, ...symbols);
-  for (const symbol of symbols) {
-    subjects.push(
-      ...definedValues(queries.getSymbolDeclarations(symbol)),
-    );
+  subjects.push(node);
+  if (reference !== undefined) {
+    subjects.push(reference.symbol, reference.declaration);
   }
-  return subjects;
+  return Object.freeze([...new Set(subjects)]);
 }
 
 
@@ -35,12 +31,12 @@ export function resolveTypeParameter(
   queries: SourceFileSemantics,
   ast: AstReader,
 ): TargetTypeRef | undefined {
-  const symbol = queries.getTypeSymbol(type);
+  const symbol = queries.declarations.typeSymbol(type);
   if (symbol === undefined) {
     return undefined;
   }
   for (const declaration of definedValues(
-    queries.getSymbolDeclarations(symbol),
+    queries.declarations.symbolDeclarations(symbol),
   )) {
     if (!ast.is.IsTypeParameterDeclaration(declaration)) {
       continue;
@@ -68,8 +64,8 @@ export function isUndefinedType(
   type: Type,
   queries: SourceFileSemantics,
 ): boolean {
-  return queries.isNullish(type) &&
-    queries.isNever(
-      queries.removeMissingOrUndefined(type),
-    );
+  const nonNullishType = queries.types.withoutMissingOrUndefined(type);
+  return queries.types.isNullish(type) &&
+    nonNullishType !== undefined &&
+    queries.types.isNever(nonNullishType);
 }

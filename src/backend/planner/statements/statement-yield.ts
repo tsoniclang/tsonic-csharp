@@ -7,7 +7,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -47,18 +47,18 @@ export function directSourceYieldExpression(
 ): Node | undefined {
   let current = node;
   while (current !== undefined) {
-    if (input.ast.is.IsYieldExpression(current)) {
+    if (input.program.source.ast.is.IsYieldExpression(current)) {
       return current;
     }
     if (
-      input.ast.is.IsParenthesizedExpression(current) ||
-      input.ast.is.IsAsExpression(current) ||
-      input.ast.is.IsTypeAssertion(current) ||
-      input.ast.is.IsSatisfiesExpression(current) ||
-      input.ast.is.IsNonNullExpression(current)
+      input.program.source.ast.is.IsParenthesizedExpression(current) ||
+      input.program.source.ast.is.IsAsExpression(current) ||
+      input.program.source.ast.is.IsTypeAssertion(current) ||
+      input.program.source.ast.is.IsSatisfiesExpression(current) ||
+      input.program.source.ast.is.IsNonNullExpression(current)
     ) {
-      const typeNode = input.ast.typeNode(current);
-      current = input.ast.children(current).find((child) =>
+      const typeNode = input.program.source.ast.typeNode(current);
+      current = input.program.source.ast.children(current).find((child) =>
         child !== undefined &&
         child !== typeNode &&
         !isTypeOnlyYieldWrapperChild(child, input)
@@ -78,7 +78,7 @@ export function planCsharpYieldValue(
   state: DestructuringPlannerState,
 ): CsharpYieldValuePlan | undefined {
   const generator = state.generator;
-  const source = input.semanticsFor(yieldExpression).getResolvedYieldInfo(
+  const source = input.program.source.semantics.forNode(yieldExpression).operations.yield(
     yieldExpression,
   );
   if (
@@ -156,7 +156,7 @@ function planCsharpDelegatedYield(
     ));
     return undefined;
   }
-  const delegatedType = input.types.resolveSelectedValue(
+  const delegatedType = input.types.policy.resolveSelectedValue(
     operand.expression,
     operand.type,
     sourceFile,
@@ -305,7 +305,7 @@ export function convertCsharpYieldResumeExpression(
     diagnostics,
     plan.resumeType,
     targetType,
-    selectCsharpConversion(input, plan.resumeType, targetType, "implicit"),
+    selectCsharpConversion(input.policy, plan.resumeType, targetType, "implicit"),
     plan.resumeExpression,
   );
 }
@@ -398,7 +398,7 @@ function isTypeOnlyYieldWrapperChild(
   child: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  return input.ast.kindName(child).endsWith("Token");
+  return input.program.source.ast.kindName(child).endsWith("Token");
 }
 
 function yieldDiagnostic(

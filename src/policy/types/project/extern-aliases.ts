@@ -4,7 +4,7 @@ import type {
   TargetMember,
   TargetParameter,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpDelegateSignatureShape,
   CsharpObjectShapeFact,
@@ -22,7 +22,7 @@ import type {
   CsharpTargetTypeRenderShape,
   CsharpTargetUnsupportedAttributeFact,
   CsharpTaskTargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 
 export interface CsharpExternAliasSpecifier {
   readonly alias: string;

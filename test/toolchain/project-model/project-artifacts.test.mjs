@@ -8,7 +8,10 @@ import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/mate
 import { createCsharpTargetPack } from "../../../dist/descriptor/csharp-target-pack.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
 import { createDotnetToolchain } from "../../../dist/toolchain/dotnet-toolchain.js";
-import { validateCsharpTargetOptions } from "../../../dist/options/csharp-target-options.js";
+import {
+  createCsharpTargetConfiguration,
+  validateCsharpTargetOptions,
+} from "../../../dist/options/csharp-target-options.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);
@@ -54,16 +57,14 @@ test("project artifact emits library output deterministically by default", () =>
 
 test("user-owned project mode plans source-only output and never emits a generated project artifact", () => {
   const userProjectFile = ensureUserProjectFile("UserOwned.csproj");
-  const diagnostics = [];
   const project = planCsharpProject(fakeInput({
     projectFile: "UserOwned.csproj",
     outputType: "Exe",
     references: {
       frameworks: ["Microsoft.AspNetCore.App"],
     },
-  }), {}, diagnostics);
+  }));
 
-  assert.deepEqual(diagnostics, []);
   assert.deepEqual(project, {
     kind: "user-owned",
     projectFile: userProjectFile,
@@ -76,8 +77,8 @@ test("user-owned project mode plans source-only output and never emits a generat
       unit: { kind: "CompilationUnit", usings: [], members: [] },
     }],
   });
-  assert.deepEqual(artifacts.map((artifact) => artifact.kind), ["source"]);
-  assert.equal(artifacts[0].path, "src/Index.cs");
+  assert.deepEqual(artifacts.artifacts.map((artifact) => artifact.kind), ["source"]);
+  assert.equal(artifacts.artifacts[0].path, "src/Index.cs");
 });
 
 test("user-owned project mode reports deterministic diagnostics for invalid project files", () => {
@@ -86,10 +87,10 @@ test("user-owned project mode reports deterministic diagnostics for invalid proj
   const directoryProjectPath = join(fixtureProjectRoot, "DirectoryProject.csproj");
   mkdirSync(directoryProjectPath, { recursive: true });
 
-  assertUserProjectDiagnostic({ projectFile: "Missing.csproj" }, /does not exist/u);
-  assertUserProjectDiagnostic({ projectFile: notCsharpProject }, /must point to a \.csproj file/u);
-  assertUserProjectDiagnostic({ projectFile: directoryProjectPath }, /must point to a file/u);
-  assertUserProjectDiagnostic({ projectFile: generatedProject }, /must not point inside generated target output root/u);
+  assertUserProjectConfigurationError({ projectFile: "Missing.csproj" }, /does not exist/u);
+  assertUserProjectConfigurationError({ projectFile: notCsharpProject }, /must point to a \.csproj file/u);
+  assertUserProjectConfigurationError({ projectFile: directoryProjectPath }, /must point to a file/u);
+  assertUserProjectConfigurationError({ projectFile: generatedProject }, /must not point inside generated target output root/u);
 });
 
 test("project artifact emits executable output only from explicit C# target option", () => {
@@ -249,27 +250,18 @@ test("project artifact includes runtime references only from selected target or 
 
 test("target provider contributes one canonical JS-value runtime independently of JS surface declarations", () => {
   const targetPack = createCsharpTargetPack();
-  const provider = targetPack.provider;
   const jsSurface = targetPack.surfaces.find((surface) => surface.id === "js");
 
-  assert.ok(provider);
+  assert.ok(targetPack.provider);
   assert.ok(jsSurface);
 
-  const references = provider.runtimeContributions(fakeRuntimeContributionContext({
-    target: { id: "csharp", options: {} },
-  })).references;
-  const referencesWithJsSurface = provider.runtimeContributions(fakeRuntimeContributionContext({
-    target: { id: "csharp", options: {} },
-    selectedSurfaces: [jsSurface],
-  })).references;
+  const references = targetRuntimeReferences(targetPack, []);
+  const referencesWithJsSurface = targetRuntimeReferences(targetPack, ["js"]);
 
   assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
   assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
   assert.deepEqual(
-    jsSurface.runtimeContributions(fakeRuntimeContributionContext({
-      target: { id: "csharp", options: {} },
-      selectedSurfaces: [jsSurface],
-    })),
+    jsSurface.runtimeContributions(fakeCompositionContext(["js"])),
     {},
   );
 });
@@ -280,8 +272,7 @@ test("dotnet toolchain reports deterministic source-to-source artifacts without 
     artifactsRoot: "out",
     project: { targets: [] },
     target: { id: "csharp", options: { publishAot: true, outputType: "Exe" } },
-    compileResult: {
-      diagnostics: [],
+    compileOutput: {
       artifacts: [
         { kind: "project", path: "App.csproj", text: "<Project />" },
         { kind: "source", path: "Program.cs", language: "csharp", text: "namespace App {}" },
@@ -296,15 +287,22 @@ test("dotnet toolchain reports deterministic source-to-source artifacts without 
 });
 
 function fakeInput(options = {}, runtimeReferences = []) {
+  const target = { id: "csharp", options };
+  const paths = {
+    projectFilePath: join(fixtureProjectRoot, "tsonic.json"),
+    projectRoot: fixtureProjectRoot,
+    outputRoot: join(fixtureProjectRoot, "out"),
+    targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+  };
   return {
-    target: { id: "csharp", options },
-    runtimeReferences,
-    paths: {
-      projectFilePath: join(fixtureProjectRoot, "tsonic.json"),
-      projectRoot: fixtureProjectRoot,
-      outputRoot: join(fixtureProjectRoot, "out"),
-      targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+    program: {
+      configuration: createCsharpTargetConfiguration(
+        target,
+        fixtureProjectRoot,
+        paths.targetOutputRoot,
+      ),
     },
+    input: { target, runtimeReferences, paths },
   };
 }
 
@@ -315,31 +313,40 @@ function ensureUserProjectFile(relativePath) {
   return projectFile;
 }
 
-function assertUserProjectDiagnostic(options, messagePattern) {
-  const diagnostics = [];
-  const project = planCsharpProject(fakeInput(options), {}, diagnostics);
-
-  assert.equal(project, undefined);
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].code, "CSHARP_USER_PROJECT_INVALID");
-  assert.match(diagnostics[0].message, messagePattern);
-  assert.deepEqual(diagnostics[0].category, "error");
+function assertUserProjectConfigurationError(options, messagePattern) {
+  assert.throws(() => fakeInput(options), messagePattern);
 }
 
-function fakeRuntimeContributionContext(options = {}) {
+function fakeCompositionContext(selectedSurfaceIds) {
   ensureInstalledRuntimeFixtureProject();
   return {
     project: { targets: [] },
-    target: options.target ?? { id: "csharp", options: {} },
-    selectedPackages: options.selectedPackages ?? [],
-    selectedSurfaces: options.selectedSurfaces ?? [],
+    projectDirectory: fixtureProjectRoot,
+    target: { id: "csharp", options: {} },
+    selectedCapabilityIds: [],
+    selectedSurfaceIds,
     paths: {
-      projectFilePath: "tsonic.json",
+      projectFilePath: join(fixtureProjectRoot, "tsonic.json"),
       projectRoot: fixtureProjectRoot,
-      outputRoot: "out",
-      targetOutputRoot: "out/csharp",
+      outputRoot: join(fixtureProjectRoot, "out"),
+      targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
     },
   };
+}
+
+function targetRuntimeReferences(targetPack, selectedSurfaceIds) {
+  const context = {
+    ...fakeCompositionContext(selectedSurfaceIds),
+    capabilities: [],
+  };
+  const session = targetPack.createCompilationSession(context);
+  try {
+    session.sourceProfileContributions();
+    session.sourceCompilerContributions();
+    return session.runtimeContributions().references;
+  } finally {
+    session.close();
+  }
 }
 
 function ensureInstalledRuntimeFixtureProject() {

@@ -8,7 +8,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpStatement } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import {
@@ -49,10 +49,10 @@ export function planVariableBindingStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] | undefined {
-  if (bindingName === undefined || HasSourceKind(input.ast, bindingName, KindIdentifier)) {
+  if (bindingName === undefined || HasSourceKind(input.program.source.ast, bindingName, KindIdentifier)) {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.ast, bindingName, KindArrayBindingPattern)) {
+  if (!HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern)) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Variable binding name is outside the current C# planning surface."));
     return [];
   }
@@ -86,14 +86,14 @@ export function planParameterBindingPrelude(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (bindingName === undefined || HasSourceKind(input.ast, bindingName, KindIdentifier)) {
+  if (bindingName === undefined || HasSourceKind(input.program.source.ast, bindingName, KindIdentifier)) {
     return [];
   }
-  if (!HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.ast, bindingName, KindArrayBindingPattern)) {
+  if (!HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern)) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
-  const parameter = AsParameterDeclaration(input.ast, getNodeParent(bindingName));
+  const parameter = AsParameterDeclaration(input.program.source.ast, getNodeParent(bindingName));
   const bindingSource = parameter ?? bindingName;
   return planBindingPatternFromExpression(
     bindingName,

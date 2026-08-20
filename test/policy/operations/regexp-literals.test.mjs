@@ -8,7 +8,7 @@ import {
 } from "../../../dist/policy/types/index.js";
 import {
   printCsharpExpression,
-} from "../../../dist/print/csharp/index.js";
+} from "../../../dist/print/source/index.js";
 
 test("RegExp literal emission consumes the direct JS-surface policy selection", () => {
   const node = regexpNode("/provider[/-]pattern/im");
@@ -66,15 +66,17 @@ function regexpNode(text) {
 
 function directInput(node, targetType) {
   return {
-    ast: {
-      is: {
-        IsRegularExpressionLiteral: (candidate) => candidate === node,
+    policy: {
+      ast: {
+        is: {
+          IsRegularExpressionLiteral: (candidate) => candidate === node,
+        },
+        text: (candidate) => candidate?.text ?? "",
       },
-      text: (candidate) => candidate?.text ?? "",
-    },
-    types: {
-      resolveNode: (candidate) =>
-        candidate === node ? targetType : undefined,
+      types: {
+        resolveNode: (candidate) =>
+          candidate === node ? targetType : undefined,
+      },
     },
   };
 }

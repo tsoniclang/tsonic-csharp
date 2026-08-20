@@ -7,7 +7,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   HasSourceKind,
   KindFalseKeyword,
@@ -42,11 +42,11 @@ export function planCsharpConditionExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
+  if (HasSourceKind(input.program.source.ast, expression, KindTrueKeyword) || HasSourceKind(input.program.source.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics);
   }
   const jsValueOperation = selectCsharpJsValueCondition(
-    input,
+    input.policy,
     expression,
     sourceFile,
   );

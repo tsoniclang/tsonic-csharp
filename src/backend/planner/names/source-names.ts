@@ -12,7 +12,7 @@ import {
 } from "../../../policy/names/identifiers.js";
 import type {
   CsharpSourceOutputIdentityPlanner,
-} from "../../../policy/names/source-output-identities.js";
+} from "./source-output-identities.js";
 
 export type CsharpSourceNameResolution =
   | { readonly kind: "resolved"; readonly name: string }

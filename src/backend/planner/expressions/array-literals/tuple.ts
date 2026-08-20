@@ -8,7 +8,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -41,7 +41,7 @@ export function planTupleLiteralExpression(
   tupleType: CsharpTypeNode | undefined,
   tupleTarget?: Extract<TargetTypeRef, { readonly kind: "tuple" }>,
 ): CsharpExpression | undefined {
-  const literal = AsArrayLiteralExpression(input.ast, node)!;
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   if (arrayLiteralHasElision(node, input)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
@@ -85,8 +85,8 @@ function completeOptionalTupleElements(
     ));
     return undefined;
   }
-  const selection = input.semantics(sourceFile)
-    .selectContextualTupleLiteral(node, elements.length);
+  const selection = input.program.source.semantics.forFile(sourceFile)
+    .types.contextualTupleSelection(node, elements.length);
   if (
     selection.kind !== "selected" ||
     selection.elements.length !== tupleTarget.elements.length
@@ -101,8 +101,8 @@ function completeOptionalTupleElements(
     const sourceElement = selection.elements[index]!;
     const authoredTypeNode = sourceElement.declaration === undefined
       ? undefined
-      : input.ast.typeNode(sourceElement.declaration);
-    const resolved = input.types.resolveSelectedType(
+      : input.program.source.ast.typeNode(sourceElement.declaration);
+    const resolved = input.types.policy.resolveSelectedType(
       authoredTypeNode,
       sourceElement.type,
       sourceFile,

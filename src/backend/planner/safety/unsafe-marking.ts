@@ -5,10 +5,10 @@ import type {
   CsharpModifier,
   CsharpTypeDeclaration,
   CsharpTypeMember,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpLanguageDialect,
-} from "../../../options/csharp-target-options.js";
+} from "../../../target-model/configuration/model.js";
 import {
   blockRequiresUnsafe,
 } from "./unsafe-statements.js";

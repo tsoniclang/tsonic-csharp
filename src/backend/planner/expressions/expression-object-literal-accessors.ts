@@ -19,7 +19,7 @@ import type {
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
@@ -66,7 +66,7 @@ export function planObjectShapeAccessorMemberAssignment(
   const member = sourceName === undefined
     ? undefined
     : findObjectShapeMember(objectShape, sourceName);
-  const getter = SourceKind(input.ast, accessorNode) === KindGetAccessor;
+  const getter = SourceKind(input.program.source.ast, accessorNode) === KindGetAccessor;
   if (member?.accessor === undefined ||
     (!getter && member.accessor.setter !== true)) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -83,7 +83,7 @@ export function planObjectShapeAccessorMemberAssignment(
     ));
     return undefined;
   }
-  const state = createDestructuringPlannerState(accessorNode, input.ast);
+  const state = createDestructuringPlannerState(accessorNode, input.program.source.ast);
   const selfName = allocateSyntheticParameter(state);
   const scopedInput = createCsharpThisBindingPlanningContext(
     input,
@@ -133,7 +133,7 @@ function planGetter(
   diagnostics: TargetDiagnostic[],
   state: ReturnType<typeof createDestructuringPlannerState>,
 ): CsharpExpression | undefined {
-  const declaration = AsGetAccessorDeclaration(input.ast, accessorNode);
+  const declaration = AsGetAccessorDeclaration(input.program.source.ast, accessorNode);
   const bodyTarget = lambdaTargetContextFromTargetRef(
     csharpDelegateTargetType("System.Func", [], resultType),
   );
@@ -172,14 +172,14 @@ function planSetter(
   diagnostics: TargetDiagnostic[],
   state: ReturnType<typeof createDestructuringPlannerState>,
 ): CsharpExpression | undefined {
-  const declaration = AsSetAccessorDeclaration(input.ast, accessorNode);
+  const declaration = AsSetAccessorDeclaration(input.program.source.ast, accessorNode);
   const parameterNodes = declaration?.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes.filter(
     (parameter): parameter is Node => parameter !== undefined,
   )[0];
   if (declaration?.Body === undefined || parameterNode === undefined ||
     parameterNodes.filter((parameter) => parameter !== undefined).length !== 1 ||
-    AsParameterDeclaration(input.ast, parameterNode) === undefined) {
+    AsParameterDeclaration(input.program.source.ast, parameterNode) === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       accessorNode,
       "Object-literal setter requires one exact parameter and body.",

@@ -23,7 +23,7 @@ import {
 import type {
   CsharpArgument,
   CsharpExpression,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   selectedPolicyDiagnostic,
   targetPolicyDiagnostic,
@@ -58,11 +58,11 @@ export function translateCsharpElementAccess(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const expression = input.ast.as.AsElementAccessExpression(node);
+  const expression = input.program.source.ast.as.AsElementAccessExpression(node);
   const receiverNode = expression?.Expression;
   const argumentNode = expression?.ArgumentExpression;
   const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input,
+    input.policy,
     receiverNode,
     sourceFile,
     "element-read",
@@ -94,7 +94,7 @@ export function translateCsharpElementAccess(
         : [translateCsharpJsValueFactory(argument)],
     );
   }
-  const selection = selectCsharpTargetElement(input, node, sourceFile);
+  const selection = selectCsharpTargetElement(input.policy, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
       return translateSelectedElement(
@@ -218,7 +218,7 @@ function translateProjectIndexerElement(
     selection.valueType,
     selection.selectedReadType,
     selectCsharpFlowReadConversion(
-      input,
+      input.policy,
       selection.valueType,
       selection.selectedReadType,
     ),
@@ -343,7 +343,7 @@ function translateSourceOwnedElement(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const receiverType = input.types.resolveNode(
+  const receiverType = input.types.policy.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
   );
@@ -366,7 +366,7 @@ function translateSourceOwnedElement(
           name: `Item${selection.source.selectedElementIndex + 1}`,
         };
   }
-  const selectedResultType = input.types.resolveSelectedResult(
+  const selectedResultType = input.types.policy.resolveSelectedResult(
     selection.source.selectedDeclaration,
     selection.source.sourceReadType ?? selection.source.sourceWriteType,
     sourceFile,

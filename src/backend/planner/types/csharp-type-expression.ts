@@ -12,7 +12,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -35,14 +35,14 @@ export function expressionToCsharpType(
   if (node === undefined) {
     return invalidCsharpType("missing type expression");
   }
-  switch (input.ast.kindName(node)) {
+  switch (input.program.source.ast.kindName(node)) {
     case KindIdentifier:
     case KindPropertyAccessExpression:
       return getCsharpTypeForExpressionReference(node, sourceFile, input, diagnostics);
     case KindExpressionWithTypeArguments: {
-      const expression = AsExpressionWithTypeArguments(input.ast, node)!;
+      const expression = AsExpressionWithTypeArguments(input.program.source.ast, node)!;
       const rendered = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
-      const typeArguments = input.ast.typeArguments(expression)
+      const typeArguments = input.program.source.ast.typeArguments(expression)
         .filter((argument): argument is Node => argument !== undefined)
         .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidCsharpType("missing type argument"), diagnostics));
       if (typeArguments.length === 0) {
@@ -67,7 +67,7 @@ function getCsharpTypeForExpressionReference(
   input: CsharpPlanningContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const targetType = input.types.resolveNode(node, sourceFile);
+  const targetType = input.types.policy.resolveNode(node, sourceFile);
   const csharpType = targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType);

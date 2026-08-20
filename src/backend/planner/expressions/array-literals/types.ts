@@ -9,7 +9,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 
 export interface ArrayLiteralPlanner {
   readonly planExpression: (

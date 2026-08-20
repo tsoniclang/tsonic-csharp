@@ -23,7 +23,7 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
 import {
   planArrayLiteralExpression,
@@ -108,28 +108,28 @@ export function planExpressionWithExpectedTypeCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, expectedTypeLiteral.reason));
     return undefined;
   }
-  if (HasSourceKind(input.ast, node, KindAsExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindAsExpression)) {
     return sourceRepresentation(
       planners.planExpression(node, sourceFile, input, diagnostics),
     );
   }
-  if (HasSourceKind(input.ast, node, KindSatisfiesExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindSatisfiesExpression)) {
     return expectedRepresentation(
-      planners.planExpressionWithExpectedType(AsSatisfiesExpression(input.ast, node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType),
+      planners.planExpressionWithExpectedType(AsSatisfiesExpression(input.program.source.ast, node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType),
     );
   }
-  if (HasSourceKind(input.ast, node, KindNonNullExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindNonNullExpression)) {
     return sourceRepresentation(
       planners.planExpression(node, sourceFile, input, diagnostics),
     );
   }
-  if (HasSourceKind(input.ast, node, KindTypeAssertionExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindTypeAssertionExpression)) {
     return sourceRepresentation(
       planners.planExpression(node, sourceFile, input, diagnostics),
     );
   }
-  if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
-    const expression = AsParenthesizedExpression(input.ast, node)!;
+  if (HasSourceKind(input.program.source.ast, node, KindParenthesizedExpression)) {
+    const expression = AsParenthesizedExpression(input.program.source.ast, node)!;
     const inner = planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     if (inner === undefined) {
       return undefined;
@@ -139,17 +139,17 @@ export function planExpressionWithExpectedTypeCore(
       expression: inner,
     });
   }
-  if (HasSourceKind(input.ast, node, KindArrowFunction)) {
+  if (HasSourceKind(input.program.source.ast, node, KindArrowFunction)) {
     return expectedRepresentation(
       planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, state, expectedTargetType, planners.planExpressionWithExpectedType),
     );
   }
-  if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
     return expectedRepresentation(
       planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, expectedTargetType),
     );
   }
-  if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindObjectLiteralExpression)) {
     const dictionaryDiagnosticsStart = diagnostics.length;
     const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject, planners.planExpressionWithExpectedType);
     if (dictionaryLiteral !== undefined) {
@@ -172,7 +172,7 @@ export function planExpressionWithExpectedTypeCore(
       ),
     );
   }
-  if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
+  if (HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     const binaryDiagnosticsStart = diagnostics.length;
     const binaryExpression = tryPlanBinaryExpressionWithExpectedType(
       node,
@@ -192,7 +192,7 @@ export function planExpressionWithExpectedTypeCore(
       return undefined;
     }
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "tuple") {
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "tuple") {
     return expectedRepresentation(
       planTupleLiteralExpression(
         node,
@@ -205,8 +205,8 @@ export function planExpressionWithExpectedTypeCore(
       ),
     );
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
-    const resolvedTupleTarget = input.types.resolveNode(node, sourceFile);
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
+    const resolvedTupleTarget = input.types.policy.resolveNode(node, sourceFile);
     return expectedRepresentation(
       planTupleLiteralExpression(
         node,
@@ -222,7 +222,7 @@ export function planExpressionWithExpectedTypeCore(
     );
   }
   if (
-    HasSourceKind(input.ast, node, KindArrayLiteralExpression) &&
+    HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) &&
     effectiveExpectedTargetType !== undefined
   ) {
     const implicitArrayInputElement =
@@ -231,10 +231,10 @@ export function planExpressionWithExpectedTypeCore(
       );
     const sourceCarrier = implicitArrayInputElement === undefined
       ? getTargetTypeRefForNode(input, node, sourceFile) ??
-        input.types.resolveNode(node, sourceFile)
+        input.types.policy.resolveNode(node, sourceFile)
       : { kind: "array" as const, element: implicitArrayInputElement };
     const conversion = selectCsharpConversion(
-      input,
+      input.policy,
       sourceCarrier,
       effectiveExpectedTargetType,
       "implicit",
@@ -252,22 +252,22 @@ export function planExpressionWithExpectedTypeCore(
       );
     }
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
     return expectedRepresentation(
       planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners, expectedTargetType?.kind === "array" ? expectedTargetType.element : undefined),
     );
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
     return expectedRepresentation(
       planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners),
     );
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "array") {
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "array") {
     return expectedRepresentation(
       planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners),
     );
   }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTypeSubject !== undefined) {
+  if (HasSourceKind(input.program.source.ast, node, KindArrayLiteralExpression) && expectedTypeSubject !== undefined) {
     const expectedCarrier = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
     if (expectedCarrier !== undefined && expectedCarrier.kind !== "array" && expectedCarrier.kind !== "tuple") {
       return expectedRepresentation(
@@ -275,8 +275,8 @@ export function planExpressionWithExpectedTypeCore(
       );
     }
   }
-  if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
-    const expression = AsConditionalExpression(input.ast, node)!;
+  if (HasSourceKind(input.program.source.ast, node, KindConditionalExpression)) {
+    const expression = AsConditionalExpression(input.program.source.ast, node)!;
     if (expression.Condition === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
       return undefined;
@@ -334,7 +334,7 @@ function planExpectedRuntimeNullishLiteral(
     return undefined;
   }
   const nullCarrier = csharpRuntimeNullTargetType();
-  if (targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, nullCarrier) && HasSourceKind(input.ast, node, KindNullKeyword)) {
+  if (targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, nullCarrier) && HasSourceKind(input.program.source.ast, node, KindNullKeyword)) {
     return runtimeCarrierSingletonValue(nullCarrier);
   }
   const undefinedCarrier = csharpRuntimeUndefinedTargetType();
@@ -368,15 +368,15 @@ function isGlobalUndefinedLiteral(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  if (SourceKind(input.ast, node) !== KindIdentifier || Node_Text(input.ast, node) !== "undefined") {
+  if (SourceKind(input.program.source.ast, node) !== KindIdentifier || Node_Text(input.program.source.ast, node) !== "undefined") {
     return false;
   }
   if (
-    input.navigation.referenceFor(node) !== undefined
+    input.program.source.navigation.referenceFor(node) !== undefined
   ) {
     return false;
   }
-  const targetType = input.types.resolveNode(node, sourceFile);
+  const targetType = input.types.policy.resolveNode(node, sourceFile);
   return targetType !== undefined &&
     targetTypeRefEquals(targetType, csharpRuntimeUndefinedTargetType());
 }

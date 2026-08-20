@@ -16,7 +16,7 @@ import type {
   CsharpBinaryOperatorToken,
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   ExpectedExpressionPlanner,
   ExpressionPlanner,
@@ -61,15 +61,15 @@ function isNullishEqualityOperand(
   if (operatorToken.kind !== "EqualsEqualsToken" && operatorToken.kind !== "ExclamationEqualsToken") {
     return false;
   }
-  const kind = SourceKind(input.ast, operand);
+  const kind = SourceKind(input.program.source.ast, operand);
   if (kind === KindNullKeyword || kind === KindVoidExpression) {
     return true;
   }
-  if (kind !== KindIdentifier || Node_Text(input.ast, AsIdentifier(input.ast, operand)) !== "undefined") {
+  if (kind !== KindIdentifier || Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, operand)) !== "undefined") {
     return false;
   }
-  const type = input.semantics(sourceFile).getTypeAtLocation(operand);
+  const type = input.program.source.semantics.forFile(sourceFile).types.expressionType(operand);
   return type === undefined
     ? false
-    : input.semantics(sourceFile).isNullish(type);
+    : input.program.source.semantics.forFile(sourceFile).types.isNullish(type);
 }

@@ -3,27 +3,16 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetBindingFact,
-} from "../../policy/types/model/definitions.js";
-import type { TargetBackendContext } from "@tsonic/target-api";
-import {
-  readCsharpReflectionReferencePaths,
-  readCsharpTargetFramework,
-} from "../../options/csharp-target-options.js";
-import {
-  createDotnetReflectionTypeDataProvider,
-} from "../dotnet/reflection/provider.js";
+} from "../../target-model/types/model.js";
 import type {
   DotnetReflectionTypeDataProvider,
 } from "../dotnet/reflection/provider.js";
 import {
   resolveDotnetProviderTargetRelations,
 } from "../dotnet/relations/target-relation-resolver.js";
-import {
-  createCapabilityDotnetProviders,
-} from "../dotnet/contributions.js";
 import type {
   CsharpProviderTargetRelation,
-} from "../relations/index.js";
+} from "./index.js";
 import {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
@@ -32,10 +21,10 @@ import {
   providerSignatureSourceIdentity,
   providerTypeSourceIdentity,
   providerValueSourceIdentity,
-} from "../relations/index.js";
-import {
-  collectCsharpCapabilityContributions,
-} from "../dotnet/contributions.js";
+} from "./index.js";
+import type {
+  CsharpProviderPolicyContribution,
+} from "../model/provider-policy-contribution.js";
 import {
   csharpBuiltInProviderPolicies,
 } from "../builtins/native-pointer-relations.js";
@@ -44,29 +33,21 @@ import type {
   CsharpProviderRelationResolver,
 } from "../model/relation-resolver.js";
 
+export interface CsharpProviderRelationResolverInputs {
+  readonly providers: readonly DotnetReflectionTypeDataProvider[];
+  readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
+}
+
 export function createCsharpProviderRelationResolver(
-  context: TargetBackendContext,
+  inputs: CsharpProviderRelationResolverInputs,
 ): CsharpProviderRelationResolver {
-  const contributions = collectCsharpCapabilityContributions(context);
-  const builtIn = createDotnetReflectionTypeDataProvider({
-    references: readCsharpReflectionReferencePaths(
-      context.target,
-      context.projectDirectory,
-    ),
-    targetFramework: readCsharpTargetFramework(context.target),
-  });
-  const providers = Object.freeze([
-    builtIn,
-    ...createCapabilityDotnetProviders(context, contributions).map(
-      (registration) => registration.provider,
-    ),
-  ]);
+  const providers = Object.freeze([...inputs.providers]);
   const staticCatalogs = [
     ...csharpBuiltInProviderPolicies().map((policy) => ({
       ...policy,
       rejections: [],
     })),
-    ...contributions.providerPolicies,
+    ...inputs.providerPolicies,
   ].map((contribution) => ({
     providerId: contribution.providerId,
     providerVersion: contribution.providerVersion,

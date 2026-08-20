@@ -25,6 +25,9 @@ import {
   csharpSourceProfileCall,
   csharpSourceProfileDiagnostic,
 } from "./source-profile-policy.js";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
 
 interface NativeStringMethodPolicy {
   readonly source: CsharpSourceProfileIdentitySelector;
@@ -228,7 +231,7 @@ function nativeMemberIdentity(
   name: string,
 ): CsharpSourceProfileIdentitySelector {
   return Object.freeze({
-    owner: "csharp-provider",
+    owner: csharpTargetId,
     kind: "member",
     declaringName,
     name,
@@ -239,7 +242,7 @@ function nativeIndexerIdentity(
   declaringName: string,
 ): CsharpSourceProfileIdentitySelector {
   return Object.freeze({
-    owner: "csharp-provider",
+    owner: csharpTargetId,
     kind: "indexer",
     declaringName,
   });

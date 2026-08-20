@@ -17,7 +17,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
@@ -41,10 +41,10 @@ export function planJsArrayLiteralExpression(
   elementTargetType: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
-  const literal = AsArrayLiteralExpression(input.ast, node)!;
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   const elements = literal.Elements?.Nodes ?? [];
-  const hasSpread = elements.some((element) => HasSourceKind(input.ast, element, KindSpreadElement));
-  const hasElision = elements.some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));
+  const hasSpread = elements.some((element) => HasSourceKind(input.program.source.ast, element, KindSpreadElement));
+  const hasElision = elements.some((element) => HasSourceKind(input.program.source.ast, element, KindOmittedExpression));
   if (!hasSpread && !hasElision) {
     const arrayExpression = planArrayLiteralExpression(
       node,
@@ -100,7 +100,7 @@ function createJsArrayLiteralChunks(
   elementTargetType: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): readonly CsharpExpression[] | undefined {
-  const literal = AsArrayLiteralExpression(input.ast, node)!;
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   const chunks: CsharpExpression[] = [];
   let pendingElements: SparseJsArrayLiteralElement[] = [];
   const flushPending = () => {
@@ -114,11 +114,11 @@ function createJsArrayLiteralChunks(
     if (element === undefined) {
       continue;
     }
-    if (HasSourceKind(input.ast, element, KindOmittedExpression)) {
+    if (HasSourceKind(input.program.source.ast, element, KindOmittedExpression)) {
       pendingElements.push({ kind: "hole" });
       continue;
     }
-    if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
+    if (!HasSourceKind(input.program.source.ast, element, KindSpreadElement)) {
       const planned = planner.planExpressionWithExpectedType(
         element,
         sourceFile,
@@ -135,7 +135,7 @@ function createJsArrayLiteralChunks(
       continue;
     }
     flushPending();
-    const expression = AsSpreadElement(input.ast, element)?.Expression;
+    const expression = AsSpreadElement(input.program.source.ast, element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;
