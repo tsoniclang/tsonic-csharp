@@ -4,11 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../../../options/csharp-target-options.js";
-import {
-  selectCsharpCompatAnyVoidOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsValueVoidOperation,
+} from "../../../policy/js-value-operations/index.js";
 import {
   csharpTsValueTargetType,
 } from "../../../policy/types/index.js";
@@ -28,8 +25,8 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 
 export function planVoidExpression(
   node: Node,
@@ -42,39 +39,32 @@ export function planVoidExpression(
     return undefined;
   }
   const operand = input.ast.as.AsVoidExpression(node)?.Expression;
-  const compat = selectCsharpCompatAnyVoidOperation(
+  const jsValueOperation = selectCsharpJsValueVoidOperation(
     input,
     operand,
     sourceFile,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const expression = operand === undefined
       ? undefined
       : planExpression(operand, sourceFile, input, diagnostics);
     return expression === undefined
       ? undefined
-      : translateCsharpCompatInvocation(
-          compat,
+      : translateCsharpJsValueInvocation(
+          jsValueOperation,
           undefined,
           [expression],
         );
-  }
-  if (readCsharpTypescriptCompatibilityMode(input.target) !== "compat") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "JavaScript void semantics require the explicit C# compatibility runtime.",
-    ));
-    return undefined;
   }
   const receiver = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
   if (operand === undefined || receiver === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "C# compatibility void translation requires an exact operand and closed TsValue carrier.",
+      "C# void translation requires an exact operand and closed TsValue carrier.",
     ));
     return undefined;
   }
@@ -86,7 +76,7 @@ export function planVoidExpression(
         callee: {
           kind: "SimpleMemberAccessExpression",
           receiver,
-          name: "ApplyCompatVoid",
+          name: "ApplyDynamicVoid",
         },
         arguments: [{ kind: "Argument", expression }],
       };

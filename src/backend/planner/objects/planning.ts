@@ -21,7 +21,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../policy/types/index.js";
 import {
-  isCsharpCompatObjectShapeTargetType,
+  isCsharpJsValueObjectShapeTargetType,
 } from "../../../policy/types/index.js";
 import {
   objectShapeDeclarationMatches,
@@ -85,7 +85,7 @@ export function csharpTypeFromObjectShapeFact(
     );
     return undefined;
   }
-  if (isCsharpCompatObjectShapeTargetType(fact.targetType)) {
+  if (isCsharpJsValueObjectShapeTargetType(fact.targetType)) {
     return targetType;
   }
   if (targetType.kind !== "IdentifierName") {

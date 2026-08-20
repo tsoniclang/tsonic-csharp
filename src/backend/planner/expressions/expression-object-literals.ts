@@ -13,20 +13,22 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../policy/types/index.js";
 import {
-  isCsharpCompatObjectShapeTargetType,
-  validateCsharpCompatObjectShapeCarrier,
+  isCsharpJsValueTargetType,
+  isCsharpJsValueObjectShapeTargetType,
+  projectCsharpJsValueObjectLiteralShape,
+  validateCsharpJsValueObjectShapeCarrier,
 } from "../../../policy/types/index.js";
 import {
-  selectCsharpCompatObjectLiteralOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsObjectLiteralOperation,
+} from "../../../policy/js-value-operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../roslyn/syntax.js";
 import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 import type {
   ExpectedExpressionPlanner,
   ExpressionPlanner,
@@ -64,7 +66,19 @@ export function planObjectLiteralExpressionWithExpectedType(
     ));
     return undefined;
   }
-  const objectShape = resolved.kind === "resolved" ? resolved.shape : undefined;
+  let objectShape = resolved.kind === "resolved" ? resolved.shape : undefined;
+  if (
+    objectShape !== undefined &&
+    isCsharpJsValueTargetType(expectedTargetType) &&
+    !isCsharpJsValueObjectShapeTargetType(objectShape.targetType)
+  ) {
+    const projection = projectCsharpJsValueObjectLiteralShape(objectShape);
+    if (projection.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, projection.reason));
+      return undefined;
+    }
+    objectShape = projection.shape;
+  }
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType);
   }
@@ -82,8 +96,8 @@ function planObjectLiteralExpressionWithObjectShape(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (isCsharpCompatObjectShapeTargetType(objectShape.targetType)) {
-    return planCompatValueObjectLiteral(
+  if (isCsharpJsValueObjectShapeTargetType(objectShape.targetType)) {
+    return planJsValueObjectLiteral(
       node,
       sourceFile,
       input,
@@ -120,7 +134,7 @@ function planObjectLiteralExpressionWithObjectShape(
   };
 }
 
-function planCompatValueObjectLiteral(
+function planJsValueObjectLiteral(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -128,7 +142,7 @@ function planCompatValueObjectLiteral(
   objectShape: CsharpObjectShapeFact,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  const carrierRejection = validateCsharpCompatObjectShapeCarrier(objectShape);
+  const carrierRejection = validateCsharpJsValueObjectShapeCarrier(objectShape);
   if (carrierRejection !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, carrierRejection));
     return undefined;
@@ -148,7 +162,7 @@ function planCompatValueObjectLiteral(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         property,
-        "Closed compatibility object literals require explicit property assignments; spread and method members need their own exact runtime operation contract.",
+        "Closed JS-value object literals require explicit property assignments; spread and method members need their own exact runtime operation contract.",
       ));
       return undefined;
     }
@@ -168,8 +182,8 @@ function planCompatValueObjectLiteral(
       planned.expression,
     );
   }
-  return translateCsharpCompatInvocation(
-    selectCsharpCompatObjectLiteralOperation(),
+  return translateCsharpJsValueInvocation(
+    selectCsharpJsObjectLiteralOperation(),
     undefined,
     arguments_,
   );

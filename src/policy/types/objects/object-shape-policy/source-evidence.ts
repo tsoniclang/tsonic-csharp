@@ -1,8 +1,10 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../model/definitions.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { nextState } from "../../resolution/state.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
@@ -13,6 +15,7 @@ export function selectedObjectShapeSource(
   node: Node,
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
+  state: CsharpTypeResolutionState,
 ): SelectedObjectShapeSource {
   const semanticType = queries.getTypeAtLocation(node);
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
@@ -39,9 +42,10 @@ export function selectedObjectShapeSource(
   if (!projectDeclaration) {
     return { type: semanticType };
   }
-  const contextualProjectTarget = host.types.resolveType(
+  const contextualProjectTarget = host.typeResolver.resolveType(
     contextualType,
     queries.sourceFile,
+    nextState(state),
   );
   return contextualProjectTarget !== undefined &&
       isProjectSourceTargetType(contextualProjectTarget)

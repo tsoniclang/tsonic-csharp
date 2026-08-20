@@ -17,10 +17,7 @@ import type {
   TargetRuntimeReference,
 } from "@tsonic/target-api/artifacts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
-import {
-  readCsharpTypescriptCompatibilityMode,
-  validateCsharpTargetOptions,
-} from "../options/csharp-target-options.js";
+import { validateCsharpTargetOptions } from "../options/csharp-target-options.js";
 import {
   createCsharpSourceSemanticsExtension,
 } from "./csharp-source-semantics-extension.js";
@@ -55,7 +52,7 @@ export function createCsharpTargetPack(): TargetPack {
         return {
           references: [
             csharpRuntimeAssemblyReference(context, "@tsonic/csharp-runtime", "Tsonic.CSharp.Runtime"),
-            ...csharpTypescriptCompatibilityRuntimeReferences(context),
+            csharpRuntimeAssemblyReference(context, "@tsonic/csharp-js", "Tsonic.CSharp.Js"),
           ],
         };
       },
@@ -68,12 +65,8 @@ export function createCsharpTargetPack(): TargetPack {
         sourceCompilerContributions() {
           return {};
         },
-        runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
-          return {
-            references: [
-              csharpRuntimeAssemblyReference(_context, "@tsonic/csharp-js", "Tsonic.CSharp.Js"),
-            ],
-          };
+        runtimeContributions() {
+          return {};
         },
       },
     ],
@@ -114,11 +107,4 @@ function resolveRuntimePackageRoot(context: TargetRuntimeContributionContext, pa
     }
   }
   throw new Error(`Required C# runtime package '${packageName}' is not installed or does not export package.json.`);
-}
-
-function csharpTypescriptCompatibilityRuntimeReferences(context: TargetRuntimeContributionContext): readonly TargetRuntimeReference[] {
-  if (readCsharpTypescriptCompatibilityMode(context.target) !== "compat" || context.selectedSurfaces.some((surface) => surface.id === "js")) {
-    return [];
-  }
-  return [csharpRuntimeAssemblyReference(context, "@tsonic/csharp-js", "Tsonic.CSharp.Js")];
 }

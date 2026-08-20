@@ -8,6 +8,7 @@ import { materializeCsharpOutputPlan } from "../../../dist/backend/emission/mate
 import { createCsharpTargetPack } from "../../../dist/descriptor/csharp-target-pack.js";
 import { printCsharpProjectFile } from "../../../dist/print/project/csharp-project.js";
 import { createDotnetToolchain } from "../../../dist/toolchain/dotnet-toolchain.js";
+import { validateCsharpTargetOptions } from "../../../dist/options/csharp-target-options.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);
@@ -134,6 +135,23 @@ test("project artifact keeps language syntax and memory-safety rules independent
   })), /memorySafetyRules/u);
 });
 
+test("C# target options reject retired compatibility controls", () => {
+  assert.throws(
+    () => validateCsharpTargetOptions({
+      id: "csharp",
+      options: { typescriptCompatibility: "compat" },
+    }),
+    /option 'options\.typescriptCompatibility' is not supported/u,
+  );
+  assert.throws(
+    () => validateCsharpTargetOptions({
+      id: "csharp",
+      options: { memorySafetyRules: "legacy" },
+    }),
+    /must be either 'csharp14' or 'preview'/u,
+  );
+});
+
 test("project artifact rejects invalid executable/library output shapes", () => {
   assert.throws(() => planCsharpProjectFile(fakeInput({
     outputType: "WinExe",
@@ -229,7 +247,7 @@ test("project artifact includes runtime references only from selected target or 
   assert.match(withRuntimeReferences, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
-test("target provider contributes closed compat carrier runtime without requiring the JS surface", () => {
+test("target provider contributes one canonical JS-value runtime independently of JS surface declarations", () => {
   const targetPack = createCsharpTargetPack();
   const provider = targetPack.provider;
   const jsSurface = targetPack.surfaces.find((surface) => surface.id === "js");
@@ -237,18 +255,23 @@ test("target provider contributes closed compat carrier runtime without requirin
   assert.ok(provider);
   assert.ok(jsSurface);
 
-  const strictReferences = provider.runtimeContributions(fakeRuntimeContributionContext({ target: { id: "csharp", options: {} } })).references;
-  const compatReferences = provider.runtimeContributions(fakeRuntimeContributionContext({
-    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+  const references = provider.runtimeContributions(fakeRuntimeContributionContext({
+    target: { id: "csharp", options: {} },
   })).references;
-  const compatWithJsSurfaceReferences = provider.runtimeContributions(fakeRuntimeContributionContext({
-    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+  const referencesWithJsSurface = provider.runtimeContributions(fakeRuntimeContributionContext({
+    target: { id: "csharp", options: {} },
     selectedSurfaces: [jsSurface],
   })).references;
 
-  assert.equal(strictReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
-  assert.equal(compatReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
-  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
+  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
+  assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
+  assert.deepEqual(
+    jsSurface.runtimeContributions(fakeRuntimeContributionContext({
+      target: { id: "csharp", options: {} },
+      selectedSurfaces: [jsSurface],
+    })),
+    {},
+  );
 });
 
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {

@@ -4,25 +4,17 @@ import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
 import type { SourceDeclarationReference } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../model/definitions.js";
-import { csharpExceptionTargetType } from "../model/scalar-types.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../storage/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../callables/member-facts.js";
 import { targetTypeRefEquals } from "../model/equality.js";
+import { nextState } from "./state.js";
 
 export function resolveNode(
-  { activeNodes, resolveNodeWithState }: CsharpTypeResolutionScope,
+  { resolveNodeWithState }: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile?: SourceFile,
 ): TargetTypeRef | undefined {
-  if (node === undefined || activeNodes.has(node)) {
-    return undefined;
-  }
-  activeNodes.add(node);
-  try {
-    return resolveNodeWithState(node, sourceFile, { depth: 0 });
-  } finally {
-    activeNodes.delete(node);
-  }
+  return resolveNodeWithState(node, sourceFile, { depth: 0 });
 }
 
 
@@ -105,9 +97,7 @@ export function catchVariableStorageCarrier(
   ) {
     return undefined;
   }
-  return host.typescriptCompatibility === "compat"
-    ? csharpTsValueTargetType()
-    : csharpExceptionTargetType();
+  return csharpTsValueTargetType();
 }
 
 
@@ -122,10 +112,26 @@ export function resolveValue(
 
 
 export function resolveSelectedValue(
-  { host, resolveNode, resolveSourceValueDeclaration, resolveType, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   node: Node,
   selectedType: Type,
   sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  return resolveSelectedValueWithState(
+    node,
+    selectedType,
+    sourceFile,
+    { depth: 0 },
+  );
+}
+
+
+export function resolveSelectedValueWithState(
+  { host, resolveNodeWithState, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  node: Node,
+  selectedType: Type,
+  sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
@@ -138,20 +144,34 @@ export function resolveSelectedValue(
     const declared = resolveSourceValueDeclaration(
       node,
       host.semantics(sourceFile),
-      { depth: 0 },
+      nextState(state),
       selectedType,
     );
     if (declared !== undefined) {
       return declared;
     }
     if (host.ast.is.IsBindingElement(declaration)) {
-      return resolveNode(node, sourceFile) ??
-        resolveType(selectedType, sourceFile);
+      return resolveNodeWithState(
+        node,
+        sourceFile,
+        nextState(state),
+      ) ?? resolveTypeWithState(
+        selectedType,
+        sourceFile,
+        nextState(state),
+      );
     }
     return undefined;
   }
-  return resolveNode(node, sourceFile) ??
-    resolveType(selectedType, sourceFile);
+  return resolveNodeWithState(
+    node,
+    sourceFile,
+    nextState(state),
+  ) ?? resolveTypeWithState(
+    selectedType,
+    sourceFile,
+    nextState(state),
+  );
 }
 
 
@@ -189,46 +209,67 @@ export function resolveSelectedResult(
 
 
 export function resolveTypedLocationOperationPointee(
-  { resolveSelectedType, resolveSelectedValue }: CsharpTypeResolutionScope,
+  { resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   operation: CsharpSourceTypedLocationOperation,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
+  return resolveTypedLocationOperationPointeeWithState(
+    operation,
+    sourceFile,
+    { depth: 0 },
+  );
+}
+
+
+export function resolveTypedLocationOperationPointeeWithState(
+  { resolveAuthoredAndSelectedSourceType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  operation: CsharpSourceTypedLocationOperation,
+  sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined {
   if (operation.explicitPointeeTypeNode !== undefined) {
-    return resolveSelectedType(
+    return resolveAuthoredAndSelectedSourceType(
       operation.explicitPointeeTypeNode,
+      sourceFile,
       operation.pointeeType,
       sourceFile,
+      nextState(state),
     );
   }
   switch (operation.kind) {
     case "location-address":
-      return resolveSelectedValue(
+      return resolveSelectedValueWithState(
         operation.storageExpression,
         operation.storageType,
         sourceFile,
+        nextState(state),
       );
     case "location-allocate":
-      return resolveSelectedValue(
+      return resolveSelectedValueWithState(
         operation.initialExpression,
         operation.initialType,
         sourceFile,
+        nextState(state),
       );
     case "location-load":
     case "location-store":
-      return csharpRuntimeLocationPointee(resolveSelectedValue(
+      return csharpRuntimeLocationPointee(resolveSelectedValueWithState(
         operation.locationExpression,
         operation.locationType,
         sourceFile,
+        nextState(state),
       ));
     case "location-equal":
-      return csharpRuntimeLocationPointee(resolveSelectedValue(
+      return csharpRuntimeLocationPointee(resolveSelectedValueWithState(
         operation.leftExpression,
         operation.leftType,
         sourceFile,
-      )) ?? csharpRuntimeLocationPointee(resolveSelectedValue(
+        nextState(state),
+      )) ?? csharpRuntimeLocationPointee(resolveSelectedValueWithState(
         operation.rightExpression,
         operation.rightType,
         sourceFile,
+        nextState(state),
       ));
     case "location-hash":
     case "location-bind":
@@ -247,6 +288,7 @@ export function resolveSourceCallTypeArguments(
   return resolveSourceCallInstantiation(
     source,
     sourceFile,
+    { depth: 0 },
     callable?.methodTypeParameterNames,
     callable,
   )?.arguments;
@@ -284,6 +326,7 @@ export function resolveSourceCallParameter(
   const delegateParameter = sourceCallCalleeDelegateSignature(
     source,
     sourceFile,
+    { depth: 0 },
   )?.parameters[parameterIndex];
   if (delegateParameter !== undefined) {
     return delegateParameter;
@@ -343,6 +386,7 @@ export function resolveSourceCallArgumentParameter(
   const delegateParameter = sourceCallCalleeDelegateSignature(
     source,
     sourceFile,
+    { depth: 0 },
   )?.parameters[binding.effectiveArgumentIndex];
   if (delegateParameter !== undefined) {
     return delegateParameter;
@@ -394,6 +438,7 @@ export function resolveSourceCallResultWithState(
   const delegateResult = sourceCallCalleeDelegateSignature(
     source,
     sourceFile,
+    nextState(state),
   )?.returnType;
   if (delegateResult !== undefined) {
     return delegateResult;

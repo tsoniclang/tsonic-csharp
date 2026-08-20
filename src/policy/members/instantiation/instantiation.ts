@@ -5,10 +5,7 @@ import type {
   ReadonlySourceFactResolver,
   SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TargetSelection,
-  TargetTypescriptCompatibilityMode,
-} from "@tsonic/target-api";
+import type { TargetSelection } from "@tsonic/target-api";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -77,7 +74,6 @@ export interface CsharpProviderCallInstantiationHost {
   readonly objectShapes?: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly target: TargetSelection;
-  readonly typescriptCompatibility: TargetTypescriptCompatibilityMode;
   readonly types: CsharpTypePolicy;
 }
 
@@ -177,7 +173,7 @@ export function instantiateCsharpProviderCall(
 export function compareInstantiatedProviderCalls(
   host: Pick<
     CsharpProviderCallInstantiationHost,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   left: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,
   right: Extract<CsharpProviderCallInstantiation, { readonly kind: "resolved" }>,

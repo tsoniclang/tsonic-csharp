@@ -4,11 +4,10 @@ import {
   getCsharpDelegateSignature,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
-  isCsharpAnyRuntimeCarrier,
+  isCsharpJsValueTargetType,
   isCsharpNullableReferenceTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
-  isCsharpCompatValueTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -25,57 +24,23 @@ import type {
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../context.js";
 
-export function selectCompatValueConversion(
-  source: TargetTypeRef,
-  target: TargetTypeRef,
-  mode: CsharpConversionMode,
-): CsharpConversionSelection | undefined {
-  const sourceCompatValue = isCsharpCompatValueTargetType(source);
-  const targetCompatValue = isCsharpCompatValueTargetType(target);
-  if (!sourceCompatValue && !targetCompatValue) {
-    return undefined;
-  }
-  if (sourceCompatValue && targetCompatValue) {
-    return { kind: "identity" };
-  }
-  if (targetCompatValue) {
-    return { kind: "compat-box" };
-  }
-  return mode === "explicit"
-    ? {
-        kind: "compat-cast",
-        ...(getCsharpRuntimeUnionArms(target) === undefined
-          ? {}
-          : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
-      }
-    : undefined;
-}
-
-export function selectAnyConversion(
-  input: Pick<CsharpPolicyContext, "typescriptCompatibility">,
+export function selectJsValueConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
-  const sourceAny = isCsharpAnyRuntimeCarrier(source);
-  const targetAny = isCsharpAnyRuntimeCarrier(target);
-  if (!sourceAny && !targetAny) {
+  const sourceJsValue = isCsharpJsValueTargetType(source);
+  const targetJsValue = isCsharpJsValueTargetType(target);
+  if (!sourceJsValue && !targetJsValue) {
     return undefined;
   }
-  if (input.typescriptCompatibility !== "compat") {
-    return {
-      kind: "rejected",
-      reason:
-        "C# strict-native mode cannot cross a TypeScript any boundary.",
-    };
-  }
-  if (sourceAny && targetAny) {
+  if (sourceJsValue && targetJsValue) {
     return { kind: "identity" };
   }
-  if (targetAny) {
-    return { kind: "compat-box" };
+  if (targetJsValue) {
+    return { kind: "js-value-box" };
   }
   return {
-    kind: "compat-cast",
+    kind: "js-value-cast",
     ...(getCsharpRuntimeUnionArms(target) === undefined
       ? {}
       : { runtimeUnionArms: getCsharpRuntimeUnionArms(target) }),
@@ -137,7 +102,7 @@ export function selectRuntimeUnionConversion(
 export function selectNullableConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   source: TargetTypeRef,
   target: TargetTypeRef,

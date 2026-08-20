@@ -668,7 +668,7 @@ namespace Tsonic.Generated
   );
 });
 
-test("direct C# compat translation closes every supported any operation", () => {
+test("direct C# dynamic translation closes every supported any operation", () => {
   const compiled = cleanCompile(`
     export function use(value: any, key: string): any {
       value.name;
@@ -687,9 +687,7 @@ test("direct C# compat translation closes every supported any operation", () => 
       if (value) return value;
       return value ? value : key;
     }
-  `, {
-    targetOptions: { typescriptCompatibility: "compat" },
-  });
+  `);
 
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
 
@@ -699,31 +697,31 @@ namespace Tsonic.Generated
     {
         public static Tsonic.CSharp.Js.TsValue use(Tsonic.CSharp.Js.TsValue value, string key)
         {
-            value.ReadCompatSlot("name");
-            value.WriteCompatSlot("name", 1);
-            value.ReadCompatElement(key);
-            value.WriteCompatElement(key, 2);
-            value.InvokeCompat(3);
-            value.InvokeCompatSlot("create", false, false, () => new object?[] { 4 });
-            value.InvokeCompatElement(() => key, false, false, () => new object?[] { 5 });
-            value.ConstructCompat(6);
-            Tsonic.CSharp.Js.TsValue.ApplyCompatBinary(value, "+", 1);
-            Tsonic.CSharp.Js.TsValue.ApplyCompatLogical(value, "&&", () => value);
-            Tsonic.CSharp.Js.TsValue.ApplyCompatUnaryBoolean(value, "!");
-            Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(value);
+            value.ReadDynamicSlot("name");
+            value.WriteDynamicSlot("name", 1);
+            value.ReadDynamicElement(key);
+            value.WriteDynamicElement(key, 2);
+            value.InvokeDynamic(3);
+            value.InvokeDynamicSlot("create", false, false, () => new object?[] { 4 });
+            value.InvokeDynamicElement(() => key, false, false, () => new object?[] { 5 });
+            value.ConstructDynamic(6);
+            Tsonic.CSharp.Js.TsValue.ApplyDynamicBinary(value, "+", 1);
+            Tsonic.CSharp.Js.TsValue.ApplyDynamicLogical(value, "&&", () => value);
+            Tsonic.CSharp.Js.TsValue.ApplyDynamicUnaryBoolean(value, "!");
+            Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(value);
             _ = value;
-            if (Tsonic.CSharp.Js.TsValue.ToCompatBoolean(value))
+            if (Tsonic.CSharp.Js.TsValue.ToDynamicBoolean(value))
             {
                 return value;
             }
-            return Tsonic.CSharp.Js.TsValue.ToCompatBoolean(value) ? value : Tsonic.CSharp.Js.TsValue.from(key);
+            return Tsonic.CSharp.Js.TsValue.ToDynamicBoolean(value) ? value : Tsonic.CSharp.Js.TsValue.from(key);
         }
     }
 }
 `);
 });
 
-test("direct C# compat translation preserves optional-chain evaluation regions", () => {
+test("direct C# dynamic translation preserves optional-chain evaluation regions", () => {
   const compiled = cleanCompile(`
     export function optional(
       value: any,
@@ -738,9 +736,7 @@ test("direct C# compat translation preserves optional-chain evaluation regions",
       value?.[key()]?.(argument());
       return value ?? argument();
     }
-  `, {
-    targetOptions: { typescriptCompatibility: "compat" },
-  });
+  `);
 
   assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
 
@@ -750,53 +746,20 @@ namespace Tsonic.Generated
     {
         public static Tsonic.CSharp.Js.TsValue optional(Tsonic.CSharp.Js.TsValue value, Func<string> key, Func<Tsonic.CSharp.Js.TsValue> argument)
         {
-            value.ReadCompatSlotOptional("name");
-            value.ReadCompatElementOptional(() => key());
-            value.InvokeCompatOptional(() => new object?[] { argument() });
-            value.InvokeCompatSlot("create", true, false, () => new object?[] { argument() });
-            value.InvokeCompatSlot("create", false, true, () => new object?[] { argument() });
-            value.InvokeCompatElement(() => key(), true, true, () => new object?[] { argument() });
-            return Tsonic.CSharp.Js.TsValue.ApplyCompatLogical(value, "??", () => argument());
+            value.ReadDynamicSlotOptional("name");
+            value.ReadDynamicElementOptional(() => key());
+            value.InvokeDynamicOptional(() => new object?[] { argument() });
+            value.InvokeDynamicSlot("create", true, false, () => new object?[] { argument() });
+            value.InvokeDynamicSlot("create", false, true, () => new object?[] { argument() });
+            value.InvokeDynamicElement(() => key(), true, true, () => new object?[] { argument() });
+            return Tsonic.CSharp.Js.TsValue.ApplyDynamicLogical(value, "??", () => argument());
         }
     }
 }
 `);
 });
 
-test("direct C# strict-native translation rejects opaque any declarations and operations", () => {
-  const compiled = compileCsharpSource({
-    sourceText:
-      "export function read(value: any): any { return value.name; }",
-    targetOptions: { typescriptCompatibility: "strict-native" },
-  });
-
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(
-    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-    [{
-      code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
-      message:
-        "Opaque target type 'any' has no renderable C# source representation.",
-    }, {
-      code: "CSHARP_OPAQUE_TARGET_TYPE_UNSUPPORTED",
-      message:
-        "Opaque target type 'any' has no renderable C# source representation.",
-    }, {
-      code: "CSHARP_UNSUPPORTED_AST",
-      message:
-        "C# property read uses TypeScript any in strict-native mode.",
-    }],
-  );
-  assert.deepEqual(
-    compiled.result.diagnostics.map((diagnostic) =>
-      compiled.source.ast.kindName(diagnostic.sourceNode)),
-    ["KindAnyKeyword", "KindAnyKeyword", "KindPropertyAccessExpression"],
-  );
-  assert.deepEqual([...compiled.artifacts], []);
-});
-
-test("direct C# compat translation rejects instanceof before direct C# type-test lowering", () => {
+test("direct C# dynamic translation lowers instanceof through the exact closed carrier", () => {
   const compiled = compileCsharpSource({
     sourceText: [
       "class Marker {}",
@@ -804,20 +767,15 @@ test("direct C# compat translation rejects instanceof before direct C# type-test
       "  return value instanceof Marker;",
       "}",
     ].join("\n"),
-    targetOptions: { typescriptCompatibility: "compat" },
   });
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(
-    compiled.result.diagnostics.map(({ code, message }) => ({ code, message })),
-    [{
-      code: "CSHARP_UNSUPPORTED_AST",
-      message:
-        "C# compatibility mode has no closed runtime operation for TypeScript any operator 'instanceof'.",
-    }],
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /return Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<Marker>\(value\);/u,
   );
-  assert.deepEqual([...compiled.artifacts], []);
 });
 
 function cleanCompile(sourceText, options = {}) {

@@ -14,7 +14,7 @@ import type {
   TargetTypeRef,
 } from "../model/definitions.js";
 import {
-  isCsharpAnyRuntimeCarrier,
+  isCsharpJsValueTargetType,
 } from "../storage/runtime-carriers.js";
 
 export function isTypeParameterTargetRef(
@@ -61,7 +61,7 @@ export function isSourceOwnedProjectShapeSubject(
     return false;
   }
   const carrier = input.types.resolveNode(node, sourceFile);
-  if (isCsharpAnyRuntimeCarrier(carrier)) {
+  if (isCsharpJsValueTargetType(carrier)) {
     return false;
   }
   return isTypeParameterTargetRef(carrier) ||
@@ -77,7 +77,7 @@ export function isSourceOwnedProjectConstructibleObjectSubject(
     return false;
   }
   const carrier = input.types.resolveNode(node, sourceFile);
-  return !isCsharpAnyRuntimeCarrier(carrier) &&
+  return !isCsharpJsValueTargetType(carrier) &&
     !isTypeParameterTargetRef(carrier) &&
     input.navigation.isProjectConstructibleObject(node);
 }

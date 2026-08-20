@@ -4,8 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  selectCsharpCompatTypeofOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsTypeofOperation,
+} from "../../../policy/js-value-operations/index.js";
 import {
   getCsharpTypeofRuntimeKind,
   selectCsharpTypeofComparison,
@@ -13,6 +13,10 @@ import {
 } from "../../../policy/operations/index.js";
 import type {
   CsharpTypeofRuntimeKind,
+} from "../../../policy/types/index.js";
+import {
+  csharpTsValueTargetType,
+  isCsharpJsValueTargetType,
 } from "../../../policy/types/index.js";
 import type {
   CsharpPlanningContext,
@@ -36,8 +40,8 @@ import {
   tryPlanRuntimeUnionTypeTest,
 } from "./runtime-union-projections.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 
 export function planTypeofExpression(
   node: Node,
@@ -50,23 +54,23 @@ export function planTypeofExpression(
     return undefined;
   }
   const operand = input.ast.as.AsTypeOfExpression(node)?.Expression;
-  const compat = selectCsharpCompatTypeofOperation(
+  const jsValueOperation = selectCsharpJsTypeofOperation(
     input,
     operand,
     sourceFile,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const planned = operand === undefined
       ? undefined
       : planExpression(operand, sourceFile, input, diagnostics);
     return planned === undefined
       ? undefined
-      : translateCsharpCompatInvocation(
-          compat,
+      : translateCsharpJsValueInvocation(
+          jsValueOperation,
           undefined,
           [planned],
         );
@@ -107,13 +111,30 @@ export function tryPlanTypeTestExpression(
     return undefined;
   }
   const planned = planExpression(left, sourceFile, input, diagnostics);
-  return planned === undefined
-    ? undefined
-    : {
-        kind: "IsPatternExpression",
-        expression: planned,
-        type: expressionToCsharpType(right, sourceFile, input, diagnostics),
-      };
+  const targetType = expressionToCsharpType(right, sourceFile, input, diagnostics);
+  if (planned === undefined || targetType === undefined) {
+    return undefined;
+  }
+  if (isCsharpJsValueTargetType(input.types.resolveNode(left, sourceFile))) {
+    const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
+    return runtimeType === undefined
+      ? undefined
+      : {
+          kind: "InvocationExpression",
+          callee: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: runtimeType,
+            name: "IsDynamicInstanceOf",
+            typeArguments: [targetType],
+          },
+          arguments: [{ kind: "Argument", expression: planned }],
+        };
+  }
+  return {
+    kind: "IsPatternExpression",
+    expression: planned,
+    type: targetType,
+  };
 }
 
 export function tryPlanTypeofComparisonExpression(
@@ -155,16 +176,16 @@ export function tryPlanTypeofComparisonExpression(
     sourceFile,
   );
   const negated = sourceOperator === "!==" || sourceOperator === "!=";
-  const compat = selectCsharpCompatTypeofOperation(
+  const jsValueOperation = selectCsharpJsTypeofOperation(
     input,
     comparison.operand,
     sourceFile,
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const planned = planExpression(
       comparison.operand,
       sourceFile,
@@ -173,7 +194,7 @@ export function tryPlanTypeofComparisonExpression(
     );
     const runtimeTypeof = planned === undefined
       ? undefined
-      : translateCsharpCompatInvocation(compat, undefined, [planned]);
+      : translateCsharpJsValueInvocation(jsValueOperation, undefined, [planned]);
     return runtimeTypeof === undefined
       ? undefined
       : {

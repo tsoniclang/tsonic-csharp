@@ -42,6 +42,9 @@ import type {
 import {
   planCsharpExactLiteralConversion,
 } from "./literal-conversions.js";
+import {
+  planCsharpJsValueBox,
+} from "./js-value-operations.js";
 
 export function applyCsharpConversionSelection(
   node: Node,
@@ -147,21 +150,20 @@ export function applyCsharpConversionSelection(
         selection,
         expression,
       );
-    case "compat-box":
-      return invokeStaticGeneric(
-        csharpTsValueTargetType(),
-        "from",
-        [],
-        expression,
+    case "js-value-box":
+      return planCsharpJsValueBox(
         node,
+        input,
         diagnostics,
+        sourceType,
+        expression,
       );
-    case "compat-cast":
+    case "js-value-cast":
       return invokeStaticGeneric(
         selection.runtimeUnionArms === undefined
           ? csharpTsValueTargetType()
           : csharpTsUnionTargetType(),
-        "CastCompat",
+        "CastDynamic",
         selection.runtimeUnionArms ?? (targetType === undefined ? [] : [targetType]),
         expression,
         node,
@@ -440,7 +442,7 @@ function invokeStaticGeneric(
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      `C# compatibility conversion '${memberName}' requires renderable declaring and generic target types.`,
+      `C# JS-value conversion '${memberName}' requires renderable declaring and generic target types.`,
     ));
     return undefined;
   }

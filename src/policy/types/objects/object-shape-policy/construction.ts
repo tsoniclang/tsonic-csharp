@@ -4,19 +4,17 @@ import {
   csharpObjectShapeMemberContractKey,
   csharpObjectShapeMemberContractParts,
 } from "../object-shape-identity.js";
-import { canUseCsharpCompatObjectShapeCarrier } from "../compat-object-shapes.js";
+import { canUseCsharpJsValueObjectShapeCarrier } from "../js-value-object-shapes.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../model/target-refs.js";
 import { csharpTsValueTargetType } from "../../storage/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../names/identifiers.js";
 import { targetTypeRefKey } from "../../model/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../model/definitions.js";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
 
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
-  host: CsharpObjectShapePolicyHost,
 ): TargetTypeRef {
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
   const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
@@ -32,25 +30,24 @@ export function createStructuralObjectShapeTarget(
     canonicalMembers,
     canonicalImplemented,
   );
-  const compatValueCarrier =
-    host.typescriptCompatibility === "compat" &&
-    canUseCsharpCompatObjectShapeCarrier(
+  const jsValueCarrier =
+    canUseCsharpJsValueObjectShapeCarrier(
       canonicalMembers,
       canonicalImplemented,
     );
-  const compatValueType = csharpTsValueTargetType();
+  const jsValueType = csharpTsValueTargetType();
   return csharpTargetNamedType(
     `tsonic.shape:${identity}`,
     typeParameters.length === 0 ? undefined : typeParameters,
-    compatValueCarrier && compatValueType.kind === "target-named"
-      ? compatValueType.csharpRender
+    jsValueCarrier && jsValueType.kind === "target-named"
+      ? jsValueType.csharpRender
       : { kind: "named", name },
-    compatValueCarrier
+    jsValueCarrier
       ? {
           valueType: true,
           absorbsNullish: true,
-          compatValueCarrier: true,
-          compatObjectShape: true,
+          jsValueCarrier: true,
+          jsObjectShape: true,
         }
       : {},
   );

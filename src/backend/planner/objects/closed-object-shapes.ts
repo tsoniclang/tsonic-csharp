@@ -301,10 +301,10 @@ function applyClosedShapeConversion(
               },
             };
       }
-    case "compat-box": {
+    case "js-value-box": {
       const declaringType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
       return declaringType === undefined
-        ? rejected("TsValue compatibility carrier is not renderable.")
+        ? rejected("The TsValue carrier is not renderable.")
         : {
             kind: "resolved",
             expression: {

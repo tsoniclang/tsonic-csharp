@@ -18,7 +18,7 @@ import type { TargetTypeRef } from "../../types/index.js";
 export function selectCsharpExpressionConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "ast" | "projectTypes" | "providers" | "target"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -80,7 +80,7 @@ export function selectCsharpExpressionConversion(
 export function selectCsharpProviderArgumentConversion(
   input: Pick<
     CsharpPolicyContext,
-    "ast" | "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "ast" | "projectTypes" | "providers" | "target"
   > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   expression: Node,
   source: TargetTypeRef | undefined,
@@ -149,7 +149,7 @@ export function selectCsharpProviderArgumentConversion(
 export function selectCsharpFlowReadConversion(
   input: Pick<
     CsharpPolicyContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
@@ -207,7 +207,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "lifted-provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
     selection.kind === "runtime-union-projection" ||
-    selection.kind === "compat-box" ||
-    selection.kind === "compat-cast" ||
+    selection.kind === "js-value-box" ||
+    selection.kind === "js-value-cast" ||
     mode === "explicit" && selection.kind === "cast";
 }

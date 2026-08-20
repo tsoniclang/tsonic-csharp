@@ -7,6 +7,9 @@ import type {
 import type {
   CsharpObjectShapePolicy,
 } from "../objects/object-shape-policy.js";
+import type {
+  CsharpRecursiveObjectShapePolicy,
+} from "../objects/object-shape-policy/api.js";
 import {
   createCsharpObjectShapePolicy,
 } from "../objects/object-shape-policy.js";
@@ -19,8 +22,8 @@ import type {
   CsharpTypePolicyBaseHost,
 } from "../resolution/index.js";
 import {
-  createCsharpTypePolicy,
-} from "../resolution/index.js";
+  createCsharpTypeResolutionServices,
+} from "../resolution/engine.js";
 import type {
   CsharpProjectTypePolicy,
 } from "../project/project-types.js";
@@ -50,11 +53,11 @@ export interface CsharpTypeSystem {
 export function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
 ): CsharpTypeSystem {
-  let objectShapes: CsharpObjectShapePolicy | undefined;
+  let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
   const projectTypeCatalog = createCsharpProjectTypeCatalog(host);
-  const types = createCsharpTypePolicy({
+  const typeResolution = createCsharpTypeResolutionServices({
     ...host,
     projectTypeCatalog,
     projectTypes() {
@@ -75,6 +78,7 @@ export function createCsharpTypeSystem(
       resolveNode(
         node: Node,
         sourceFile: SourceFile,
+        state,
       ) {
         if (objectShapes === undefined) {
           throw new Error(
@@ -86,12 +90,13 @@ export function createCsharpTypeSystem(
             "C# binding projection ran before the type system was fully initialized.",
           );
         }
-        return bindingProjections.resolveNode(node, sourceFile) ??
-          objectShapes.resolveNode(node, sourceFile)?.targetType;
+        return bindingProjections.resolveNode(node, sourceFile, state) ??
+          objectShapes.resolveNodeWithState(node, sourceFile, state)?.targetType;
       },
       resolveType(
         type: Type,
         sourceFile: SourceFile,
+        state,
         authoredTypeRoot?: Node,
       ) {
         if (objectShapes === undefined) {
@@ -99,10 +104,11 @@ export function createCsharpTypeSystem(
             "C# structural type resolution ran before the type system was fully initialized.",
           );
         }
-        return objectShapes.resolveType(
+        return objectShapes.resolveTypeWithState(
           type,
           sourceFile,
           authoredTypeRoot,
+          state,
         )?.targetType;
       },
       resolveSelectedProperty(
@@ -134,13 +140,14 @@ export function createCsharpTypeSystem(
       },
     },
   });
+  const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
-    types,
+    typeResolver: typeResolution.recursive,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
     ...host,
-    types,
+    typeResolver: typeResolution.recursive,
     objectShapes,
   });
   projectTypes = createCsharpProjectTypePolicy(

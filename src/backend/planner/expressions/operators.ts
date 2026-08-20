@@ -8,12 +8,12 @@ import {
   sourceOperatorFromKindName,
 } from "../../../policy/operations/index.js";
 import {
-  selectCsharpCompatAnyBinaryOperation,
-  selectCsharpCompatAnyReceiverOperation,
-  selectCsharpCompatValueReceiverOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsValueBinaryOperation,
+  selectCsharpJsValueReceiverExpressionOperation,
+  selectCsharpJsValueReceiverOperation,
+} from "../../../policy/js-value-operations/index.js";
 import {
-  resolveCsharpCompatObjectShapeProperty,
+  resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
 } from "../../../policy/members/index.js";
 import type {
@@ -48,8 +48,8 @@ import {
   KindBinaryExpression,
 } from "@tsonic/target-api/source";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -89,24 +89,35 @@ export function tryPlanBinaryExpression(
   const sourceOperator = sourceOperatorFromKindName(
     input.ast.operatorKindName(node),
   );
+  const typeTestStart = diagnostics.length;
+  const typeTest = tryPlanTypeTestExpression(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  if (typeTest !== undefined || diagnostics.length > typeTestStart) {
+    return typeTest;
+  }
   if (
     sourceOperator !== undefined &&
     sourceOperator !== "=" &&
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const compat = selectCsharpCompatAnyBinaryOperation(
+    const jsValueOperation = selectCsharpJsValueBinaryOperation(
       input,
       expression.Left,
       expression.Right,
       sourceFile,
       sourceOperator,
     );
-    if (compat.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
     }
-    if (compat.kind === "resolved") {
+    if (jsValueOperation.kind === "resolved") {
       const left = planExpression(
         expression.Left,
         sourceFile,
@@ -122,13 +133,13 @@ export function tryPlanBinaryExpression(
       if (left === undefined || right === undefined) {
         return undefined;
       }
-      return translateCsharpCompatInvocation(
-        compat,
+      return translateCsharpJsValueInvocation(
+        jsValueOperation,
         undefined,
         [
           left,
           { kind: "LiteralExpression", value: sourceOperator },
-          compat.lazyRight === true
+          jsValueOperation.lazyRight === true
             ? {
                 kind: "LambdaExpression",
                 parameters: [],
@@ -138,17 +149,6 @@ export function tryPlanBinaryExpression(
         ],
       );
     }
-  }
-  const typeTestStart = diagnostics.length;
-  const typeTest = tryPlanTypeTestExpression(
-    node,
-    sourceFile,
-    input,
-    diagnostics,
-    planExpression,
-  );
-  if (typeTest !== undefined || diagnostics.length > typeTestStart) {
-    return typeTest;
   }
   const typeofStart = diagnostics.length;
   const typeofComparison = tryPlanTypeofComparisonExpression(
@@ -167,7 +167,7 @@ export function tryPlanBinaryExpression(
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const compatAssignment = tryPlanCompatAssignment(
+    const jsValueAssignment = tryPlanJsValueAssignment(
       node,
       expression.Left,
       expression.Right,
@@ -178,8 +178,8 @@ export function tryPlanBinaryExpression(
       planExpression,
       planExpressionWithExpectedType,
     );
-    if (compatAssignment.handled) {
-      return compatAssignment.expression;
+    if (jsValueAssignment.handled) {
+      return jsValueAssignment.expression;
     }
   }
   const selection = selectCsharpBinaryOperation(input, node, sourceFile);
@@ -198,7 +198,7 @@ export function tryPlanBinaryExpression(
   );
 }
 
-function tryPlanCompatAssignment(
+function tryPlanJsValueAssignment(
   node: Node,
   left: Node,
   right: Node,
@@ -220,26 +220,26 @@ function tryPlanCompatAssignment(
       targetProperty.kind === "source-owned" &&
       receiverNode !== undefined
     ) {
-      const compatProperty = resolveCsharpCompatObjectShapeProperty(
+      const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
         input.objectShapes,
         input.semantics(sourceFile),
         targetProperty,
         sourceFile,
       );
-      if (compatProperty.kind === "rejected") {
-        diagnostics.push(unsupportedNodeDiagnostic(left, compatProperty.reason));
+      if (jsValueProperty.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(left, jsValueProperty.reason));
         return { handled: true };
       }
-      if (compatProperty.kind === "resolved") {
+      if (jsValueProperty.kind === "resolved") {
         if (sourceOperator !== "=") {
           diagnostics.push(unsupportedNodeDiagnostic(
             node,
-            `Closed compatibility object-shape assignment '${sourceOperator}' requires an exact read-modify-write runtime operation.`,
+            `Closed JS-value object-shape assignment '${sourceOperator}' requires an exact read-modify-write runtime operation.`,
           ));
           return { handled: true };
         }
-        const selection = selectCsharpCompatValueReceiverOperation(
-          compatProperty.shape.targetType,
+        const selection = selectCsharpJsValueReceiverOperation(
+          jsValueProperty.shape.targetType,
           "property-write",
           property?.QuestionDotToken !== undefined,
         );
@@ -248,7 +248,7 @@ function tryPlanCompatAssignment(
             left,
             selection.kind === "rejected"
               ? selection.reason
-              : "The exact compatibility object-shape property has no closed write operation.",
+              : "The exact JS-value object-shape property has no closed write operation.",
           ));
           return { handled: true };
         }
@@ -259,7 +259,7 @@ function tryPlanCompatAssignment(
           diagnostics,
         );
         const memberType = csharpTypeFromTargetTypeRef(
-          compatProperty.member.type,
+          jsValueProperty.member.type,
         );
         const value = memberType === undefined
           ? undefined
@@ -270,24 +270,24 @@ function tryPlanCompatAssignment(
               diagnostics,
               memberType,
               undefined,
-              compatProperty.member.type,
+              jsValueProperty.member.type,
             );
         if (receiver === undefined || value === undefined) {
           diagnostics.push(unsupportedNodeDiagnostic(
             node,
-            "C# compatibility object-shape property write requires an exact receiver and closed value conversion.",
+            "A C# JS-value object-shape property write requires an exact receiver and closed value conversion.",
           ));
           return { handled: true };
         }
         return {
           handled: true,
-          expression: translateCsharpCompatInvocation(
+          expression: translateCsharpJsValueInvocation(
             selection,
             receiver,
             [
               {
                 kind: "LiteralExpression",
-                value: compatProperty.member.sourceName,
+                value: jsValueProperty.member.sourceName,
               },
               value,
             ],
@@ -298,14 +298,14 @@ function tryPlanCompatAssignment(
     if (sourceOperator !== "=") {
       return { handled: false };
     }
-    const selection = selectCsharpCompatAnyReceiverOperation(
+    const selection = selectCsharpJsValueReceiverExpressionOperation(
       input,
       receiverNode,
       sourceFile,
       "property-write",
       property?.QuestionDotToken !== undefined,
     );
-    if (selection.kind === "not-any") {
+    if (selection.kind === "not-js-value") {
       return { handled: false };
     }
     if (selection.kind === "rejected") {
@@ -320,13 +320,13 @@ function tryPlanCompatAssignment(
     if (nameNode === undefined || receiver === undefined || value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility property write requires an exact receiver, property name, and value.",
+        "A JS-value property write requires an exact receiver, property name, and value.",
       ));
       return { handled: true };
     }
     return {
       handled: true,
-      expression: translateCsharpCompatInvocation(
+      expression: translateCsharpJsValueInvocation(
         selection,
         receiver,
         [
@@ -340,14 +340,14 @@ function tryPlanCompatAssignment(
     const element = input.ast.as.AsElementAccessExpression(left);
     const receiverNode = element?.Expression;
     const argumentNode = element?.ArgumentExpression;
-    const selection = selectCsharpCompatAnyReceiverOperation(
+    const selection = selectCsharpJsValueReceiverExpressionOperation(
       input,
       receiverNode,
       sourceFile,
       "element-write",
       element?.QuestionDotToken !== undefined,
     );
-    if (selection.kind === "not-any") {
+    if (selection.kind === "not-js-value") {
       return { handled: false };
     }
     if (selection.kind === "rejected") {
@@ -368,13 +368,13 @@ function tryPlanCompatAssignment(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility element write requires an exact receiver, key, and value.",
+        "A JS-value element write requires an exact receiver, key, and value.",
       ));
       return { handled: true };
     }
     return {
       handled: true,
-      expression: translateCsharpCompatInvocation(
+      expression: translateCsharpJsValueInvocation(
         selection,
         receiver,
         [argument, value],

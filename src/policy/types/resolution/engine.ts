@@ -13,7 +13,7 @@ import type {
 } from "@tsonic/target-api/source";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
-import type { ResolvedSourceCallInfo, CsharpTypePolicyHost, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../model/definitions.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../callables/delegates.js";
@@ -26,9 +26,11 @@ import {
   catchVariableStorageCarrier as catchVariableStorageCarrierImplementation,
   resolveValue as resolveValueImplementation,
   resolveSelectedValue as resolveSelectedValueImplementation,
+  resolveSelectedValueWithState as resolveSelectedValueWithStateImplementation,
   resolveSelectedType as resolveSelectedTypeImplementation,
   resolveSelectedResult as resolveSelectedResultImplementation,
   resolveTypedLocationOperationPointee as resolveTypedLocationOperationPointeeImplementation,
+  resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation,
   resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation,
   resolveSourceCallParameter as resolveSourceCallParameterImplementation,
   resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation,
@@ -141,6 +143,12 @@ export interface CsharpTypeResolutionScope {
   selectedType: Type,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
+  resolveSelectedValueWithState(
+  node: Node,
+  selectedType: Type,
+  sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
+): TargetTypeRef | undefined;
   resolveSelectedType(
   authoredTypeNode: Node | undefined,
   selectedType: Type | undefined,
@@ -154,6 +162,11 @@ export interface CsharpTypeResolutionScope {
   resolveTypedLocationOperationPointee(
   operation: CsharpSourceTypedLocationOperation,
   sourceFile: SourceFile,
+): TargetTypeRef | undefined;
+  resolveTypedLocationOperationPointeeWithState(
+  operation: CsharpSourceTypedLocationOperation,
+  sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveSourceCallTypeArguments(
   source: ResolvedSourceCallInfo,
@@ -322,6 +335,7 @@ export interface CsharpTypeResolutionScope {
   resolveSourceCallInstantiation(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
   expectedTypeParameterNames?: readonly string[],
   callable?: CsharpSourceCallableContract,
 ):
@@ -350,6 +364,7 @@ export interface CsharpTypeResolutionScope {
   callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
+  state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined;
   sourceCallSelectedDeclaration(
   source: ResolvedSourceCallInfo,
@@ -362,6 +377,7 @@ export interface CsharpTypeResolutionScope {
   sourceCallCalleeDelegateSignature(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  state: CsharpTypeResolutionState,
 ): ReturnType<typeof getCsharpDelegateSignature>;
   sourceCallableTypeParametersMatch(
   source: ResolvedSourceCallInfo,
@@ -455,9 +471,14 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
 }
 
-export function createCsharpTypePolicy(
+export interface CsharpTypeResolutionServices {
+  readonly policy: CsharpTypePolicy;
+  readonly recursive: CsharpRecursiveTypeResolver;
+}
+
+export function createCsharpTypeResolutionServices(
   host: CsharpTypePolicyHost,
-): CsharpTypePolicy {
+): CsharpTypeResolutionServices {
   let scope!: CsharpTypeResolutionScope;
   const methods = {
     resolveNode: (...args: DropScope<Parameters<typeof resolveNodeImplementation>>) =>
@@ -474,12 +495,16 @@ export function createCsharpTypePolicy(
       resolveValueImplementation(scope, ...args),
     resolveSelectedValue: (...args: DropScope<Parameters<typeof resolveSelectedValueImplementation>>) =>
       resolveSelectedValueImplementation(scope, ...args),
+    resolveSelectedValueWithState: (...args: DropScope<Parameters<typeof resolveSelectedValueWithStateImplementation>>) =>
+      resolveSelectedValueWithStateImplementation(scope, ...args),
     resolveSelectedType: (...args: DropScope<Parameters<typeof resolveSelectedTypeImplementation>>) =>
       resolveSelectedTypeImplementation(scope, ...args),
     resolveSelectedResult: (...args: DropScope<Parameters<typeof resolveSelectedResultImplementation>>) =>
       resolveSelectedResultImplementation(scope, ...args),
     resolveTypedLocationOperationPointee: (...args: DropScope<Parameters<typeof resolveTypedLocationOperationPointeeImplementation>>) =>
       resolveTypedLocationOperationPointeeImplementation(scope, ...args),
+    resolveTypedLocationOperationPointeeWithState: (...args: DropScope<Parameters<typeof resolveTypedLocationOperationPointeeWithStateImplementation>>) =>
+      resolveTypedLocationOperationPointeeWithStateImplementation(scope, ...args),
     resolveSourceCallTypeArguments: (...args: DropScope<Parameters<typeof resolveSourceCallTypeArgumentsImplementation>>) =>
       resolveSourceCallTypeArgumentsImplementation(scope, ...args),
     resolveSourceCallParameter: (...args: DropScope<Parameters<typeof resolveSourceCallParameterImplementation>>) =>
@@ -494,8 +519,26 @@ export function createCsharpTypePolicy(
       resolveDeclaredNamedTypeImplementation(scope, ...args),
     withSourceTargetBindings: (...args: DropScope<Parameters<typeof withSourceTargetBindingsImplementation>>) =>
       withSourceTargetBindingsImplementation(scope, ...args),
-    resolveNodeWithState: (...args: DropScope<Parameters<typeof resolveNodeWithStateImplementation>>) =>
-      resolveNodeWithStateImplementation(scope, ...args),
+    resolveNodeWithState: (
+      node: Node | undefined,
+      sourceFile: SourceFile | undefined,
+      state: CsharpTypeResolutionState,
+    ) => {
+      if (node === undefined || scope.activeNodes.has(node)) {
+        return undefined;
+      }
+      scope.activeNodes.add(node);
+      try {
+        return resolveNodeWithStateImplementation(
+          scope,
+          node,
+          sourceFile,
+          state,
+        );
+      } finally {
+        scope.activeNodes.delete(node);
+      }
+    },
     resolveTupleTypeNode: (...args: DropScope<Parameters<typeof resolveTupleTypeNodeImplementation>>) =>
       resolveTupleTypeNodeImplementation(scope, ...args),
     tupleElementIsRest: (...args: DropScope<Parameters<typeof tupleElementIsRestImplementation>>) =>
@@ -619,5 +662,31 @@ export function createCsharpTypePolicy(
     createCsharpTypePolicy,
     ...methods,
   });
-  return policy;
+  const recursive: CsharpRecursiveTypeResolver = Object.freeze({
+    resolveNode: methods.resolveNodeWithState,
+    resolveType: methods.resolveTypeWithState,
+    resolveSelectedType(
+      authoredTypeNode: Node | undefined,
+      selectedType: Type | undefined,
+      selectedSourceFile: SourceFile,
+      state: CsharpTypeResolutionState,
+    ) {
+      const authoredSourceFile = host.ast.getSourceFile(authoredTypeNode) ??
+        selectedSourceFile;
+      return methods.resolveAuthoredAndSelectedSourceType(
+        authoredTypeNode,
+        authoredSourceFile,
+        selectedType,
+        selectedSourceFile,
+        state,
+      );
+    },
+  });
+  return Object.freeze({ policy, recursive });
+}
+
+export function createCsharpTypePolicy(
+  host: CsharpTypePolicyHost,
+): CsharpTypePolicy {
+  return createCsharpTypeResolutionServices(host).policy;
 }

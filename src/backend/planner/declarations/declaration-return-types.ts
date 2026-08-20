@@ -122,7 +122,7 @@ export function getDeclarationReturnTargetType(
 export function reconcileInferredReturnTargetContract(
   input: Pick<
     CsharpPlanningContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   baseline: TargetTypeRef,
   observed: readonly TargetTypeRef[],
@@ -159,7 +159,7 @@ export function reconcileInferredReturnTargetContract(
 function uncoveredBaselineReturnAlternatives(
   input: Pick<
     CsharpPlanningContext,
-    "projectTypes" | "providers" | "target" | "typescriptCompatibility"
+    "projectTypes" | "providers" | "target"
   >,
   baseline: TargetTypeRef,
   observed: readonly TargetTypeRef[],

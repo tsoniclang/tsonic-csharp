@@ -56,9 +56,6 @@ import type {
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../../analysis/safety/application-index.js";
-import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../../options/csharp-target-options.js";
 
 export interface CsharpPlanningContext
   extends CsharpPolicyContext {
@@ -99,9 +96,6 @@ export function createCsharpPlanningContext(
   const semantics = input.source.semantics.forFile;
   const semanticsFor = input.source.semantics.forNode;
   const hasSemantics = input.source.semantics.includes;
-  const typescriptCompatibility = readCsharpTypescriptCompatibilityMode(
-    input.target,
-  );
   let artifacts: CsharpArtifactGraph | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
   const typePolicyHost = {
@@ -111,7 +105,6 @@ export function createCsharpPlanningContext(
     navigation: input.source.navigation,
     providers,
     target: input.target,
-    typescriptCompatibility,
     semantics,
     semanticsFor,
     hasSemantics,
@@ -186,7 +179,6 @@ export function createCsharpPlanningContext(
     navigation: typePolicyHost.navigation,
     project: input.project,
     target: input.target,
-    typescriptCompatibility,
     runtimeReferences: input.runtimeReferences,
     paths: input.paths,
     providers,

@@ -8,10 +8,10 @@ import {
   sourceOperatorFromKindName,
 } from "../../../policy/operations/index.js";
 import {
-  selectCsharpCompatAnyUnaryOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsValueUnaryOperation,
+} from "../../../policy/js-value-operations/index.js";
 import {
-  resolveCsharpCompatObjectShapeProperty,
+  resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
 } from "../../../policy/members/index.js";
 import type {
@@ -31,8 +31,8 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -46,7 +46,7 @@ export function planPrefixUnaryExpression(
     input.ast.operatorKindName(node),
   );
   if (
-    rejectUnloweredCompatObjectShapeUpdate(
+    rejectUnloweredJsValueObjectShapeUpdate(
       node,
       operandNode,
       sourceOperator,
@@ -58,24 +58,24 @@ export function planPrefixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const compat = selectCsharpCompatAnyUnaryOperation(
+    const jsValueOperation = selectCsharpJsValueUnaryOperation(
       input,
       operandNode,
       sourceFile,
       sourceOperator,
     );
-    if (compat.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
     }
-    if (compat.kind === "resolved") {
+    if (jsValueOperation.kind === "resolved") {
       const operand = operandNode === undefined
         ? undefined
         : planExpression(operandNode, sourceFile, input, diagnostics);
       return operand === undefined
         ? undefined
-        : translateCsharpCompatInvocation(
-            compat,
+        : translateCsharpJsValueInvocation(
+            jsValueOperation,
             undefined,
             [
               operand,
@@ -126,7 +126,7 @@ export function planPostfixUnaryExpression(
     input.ast.operatorKindName(node),
   );
   if (
-    rejectUnloweredCompatObjectShapeUpdate(
+    rejectUnloweredJsValueObjectShapeUpdate(
       node,
       operandNode,
       sourceOperator,
@@ -138,24 +138,24 @@ export function planPostfixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const compat = selectCsharpCompatAnyUnaryOperation(
+    const jsValueOperation = selectCsharpJsValueUnaryOperation(
       input,
       operandNode,
       sourceFile,
       sourceOperator,
     );
-    if (compat.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+    if (jsValueOperation.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
     }
-    if (compat.kind === "resolved") {
+    if (jsValueOperation.kind === "resolved") {
       const operand = operandNode === undefined
         ? undefined
         : planExpression(operandNode, sourceFile, input, diagnostics);
       return operand === undefined
         ? undefined
-        : translateCsharpCompatInvocation(
-            compat,
+        : translateCsharpJsValueInvocation(
+            jsValueOperation,
             undefined,
             [
               operand,
@@ -194,7 +194,7 @@ export function planPostfixUnaryExpression(
       };
 }
 
-function rejectUnloweredCompatObjectShapeUpdate(
+function rejectUnloweredJsValueObjectShapeUpdate(
   node: Node,
   operand: Node | undefined,
   sourceOperator: string | undefined,
@@ -213,20 +213,20 @@ function rejectUnloweredCompatObjectShapeUpdate(
   if (selection.kind !== "source-owned") {
     return false;
   }
-  const compatProperty = resolveCsharpCompatObjectShapeProperty(
+  const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
     input.objectShapes,
     input.semantics(sourceFile),
     selection,
     sourceFile,
   );
-  if (compatProperty.kind === "not-compat-object-shape") {
+  if (jsValueProperty.kind === "not-js-value-object-shape") {
     return false;
   }
   diagnostics.push(unsupportedNodeDiagnostic(
     node,
-    compatProperty.kind === "rejected"
-      ? compatProperty.reason
-      : `Closed compatibility object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
+    jsValueProperty.kind === "rejected"
+      ? jsValueProperty.reason
+      : `Closed JS-value object-shape update '${sourceOperator}' requires an exact writable-location translation; emitting a read expression as a C# location is forbidden.`,
   ));
   return true;
 }

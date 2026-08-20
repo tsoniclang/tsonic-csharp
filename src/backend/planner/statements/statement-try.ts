@@ -28,15 +28,12 @@ import {
 import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../../../options/csharp-target-options.js";
-import {
   csharpCatchExceptionType,
   csharpThrownValueToValueExpression,
   isExactUnmodifiedCatchRethrow,
 } from "../expressions/exception-flow.js";
 import {
-  isCsharpCompatValueTargetType,
+  isCsharpJsValueTargetType,
 } from "../../../policy/types/index.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
@@ -124,11 +121,11 @@ function planCatchClause(
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (
       !isCsharpThrowableCarrier(carrier, input) &&
-      !(readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatValueTargetType(carrier))
+      !isCsharpJsValueTargetType(carrier)
     ) {
       const detail = carrier === undefined
         ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the catch variable.")
-        : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue compatibility catch carrier.", evidence: [] };
+        : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue catch carrier.", evidence: [] };
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, `Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
       return {
         kind: "CatchClause",
@@ -148,13 +145,13 @@ function planCatchClause(
         },
       };
     }
-    if (isCsharpCompatValueTargetType(carrier)) {
+    if (isCsharpJsValueTargetType(carrier)) {
       const catchExceptionType = csharpCatchExceptionType();
       const catchExceptionName = allocateCatchValue(state);
       const sourceVariableName = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Catch variable", "catchValue");
       const catchValueInitializer = csharpThrownValueToValueExpression({ kind: "IdentifierName", name: catchExceptionName });
       if (catchExceptionType === undefined || catchValueInitializer === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(variable.name, "C# compatibility catch variables require renderable System.Exception and TsThrownValueException target carriers."));
+        diagnostics.push(unsupportedNodeDiagnostic(variable.name, "Dynamic C# catch variables require renderable System.Exception and TsThrownValueException target carriers."));
         return {
           kind: "CatchClause",
           body: {

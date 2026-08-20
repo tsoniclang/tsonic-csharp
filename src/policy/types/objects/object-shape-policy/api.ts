@@ -22,11 +22,16 @@ import type {
   Type,
   TypePropertyInfo,
 } from "@tsonic/tsts";
-import type { CsharpTypePolicy, CsharpTypePolicyBaseHost } from "../../resolution/index.js";
+import type {
+  CsharpRecursiveTypeResolver,
+  CsharpTypePolicyBaseHost,
+  CsharpTypeResolutionState,
+} from "../../resolution/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { nextState } from "../../resolution/state.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly types: CsharpTypePolicy;
+  readonly typeResolver: CsharpRecursiveTypeResolver;
 }
 
 export interface CsharpObjectShapePolicy {
@@ -54,6 +59,20 @@ export interface CsharpObjectShapePolicy {
   ): CsharpProjectConstructibleTypeProjection;
 }
 
+export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
+  resolveNodeWithState(
+    node: Node | undefined,
+    sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState,
+  ): CsharpObjectShapeFact | undefined;
+  resolveTypeWithState(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    authoredTypeRoot: Node | undefined,
+    state: CsharpTypeResolutionState,
+  ): CsharpObjectShapeFact | undefined;
+}
+
 export type CsharpObjectLiteralTargetShapeResolution =
   | { readonly kind: "not-applicable" }
   | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
@@ -70,7 +89,7 @@ export type CsharpProjectConstructibleTypeProjection =
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
-): CsharpObjectShapePolicy {
+): CsharpRecursiveObjectShapePolicy {
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -79,6 +98,14 @@ export function createCsharpObjectShapePolicy(
   function resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,
+  ): CsharpObjectShapeFact | undefined {
+    return resolveNodeWithState(node, sourceFile, { depth: 0 });
+  }
+
+  function resolveNodeWithState(
+    node: Node | undefined,
+    sourceFile: SourceFile | undefined,
+    state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
     if (node === undefined) {
       return undefined;
@@ -95,18 +122,23 @@ export function createCsharpObjectShapePolicy(
       const queries = sourceFile === undefined
         ? host.semanticsFor(node)
         : host.semantics(sourceFile);
-      const directStruct = resolveStructShape(node, queries);
+      const directStruct = resolveStructShape(node, queries, state);
       if (directStruct !== undefined) {
         remember(node, directStruct);
         return directStruct;
       }
-      const selectedTarget = host.types.resolveNode(node, queries.sourceFile);
+      const selectedTarget = host.typeResolver.resolveNode(
+        node,
+        queries.sourceFile,
+        nextState(state),
+      );
       const selectedShape = resolveTarget(selectedTarget);
-      const source = selectedObjectShapeSource(node, queries, host);
+      const source = selectedObjectShapeSource(node, queries, host, state);
       const shape = resolveSemanticShape(
         source.type,
         node,
         queries,
+        state,
         source.contextualProjectTarget ?? selectedTarget,
       );
       if (shape !== undefined) {
@@ -155,6 +187,20 @@ export function createCsharpObjectShapePolicy(
     sourceFile: SourceFile,
     authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined {
+    return resolveTypeWithState(
+      type,
+      sourceFile,
+      authoredTypeRoot,
+      { depth: 0 },
+    );
+  }
+
+  function resolveTypeWithState(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    authoredTypeRoot: Node | undefined,
+    state: CsharpTypeResolutionState,
+  ): CsharpObjectShapeFact | undefined {
     if (type === undefined) {
       return undefined;
     }
@@ -162,6 +208,7 @@ export function createCsharpObjectShapePolicy(
       type,
       undefined,
       host.semantics(sourceFile),
+      state,
       undefined,
       authoredTypeRoot,
     );
@@ -298,7 +345,6 @@ export function createCsharpObjectShapePolicy(
       targetType: createStructuralObjectShapeTarget(
         members,
         implemented,
-        host,
       ),
       members,
       ...(implemented === undefined ? {} : { implements: implemented }),
@@ -316,10 +362,11 @@ export function createCsharpObjectShapePolicy(
     if (!isProjectSourceTargetType(targetType)) {
       return { kind: "unchanged" };
     }
-    const selectedTarget = host.types.resolveSelectedType(
+    const selectedTarget = host.typeResolver.resolveSelectedType(
       explicitTypeNode,
       selectedType,
       sourceFile,
+      { depth: 0 },
     );
     if (
       selectedTarget === undefined ||
@@ -355,6 +402,7 @@ export function createCsharpObjectShapePolicy(
     const members = deriveMembers(
       selectedType,
       queries,
+      { depth: 0 },
     );
     if (members === undefined) {
       return {
@@ -389,7 +437,6 @@ export function createCsharpObjectShapePolicy(
       targetType: createStructuralObjectShapeTarget(
         members,
         [targetType],
-        host,
       ),
       members,
       implements: [targetType],
@@ -426,18 +473,27 @@ export function createCsharpObjectShapePolicy(
   function resolveStructShape(
     node: Node,
     queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
     for (const subject of sourceSubjects(node, queries)) {
       const fact = readCsharpSourceStruct(host.sourceFacts, subject);
       if (fact === undefined) {
         continue;
       }
-      const targetType = host.types.resolveNode(node, queries.sourceFile);
+      const targetType = host.typeResolver.resolveNode(
+        node,
+        queries.sourceFile,
+        nextState(state),
+      );
       if (targetType === undefined) {
         return undefined;
       }
       const members = fact.fields.map((field) => {
-        const type = host.types.resolveNode(field.sourceType, queries.sourceFile);
+        const type = host.typeResolver.resolveNode(
+          field.sourceType,
+          queries.sourceFile,
+          nextState(state),
+        );
         const sourceType = queries.getTypeFromTypeNode(field.sourceType);
         return type === undefined
           ? undefined
@@ -468,6 +524,7 @@ export function createCsharpObjectShapePolicy(
     type: Type | undefined,
     node: Node | undefined,
     queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
     selectedTarget?: TargetTypeRef,
     authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined {
@@ -483,7 +540,11 @@ export function createCsharpObjectShapePolicy(
     activeTypes.add(type);
     try {
       const targetType = selectedTarget ??
-        host.types.resolveType(type, queries.sourceFile);
+        host.typeResolver.resolveType(
+          type,
+          queries.sourceFile,
+          nextState(state),
+        );
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType
@@ -501,7 +562,12 @@ export function createCsharpObjectShapePolicy(
       if (declaredKind === "enum") {
         return undefined;
       }
-      const members = deriveMembers(type, queries, authoredTypeRoot);
+      const members = deriveMembers(
+        type,
+        queries,
+        nextState(state),
+        authoredTypeRoot,
+      );
       if (members === undefined) {
         return undefined;
       }
@@ -536,7 +602,7 @@ export function createCsharpObjectShapePolicy(
         ? [contextualProjectType]
         : undefined;
       return {
-        targetType: createStructuralObjectShapeTarget(members, implemented, host),
+        targetType: createStructuralObjectShapeTarget(members, implemented),
         members,
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
@@ -548,10 +614,11 @@ export function createCsharpObjectShapePolicy(
   function deriveMembers(
     ownerType: Type,
     queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
     const members = queries.getPropertyInfos(ownerType).map((property) =>
-      deriveMember(property, queries, authoredTypeRoot)
+      deriveMember(property, queries, state, authoredTypeRoot)
     );
     return members.some((member) => member === undefined)
       ? undefined
@@ -561,6 +628,7 @@ export function createCsharpObjectShapePolicy(
   function deriveMember(
     property: TypePropertyInfo,
     queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): CsharpObjectShapeMemberFact | undefined {
     const sourceName = property.name;
@@ -590,11 +658,16 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const memberType = method
-      ? host.types.resolveType(sourceType, queries.sourceFile)
+      ? host.typeResolver.resolveType(
+          sourceType,
+          queries.sourceFile,
+          nextState(state),
+        )
       : resolvePropertyType(
           property,
           sourceType,
           queries,
+          state,
           authoredTypeRoot,
         );
     if (memberType === undefined) {
@@ -630,6 +703,7 @@ export function createCsharpObjectShapePolicy(
     property: TypePropertyInfo,
     sourceType: Type,
     queries: SourceFileSemantics,
+    state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): TargetTypeRef | undefined {
     const authoredTypeNodes = [
@@ -644,13 +718,18 @@ export function createCsharpObjectShapePolicy(
           )),
     ];
     if (authoredTypeNodes.length === 0) {
-      return host.types.resolveType(sourceType, queries.sourceFile);
+      return host.typeResolver.resolveType(
+        sourceType,
+        queries.sourceFile,
+        nextState(state),
+      );
     }
     const authoredTypes = authoredTypeNodes.map((typeNode) =>
-      host.types.resolveSelectedType(
+      host.typeResolver.resolveSelectedType(
         typeNode,
         sourceType,
         queries.sourceFile,
+        nextState(state),
       )
     );
     if (authoredTypes.some((type) => type === undefined)) {
@@ -666,8 +745,10 @@ export function createCsharpObjectShapePolicy(
 
   return Object.freeze({
     resolveNode,
+    resolveNodeWithState,
     resolveTarget,
     resolveType,
+    resolveTypeWithState,
     resolveObjectLiteralTargetShape,
     resolveProjectConstructibleSelectedType,
   });

@@ -82,7 +82,7 @@ export const nativeProductBoundaryCodeRules = Object.freeze([
   {
     id: "csharp-dynamic-semantics",
     pattern: /:\s*dynamic\b|\bdynamic\s+[A-Za-z_$][\w$]*\s*(?:=|;|,)/g,
-    replacement: "C# dynamic is not a runtime semantics fallback; use explicit closed compat-runtime carrier facts or diagnose.",
+    replacement: "C# dynamic is not a runtime semantics fallback; use exact closed JS-value carrier facts or diagnose.",
     text: "code",
   },
   {

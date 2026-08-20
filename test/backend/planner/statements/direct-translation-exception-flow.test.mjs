@@ -5,7 +5,7 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
-test("strict C# catch storage remains System.Exception through exact provider narrowing and rethrow", () => {
+test("canonical C# catch storage preserves exact provider narrowing and rethrow", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import { FormatException, Int32 } from "@tsonic/dotnet/System.js";
@@ -26,13 +26,14 @@ test("strict C# catch storage remains System.Exception through exact provider na
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /return System\.Int32\.Parse\(value\);/);
-  assert.match(source, /catch \(System\.Exception error\)/);
-  assert.match(source, /if \(error is System\.FormatException\)/);
+  assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
+  assert.match(source, /TsValue error = Tsonic\.CSharp\.Js\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
+  assert.match(source, /if \(Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<System\.FormatException>\(error\)\)/);
   assert.match(source, /throw;/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
 
-test("strict C# omits a catch binding whose only source use lowers to an exact rethrow", () => {
+test("canonical C# omits a catch binding whose only source use lowers to an exact rethrow", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       export function fail(): void {
@@ -71,7 +72,7 @@ namespace Tsonic.Generated
 `);
 });
 
-test("strict C# preserves explicit throw when the active catch binding is reassigned", () => {
+test("canonical C# preserves explicit throw when the active catch binding is reassigned", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import { Exception } from "@tsonic/dotnet/System.js";
@@ -90,13 +91,14 @@ test("strict C# preserves explicit throw when the active catch binding is reassi
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
-  assert.match(source, /catch \(System\.Exception error\)/);
-  assert.match(source, /error = new System\.Exception\("replacement"\);/);
-  assert.match(source, /throw error;/);
+  assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
+  assert.match(source, /TsValue error = Tsonic\.CSharp\.Js\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
+  assert.match(source, /error = Tsonic\.CSharp\.Js\.TsValue\.from\(new System\.Exception\("replacement"\)\);/);
+  assert.match(source, /throw Tsonic\.CSharp\.Js\.TsThrownValueException\.from\(error\);/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
 
-test("strict C# carries project exception heritage through throw and catch narrowing", () => {
+test("canonical C# carries project exception heritage through throw and catch narrowing", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import { Exception } from "@tsonic/dotnet/System.js";
@@ -123,9 +125,9 @@ test("strict C# carries project exception heritage through throw and catch narro
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /throw new ReturnSignal\("done"\);/);
-  assert.match(source, /catch \(System\.Exception error\)/);
-  assert.match(source, /if \(error is ReturnSignal\)/);
-  assert.match(source, /return \(\(ReturnSignal\)error\)\.value;/);
+  assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
+  assert.match(source, /if \(Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<ReturnSignal>\(error\)\)/);
+  assert.match(source, /return Tsonic\.CSharp\.Js\.TsValue\.CastDynamic<ReturnSignal>\(error\)\.value;/);
   assert.match(source, /throw;/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });

@@ -202,9 +202,6 @@ export function validateDotnetRawProviderRef(
   if (stringProperty(record, "moduleSpecifier") === undefined) {
     collector.add(`${path}.moduleSpecifier`, "Raw .NET provider-ref source shapes must identify the referenced module specifier.", record.moduleSpecifier);
   }
-  if ("name" in record) {
-    collector.add(`${path}.name`, "Raw .NET provider-ref source shapes must use exportName, not the legacy name field.", record.name);
-  }
 }
 
 function validateOptionalProviderTypeExpression(
@@ -226,9 +223,6 @@ function validateProviderTypeExpression(
     case "provider-ref":
       requireNonEmptyString(type.moduleSpecifier, `${path}.moduleSpecifier`, collector);
       requireNonEmptyString(type.exportName, `${path}.exportName`, collector);
-      if ("name" in (type as unknown as Readonly<Record<string, unknown>>)) {
-        collector.add(`${path}.name`, "Provider declaration refs must use exportName, not the legacy name field.", (type as unknown as Readonly<Record<string, unknown>>).name);
-      }
       for (const [index, argument] of (type.typeArguments ?? []).entries()) {
         validateProviderTypeExpression(argument, `${path}.typeArguments[${index}]`, collector);
       }

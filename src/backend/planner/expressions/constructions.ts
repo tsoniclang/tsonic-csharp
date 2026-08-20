@@ -7,8 +7,8 @@ import {
   selectCsharpTargetCall,
 } from "../../../policy/members/index.js";
 import {
-  selectCsharpCompatAnyReceiverOperation,
-} from "../../../policy/compat/index.js";
+  selectCsharpJsValueReceiverExpressionOperation,
+} from "../../../policy/js-value-operations/index.js";
 import type {
   CsharpTargetCallSelection,
 } from "../../../policy/members/index.js";
@@ -38,8 +38,8 @@ import {
   renderSelectedCsharpTargetMethodTypeArguments,
 } from "./selected-method-type-arguments.js";
 import {
-  translateCsharpCompatInvocation,
-} from "./compat.js";
+  translateCsharpJsValueInvocation,
+} from "./js-value-operations.js";
 
 export function translateCsharpConstruction(
   node: Node,
@@ -51,17 +51,17 @@ export function translateCsharpConstruction(
 ): CsharpExpression | undefined {
   const expression = input.ast.as.AsNewExpression(node);
   const calleeNode = expression?.Expression;
-  const compat = selectCsharpCompatAnyReceiverOperation(
+  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
     input,
     calleeNode,
     sourceFile,
     "construct",
   );
-  if (compat.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, compat.reason));
+  if (jsValueOperation.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (compat.kind === "resolved") {
+  if (jsValueOperation.kind === "resolved") {
     const sourceArguments = input.ast.arguments(node)
       .filter((argument): argument is Node => argument !== undefined);
     if (
@@ -72,7 +72,7 @@ export function translateCsharpConstruction(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        "C# compatibility construction over TypeScript any requires exact non-spread source arguments.",
+        "JS-value construction requires exact non-spread source arguments.",
       ));
       return undefined;
     }
@@ -88,8 +88,8 @@ export function translateCsharpConstruction(
     ) {
       return undefined;
     }
-    return translateCsharpCompatInvocation(
-      compat,
+    return translateCsharpJsValueInvocation(
+      jsValueOperation,
       callee,
       arguments_ as readonly CsharpExpression[],
     );

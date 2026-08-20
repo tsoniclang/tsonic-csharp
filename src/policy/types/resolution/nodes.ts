@@ -61,7 +61,6 @@ export function resolveNodeWithState(
   }
   const keyword = resolveKeywordType(
     host.ast.kindName(node),
-    host.typescriptCompatibility,
   );
   if (keyword !== undefined) {
     return keyword;
@@ -173,6 +172,7 @@ export function resolveNodeWithState(
   const structuralType = host.structuralTypes.resolveNode(
     node,
     queries.sourceFile,
+    nextState(state),
   );
   if (structuralType !== undefined) {
     return structuralType;

@@ -42,16 +42,15 @@ import {
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
   resolveRuntimeCarrierForExpression,
-  resolveRuntimeCarrierForStorage,
 } from "../types/runtime-carriers.js";
-import {
-  readCsharpTypescriptCompatibilityMode,
-} from "../../../options/csharp-target-options.js";
 import {
   csharpThrownValueFromExpression,
   isExactUnmodifiedCatchRethrow,
-  isCsharpCompatThrowableValueCarrier,
+  isCsharpJsThrowableValueCarrier,
 } from "../expressions/exception-flow.js";
+import {
+  planCsharpJsValueBox,
+} from "../expressions/js-value-operations.js";
 import {
   findControlLabel,
 } from "./statement-labels.js";
@@ -265,17 +264,30 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
   }
-  const compatibilityMode = readCsharpTypescriptCompatibilityMode(input.target);
-  const carrierResolution = compatibilityMode === "compat"
-    ? resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile)
-    : resolveRuntimeCarrierForStorage(input, statement.Expression, sourceFile);
+  if (isExactUnmodifiedCatchRethrow(node, statement.Expression, input)) {
+    return [{ kind: "ThrowStatement" }];
+  }
+  const carrierResolution = resolveRuntimeCarrierForExpression(
+    input,
+    statement.Expression,
+    sourceFile,
+  );
   const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier, input)) {
-    if (compatibilityMode === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
+    if (isCsharpJsThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
-      const wrapped = expression === undefined ? undefined : csharpThrownValueFromExpression(expression);
+      const boxed = expression === undefined
+        ? undefined
+        : planCsharpJsValueBox(
+            statement.Expression,
+            input,
+            diagnostics,
+            carrier,
+            expression,
+          );
+      const wrapped = boxed === undefined ? undefined : csharpThrownValueFromExpression(boxed);
       if (wrapped === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require a renderable closed TsThrownValueException carrier before C# compatibility emission."));
+        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require a renderable closed TsThrownValueException carrier before C# emission."));
         return [];
       }
       return [{
@@ -288,12 +300,6 @@ export function planThrowStatement(
       : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
     return [];
-  }
-  if (
-    compatibilityMode === "strict-native" &&
-    isExactUnmodifiedCatchRethrow(node, statement.Expression, input)
-  ) {
-    return [{ kind: "ThrowStatement" }];
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
   if (expression === undefined) {
