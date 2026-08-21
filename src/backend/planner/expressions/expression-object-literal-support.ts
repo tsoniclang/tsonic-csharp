@@ -1,11 +1,6 @@
 import type { CsharpPlanningContext } from "../context.js";
 import {
-  HasSourceKind,
-  KindIdentifier,
-  KindNumericLiteral,
-  KindStringLiteral,
-  Node_Name,
-  Node_Text,
+  ObjectLiteralProperty_SourceName,
 } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -32,9 +27,6 @@ import {
   getCsharpObjectShapeFactForNode,
   getCsharpObjectShapeFactForTargetType,
 } from "../objects/fact-queries.js";
-import {
-  parseFiniteNumberLiteral,
-} from "../../../target-model/syntax/literal-values.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
@@ -80,32 +72,20 @@ export function getObjectLiteralPropertySourceName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const nameNode = input.program.source.ast.name(property) ?? Node_Name(input.program.source.ast, property);
-  if (nameNode === undefined) {
+  const sourceName = ObjectLiteralProperty_SourceName(
+    input.program.source.ast,
+    property,
+  );
+  if (sourceName.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       property,
-      "Object-shape object initializers require an exact authored property name.",
+      sourceName.reason === "missing-name"
+        ? "Object-shape object initializers require an exact authored property name."
+        : sourceName.reason === "non-finite-numeric-literal"
+          ? "Object-shape numeric property names require exact finite source literal semantics."
+          : "Object-shape object initializers require identifier, string-literal, or numeric-literal property names.",
     ));
     return undefined;
   }
-  if (HasSourceKind(input.program.source.ast, nameNode, KindNumericLiteral)) {
-    const value = parseFiniteNumberLiteral(Node_Text(input.program.source.ast, nameNode));
-    if (value === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        nameNode,
-        "Object-shape numeric property names require exact finite source literal semantics.",
-      ));
-      return undefined;
-    }
-    return String(value);
-  }
-  if (!HasSourceKind(input.program.source.ast, nameNode, KindIdentifier) &&
-    !HasSourceKind(input.program.source.ast, nameNode, KindStringLiteral)) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      nameNode,
-      "Object-shape object initializers require identifier, string-literal, or numeric-literal property names.",
-    ));
-    return undefined;
-  }
-  return Node_Text(input.program.source.ast, nameNode);
+  return sourceName.name;
 }

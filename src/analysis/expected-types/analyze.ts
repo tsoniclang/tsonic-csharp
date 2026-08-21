@@ -4,6 +4,7 @@ import {
   HasSyntacticModifier,
   KindBlock,
   ModifierFlagsAsync,
+  ObjectLiteralProperty_SourceName,
 } from "@tsonic/target-api/source";
 import {
   createTargetClassificationKey,
@@ -18,6 +19,7 @@ import {
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
   isCsharpJsValueTargetType,
+  resolveCsharpObjectShapeMemberBySourceContract,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
@@ -555,20 +557,28 @@ export function analyzeCsharpExpectedTypes(
         if (property === undefined) {
           continue;
         }
-        const members = resolution.shape.members.filter((member) =>
-          member.sourceDeclarations?.includes(property) === true
+        const sourceName = ObjectLiteralProperty_SourceName(
+          policy.ast,
+          property,
         );
-        if (members.length !== 1) {
+        const selected = sourceName.kind === "rejected"
+          ? undefined
+          : resolveCsharpObjectShapeMemberBySourceContract(
+              resolution.shape,
+              sourceName.name,
+              "checked-object-literal-property",
+            );
+        if (selected?.kind !== "resolved") {
           continue;
         }
         if (policy.ast.is.IsPropertyAssignment(property)) {
           record(
             policy.ast.as.AsPropertyAssignment(property)?.Initializer,
-            members[0]!.type,
+            selected.member.type,
             strength,
           );
         } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
-          record(policy.ast.name(property), members[0]!.type, strength);
+          record(policy.ast.name(property), selected.member.type, strength);
         }
       }
     }

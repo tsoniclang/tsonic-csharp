@@ -3,6 +3,7 @@ import type { CsharpPolicyContext } from "../../policy/context.js";
 import type {
   CsharpObjectLiteralTargetShapeResolution,
   CsharpObjectShapeFact,
+  TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
   csharpObjectShapeContractKey,
@@ -46,11 +47,37 @@ export function analyzeCsharpObjectShapes(
     }
   };
 
+  const rememberTargetShape = (
+    type: TargetTypeRef | undefined,
+    shape: CsharpObjectShapeFact | undefined,
+  ): void => {
+    rememberShape(shape);
+    if (
+      type === undefined ||
+      shape === undefined ||
+      isCsharpJsValueTargetType(shape.targetType) ||
+      shape.targetType.kind === "type-parameter"
+    ) {
+      return;
+    }
+    const key = targetTypeRefKey(type);
+    const previous = byTarget.get(key);
+    if (previous !== undefined && !csharpObjectShapesEqual(previous, shape)) {
+      throw new Error(
+        `C# target object-shape relation '${key}' has contradictory analysis classifications.`,
+      );
+    }
+    if (previous === undefined) {
+      reserveClassification();
+      byTarget.set(key, shape);
+    }
+  };
+
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile, sourceFile);
   }
   for (const type of evidence.targetTypes) {
-    rememberShape(policy.objectShapes.resolveTarget(type));
+    rememberTargetShape(type, policy.objectShapes.resolveTarget(type));
   }
 
   const literalResults = new WeakMap<
