@@ -3,13 +3,13 @@ import {
   canonicalCsharpObjectShapeMembers,
   csharpObjectShapeMemberContractKey,
   csharpObjectShapeMemberContractParts,
-} from "../object-shape-identity.js";
-import { canUseCsharpJsValueObjectShapeCarrier } from "../js-value-object-shapes.js";
+} from "../../../../target-model/types/object-shape-identity.js";
+import { canUseCsharpJsValueObjectShapeCarrier } from "../../../../target-model/types/js-value-object-shapes.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
-import { csharpTsValueTargetType } from "../../storage/runtime-carriers.js";
-import { isPlainCsharpIdentifier } from "../../../names/identifiers.js";
-import { targetTypeRefKey } from "../../model/equality.js";
+import { csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
+import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 
 export function createStructuralObjectShapeTarget(

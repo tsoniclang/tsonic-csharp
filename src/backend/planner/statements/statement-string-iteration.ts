@@ -41,10 +41,10 @@ import {
 import type {
   CsharpForAwaitOfIteration,
   CsharpForOfIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   CsharpStaticTargetMethod,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly outerPrelude: readonly CsharpStatement[];

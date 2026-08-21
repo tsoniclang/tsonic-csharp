@@ -4,12 +4,12 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 
 export function getArrayBoundaryCoreCarrierForExpression(
   input: CsharpPlanningContext,
   node: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.policy.resolveNode(node, sourceFile);
+  return input.types.classifications.resolveNode(node, sourceFile);
 }

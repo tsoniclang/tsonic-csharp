@@ -4,11 +4,12 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
+  CsharpConversionMode,
   CsharpConversionSelection,
-} from "../../../policy/conversions/index.js";
+} from "../../../analysis/conversions/index.js";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
@@ -16,9 +17,8 @@ import {
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
   isCsharpNullableReferenceTargetType,
-  isSourceOwnedCallableRuntimeCarrierSubject,
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
   CsharpTypeNode,
@@ -45,6 +45,51 @@ import {
 import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
+
+export function readCsharpConversionClassification(
+  node: Node,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  const selection = input.program.conversions.select(
+    sourceType,
+    targetType,
+    mode,
+  );
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning requires a sealed target conversion classification that analysis did not produce.",
+    ));
+  }
+  return selection;
+}
+
+export function readCsharpExpressionConversionClassification(
+  node: Node,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  sourceType: TargetTypeRef | undefined,
+  targetType: TargetTypeRef | undefined,
+  mode: CsharpConversionMode,
+): CsharpConversionSelection | undefined {
+  const selection = input.program.conversions.selectExpression(
+    node,
+    sourceType,
+    targetType,
+    mode,
+  );
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning requires a sealed expression-conversion classification that analysis did not produce.",
+    ));
+  }
+  return selection;
+}
 
 export function applyCsharpConversionSelection(
   node: Node,
@@ -122,8 +167,6 @@ export function applyCsharpConversionSelection(
     case "delegate-adapter":
       return applyDelegateAdapter(
         node,
-        sourceFile,
-        input,
         diagnostics,
         sourceType,
         targetType,
@@ -177,7 +220,10 @@ export function applyCsharpConversionSelection(
       ));
       return undefined;
     case "rejected":
-      diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        selection.reason,
+      ));
       return undefined;
   }
 }
@@ -378,8 +424,6 @@ function applyRuntimeUnionArmConversion(
 
 function applyDelegateAdapter(
   node: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   targetType: TargetTypeRef | undefined,
@@ -395,13 +439,6 @@ function applyDelegateAdapter(
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "C# delegate adaptation requires exact source and target delegate signatures.",
-    ));
-    return undefined;
-  }
-  if (!isSourceOwnedCallableRuntimeCarrierSubject(node, sourceFile, input.policy)) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      node,
-      "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",
     ));
     return undefined;
   }

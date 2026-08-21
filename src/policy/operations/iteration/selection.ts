@@ -323,17 +323,6 @@ function selectForIn(
       "C# property-key iteration requires the checked source key to map exactly to string.",
     );
   }
-  const objectShape = input.objectShapes.resolveNode(expression, sourceFile);
-  if (objectShape !== undefined) {
-    return {
-      kind: "resolved",
-      iterationKind: "for-in",
-      source,
-      iterableType,
-      elementType,
-      lowering: { kind: "object-shape-keys", objectShape },
-    };
-  }
   if (iterableType.kind === "array") {
     return {
       kind: "resolved",
@@ -348,42 +337,47 @@ function selectForIn(
       },
     };
   }
-  if (iterableType.kind !== "target-named") {
-    return rejected(
-      "The selected C# representation has no property-key iteration policy.",
-    );
-  }
-  const policy = (iterableType as CsharpTargetNamedTypeRef)
-    .csharpPropertyKeyIteration;
-  if (policy === undefined) {
-    return rejected(
-      "The selected C# representation has no property-key iteration policy.",
-    );
-  }
-  if (
-    policy.kind === "key-collection" &&
-    !isCsharpRecordDictionaryTargetType(iterableType)
-  ) {
-    return rejected(
-      "A key-collection iteration policy requires an explicit record-dictionary target representation.",
-    );
-  }
-  return policy.kind === "index"
-    ? {
+  if (iterableType.kind === "target-named") {
+    const targetPolicy = (iterableType as CsharpTargetNamedTypeRef)
+      .csharpPropertyKeyIteration;
+    if (targetPolicy !== undefined) {
+      if (targetPolicy.kind === "key-collection") {
+        if (!isCsharpRecordDictionaryTargetType(iterableType)) {
+          return rejected(
+            "A key-collection iteration policy requires an explicit record-dictionary target representation.",
+          );
+        }
+        return {
+          kind: "resolved",
+          iterationKind: "for-in",
+          source,
+          iterableType,
+          elementType,
+          lowering: targetPolicy,
+        };
+      }
+      return {
         kind: "resolved",
         iterationKind: "for-in",
         source,
         iterableType,
         elementType,
-        lowering: policy,
-      }
+        lowering: targetPolicy,
+      };
+    }
+  }
+  const objectShape = input.objectShapes.resolveNode(expression, sourceFile);
+  return objectShape === undefined
+    ? rejected(
+        "The selected C# representation has no property-key iteration policy.",
+      )
     : {
         kind: "resolved",
         iterationKind: "for-in",
         source,
         iterableType,
         elementType,
-        lowering: policy,
+        lowering: { kind: "object-shape-keys", objectShape },
       };
 }
 

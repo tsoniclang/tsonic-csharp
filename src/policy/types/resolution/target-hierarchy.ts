@@ -15,10 +15,10 @@ import {
 } from "../storage/bindings.js";
 import {
   targetTypeRefKey,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 import {
   isCsharpThrowableTargetType,
-} from "../model/identity.js";
+} from "../../../target-model/types/identity.js";
 
 export interface CsharpTargetTypeHierarchyHost {
   readonly projectTypes: Pick<CsharpProjectTypePolicy, "directSupertypes">;

@@ -4,10 +4,10 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   targetTypeRefEquals,
-} from "./equality.js";
+} from "../../../target-model/types/equality.js";
 import {
   isCsharpNullableReferenceTargetType,
-} from "../storage/nullable.js";
+} from "../../../target-model/types/nullable.js";
 
 export function resolveCsharpTargetTypePatternArguments(
   pattern: TargetTypeRef,

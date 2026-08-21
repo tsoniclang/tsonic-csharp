@@ -19,7 +19,7 @@ export function planCsharpTypedLocationIdentityDeclaration(
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
 ): CsharpStatement | undefined {
-  if (!input.artifacts.consumeTypedLocationIdentity(declaration)) {
+  if (!input.program.storage.requiresTypedLocationIdentity(declaration)) {
     return undefined;
   }
   return {

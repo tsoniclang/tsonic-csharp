@@ -30,7 +30,7 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import {
   parseFiniteNumberLiteral,
-} from "../../../source/literal-values.js";
+} from "../../../target-model/syntax/literal-values.js";
 
 export function planEnumDeclaration(
   node: Node,
@@ -65,7 +65,7 @@ function planEnumMember(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
   const member = AsEnumMember(input.program.source.ast, node)!;
-  const enumValue = input.program.source.semantics.forFile(sourceFile).types.constantValue(node);
+  const enumValue = input.program.sourceEvidence.constantValue(node)?.value;
   const enumExpressionValue = member.Initializer === undefined
     ? undefined
     : planEnumConstantExpression(member.Initializer, sourceFile, input, diagnostics);

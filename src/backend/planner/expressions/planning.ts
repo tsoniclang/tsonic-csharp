@@ -23,16 +23,10 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import {
-  selectCsharpSourceArgument,
-} from "../../../policy/members/index.js";
-import {
-  readCsharpSourceDefaultValue,
-} from "../../../policy/types/index.js";
 import type {
   CsharpTargetParameter,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
@@ -86,14 +80,9 @@ import {
   tryPlanDestructuringAssignmentExpression,
 } from "../bindings/destructuring-assignment.js";
 import {
-  selectCsharpExpressionConversion,
-} from "../../../policy/conversions/index.js";
-import {
   applyCsharpConversionSelection,
+  readCsharpExpressionConversionClassification,
 } from "./conversions.js";
-import {
-  requireCsharpStorageRepresentation,
-} from "../artifacts/storage-representation.js";
 import {
   tryPlanCsharpTypedLocationOperation,
 } from "./expression-typed-locations.js";
@@ -125,7 +114,7 @@ function planExpressionCore(
   if (expressionOverride !== undefined) {
     return expressionOverride;
   }
-  const defaultValue = readCsharpSourceDefaultValue(input.program.source.sourceFacts, node);
+  const defaultValue = input.program.sourceEvidence.defaultValue(node);
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
@@ -139,9 +128,19 @@ function planExpressionCore(
       ),
     };
   }
-  const argumentPassing = selectCsharpSourceArgument(input.program.source.sourceFacts, node);
+  const argumentPassing = input.program.sourceEvidence.argument(node);
+  if (argumentPassing === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received an expression without sealed argument-passing evidence.",
+    ));
+    return undefined;
+  }
+  if (argumentPassing.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, argumentPassing.reason));
+    return undefined;
+  }
   if (
-    argumentPassing.kind === "resolved" &&
     !sourceNodesEqual(
       input.program.source.ast,
       argumentPassing.argument.storageExpression,
@@ -273,7 +272,7 @@ function planExpressionCore(
     case KindIdentifier:
       return planIdentifierExpression(node, sourceFile, input, diagnostics, state);
     case KindRegularExpressionLiteral:
-      return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
+      return planRegularExpressionLiteral(node, input, diagnostics);
     case KindTypeOfExpression:
       return planTypeofExpression(
         node,
@@ -448,7 +447,7 @@ export function planExpressionWithExpectedType(
     (
       expectedTypeSubject === undefined
         ? undefined
-        : input.types.policy.resolveNode(expectedTypeSubject, sourceFile)
+        : input.types.classifications.resolveNode(expectedTypeSubject, sourceFile)
     );
   const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
@@ -462,28 +461,17 @@ export function planExpressionWithExpectedType(
   if (plan.representation === "expected") {
     return plan.expression;
   }
-  const sourceType = input.types.policy.resolveNode(node, sourceFile);
-  const selection = selectCsharpExpressionConversion(
-    input.policy,
+  const sourceType = input.types.classifications.resolveNode(node, sourceFile);
+  const selection = readCsharpExpressionConversionClassification(
     node,
+    input,
+    diagnostics,
     sourceType,
     effectiveExpectedTargetType,
     "implicit",
   );
-  if (selection.kind === "rejected") {
-    const requirement = requireCsharpStorageRepresentation(
-      input,
-      node,
-      sourceFile,
-      effectiveExpectedTargetType,
-    );
-    if (requirement.kind === "requested") {
-      return undefined;
-    }
-    if (requirement.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(node, requirement.reason));
-      return undefined;
-    }
+  if (selection === undefined) {
+    return undefined;
   }
   return applyCsharpConversionSelection(
     node,

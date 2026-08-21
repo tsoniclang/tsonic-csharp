@@ -1,12 +1,11 @@
 import type {
   Node,
   SourceFile,
-  Type,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -62,8 +61,8 @@ function resolveRuntimeCarrier(
     return undefined;
   }
   const carrier = mode === "storage"
-    ? input.types.policy.resolveStorage(sourceNode, sourceFile)
-    : input.types.policy.resolveNode(sourceNode, sourceFile);
+    ? input.types.classifications.resolveStorage(sourceNode, sourceFile)
+    : input.types.classifications.resolveNode(sourceNode, sourceFile);
   return carrier === undefined
     ? {
         kind: "missing",
@@ -88,15 +87,7 @@ export function getTargetTypeRefForNode(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.policy.resolveNode(sourceNode, sourceFile);
-}
-
-export function getTargetTypeRefForType(
-  input: CsharpPlanningContext,
-  type: Type | undefined,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  return input.types.policy.resolveType(type, sourceFile);
+  return input.types.classifications.resolveNode(sourceNode, sourceFile);
 }
 
 export function probeCarrierFromResolution(

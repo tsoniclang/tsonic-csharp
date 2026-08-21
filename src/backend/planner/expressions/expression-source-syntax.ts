@@ -40,15 +40,13 @@ import type {
 import {
   parseBigIntLiteral,
   parseFiniteNumberLiteral,
-} from "../../../source/literal-values.js";
+} from "../../../target-model/syntax/literal-values.js";
 import {
   csharpBigIntegerTargetType,
-} from "../../../policy/types/index.js";
-import {
-  selectCsharpExpressionConversion,
-} from "../../../policy/conversions/index.js";
+} from "../../../target-model/types/index.js";
 import {
   applyCsharpConversionSelection,
+  readCsharpExpressionConversionClassification,
 } from "./conversions.js";
 import {
   planCsharpExactLiteralConversion,
@@ -70,7 +68,7 @@ import {
 import {
   getCsharpTaskResultTargetType,
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   planThisExpression,
 } from "./expression-this.js";
@@ -275,15 +273,19 @@ function planAssertionExpression(
   if (input.program.source.ast.isConstAssertion(node)) {
     return planExpression(expressionNode, sourceFile, input, diagnostics);
   }
-  const sourceType = input.types.policy.resolveNode(expressionNode, sourceFile);
-  const targetType = input.types.policy.resolveNode(targetTypeNode, sourceFile);
-  const selection = selectCsharpExpressionConversion(
-    input.policy,
+  const sourceType = input.types.classifications.resolveNode(expressionNode, sourceFile);
+  const targetType = input.types.classifications.resolveNode(targetTypeNode, sourceFile);
+  const selection = readCsharpExpressionConversionClassification(
     expressionNode,
+    input,
+    diagnostics,
     sourceType,
     targetType,
     "explicit",
   );
+  if (selection === undefined) {
+    return undefined;
+  }
   if (selection.kind === "implicit" && selection.proof === "literal") {
     const literal = planCsharpExactLiteralConversion(
       input,

@@ -1,11 +1,12 @@
 import type {
-  AstReader,
   Node,
-  SourcePrimitiveKind,
 } from "@tsonic/tsts";
 import {
-  parseBigIntLiteral,
-} from "../../source/literal-values.js";
+  csharpBigIntFitsSourcePrimitive,
+  csharpBigIntLiteralValue,
+  csharpNumericLiteralFitsSourcePrimitive,
+  csharpNumericLiteralValue,
+} from "../../target-model/syntax/numeric-literals.js";
 import type {
   CsharpPolicyContext,
 } from "../context.js";
@@ -17,10 +18,6 @@ import {
   getCsharpNullableElementTargetType,
   isCsharpStringTargetType,
 } from "../types/index.js";
-import {
-  csharpNumericLiteralFitsSourcePrimitive,
-  csharpNumericLiteralValue,
-} from "../types/resolution/source-literal-policy.js";
 
 export function csharpLiteralIsRepresentableAs(
   input: Pick<CsharpPolicyContext, "ast">,
@@ -86,50 +83,5 @@ export function csharpLiteralIsRepresentableAs(
       return value !== undefined &&
         csharpBigIntFitsSourcePrimitive(value, target.name);
     }
-  }
-}
-
-export function csharpBigIntLiteralValue(
-  ast: AstReader,
-  node: Node,
-): bigint | undefined {
-  if (ast.is.IsBigIntLiteral(node) || ast.is.IsNumericLiteral(node)) {
-    return parseBigIntLiteral(ast.text(node));
-  }
-  if (!ast.is.IsPrefixUnaryExpression(node)) {
-    return undefined;
-  }
-  const operator = ast.operatorKindName(node);
-  const operand = ast.as.AsPrefixUnaryExpression(node)?.Operand;
-  if (
-    (operator !== "KindPlusToken" && operator !== "KindMinusToken") ||
-    operand === undefined ||
-    (!ast.is.IsBigIntLiteral(operand) && !ast.is.IsNumericLiteral(operand))
-  ) {
-    return undefined;
-  }
-  const value = parseBigIntLiteral(ast.text(operand));
-  return value === undefined
-    ? undefined
-    : operator === "KindMinusToken"
-      ? -value
-      : value;
-}
-
-export function csharpBigIntFitsSourcePrimitive(
-  value: bigint,
-  primitive: SourcePrimitiveKind,
-): boolean {
-  switch (primitive) {
-    case "int64":
-      return value >= -(1n << 63n) && value <= (1n << 63n) - 1n;
-    case "uint64":
-      return value >= 0n && value <= (1n << 64n) - 1n;
-    case "int128":
-      return value >= -(1n << 127n) && value <= (1n << 127n) - 1n;
-    case "uint128":
-      return value >= 0n && value <= (1n << 128n) - 1n;
-    default:
-      return false;
   }
 }

@@ -57,7 +57,7 @@ export const csharpRootPolicies = Object.freeze([
     "src/backend/planner/diagnostics.ts",
   ]),
   targetRootPolicy("src/policy/", ["src/policy/context.ts", "src/policy/index.ts"]),
-  targetRootPolicy("src/source/", ["src/source/index.ts", "src/source/literal-values.ts"]),
+  targetRootPolicy("src/source/", ["src/source/index.ts"]),
 ]);
 
 export const csharpAllowedImplementationIndexes = new Set([

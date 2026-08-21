@@ -3,23 +3,14 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  selectCsharpTargetElement,
-} from "../../../../policy/members/index.js";
-import {
-  selectCsharpJsValueReceiverExpressionOperation,
-} from "../../../../policy/js-value-operations/index.js";
 import type {
   CsharpTargetElementSelection,
-} from "../../../../policy/members/index.js";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../../../policy/conversions/index.js";
+} from "../../../../analysis/operations/index.js";
 import {
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   targetTypeRefEquals,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpArgument,
   CsharpExpression,
@@ -61,13 +52,16 @@ export function translateCsharpElementAccess(
   const expression = input.program.source.ast.as.AsElementAccessExpression(node);
   const receiverNode = expression?.Expression;
   const argumentNode = expression?.ArgumentExpression;
-  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input.policy,
-    receiverNode,
-    sourceFile,
-    "element-read",
-    expression?.QuestionDotToken !== undefined,
-  );
+  const classification = input.program.operations.element(node);
+  if (classification === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_ELEMENT_CLASSIFICATION_MISSING",
+      "C# planning received an element access without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
@@ -94,7 +88,15 @@ export function translateCsharpElementAccess(
         : [translateCsharpJsValueFactory(argument)],
     );
   }
-  const selection = selectCsharpTargetElement(input.policy, node, sourceFile);
+  const selection = classification.target;
+  if (selection === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_ELEMENT_CLASSIFICATION_INCOMPLETE",
+      "The sealed C# element classification selected neither a JS-value operation nor a target element.",
+    ));
+    return undefined;
+  }
   switch (selection.kind) {
     case "resolved":
       return translateSelectedElement(
@@ -110,6 +112,7 @@ export function translateCsharpElementAccess(
       return translateSourceOwnedElement(
         node,
         selection,
+        classification,
         sourceFile,
         input,
         diagnostics,
@@ -217,11 +220,10 @@ function translateProjectIndexerElement(
     diagnostics,
     selection.valueType,
     selection.selectedReadType,
-    selectCsharpFlowReadConversion(
-      input.policy,
-      selection.valueType,
-      selection.selectedReadType,
-    ),
+    input.program.operations.element(node)?.flowReadConversion ?? {
+      kind: "rejected",
+      reason: "The sealed C# element-read classification has no conversion.",
+    },
     planned,
   );
 }
@@ -338,15 +340,13 @@ function translateSourceOwnedElement(
     CsharpTargetElementSelection,
     { readonly kind: "source-owned" }
   >,
+  classification: NonNullable<ReturnType<CsharpPlanningContext["program"]["operations"]["element"]>>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const receiverType = input.types.policy.resolveNode(
-    selection.source.receiver.expression,
-    sourceFile,
-  );
+  const receiverType = classification.receiverType;
   if (
     receiverType?.kind === "tuple" &&
     selection.source.selectedElementIndex !== undefined
@@ -366,11 +366,7 @@ function translateSourceOwnedElement(
           name: `Item${selection.source.selectedElementIndex + 1}`,
         };
   }
-  const selectedResultType = input.types.policy.resolveSelectedResult(
-    selection.source.selectedDeclaration,
-    selection.source.sourceReadType ?? selection.source.sourceWriteType,
-    sourceFile,
-  );
+  const selectedResultType = classification.selectedResultType;
   const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(
     receiverType,
   );

@@ -13,10 +13,11 @@ import type {
 } from "@tsonic/target-api/source";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
-import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
+import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
-import { getCsharpDelegateSignature } from "../callables/delegates.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 
 import {
   resolveNode as resolveNodeImplementation,

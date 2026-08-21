@@ -22,24 +22,10 @@ import {
 import {
   planCsharpGeneratedHelperSourceFile,
 } from "./artifacts/generated-helper-source.js";
-import {
-  targetPolicyDiagnostic,
-  unsupportedNodeDiagnostic,
-} from "./diagnostics.js";
-
 export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {
-  const diagnostics: TargetDiagnostic[] = input.types.projectTypes.issues.map(
-    (issue) => targetPolicyDiagnostic(
-      issue.node,
-      issue.code,
-      issue.message,
-    ),
-  );
-  if (diagnostics.length > 0) {
-    return rejectedTargetStage(diagnostics);
-  }
+  const diagnostics: TargetDiagnostic[] = [];
   validateSourceFileOutputIdentities(input, diagnostics);
   if (diagnostics.length > 0) {
     return rejectedTargetStage(diagnostics);
@@ -54,17 +40,6 @@ export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningRe
     diagnostics,
   );
   if (plannedSources === undefined || diagnostics.length > 0) {
-    return rejectedTargetStage(diagnostics);
-  }
-  const unfulfilledStorageRequirements =
-    input.artifacts.unfulfilledStorageRequirements();
-  if (unfulfilledStorageRequirements.length > 0) {
-    diagnostics.push(...unfulfilledStorageRequirements.map((requirement) =>
-      unsupportedNodeDiagnostic(
-        requirement.expression,
-        requirement.reason,
-      )
-    ));
     return rejectedTargetStage(diagnostics);
   }
   const objectShapes = planCsharpObjectShapeSourceFile(input, diagnostics);

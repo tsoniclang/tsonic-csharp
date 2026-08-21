@@ -10,9 +10,6 @@ import type {
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
-import {
-  unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -29,18 +26,6 @@ export function translateCsharpSelectedReceiver(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const selectedType = input.types.policy.resolveSelectedValue(
-    receiver.expression,
-    receiver.type,
-    sourceFile,
-  );
-  if (selectedType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      receiver.expression,
-      "The exact checker-selected member receiver has no closed C# selected-flow representation.",
-    ));
-    return undefined;
-  }
   return planExpression(
     receiver.expression,
     sourceFile,

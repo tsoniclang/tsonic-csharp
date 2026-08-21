@@ -7,8 +7,10 @@ import type {
 } from "../context.js";
 import type {
   CsharpProjectForwardingConstructor,
+} from "../../../analysis/project-types/index.js";
+import type {
   CsharpTargetParameter,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
@@ -22,11 +24,8 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  publishCsharpProjectConstructorCallableContract,
-} from "../artifacts/source-callable-contracts.js";
-import {
   requireCsharpIdentifier,
-} from "../../../policy/names/identifiers.js";
+} from "../../../target-model/names/identifiers.js";
 import {
   csharpSafetyModifiersForDeclaration,
 } from "../safety/explicit-safety.js";
@@ -51,19 +50,14 @@ export function planImplicitForwardingConstructors(
     "constructor",
     input,
   );
-  return constructors.flatMap((constructor) => {
-    publishCsharpProjectConstructorCallableContract(
-      constructor,
-      input,
-      diagnostics,
-    );
-    return planForwardingConstructorOverloads(
+  return constructors.flatMap((constructor) =>
+    planForwardingConstructorOverloads(
       constructor,
       className,
       safetyModifiers,
       diagnostics,
-    );
-  });
+    )
+  );
 }
 
 function planForwardingConstructorOverloads(

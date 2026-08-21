@@ -5,8 +5,6 @@ import type { TargetArtifactReconstruction } from "@tsonic/target-api/artifacts"
 import {
   csharpGeneratedHelperContractCandidate,
   csharpObjectShapeContractCandidate,
-  csharpSourceCallableContractCandidate,
-  csharpStorageContractCandidate,
 } from "../contracts.js";
 import { resolvedArtifact, accepted, rejected } from "./result.js";
 
@@ -47,17 +45,6 @@ export function reconstructArtifact(
         [...record.dependencies].sort(),
       ));
     }
-    case "source-callable":
-      return resolvedArtifact(
-        csharpSourceCallableContractCandidate(owner, artifact.callable),
-      );
-    case "storage":
-      return resolvedArtifact(csharpStorageContractCandidate(
-        owner,
-        artifact.targetType,
-        artifact.nullableWrittenType,
-        artifact.typedLocationIdentity,
-      ));
     case "source-file":
       return {
         kind: "rejected",

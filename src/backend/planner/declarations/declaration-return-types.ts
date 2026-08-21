@@ -3,32 +3,19 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { sourceNodesEqual } from "@tsonic/target-api/source";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
-  csharpRuntimeUndefinedTargetType,
-  csharpSourceTypeArgumentNodes,
   csharpVoidTargetType,
-  getCsharpNullableElementTargetType,
-  getCsharpRuntimeUnionArms,
   getCsharpTaskResultTargetType,
   isCsharpNeverTargetType,
-  targetTypeRefKey,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
-  csharpConversionIsApplicable,
-  selectCsharpCommonImplicitTarget,
-  selectCsharpConversion,
-} from "../../../policy/conversions/index.js";
-import type { CsharpPolicyContext } from "../../../policy/context.js";
-
-export type CsharpReturnTargetContractResult =
-  | { readonly kind: "resolved"; readonly type: TargetTypeRef }
-  | { readonly kind: "rejected"; readonly reason: string };
+  csharpSourceTypeArgumentNodes,
+} from "../../../target-model/syntax/type-arguments.js";
 
 export function getExplicitReturnType(
   typeNode: Node | undefined,
@@ -54,7 +41,7 @@ export function getExplicitReturnType(
     }
     return inferred;
   }
-  const explicitTargetType = input.types.policy.resolveNode(typeNode, sourceFile);
+  const explicitTargetType = input.types.classifications.resolveNode(typeNode, sourceFile);
   if (isCsharpNeverTargetType(explicitTargetType)) {
     const neverReturnType = csharpDeclarationReturnType(explicitTargetType);
     if (neverReturnType !== undefined) {
@@ -111,91 +98,13 @@ export function getDeclarationReturnTargetType(
   input: CsharpPlanningContext,
 ) {
   if (typeNode !== undefined) {
-    return input.types.policy.resolveNode(typeNode, sourceFile);
+    return input.types.classifications.resolveNode(typeNode, sourceFile);
   }
   return getInferredDeclarationReturnTargetType(
     declarationNode,
     sourceFile,
     input,
   );
-}
-
-export function reconcileInferredReturnTargetContract(
-  input: Pick<
-    CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
-  >,
-  baseline: TargetTypeRef,
-  observed: readonly TargetTypeRef[],
-  incomplete: boolean,
-): CsharpReturnTargetContractResult {
-  if (incomplete) {
-    return {
-      kind: "rejected",
-      reason:
-        "An inferred C# public return contract contains a return expression without one closed target representation.",
-    };
-  }
-  if (observed.length === 0) {
-    return { kind: "resolved", type: baseline };
-  }
-  const requiredSources = [
-    ...observed,
-    ...uncoveredBaselineReturnAlternatives(input, baseline, observed),
-  ];
-  const selected = selectCsharpCommonImplicitTarget(
-    input,
-    requiredSources,
-    [...observed, baseline],
-  );
-  if (selected.kind === "rejected") {
-    return {
-      kind: "rejected",
-      reason: `An inferred C# public return contract contains incompatible exact target representations. ${selected.reason}`,
-    };
-  }
-  return { kind: "resolved", type: selected.target };
-}
-
-function uncoveredBaselineReturnAlternatives(
-  input: Pick<
-    CsharpPolicyContext,
-    "projectTypes" | "providers" | "target"
-  >,
-  baseline: TargetTypeRef,
-  observed: readonly TargetTypeRef[],
-): readonly TargetTypeRef[] {
-  const alternatives = new Map<string, TargetTypeRef>();
-  collectTargetContractAlternatives(baseline, alternatives);
-  return [...alternatives.values()].filter((alternative) =>
-    !observed.some((source) =>
-      csharpConversionIsApplicable(
-        selectCsharpConversion(input, source, alternative, "implicit"),
-        "implicit",
-      )
-    )
-  );
-}
-
-function collectTargetContractAlternatives(
-  type: TargetTypeRef,
-  alternatives: Map<string, TargetTypeRef>,
-): void {
-  const union = getCsharpRuntimeUnionArms(type);
-  if (union !== undefined) {
-    union.forEach((member) =>
-      collectTargetContractAlternatives(member, alternatives)
-    );
-    return;
-  }
-  const nullableElement = getCsharpNullableElementTargetType(type);
-  if (nullableElement !== undefined) {
-    collectTargetContractAlternatives(nullableElement, alternatives);
-    const undefinedType = csharpRuntimeUndefinedTargetType();
-    alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
-    return;
-  }
-  alternatives.set(targetTypeRefKey(type), type);
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: CsharpPlanningContext): Node | undefined {
@@ -208,29 +117,7 @@ function getInferredDeclarationReturnTargetType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
-  const semantics = input.program.source.semantics.forFile(sourceFile);
-  const declarationType = semantics.types.expressionType(
-    declarationNode,
-  );
-  if (declarationType === undefined) {
-    return undefined;
-  }
-  const signatures = semantics.types.callSignatures(
-    declarationType,
-  );
-  const selected = signatures.filter((signature) => {
-    const declaration = semantics.declarations.signatureDeclaration(signature);
-    return declaration !== undefined &&
-      sourceNodesEqual(input.program.source.ast, declaration, declarationNode);
-  });
-  if (selected.length !== 1) {
-    return undefined;
-  }
-  const signature = selected[0];
-  return signature === undefined
-    ? undefined
-    : input.types.policy.resolveType(
-        semantics.types.returnType(signature),
-        sourceFile,
-      );
+  void sourceFile;
+  const contract = input.program.declarations.returnContract(declarationNode);
+  return contract?.kind === "resolved" ? contract.type : undefined;
 }

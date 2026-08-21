@@ -25,7 +25,7 @@ import {
 } from "../program/provider-virtual-source-files.js";
 import {
   csharpSourceTypeArgumentNodes,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/syntax/type-arguments.js";
 
 export function getCsharpTypeFromProjectSourceReferenceNode(
   node: Node,
@@ -34,7 +34,7 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   return getCsharpTypeFromProjectSourceReference(
-    input.program.source.navigation.referenceFor(node),
+    input.program.sourceNavigation.referenceFor(node),
     input,
     diagnostics,
   );
@@ -64,7 +64,7 @@ export function getCsharpTypeFromProjectSourceTypeReferenceNode(
 }
 
 export function getCsharpTypeFromProjectSourceReference(
-  reference: ReturnType<CsharpPlanningContext["program"]["source"]["navigation"]["referenceFor"]>,
+  reference: ReturnType<CsharpPlanningContext["program"]["sourceNavigation"]["referenceFor"]>,
   input: CsharpPlanningContext,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
@@ -72,7 +72,7 @@ export function getCsharpTypeFromProjectSourceReference(
     return undefined;
   }
   if (
-    !input.program.source.navigation.isProjectDeclaration(reference.declaration) ||
+    !input.program.sourceNavigation.isProjectDeclaration(reference.declaration) ||
     reference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, reference.sourceFile)
   ) {

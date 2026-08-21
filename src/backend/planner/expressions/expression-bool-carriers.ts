@@ -28,9 +28,6 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  selectCsharpJsValueCondition,
-} from "../../../policy/js-value-operations/index.js";
-import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 
@@ -45,11 +42,14 @@ export function planCsharpConditionExpression(
   if (HasSourceKind(input.program.source.ast, expression, KindTrueKeyword) || HasSourceKind(input.program.source.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics);
   }
-  const jsValueOperation = selectCsharpJsValueCondition(
-    input.policy,
-    expression,
-    sourceFile,
-  );
+  const jsValueOperation = input.program.operations.jsCondition(expression);
+  if (jsValueOperation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      `${context} has no sealed C# condition classification.`,
+    ));
+    return undefined;
+  }
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(expression, jsValueOperation.reason));
     return undefined;

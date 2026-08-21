@@ -4,11 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  selectCsharpJsValueVoidOperation,
-} from "../../../policy/js-value-operations/index.js";
-import {
   csharpTsValueTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -39,11 +36,14 @@ export function planVoidExpression(
     return undefined;
   }
   const operand = input.program.source.ast.as.AsVoidExpression(node)?.Expression;
-  const jsValueOperation = selectCsharpJsValueVoidOperation(
-    input.policy,
-    operand,
-    sourceFile,
-  );
+  const jsValueOperation = input.program.operations.jsVoid(node);
+  if (jsValueOperation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a void expression without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;

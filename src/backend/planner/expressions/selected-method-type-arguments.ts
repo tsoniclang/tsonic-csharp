@@ -5,7 +5,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpSelectedTargetCall,
-} from "../../../policy/members/index.js";
+} from "../../../analysis/operations/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -29,6 +29,7 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] | undefined {
+  void sourceFile;
   const declaredProjections =
     selection.targetMember.csharpMethodTypeArgumentProjections ?? [];
   const projections = new Map(
@@ -43,6 +44,14 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
     ));
     return undefined;
   }
+  const classification = input.program.source.ast.is.IsNewExpression(node)
+    ? input.program.operations.construction(node)
+    : input.program.operations.call(node);
+  const classifiedProjections = new Map(
+    (classification?.methodTypeArgumentProjections ?? []).map((projection) =>
+      [projection.targetTypeParameterIndex, projection.projection] as const
+    ),
+  );
   const rendered: CsharpTypeNode[] = [];
   for (const [index, argument] of
     selection.targetMethodTypeArguments.entries()) {
@@ -66,13 +75,14 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
       ));
       return undefined;
     }
-    const projected = input.types.objectShapes.resolveProjectConstructibleSelectedType(
-      argument.targetType,
-      argument.explicitTypeNode,
-      argument.selectedType,
-      node,
-      sourceFile,
-    );
+    const projected = classifiedProjections.get(index);
+    if (projected === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        argument.explicitTypeNode ?? node,
+        `Selected target member '${selection.targetMember.id}' has no sealed C# type-argument projection at index ${index}.`,
+      ));
+      return undefined;
+    }
     if (projected.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(
         argument.explicitTypeNode ?? node,

@@ -16,7 +16,7 @@ import {
   allocateControlLabel,
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { requireCsharpIdentifier } from "../../../policy/names/identifiers.js";
+import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export type NestedStatementBodyPlanner = (
   node: Node | undefined,

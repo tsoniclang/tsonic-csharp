@@ -16,7 +16,7 @@ import {
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
   resolveCsharpObjectShapeMemberReadTargetType,
-} from "../objects/object-shape-members.js";
+} from "../../../target-model/types/object-shape-members.js";
 import type {
   CsharpPlanningRepresentationQueries,
   CsharpTypePolicy,
@@ -46,15 +46,15 @@ import type {
 } from "../../../target-model/types/model.js";
 
 export interface CsharpTypeSystem {
+  readonly analysisTypes: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
-  createPlanningTypes(
-    representations: CsharpPlanningRepresentationQueries,
-  ): CsharpTypePolicy;
 }
 
 export function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
+  representations: CsharpPlanningRepresentationQueries =
+    emptyPlanningRepresentations,
 ): CsharpTypeSystem {
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
@@ -146,10 +146,11 @@ export function createCsharpTypeSystem(
         },
       },
     });
-  const typeResolution = createTypeResolution(emptyPlanningRepresentations);
+  const typeResolution = createTypeResolution(representations);
   const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
+    projectTypeCatalog,
     typeResolver: typeResolution.recursive,
   });
   bindingProjections = createCsharpBindingProjectionPolicy({
@@ -162,11 +163,9 @@ export function createCsharpTypeSystem(
     projectTypeCatalog,
   );
   return Object.freeze({
+    analysisTypes: types,
     objectShapes,
     projectTypes,
-    createPlanningTypes(representations: CsharpPlanningRepresentationQueries) {
-      return createTypeResolution(representations).policy;
-    },
   });
 }
 

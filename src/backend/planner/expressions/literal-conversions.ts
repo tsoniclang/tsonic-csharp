@@ -10,17 +10,14 @@ import {
 import {
   csharpBigIntFitsSourcePrimitive,
   csharpBigIntLiteralValue,
-  csharpLiteralIsRepresentableAs,
-} from "../../../policy/conversions/index.js";
+  csharpNumericLiteralValue,
+} from "../../../target-model/syntax/numeric-literals.js";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   getCsharpNullableElementTargetType,
-} from "../../../policy/types/index.js";
-import {
-  csharpNumericLiteralValue,
-} from "../../../policy/types/resolution/source-literal-policy.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -35,9 +32,7 @@ export function planCsharpExactLiteralConversion(
   }
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
-    return csharpLiteralIsRepresentableAs(input.policy, node, target)
-      ? { kind: "source-representation" }
-      : { kind: "not-applicable" };
+    return classifiedLiteralRepresentation(input, node, target);
   }
   switch (targetType.name) {
     case "char": {
@@ -125,9 +120,7 @@ export function planCsharpExactLiteralConversion(
         : { kind: "resolved", expression };
     }
     default:
-      return csharpLiteralIsRepresentableAs(input.policy, node, target)
-        ? { kind: "source-representation" }
-        : { kind: "not-applicable" };
+      return classifiedLiteralRepresentation(input, node, target);
   }
 }
 
@@ -136,6 +129,23 @@ export type CsharpExactLiteralConversionPlan =
   | { readonly kind: "source-representation" }
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string };
+
+function classifiedLiteralRepresentation(
+  input: CsharpPlanningContext,
+  node: Node,
+  _target: TargetTypeRef,
+): CsharpExactLiteralConversionPlan {
+  return input.program.source.ast.is.IsArrayLiteralExpression(node) ||
+      input.program.source.ast.is.IsStringLiteral(node) ||
+      input.program.source.ast.is.IsNoSubstitutionTemplateLiteral(node) ||
+      input.program.source.ast.is.IsNumericLiteral(node) ||
+      input.program.source.ast.is.IsBigIntLiteral(node) ||
+      input.program.source.ast.is.IsPrefixUnaryExpression(node) ||
+      input.program.source.ast.kindName(node) === "KindTrueKeyword" ||
+      input.program.source.ast.kindName(node) === "KindFalseKeyword"
+    ? { kind: "source-representation" }
+    : { kind: "not-applicable" };
+}
 
 function planWideIntegerLiteral(
   value: bigint,

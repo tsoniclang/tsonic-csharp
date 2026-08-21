@@ -5,15 +5,14 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   csharpConversionIsApplicable,
-  selectCsharpConversion,
-} from "../../../policy/conversions/index.js";
+} from "../../../analysis/conversions/index.js";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
@@ -25,6 +24,7 @@ import type {
 } from "../context.js";
 import {
   applyCsharpConversionSelection,
+  readCsharpConversionClassification,
 } from "./conversions.js";
 
 export type CsharpSourceUndefinedValuePlan =
@@ -52,13 +52,18 @@ export function planCsharpSourceUndefinedValue(
   if (sourceRender === undefined) {
     return { kind: "not-representable" };
   }
-  const selection = selectCsharpConversion(
-    input.policy,
+  const selection = readCsharpConversionClassification(
+    node,
+    input,
+    diagnostics,
     sourceType,
     targetType,
     "implicit",
   );
-  if (!csharpConversionIsApplicable(selection, "implicit")) {
+  if (
+    selection === undefined ||
+    !csharpConversionIsApplicable(selection, "implicit")
+  ) {
     return { kind: "not-representable" };
   }
   const expression = applyCsharpConversionSelection(

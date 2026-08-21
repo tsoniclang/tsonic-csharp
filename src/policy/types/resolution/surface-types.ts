@@ -4,7 +4,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   csharpQualifiedTypeRenderShape,
-} from "../render-shapes.js";
+} from "../../../target-model/types/render-shapes.js";
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";
@@ -132,14 +132,6 @@ export function isCsharpJsRegExpTargetType(
 } {
   return type?.kind === "target-named" &&
     (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "regexp";
-}
-
-export function getCsharpJsArrayElementTargetType(
-  type: TargetTypeRef | undefined,
-): TargetTypeRef | undefined {
-  return type?.kind === "target-named" && type.id === csharpJsArrayCarrierId
-    ? type.typeArguments?.[0]
-    : undefined;
 }
 
 export function getCsharpJsArrayMutationPolicy(

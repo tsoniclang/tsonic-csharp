@@ -14,7 +14,7 @@ import {
 } from "../../../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
-} from "../../../dist/backend/planner/declarations/declaration-return-types.js";
+} from "../../../dist/analysis/declarations/index.js";
 
 const host = {
   projectTypes: { directSupertypes() { return []; } },

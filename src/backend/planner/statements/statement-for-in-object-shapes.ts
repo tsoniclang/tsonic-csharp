@@ -27,7 +27,7 @@ import {
 } from "../types/target-types.js";
 import type {
   CsharpResolvedIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";

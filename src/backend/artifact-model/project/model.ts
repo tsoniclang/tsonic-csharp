@@ -1,8 +1,12 @@
 import type {
   CsharpProjectReference,
 } from "../../../target-model/project/references.js";
+import type {
+  CsharpProjectProperty,
+} from "../../../target-model/project/model.js";
 
 export type { CsharpProjectReference } from "../../../target-model/project/references.js";
+export type { CsharpProjectProperty } from "../../../target-model/project/model.js";
 
 export interface CsharpProjectFile {
   readonly sdk: "Microsoft.NET.Sdk";
@@ -14,8 +18,3 @@ export interface CsharpProjectFile {
 export type CsharpProjectPlan =
   | { readonly kind: "generated"; readonly project: CsharpProjectFile }
   | { readonly kind: "user-owned"; readonly projectFile: string };
-
-export interface CsharpProjectProperty {
-  readonly name: string;
-  readonly value: string;
-}

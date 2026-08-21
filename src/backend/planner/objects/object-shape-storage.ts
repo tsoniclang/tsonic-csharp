@@ -1,12 +1,12 @@
 import type {
   CsharpObjectShapeFact,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpDelegateTargetType,
   getCsharpDelegateSignature,
   isCsharpVoidTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
   if (member.memberKind !== "method") {

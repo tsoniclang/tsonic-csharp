@@ -27,12 +27,12 @@ import {
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
-import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceContract,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function planObjectShapeBindingPattern(
   patternNode: Node,

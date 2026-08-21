@@ -3,16 +3,12 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  resolveCsharpJsValueObjectShapeProperty,
-  selectCsharpTargetProperty,
-} from "../../../../policy/members/index.js";
-import {
-  selectCsharpJsValueReceiverExpressionOperation,
-} from "../../../../policy/js-value-operations/index.js";
 import type {
   CsharpTargetPropertySelection,
-} from "../../../../policy/members/index.js";
+} from "../../../../analysis/operations/index.js";
+import type {
+  CsharpPropertyClassification,
+} from "../../../../analysis/operations/index.js";
 import type {
   CsharpExpression,
 } from "../../../target-ast/roslyn/index.js";
@@ -27,11 +23,6 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
-import {
-  resolveCsharpObjectShapeMemberBySelectedSubject,
-  resolveCsharpObjectShapeMemberReadTargetType,
-  resolveCsharpRuntimeUnionObjectShapeProperty,
-} from "../../../../policy/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";
@@ -52,7 +43,16 @@ export function translateCsharpPropertyAccess(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpTargetProperty(input.policy, node, sourceFile);
+  const classification = input.program.operations.property(node);
+  if (classification === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_PROPERTY_CLASSIFICATION_MISSING",
+      "C# planning received a property access without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.selection;
   switch (selection.kind) {
     case "resolved":
       return translateSelectedProperty(
@@ -67,6 +67,7 @@ export function translateCsharpPropertyAccess(
       return translateSourceOwnedProperty(
         node,
         selection,
+        classification.sourceOwned,
         sourceFile,
         input,
         diagnostics,
@@ -161,42 +162,34 @@ function translateSourceOwnedProperty(
     CsharpTargetPropertySelection,
     { readonly kind: "source-owned" }
   >,
+  classification: CsharpPropertyClassification["sourceOwned"],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
+  if (classification === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_SOURCE_PROPERTY_CLASSIFICATION_MISSING",
+      "A source-owned property has no sealed C# source-property classification.",
+    ));
+    return undefined;
+  }
   const declaration = selection.source.selectedDeclaration;
-  const semantics = input.program.source.semantics.forFile(sourceFile);
-  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input.policy,
-    selection.source.receiver.expression,
-    sourceFile,
-    "property-read",
-    selection.source.optionalChain,
-  );
+  const {
+    jsValueOperation,
+    objectShape,
+    runtimeUnionProperty,
+    jsValueProperty,
+    shapeMember,
+    rawReadType,
+    selectedReadType,
+  } = classification;
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  const objectShape = input.types.objectShapes.resolveNode(
-    selection.source.receiver.expression,
-    sourceFile,
-  );
-  const selectedSubjects = semantics.facts.selectedSubjects(
-    selection.source.selectedSymbol,
-    selection.source.selectedDeclaration,
-  );
-  const selectedReceiverType = input.types.policy.resolveSelectedValue(
-    selection.source.receiver.expression,
-    selection.source.receiver.type,
-    sourceFile,
-  );
-  const runtimeUnionProperty = resolveCsharpRuntimeUnionObjectShapeProperty(
-    input.types.objectShapes,
-    selectedReceiverType,
-    selectedSubjects,
-  );
   if (runtimeUnionProperty.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -208,6 +201,7 @@ function translateSourceOwnedProperty(
     return translateRuntimeUnionObjectShapeProperty(
       node,
       selection,
+      classification,
       runtimeUnionProperty,
       sourceFile,
       input,
@@ -215,24 +209,10 @@ function translateSourceOwnedProperty(
       planExpression,
     );
   }
-  const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    input.types.objectShapes,
-    semantics,
-    selection,
-    sourceFile,
-  );
   if (jsValueProperty.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueProperty.reason));
     return undefined;
   }
-  const shapeMember = jsValueProperty.kind === "resolved"
-    ? jsValueProperty
-    : objectShape === undefined
-    ? undefined
-    : resolveCsharpObjectShapeMemberBySelectedSubject(
-        objectShape,
-        selectedSubjects,
-      );
   if (objectShape !== undefined && shapeMember?.kind !== "resolved") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -245,7 +225,7 @@ function translateSourceOwnedProperty(
     jsValueOperation.kind !== "resolved" &&
     (
       declaration === undefined ||
-      !input.program.source.navigation.isProjectDeclaration(declaration)
+      !input.program.sourceNavigation.isProjectDeclaration(declaration)
     )
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -337,22 +317,6 @@ function translateSourceOwnedProperty(
   ) {
     return planned;
   }
-  const rawReadType = shapeMember?.kind === "resolved"
-    ? jsValueOperation.kind === "resolved"
-      ? jsValueOperation.resultType
-      : shapeMember.member.type
-    : input.types.policy.resolveReadStorage(node, sourceFile);
-  const selectedReadType = shapeMember?.kind === "resolved"
-    ? resolveCsharpObjectShapeMemberReadTargetType(
-        shapeMember.member,
-        selection.source.sourceReadType,
-        (left, right) => semantics.types.relationship(left, right) !== "unrelated",
-      ) ?? input.types.policy.resolveSelectedResult(
-        selection.source.selectedDeclaration,
-        selection.source.sourceReadType,
-        sourceFile,
-      )
-    : input.types.policy.resolveNode(node, sourceFile);
   if (shapeMember?.kind === "resolved" && selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -379,8 +343,9 @@ function translateRuntimeUnionObjectShapeProperty(
     CsharpTargetPropertySelection,
     { readonly kind: "source-owned" }
   >,
+  classification: NonNullable<CsharpPropertyClassification["sourceOwned"]>,
   property: Extract<
-    ReturnType<typeof resolveCsharpRuntimeUnionObjectShapeProperty>,
+    NonNullable<CsharpPropertyClassification["sourceOwned"]>["runtimeUnionProperty"],
     { readonly kind: "resolved" }
   >,
   sourceFile: SourceFile,
@@ -431,11 +396,7 @@ function translateRuntimeUnionObjectShapeProperty(
       };
     }),
   };
-  const selectedReadType = input.types.policy.resolveSelectedResult(
-    selection.source.selectedDeclaration,
-    selection.source.sourceReadType,
-    sourceFile,
-  );
+  const selectedReadType = classification.selectedReadType;
   if (selectedReadType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,

@@ -14,11 +14,11 @@ import type {
 } from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceContract,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

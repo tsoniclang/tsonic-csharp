@@ -5,7 +5,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpTypePolicy,
-  TargetTypeRef,
 } from "../types/index.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -14,24 +13,15 @@ import {
   isCsharpValueTypeTargetType,
   targetTypeRefKey,
 } from "../types/index.js";
+import type {
+  CsharpTypeParameterConstraint,
+  CsharpTypeParameterConstraintResolution,
+} from "../../target-model/declarations/generic-constraints.js";
 
-export type CsharpTypeParameterConstraint =
-  | { readonly kind: "type"; readonly type: TargetTypeRef }
-  | {
-      readonly kind: "keyword";
-      readonly keyword: "class" | "struct" | "notnull" | "unmanaged";
-    }
-  | { readonly kind: "constructor" };
-
-export type CsharpTypeParameterConstraintResolution =
-  | {
-      readonly kind: "resolved";
-      readonly constraints: readonly CsharpTypeParameterConstraint[];
-    }
-  | {
-      readonly kind: "unsupported";
-      readonly reason: string;
-    };
+export type {
+  CsharpTypeParameterConstraint,
+  CsharpTypeParameterConstraintResolution,
+} from "../../target-model/declarations/generic-constraints.js";
 
 export interface CsharpTypeParameterConstraintPolicyHost {
   readonly ast: AstReader;

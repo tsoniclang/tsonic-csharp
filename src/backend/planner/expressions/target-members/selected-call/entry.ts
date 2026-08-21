@@ -1,6 +1,3 @@
-import { selectCsharpJsValueCallOperation } from "../../../../../policy/js-value-operations/index.js";
-import { selectCsharpSourceFlowCall } from "../../../../../policy/operations/index.js";
-import { selectCsharpTargetCall } from "../../../../../policy/members/index.js";
 import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { translateCsharpJsValueArgumentFactory, translateCsharpJsValueInvocation, translateCsharpJsValueFactory } from "../../js-value-operations.js";
 import { translateSelectedTargetCall } from "./target.js";
@@ -9,7 +6,7 @@ import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-pl
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../policy/members/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateCsharpCallExpression(
@@ -21,8 +18,17 @@ export function translateCsharpCallExpression(
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
   const expression = input.program.source.ast.as.AsCallExpression(node);
-  const sourceCall = input.program.source.semantics.forFile(sourceFile).operations.call(node);
-  const sourceFlow = selectCsharpSourceFlowCall(input.policy, node);
+  const classification = input.program.operations.call(node);
+  if (classification === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_CALL_CLASSIFICATION_MISSING",
+      "C# planning received a call without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const sourceCall = classification.source;
+  const sourceFlow = classification.sourceFlow;
   if (sourceFlow.kind === "rejected") {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -34,14 +40,7 @@ export function translateCsharpCallExpression(
   const calleeNode = sourceCall?.sourceCallee.expression ??
     expression?.Expression;
   const jsValueShape = jsValueCallShape(input, sourceCall);
-  const jsValueOperation = selectCsharpJsValueCallOperation(
-    input.policy,
-    calleeNode,
-    jsValueShape.receiver,
-    sourceFile,
-    jsValueShape.kind,
-    expression?.QuestionDotToken !== undefined,
-  );
+  const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
@@ -96,7 +95,15 @@ export function translateCsharpCallExpression(
       invocationArguments,
     );
   }
-  const selection = selectCsharpTargetCall(input.policy, node, sourceFile);
+  const selection = classification.target;
+  if (selection === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_CALL_CLASSIFICATION_INCOMPLETE",
+      "The sealed C# call classification selected neither a JS-value operation nor a target call.",
+    ));
+    return undefined;
+  }
   switch (selection.kind) {
     case "resolved":
       return translateSelectedTargetCall(
@@ -113,6 +120,7 @@ export function translateCsharpCallExpression(
       return translateSourceOwnedCall(
         node,
         selection.source,
+        classification,
         sourceFile,
         input,
         diagnostics,

@@ -3,7 +3,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   Node,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpTypeNode,
 } from "../../target-ast/roslyn/index.js";
@@ -18,7 +18,7 @@ import {
 } from "./target-types.js";
 import type {
   CsharpRuntimeUnionTargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(
   input: CsharpPlanningContext,

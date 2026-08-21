@@ -49,7 +49,7 @@ import type { CsharpModuleInitializationPlan } from "./module-initialization.js"
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
-import { sanitizeIdentifier } from "../../../policy/names/identifiers.js";
+import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { readNamespace } from "../project/project-artifacts.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "../artifacts/source-paths.js";

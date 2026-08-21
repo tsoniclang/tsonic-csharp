@@ -6,7 +6,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   targetTypeRefKey,
-} from "./equality.js";
+} from "../../../target-model/types/equality.js";
 
 export function csharpTargetTypeComponents(
   type: TargetTypeRef,

@@ -10,10 +10,10 @@ import type {
 import {
   csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,
-} from "../storage/nullable.js";
+} from "../../../target-model/types/nullable.js";
 import {
   targetTypeRefEquals,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 
 export function substituteTargetTypeParameters(
   type: TargetTypeRef,

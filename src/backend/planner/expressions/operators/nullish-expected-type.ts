@@ -3,18 +3,12 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  sourcePrimitiveImplicitlyConverts,
-} from "../../../../policy/conversions/index.js";
-import {
-  selectCsharpBinaryOperation,
-} from "../../../../policy/operations/index.js";
 import type {
   CsharpSourceOperator,
-} from "../../../../policy/operations/index.js";
+} from "../../../../target-model/syntax/operators.js";
 import type {
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";
@@ -24,7 +18,7 @@ import type {
 } from "../../../target-ast/roslyn/index.js";
 import {
   targetTypeRefEquals,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   sameCsharpType,
 } from "../../types/index.js";
@@ -56,12 +50,16 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
-  const selection = selectCsharpBinaryOperation(
-    input.policy,
-    node,
-    sourceFile,
-    expectedTargetType,
-  );
+  const selection = expectedTargetType === undefined
+    ? input.program.operations.binary(node)?.target
+    : input.program.expectedTypes.binaryExpected(node, expectedTargetType);
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# binary planning requires a sealed expected-target operation classification that analysis did not produce.",
+    ));
+    return undefined;
+  }
   if (selection.kind === "rejected") {
     return undefined;
   }
@@ -83,8 +81,8 @@ export function tryPlanBinaryExpressionWithExpectedType(
   const resultType = selectExpectedResultType(
     selection.resultType,
     selection.leftType,
+    selection.expectedResultCompatible,
     expectedType,
-    expectedTargetType,
   );
   if (resultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -143,8 +141,8 @@ function binaryOperationUsesExpectedNumericType(
 function selectExpectedResultType(
   resultTarget: TargetTypeRef,
   leftTarget: TargetTypeRef,
+  expectedResultCompatible: boolean,
   expectedType: CsharpTypeNode,
-  expectedTarget: TargetTypeRef | undefined,
 ): CsharpTypeNode | undefined {
   const resultType = csharpTypeFromTargetTypeRef(resultTarget);
   if (resultType === undefined) {
@@ -169,8 +167,7 @@ function selectExpectedResultType(
   ) {
     return expectedType;
   }
-  return expectedTarget !== undefined &&
-    sourcePrimitiveImplicitlyConverts(expectedTarget, resultTarget)
+  return expectedResultCompatible
     ? resultType
     : undefined;
 }

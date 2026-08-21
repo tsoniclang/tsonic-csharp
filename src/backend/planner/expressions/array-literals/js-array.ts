@@ -12,7 +12,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,

@@ -1,16 +1,13 @@
 import type {
-  CsharpSourceCallableContract,
-  CsharpSourceCallableArtifactIdentity,
   CsharpObjectShapeFact,
   CsharpObjectShapeCapability,
   CsharpObjectShapeProjection,
   CsharpObjectShapeProjectionKind,
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult, CsharpObjectShapeArtifact, CsharpArtifactGraph, CsharpArtifactGraphHost, MutableObjectShapeArtifact, JsonClosureState, PreparedObjectShapeBatch } from "./model.js";
 import type { CsharpArtifactSnapshot, CsharpArtifactFacet } from "../contracts.js";
 import type { CsharpGeneratedHelper } from "../generated-helpers.js";
-import type { CsharpStorageRequirement, CsharpStorageTypeResult } from "../storage-requirements.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type {
   TargetArtifactContractGraph,
@@ -18,8 +15,6 @@ import type {
   TargetArtifactReconstruction,
 } from "@tsonic/target-api/artifacts";
 import { createCsharpGeneratedHelperRegistry } from "../generated-helpers.js";
-import { createCsharpStorageRequirementRegistry } from "../storage-requirements.js";
-import { sourceNodeIdentity } from "@tsonic/target-api/source";
 import { createTargetArtifactContractGraph } from "@tsonic/target-api/artifacts";
 
 import {
@@ -56,17 +51,6 @@ import {
   inheritedObjectShapeCapabilities as inheritedObjectShapeCapabilitiesImplementation,
 } from "./object-shapes/closure.js";
 import {
-  requireStorage as requireStorageImplementation,
-  resolveStorageType as resolveStorageTypeImplementation,
-  requiredStorageType as requiredStorageTypeImplementation,
-  consumeTypedLocationIdentity as consumeTypedLocationIdentityImplementation,
-} from "./storage.js";
-import {
-  publishSourceCallable as publishSourceCallableImplementation,
-  sourceCallable as sourceCallableImplementation,
-  sourceCallableArtifactOwner as sourceCallableArtifactOwnerImplementation,
-} from "./source-callables.js";
-import {
   requireGeneratedHelper as requireGeneratedHelperImplementation,
 } from "./generated-helpers.js";
 import {
@@ -81,7 +65,6 @@ export interface CsharpArtifactGraphScope {
   readonly host: CsharpArtifactGraphHost;
   readonly records: Map<string, MutableObjectShapeArtifact>;
   readonly contracts: TargetArtifactContractGraph<CsharpArtifactFacet, CsharpArtifactSnapshot>;
-  readonly storage: ReturnType<typeof createCsharpStorageRequirementRegistry>;
   readonly helpers: ReturnType<typeof createCsharpGeneratedHelperRegistry>;
   readonly dependencyCapture: {
     active: Map<string, TargetArtifactDependency<CsharpArtifactFacet>> | undefined;
@@ -231,28 +214,6 @@ export interface CsharpArtifactGraphScope {
   inheritedObjectShapeCapabilities(
   fact: CsharpObjectShapeFact,
 ): readonly CsharpObjectShapeCapability[];
-  requireStorage(
-  storageExpression: Node,
-  requirement: CsharpStorageRequirement,
-): CsharpArtifactRequestResult;
-  resolveStorageType(
-  declaration: Node,
-  sourceType: TargetTypeRef,
-): CsharpStorageTypeResult;
-  requiredStorageType(
-  storageExpression: Node,
-): TargetTypeRef | undefined;
-  consumeTypedLocationIdentity(declaration: Node): boolean;
-  publishSourceCallable(
-  identity: CsharpSourceCallableArtifactIdentity,
-  callable: CsharpSourceCallableContract,
-): CsharpArtifactRequestResult;
-  sourceCallable(
-  identity: CsharpSourceCallableArtifactIdentity,
-): CsharpSourceCallableContract | undefined;
-  sourceCallableArtifactOwner(
-  identity: CsharpSourceCallableArtifactIdentity,
-): string | undefined;
   requireGeneratedHelper(
   helper: CsharpGeneratedHelper,
 ): CsharpArtifactRequestResult;
@@ -270,13 +231,6 @@ export function createCsharpArtifactGraph(
     CsharpArtifactFacet,
     CsharpArtifactSnapshot
   >();
-  const storage = createCsharpStorageRequirementRegistry({
-    navigation: host.navigation,
-    artifactOwner(declaration) {
-      const identity = sourceNodeIdentity(host.ast, declaration);
-      return identity === undefined ? undefined : "storage:" + identity;
-    },
-  }, contracts);
   const helpers = createCsharpGeneratedHelperRegistry(contracts);
   let scope!: CsharpArtifactGraphScope;
   const methods = {
@@ -330,20 +284,6 @@ export function createCsharpArtifactGraph(
       collectJsonShapeImplementation(scope, ...args),
     inheritedObjectShapeCapabilities: (...args: DropScope<Parameters<typeof inheritedObjectShapeCapabilitiesImplementation>>) =>
       inheritedObjectShapeCapabilitiesImplementation(scope, ...args),
-    requireStorage: (...args: DropScope<Parameters<typeof requireStorageImplementation>>) =>
-      requireStorageImplementation(scope, ...args),
-    resolveStorageType: (...args: DropScope<Parameters<typeof resolveStorageTypeImplementation>>) =>
-      resolveStorageTypeImplementation(scope, ...args),
-    requiredStorageType: (...args: DropScope<Parameters<typeof requiredStorageTypeImplementation>>) =>
-      requiredStorageTypeImplementation(scope, ...args),
-    consumeTypedLocationIdentity: (...args: DropScope<Parameters<typeof consumeTypedLocationIdentityImplementation>>) =>
-      consumeTypedLocationIdentityImplementation(scope, ...args),
-    publishSourceCallable: (...args: DropScope<Parameters<typeof publishSourceCallableImplementation>>) =>
-      publishSourceCallableImplementation(scope, ...args),
-    sourceCallable: (...args: DropScope<Parameters<typeof sourceCallableImplementation>>) =>
-      sourceCallableImplementation(scope, ...args),
-    sourceCallableArtifactOwner: (...args: DropScope<Parameters<typeof sourceCallableArtifactOwnerImplementation>>) =>
-      sourceCallableArtifactOwnerImplementation(scope, ...args),
     requireGeneratedHelper: (...args: DropScope<Parameters<typeof requireGeneratedHelperImplementation>>) =>
       requireGeneratedHelperImplementation(scope, ...args),
     reconstructArtifact: (...args: DropScope<Parameters<typeof reconstructArtifactImplementation>>) =>
@@ -365,23 +305,15 @@ export function createCsharpArtifactGraph(
     requireObjectShapeMethodReceiver: methods.requireObjectShapeMethodReceiver,
     objectShapeMethodUsesReceiver: methods.objectShapeMethodUsesReceiver,
     objectShapeArtifacts: methods.objectShapeArtifacts,
-    requireStorage: methods.requireStorage,
-    resolveStorageType: methods.resolveStorageType,
-    requiredStorageType: methods.requiredStorageType,
-    consumeTypedLocationIdentity: methods.consumeTypedLocationIdentity,
-    publishSourceCallable: methods.publishSourceCallable,
-    sourceCallable: methods.sourceCallable,
     requireGeneratedHelper: methods.requireGeneratedHelper,
     reconstructArtifact: methods.reconstructArtifact,
     verifyContractClosure: methods.verifyContractClosure,
-    unfulfilledStorageRequirements: storage.unfulfilled,
     generatedHelpers: helpers.required,
   } satisfies CsharpArtifactGraph);
   scope = Object.freeze({
     host,
     records,
     contracts,
-    storage,
     helpers,
     dependencyCapture: { active: undefined },
     ...methods,

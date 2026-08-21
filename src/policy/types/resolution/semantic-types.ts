@@ -9,14 +9,14 @@ import {
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   csharpTsValueTargetType,
-} from "../storage/runtime-carriers.js";
+} from "../../../target-model/types/runtime-carriers.js";
 import {
   csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpNeverTargetType,
   csharpVoidTargetType,
-} from "../model/scalar-types.js";
+} from "../../../target-model/types/scalar-types.js";
 import {
   readCsharpSourceDefaultValue,
   readCsharpSourceFixedArrayType,

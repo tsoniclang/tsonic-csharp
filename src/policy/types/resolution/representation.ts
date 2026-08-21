@@ -1,12 +1,12 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../model/scalar-types.js";
-import { getCsharpNullableElementTargetType } from "../storage/nullable.js";
-import { getCsharpTaskResultTargetType } from "../callables/delegates.js";
-import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../operations/syntax/syntax.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpTaskResultTargetType } from "../../../target-model/types/delegates.js";
+import { isCsharpDestructuringAssignmentPattern, isCsharpAssignmentOperator, sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpNumericBinaryPromotion } from "../../operations/numeric/promotion.js";
 import { sourcePrimitiveImplicitlyConverts } from "../../conversions/source-primitives.js";
-import { targetTypeRefEquals } from "../model/equality.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function resolveBinaryTargetRepresentation(
   ast: AstReader,

@@ -6,7 +6,7 @@ import type {
   CsharpPolicyContext,
 } from "../context.js";
 import {
-  csharpBooleanTargetType,
+  csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
@@ -150,7 +150,7 @@ export function selectCsharpJsValueBinaryOperation(
       kind: "resolved",
       runtimeMember: "ApplyDynamicBinaryBoolean",
       dispatch: "static",
-      resultType: csharpBooleanTargetType(),
+      resultType: csharpSourcePrimitiveTargetType("bool"),
     };
   }
   if (lazyBinaryOperators.has(operator)) {
@@ -195,7 +195,7 @@ export function selectCsharpJsValueUnaryOperation(
       kind: "resolved",
       runtimeMember: "ApplyDynamicUnaryBoolean",
       dispatch: "static",
-      resultType: csharpBooleanTargetType(),
+      resultType: csharpSourcePrimitiveTargetType("bool"),
     };
   }
   return valueUnaryOperators.has(operator)
@@ -263,7 +263,7 @@ export function selectCsharpJsValueCondition(
         kind: "resolved",
         runtimeMember: "ToDynamicBoolean",
         dispatch: "static",
-        resultType: csharpBooleanTargetType(),
+        resultType: csharpSourcePrimitiveTargetType("bool"),
       };
 }
 

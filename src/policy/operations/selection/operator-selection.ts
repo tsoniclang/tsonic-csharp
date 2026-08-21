@@ -27,14 +27,17 @@ import {
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";
+import {
+  sourcePrimitiveImplicitlyConverts,
+} from "../../conversions/source-primitives.js";
 import type {
   CsharpSourceOperator,
-} from "../syntax/syntax.js";
+} from "../../../target-model/syntax/operators.js";
 import {
   csharpDestructuringAssignmentSyntax,
   isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
-} from "../syntax/syntax.js";
+} from "../../../target-model/syntax/operators.js";
 
 export interface CsharpResolvedBinaryOperation {
   readonly kind: "resolved";
@@ -47,6 +50,7 @@ export interface CsharpResolvedBinaryOperation {
   readonly leftInputType: TargetTypeRef;
   readonly rightInputType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
+  readonly expectedResultCompatible: boolean;
 }
 
 export type CsharpTargetBinaryOperation =
@@ -191,6 +195,14 @@ export function selectCsharpBinaryOperation(
         leftType,
         rightType,
         ...operationTypes,
+        expectedResultCompatible: expectedResultType !== undefined &&
+          (
+            targetTypeRefEquals(operationTypes.resultType, expectedResultType) ||
+            sourcePrimitiveImplicitlyConverts(
+              expectedResultType,
+              operationTypes.resultType,
+            )
+          ),
       }
     : rejected(incompatibility);
 }
@@ -242,7 +254,7 @@ function selectBinaryOperationTypes(
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
-      rightInputType: rightType,
+      rightInputType: operator === "=" ? leftType : rightType,
       resultType: leftType,
     };
   }

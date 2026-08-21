@@ -25,7 +25,7 @@ import {
 import { readCsharpSourceStruct } from "../resolution/source-markers.js";
 import {
   targetTypeRefKey,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";

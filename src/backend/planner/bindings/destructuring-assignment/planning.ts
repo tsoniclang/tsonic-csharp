@@ -26,29 +26,29 @@ import {
   getCsharpNullableElementTargetType,
   resolveCsharpArrayBindingCarrier,
   targetTypeRefEquals,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import { allocateDestructuringTemp } from "../binding-state.js";
 import { csharpConstructibleTypeFromObjectShapeFact, csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../../objects/index.js";
-import { csharpObjectShapeMemberLookupFailureMessage, resolveCsharpObjectShapeMemberBySourceContract } from "../../../../policy/types/index.js";
+import { csharpObjectShapeMemberLookupFailureMessage, resolveCsharpObjectShapeMemberBySourceContract } from "../../../../target-model/types/index.js";
 import { csharpTupleExpression } from "../../types/csharp-tuples.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
 import { getObjectShapeForBindingSource } from "../binding-object-patterns.js";
 import { missingCarrierDiagnosticDetail, resolveRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { planObjectShapeDefaultProjection } from "../../objects/object-shape-defaults.js";
-import { requireCsharpIdentifier } from "../../../../policy/names/identifiers.js";
+import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { runtimeArrayHelperCall } from "../../expressions/arrays/helpers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
-import type { CsharpArrayBindingCarrier } from "../../../../policy/types/index.js";
+import type { CsharpArrayBindingCarrier } from "../../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
-import type { CsharpObjectShapeFact } from "../../../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringAssignmentArrayElement, DestructuringAssignmentObjectElement, DestructuringAssignmentPattern, DestructuringAssignmentTarget } from "./entry.js";
 import type { DestructuringPlannerState } from "../binding-state.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 
 export function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,

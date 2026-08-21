@@ -10,11 +10,8 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  selectCsharpJsArrayMutation,
-} from "../../../policy/operations/index.js";
-import {
   csharpSourcePrimitiveTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -27,7 +24,14 @@ export function tryPlanJsArrayDeleteExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpJsArrayMutation(input.policy, node, sourceFile);
+  const selection = input.program.operations.jsArrayMutation(node);
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received an array mutation without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (selection.kind !== "delete-element") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -72,7 +76,14 @@ export function tryPlanJsArrayLengthMutationExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpJsArrayMutation(input.policy, node, sourceFile);
+  const selection = input.program.operations.jsArrayMutation(node);
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received an array mutation without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (selection.kind === "not-js-array-mutation") {
     return undefined;
   }

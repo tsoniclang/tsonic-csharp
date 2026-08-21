@@ -27,7 +27,6 @@ import {
   getAsyncReturnExpressionExpectedType,
   getDeclarationReturnTargetType,
   getExplicitReturnType,
-  reconcileInferredReturnTargetContract,
 } from "./declaration-return-types.js";
 import {
   planAttributesForSubject,
@@ -38,9 +37,6 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  publishCsharpSourceCallableContract,
-} from "../artifacts/source-callable-contracts.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -76,7 +72,6 @@ export function planMethodDeclaration(
     input,
   );
   const name = planMethodDeclarationName(
-    node,
     declaration.name,
     input,
     diagnostics,
@@ -92,20 +87,12 @@ export function planMethodDeclaration(
       parameters.prelude,
       planBlockStatements,
     );
-    const effectiveReturnTargetType = generator?.generatorType ?? declaredReturnTargetType;
-    publishCsharpSourceCallableContract(
-      node,
-      parameters.targetParameters,
-      effectiveReturnTargetType,
-      input,
-      diagnostics,
-    );
     return {
       kind: "MethodDeclaration",
       name,
       modifiers: modifiers.filter((modifier) => modifier !== "async"),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
       returnType: generator?.generatorTypeNode ?? declaredReturnType,
       parameters: parameters.parameters,
       body: generator?.body ?? { kind: "Block", statements: [] },
@@ -113,9 +100,6 @@ export function planMethodDeclaration(
   }
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
-  if (declaration.Type === undefined && !modifiers.includes("async")) {
-    state.observedReturnTargetTypes = [];
-  }
   if (modifiers.includes("async")) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
@@ -129,43 +113,26 @@ export function planMethodDeclaration(
     diagnostics,
     state,
   );
-  const reconciledReturn = declaredReturnTargetType === undefined ||
-      declaration.Type !== undefined || modifiers.includes("async")
-    ? declaredReturnTargetType === undefined
-      ? undefined
-      : { kind: "resolved" as const, type: declaredReturnTargetType }
-    : reconcileInferredReturnTargetContract(
-        input.policy,
-        declaredReturnTargetType,
-        state.observedReturnTargetTypes ?? [],
-        state.returnTargetObservationIncomplete === true,
-      );
-  if (reconciledReturn?.kind === "rejected") {
+  const returnContract = input.program.declarations.returnContract(node);
+  if (returnContract?.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      reconciledReturn.reason,
+      returnContract.reason,
     ));
   }
-  const effectiveReturnTargetType = reconciledReturn?.kind === "resolved"
-    ? reconciledReturn.type
+  const effectiveReturnTargetType = returnContract?.kind === "resolved"
+    ? returnContract.type
     : declaredReturnTargetType;
   const returnType = effectiveReturnTargetType === undefined
     ? declaredReturnType
     : csharpTypeFromTargetTypeRef(effectiveReturnTargetType) ??
       declaredReturnType;
-  publishCsharpSourceCallableContract(
-    node,
-    parameters.targetParameters,
-    effectiveReturnTargetType,
-    input,
-    diagnostics,
-  );
   return {
     kind: "MethodDeclaration",
     name,
     modifiers,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     returnType,
     parameters: parameters.parameters,
     body: {
@@ -179,14 +146,12 @@ export function planMethodDeclaration(
 }
 
 function planMethodDeclarationName(
-  declaration: Node,
   nameNode: Node | undefined,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string {
   if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
-    const selected = input.program.source.semantics.forNode(declaration)
-      .operations.wellKnownSymbol(nameNode);
+    const selected = input.program.sourceEvidence.wellKnownSymbol(nameNode);
     if (selected?.kind === "dispose") {
       return "Dispose";
     }

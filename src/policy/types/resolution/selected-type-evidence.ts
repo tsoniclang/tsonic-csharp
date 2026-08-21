@@ -5,7 +5,7 @@ import type {
 import {
   targetTypeRefEquals,
   targetTypeRefIsClosed,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 
 export function reconcileCsharpSelectedTargetType(
   authored: TargetTypeRef | undefined,

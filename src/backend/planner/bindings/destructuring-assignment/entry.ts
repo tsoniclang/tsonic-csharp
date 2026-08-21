@@ -1,5 +1,5 @@
 import { allocateDestructuringTemp } from "../binding-state.js";
-import { csharpDestructuringAssignmentSyntax, selectCsharpDestructuringAssignmentOperation } from "../../../../policy/operations/index.js";
+import { csharpDestructuringAssignmentSyntax } from "../../../../target-model/syntax/operators.js";
 import { destructuringAssignmentPattern, planAssignmentPatternFromExpression } from "./planning.js";
 import { getArrayBoundaryCoreCarrierForExpression } from "../../expressions/arrays/boundary-facts.js";
 import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
@@ -123,11 +123,12 @@ function planDestructuringAssignmentCore(
   planExpression: ExpressionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): DestructuringAssignmentPlan | undefined {
-  const selectedOperator = selectCsharpDestructuringAssignmentOperation(
-    input.policy,
-    node,
-    sourceFile,
-  );
+  const selectedOperator = input.program.operations.binary(node)
+    ?.destructuring;
+  if (selectedOperator === undefined) {
+    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
+    return undefined;
+  }
   if (selectedOperator.kind !== "resolved") {
     pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
     return undefined;

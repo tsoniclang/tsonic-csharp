@@ -1,24 +1,23 @@
 import type { CsharpPlanningContext } from "../context.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import {
-  selectCsharpRegularExpressionLiteral,
-} from "../../../policy/operations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 
 export function planRegularExpressionLiteral(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const selection = selectCsharpRegularExpressionLiteral(
-    input.policy,
-    node,
-    sourceFile,
-  );
+  const selection = input.program.operations.regularExpression(node);
+  if (selection === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a regular-expression literal without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (selection.kind === "rejected") {
     diagnostics.push({
       code: selection.code,

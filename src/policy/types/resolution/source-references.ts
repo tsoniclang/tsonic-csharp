@@ -8,9 +8,9 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
-import { csharpSourceTypeArgumentNodes } from "./source-syntax.js";
-import { getCsharpCollectionElementTargetType } from "../collections.js";
-import { getCsharpNullableElementTargetType } from "../storage/nullable.js";
+import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type-arguments.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
 import { sourceFactSubjectsForNode, definedValues } from "./source-evidence.js";
 import { sourcePrimitiveFactKey } from "@tsonic/tsts";
@@ -20,7 +20,7 @@ import {
   sourceTypeSyntaxIsCompositional,
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
-import { targetTypeRefKey, targetTypeRefEquals } from "../model/equality.js";
+import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,

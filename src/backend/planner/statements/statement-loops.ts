@@ -31,12 +31,11 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
 import {
   isCsharpStringCodePointIteration,
-  selectCsharpIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   CsharpForAwaitOfIteration,
   CsharpForOfIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";
@@ -65,12 +64,14 @@ export function planForOfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = selectCsharpIteration(
-    input.policy,
-    statementNode,
-    statement.Expression,
-    sourceFile,
-  );
+  const selectedIteration = input.program.operations.iteration(statementNode);
+  if (selectedIteration === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      "C# planning received a for-of statement without a sealed target classification.",
+    ));
+    return [];
+  }
   if (selectedIteration.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,
@@ -115,7 +116,6 @@ export function planForOfStatement(
       : planResourceRegistrationStatement(
           resourceDeclaration.declaration,
           binding,
-          sourceFile,
           input,
           diagnostics,
           state,
@@ -243,27 +243,9 @@ function planForOfBinding(
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
       return undefined;
     }
-    const storageRequirement = input.artifacts.requireStorage(first, {
-      kind: "target-representation",
-      declaration: first,
-      targetType: selectedIteration.elementType,
-    });
-    if (storageRequirement.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        first,
-        storageRequirement.reason,
-      ));
-      return undefined;
-    }
-    const storageType = input.artifacts.resolveStorageType(
-      first,
-      selectedIteration.elementType,
-    );
-    if (storageType.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(first, storageType.reason));
-      return undefined;
-    }
-    const itemStorageType = csharpTypeFromTargetTypeRef(storageType.type);
+    const storageType = input.program.storage.type(first) ??
+      selectedIteration.elementType;
+    const itemStorageType = csharpTypeFromTargetTypeRef(storageType);
     if (itemStorageType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         first,

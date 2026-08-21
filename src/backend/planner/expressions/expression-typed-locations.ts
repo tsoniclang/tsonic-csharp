@@ -6,13 +6,10 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypedLocationOperationKind,
   CsharpTypedLocationStorage,
-} from "../../../policy/operations/index.js";
-import {
-  selectCsharpTypedLocationOperation,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import {
   csharpRuntimeLocationTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -52,11 +49,10 @@ export function tryPlanCsharpTypedLocationOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state?: DestructuringPlannerState,
 ): CsharpTypedLocationOperationPlan {
-  const operation = selectCsharpTypedLocationOperation(
-    input.policy,
-    node,
-    sourceFile,
-  );
+  const operation = input.program.operations.typedLocation(node);
+  if (operation === undefined) {
+    return { handled: false };
+  }
   if (operation.kind === "not-typed-location") {
     return { handled: false };
   }
@@ -208,7 +204,6 @@ function planCsharpTypedLocationStorage(
         storage,
         locationType,
         planned,
-        input,
         diagnostics,
         state,
       );
@@ -361,32 +356,12 @@ function planDirectLocation(
   }>,
   locationType: CsharpTypeNode,
   planned: CsharpExpression,
-  input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const valueName = allocateSyntheticParameter(state);
   switch (storage.identity.kind) {
     case "local-storage": {
-      const revision = input.artifacts.revision;
-      const requirement = input.artifacts.requireStorage(
-        storage.expression,
-        {
-          kind: "typed-location-identity",
-          declaration: storage.identity.declaration,
-        },
-      );
-      if (requirement.kind === "rejected") {
-        diagnostics.push(typedLocationDiagnostic(
-          storage.expression,
-          "location-address",
-          requirement.reason,
-        ));
-        return undefined;
-      }
-      if (input.artifacts.revision !== revision) {
-        return undefined;
-      }
       const identityName = getCsharpTypedLocationIdentityName(
         storage.identity.declaration,
         state,

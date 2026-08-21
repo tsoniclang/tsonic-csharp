@@ -399,7 +399,10 @@ function objectShapeProjectionOptions(
   readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
   readonly csharpInvocation?: CsharpTargetInvocation;
 } {
-  if (sourceValue === undefined) {
+  if (
+    sourceValue === undefined ||
+    isCsharpRecordDictionaryTargetType(selectedTargetType)
+  ) {
     return {};
   }
   const shape = context.host.objectShapes?.resolveNode(

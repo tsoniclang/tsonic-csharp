@@ -9,7 +9,8 @@ test("explicit safety reaches the planner through target-owned policy only", () 
   );
 
   assert.match(explicitSafety, /input\.program\.safetyApplications/u);
-  assert.match(nativePointers, /selectCsharpNativePointerOperation/u);
+  assert.match(nativePointers, /input\.program\.operations\.nativePointer/u);
+  assert.doesNotMatch(nativePointers, /selectCsharpNativePointerOperation/u);
   assert.doesNotMatch(
     `${explicitSafety}\n${nativePointers}`,
     /sourceFacts|FactKey|getSymbolAtLocation|getTypeAtLocation|getResolvedSymbol|getResolvedSignature|\.Text\b|\.TypeArguments\b/u,
@@ -47,21 +48,24 @@ test("C# never restores compilation-wide or containing-type unsafe inference", (
 
 test("C# language, memory rules, and unsafe permission remain separate controls", () => {
   const options = product("src/options/csharp-target-options.ts");
+  const projectAnalysis = product(
+    "src/analysis/project/classification.ts",
+  );
   const properties = product(
-    "src/backend/planner/project/project-property-options.ts",
+    "src/backend/planner/project/project-options.ts",
   );
   const safety = product("src/backend/planner/safety/explicit-safety.ts");
 
   assert.match(options, /readCsharpLanguageDialect/u);
   assert.match(options, /readCsharpMemorySafetyRules/u);
-  assert.match(properties, /input\.program\.configuration/u);
-  assert.match(properties, /configuration\.languageDialect/u);
-  assert.match(properties, /configuration\.memorySafetyRules/u);
+  assert.match(projectAnalysis, /configuration\.languageDialect/u);
+  assert.match(projectAnalysis, /configuration\.memorySafetyRules/u);
+  assert.match(properties, /input\.program\.project\.properties/u);
   assert.match(properties, /options\.allowUnsafeBlocks === true/u);
   assert.match(safety, /input\.program\.configuration\.languageDialect/u);
   assert.match(safety, /input\.program\.configuration\.memorySafetyRules/u);
   assert.doesNotMatch(
-    `${properties}\n${safety}`,
+    `${projectAnalysis}\n${properties}\n${safety}`,
     /readCsharpLanguageDialect|readCsharpMemorySafetyRules/u,
   );
   assert.doesNotMatch(safety, /NativePointer|FunctionPointer|PointerType/u);

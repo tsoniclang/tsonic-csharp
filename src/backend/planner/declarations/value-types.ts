@@ -18,10 +18,7 @@ import {
 import type {
   CsharpSourceField,
   CsharpSourceStruct,
-} from "../../../policy/types/index.js";
-import {
-  readCsharpSourceField,
-} from "../../../policy/types/index.js";
+} from "../../../analysis/source-evidence/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "./attributes.js";
@@ -99,7 +96,7 @@ function diagnoseUnprovenValueTypeFields(
       continue;
     }
     const assignment = AsPropertyAssignment(input.program.source.ast, property)!;
-    if (readCsharpSourceField(input.program.source.sourceFacts, [
+    if (input.program.sourceEvidence.sourceField([
       property,
       assignment.Initializer,
       Node_Name(input.program.source.ast, property),

@@ -3,12 +3,12 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpSourcePrimitiveTargetType } from "../model/scalar-types.js";
-import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../storage/nullable.js";
+import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
+import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
-import { sourceOperatorFromKindName } from "../../operations/syntax/syntax.js";
+import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,

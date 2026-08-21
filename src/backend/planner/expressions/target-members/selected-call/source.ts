@@ -5,22 +5,26 @@ import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import type { CsharpTargetParameter } from "../../../../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo } from "../../../../../policy/members/index.js";
+import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
+import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateSourceOwnedCall(
   node: Node,
   source: ResolvedSourceCallInfo,
+  classification: CsharpCallClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const signatureDeclaration = input.program.source.semantics.forFile(sourceFile)
-    .declarations.signatureDeclaration(source.selectedSignature);
+  const signatureDeclaration = input.program.sourceEvidence.signatureDeclaration(
+    source.selectedSignature,
+  );
   if (
     !isProjectSourceDeclaration(
       input,
@@ -43,10 +47,7 @@ export function translateSourceOwnedCall(
   if (callee === undefined) {
     return undefined;
   }
-  const typeArguments = input.types.policy.resolveSourceCallTypeArguments(
-    source,
-    sourceFile,
-  );
+  const typeArguments = classification.sourceTypeArguments;
   if (typeArguments === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -66,6 +67,7 @@ export function translateSourceOwnedCall(
   const arguments_ = translateSourceOwnedArguments(
     node,
     source,
+    classification,
     sourceFile,
     input,
     diagnostics,
@@ -80,6 +82,7 @@ export function translateSourceOwnedCall(
 export function translateSourceOwnedArguments(
   node: Node,
   source: ResolvedSourceCallInfo,
+  classification: CsharpSourceCallArgumentClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
@@ -128,11 +131,10 @@ export function translateSourceOwnedArguments(
     const parameter = source.sourceSelectedSignatureParameters[
       first.sourceParameterIndex
     ];
-    const targetType = input.types.policy.resolveSourceCallArgumentParameter(
-      source,
-      first,
-      sourceFile,
-    );
+    const bindingIndex = source.sourceArgumentBindings.indexOf(first);
+    const targetType = bindingIndex < 0
+      ? undefined
+      : classification.sourceArgumentParameterTypes?.[bindingIndex];
     if (parameter === undefined || targetType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
@@ -209,11 +211,7 @@ export function translateSourceOwnedArguments(
       ));
       return undefined;
     }
-    const targetType = input.types.policy.resolveSourceCallParameter(
-      source,
-      parameterIndex,
-      sourceFile,
-    );
+    const targetType = classification.sourceParameterTypes?.[parameterIndex];
     if (targetType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

@@ -13,18 +13,18 @@ export {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
-} from "../policy/types/model/scalar-types.js";
-export { csharpQualifiedTypeRenderShape } from "../policy/types/render-shapes.js";
-export { targetParameter } from "../policy/types/callables/member-facts.js";
+} from "../target-model/types/scalar-types.js";
+export { csharpQualifiedTypeRenderShape } from "../target-model/types/render-shapes.js";
+export { targetParameter } from "../target-model/types/member-facts.js";
 export {
   csharpDelegateTargetType,
   csharpTaskTargetType,
-} from "../policy/types/callables/delegates.js";
+} from "../target-model/types/delegates.js";
 export {
   csharpNullableTargetType,
   csharpNullableValueTargetType,
   getCsharpNullableElementTargetType,
-} from "../policy/types/storage/nullable.js";
+} from "../target-model/types/nullable.js";
 export { csharpJsDateTargetType } from "../policy/types/resolution/surface-types.js";
 export {
   csharpProviderPolicyContribution,

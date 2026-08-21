@@ -14,17 +14,17 @@ import type {
 import {
   targetTypeRefEquals,
   type TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
 } from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -34,7 +34,7 @@ import {
 } from "../objects/fact-queries.js";
 import {
   parseFiniteNumberLiteral,
-} from "../../../source/literal-values.js";
+} from "../../../target-model/syntax/literal-values.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,

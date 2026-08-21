@@ -4,7 +4,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -24,7 +24,7 @@ import {
   csharpCollectionUsesJsArraySemantics,
   getCsharpArrayLiteralElementTargetType,
   getCsharpNullableElementTargetType,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -64,7 +64,7 @@ export function planArrayLiteralExpressionFromFacts(
 ): CsharpExpression | undefined {
   const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution) ??
-    input.types.policy.resolveNode(node, sourceFile);
+    input.types.classifications.resolveNode(node, sourceFile);
   return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
 }
 

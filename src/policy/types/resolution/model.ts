@@ -17,6 +17,7 @@ import type { CsharpProviderRelationResolver } from "../../../providers/model/re
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -66,11 +67,6 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       sourceFile: SourceFile,
     ): TargetTypeRef | undefined;
   };
-}
-
-export interface CsharpSourceTargetTypeBinding {
-  readonly declaration: Node;
-  readonly targetType: TargetTypeRef;
 }
 
 export type CsharpScopedTypePolicyResult =

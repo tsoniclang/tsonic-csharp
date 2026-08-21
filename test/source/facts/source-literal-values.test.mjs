@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseBigIntLiteral,
   parseFiniteNumberLiteral,
-} from "../../../dist/source/literal-values.js";
+} from "../../../dist/target-model/syntax/literal-values.js";
 
 test("source numeric literal parser supports separators and finite JS numeric forms", () => {
   assert.equal(parseFiniteNumberLiteral("1_000"), 1000);

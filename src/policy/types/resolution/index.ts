@@ -4,8 +4,10 @@ export {
 export type {
   CsharpPlanningRepresentationQueries,
   CsharpScopedTypePolicyResult,
-  CsharpSourceTargetTypeBinding,
   CsharpTypePolicy,
   CsharpTypePolicyBaseHost,
   CsharpTypePolicyHost,
 } from "./model.js";
+export type {
+  CsharpSourceTargetTypeBinding,
+} from "../../../target-model/types/model.js";

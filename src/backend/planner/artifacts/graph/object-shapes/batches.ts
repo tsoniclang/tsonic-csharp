@@ -1,9 +1,9 @@
 import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { CsharpArtifactRequestResult, PreparedObjectShapeBatch, StagedObjectShapeRecord } from "../model.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../../../policy/types/index.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeCapability, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
 import { accepted, rejected } from "../result.js";
 import { csharpObjectShapeContractCandidate } from "../../contracts.js";
-import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../../../policy/types/index.js";
+import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../../../target-model/types/index.js";
 import { maximumArtifactCount } from "../model.js";
 import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 

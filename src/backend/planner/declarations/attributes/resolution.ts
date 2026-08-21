@@ -28,8 +28,8 @@ export function resolveAttributeApplication(
   }
   const selectedDeclaration = isAstNode(input.program.source.ast, attribute.selectedMember)
     ? attribute.selectedMember
-    : input.program.source.navigation.referenceFor(applicationTarget)?.declaration ??
-      input.program.source.navigation.declarationFor(applicationTarget);
+    : input.program.sourceNavigation.referenceFor(applicationTarget)?.declaration ??
+      input.program.sourceNavigation.declarationFor(applicationTarget);
   if (attribute.applicationPlacement === "constructor") {
     const constructor = SourceKind(input.program.source.ast, selectedDeclaration) === KindConstructor
       ? selectedDeclaration

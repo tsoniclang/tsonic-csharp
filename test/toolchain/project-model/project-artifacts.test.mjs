@@ -12,6 +12,9 @@ import {
   createCsharpTargetConfiguration,
   validateCsharpTargetOptions,
 } from "../../../dist/options/csharp-target-options.js";
+import {
+  analyzeCsharpProject,
+} from "../../../dist/analysis/project/index.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);
@@ -294,16 +297,17 @@ function fakeInput(options = {}, runtimeReferences = []) {
     outputRoot: join(fixtureProjectRoot, "out"),
     targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
   };
-  return {
-    program: {
-      configuration: createCsharpTargetConfiguration(
-        target,
-        fixtureProjectRoot,
-        paths.targetOutputRoot,
-      ),
-    },
-    input: { target, runtimeReferences, paths },
-  };
+  const configuration = createCsharpTargetConfiguration(
+    target,
+    fixtureProjectRoot,
+    paths.targetOutputRoot,
+  );
+  const project = analyzeCsharpProject(configuration, runtimeReferences);
+  if (project.kind === "rejected") {
+    throw new Error(project.diagnostics.map((diagnostic) =>
+      diagnostic.message).join("\n"));
+  }
+  return { program: { configuration, project: project.value }, host: { paths } };
 }
 
 function ensureUserProjectFile(relativePath) {

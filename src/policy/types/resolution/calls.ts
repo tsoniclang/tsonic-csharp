@@ -3,13 +3,13 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpTypeResolutionState } from "./model.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../storage/runtime-carriers.js";
-import { csharpTargetParameterValueType } from "../callables/member-facts.js";
-import { getCsharpDelegateSignature } from "../callables/delegates.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
+import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../callables/substitution.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
-import { targetTypeRefEquals } from "../model/equality.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,

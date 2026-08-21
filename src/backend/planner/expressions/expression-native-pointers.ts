@@ -3,9 +3,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  selectCsharpNativePointerOperation,
-} from "../../../policy/operations/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -36,7 +33,10 @@ export function tryPlanCsharpNativePointerOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
 ): CsharpNativePointerOperationPlan {
-  const selection = selectCsharpNativePointerOperation(input.policy, node, sourceFile);
+  const selection = input.program.operations.nativePointer(node);
+  if (selection === undefined) {
+    return { handled: false };
+  }
   if (selection.kind === "not-native-pointer") {
     return { handled: false };
   }

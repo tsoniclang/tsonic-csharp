@@ -4,7 +4,7 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeProjection,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpObjectShapeProjectionMethodName,
   csharpObjectShapeProjectionMembers,
@@ -13,13 +13,10 @@ import {
   csharpTsValueTargetType,
   getCsharpJsArrayElementTargetType,
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpConversionSelection,
-} from "../../../policy/conversions/index.js";
-import {
-  selectCsharpConversion,
-} from "../../../policy/conversions/index.js";
+} from "../../../analysis/conversions/index.js";
 import type {
   CsharpExpression,
   CsharpMethodDeclaration,
@@ -256,7 +253,15 @@ function convertClosedShapeValue(
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
   return applyClosedShapeConversion(
-    selectCsharpConversion(input.policy, sourceType, targetType, "implicit"),
+    input.program.conversions.select(
+      sourceType,
+      targetType,
+      "implicit",
+    ) ?? {
+      kind: "rejected",
+      reason:
+        "Closed object-shape planning requires a sealed target conversion classification that analysis did not produce.",
+    },
     targetType,
     expression,
   );

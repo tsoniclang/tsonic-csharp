@@ -23,7 +23,7 @@ import type {
 } from "../expression-planner-types.js";
 import type {
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 
 export function planBinaryOperand(
   operand: Node,
@@ -68,8 +68,7 @@ function isNullishEqualityOperand(
   if (kind !== KindIdentifier || Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, operand)) !== "undefined") {
     return false;
   }
-  const type = input.program.source.semantics.forFile(sourceFile).types.expressionType(operand);
-  return type === undefined
-    ? false
-    : input.program.source.semantics.forFile(sourceFile).types.isNullish(type);
+  const type = input.program.sourceEvidence.expressionType(operand);
+  return type !== undefined &&
+    input.program.sourceEvidence.semanticType(type, sourceFile)?.nullish === true;
 }
