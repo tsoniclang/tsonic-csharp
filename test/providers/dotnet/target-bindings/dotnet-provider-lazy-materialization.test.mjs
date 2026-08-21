@@ -111,19 +111,45 @@ test("target relations materialize the exact selected provider export", () => {
   }));
   const listHeader = requireType(header, "List");
 
-  const relations = provider.resolveTargetRelations({
+  const request = {
     moduleSpecifier: systemCollectionsGenericModule,
     providerModuleId: systemCollectionsGenericModule,
     artifactFileName: "tsts-provider://test/System.Collections.Generic.List.d.ts",
     exportName: "List",
     exportId: listHeader.targetId,
-  });
+  };
+  const relations = provider.resolveTargetRelations(request);
 
   assert.equal(Array.isArray(relations), true, JSON.stringify(relations));
   assert.equal(relations.some((relation) => relation.exportId === listHeader.targetId), true);
-  const snapshot = telemetry.snapshot();
-  assert.equal(snapshot.moduleCompleteMaterializationRequests, 0);
-  assert.equal(snapshot.moduleMaterializedExports, 1);
+  const initialSnapshot = telemetry.snapshot();
+  assert.equal(initialSnapshot.moduleCompleteMaterializationRequests, 0);
+  assert.equal(initialSnapshot.moduleMaterializedExports, 1);
+
+  let repeated;
+  for (let index = 0; index < 250; index += 1) {
+    repeated = provider.resolveTargetRelations({
+      ...request,
+      artifactFileName:
+        `tsts-provider://test/physical-slice-${index}.d.ts`,
+    });
+    assert.strictEqual(repeated, relations);
+  }
+  const repeatedSnapshot = telemetry.snapshot();
+
+  assert.equal(repeatedSnapshot.requestsTotal, initialSnapshot.requestsTotal);
+  assert.equal(
+    repeatedSnapshot.moduleIncrementalMaterializationRequests,
+    initialSnapshot.moduleIncrementalMaterializationRequests,
+  );
+  assert.equal(
+    repeatedSnapshot.virtualDeclarationCount,
+    initialSnapshot.virtualDeclarationCount,
+  );
+  assert.equal(
+    repeatedSnapshot.referenceSnapshotVerifications,
+    initialSnapshot.referenceSnapshotVerifications + 250,
+  );
 });
 
 test("cross-module inherited members materialize only the exact base export", () => {
