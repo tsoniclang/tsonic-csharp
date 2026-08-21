@@ -9,7 +9,7 @@ import type {
 } from "./expression-planner-types.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -29,7 +29,7 @@ export function translateCsharpSelectedReceiver(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  const selectedType = input.types.resolveSelectedValue(
+  const selectedType = input.types.policy.resolveSelectedValue(
     receiver.expression,
     receiver.type,
     sourceFile,

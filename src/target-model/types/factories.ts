@@ -1,11 +1,11 @@
 import type {
   TargetTypeRef,
-} from "./definitions.js";
+} from "./model.js";
 import type {
   CsharpTargetNamedTypeRef,
   CsharpTargetTypeRenderShape,
   CsharpTypeofRuntimeKind,
-} from "./definitions.js";
+} from "./model.js";
 
 export function csharpTargetNamedType(
   id: string,

@@ -1,10 +1,10 @@
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 
 export function targetMethod(
   id: string,

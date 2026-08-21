@@ -7,7 +7,7 @@ import type {
   CsharpPropertyDeclaration,
   CsharpTypeDeclaration,
   CsharpTypeMember,
-} from "../../backend/roslyn/syntax.js";
+} from "../../backend/target-ast/roslyn/index.js";
 import type { CsharpPrintContext } from "./context.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import { indentLines } from "./format.js";

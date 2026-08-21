@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
 import type { SourceDeclarationReference } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../storage/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../callables/member-facts.js";
 import { targetTypeRefEquals } from "../model/equality.js";
@@ -135,8 +135,9 @@ export function resolveSelectedValueWithState(
 ): TargetTypeRef | undefined {
   const reference = host.navigation.referenceFor(node);
   const declaration = sourceValueDeclaration(node, reference?.declaration);
-  const scopedTarget = host.scopedTargetType?.(declaration ?? node) ??
-    host.scopedTargetType?.(node);
+  const scopedTarget = host.representations.scopedTargetType(
+    declaration ?? node,
+  ) ?? host.representations.scopedTargetType(node);
   if (scopedTarget !== undefined) {
     return scopedTarget;
   }
@@ -284,7 +285,7 @@ export function resolveSourceCallTypeArguments(
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
 ): readonly TargetTypeRef[] | undefined {
-  const callable = host.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile);
   return resolveSourceCallInstantiation(
     source,
     sourceFile,
@@ -305,7 +306,7 @@ export function resolveSourceCallParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile);
   const contractedParameter = callable?.parameters[parameterIndex];
   if (callable !== undefined && contractedParameter !== undefined) {
     if (
@@ -354,7 +355,7 @@ export function resolveSourceCallArgumentParameter(
   if (parameter === undefined) {
     return undefined;
   }
-  const callable = host.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile);
   const contractedParameter = callable?.parameters[
     binding.sourceParameterIndex
   ];
@@ -422,7 +423,7 @@ export function resolveSourceCallResultWithState(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const declaration = sourceCallSelectedDeclaration(source);
-  const callable = host.sourceCallable(source, sourceFile);
+  const callable = host.representations.sourceCallable(source, sourceFile);
   if (callable !== undefined) {
     if (!sourceCallableTypeParametersMatch(source, callable)) {
       return undefined;
@@ -443,7 +444,7 @@ export function resolveSourceCallResultWithState(
   if (delegateResult !== undefined) {
     return delegateResult;
   }
-  const result = host.semantics(sourceFile).selectCallResult(source);
+  const result = host.semantics(sourceFile).operations.callResult(source);
   if (result === undefined) {
     return undefined;
   }
@@ -501,11 +502,16 @@ export function withSourceTargetBindings(
     kind: "resolved",
     policy: createCsharpTypePolicy({
       ...host,
-      scopedTargetType(node) {
-        const reference = host.navigation.referenceFor(node);
+      representations: {
+        scopedTargetType(node) {
+          const reference = host.navigation.referenceFor(node);
         return targetTypes.get(reference?.declaration ?? node) ??
           targetTypes.get(node) ??
-          host.scopedTargetType?.(node);
+          host.representations.scopedTargetType(node);
+        },
+        sourceCallable(source, sourceFile) {
+          return host.representations.sourceCallable(source, sourceFile);
+        },
       },
     }),
   };

@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { combineCsharpTargetUnionMembers } from "../storage/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { getCsharpCollectionElementTargetType } from "../collections.js";
@@ -24,7 +24,7 @@ export function resolveNodeWithState(
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
-  const scopedTargetType = host.scopedTargetType?.(node);
+  const scopedTargetType = host.representations.scopedTargetType(node);
   if (scopedTargetType !== undefined) {
     return scopedTargetType;
   }
@@ -48,7 +48,7 @@ export function resolveNodeWithState(
     return selectedExpression;
   }
   const direct = resolveDirectSourceFacts(
-    sourceFactSubjectsForNode(node, queries),
+    sourceFactSubjectsForNode(node, host.navigation),
     queries.sourceFile,
     state,
   );
@@ -77,7 +77,7 @@ export function resolveNodeWithState(
         : { kind: "array", element };
     }
     return resolveTypeWithState(
-      queries.getTypeFromTypeNode(node),
+      queries.types.authoredType(node),
       queries.sourceFile,
       nextState(state),
     );
@@ -178,7 +178,7 @@ export function resolveNodeWithState(
     return structuralType;
   }
   return resolveTypeWithState(
-    queries.getTypeAtLocation(node),
+    queries.types.expressionType(node),
     queries.sourceFile,
     nextState(state),
   );

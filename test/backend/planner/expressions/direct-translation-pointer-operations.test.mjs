@@ -239,10 +239,10 @@ test("source-backed location identities are independent of the absolute project 
   const source = first.artifacts.get("src/Index.cs");
   assert.doesNotMatch(source, /first-checkout|second-checkout/u);
   assert.equal(
-    source.includes("source-static-storage\\0src/Index.cs"),
+    source.includes("source-static-storage\\0index.ts"),
     true,
   );
-  assert.equal(source.includes("source-member\\0src/Index.cs"), true);
+  assert.equal(source.includes("source-member\\0index.ts"), true);
 });
 
 test("lambda, destructured, and per-iteration bindings receive one identity per activation", () => {

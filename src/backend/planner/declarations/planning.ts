@@ -13,7 +13,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpClassDeclaration,
   CsharpMethodDeclaration,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "./attributes.js";
 import {
   createDestructuringPlannerState,
@@ -74,8 +74,8 @@ export function planClassDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
-  const declaration = AsClassDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "class declaration", diagnostics);
+  const declaration = AsClassDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
   const autoPropertyNames = getImplementedInterfacePropertyNames(node, input);
@@ -148,7 +148,7 @@ function getImplementedInterfacePropertyNames(
   input: CsharpPlanningContext,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  const heritage = input.navigation.declaredHeritage(classDeclaration);
+  const heritage = input.program.source.navigation.declaredHeritage(classDeclaration);
   if (heritage.kind !== "resolved") {
     return names;
   }
@@ -171,25 +171,25 @@ function collectImplementedInterfacePropertyNames(
   names: Set<string>,
   seen: Set<Node>,
 ): void {
-  if (seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
+  if (seen.has(declaration) || SourceKind(input.program.source.ast, declaration) !== KindInterfaceDeclaration) {
     return;
   }
   seen.add(declaration);
-  const interfaceDeclaration = AsInterfaceDeclaration(input.ast, declaration);
+  const interfaceDeclaration = AsInterfaceDeclaration(input.program.source.ast, declaration);
   if (interfaceDeclaration === undefined) {
     return;
   }
   for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
-    if (SourceKind(input.ast, member) !== KindPropertySignature) {
+    if (SourceKind(input.program.source.ast, member) !== KindPropertySignature) {
       continue;
     }
-    const property = AsPropertySignatureDeclaration(input.ast, member);
+    const property = AsPropertySignatureDeclaration(input.program.source.ast, member);
     const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
     if (name !== undefined) {
       names.add(name);
     }
   }
-  const heritage = input.navigation.declaredHeritage(declaration);
+  const heritage = input.program.source.navigation.declaredHeritage(declaration);
   if (heritage.kind !== "resolved") {
     return;
   }
@@ -211,10 +211,10 @@ export function planFunctionDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
-  const declaration = AsFunctionDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "function declaration", diagnostics);
+  const declaration = AsFunctionDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
-  const state = createDestructuringPlannerState(node, input.ast);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = getDeclarationReturnTargetType(
     declaration.Type,
@@ -259,7 +259,7 @@ export function planFunctionDeclaration(
       body: generator?.body ?? { kind: "Block", statements: [] },
     };
   }
-  const async = isAsyncNode(input.ast, node);
+  const async = isAsyncNode(input.program.source.ast, node);
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
   if (declaration.Type === undefined && !async) {
@@ -284,7 +284,7 @@ export function planFunctionDeclaration(
       ? undefined
       : { kind: "resolved" as const, type: declaredReturnTargetType }
     : reconcileInferredReturnTargetContract(
-        input,
+        input.policy,
         declaredReturnTargetType,
         state.observedReturnTargetTypes ?? [],
         state.returnTargetObservationIncomplete === true,

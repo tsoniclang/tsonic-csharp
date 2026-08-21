@@ -11,7 +11,7 @@ import type {
 } from "../../context.js";
 import type {
   CsharpExpression,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   csharpAssignmentOperatorTokenFromText,
   csharpBinaryOperatorTokenFromText,

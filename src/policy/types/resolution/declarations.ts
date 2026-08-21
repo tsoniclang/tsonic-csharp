@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "./source-markers.js";
 
@@ -30,7 +30,7 @@ export function resolveSelectedDeclarationResult(
   }
   if (
     semanticType !== undefined &&
-    queries.getCallSignatures(semanticType).length > 0
+    queries.types.callSignatures(semanticType).length > 0
   ) {
     return resolveCallableType(
       semanticType,

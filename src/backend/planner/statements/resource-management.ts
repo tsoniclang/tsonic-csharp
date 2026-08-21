@@ -17,7 +17,7 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   allocateResourceScopeNames,
   allocateSyntheticParameter,
@@ -50,7 +50,7 @@ export function planResourceManagedBlockStatements(
   state: DestructuringPlannerState,
   planStatements: BlockStatementPlanner,
 ): readonly CsharpStatement[] {
-  const block = AsBlock(input.ast, blockNode);
+  const block = AsBlock(input.program.source.ast, blockNode);
   const resources = directResourceDeclarations(
     block?.Statements?.Nodes ?? [],
     input,
@@ -201,7 +201,7 @@ export function planResourceRegistrationStatement(
     return undefined;
   }
   const selected = selectCsharpResourceManagement(
-    input,
+    input.policy,
     declaration,
     sourceFile,
   );
@@ -368,21 +368,21 @@ function directResourceDeclarations(
   return statements.flatMap((statement) => {
     if (
       statement === undefined ||
-      SourceKind(input.ast, statement) !== KindVariableStatement
+      SourceKind(input.program.source.ast, statement) !== KindVariableStatement
     ) {
       return [];
     }
-    const declarationList = AsVariableStatement(input.ast, statement)?.DeclarationList;
+    const declarationList = AsVariableStatement(input.program.source.ast, statement)?.DeclarationList;
     if (declarationList === undefined) {
       return [];
     }
-    return input.ast.children(declarationList).filter(
+    return input.program.source.ast.children(declarationList).filter(
       (declaration): declaration is Node =>
         declaration !== undefined &&
-        input.ast.is.IsVariableDeclaration(declaration) &&
+        input.program.source.ast.is.IsVariableDeclaration(declaration) &&
         (
-          input.ast.variableDeclarationKind(declaration) === "using" ||
-          input.ast.variableDeclarationKind(declaration) === "await using"
+          input.program.source.ast.variableDeclarationKind(declaration) === "using" ||
+          input.program.source.ast.variableDeclarationKind(declaration) === "await using"
         ),
     );
   });
@@ -393,7 +393,7 @@ function resourceScopeKind(
   input: CsharpPlanningContext,
 ): "sync" | "async" {
   return resources.some((declaration) =>
-      input.ast.variableDeclarationKind(declaration) === "await using"
+      input.program.source.ast.variableDeclarationKind(declaration) === "await using"
     )
     ? "async"
     : "sync";

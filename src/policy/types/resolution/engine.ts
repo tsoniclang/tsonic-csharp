@@ -14,7 +14,7 @@ import type {
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../callables/delegates.js";
 
@@ -232,7 +232,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSourceOwnedCallResult(
   source: NonNullable<
-    ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+    ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -247,7 +247,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveSourceOwnedConstructionResult(
   source: NonNullable<
-    ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+    ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -282,7 +282,7 @@ export interface CsharpTypeResolutionScope {
 ): TargetTypeRef | undefined;
   resolveStandardSourceTypeTransformation(
   transformation: NonNullable<
-    ReturnType<SourceFileSemantics["selectStandardTypeTransformation"]>
+    ReturnType<SourceFileSemantics["types"]["standardTransformation"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,

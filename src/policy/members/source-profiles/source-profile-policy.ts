@@ -30,10 +30,10 @@ import type {
 } from "../selection/selection-types.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
 export interface CsharpSourceProfileIdentitySelector {
@@ -147,7 +147,7 @@ export function selectCsharpSourceProfileCallPolicy(
   policies: readonly CsharpSourceProfileCallPolicy[],
 ): CsharpSourceProfileCallPolicyResult | undefined {
   const declaration = host.semantics(sourceFile)
-    .getSignatureDeclaration(source.selectedSignature);
+    .declarations.signatureDeclaration(source.selectedSignature);
   const identity = csharpSourceProfileDeclarationIdentity(
     host.ast,
     declaration,
@@ -220,7 +220,7 @@ function sourceProfilePropertyIdentities(
   if (source.selectedSymbol === undefined) {
     return [];
   }
-  const declarations = host.semantics(sourceFile).getSymbolDeclarations(
+  const declarations = host.semantics(sourceFile).declarations.symbolDeclarations(
     source.selectedSymbol,
   );
   const identities = declarations.map((declaration) =>

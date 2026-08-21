@@ -16,7 +16,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { planArrayBindingPattern } from "./binding-array-patterns.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
@@ -77,10 +77,10 @@ export function planBindingPatternFromExpression(
     projectedCarrier,
     planDefaultExpressionWithExpectedType,
   );
-  if (HasSourceKind(input.ast, patternNode, KindArrayBindingPattern)) {
+  if (HasSourceKind(input.program.source.ast, patternNode, KindArrayBindingPattern)) {
     return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType, sourceCarrier);
   }
-  if (HasSourceKind(input.ast, patternNode, KindObjectBindingPattern)) {
+  if (HasSourceKind(input.program.source.ast, patternNode, KindObjectBindingPattern)) {
     return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
@@ -99,7 +99,7 @@ function planBindingNameFromProjection(
   projectedCarrier?: TargetTypeRef,
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
-  if (HasSourceKind(input.ast, name, KindIdentifier)) {
+  if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
     const identity = projectionNode === undefined
       ? undefined
       : planCsharpTypedLocationIdentityDeclaration(
@@ -111,10 +111,10 @@ function planBindingNameFromProjection(
       ...(identity === undefined ? [] : [identity]),
       {
         kind: "LocalDeclarationStatement",
-        name: requireCsharpIdentifier(Node_Text(input.ast, name), diagnostics, "Destructuring binding"),
+        name: requireCsharpIdentifier(Node_Text(input.program.source.ast, name), diagnostics, "Destructuring binding"),
         type: projectedType ??
           getCsharpTypeFromSemanticType(
-            input.semantics(sourceFile).getTypeAtLocation(name),
+            input.program.source.semantics.forFile(sourceFile).types.expressionType(name),
             sourceFile,
             input,
           ) ??
@@ -123,7 +123,7 @@ function planBindingNameFromProjection(
       },
     ];
   }
-  if (HasSourceKind(input.ast, name, KindObjectBindingPattern) || HasSourceKind(input.ast, name, KindArrayBindingPattern)) {
+  if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);
     const nestedSource: CsharpExpression = { kind: "IdentifierName", name: nestedName };
     const nestedType = projectedType ?? getCsharpTypeForNode(projectionNode ?? name, sourceFile, input, invalidCsharpType("missing nested destructuring source type"), diagnostics);

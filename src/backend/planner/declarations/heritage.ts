@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type {
   TargetTypeRef,
 } from "../../../policy/types/index.js";
@@ -20,7 +20,7 @@ export function planClassHeritage(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
-  const heritage = input.projectTypes.heritageForDeclaration(classDeclaration);
+  const heritage = input.types.projectTypes.heritageForDeclaration(classDeclaration);
   if (heritage === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       classDeclaration,
@@ -48,7 +48,7 @@ export function planInterfaceHeritage(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  const heritage = input.projectTypes.heritageForDeclaration(
+  const heritage = input.types.projectTypes.heritageForDeclaration(
     interfaceDeclaration,
   );
   if (heritage === undefined) {

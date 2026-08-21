@@ -2,7 +2,7 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../model/scalar-types.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../storage/nullable.js";
 import { nextState } from "./state.js";
@@ -234,7 +234,7 @@ export function resolvePropertyAccessTargetType(
     : undefined;
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
-    queries.getSelectedFactSubjects(
+    queries.facts.selectedSubjects(
       selection.source.selectedSymbol,
       selection.source.selectedDeclaration,
     ),
@@ -279,8 +279,8 @@ export function resolveNonNullExpressionType(
     queries.sourceFile,
     nextState(state),
   );
-  const sourceType = queries.getTypeAtLocation(expression);
-  const selectedType = queries.getTypeAtLocation(node);
+  const sourceType = queries.types.expressionType(expression);
+  const selectedType = queries.types.expressionType(node);
   if (
     sourceTarget === undefined ||
     sourceType === undefined ||
@@ -288,22 +288,22 @@ export function resolveNonNullExpressionType(
   ) {
     return undefined;
   }
-  const refinement = queries.selectTypeRefinement(sourceType, selectedType);
+  const refinement = queries.types.refinement(sourceType, selectedType);
   if (refinement.kind === "exact") {
     return sourceTarget;
   }
   if (refinement.kind !== "members" || refinement.types.length === 0) {
     return undefined;
   }
-  const declaredMembers = queries.getUnionOrIntersectionTypes(sourceType);
+  const declaredMembers = queries.types.unionOrIntersectionTypes(sourceType);
   if (declaredMembers.some((member) => member === undefined)) {
     return undefined;
   }
   const nonNullishMembers = declaredMembers.filter(
-    (member): member is Type => member !== undefined && !queries.isNullish(member),
+    (member): member is Type => member !== undefined && !queries.types.isNullish(member),
   );
   if (
-    refinement.types.some((member) => queries.isNullish(member)) ||
+    refinement.types.some((member) => queries.types.isNullish(member)) ||
     refinement.types.length !== nonNullishMembers.length ||
     nonNullishMembers.some((member) => !refinement.types.includes(member))
   ) {
@@ -372,7 +372,7 @@ export function resolveProjectThisTargetType(
 export function resolveSourceOwnedCallResult(
   { resolveSourceCallResultWithState }: CsharpTypeResolutionScope,
   source: NonNullable<
-    ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+    ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -434,7 +434,7 @@ export function resolveSelectedReceiverTargetType(
 export function resolveSourceOwnedConstructionResult(
   { host, projectSourceDeclarationTargetType, resolveAuthoredAndSelectedSourceType, resolveSourceOwnedCallResult }: CsharpTypeResolutionScope,
   source: NonNullable<
-    ReturnType<SourceFileSemantics["getResolvedCallInfo"]>
+    ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,

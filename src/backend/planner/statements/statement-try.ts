@@ -13,7 +13,7 @@ import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type {
   CsharpCatchClause,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import {
   allocateCatchValue,
@@ -55,7 +55,7 @@ export function planTryStatement(
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
 ): CsharpStatement {
-  const statement = AsTryStatement(input.ast, node)!;
+  const statement = AsTryStatement(input.program.source.ast, node)!;
   return {
     kind: "TryStatement",
     tryBody: {
@@ -79,11 +79,11 @@ function planCatchClause(
   state: DestructuringPlannerState,
   planBlockStatements: BlockStatementPlanner,
 ): CsharpCatchClause {
-  const clause = AsCatchClause(input.ast, node)!;
+  const clause = AsCatchClause(input.program.source.ast, node)!;
   if (clause.VariableDeclaration !== undefined) {
-    const variable = AsVariableDeclaration(input.ast, clause.VariableDeclaration)!;
+    const variable = AsVariableDeclaration(input.program.source.ast, clause.VariableDeclaration)!;
     const variableName = variable.name;
-    if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
+    if (variableName !== undefined && (HasSourceKind(input.program.source.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variableName, KindArrayBindingPattern))) {
       diagnostics.push(unsupportedNodeDiagnostic(variableName, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
       return {
         kind: "CatchClause",
@@ -120,7 +120,7 @@ function planCatchClause(
     const carrier = probeCarrierFromResolution(carrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (
-      !isCsharpThrowableCarrier(carrier, input) &&
+      !isCsharpThrowableCarrier(carrier, input.policy) &&
       !isCsharpJsValueTargetType(carrier)
     ) {
       const detail = carrier === undefined
@@ -217,7 +217,7 @@ function catchVariableRequiresTargetBinding(
   catchBlock: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
-  const binding = input.navigation.referenceFor(variableName);
+  const binding = input.program.source.navigation.referenceFor(variableName);
   if (binding === undefined || catchBlock === undefined) {
     return true;
   }
@@ -226,18 +226,18 @@ function catchVariableRequiresTargetBinding(
     if (node === undefined || required) {
       return;
     }
-    const reference = input.navigation.referenceFor(node);
+    const reference = input.program.source.navigation.referenceFor(node);
     if (
-      !sourceNodesEqual(input.ast, node, variableName) &&
+      !sourceNodesEqual(input.program.source.ast, node, variableName) &&
       reference?.symbol === binding.symbol
     ) {
-      const parent = input.ast.parent(node);
+      const parent = input.program.source.ast.parent(node);
       if (
         parent === undefined ||
-        !input.ast.is.IsThrowStatement(parent) ||
+        !input.program.source.ast.is.IsThrowStatement(parent) ||
         !sourceNodesEqual(
-          input.ast,
-          input.ast.as.AsThrowStatement(parent)?.Expression,
+          input.program.source.ast,
+          input.program.source.ast.as.AsThrowStatement(parent)?.Expression,
           node,
         ) ||
         !isExactUnmodifiedCatchRethrow(parent, node, input)
@@ -246,7 +246,7 @@ function catchVariableRequiresTargetBinding(
         return;
       }
     }
-    input.ast.forEachChild(node, visit);
+    input.program.source.ast.forEachChild(node, visit);
   };
   visit(catchBlock);
   return required;

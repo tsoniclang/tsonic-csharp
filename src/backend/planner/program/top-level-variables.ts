@@ -18,7 +18,7 @@ import type {
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "../bindings/locals.js";
 import { planStatements } from "../statements/index.js";
 import { planValueTypeDeclaration } from "../declarations/value-types.js";
@@ -37,30 +37,30 @@ export function planTopLevelVariableStatement(
   state: DestructuringPlannerState,
   _executableTopLevelSourceFile: boolean,
 ): void {
-  const declarationList = AsVariableStatement(input.ast, statement)!.DeclarationList;
+  const declarationList = AsVariableStatement(input.program.source.ast, statement)!.DeclarationList;
   if (declarationList === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires a TSTS variable declaration list."));
     return;
   }
-  const declarationKind = input.ast.variableDeclarationKind(declarationList);
+  const declarationKind = input.program.source.ast.variableDeclarationKind(declarationList);
   if (declarationKind === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level variable statement requires an exact TSTS variable declaration kind."));
     return;
   }
-  const declarations = input.ast.children(declarationList)
-    .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+  const declarations = input.program.source.ast.children(declarationList)
+    .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
   if (declarations.length === 0) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }
   const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
-    const valueType = readCsharpSourceStruct(input.sourceFacts, declaration);
+    const valueType = readCsharpSourceStruct(input.program.source.sourceFacts, declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
-    const variable = AsVariableDeclaration(input.ast, declaration)!;
+    const variable = AsVariableDeclaration(input.program.source.ast, declaration)!;
     const destructured = isBindingPattern(variable.name, input)
       ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
       : undefined;
@@ -85,7 +85,7 @@ export function planTopLevelVariableStatement(
     if (field.initializer !== undefined) {
       topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
     }
-    const resourceKind = input.ast.variableDeclarationKind(declaration);
+    const resourceKind = input.program.source.ast.variableDeclarationKind(declaration);
     if (resourceKind === "using" || resourceKind === "await using") {
       const registration = planResourceRegistrationStatement(
         declaration,
@@ -180,6 +180,6 @@ function topLevelFieldAssignment(
 }
 
 function isBindingPattern(node: Node | undefined, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, node, KindObjectBindingPattern) ||
-    HasSourceKind(input.ast, node, KindArrayBindingPattern);
+  return HasSourceKind(input.program.source.ast, node, KindObjectBindingPattern) ||
+    HasSourceKind(input.program.source.ast, node, KindArrayBindingPattern);
 }

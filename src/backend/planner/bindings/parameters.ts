@@ -8,7 +8,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type {
   CsharpSourceCallableParameterContract,
   CsharpTargetParameter,
@@ -65,10 +65,10 @@ export function planParametersWithPrelude(
   let targetParametersClosed = true;
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
-    const parameter = AsParameterDeclaration(input.ast, parameterNode)!;
-    const questionToken = input.ast.questionToken(parameterNode);
-    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, parameterNode!, "parameter declaration", diagnostics);
-    if (HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
+    const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
+    const questionToken = input.program.source.ast.questionToken(parameterNode);
+    diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics);
+    if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics);
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
@@ -111,7 +111,7 @@ export function planParametersWithPrelude(
       continue;
     }
       const bindingName = parameter.name;
-    if (bindingName !== undefined && (HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.ast, bindingName, KindArrayBindingPattern))) {
+    if (bindingName !== undefined && (HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
       const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
@@ -197,7 +197,7 @@ function getTargetParameter(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): CsharpSourceCallableParameterContract | undefined {
-  const selectedType = input.types.resolveNode(typeSubject, sourceFile);
+  const selectedType = input.types.policy.resolveNode(typeSubject, sourceFile);
   if (selectedType === undefined) {
     return undefined;
   }

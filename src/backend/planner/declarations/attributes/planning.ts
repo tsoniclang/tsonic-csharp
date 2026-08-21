@@ -19,7 +19,7 @@ import {
   type SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../../roslyn/syntax.js";
+import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpAttributeApplication,
 } from "../../../../analysis/attributes/application-index.js";
@@ -58,12 +58,12 @@ export function isErasedAttributeExpressionStatement(
   statement: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  if (!HasSourceKind(input.ast, statement, KindExpressionStatement)) {
+  if (!HasSourceKind(input.program.source.ast, statement, KindExpressionStatement)) {
     return false;
   }
-  const expression = AsExpressionStatement(input.ast, statement)?.Expression;
+  const expression = AsExpressionStatement(input.program.source.ast, statement)?.Expression;
   return expression !== undefined &&
-    input.attributeApplications.forSubject(expression) !== undefined;
+    input.program.attributeApplications.forSubject(expression) !== undefined;
 }
 
 function planAttribute(
@@ -82,7 +82,7 @@ function planAttribute(
   }
   return {
     ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
-    type: isAstNode(input.ast, attribute.attributeType)
+    type: isAstNode(input.program.source.ast, attribute.attributeType)
       ? expressionToCsharpType(attribute.attributeType, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: arguments_,
@@ -100,7 +100,7 @@ function attributeApplicationMemberKindIsValid(
     return true;
   }
   const declaration = resolveAttributeApplication(attribute, sourceFile, input).selectedDeclaration;
-  const kind = SourceKind(input.ast, declaration);
+  const kind = SourceKind(input.program.source.ast, declaration);
   const valid = memberKind === "property"
     ? kind === KindPropertyDeclaration || kind === KindPropertySignature || kind === KindGetAccessor || kind === KindSetAccessor
     : kind === KindMethodDeclaration || kind === KindMethodSignature || kind === KindFunctionDeclaration;
@@ -121,7 +121,7 @@ function planAttributeArguments(
 ): readonly CsharpArgument[] | undefined {
   const arguments_: CsharpArgument[] = [];
   for (const argument of attribute.arguments ?? []) {
-    if (!isAstNode(input.ast, argument)) {
+    if (!isAstNode(input.program.source.ast, argument)) {
       unsupportedAttributeArgument(attribute, diagnostics);
       return undefined;
     }
@@ -175,7 +175,7 @@ function attributeTargetSpecifierSupportsSubject(
   subject: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
-  const kind = SourceKind(input.ast, subject);
+  const kind = SourceKind(input.program.source.ast, subject);
   switch (specifier) {
     case "field":
       return kind === KindPropertyDeclaration;

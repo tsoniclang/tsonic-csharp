@@ -15,7 +15,7 @@ import {
 } from "../../../../dist/public/provider.js";
 import {
   printCsharpType,
-} from "../../../../dist/print/csharp/printer.js";
+} from "../../../../dist/print/source/printer.js";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { completeProviderDeclarationRequest, getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 

@@ -7,10 +7,10 @@ import type {
   CsharpCompilationUnit,
   CsharpTypeDeclaration,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpOutputSourceFile,
-} from "../../artifacts/model.js";
+} from "../../artifact-model/output.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -42,9 +42,6 @@ import {
 import {
   readNamespace,
 } from "../project/project-artifacts.js";
-import {
-  readCsharpLanguageDialect,
-} from "../../../options/csharp-target-options.js";
 
 export {
   objectShapeAccessorGetterStorageMemberName,
@@ -210,7 +207,7 @@ export function planCsharpObjectShapeSourceFile(
   };
   const finalized = finalizeCsharpCompilationUnit(
     unit,
-    readCsharpLanguageDialect(input.target),
+    input.program.configuration.languageDialect,
   );
   return {
     source: {

@@ -7,7 +7,7 @@ import type {
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourceTypeArgumentNodes } from "./source-syntax.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -23,10 +23,10 @@ export function resolveSelectedSymbolType(
   if (selectedType === undefined) {
     return undefined;
   }
-  const roots = definedValues(queries.getRootSymbols(symbol));
+  const roots = definedValues(queries.declarations.rootSymbols(symbol));
   const selectedSymbols = roots.length === 0 ? [symbol] : roots;
   const typeNodes = definedValues(selectedSymbols.flatMap((selected) =>
-    definedValues(queries.getSymbolDeclarations(selected)).map((declaration) =>
+    definedValues(queries.declarations.symbolDeclarations(selected)).map((declaration) =>
       declarationResultTypeNode(declaration)
     )
   ));
@@ -61,15 +61,15 @@ export function resolveProjectSourceSemanticType(
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
   const symbols = [
-    queries.getTypeAliasSymbol(type),
-    queries.getTypeSymbol(type),
+    queries.declarations.typeAliasSymbol(type),
+    queries.declarations.typeSymbol(type),
   ];
   for (const symbol of symbols) {
     if (symbol === undefined) {
       continue;
     }
     for (const declaration of definedValues(
-      queries.getSymbolDeclarations(symbol),
+      queries.declarations.symbolDeclarations(symbol),
     )) {
       const targetType = projectSourceDeclarationTargetType(
         declaration,

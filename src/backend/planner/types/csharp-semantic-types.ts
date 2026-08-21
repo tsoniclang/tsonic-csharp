@@ -8,7 +8,7 @@ import type { TargetTypeRef } from "../../../policy/types/index.js";
 
 import type {
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { getTargetTypeRefForType } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -32,8 +32,8 @@ export function getCsharpTypeFromSemanticType(
   if (
     type === undefined ||
     seen.has(type) ||
-    input.semantics(sourceFile).isAny(type) ||
-    input.semantics(sourceFile).isUnknown(type)
+    input.program.source.semantics.forFile(sourceFile).types.isAny(type) ||
+    input.program.source.semantics.forFile(sourceFile).types.isUnknown(type)
   ) {
     return undefined;
   }
@@ -69,16 +69,16 @@ function getCsharpIntrinsicTypeFromSemanticType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): CsharpTypeNode | undefined {
-  const semantics = input.semantics(sourceFile);
-  const targetType = semantics.isBooleanLike(type)
+  const semantics = input.program.source.semantics.forFile(sourceFile);
+  const targetType = semantics.types.isBooleanLike(type)
     ? csharpSourcePrimitiveTargetType("bool")
-    : semantics.isNumberLike(type)
+    : semantics.types.isNumberLike(type)
       ? csharpSourcePrimitiveTargetType("float64")
-      : semantics.isStringLike(type)
+      : semantics.types.isStringLike(type)
         ? csharpStringTargetType()
-        : semantics.isBigIntLike(type)
+        : semantics.types.isBigIntLike(type)
           ? csharpBigIntegerTargetType()
-          : semantics.isVoidLike(type)
+          : semantics.types.isVoidLike(type)
             ? csharpVoidTargetType()
             : undefined;
   return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
@@ -93,8 +93,8 @@ function getCsharpTargetTypeRefFromSemanticType(
   if (
     type === undefined ||
     seen.has(type) ||
-    input.semantics(sourceFile).isAny(type) ||
-    input.semantics(sourceFile).isUnknown(type)
+    input.program.source.semantics.forFile(sourceFile).types.isAny(type) ||
+    input.program.source.semantics.forFile(sourceFile).types.isUnknown(type)
   ) {
     return undefined;
   }
@@ -122,11 +122,11 @@ function instantiateSemanticTargetNamedType(
   input: CsharpPlanningContext,
   seen: ReadonlySet<Type>,
 ): TargetTypeRef | undefined {
-  const semantics = input.semantics(sourceFile);
-  if (targetType?.kind !== "target-named" || !semantics.isTypeReference(type)) {
+  const semantics = input.program.source.semantics.forFile(sourceFile);
+  if (targetType?.kind !== "target-named" || !semantics.types.isTypeReference(type)) {
     return undefined;
   }
-  const typeArguments = semantics.getEffectiveTypeArguments(type);
+  const typeArguments = semantics.types.effectiveTypeArguments(type);
   if (typeArguments === undefined) {
     return undefined;
   }
@@ -150,13 +150,14 @@ export function getCsharpTypeParameterName(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): string | undefined {
-  const semantics = input.semantics(sourceFile);
-  const symbol = semantics.getTypeSymbol(type);
-  const name = semantics.getSymbolName(symbol);
+  const semantics = input.program.source.semantics.forFile(sourceFile);
+  const symbol = semantics.declarations.typeSymbol(type);
+  const name = symbol === undefined ? undefined : semantics.declarations.symbolName(symbol);
   if (name === undefined || tryCsharpIdentifier(name) !== name) {
     return undefined;
   }
-  return semantics.getSymbolDeclarations(symbol).some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration))
+  return symbol !== undefined && semantics.declarations.symbolDeclarations(symbol)
+    .some((declaration) => input.program.source.ast.is.IsTypeParameterDeclaration(declaration))
     ? name
     : undefined;
 }

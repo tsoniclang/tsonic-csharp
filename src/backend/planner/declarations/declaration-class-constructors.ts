@@ -4,7 +4,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument,
   CsharpConstructorDeclaration,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   AsBlock,
   AsCallExpression,
@@ -52,8 +52,8 @@ export function planClassStaticBlockDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
-  const declaration = AsClassStaticBlockDeclaration(input.ast, node)!;
-  const state = createDestructuringPlannerState(node, input.ast);
+  const declaration = AsClassStaticBlockDeclaration(input.program.source.ast, node)!;
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   return {
     kind: "ConstructorDeclaration",
     name: className,
@@ -73,16 +73,16 @@ export function planConstructorDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
-  const declaration = AsConstructorDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "constructor declaration", diagnostics);
-  const bodyStatements = AsBlock(input.ast, declaration.Body)?.Statements?.Nodes ?? [];
+  const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics);
+  const bodyStatements = AsBlock(input.program.source.ast, declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
-  const state = createDestructuringPlannerState(node, input.ast);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const classDeclaration = input.ast.parent(node);
+  const classDeclaration = input.program.source.ast.parent(node);
   const constructedType = classDeclaration === undefined
     ? undefined
-    : input.types.resolveNode(classDeclaration, sourceFile);
+    : input.types.policy.resolveNode(classDeclaration, sourceFile);
   publishCsharpSourceCallableContract(
     node,
     parameters.targetParameters,
@@ -165,13 +165,13 @@ function planBaseConstructorArguments(
 
 function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: CsharpPlanningContext): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
   const first = statements[0];
-  if (!HasSourceKind(input.ast, first, KindExpressionStatement)) {
+  if (!HasSourceKind(input.program.source.ast, first, KindExpressionStatement)) {
     return undefined;
   }
-  const expression = AsExpressionStatement(input.ast, first)!.Expression;
-  if (!HasSourceKind(input.ast, expression, KindCallExpression)) {
+  const expression = AsExpressionStatement(input.program.source.ast, first)!.Expression;
+  if (!HasSourceKind(input.program.source.ast, expression, KindCallExpression)) {
     return undefined;
   }
-  const call = AsCallExpression(input.ast, expression)!;
-  return HasSourceKind(input.ast, call.Expression, KindSuperKeyword) ? call : undefined;
+  const call = AsCallExpression(input.program.source.ast, expression)!;
+  return HasSourceKind(input.program.source.ast, call.Expression, KindSuperKeyword) ? call : undefined;
 }

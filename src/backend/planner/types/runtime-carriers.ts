@@ -62,8 +62,8 @@ function resolveRuntimeCarrier(
     return undefined;
   }
   const carrier = mode === "storage"
-    ? input.types.resolveStorage(sourceNode, sourceFile)
-    : input.types.resolveNode(sourceNode, sourceFile);
+    ? input.types.policy.resolveStorage(sourceNode, sourceFile)
+    : input.types.policy.resolveNode(sourceNode, sourceFile);
   return carrier === undefined
     ? {
         kind: "missing",
@@ -88,7 +88,7 @@ export function getTargetTypeRefForNode(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.resolveNode(sourceNode, sourceFile);
+  return input.types.policy.resolveNode(sourceNode, sourceFile);
 }
 
 export function getTargetTypeRefForType(
@@ -96,7 +96,7 @@ export function getTargetTypeRefForType(
   type: Type | undefined,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
-  return input.types.resolveType(type, sourceFile);
+  return input.types.policy.resolveType(type, sourceFile);
 }
 
 export function probeCarrierFromResolution(

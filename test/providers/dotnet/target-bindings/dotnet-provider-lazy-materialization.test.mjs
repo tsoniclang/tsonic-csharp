@@ -326,10 +326,16 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
   };
   const sourceProfileDeclarations = csharpSourceProfileContributions({
     project: { entryPoint: "index.ts", rootDir: ".", targets: [] },
+    projectDirectory: "/src",
     target: { id: "csharp" },
-    targetPack: { id: "csharp", displayName: "C#" },
-    selectedCapabilities: [],
-    selectedSurfaces: [],
+    paths: {
+      projectFilePath: "/src/tsonic.json",
+      projectRoot: "/src",
+      outputRoot: "/src/out",
+      targetOutputRoot: "/src/out/csharp",
+    },
+    selectedSurfaceIds: [],
+    capabilities: [],
   }).declarations ?? [];
   const extension = {
     identity: {

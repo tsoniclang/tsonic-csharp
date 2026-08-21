@@ -11,7 +11,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpStatement } from "../../roslyn/syntax.js";
+import type { CsharpStatement } from "../../target-ast/roslyn/index.js";
 import {
   allocateControlLabel,
 } from "../bindings/index.js";
@@ -34,7 +34,7 @@ export function planLabeledStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
-  const sourceName = requireCsharpIdentifier(Node_Text(input.ast, statement.Label!), diagnostics, "Statement label");
+  const sourceName = requireCsharpIdentifier(Node_Text(input.program.source.ast, statement.Label!), diagnostics, "Statement label");
   const target = {
     sourceName,
     breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
@@ -97,11 +97,11 @@ function planSingleStatement(
 }
 
 function isIterationStatement(node: Node | undefined, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, node, KindWhileStatement) ||
-    HasSourceKind(input.ast, node, KindDoStatement) ||
-    HasSourceKind(input.ast, node, KindForStatement) ||
-    HasSourceKind(input.ast, node, KindForInStatement) ||
-    HasSourceKind(input.ast, node, KindForOfStatement);
+  return HasSourceKind(input.program.source.ast, node, KindWhileStatement) ||
+    HasSourceKind(input.program.source.ast, node, KindDoStatement) ||
+    HasSourceKind(input.program.source.ast, node, KindForStatement) ||
+    HasSourceKind(input.program.source.ast, node, KindForInStatement) ||
+    HasSourceKind(input.program.source.ast, node, KindForOfStatement);
 }
 
 function attachContinueLabel(statement: CsharpStatement, label: string): CsharpStatement {

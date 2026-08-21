@@ -1,34 +1,17 @@
 import type {
   Node,
-  SourceFile,
 } from "@tsonic/tsts";
-import type {
-  TargetBackendContext,
-  TargetCompilationPaths,
-  TargetCompileInput,
-  TsonicProjectConfig,
-} from "@tsonic/target-api";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { TargetRuntimeReference } from "@tsonic/target-api/artifacts";
-import {
-  createCsharpProviderRelationResolver,
-} from "../../providers/resolution/relation-resolver.js";
+import type { TargetCompileInput } from "@tsonic/target-api";
 import type {
   CsharpObjectShapePolicy,
   CsharpProjectTypePolicy,
   CsharpSourceTargetTypeBinding,
+  CsharpTypePolicy,
   TargetTypeRef,
 } from "../../policy/types/index.js";
 import {
-  createCsharpTypeSystem,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
-import type {
-  ResolvedSourceCallInfo,
-} from "../../policy/members/index.js";
-import type {
-  CsharpPolicyContext,
-} from "../../policy/context.js";
 import type {
   CsharpArtifactGraph,
 } from "./artifacts/index.js";
@@ -37,7 +20,7 @@ import {
 } from "./artifacts/index.js";
 import {
   createCsharpSourceOutputIdentityPlanner,
-} from "../../policy/names/source-output-identities.js";
+} from "./names/source-output-identities.js";
 import type {
   CsharpSourceNameResolver,
 } from "./names/source-names.js";
@@ -45,32 +28,37 @@ import {
   createCsharpSourceNameResolver,
 } from "./names/source-names.js";
 import type {
-  CsharpAttributeApplicationFactIndex,
-} from "../../analysis/attributes/application-index.js";
+  CsharpTargetProgram,
+} from "../../analysis/program/index.js";
 import {
-  createCsharpAttributeApplicationFactIndex,
-} from "../../analysis/attributes/application-index.js";
+  createCsharpPlanningRepresentationQueries,
+} from "./types/representation-queries.js";
 import type {
-  CsharpSafetyApplicationFactIndex,
-} from "../../analysis/safety/application-index.js";
-import {
-  createCsharpSafetyApplicationFactIndex,
-} from "../../analysis/safety/application-index.js";
+  CsharpPolicyContext,
+} from "../../policy/context.js";
 
-export interface CsharpPlanningContext
-  extends CsharpPolicyContext {
-  readonly source: TargetSourceProgram;
-  readonly project: TsonicProjectConfig;
-  readonly runtimeReferences: readonly TargetRuntimeReference[];
-  readonly paths: TargetCompilationPaths;
-  readonly artifacts: CsharpArtifactGraph;
-  readonly names: CsharpSourceNameResolver;
-  readonly attributeApplications: CsharpAttributeApplicationFactIndex;
-  readonly safetyApplications: CsharpSafetyApplicationFactIndex;
+export interface CsharpPlanningTypeView {
+  readonly policy: CsharpTypePolicy;
+  readonly objectShapes: CsharpObjectShapePolicy;
+  readonly projectTypes: CsharpProjectTypePolicy;
+}
+
+export interface CsharpPlanningScope {
   readonly sourceThisBinding?: {
     readonly name: string;
     readonly targetType: TargetTypeRef;
   };
+}
+
+export interface CsharpPlanningContext {
+  readonly input: TargetCompileInput;
+  readonly program: CsharpTargetProgram;
+  readonly policy: CsharpPolicyContext;
+  readonly types: CsharpPlanningTypeView;
+  readonly artifacts: CsharpArtifactGraph;
+  readonly outputIdentities: ReturnType<typeof createCsharpSourceOutputIdentityPlanner>;
+  readonly names: CsharpSourceNameResolver;
+  readonly scope: CsharpPlanningScope;
 }
 
 export type { CsharpSourceTargetTypeBinding } from "../../policy/types/index.js";
@@ -86,113 +74,43 @@ export type CsharpScopedPlanningContextResult =
     };
 
 export function createCsharpPlanningContext(
-  backend: TargetBackendContext,
   input: TargetCompileInput,
+  program: CsharpTargetProgram,
 ): CsharpPlanningContext {
-  const sourceFiles = input.source.sourceFiles.filter(
-    (sourceFile): sourceFile is SourceFile => sourceFile !== undefined,
-  );
-  const providers = createCsharpProviderRelationResolver(backend);
-  const semantics = input.source.semantics.forFile;
-  const semanticsFor = input.source.semantics.forNode;
-  const hasSemantics = input.source.semantics.includes;
-  let artifacts: CsharpArtifactGraph | undefined;
-  let projectTypes: CsharpProjectTypePolicy | undefined;
-  const typePolicyHost = {
-    ast: input.source.ast,
-    sourceFiles,
-    sourceFacts: input.source.sourceFacts,
-    navigation: input.source.navigation,
-    providers,
-    target: input.target,
-    semantics,
-    semanticsFor,
-    hasSemantics,
-    scopedTargetType(node: Node): TargetTypeRef | undefined {
-      return artifacts?.requiredStorageType(node);
-    },
-    sourceCallable(
-      source: ResolvedSourceCallInfo,
-      sourceFile: SourceFile,
-    ) {
-      const selectedCallee = source.sourceCallee.selectedDeclaration;
-      if (
-        selectedCallee !== undefined &&
-        input.source.ast.is.IsClassDeclaration(selectedCallee)
-      ) {
-        const constructor = projectTypes?.implicitConstructorForSignature(
-          selectedCallee,
-          source.selectedSignature,
-        );
-        if (constructor !== undefined) {
-          return artifacts?.sourceCallable({
-            kind: "project-constructor",
-            targetMemberId: constructor.targetMember.id,
-          });
-        }
-      }
-      const declaration = semantics(sourceFile).getSignatureDeclaration(
-        source.selectedSignature,
-      );
-      return declaration !== undefined &&
-          input.source.navigation.isProjectDeclaration(declaration)
-        ? artifacts?.sourceCallable({ kind: "declaration", declaration })
-        : undefined;
-    },
-  };
-  const typeSystem = createCsharpTypeSystem(
-    typePolicyHost,
-  );
-  const { types, objectShapes } = typeSystem;
-  projectTypes = typeSystem.projectTypes;
-  artifacts = createCsharpArtifactGraph({
-    ast: input.source.ast,
+  const { objectShapes, projectTypes } = program.typeSystem;
+  const artifacts = createCsharpArtifactGraph({
+    ast: program.source.ast,
     objectShapes,
-    navigation: input.source.navigation,
+    navigation: program.source.navigation,
+  });
+  const planningTypes = program.typeSystem.createPlanningTypes(
+    createCsharpPlanningRepresentationQueries(program, artifacts, projectTypes),
+  );
+  const types: CsharpPlanningTypeView = Object.freeze({
+    policy: planningTypes,
+    objectShapes,
+    projectTypes,
   });
   const outputIdentities = createCsharpSourceOutputIdentityPlanner({
-    ast: input.source.ast,
-    sourceFiles,
+    ast: program.source.ast,
+    sourceFiles: program.sourceFiles,
     paths: input.paths,
   });
   const names = createCsharpSourceNameResolver({
-    ast: input.source.ast,
-    navigation: input.source.navigation,
+    ast: program.source.ast,
+    navigation: program.source.navigation,
     outputIdentities,
   });
-  const attributeApplications = createCsharpAttributeApplicationFactIndex({
-    ast: input.source.ast,
-    sourceFiles: input.source.navigation.sourceFiles,
-    sourceFacts: input.source.sourceFacts,
-  });
-  const safetyApplications = createCsharpSafetyApplicationFactIndex({
-    ast: input.source.ast,
-    sourceFiles: input.source.navigation.sourceFiles,
-    sourceFacts: input.source.sourceFacts,
-    navigation: input.source.navigation,
-  });
+  const policy = createCsharpPlanningPolicyContext(input, program, types);
   return Object.freeze({
-    source: input.source,
-    ast: input.source.ast,
-    sourceFiles: Object.freeze(sourceFiles),
-    sourceFacts: input.source.sourceFacts,
-    navigation: typePolicyHost.navigation,
-    project: input.project,
-    target: input.target,
-    runtimeReferences: input.runtimeReferences,
-    paths: input.paths,
-    providers,
+    input,
+    program,
+    policy,
     types,
-    objectShapes,
-    projectTypes,
     artifacts,
     outputIdentities,
     names,
-    attributeApplications,
-    safetyApplications,
-    semantics,
-    semanticsFor,
-    hasSemantics,
+    scope: Object.freeze({}),
   });
 }
 
@@ -203,7 +121,7 @@ export function createCsharpScopedPlanningContext(
   if (bindings.length === 0) {
     return { kind: "resolved", context: input };
   }
-  const scopedTypes = input.types.withSourceTargetBindings(bindings);
+  const scopedTypes = input.types.policy.withSourceTargetBindings(bindings);
   if (scopedTypes.kind === "rejected") {
     return scopedTypes;
   }
@@ -228,7 +146,7 @@ export function createCsharpScopedPlanningContext(
     if (node === undefined) {
       return undefined;
     }
-    const reference = input.navigation.referenceFor(node);
+    const reference = input.program.source.navigation.referenceFor(node);
     return targetTypes.get(reference?.declaration ?? node) ??
       targetTypes.get(node);
   };
@@ -236,17 +154,17 @@ export function createCsharpScopedPlanningContext(
     resolveNode(node, sourceFile) {
       const targetType = scopedTargetType(node);
       return targetType === undefined
-        ? input.objectShapes.resolveNode(node, sourceFile)
-        : input.objectShapes.resolveTarget(targetType);
+        ? input.types.objectShapes.resolveNode(node, sourceFile)
+        : input.types.objectShapes.resolveTarget(targetType);
     },
     resolveTarget(type) {
-      return input.objectShapes.resolveTarget(type);
+      return input.types.objectShapes.resolveTarget(type);
     },
     resolveType(type, sourceFile) {
-      return input.objectShapes.resolveType(type, sourceFile);
+      return input.types.objectShapes.resolveType(type, sourceFile);
     },
     resolveObjectLiteralTargetShape(expectedShape, objectLiteral, sourceFile) {
-      return input.objectShapes.resolveObjectLiteralTargetShape(
+      return input.types.objectShapes.resolveObjectLiteralTargetShape(
         expectedShape,
         objectLiteral,
         sourceFile,
@@ -259,7 +177,7 @@ export function createCsharpScopedPlanningContext(
       contextNode,
       sourceFile,
     ) {
-      return input.objectShapes.resolveProjectConstructibleSelectedType(
+      return input.types.objectShapes.resolveProjectConstructibleSelectedType(
         targetType,
         explicitTypeNode,
         selectedType,
@@ -273,10 +191,42 @@ export function createCsharpScopedPlanningContext(
     kind: "resolved",
     context: Object.freeze({
       ...input,
-      types: scopedTypes.policy,
-      objectShapes,
+      policy: Object.freeze({
+        ...input.policy,
+        types: scopedTypes.policy,
+        objectShapes,
+        projectTypes: input.types.projectTypes,
+      }),
+      types: Object.freeze({
+        policy: scopedTypes.policy,
+        objectShapes,
+        projectTypes: input.types.projectTypes,
+      }),
     }),
   };
+}
+
+function createCsharpPlanningPolicyContext(
+  input: TargetCompileInput,
+  program: CsharpTargetProgram,
+  types: CsharpPlanningTypeView,
+): CsharpPolicyContext {
+  const source = program.source;
+  return Object.freeze({
+    ast: source.ast,
+    sourceFiles: program.sourceFiles,
+    sourceFacts: source.sourceFacts,
+    navigation: source.navigation,
+    target: input.target,
+    providers: program.providers,
+    types: types.policy,
+    objectShapes: types.objectShapes,
+    projectTypes: types.projectTypes,
+    sourceIdentities: program.sourceIdentities,
+    semantics: source.semantics.forFile,
+    semanticsFor: source.semantics.forNode,
+    hasSemantics: source.semantics.includes,
+  });
 }
 
 export function createCsharpThisBindingPlanningContext(
@@ -286,6 +236,9 @@ export function createCsharpThisBindingPlanningContext(
 ): CsharpPlanningContext {
   return Object.freeze({
     ...input,
-    sourceThisBinding: Object.freeze({ name, targetType }),
+    scope: Object.freeze({
+      ...input.scope,
+      sourceThisBinding: Object.freeze({ name, targetType }),
+    }),
   });
 }

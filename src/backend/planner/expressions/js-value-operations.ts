@@ -16,7 +16,7 @@ import {
 } from "../../../policy/types/index.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -50,7 +50,7 @@ export function planCsharpJsValueBox(
     sourceExpression = literal.expression;
   } else if (
     sourceType?.kind === "source-primitive" &&
-    (input.ast.is.IsNumericLiteral(node) || input.ast.is.IsPrefixUnaryExpression(node))
+    (input.program.source.ast.is.IsNumericLiteral(node) || input.program.source.ast.is.IsPrefixUnaryExpression(node))
   ) {
     const type = csharpTypeFromTargetTypeRef(sourceType);
     if (type === undefined) {

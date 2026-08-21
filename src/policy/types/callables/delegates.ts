@@ -1,11 +1,11 @@
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpDelegateSignatureShape,
   CsharpDelegateTargetTypeRef,
   CsharpTaskTargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   isCsharpVoidTargetType,
 } from "../model/identity.js";
@@ -17,7 +17,7 @@ import {
 } from "../model/scalar-types.js";
 import {
   csharpTargetNamedType,
-} from "../model/target-refs.js";
+} from "../../../target-model/types/factories.js";
 
 export function csharpDelegateTargetType(
   kind: "System.Action" | "System.Func",

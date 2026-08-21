@@ -23,7 +23,7 @@ import {
 import type {
   CsharpExpression,
   CsharpMethodDeclaration,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
@@ -256,7 +256,7 @@ function convertClosedShapeValue(
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
   return applyClosedShapeConversion(
-    selectCsharpConversion(input, sourceType, targetType, "implicit"),
+    selectCsharpConversion(input.policy, sourceType, targetType, "implicit"),
     targetType,
     expression,
   );

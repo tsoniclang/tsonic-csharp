@@ -14,7 +14,7 @@ import type {
   CsharpConstructorDeclaration,
   CsharpModifier,
   CsharpParameter,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -37,7 +37,7 @@ export function planImplicitForwardingConstructors(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpConstructorDeclaration[] {
-  const constructors = input.projectTypes
+  const constructors = input.types.projectTypes
     .implicitConstructorsForDeclaration(declaration);
   if (constructors === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

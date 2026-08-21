@@ -15,7 +15,7 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { qualifiedCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -66,7 +66,7 @@ export function planForOfStatement(
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
   const selectedIteration = selectCsharpIteration(
-    input,
+    input.policy,
     statementNode,
     statement.Expression,
     sourceFile,
@@ -164,19 +164,19 @@ function forOfResourceDeclaration(
   readonly declaration: Node;
   readonly kind: "sync" | "async";
 } | undefined {
-  if (!HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
+  if (!HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
     return undefined;
   }
-  const declarations = input.ast.children(initializer).filter(
+  const declarations = input.program.source.ast.children(initializer).filter(
     (declaration): declaration is Node =>
       declaration !== undefined &&
-      input.ast.is.IsVariableDeclaration(declaration),
+      input.program.source.ast.is.IsVariableDeclaration(declaration),
   );
   const declaration = declarations.length === 1 ? declarations[0] : undefined;
   if (declaration === undefined) {
     return undefined;
   }
-  const kind = input.ast.variableDeclarationKind(declaration);
+  const kind = input.program.source.ast.variableDeclarationKind(declaration);
   return kind === "using"
     ? { declaration, kind: "sync" }
     : kind === "await using"
@@ -200,7 +200,7 @@ function planForOfCollectionExpression(
     });
     return undefined;
   }
-  if (HasSourceKind(input.ast, expression, KindArrayLiteralExpression)) {
+  if (HasSourceKind(input.program.source.ast, expression, KindArrayLiteralExpression)) {
     return planExpressionWithExpectedType(
       expression,
         sourceFile,
@@ -235,9 +235,9 @@ function planForOfBinding(
     });
     return undefined;
   }
-  if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
-    const declarations = input.ast.children(initializer)
-      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+  if (HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
+    const declarations = input.program.source.ast.children(initializer)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const first = declarations[0];
     if (first === undefined || declarations.length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
@@ -271,12 +271,12 @@ function planForOfBinding(
       ));
       return undefined;
     }
-    const variable = AsVariableDeclaration(input.ast, first)!;
+    const variable = AsVariableDeclaration(input.program.source.ast, first)!;
     if (variable.Initializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(first, "For-of variable declaration cannot have an initializer."));
     }
     const variableName = variable.name;
-    if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
+    if (variableName !== undefined && (HasSourceKind(input.program.source.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, variableName, KindArrayBindingPattern))) {
       const itemName = allocateForOfItem(state);
       const itemType = itemStorageType;
       if (itemType === undefined) {
@@ -316,7 +316,7 @@ function planForOfBinding(
         : mutableForOfLocationBinding(
             binding,
             identity,
-            input.ast.variableDeclarationKind(initializer),
+            input.program.source.ast.variableDeclarationKind(initializer),
             state,
           );
     }
@@ -331,11 +331,11 @@ function planForOfBinding(
       : mutableForOfLocationBinding(
           planned,
           identity,
-          input.ast.variableDeclarationKind(initializer),
+          input.program.source.ast.variableDeclarationKind(initializer),
           state,
         );
   }
-  if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
+  if (HasSourceKind(input.program.source.ast, initializer, KindIdentifier)) {
     const target = planExpression(initializer, sourceFile, input, diagnostics, state);
     if (target === undefined) {
       return undefined;
@@ -384,7 +384,7 @@ function adaptSyncCollectionToAsync(
 function mutableForOfLocationBinding(
   binding: CsharpLocalDeclaration,
   identity: CsharpStatement,
-  declarationKind: ReturnType<CsharpPlanningContext["ast"]["variableDeclarationKind"]>,
+  declarationKind: ReturnType<CsharpPlanningContext["program"]["source"]["ast"]["variableDeclarationKind"]>,
   state: DestructuringPlannerState,
 ): PlannedForOfBinding {
   const iterationName = allocateForOfItem(state);

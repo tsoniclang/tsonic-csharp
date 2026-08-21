@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetBindingFact,
-} from "../../policy/types/model/definitions.js";
+} from "../../target-model/types/model.js";
 import type {
   CsharpProviderTargetRelation,
 } from "../relations/index.js";

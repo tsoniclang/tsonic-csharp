@@ -8,7 +8,7 @@ import type { TargetTypeRef } from "../../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   missingCarrierDiagnosticDetail,
   probeCarrierFromResolution,
@@ -64,7 +64,7 @@ export function planArrayLiteralExpressionFromFacts(
 ): CsharpExpression | undefined {
   const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution) ??
-    input.types.resolveNode(node, sourceFile);
+    input.types.policy.resolveNode(node, sourceFile);
   return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
 }
 

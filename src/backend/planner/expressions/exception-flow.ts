@@ -4,7 +4,7 @@ import {
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../policy/types/index.js";
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   csharpExceptionTargetType,
   csharpTsThrownValueExceptionTargetType,
@@ -103,26 +103,26 @@ export function isExactUnmodifiedCatchRethrow(
   expression: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  const reference = input.navigation.referenceFor(expression);
+  const reference = input.program.source.navigation.referenceFor(expression);
   const declaration = reference?.declaration;
   if (
     reference === undefined ||
     declaration === undefined ||
-    !input.ast.is.IsVariableDeclaration(declaration)
+    !input.program.source.ast.is.IsVariableDeclaration(declaration)
   ) {
     return false;
   }
-  const catchClauseNode = input.ast.parent(declaration);
+  const catchClauseNode = input.program.source.ast.parent(declaration);
   if (
     catchClauseNode === undefined ||
-    !input.ast.is.IsCatchClause(catchClauseNode)
+    !input.program.source.ast.is.IsCatchClause(catchClauseNode)
   ) {
     return false;
   }
-  const catchClause = input.ast.as.AsCatchClause(catchClauseNode);
+  const catchClause = input.program.source.ast.as.AsCatchClause(catchClauseNode);
   if (
     !sourceNodesEqual(
-      input.ast,
+      input.program.source.ast,
       catchClause?.VariableDeclaration,
       declaration,
     ) ||
@@ -132,7 +132,7 @@ export function isExactUnmodifiedCatchRethrow(
     return false;
   }
   if (
-    input.navigation.bindingWritesWithin(reference.symbol, catchClause.Block)
+    input.program.source.navigation.bindingWritesWithin(reference.symbol, catchClause.Block)
       .length > 0
   ) {
     return false;
@@ -150,15 +150,15 @@ function isLexicallyWithinExactCatch(
   input: CsharpPlanningContext,
 ): boolean {
   for (
-    let current = input.ast.parent(node);
+    let current = input.program.source.ast.parent(node);
     current !== undefined;
-    current = input.ast.parent(current)
+    current = input.program.source.ast.parent(current)
   ) {
-    if (sourceNodesEqual(input.ast, current, catchClause)) {
+    if (sourceNodesEqual(input.program.source.ast, current, catchClause)) {
       return true;
     }
     if (
-      input.ast.is.IsCatchClause(current) ||
+      input.program.source.ast.is.IsCatchClause(current) ||
       isFunctionBoundary(current, input)
     ) {
       return false;
@@ -171,14 +171,14 @@ function isFunctionBoundary(
   node: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  return input.ast.is.IsArrowFunction(node) ||
-    input.ast.is.IsFunctionExpression(node) ||
-    input.ast.is.IsFunctionDeclaration(node) ||
-    input.ast.is.IsMethodDeclaration(node) ||
-    input.ast.is.IsGetAccessorDeclaration(node) ||
-    input.ast.is.IsSetAccessorDeclaration(node) ||
-    input.ast.is.IsConstructorDeclaration(node) ||
-    input.ast.is.IsClassStaticBlockDeclaration(node);
+  return input.program.source.ast.is.IsArrowFunction(node) ||
+    input.program.source.ast.is.IsFunctionExpression(node) ||
+    input.program.source.ast.is.IsFunctionDeclaration(node) ||
+    input.program.source.ast.is.IsMethodDeclaration(node) ||
+    input.program.source.ast.is.IsGetAccessorDeclaration(node) ||
+    input.program.source.ast.is.IsSetAccessorDeclaration(node) ||
+    input.program.source.ast.is.IsConstructorDeclaration(node) ||
+    input.program.source.ast.is.IsClassStaticBlockDeclaration(node);
 }
 
 function sourceFactsWriteBindingWithin(
@@ -191,22 +191,22 @@ function sourceFactsWriteBindingWithin(
     if (node === undefined || found) {
       return;
     }
-    const passing = selectCsharpSourceArgument(input.sourceFacts, node);
+    const passing = selectCsharpSourceArgument(input.program.source.sourceFacts, node);
     if (
       passing.kind === "resolved" &&
       passing.argument.passingMode !== "by-value" &&
       passing.argument.passingMode !== "byref-readonly" &&
       passing.argument.passingMode !== "borrow-shared"
     ) {
-      const storageDeclaration = input.navigation.referenceFor(
+      const storageDeclaration = input.program.source.navigation.referenceFor(
         passing.argument.storageExpression,
       )?.declaration;
-      if (sourceNodesEqual(input.ast, storageDeclaration, declaration)) {
+      if (sourceNodesEqual(input.program.source.ast, storageDeclaration, declaration)) {
         found = true;
         return;
       }
     }
-    input.ast.forEachChild(node, visit);
+    input.program.source.ast.forEachChild(node, visit);
   };
   visit(root);
   return found;

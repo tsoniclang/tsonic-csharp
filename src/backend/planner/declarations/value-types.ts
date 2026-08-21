@@ -23,7 +23,7 @@ import {
   readCsharpSourceField,
 } from "../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -36,7 +36,7 @@ export function planValueTypeDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpStructDeclaration {
-  const declaration = AsVariableDeclaration(input.ast, declarationNode)!;
+  const declaration = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   if (valueType.valueType !== true) {
     diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "Struct declaration emission requires a finalized value-type struct fact."));
   }
@@ -76,12 +76,12 @@ function diagnoseUnprovenValueTypeFields(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  const initializer = SourceKind(input.ast, declaration.Initializer) === KindCallExpression
-    ? AsCallExpression(input.ast, declaration.Initializer)
+  const initializer = SourceKind(input.program.source.ast, declaration.Initializer) === KindCallExpression
+    ? AsCallExpression(input.program.source.ast, declaration.Initializer)
     : undefined;
   const shapeNode = (initializer?.Arguments?.Nodes ?? [])[0];
-  const shape = SourceKind(input.ast, shapeNode) === KindObjectLiteralExpression
-    ? AsObjectLiteralExpression(input.ast, shapeNode)
+  const shape = SourceKind(input.program.source.ast, shapeNode) === KindObjectLiteralExpression
+    ? AsObjectLiteralExpression(input.program.source.ast, shapeNode)
     : undefined;
   if (shape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -94,17 +94,17 @@ function diagnoseUnprovenValueTypeFields(
     if (property === undefined) {
       continue;
     }
-    if (SourceKind(input.ast, property) !== KindPropertyAssignment) {
+    if (SourceKind(input.program.source.ast, property) !== KindPropertyAssignment) {
       diagnostics.push(unsupportedNodeDiagnostic(property, "Value-type members require finalized field facts from field-marker property assignments."));
       continue;
     }
-    const assignment = AsPropertyAssignment(input.ast, property)!;
-    if (readCsharpSourceField(input.sourceFacts, [
+    const assignment = AsPropertyAssignment(input.program.source.ast, property)!;
+    if (readCsharpSourceField(input.program.source.sourceFacts, [
       property,
       assignment.Initializer,
-      Node_Name(input.ast, property),
+      Node_Name(input.program.source.ast, property),
     ]) === undefined) {
-      const name = Node_Text(input.ast, Node_Name(input.ast, property));
+      const name = Node_Text(input.program.source.ast, Node_Name(input.program.source.ast, property));
       diagnostics.push(unsupportedNodeDiagnostic(property, `Value-type member '${name}' requires a finalized field fact before C# struct emission.`));
     }
   }

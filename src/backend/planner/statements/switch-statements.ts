@@ -25,7 +25,7 @@ import {
 } from "@tsonic/target-api/source";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 
@@ -53,7 +53,7 @@ export function planSwitchStatement(
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
 ): CsharpStatement | undefined {
-  const statement = AsSwitchStatement(input.ast, node)!;
+  const statement = AsSwitchStatement(input.program.source.ast, node)!;
   const expression = planSwitchExpression(statement.Expression, node, sourceFile, input, diagnostics, planner);
   if (expression === undefined) {
     return undefined;
@@ -95,7 +95,7 @@ function planSwitchSections(
   if (caseBlockNode === undefined) {
     return [];
   }
-  const caseBlock = AsCaseBlock(input.ast, caseBlockNode)!;
+  const caseBlock = AsCaseBlock(input.program.source.ast, caseBlockNode)!;
   const clauses = (caseBlock.Clauses?.Nodes ?? [])
     .filter((clause): clause is Node => clause !== undefined);
   diagnoseDuplicateDefaultClauses(clauses, input, diagnostics);
@@ -140,7 +140,7 @@ function planSwitchSection(
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
 ): CsharpSwitchSection | undefined {
-  const clause = AsCaseOrDefaultClause(input.ast, clauseNode)!;
+  const clause = AsCaseOrDefaultClause(input.program.source.ast, clauseNode)!;
   const label = planSwitchLabel(clauseNode, clause.Expression, sourceFile, input, diagnostics, planner);
   if (label === undefined) {
     return undefined;
@@ -162,7 +162,7 @@ function planSwitchLabel(
   diagnostics: TargetDiagnostic[],
   planner: SwitchStatementPlanner,
 ): CsharpSwitchSection["label"] | undefined {
-  if (HasSourceKind(input.ast, clauseNode, KindDefaultClause)) {
+  if (HasSourceKind(input.program.source.ast, clauseNode, KindDefaultClause)) {
     return { kind: "DefaultSwitchLabel" };
   }
   if (expression === undefined) {
@@ -183,7 +183,7 @@ function diagnoseDuplicateDefaultClauses(
 ): void {
   let hasDefault = false;
   for (const clause of clauses) {
-    if (!HasSourceKind(input.ast, clause, KindDefaultClause)) {
+    if (!HasSourceKind(input.program.source.ast, clause, KindDefaultClause)) {
       continue;
     }
     if (hasDefault) {
@@ -198,7 +198,7 @@ function isNativeCsharpSwitchCaseLabelExpression(
   expression: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  switch (SourceKind(input.ast, expression)) {
+  switch (SourceKind(input.program.source.ast, expression)) {
     case KindStringLiteral:
     case KindNoSubstitutionTemplateLiteral:
     case KindNumericLiteral:
@@ -207,25 +207,25 @@ function isNativeCsharpSwitchCaseLabelExpression(
     case KindNullKeyword:
       return true;
     case KindAsExpression:
-      return AsAsExpression(input.ast, expression)?.Expression === undefined
+      return AsAsExpression(input.program.source.ast, expression)?.Expression === undefined
         ? false
-        : isNativeCsharpSwitchCaseLabelExpression(AsAsExpression(input.ast, expression)!.Expression!, input);
+        : isNativeCsharpSwitchCaseLabelExpression(AsAsExpression(input.program.source.ast, expression)!.Expression!, input);
     case KindSatisfiesExpression:
-      return AsSatisfiesExpression(input.ast, expression)?.Expression === undefined
+      return AsSatisfiesExpression(input.program.source.ast, expression)?.Expression === undefined
         ? false
-        : isNativeCsharpSwitchCaseLabelExpression(AsSatisfiesExpression(input.ast, expression)!.Expression!, input);
+        : isNativeCsharpSwitchCaseLabelExpression(AsSatisfiesExpression(input.program.source.ast, expression)!.Expression!, input);
     case KindNonNullExpression:
-      return AsNonNullExpression(input.ast, expression)?.Expression === undefined
+      return AsNonNullExpression(input.program.source.ast, expression)?.Expression === undefined
         ? false
-        : isNativeCsharpSwitchCaseLabelExpression(AsNonNullExpression(input.ast, expression)!.Expression!, input);
+        : isNativeCsharpSwitchCaseLabelExpression(AsNonNullExpression(input.program.source.ast, expression)!.Expression!, input);
     case KindTypeAssertionExpression:
-      return AsTypeAssertion(input.ast, expression)?.Expression === undefined
+      return AsTypeAssertion(input.program.source.ast, expression)?.Expression === undefined
         ? false
-        : isNativeCsharpSwitchCaseLabelExpression(AsTypeAssertion(input.ast, expression)!.Expression!, input);
+        : isNativeCsharpSwitchCaseLabelExpression(AsTypeAssertion(input.program.source.ast, expression)!.Expression!, input);
     case KindParenthesizedExpression:
-      return AsParenthesizedExpression(input.ast, expression)?.Expression === undefined
+      return AsParenthesizedExpression(input.program.source.ast, expression)?.Expression === undefined
         ? false
-        : isNativeCsharpSwitchCaseLabelExpression(AsParenthesizedExpression(input.ast, expression)!.Expression!, input);
+        : isNativeCsharpSwitchCaseLabelExpression(AsParenthesizedExpression(input.program.source.ast, expression)!.Expression!, input);
     default:
       return false;
   }

@@ -1,9 +1,9 @@
 import type {
   TargetTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpTargetNamedTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;

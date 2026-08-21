@@ -1,7 +1,7 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { CsharpObjectShapePolicyHost } from "./api.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../model/definitions.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
@@ -17,20 +17,20 @@ export function selectedObjectShapeSource(
   host: CsharpObjectShapePolicyHost,
   state: CsharpTypeResolutionState,
 ): SelectedObjectShapeSource {
-  const semanticType = queries.getTypeAtLocation(node);
+  const semanticType = queries.types.expressionType(node);
   if (!host.ast.is.IsObjectLiteralExpression(node)) {
     return { type: semanticType };
   }
-  const contextual = queries.selectContextualValueType(node);
+  const contextual = queries.types.contextualValueSelection(node);
   if (contextual.kind !== "selected") {
     return { type: semanticType };
   }
   const contextualType = contextual.type;
-  const contextualSymbol = queries.getTypeAliasSymbol(contextualType) ??
-    queries.getTypeSymbol(contextualType);
-  const contextualDeclarations = queries.getSymbolDeclarations(
-    contextualSymbol,
-  );
+  const contextualSymbol = queries.declarations.typeAliasSymbol(contextualType) ??
+    queries.declarations.typeSymbol(contextualType);
+  const contextualDeclarations = contextualSymbol === undefined
+    ? []
+    : queries.declarations.symbolDeclarations(contextualSymbol);
   const projectDeclaration = contextualDeclarations.some((declaration) =>
       declaration !== undefined &&
       host.navigation.isProjectDeclaration(declaration) &&
@@ -57,21 +57,12 @@ export function sourceSubjects(
   node: Node,
   queries: SourceFileSemantics,
 ): readonly ExtensionFactSubject[] {
-  const subjects: ExtensionFactSubject[] = [node];
-  const referenceSymbol = queries.getResolvedSymbolOrNil(node);
-  const locationSymbol = queries.getSymbolAtLocation(node);
-  for (const symbol of [referenceSymbol, locationSymbol]) {
-    if (symbol === undefined || subjects.includes(symbol)) {
-      continue;
-    }
-    subjects.push(symbol);
-    for (const declaration of queries.getSymbolDeclarations(symbol)) {
-      if (declaration !== undefined && !subjects.includes(declaration)) {
-        subjects.push(declaration);
-      }
-    }
-  }
-  return subjects;
+  return Object.freeze([
+    ...new Set<ExtensionFactSubject>([
+      node,
+      ...queries.facts.authoredTypeSubjects(node),
+    ]),
+  ]);
 }
 
 export function requiresUnresolvedStructuralProjection(
@@ -80,7 +71,7 @@ export function requiresUnresolvedStructuralProjection(
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): boolean {
-  if (!queries.couldContainTypeVariables(type)) {
+  if (!queries.types.couldContainTypeVariables(type)) {
     return false;
   }
   if (
@@ -92,25 +83,25 @@ export function requiresUnresolvedStructuralProjection(
   ) {
     return false;
   }
-  return queries.getPropertyInfos(type).length === 0;
+  return queries.types.propertyInfos(type).length === 0;
 }
 
 export function typeIsExcludedFromObjectShape(
   type: Type,
   queries: SourceFileSemantics,
 ): boolean {
-  return queries.isAny(type) ||
-    queries.isUnknown(type) ||
-    queries.isNever(type) ||
-    queries.isVoidLike(type) ||
-    queries.isNullish(type) ||
-    queries.isStringLike(type) ||
-    queries.isNumberLike(type) ||
-    queries.isBooleanLike(type) ||
-    queries.isBigIntLike(type) ||
-    queries.isUnion(type) ||
-    queries.isTuple(type) ||
-    queries.getCallSignatures(type).length > 0;
+  return queries.types.isAny(type) ||
+    queries.types.isUnknown(type) ||
+    queries.types.isNever(type) ||
+    queries.types.isVoidLike(type) ||
+    queries.types.isNullish(type) ||
+    queries.types.isStringLike(type) ||
+    queries.types.isNumberLike(type) ||
+    queries.types.isBooleanLike(type) ||
+    queries.types.isBigIntLike(type) ||
+    queries.types.isUnion(type) ||
+    queries.types.isTuple(type) ||
+    queries.types.callSignatures(type).length > 0;
 }
 
 export function typeHasProjectOwnedShapeDeclaration(
@@ -120,8 +111,8 @@ export function typeHasProjectOwnedShapeDeclaration(
   host: CsharpObjectShapePolicyHost,
 ): boolean {
   const typeSymbols = [
-    queries.getTypeAliasSymbol(type),
-    queries.getTypeSymbol(type),
+    queries.declarations.typeAliasSymbol(type),
+    queries.declarations.typeSymbol(type),
   ];
   const typeSubjects: ExtensionFactSubject[] = [type];
   for (const symbol of typeSymbols) {
@@ -129,7 +120,7 @@ export function typeHasProjectOwnedShapeDeclaration(
       continue;
     }
     typeSubjects.push(symbol);
-    for (const declaration of queries.getSymbolDeclarations(symbol)) {
+    for (const declaration of queries.declarations.symbolDeclarations(symbol)) {
       if (declaration !== undefined) {
         typeSubjects.push(declaration);
       }
@@ -155,15 +146,15 @@ export function typeHasProjectOwnedShapeDeclaration(
     return true;
   }
   if (typeSymbols.some((symbol) =>
-    queries.getSymbolDeclarations(symbol).some((declaration) =>
+    symbol !== undefined && queries.declarations.symbolDeclarations(symbol).some((declaration) =>
       host.navigation.isProjectDeclaration(declaration)
     )
   )) {
     return true;
   }
-  const properties = queries.getPropertyInfos(type);
+  const properties = queries.types.propertyInfos(type);
   return properties.length > 0 && properties.every((property) => {
-    const declarations = queries.getSymbolDeclarations(property.symbol);
+    const declarations = queries.declarations.symbolDeclarations(property.symbol);
     return declarations.length > 0 && declarations.every((declaration) =>
       declaration !== undefined &&
       host.navigation.isProjectDeclaration(declaration)
@@ -175,11 +166,11 @@ export function typeIncludesNullish(
   type: Type,
   queries: SourceFileSemantics,
 ): boolean {
-  return queries.isNullish(type) ||
+  return queries.types.isNullish(type) ||
     (
-      queries.isUnion(type) &&
-      queries.getUnionOrIntersectionTypes(type).some((member) =>
-        member !== undefined && queries.isNullish(member)
+      queries.types.isUnion(type) &&
+      queries.types.unionOrIntersectionTypes(type).some((member) =>
+        member !== undefined && queries.types.isNullish(member)
       )
     );
 }
@@ -195,11 +186,11 @@ export function projectClassIsObjectInitializable(
   queries: SourceFileSemantics,
   host: CsharpObjectShapePolicyHost,
 ): boolean {
-  const symbol = queries.getTypeSymbol(type);
+  const symbol = queries.declarations.typeSymbol(type);
   if (symbol === undefined) {
     return false;
   }
-  const declarations = queries.getSymbolDeclarations(symbol)
+  const declarations = queries.declarations.symbolDeclarations(symbol)
     .filter((declaration): declaration is Node =>
       declaration !== undefined &&
       host.ast.is.IsClassDeclaration(declaration) &&

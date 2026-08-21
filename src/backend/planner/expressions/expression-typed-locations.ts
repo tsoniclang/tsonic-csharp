@@ -21,7 +21,7 @@ import type {
   CsharpExpression,
   CsharpLambdaParameter,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
@@ -53,7 +53,7 @@ export function tryPlanCsharpTypedLocationOperation(
   state?: DestructuringPlannerState,
 ): CsharpTypedLocationOperationPlan {
   const operation = selectCsharpTypedLocationOperation(
-    input,
+    input.policy,
     node,
     sourceFile,
   );
@@ -81,7 +81,7 @@ export function tryPlanCsharpTypedLocationOperation(
   switch (operation.kind) {
     case "location-address": {
       const plannerState = state ??
-        createDestructuringPlannerState(sourceFile, input.ast);
+        createDestructuringPlannerState(sourceFile, input.program.source.ast);
       return {
         handled: true,
         expression: planCsharpTypedLocationStorage(

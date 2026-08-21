@@ -1,5 +1,5 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpAttribute } from "../../../roslyn/syntax.js";
+import type { CsharpAttribute } from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpAttributeApplication,
 } from "../../../../analysis/attributes/application-index.js";

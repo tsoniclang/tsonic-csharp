@@ -2,7 +2,7 @@ import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { getCsharpDelegateSignature } from "../../../../../policy/types/index.js";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../../../policy/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -15,7 +15,7 @@ export function targetDelegatePreservesOmission(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  const targetCalleeType = input.types.resolveNode(
+  const targetCalleeType = input.types.policy.resolveNode(
     source.sourceCallee.expression,
     sourceFile,
   );
@@ -32,13 +32,13 @@ export function sourceCalleeRequiresExactTargetArity(
   const declaration = source.sourceCallee.selectedDeclaration;
   return declaration !== undefined &&
     (
-      input.ast.is.IsVariableDeclaration(declaration) ||
-      input.ast.is.IsParameterDeclaration(declaration) ||
-      input.ast.is.IsPropertyDeclaration(declaration) ||
-      input.ast.is.IsPropertySignatureDeclaration(declaration) ||
-      input.ast.is.IsBindingElement(declaration) ||
-      input.ast.is.IsArrowFunction(declaration) ||
-      input.ast.is.IsFunctionExpression(declaration)
+      input.program.source.ast.is.IsVariableDeclaration(declaration) ||
+      input.program.source.ast.is.IsParameterDeclaration(declaration) ||
+      input.program.source.ast.is.IsPropertyDeclaration(declaration) ||
+      input.program.source.ast.is.IsPropertySignatureDeclaration(declaration) ||
+      input.program.source.ast.is.IsBindingElement(declaration) ||
+      input.program.source.ast.is.IsArrowFunction(declaration) ||
+      input.program.source.ast.is.IsFunctionExpression(declaration)
     );
 }
 
@@ -95,10 +95,10 @@ export function sourceCallIsOptional(
   source: ResolvedSourceCallInfo,
 ): boolean {
   const access = source.sourceCalleeAccess?.expression;
-  if (access === undefined || !input.ast.is.IsPropertyAccessExpression(access)) {
+  if (access === undefined || !input.program.source.ast.is.IsPropertyAccessExpression(access)) {
     return false;
   }
-  return input.ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !==
+  return input.program.source.ast.as.AsPropertyAccessExpression(access)?.QuestionDotToken !==
     undefined;
 }
 
@@ -106,12 +106,12 @@ export function isProjectSourceDeclaration(
   input: CsharpPlanningContext,
   declaration: Node | undefined,
 ): boolean {
-  const sourceFile = input.ast.getSourceFile(declaration);
+  const sourceFile = input.program.source.ast.getSourceFile(declaration);
   return sourceFile !== undefined &&
     !sourceFile.IsDeclarationFile &&
-    input.sourceFiles.some((candidate) =>
-      sourceFileIdentity(input.ast, candidate) ===
-        sourceFileIdentity(input.ast, sourceFile));
+    input.program.sourceFiles.some((candidate) =>
+      sourceFileIdentity(input.program.source.ast, candidate) ===
+        sourceFileIdentity(input.program.source.ast, sourceFile));
 }
 
 export function targetArgumentOrderIsRepresentable(

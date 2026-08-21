@@ -12,7 +12,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -31,7 +31,7 @@ export function planObjectBindingElement(
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
 ): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding pattern element must be a binding element."));
     return [];
@@ -66,7 +66,7 @@ export function isSourceOwnedBindingSource(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input);
+  return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input.policy);
 }
 
 function getDirectSourcePropertyName(
@@ -74,7 +74,7 @@ function getDirectSourcePropertyName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
     return undefined;
   }
@@ -82,9 +82,9 @@ function getDirectSourcePropertyName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
-    if (HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
-      const text = Node_Text(input.ast, AsStringLiteral(input.ast, propertyName));
+  if (!HasSourceKind(input.program.source.ast, propertyName, KindIdentifier)) {
+    if (HasSourceKind(input.program.source.ast, propertyName, KindStringLiteral)) {
+      const text = Node_Text(input.program.source.ast, AsStringLiteral(input.program.source.ast, propertyName));
       if (text !== undefined && tryCsharpIdentifier(text) === text) {
         return text;
       }
@@ -92,5 +92,5 @@ function getDirectSourcePropertyName(
     diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names."));
     return undefined;
   }
-  return requireCsharpIdentifier(Node_Text(input.ast, propertyName), diagnostics, "Object destructuring source property");
+  return requireCsharpIdentifier(Node_Text(input.program.source.ast, propertyName), diagnostics, "Object destructuring source property");
 }

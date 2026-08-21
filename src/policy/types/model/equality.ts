@@ -1,6 +1,6 @@
 import type {
   TargetTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   isCsharpNullableReferenceTargetType,
 } from "../storage/nullable.js";

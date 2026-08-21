@@ -13,7 +13,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   getCsharpTypeForNode,
   predefined,
@@ -78,24 +78,24 @@ export function planForInBinding(
     });
     return undefined;
   }
-  if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
-    const concreteDeclarations = input.ast.children(initializer)
-      .filter((declaration): declaration is Node => declaration !== undefined && input.ast.is.IsVariableDeclaration(declaration));
+  if (HasSourceKind(input.program.source.ast, initializer, KindVariableDeclarationList)) {
+    const concreteDeclarations = input.program.source.ast.children(initializer)
+      .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const first = concreteDeclarations[0];
     if (first === undefined || concreteDeclarations.length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in variable declaration must contain exactly one binding."));
       return undefined;
     }
-    const variable = AsVariableDeclaration(input.ast, first)!;
+    const variable = AsVariableDeclaration(input.program.source.ast, first)!;
     if (variable.Initializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(first, "For-in variable declaration cannot have an initializer."));
       return undefined;
     }
-    if (variable.name === undefined || !HasSourceKind(input.ast, variable.name, KindIdentifier)) {
+    if (variable.name === undefined || !HasSourceKind(input.program.source.ast, variable.name, KindIdentifier)) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? first, "For-in C# key binding must be an identifier; binding patterns require finalized object-key destructuring facts."));
       return undefined;
     }
-    const declarationKind = input.ast.variableDeclarationKind(initializer);
+    const declarationKind = input.program.source.ast.variableDeclarationKind(initializer);
     if (
       declarationKind !== "var" &&
       declarationKind !== "let" &&
@@ -131,17 +131,17 @@ export function planForInBinding(
     }
     return {
       kind: "LocalDeclarationStatement",
-      name: requireCsharpIdentifier(Node_Text(input.ast, variable.name), diagnostics, "For-in key binding"),
+      name: requireCsharpIdentifier(Node_Text(input.program.source.ast, variable.name), diagnostics, "For-in key binding"),
       node: first,
       currentType,
       declarationKind,
     };
   }
-  if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
-    const identifier = AsIdentifier(input.ast, initializer)!;
+  if (HasSourceKind(input.program.source.ast, initializer, KindIdentifier)) {
+    const identifier = AsIdentifier(input.program.source.ast, initializer)!;
     return {
       kind: "assignment",
-      name: requireCsharpIdentifier(Node_Text(input.ast, identifier), diagnostics, "For-in assignment target"),
+      name: requireCsharpIdentifier(Node_Text(input.program.source.ast, identifier), diagnostics, "For-in assignment target"),
       node: initializer,
       currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
     };

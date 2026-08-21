@@ -8,7 +8,7 @@ import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
   TargetTypeRef,
-} from "../../policy/types/model/definitions.js";
+} from "../../target-model/types/model.js";
 import {
   canonicalProviderValue,
 } from "../model/canonical-value.js";

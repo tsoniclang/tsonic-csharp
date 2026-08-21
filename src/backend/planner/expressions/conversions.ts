@@ -22,7 +22,7 @@ import {
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -398,7 +398,7 @@ function applyDelegateAdapter(
     ));
     return undefined;
   }
-  if (!isSourceOwnedCallableRuntimeCarrierSubject(node, sourceFile, input)) {
+  if (!isSourceOwnedCallableRuntimeCarrierSubject(node, sourceFile, input.policy)) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
       "C# delegate adaptation requires a source-owned callable; provider-owned delegate conversion requires provider conversion metadata.",

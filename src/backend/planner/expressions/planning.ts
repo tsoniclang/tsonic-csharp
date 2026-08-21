@@ -35,7 +35,7 @@ import type {
 } from "../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import {
   planArrayLiteralExpressionFromFacts,
@@ -125,7 +125,7 @@ function planExpressionCore(
   if (expressionOverride !== undefined) {
     return expressionOverride;
   }
-  const defaultValue = readCsharpSourceDefaultValue(input.sourceFacts, node);
+  const defaultValue = readCsharpSourceDefaultValue(input.program.source.sourceFacts, node);
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
@@ -139,11 +139,11 @@ function planExpressionCore(
       ),
     };
   }
-  const argumentPassing = selectCsharpSourceArgument(input.sourceFacts, node);
+  const argumentPassing = selectCsharpSourceArgument(input.program.source.sourceFacts, node);
   if (
     argumentPassing.kind === "resolved" &&
     !sourceNodesEqual(
-      input.ast,
+      input.program.source.ast,
       argumentPassing.argument.storageExpression,
       node,
     )
@@ -269,7 +269,7 @@ function planExpressionCore(
   if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
     return undefined;
   }
-  switch (SourceKind(input.ast, node)) {
+  switch (SourceKind(input.program.source.ast, node)) {
     case KindIdentifier:
       return planIdentifierExpression(node, sourceFile, input, diagnostics, state);
     case KindRegularExpressionLiteral:
@@ -448,7 +448,7 @@ export function planExpressionWithExpectedType(
     (
       expectedTypeSubject === undefined
         ? undefined
-        : input.types.resolveNode(expectedTypeSubject, sourceFile)
+        : input.types.policy.resolveNode(expectedTypeSubject, sourceFile)
     );
   const plan = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedState) =>
@@ -462,9 +462,9 @@ export function planExpressionWithExpectedType(
   if (plan.representation === "expected") {
     return plan.expression;
   }
-  const sourceType = input.types.resolveNode(node, sourceFile);
+  const sourceType = input.types.policy.resolveNode(node, sourceFile);
   const selection = selectCsharpExpressionConversion(
-    input,
+    input.policy,
     node,
     sourceType,
     effectiveExpectedTargetType,

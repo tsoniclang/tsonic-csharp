@@ -6,7 +6,7 @@ import { translateCsharpJsValueArgumentFactory, translateCsharpJsValueInvocation
 import { translateSelectedTargetCall } from "./target.js";
 import { translateSourceOwnedCall } from "./source.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpExpression } from "../../../../roslyn/syntax.js";
+import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../../../../policy/members/index.js";
@@ -20,9 +20,9 @@ export function translateCsharpCallExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const expression = input.ast.as.AsCallExpression(node);
-  const sourceCall = input.semantics(sourceFile).getResolvedCallInfo(node);
-  const sourceFlow = selectCsharpSourceFlowCall(input, node);
+  const expression = input.program.source.ast.as.AsCallExpression(node);
+  const sourceCall = input.program.source.semantics.forFile(sourceFile).operations.call(node);
+  const sourceFlow = selectCsharpSourceFlowCall(input.policy, node);
   if (sourceFlow.kind === "rejected") {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -35,7 +35,7 @@ export function translateCsharpCallExpression(
     expression?.Expression;
   const jsValueShape = jsValueCallShape(input, sourceCall);
   const jsValueOperation = selectCsharpJsValueCallOperation(
-    input,
+    input.policy,
     calleeNode,
     jsValueShape.receiver,
     sourceFile,
@@ -47,12 +47,12 @@ export function translateCsharpCallExpression(
     return undefined;
   }
   if (jsValueOperation.kind === "resolved") {
-    const sourceArguments = input.ast.arguments(node)
+    const sourceArguments = input.program.source.ast.arguments(node)
       .filter((argument): argument is Node => argument !== undefined);
     if (
-      sourceArguments.length !== input.ast.arguments(node).length ||
+      sourceArguments.length !== input.program.source.ast.arguments(node).length ||
       sourceArguments.some((argument) =>
-        input.ast.is.IsSpreadElement(argument)
+        input.program.source.ast.is.IsSpreadElement(argument)
       )
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -96,7 +96,7 @@ export function translateCsharpCallExpression(
       invocationArguments,
     );
   }
-  const selection = selectCsharpTargetCall(input, node, sourceFile);
+  const selection = selectCsharpTargetCall(input.policy, node, sourceFile);
   switch (selection.kind) {
     case "resolved":
       return translateSelectedTargetCall(
@@ -172,9 +172,9 @@ function jsValueCallShape(
   const access = source?.sourceCalleeAccess;
   if (
     access?.kind === "property" &&
-    input.ast.is.IsPropertyAccessExpression(access.expression)
+    input.program.source.ast.is.IsPropertyAccessExpression(access.expression)
   ) {
-    const property = input.ast.as.AsPropertyAccessExpression(access.expression);
+    const property = input.program.source.ast.as.AsPropertyAccessExpression(access.expression);
     return {
       kind: "property",
       receiver: access.receiver.expression,
@@ -184,9 +184,9 @@ function jsValueCallShape(
   }
   if (
     access?.kind === "element" &&
-    input.ast.is.IsElementAccessExpression(access.expression)
+    input.program.source.ast.is.IsElementAccessExpression(access.expression)
   ) {
-    const element = input.ast.as.AsElementAccessExpression(access.expression);
+    const element = input.program.source.ast.as.AsElementAccessExpression(access.expression);
     return {
       kind: "element",
       receiver: access.receiver.expression,
@@ -215,7 +215,7 @@ function jsValueCallArguments(
       return shape.name === undefined
         ? undefined
         : [
-            { kind: "LiteralExpression", value: input.ast.text(shape.name) },
+            { kind: "LiteralExpression", value: input.program.source.ast.text(shape.name) },
             { kind: "LiteralExpression", value: shape.optionalReceiver },
             { kind: "LiteralExpression", value: optionalCall },
             translateCsharpJsValueArgumentFactory(arguments_),

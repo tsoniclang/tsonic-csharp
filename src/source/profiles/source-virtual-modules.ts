@@ -15,7 +15,7 @@ import {
   csharpLangModule,
   csharpProviderVersion,
   csharpSourceVirtualModulesProviderId,
-} from "../extension/identity.js";
+} from "../../target-model/identities/source.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
 import {
   csharpNativePointerExport,

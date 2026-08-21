@@ -260,7 +260,7 @@ function selectWritableReceiverStorage(
   sourceFile: SourceFile,
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
-  const storage = input.semantics(sourceFile).getResolvedStorageInfo(receiver);
+  const storage = input.semantics(sourceFile).operations.storage(receiver);
   if (storage === undefined || !storage.writable) {
     return storageRejected(
       "A value-type storage receiver has no exact writable owner location.",
@@ -487,20 +487,13 @@ function selectedSourceStorageIdentity(
   if (!input.navigation.isProjectDeclaration(declaration)) {
     return undefined;
   }
-  const sourceFile = input.ast.getSourceFile(declaration);
-  const syntaxKind = input.ast.kind(declaration);
-  if (sourceFile === undefined || syntaxKind === undefined) {
+  const identity = input.sourceIdentities.node(declaration);
+  if (identity === undefined) {
     return undefined;
   }
-  const outputIdentity = input.outputIdentities.resolveRequired(
-    input.ast.getFileName(sourceFile),
-  );
   return [
     category,
-    outputIdentity.artifactPath,
-    syntaxKind,
-    input.ast.pos(declaration),
-    input.ast.end(declaration),
+    identity,
   ].join("\u0000");
 }
 

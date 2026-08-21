@@ -10,7 +10,7 @@ import type {
   CsharpArgument,
   CsharpExpression,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -49,7 +49,7 @@ export function planCallArgumentCore(
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
-  const selected = selectCsharpSourceArgument(input.sourceFacts, node);
+  const selected = selectCsharpSourceArgument(input.program.source.sourceFacts, node);
   if (selected.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selected.reason));
     return undefined;
@@ -76,7 +76,7 @@ export function planCallArgumentCore(
     ));
     return undefined;
   }
-  if (!isAstNode(input.ast, argument.storageExpression)) {
+  if (!isAstNode(input.program.source.ast, argument.storageExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
     return undefined;
   }
@@ -143,10 +143,10 @@ function planCallArgumentExpression(
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (expectedType !== undefined && conversionExpectedTargetType !== undefined) {
-    if (HasSourceKind(input.ast, node, KindArrowFunction)) {
+    if (HasSourceKind(input.program.source.ast, node, KindArrowFunction)) {
       return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType, planExpressionWithExpectedType);
     }
-    if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
+    if (HasSourceKind(input.program.source.ast, node, KindFunctionExpression)) {
       return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, conversionExpectedTargetType);
     }
   }

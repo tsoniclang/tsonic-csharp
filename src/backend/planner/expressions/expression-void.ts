@@ -14,7 +14,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -35,12 +35,12 @@ export function planVoidExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!input.ast.is.IsVoidExpression(node)) {
+  if (!input.program.source.ast.is.IsVoidExpression(node)) {
     return undefined;
   }
-  const operand = input.ast.as.AsVoidExpression(node)?.Expression;
+  const operand = input.program.source.ast.as.AsVoidExpression(node)?.Expression;
   const jsValueOperation = selectCsharpJsValueVoidOperation(
-    input,
+    input.policy,
     operand,
     sourceFile,
   );

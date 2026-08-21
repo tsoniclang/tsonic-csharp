@@ -3,7 +3,7 @@ import type {
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "./definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   targetTypeRefKey,
 } from "./equality.js";

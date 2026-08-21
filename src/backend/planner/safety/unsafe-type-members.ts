@@ -5,7 +5,7 @@ import type {
   CsharpParameter,
   CsharpTypeNode,
   CsharpTypeParameter,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeRequiresUnsafe,
 } from "../types/target-types.js";

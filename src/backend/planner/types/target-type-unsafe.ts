@@ -1,4 +1,4 @@
-import type { CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 
 export function csharpTypeRequiresUnsafe(type: CsharpTypeNode): boolean {
   switch (type.kind) {

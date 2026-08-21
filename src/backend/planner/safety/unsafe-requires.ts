@@ -1,6 +1,6 @@
 import type {
   CsharpCompilationUnit,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   memberRequiresUnsafePermission,
 } from "./unsafe-members.js";

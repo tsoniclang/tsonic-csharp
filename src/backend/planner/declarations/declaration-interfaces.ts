@@ -17,7 +17,7 @@ import type {
   CsharpInterfaceMember,
   CsharpInterfaceMethodDeclaration,
   CsharpInterfacePropertyDeclaration,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "./attributes.js";
 import {
   getCsharpTypeForNode,
@@ -61,8 +61,8 @@ export function planInterfaceDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
-  const declaration = AsInterfaceDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface declaration", diagnostics);
+  const declaration = AsInterfaceDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(node, input, diagnostics);
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   if (objectShape !== undefined) {
@@ -73,7 +73,7 @@ export function planInterfaceDeclaration(
     if (member === undefined) {
       return [];
     }
-    switch (input.ast.kindName(member)) {
+    switch (input.program.source.ast.kindName(member)) {
       case KindMethodSignature:
         return [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
       case KindPropertySignature:
@@ -109,8 +109,8 @@ function planInterfaceMethodDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceMethodDeclaration {
-  const declaration = AsMethodSignatureDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "interface method declaration", diagnostics);
+  const declaration = AsMethodSignatureDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "interface method declaration", diagnostics);
   const parameters = planParametersWithPrelude(
     declaration.Parameters?.Nodes ?? [],
     sourceFile,
@@ -157,9 +157,9 @@ function planInterfacePropertyDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
-  const declaration = AsPropertySignatureDeclaration(input.ast, node)!;
+  const declaration = AsPropertySignatureDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(
-    input.ast,
+    input.program.source.ast,
     node,
     "interface property declaration",
     diagnostics,
@@ -175,7 +175,7 @@ function planInterfacePropertyDeclaration(
     invalidCsharpType("interface property type"),
     diagnostics,
   );
-  const writable = !input.ast.hasModifierKind(node, "readonly");
+  const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
   diagnoseUnavailableCsharpSafetyAccessors(
     node,
     writable ? ["getter", "setter"] : ["getter"],
@@ -202,7 +202,7 @@ function planInterfacePropertyDeclaration(
     ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     writable,
-    type: input.ast.questionToken(node) === undefined
+    type: input.program.source.ast.questionToken(node) === undefined
       ? type
       : nullableCsharpType(type),
   };
@@ -214,9 +214,9 @@ function planInterfaceIndexerDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
-  const declaration = AsIndexSignatureDeclaration(input.ast, node)!;
+  const declaration = AsIndexSignatureDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(
-    input.ast,
+    input.program.source.ast,
     node,
     "interface index signature",
     diagnostics,
@@ -227,8 +227,8 @@ function planInterfaceIndexerDeclaration(
   if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface index signature requires exactly one key parameter."));
   }
-  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.ast, parameterNode);
-  const writable = !input.ast.hasModifierKind(node, "readonly");
+  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode);
+  const writable = !input.program.source.ast.hasModifierKind(node, "readonly");
   diagnoseUnavailableCsharpSafetyAccessors(
     node,
     writable ? ["getter", "setter"] : ["getter"],

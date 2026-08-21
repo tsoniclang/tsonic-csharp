@@ -2,7 +2,7 @@ import type {
   CsharpPlanningContext } from "../context.js";
 import { requireCsharpIdentifier,
   tryCsharpIdentifier } from "../../../policy/names/identifiers.js";
-import type { CsharpExpression, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
@@ -204,7 +204,7 @@ export function declareCsharpLocalBindingName(
   description: string,
   fallbackName: string,
 ): string {
-  if (node === undefined || input.ast.kindName(node) !== KindIdentifier) {
+  if (node === undefined || input.program.source.ast.kindName(node) !== KindIdentifier) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_NAME",
       category: "error",
@@ -218,7 +218,7 @@ export function declareCsharpLocalBindingName(
   if (existing !== undefined) {
     return existing;
   }
-  const sourceName = Node_Text(input.ast, node);
+  const sourceName = Node_Text(input.program.source.ast, node);
   const baseName = requireCsharpIdentifier(sourceName, diagnostics, description);
   const count = state.localNameCounts.get(baseName) ?? 0;
   const plannedName = count === 0 && !state.localBoundNames.has(baseName)
@@ -381,7 +381,7 @@ function localBindingKey(
   node: Node,
   input: CsharpPlanningContext,
 ): object | undefined {
-  const symbol = input.navigation.referenceFor(node)?.symbol;
+  const symbol = input.program.source.navigation.referenceFor(node)?.symbol;
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 

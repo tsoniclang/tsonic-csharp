@@ -15,7 +15,7 @@ import type {
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../../model/definitions.js";
+} from "../../../../target-model/types/model.js";
 import type {
   Node,
   SourceFile,
@@ -494,7 +494,7 @@ export function createCsharpObjectShapePolicy(
           queries.sourceFile,
           nextState(state),
         );
-        const sourceType = queries.getTypeFromTypeNode(field.sourceType);
+        const sourceType = queries.types.authoredType(field.sourceType);
         return type === undefined
           ? undefined
           : {
@@ -617,7 +617,7 @@ export function createCsharpObjectShapePolicy(
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const members = queries.getPropertyInfos(ownerType).map((property) =>
+    const members = queries.types.propertyInfos(ownerType).map((property) =>
       deriveMember(property, queries, state, authoredTypeRoot)
     );
     return members.some((member) => member === undefined)
@@ -636,9 +636,9 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const declarations = [...new Set([
-      ...queries.getSymbolDeclarations(property.symbol),
+      ...queries.declarations.symbolDeclarations(property.symbol),
       ...property.rootSymbols.flatMap((symbol) =>
-        queries.getSymbolDeclarations(symbol)
+        queries.declarations.symbolDeclarations(symbol)
       ),
     ])]
       .filter((declaration): declaration is Node => declaration !== undefined);

@@ -1,6 +1,6 @@
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 
 export function csharpTargetStorageIdentityEquals(
   left: TargetTypeRef,

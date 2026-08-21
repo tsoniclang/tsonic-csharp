@@ -29,10 +29,10 @@ export function publishCsharpSourceCallableContract(
     ));
     return;
   }
-  const typeParameterNames = input.ast.typeParameters(declaration).map(
+  const typeParameterNames = input.program.source.ast.typeParameters(declaration).map(
     (parameter) => {
-      const name = input.ast.name(parameter);
-      return name === undefined ? undefined : input.ast.text(name);
+      const name = input.program.source.ast.name(parameter);
+      return name === undefined ? undefined : input.program.source.ast.text(name);
     },
   );
   if (
@@ -119,11 +119,11 @@ function sourceCallableReceiverTypeOwner(
   declaration: Node,
   input: CsharpPlanningContext,
 ): Node | undefined {
-  const parent = input.ast.parent(declaration);
+  const parent = input.program.source.ast.parent(declaration);
   return parent !== undefined &&
       (
-        input.ast.is.IsClassDeclaration(parent) ||
-        input.ast.is.IsInterfaceDeclaration(parent)
+        input.program.source.ast.is.IsClassDeclaration(parent) ||
+        input.program.source.ast.is.IsInterfaceDeclaration(parent)
       )
     ? parent
     : undefined;

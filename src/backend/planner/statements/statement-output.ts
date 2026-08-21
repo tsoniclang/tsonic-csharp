@@ -1,12 +1,12 @@
 import type { TargetTypeRef } from "../../../policy/types/index.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
   isCsharpThrowableType,
   isCsharpVoidTargetType,
 } from "../../../policy/types/index.js";
 import type {
-  CsharpPlanningContext,
-} from "../context.js";
+  CsharpPolicyContext,
+} from "../../../policy/context.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -17,7 +17,7 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
 
 export function isCsharpThrowableCarrier(
   carrier: TargetTypeRef | undefined,
-  input: Pick<CsharpPlanningContext, "projectTypes" | "providers" | "target">,
+  input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "target">,
 ): boolean {
   return isCsharpThrowableType(input, carrier);
 }

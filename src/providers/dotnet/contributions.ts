@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type {
   TargetCapabilityContribution,
-  TargetProviderContext,
+  SelectedTargetCapabilityContributions,
 } from "@tsonic/target-api/provider";
 import type {
   DotnetAssemblySourcePackage,
@@ -54,37 +54,28 @@ export interface CsharpCapabilityDotnetProvider {
 }
 
 export function collectCsharpCapabilityContributions(
-  context: TargetProviderContext,
+  capabilities: readonly SelectedTargetCapabilityContributions[],
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerPolicies: CsharpProviderPolicyContribution[] = [];
-  for (const capability of context.selectedCapabilities) {
-    const contributions = capability.createTargetContributions?.({
-      project: context.project,
-      target: context.target,
-      targetPack: context.targetPack,
-      selectedCapabilities: context.selectedCapabilities,
-      selectedSurfaces: context.selectedSurfaces,
-      capability,
-    }) ?? [];
-    if (!Array.isArray(contributions)) {
-      throw new Error(
-        `C# target capability '${capability.id}' returned a non-array target contribution set.`,
-      );
-    }
-    for (const contribution of contributions) {
+  for (const capability of capabilities) {
+    for (const contribution of capability.contributions) {
       if (contribution.kind === csharpDotnetProviderContributionKind) {
         dotnetProviders.push(validateCsharpDotnetProviderContribution(
-          capability.id,
+          capability.capabilityId,
           capability.moduleOwnership,
           contribution,
         ));
       } else if (contribution.kind === csharpProviderPolicyContributionKind) {
         providerPolicies.push(validateCsharpProviderPolicyContribution(
-          capability.id,
+          capability.capabilityId,
           capability.moduleOwnership,
           contribution,
         ));
+      } else {
+        throw new Error(
+          `C# target capability '${capability.capabilityId}' supplied unsupported target contribution kind '${contribution.kind}'.`,
+        );
       }
     }
   }
@@ -95,9 +86,7 @@ export function collectCsharpCapabilityContributions(
 }
 
 export function createCapabilityDotnetProviders(
-  context: TargetProviderContext,
-  contributions: CollectedCsharpCapabilityContributions =
-    collectCsharpCapabilityContributions(context),
+  contributions: CollectedCsharpCapabilityContributions,
 ): readonly CsharpCapabilityDotnetProvider[] {
   const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();

@@ -1,10 +1,8 @@
 import type {
   CsharpProjectReference,
-} from "../../options/csharp-target-options.js";
+} from "../../../target-model/project/references.js";
 
-export type {
-  CsharpProjectReference,
-} from "../../options/csharp-target-options.js";
+export type { CsharpProjectReference } from "../../../target-model/project/references.js";
 
 export interface CsharpProjectFile {
   readonly sdk: "Microsoft.NET.Sdk";

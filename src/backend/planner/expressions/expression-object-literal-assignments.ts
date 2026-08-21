@@ -19,7 +19,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
@@ -60,7 +60,7 @@ export function planObjectShapeLiteralAssignment(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): readonly CsharpObjectInitializerAssignment[] | undefined {
-  switch (SourceKind(input.ast, property)) {
+  switch (SourceKind(input.program.source.ast, property)) {
     case KindPropertyAssignment:
     case KindShorthandPropertyAssignment: {
       const planned = planExplicitObjectShapeLiteralMember(
@@ -115,14 +115,14 @@ export function planExplicitObjectShapeLiteralMember(
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpPlannedObjectShapeLiteralMember | undefined {
-  const kind = SourceKind(input.ast, property);
+  const kind = SourceKind(input.program.source.ast, property);
   const initializer = kind === KindPropertyAssignment
-    ? AsPropertyAssignment(input.ast, property)?.Initializer
+    ? AsPropertyAssignment(input.program.source.ast, property)?.Initializer
     : kind === KindShorthandPropertyAssignment
-    ? Node_Name(input.ast, property)
+    ? Node_Name(input.program.source.ast, property)
     : undefined;
   if (kind === KindShorthandPropertyAssignment) {
-    const shorthand = AsShorthandPropertyAssignment(input.ast, property);
+    const shorthand = AsShorthandPropertyAssignment(input.program.source.ast, property);
     if (shorthand?.ObjectAssignmentInitializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         property,

@@ -15,7 +15,7 @@ import type {
 import {
   resolveCsharpProviderDeclarationEvidence,
   resolveCsharpProviderDeclarationEvidenceKinds,
-} from "../../../providers/relations/evidence.js";
+} from "./evidence.js";
 
 export type CsharpProviderOperationResolution =
   | {
@@ -49,7 +49,7 @@ export function resolveCsharpProviderCallRelations(
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
   const semantics = host.semantics(sourceFile);
-  const source = semantics.getResolvedCallInfo(call);
+  const source = semantics.operations.call(call);
   if (source === undefined) {
     return {
       kind: "missing",
@@ -64,7 +64,7 @@ export function resolveCsharpProviderCallRelations(
   }
   const declaration = resolveCsharpProviderDeclarationEvidence(
     host.sourceFacts,
-    [semantics.getSignatureDeclaration(source.selectedSignature)],
+    [semantics.declarations.signatureDeclaration(source.selectedSignature)],
     "signature",
   );
   return resolveProviderRelations(host, declaration, "signature");
@@ -75,7 +75,7 @@ export function resolveCsharpProviderPropertyRelations(
   propertyAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.semantics(sourceFile).getResolvedPropertyAccessInfo(
+  const source = host.semantics(sourceFile).operations.propertyAccess(
     propertyAccess,
   );
   if (source === undefined) {
@@ -106,7 +106,7 @@ export function resolveCsharpProviderElementRelations(
   elementAccess: Node,
   sourceFile: SourceFile,
 ): CsharpProviderOperationResolution {
-  const source = host.semantics(sourceFile).getResolvedElementAccessInfo(
+  const source = host.semantics(sourceFile).operations.elementAccess(
     elementAccess,
   );
   if (source === undefined) {

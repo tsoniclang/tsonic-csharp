@@ -1,6 +1,6 @@
 import type {
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {
   return { kind: "InvalidType", reason };

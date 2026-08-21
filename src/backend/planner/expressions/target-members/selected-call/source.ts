@@ -3,7 +3,7 @@ import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument, CsharpExpression } from "../../../../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../policy/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -19,8 +19,8 @@ export function translateSourceOwnedCall(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const signatureDeclaration = input.semantics(sourceFile)
-    .getSignatureDeclaration(source.selectedSignature);
+  const signatureDeclaration = input.program.source.semantics.forFile(sourceFile)
+    .declarations.signatureDeclaration(source.selectedSignature);
   if (
     !isProjectSourceDeclaration(
       input,
@@ -43,7 +43,7 @@ export function translateSourceOwnedCall(
   if (callee === undefined) {
     return undefined;
   }
-  const typeArguments = input.types.resolveSourceCallTypeArguments(
+  const typeArguments = input.types.policy.resolveSourceCallTypeArguments(
     source,
     sourceFile,
   );
@@ -128,7 +128,7 @@ export function translateSourceOwnedArguments(
     const parameter = source.sourceSelectedSignatureParameters[
       first.sourceParameterIndex
     ];
-    const targetType = input.types.resolveSourceCallArgumentParameter(
+    const targetType = input.types.policy.resolveSourceCallArgumentParameter(
       source,
       first,
       sourceFile,
@@ -199,7 +199,7 @@ export function translateSourceOwnedArguments(
     ) {
       continue;
     }
-    const declaration = input.ast.as.AsParameterDeclaration(
+    const declaration = input.program.source.ast.as.AsParameterDeclaration(
       parameter.parameterDeclaration,
     );
     if (declaration?.Initializer !== undefined) {
@@ -209,7 +209,7 @@ export function translateSourceOwnedArguments(
       ));
       return undefined;
     }
-    const targetType = input.types.resolveSourceCallParameter(
+    const targetType = input.types.policy.resolveSourceCallParameter(
       source,
       parameterIndex,
       sourceFile,

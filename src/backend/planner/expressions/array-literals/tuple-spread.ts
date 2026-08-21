@@ -13,7 +13,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   csharpTupleElementMemberName,
   targetTypeRefEquals,
@@ -45,7 +45,7 @@ export function planTupleSpreadArrayExpression(
   if (spreadCarrier.kind !== "tuple") {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
+  if (!HasSourceKind(input.program.source.ast, expression, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Tuple spread over non-identifier expressions requires single-evaluation provider lowering before C# emission."));
     return undefined;
   }

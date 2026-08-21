@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../roslyn/syntax.js";
+import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -27,7 +27,7 @@ export function tryPlanJsArrayDeleteExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpJsArrayMutation(input, node, sourceFile);
+  const selection = selectCsharpJsArrayMutation(input.policy, node, sourceFile);
   if (selection.kind !== "delete-element") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -72,7 +72,7 @@ export function tryPlanJsArrayLengthMutationExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const selection = selectCsharpJsArrayMutation(input, node, sourceFile);
+  const selection = selectCsharpJsArrayMutation(input.policy, node, sourceFile);
   if (selection.kind === "not-js-array-mutation") {
     return undefined;
   }

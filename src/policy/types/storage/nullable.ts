@@ -1,16 +1,16 @@
 import type {
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import type {
   CsharpNullableReferenceTargetTypeRef,
   CsharpTargetNamedTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 import {
   isCsharpValueTypeTargetType,
 } from "../model/identity.js";
 import {
   csharpTargetNamedType,
-} from "../model/target-refs.js";
+} from "../../../target-model/types/factories.js";
 
 export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Nullable`1", [elementType], { kind: "nullable" }, {

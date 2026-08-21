@@ -15,7 +15,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -44,7 +44,7 @@ export function planNativeCollectionArrayLiteralExpression(
   elementCarrier: TargetTypeRef,
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
-  const literal = AsArrayLiteralExpression(input.ast, node)!;
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   const elementType = csharpTypeFromTargetTypeRef(elementCarrier);
   const constructionCarrier = getCsharpArrayLiteralConstructionTargetType(carrier);
   const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier);
@@ -52,7 +52,7 @@ export function planNativeCollectionArrayLiteralExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection element and array-literal construction type metadata before C# emission."));
     return undefined;
   }
-  if (!(literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
+  if (!(literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.program.source.ast, element, KindSpreadElement))) {
     const arrayExpression = planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
     if (arrayExpression === undefined) {
       return undefined;
@@ -92,7 +92,7 @@ function createNativeCollectionSpreadChunks(
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
 ): readonly CsharpExpression[] | undefined {
-  const literal = AsArrayLiteralExpression(input.ast, node)!;
+  const literal = AsArrayLiteralExpression(input.program.source.ast, node)!;
   const chunks: CsharpExpression[] = [];
   let pendingElements: CsharpExpression[] = [];
   const flushPending = () => {
@@ -110,7 +110,7 @@ function createNativeCollectionSpreadChunks(
     if (element === undefined) {
       continue;
     }
-    if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
+    if (!HasSourceKind(input.program.source.ast, element, KindSpreadElement)) {
       const planned = planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType);
       if (planned === undefined) {
         return undefined;
@@ -119,7 +119,7 @@ function createNativeCollectionSpreadChunks(
       continue;
     }
     flushPending();
-    const expression = AsSpreadElement(input.ast, element)?.Expression;
+    const expression = AsSpreadElement(input.program.source.ast, element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       return undefined;

@@ -15,12 +15,12 @@ export function getCsharpObjectShapeFactForNode(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): CsharpObjectShapeFact | undefined {
-  return input.objectShapes.resolveNode(node, sourceFile);
+  return input.types.objectShapes.resolveNode(node, sourceFile);
 }
 
 export function getCsharpObjectShapeFactForTargetType(
   targetType: TargetTypeRef | undefined,
   input: CsharpPlanningContext,
 ): CsharpObjectShapeFact | undefined {
-  return input.objectShapes.resolveTarget(targetType);
+  return input.types.objectShapes.resolveTarget(targetType);
 }

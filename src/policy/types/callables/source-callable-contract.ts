@@ -5,7 +5,7 @@ import type {
 import type {
   CsharpTargetParameter,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 
 export interface CsharpSourceCallableParameterContract {
   readonly sourceParameter: Node;

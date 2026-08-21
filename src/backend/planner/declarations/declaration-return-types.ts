@@ -24,6 +24,7 @@ import {
   selectCsharpCommonImplicitTarget,
   selectCsharpConversion,
 } from "../../../policy/conversions/index.js";
+import type { CsharpPolicyContext } from "../../../policy/context.js";
 
 export type CsharpReturnTargetContractResult =
   | { readonly kind: "resolved"; readonly type: TargetTypeRef }
@@ -53,7 +54,7 @@ export function getExplicitReturnType(
     }
     return inferred;
   }
-  const explicitTargetType = input.types.resolveNode(typeNode, sourceFile);
+  const explicitTargetType = input.types.policy.resolveNode(typeNode, sourceFile);
   if (isCsharpNeverTargetType(explicitTargetType)) {
     const neverReturnType = csharpDeclarationReturnType(explicitTargetType);
     if (neverReturnType !== undefined) {
@@ -110,7 +111,7 @@ export function getDeclarationReturnTargetType(
   input: CsharpPlanningContext,
 ) {
   if (typeNode !== undefined) {
-    return input.types.resolveNode(typeNode, sourceFile);
+    return input.types.policy.resolveNode(typeNode, sourceFile);
   }
   return getInferredDeclarationReturnTargetType(
     declarationNode,
@@ -121,7 +122,7 @@ export function getDeclarationReturnTargetType(
 
 export function reconcileInferredReturnTargetContract(
   input: Pick<
-    CsharpPlanningContext,
+    CsharpPolicyContext,
     "projectTypes" | "providers" | "target"
   >,
   baseline: TargetTypeRef,
@@ -158,7 +159,7 @@ export function reconcileInferredReturnTargetContract(
 
 function uncoveredBaselineReturnAlternatives(
   input: Pick<
-    CsharpPlanningContext,
+    CsharpPolicyContext,
     "projectTypes" | "providers" | "target"
   >,
   baseline: TargetTypeRef,
@@ -198,7 +199,7 @@ function collectTargetContractAlternatives(
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: CsharpPlanningContext): Node | undefined {
-  const typeArguments = csharpSourceTypeArgumentNodes(input.ast, typeNode);
+  const typeArguments = csharpSourceTypeArgumentNodes(input.program.source.ast, typeNode);
   return typeArguments[0];
 }
 
@@ -207,23 +208,29 @@ function getInferredDeclarationReturnTargetType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
-  const semantics = input.semantics(sourceFile);
-  const declarationType = semantics.getTypeAtLocation(
+  const semantics = input.program.source.semantics.forFile(sourceFile);
+  const declarationType = semantics.types.expressionType(
     declarationNode,
   );
-  const signatures = semantics.getCallSignaturesOfType(
+  if (declarationType === undefined) {
+    return undefined;
+  }
+  const signatures = semantics.types.callSignatures(
     declarationType,
   );
   const selected = signatures.filter((signature) => {
-    const declaration = semantics.getSignatureDeclaration(signature);
+    const declaration = semantics.declarations.signatureDeclaration(signature);
     return declaration !== undefined &&
-      sourceNodesEqual(input.ast, declaration, declarationNode);
+      sourceNodesEqual(input.program.source.ast, declaration, declarationNode);
   });
   if (selected.length !== 1) {
     return undefined;
   }
-  return input.types.resolveType(
-    semantics.getReturnTypeOfSignature(selected[0]!),
-    sourceFile,
-  );
+  const signature = selected[0];
+  return signature === undefined
+    ? undefined
+    : input.types.policy.resolveType(
+        semantics.types.returnType(signature),
+        sourceFile,
+      );
 }

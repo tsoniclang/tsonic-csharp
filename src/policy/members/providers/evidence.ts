@@ -1,6 +1,4 @@
-import {
-  providerVirtualDeclarationFactKey,
-} from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
   ProviderVirtualDeclarationFact,

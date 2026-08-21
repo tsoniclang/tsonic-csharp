@@ -5,6 +5,9 @@ import type {
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
+import {
+  csharpTargetId,
+} from "../../../target-model/identities/source.js";
 
 export type CsharpSourceProfileTypeKind =
   | "boolean"
@@ -26,7 +29,7 @@ export type CsharpSourceProfileTypeKind =
   | "iterable";
 
 export interface CsharpSourceProfileTypeIdentity {
-  readonly ownerId: "csharp-provider" | "js";
+  readonly ownerId: typeof csharpTargetId | "js";
   readonly sourceName: string;
   readonly kind: CsharpSourceProfileTypeKind;
 }
@@ -36,25 +39,25 @@ export function selectedCsharpSourceProfileOwner(
 ): CsharpSourceProfileTypeIdentity["ownerId"] {
   return target.surfaces?.includes("js") === true
     ? "js"
-    : "csharp-provider";
+    : csharpTargetId;
 }
 
 const sourceProfileTypePolicies = Object.freeze([
-  sourceProfileTypePolicy("csharp-provider", "Boolean", "boolean"),
-  sourceProfileTypePolicy("csharp-provider", "Number", "number"),
-  sourceProfileTypePolicy("csharp-provider", "String", "string"),
-  sourceProfileTypePolicy("csharp-provider", "Array", "array"),
-  sourceProfileTypePolicy("csharp-provider", "ReadonlyArray", "readonly-array"),
-  sourceProfileTypePolicy("csharp-provider", "Promise", "promise"),
-  sourceProfileTypePolicy("csharp-provider", "PromiseLike", "promise"),
-  sourceProfileTypePolicy("csharp-provider", "IteratorResult", "iterator-result"),
-  sourceProfileTypePolicy("csharp-provider", "Generator", "generator"),
-  sourceProfileTypePolicy("csharp-provider", "AsyncGenerator", "async-generator"),
-  sourceProfileTypePolicy("csharp-provider", "Record", "record"),
-  sourceProfileTypePolicy("csharp-provider", "RegExp", "regexp"),
-  sourceProfileTypePolicy("csharp-provider", "Iterable", "iterable"),
+  sourceProfileTypePolicy(csharpTargetId, "Boolean", "boolean"),
+  sourceProfileTypePolicy(csharpTargetId, "Number", "number"),
+  sourceProfileTypePolicy(csharpTargetId, "String", "string"),
+  sourceProfileTypePolicy(csharpTargetId, "Array", "array"),
+  sourceProfileTypePolicy(csharpTargetId, "ReadonlyArray", "readonly-array"),
+  sourceProfileTypePolicy(csharpTargetId, "Promise", "promise"),
+  sourceProfileTypePolicy(csharpTargetId, "PromiseLike", "promise"),
+  sourceProfileTypePolicy(csharpTargetId, "IteratorResult", "iterator-result"),
+  sourceProfileTypePolicy(csharpTargetId, "Generator", "generator"),
+  sourceProfileTypePolicy(csharpTargetId, "AsyncGenerator", "async-generator"),
+  sourceProfileTypePolicy(csharpTargetId, "Record", "record"),
+  sourceProfileTypePolicy(csharpTargetId, "RegExp", "regexp"),
+  sourceProfileTypePolicy(csharpTargetId, "Iterable", "iterable"),
   sourceProfileTypePolicy(
-    "csharp-provider",
+    csharpTargetId,
     "IterableIterator",
     "iterable",
   ),
@@ -85,17 +88,22 @@ export function classifyCsharpSourceProfileType(
   ast: AstReader,
 ): CsharpSourceProfileTypeIdentity | undefined {
   const symbols = [
-    semantics.getTypeAliasSymbol(type),
-    semantics.getTypeSymbol(type),
-    ...(semantics.isTypeReference(type)
-      ? [semantics.getTypeSymbol(semantics.getTypeReferenceTarget(type))]
+    semantics.declarations.typeAliasSymbol(type),
+    semantics.declarations.typeSymbol(type),
+    ...(semantics.types.isTypeReference(type)
+      ? (() => {
+          const target = semantics.types.typeReferenceTarget(type);
+          return target === undefined
+            ? []
+            : [semantics.declarations.typeSymbol(target)];
+        })()
       : []),
   ];
   for (const symbol of symbols) {
     if (symbol === undefined) {
       continue;
     }
-    for (const declaration of semantics.getSymbolDeclarations(symbol)) {
+    for (const declaration of semantics.declarations.symbolDeclarations(symbol)) {
       const identity = classifySourceProfileDeclaration(declaration, ast);
       if (identity !== undefined) {
         return identity;
@@ -139,8 +147,8 @@ function classifySourceProfileDeclaration(
 function sourceProfileOwner(
   fileName: string,
 ): CsharpSourceProfileTypeIdentity["ownerId"] | undefined {
-  if (isTsonicSourceProfileDeclarationPath(fileName, "csharp-provider")) {
-    return "csharp-provider";
+  if (isTsonicSourceProfileDeclarationPath(fileName, csharpTargetId)) {
+    return csharpTargetId;
   }
   return isTsonicSourceProfileDeclarationPath(fileName, "js")
     ? "js"

@@ -11,7 +11,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../policy/types/index.js";
@@ -41,13 +41,13 @@ export function planObjectShapeSpreadAssignments(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): readonly CsharpObjectInitializerAssignment[] | undefined {
-  const spread = AsSpreadAssignment(input.ast, spreadNode);
+  const spread = AsSpreadAssignment(input.program.source.ast, spreadNode);
   const expression = spread?.Expression;
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a source expression."));
     return undefined;
   }
-  if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
+  if (!HasSourceKind(input.program.source.ast, expression, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a single-evaluation provider lowering for non-identifier spread expressions before C# emission."));
     return undefined;
   }

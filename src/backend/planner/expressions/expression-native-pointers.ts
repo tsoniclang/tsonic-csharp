@@ -11,7 +11,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -36,7 +36,7 @@ export function tryPlanCsharpNativePointerOperation(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   state: DestructuringPlannerState | undefined,
 ): CsharpNativePointerOperationPlan {
-  const selection = selectCsharpNativePointerOperation(input, node, sourceFile);
+  const selection = selectCsharpNativePointerOperation(input.policy, node, sourceFile);
   if (selection.kind === "not-native-pointer") {
     return { handled: false };
   }

@@ -8,7 +8,7 @@ test("explicit safety reaches the planner through target-owned policy only", () 
     "src/backend/planner/expressions/expression-native-pointers.ts",
   );
 
-  assert.match(explicitSafety, /input\.safetyApplications/u);
+  assert.match(explicitSafety, /input\.program\.safetyApplications/u);
   assert.match(nativePointers, /selectCsharpNativePointerOperation/u);
   assert.doesNotMatch(
     `${explicitSafety}\n${nativePointers}`,
@@ -54,11 +54,16 @@ test("C# language, memory rules, and unsafe permission remain separate controls"
 
   assert.match(options, /readCsharpLanguageDialect/u);
   assert.match(options, /readCsharpMemorySafetyRules/u);
-  assert.match(properties, /readCsharpLanguageDialect/u);
-  assert.match(properties, /readCsharpMemorySafetyRules/u);
+  assert.match(properties, /input\.program\.configuration/u);
+  assert.match(properties, /configuration\.languageDialect/u);
+  assert.match(properties, /configuration\.memorySafetyRules/u);
   assert.match(properties, /options\.allowUnsafeBlocks === true/u);
-  assert.match(safety, /readCsharpLanguageDialect/u);
-  assert.match(safety, /readCsharpMemorySafetyRules/u);
+  assert.match(safety, /input\.program\.configuration\.languageDialect/u);
+  assert.match(safety, /input\.program\.configuration\.memorySafetyRules/u);
+  assert.doesNotMatch(
+    `${properties}\n${safety}`,
+    /readCsharpLanguageDialect|readCsharpMemorySafetyRules/u,
+  );
   assert.doesNotMatch(safety, /NativePointer|FunctionPointer|PointerType/u);
 });
 

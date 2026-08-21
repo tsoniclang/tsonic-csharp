@@ -1,9 +1,9 @@
 import type {
   CsharpCompilationUnit,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpLanguageDialect,
-} from "../../../options/csharp-target-options.js";
+} from "../../../target-model/configuration/model.js";
 import {
   applyCsharpLanguageRequiredUnsafeContexts,
 } from "../safety/unsafe-marking.js";

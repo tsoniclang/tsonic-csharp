@@ -1,20 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type {
   CsharpProjectProperty,
-} from "../../project-model/csharp-project.js";
-import {
-  isRecord,
-  isScalarPropertyValue,
-  isXmlElementName,
-  readOptionalBooleanOption,
-  readStringOption,
-} from "./project-option-values.js";
-import {
-  readCsharpLanguageDialect,
-  readCsharpMemorySafetyRules,
-  readCsharpOutputType,
-  readCsharpTargetFramework,
-} from "../../../options/csharp-target-options.js";
+} from "../../artifact-model/project/model.js";
 
 const targetOwnedProjectProperties = new Set([
   "AllowUnsafeBlocks",
@@ -31,44 +18,33 @@ export function readCsharpProjectProperties(
   input: CsharpPlanningContext,
   options: { readonly allowUnsafeBlocks?: boolean },
 ): readonly CsharpProjectProperty[] {
+  const configuration = input.program.configuration;
   const properties = new Map<string, string>();
-  properties.set("TargetFramework", readCsharpTargetFramework(input.target));
-  properties.set("Nullable", readStringOption(input, "nullable", "enable"));
-  properties.set("ImplicitUsings", readStringOption(input, "implicitUsings", "disable"));
+  properties.set("TargetFramework", configuration.targetFramework);
+  properties.set("Nullable", configuration.nullable === false ? "disable" : "enable");
+  properties.set("ImplicitUsings", configuration.implicitUsings === true ? "enable" : "disable");
   properties.set(
     "LangVersion",
-    readCsharpLanguageDialect(input.target) === "csharp14"
+    configuration.languageDialect === "csharp14"
       ? "14.0"
       : "preview",
   );
-  properties.set("OutputType", readCsharpOutputType(input.target));
-  if (readCsharpMemorySafetyRules(input.target) === "preview") {
+  properties.set("OutputType", configuration.outputType);
+  if (configuration.memorySafetyRules === "preview") {
     properties.set("Features", "updated-memory-safety-rules");
   }
   if (options.allowUnsafeBlocks === true) {
     properties.set("AllowUnsafeBlocks", "true");
   }
-  const publishAot = readOptionalBooleanOption(input, "publishAot");
+  const publishAot = configuration.publishAot;
   if (publishAot !== undefined) {
     properties.set("PublishAot", publishAot ? "true" : "false");
   }
-  const customProperties = input.target.options?.properties;
-  if (customProperties !== undefined) {
-    if (!isRecord(customProperties)) {
-      throw new Error("C# target option 'properties' must be an object.");
-    }
-    for (const [name, value] of Object.entries(customProperties)) {
-      if (!isXmlElementName(name)) {
-        throw new Error(`C# target property '${name}' is not a valid XML element name.`);
-      }
+  for (const [name, value] of Object.entries(configuration.properties)) {
       if (targetOwnedProjectProperties.has(name)) {
         throw new Error(`C# target property '${name}' is target-owned and must be configured through the dedicated target option.`);
       }
-      if (!isScalarPropertyValue(value)) {
-        throw new Error(`C# target property '${name}' must be a string, number, or boolean.`);
-      }
       properties.set(name, String(value));
-    }
   }
   return [...properties.entries()].map(([name, value]) => ({ name, value }));
 }

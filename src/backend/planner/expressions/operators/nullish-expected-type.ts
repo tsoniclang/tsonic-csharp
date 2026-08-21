@@ -21,7 +21,7 @@ import type {
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../../roslyn/syntax.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   targetTypeRefEquals,
 } from "../../../../policy/types/index.js";
@@ -53,11 +53,11 @@ export function tryPlanBinaryExpressionWithExpectedType(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!input.ast.is.IsBinaryExpression(node)) {
+  if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
   const selection = selectCsharpBinaryOperation(
-    input,
+    input.policy,
     node,
     sourceFile,
     expectedTargetType,

@@ -1,4 +1,4 @@
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function relateTypeArguments(
   sourceArguments: readonly TargetTypeRef[],

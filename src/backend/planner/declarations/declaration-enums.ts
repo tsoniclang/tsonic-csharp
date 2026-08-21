@@ -23,7 +23,7 @@ import type {
   CsharpEnumMember,
   CsharpExpression,
   CsharpPrefixUnaryOperatorToken,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -38,8 +38,8 @@ export function planEnumDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumDeclaration {
-  const declaration = AsEnumDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "enum declaration", diagnostics);
+  const declaration = AsEnumDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "enum declaration", diagnostics);
   return {
     kind: "EnumDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousEnum", input, diagnostics, "Enum name"),
@@ -49,7 +49,7 @@ export function planEnumDeclaration(
       if (member === undefined) {
         return [];
       }
-      if (!HasSourceKind(input.ast, member, KindEnumMember)) {
+      if (!HasSourceKind(input.program.source.ast, member, KindEnumMember)) {
         diagnostics.push(unsupportedNodeDiagnostic(member, "Enum member is outside the current C# planning surface."));
         return [];
       }
@@ -64,8 +64,8 @@ function planEnumMember(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
-  const member = AsEnumMember(input.ast, node)!;
-  const enumValue = input.semantics(sourceFile).getConstantValue(node);
+  const member = AsEnumMember(input.program.source.ast, node)!;
+  const enumValue = input.program.source.semantics.forFile(sourceFile).types.constantValue(node);
   const enumExpressionValue = member.Initializer === undefined
     ? undefined
     : planEnumConstantExpression(member.Initializer, sourceFile, input, diagnostics);
@@ -77,7 +77,7 @@ function planEnumMember(
   }
   return {
     kind: "EnumMemberDeclaration",
-    name: planIdentifierName(member.name ?? Node_Name(input.ast, node), "AnonymousMember", input, diagnostics, "Enum member name"),
+    name: planIdentifierName(member.name ?? Node_Name(input.program.source.ast, node), "AnonymousMember", input, diagnostics, "Enum member name"),
     ...(member.Initializer === undefined
       ? {}
       : enumExpressionValue !== undefined
@@ -94,9 +94,9 @@ function planEnumConstantExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  switch (SourceKind(input.ast, node)) {
+  switch (SourceKind(input.program.source.ast, node)) {
     case KindNumericLiteral: {
-      const value = parseFiniteNumberLiteral(input.ast.text(node));
+      const value = parseFiniteNumberLiteral(input.program.source.ast.text(node));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "C# enum numeric literal initializer requires parseable finite source literal text from TSTS."));
         return undefined;
@@ -104,26 +104,26 @@ function planEnumConstantExpression(
       return { kind: "LiteralExpression", value };
     }
     case KindIdentifier:
-      return { kind: "IdentifierName", name: planIdentifierName(AsIdentifier(input.ast, node), "EnumConstant", input, diagnostics, "Enum constant reference") };
+      return { kind: "IdentifierName", name: planIdentifierName(AsIdentifier(input.program.source.ast, node), "EnumConstant", input, diagnostics, "Enum constant reference") };
     case KindParenthesizedExpression: {
-      const expression = AsParenthesizedExpression(input.ast, node)?.Expression;
+      const expression = AsParenthesizedExpression(input.program.source.ast, node)?.Expression;
       const planned = expression === undefined ? undefined : planEnumConstantExpression(expression, sourceFile, input, diagnostics);
       return planned === undefined ? undefined : { kind: "ParenthesizedExpression", expression: planned };
     }
     case KindPrefixUnaryExpression: {
-      const expression = AsPrefixUnaryExpression(input.ast, node);
+      const expression = AsPrefixUnaryExpression(input.program.source.ast, node);
       const operand = expression?.Operand === undefined ? undefined : planEnumConstantExpression(expression.Operand, sourceFile, input, diagnostics);
       const operatorToken = getEnumConstantPrefixOperatorToken(
-        input.ast.operatorKindName(node),
+        input.program.source.ast.operatorKindName(node),
       );
       return operand === undefined || operatorToken === undefined ? undefined : { kind: "PrefixUnaryExpression", operatorToken, operand };
     }
     case "KindBinaryExpression": {
-      const expression = AsBinaryExpression(input.ast, node);
+      const expression = AsBinaryExpression(input.program.source.ast, node);
       const left = expression?.Left === undefined ? undefined : planEnumConstantExpression(expression.Left, sourceFile, input, diagnostics);
       const right = expression?.Right === undefined ? undefined : planEnumConstantExpression(expression.Right, sourceFile, input, diagnostics);
       const operatorToken = getEnumConstantBinaryOperatorToken(
-        input.ast.operatorKindName(node),
+        input.program.source.ast.operatorKindName(node),
       );
       return left === undefined || right === undefined || operatorToken === undefined
         ? undefined

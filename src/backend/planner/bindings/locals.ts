@@ -15,7 +15,7 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import {
   getTargetTypeRefForNode,
@@ -62,7 +62,7 @@ export function planLocalDeclaration(
   state: DestructuringPlannerState,
   initializerOverride?: CsharpExpression,
 ): CsharpLocalDeclaration {
-  const variable = AsVariableDeclaration(input.ast, declarationNode)!;
+  const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
   const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
     getTargetTypeRefForNode(input, variable.name, sourceFile);
@@ -71,8 +71,8 @@ export function planLocalDeclaration(
     : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
   const lambdaInitializer = variable.Initializer !== undefined &&
     (
-      HasSourceKind(input.ast, variable.Initializer, KindArrowFunction) ||
-      HasSourceKind(input.ast, variable.Initializer, KindFunctionExpression)
+      HasSourceKind(input.program.source.ast, variable.Initializer, KindArrowFunction) ||
+      HasSourceKind(input.program.source.ast, variable.Initializer, KindFunctionExpression)
     );
   const inferredLambdaType = lambdaInitializer
     ? getLambdaTargetContext(
@@ -86,7 +86,7 @@ export function planLocalDeclaration(
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
     : undefined;
-  const inferredTargetType = input.types.resolveStorage(
+  const inferredTargetType = input.types.policy.resolveStorage(
     declarationNode,
     sourceFile,
   );
@@ -163,10 +163,10 @@ export function planLocalDeclarationStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const variable = AsVariableDeclaration(input.ast, declarationNode)!;
-  const declarationKind = input.ast.variableDeclarationKind(declarationNode);
+  const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
+  const declarationKind = input.program.source.ast.variableDeclarationKind(declarationNode);
   if (declarationKind === "using" || declarationKind === "await using") {
-    if (!input.ast.is.IsIdentifier(variable.name)) {
+    if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         variable.name ?? declarationNode,
         "A resource declaration requires one exact identifier binding in C#.",
@@ -210,7 +210,7 @@ export function planLocalDeclarationStatements(
     ? undefined
     : directSourceYieldExpression(variable.Initializer, input);
   if (directYield !== undefined) {
-    if (!input.ast.is.IsIdentifier(variable.name)) {
+    if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         variable.name ?? declarationNode,
         "A yield initializer with a binding pattern requires an explicit post-resume destructuring plan.",
@@ -240,7 +240,7 @@ export function planLocalDeclarationStatements(
       state,
       yieldPlan.resumeExpression,
     );
-    const targetType = input.types.resolveStorage(
+    const targetType = input.types.policy.resolveStorage(
       declarationNode,
       sourceFile,
     );
@@ -272,7 +272,7 @@ export function planLocalDeclarationStatements(
   if (destructured !== undefined) {
     return destructured;
   }
-  const locationIdentity = input.ast.is.IsIdentifier(variable.name)
+  const locationIdentity = input.program.source.ast.is.IsIdentifier(variable.name)
     ? planCsharpTypedLocationIdentityDeclaration(
         declarationNode,
         input,
@@ -328,10 +328,10 @@ function sourceInitializerReferencesDeclaration(
   declaration: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  if (input.navigation.referenceFor(node)?.declaration === declaration) {
+  if (input.program.source.navigation.referenceFor(node)?.declaration === declaration) {
     return true;
   }
-  return input.ast.children(node).some((child) =>
+  return input.program.source.ast.children(node).some((child) =>
     child !== undefined &&
     sourceInitializerReferencesDeclaration(child, declaration, input)
   );
@@ -345,18 +345,18 @@ function getInitializerTypeSubject(
   if (initializer === undefined) {
     return undefined;
   }
-  const assertion = AsAsExpression(input.ast, initializer) ?? AsTypeAssertion(input.ast, initializer);
+  const assertion = AsAsExpression(input.program.source.ast, initializer) ?? AsTypeAssertion(input.program.source.ast, initializer);
   const assertedTarget = assertion?.Type;
-  if (assertedTarget !== undefined && input.ast.isConstAssertion(initializer)) {
+  if (assertedTarget !== undefined && input.program.source.ast.isConstAssertion(initializer)) {
     return assertion?.Expression;
   }
   if (assertedTarget !== undefined) {
     return assertedTarget;
   }
-  if (HasSourceKind(input.ast, initializer, KindArrowFunction) || HasSourceKind(input.ast, initializer, KindFunctionExpression)) {
+  if (HasSourceKind(input.program.source.ast, initializer, KindArrowFunction) || HasSourceKind(input.program.source.ast, initializer, KindFunctionExpression)) {
     return initializer;
   }
-  if (HasSourceKind(input.ast, initializer, KindCallExpression) || HasSourceKind(input.ast, initializer, KindNewExpression)) {
+  if (HasSourceKind(input.program.source.ast, initializer, KindCallExpression) || HasSourceKind(input.program.source.ast, initializer, KindNewExpression)) {
     return initializer;
   }
   return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined
@@ -369,16 +369,16 @@ function getConstAssertionInitializerType(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): CsharpLocalDeclaration["type"] | undefined {
-  const assertion = AsAsExpression(input.ast, initializer) ?? AsTypeAssertion(input.ast, initializer);
+  const assertion = AsAsExpression(input.program.source.ast, initializer) ?? AsTypeAssertion(input.program.source.ast, initializer);
   if (
     assertion?.Type === undefined ||
     assertion.Expression === undefined ||
-    !input.ast.isConstAssertion(initializer)
+    !input.program.source.ast.isConstAssertion(initializer)
   ) {
     return undefined;
   }
   return getCsharpTypeFromSemanticType(
-    input.semantics(sourceFile).getTypeAtLocation(assertion.Expression),
+    input.program.source.semantics.forFile(sourceFile).types.expressionType(assertion.Expression),
     sourceFile,
     input,
   );

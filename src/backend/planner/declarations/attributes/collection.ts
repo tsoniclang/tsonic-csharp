@@ -31,14 +31,14 @@ export function collectAttributeFactsForSubject(
 }
 
 export function collectAttributeApplicationFacts(input: CsharpPlanningContext): readonly CsharpAttributeApplication[] {
-  return input.attributeApplications.all;
+  return input.program.attributeApplications.all;
 }
 
 export function collectAttributeApplicationFactsForSourceFile(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): readonly CsharpAttributeApplication[] {
-  return input.attributeApplications.forSourceFile(sourceFile);
+  return input.program.attributeApplications.forSourceFile(sourceFile);
 }
 
 function attributeApplicationTargetsSubject(

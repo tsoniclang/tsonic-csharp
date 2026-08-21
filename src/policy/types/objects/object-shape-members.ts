@@ -5,7 +5,7 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
   TargetTypeRef,
-} from "../model/definitions.js";
+} from "../../../target-model/types/model.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
   | "checked-property-access"

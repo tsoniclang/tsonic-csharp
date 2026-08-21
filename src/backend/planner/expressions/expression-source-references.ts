@@ -21,7 +21,7 @@ import {
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../roslyn/syntax.js";
+import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { requireCsharpIdentifier, sanitizeIdentifier } from "../../../policy/names/identifiers.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
@@ -50,9 +50,9 @@ export function planIdentifierExpression(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  const sourceName = Node_Text(input.ast, AsIdentifier(input.ast, identifier));
-  const sourceReference = input.navigation.referenceFor(identifier);
-  const declarationReference = input.navigation.sourceReferenceFor(identifier);
+  const sourceName = Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, identifier));
+  const sourceReference = input.program.source.navigation.referenceFor(identifier);
+  const declarationReference = input.program.source.navigation.sourceReferenceFor(identifier);
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
     return { kind: "LiteralExpression", value: null };
   }
@@ -73,7 +73,7 @@ export function planIdentifierExpression(
     return undefined;
   }
   if (
-    isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
+    isProviderVirtualDeclarationIdentifier(identifier, input)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return undefined;
@@ -95,7 +95,7 @@ function planProviderValueReference(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const selection = selectCsharpProviderValue(input, identifier);
+  const selection = selectCsharpProviderValue(input.policy, identifier);
   if (selection.kind === "not-provider") {
     return undefined;
   }
@@ -138,14 +138,14 @@ function isGlobalUndefinedExpression(
   sourceName: string,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-  sourceReference: ReturnType<CsharpPlanningContext["navigation"]["referenceFor"]>,
+  sourceReference: ReturnType<CsharpPlanningContext["program"]["source"]["navigation"]["referenceFor"]>,
 ): boolean {
   if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined) {
     return false;
   }
-  const semantics = input.semantics(sourceFile);
-  const type = semantics.getTypeAtLocation(identifier);
-  return type !== undefined && semantics.isNullish(type);
+  const semantics = input.program.source.semantics.forFile(sourceFile);
+  const type = semantics.types.expressionType(identifier);
+  return type !== undefined && semantics.types.isNullish(type);
 }
 
 const nullLiteralGlobalSourceNames = new Set(["undefined"]);
@@ -198,7 +198,7 @@ export function planProjectSourceModuleMemberReference(
   }
   if (
     sourceReference.sourceFile === sourceFile &&
-    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+    input.types.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
   ) {
     return undefined;
   }
@@ -208,7 +208,7 @@ export function planProjectSourceModuleMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(
         input,
-        input.ast.getFileName(sourceReference.sourceFile),
+        input.program.source.ast.getFileName(sourceReference.sourceFile),
       ),
     },
     name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
@@ -233,7 +233,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
   }
   if (
     sourceReference.sourceFile === sourceFile &&
-    input.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
+    input.types.projectTypes.catalog.definitionContainingDeclaration(node) === undefined
   ) {
     return undefined;
   }
@@ -243,7 +243,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(
         input,
-        input.ast.getFileName(sourceReference.sourceFile),
+        input.program.source.ast.getFileName(sourceReference.sourceFile),
       ),
     },
     name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
@@ -254,74 +254,59 @@ function getProjectSourceReferenceForModuleMemberNode(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
-): ReturnType<CsharpPlanningContext["navigation"]["referenceFor"]> {
-  return input.navigation.referenceFor(node) ??
+): ReturnType<CsharpPlanningContext["program"]["source"]["navigation"]["referenceFor"]> {
+  return input.program.source.navigation.referenceFor(node) ??
     getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
 }
 
 function isProviderVirtualDeclarationIdentifier(
   identifier: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  const symbols = [
-    input.semantics(sourceFile).getSymbolAtLocation(identifier),
-    input.semantics(sourceFile).getResolvedSymbol(identifier),
-  ];
-  return symbols.some((symbol) => {
-    if (symbol === undefined) {
-      return false;
-    }
-    if (
-      input.sourceFacts?.getFact(
-        symbol,
-        providerVirtualDeclarationFactKey,
-      ) !== undefined
-    ) {
-      return true;
-    }
-    const declarations = input.semantics(sourceFile).getSymbolDeclarations(symbol);
-    return declarations.some((declaration) =>
-      input.sourceFacts?.getFact(
-        declaration,
-        providerVirtualDeclarationFactKey,
-      ) !== undefined ||
-      isProviderVirtualSourceFile(input, input.ast.getSourceFile(declaration)));
-  });
+  const declaration = input.program.source.navigation.referenceFor(identifier)?.declaration ??
+    input.program.source.navigation.declarationFor(identifier);
+  if (declaration === undefined) {
+    return false;
+  }
+  return input.program.source.sourceFacts?.getFact(
+    declaration,
+    providerVirtualDeclarationFactKey,
+  ) !== undefined ||
+    isProviderVirtualSourceFile(input, input.program.source.ast.getSourceFile(declaration));
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
   if (
-    HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindExportAssignment)
+    HasSourceKind(input.program.source.ast, declaration, KindFunctionDeclaration) ||
+    HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)
   ) {
-    const parent = input.ast.parent(declaration);
-    return parent !== undefined && input.ast.is.IsSourceFile(parent);
+    const parent = input.program.source.ast.parent(declaration);
+    return parent !== undefined && input.program.source.ast.is.IsSourceFile(parent);
   }
-  if (!HasSourceKind(input.ast, declaration, KindVariableDeclaration)) {
+  if (!HasSourceKind(input.program.source.ast, declaration, KindVariableDeclaration)) {
     return false;
   }
-  const declarationList = input.ast.parent(declaration);
+  const declarationList = input.program.source.ast.parent(declaration);
   if (
     declarationList === undefined ||
-    !input.ast.is.IsVariableDeclarationList(declarationList)
+    !input.program.source.ast.is.IsVariableDeclarationList(declarationList)
   ) {
     return false;
   }
-  const statement = input.ast.parent(declarationList);
+  const statement = input.program.source.ast.parent(declarationList);
   if (
     statement === undefined ||
-    !input.ast.is.IsVariableStatement(statement)
+    !input.program.source.ast.is.IsVariableStatement(statement)
   ) {
     return false;
   }
-  const sourceFile = input.ast.parent(statement);
-  return sourceFile !== undefined && input.ast.is.IsSourceFile(sourceFile);
+  const sourceFile = input.program.source.ast.parent(statement);
+  return sourceFile !== undefined && input.program.source.ast.is.IsSourceFile(sourceFile);
 }
 
 function isModuleTypeValueDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, declaration, KindClassDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindEnumDeclaration);
+  return HasSourceKind(input.program.source.ast, declaration, KindClassDeclaration) ||
+    HasSourceKind(input.program.source.ast, declaration, KindEnumDeclaration);
 }
 
 function tryPlanProjectSourceTypeMemberReference(
@@ -330,26 +315,26 @@ function tryPlanProjectSourceTypeMemberReference(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
+  if (!HasSourceKind(input.program.source.ast, node, KindPropertyAccessExpression)) {
     return undefined;
   }
-  const propertyAccess = AsPropertyAccessExpression(input.ast, node);
+  const propertyAccess = AsPropertyAccessExpression(input.program.source.ast, node);
   if (propertyAccess?.Expression === undefined || propertyAccess.name === undefined) {
     return undefined;
   }
-  const receiverReference = input.navigation.referenceFor(propertyAccess.Expression);
+  const receiverReference = input.program.source.navigation.referenceFor(propertyAccess.Expression);
   if (receiverReference === undefined ||
     receiverReference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, receiverReference.sourceFile) ||
     !isModuleTypeValueDeclaration(receiverReference.declaration, input)) {
     return undefined;
   }
-  const selectedMemberReference = input.navigation.referenceFor(node) ??
-    input.navigation.referenceFor(propertyAccess.name);
+  const selectedMemberReference = input.program.source.navigation.referenceFor(node) ??
+    input.program.source.navigation.referenceFor(propertyAccess.name);
   if (selectedMemberReference === undefined ||
     selectedMemberReference.sourceFile.IsDeclarationFile ||
     isProviderVirtualSourceFile(input, selectedMemberReference.sourceFile) ||
-    input.ast.parent(selectedMemberReference.declaration) !== receiverReference.declaration ||
+    input.program.source.ast.parent(selectedMemberReference.declaration) !== receiverReference.declaration ||
     !isProjectSourceTypeMemberDeclaration(selectedMemberReference.declaration, input)) {
     return undefined;
   }
@@ -364,21 +349,21 @@ function tryPlanProjectSourceTypeMemberReference(
 }
 
 function isProjectSourceTypeMemberDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, declaration, KindEnumMember) ||
-    HasSourceKind(input.ast, declaration, KindGetAccessor) ||
-    HasSourceKind(input.ast, declaration, KindMethodDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindPropertyDeclaration) ||
-    HasSourceKind(input.ast, declaration, KindSetAccessor);
+  return HasSourceKind(input.program.source.ast, declaration, KindEnumMember) ||
+    HasSourceKind(input.program.source.ast, declaration, KindGetAccessor) ||
+    HasSourceKind(input.program.source.ast, declaration, KindMethodDeclaration) ||
+    HasSourceKind(input.program.source.ast, declaration, KindPropertyDeclaration) ||
+    HasSourceKind(input.program.source.ast, declaration, KindSetAccessor);
 }
 
 function isNestedProjectSourceMemberDeclaration(declaration: Node, input: CsharpPlanningContext): boolean {
   if (!isProjectSourceTypeMemberDeclaration(declaration, input)) {
     return false;
   }
-  const parent = input.ast.parent(declaration);
-  return HasSourceKind(input.ast, parent, KindClassDeclaration) ||
-    HasSourceKind(input.ast, parent, KindEnumDeclaration) ||
-    HasSourceKind(input.ast, parent, KindInterfaceDeclaration);
+  const parent = input.program.source.ast.parent(declaration);
+  return HasSourceKind(input.program.source.ast, parent, KindClassDeclaration) ||
+    HasSourceKind(input.program.source.ast, parent, KindEnumDeclaration) ||
+    HasSourceKind(input.program.source.ast, parent, KindInterfaceDeclaration);
 }
 
 function planProjectSourceModuleMemberName(
@@ -386,11 +371,11 @@ function planProjectSourceModuleMemberName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string {
-  if (HasSourceKind(input.ast, declaration, KindExportAssignment)) {
+  if (HasSourceKind(input.program.source.ast, declaration, KindExportAssignment)) {
     return sanitizeIdentifier("default");
   }
   return planIdentifierName(
-    Node_Name(input.ast, declaration),
+    Node_Name(input.program.source.ast, declaration),
     "InvalidCrossFileReference",
     input,
     diagnostics,
@@ -402,12 +387,12 @@ function getProjectSourceReferenceForPropertyAccessName(
   node: Node,
   _sourceFile: SourceFile,
   input: CsharpPlanningContext,
-): ReturnType<CsharpPlanningContext["navigation"]["referenceFor"]> {
-  if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
+): ReturnType<CsharpPlanningContext["program"]["source"]["navigation"]["referenceFor"]> {
+  if (!HasSourceKind(input.program.source.ast, node, KindPropertyAccessExpression)) {
     return undefined;
   }
-  const name = AsPropertyAccessExpression(input.ast, node)?.name;
+  const name = AsPropertyAccessExpression(input.program.source.ast, node)?.name;
   return name === undefined
     ? undefined
-    : input.navigation.referenceFor(name);
+    : input.program.source.navigation.referenceFor(name);
 }

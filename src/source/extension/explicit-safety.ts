@@ -12,7 +12,7 @@ import type {
 import {
   csharpLangModule,
   csharpSourceSemanticsExtensionId,
-} from "./identity.js";
+} from "../../target-model/identities/source.js";
 
 export const csharpSafetyProviderNames: SourceSafetyProviderNames =
   Object.freeze({

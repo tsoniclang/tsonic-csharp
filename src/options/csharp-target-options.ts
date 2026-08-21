@@ -1,4 +1,11 @@
 import type { TargetSelection } from "@tsonic/target-api";
+import type {
+  CsharpLanguageDialect,
+  CsharpMemorySafetyRules,
+  CsharpOutputType,
+  CsharpTargetConfiguration,
+} from "../target-model/configuration/model.js";
+import type { CsharpProjectReference } from "../target-model/project/references.js";
 import {
   existsSync,
   readdirSync,
@@ -12,16 +19,17 @@ import {
 import {
   resolveDotnetFrameworkReferenceAssemblies,
 } from "./dotnet-framework-reference-packs.js";
+import {
+  resolveCsharpProjectConfiguration,
+} from "./csharp-user-project.js";
 
-export type CsharpProjectReference =
-  | { readonly kind: "project"; readonly include: string }
-  | { readonly kind: "package"; readonly include: string; readonly version?: string; readonly privateAssets?: string; readonly includeAssets?: string }
-  | { readonly kind: "framework"; readonly include: string }
-  | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
-
-export type CsharpOutputType = "Exe" | "Library";
-export type CsharpLanguageDialect = "csharp14" | "csharp15-preview";
-export type CsharpMemorySafetyRules = "csharp14" | "preview";
+export type {
+  CsharpLanguageDialect,
+  CsharpMemorySafetyRules,
+  CsharpOutputType,
+  CsharpTargetConfiguration,
+} from "../target-model/configuration/model.js";
+export type { CsharpProjectReference } from "../target-model/project/references.js";
 
 const supportedCsharpTargetOptionKeys = Object.freeze([
   "assemblyName",
@@ -40,19 +48,71 @@ const supportedCsharpTargetOptionKeys = Object.freeze([
 ]);
 
 export function validateCsharpTargetOptions(target: TargetSelection): void {
+  validateCsharpTargetOptionKeys(target);
+  validateCsharpSafetyConfiguration(
+    readCsharpLanguageDialect(target),
+    readCsharpMemorySafetyRules(target),
+  );
+}
+
+function validateCsharpTargetOptionKeys(target: TargetSelection): void {
   const options = target.options;
   if (options === undefined) {
     return;
   }
   rejectUnknownKeys(options, "options", supportedCsharpTargetOptionKeys);
-  if (
-    readCsharpMemorySafetyRules(target) === "preview" &&
-    readCsharpLanguageDialect(target) !== "csharp15-preview"
-  ) {
+}
+
+function validateCsharpSafetyConfiguration(
+  languageDialect: CsharpLanguageDialect,
+  memorySafetyRules: CsharpMemorySafetyRules,
+): void {
+  if (memorySafetyRules === "preview" && languageDialect !== "csharp15-preview") {
     throw new Error(
       "C# target option memorySafetyRules='preview' requires languageDialect='csharp15-preview'.",
     );
   }
+}
+
+export function createCsharpTargetConfiguration(
+  target: TargetSelection,
+  projectDirectory: string,
+  targetOutputRoot: string,
+): CsharpTargetConfiguration {
+  validateCsharpTargetOptionKeys(target);
+  const languageDialect = readCsharpLanguageDialect(target);
+  const memorySafetyRules = readCsharpMemorySafetyRules(target);
+  const references = readCsharpReferences(target);
+  const targetFramework = readCsharpTargetFramework(target);
+  validateCsharpSafetyConfiguration(languageDialect, memorySafetyRules);
+  return Object.freeze({
+    assemblyName: readOptionalStringOption(target, "assemblyName"),
+    implicitUsings: readOptionalBooleanOption(target, "implicitUsings"),
+    languageDialect,
+    memorySafetyRules,
+    namespace: readOptionalStringOption(target, "namespace"),
+    nullable: readOptionalBooleanOption(target, "nullable"),
+    outputType: readCsharpOutputType(target),
+    project: resolveCsharpProjectConfiguration(
+      readCsharpUserProjectFile(target),
+      projectDirectory,
+      targetOutputRoot,
+    ),
+    properties: readCsharpProperties(target),
+    publishAot: readOptionalBooleanOption(target, "publishAot"),
+    references: Object.freeze(
+      references.map((reference) => Object.freeze(reference)),
+    ),
+    reflectionReferencePaths: Object.freeze(
+      resolveCsharpReflectionReferencePaths(
+        references,
+        readCsharpProviderReferencePaths(target, projectDirectory),
+        targetFramework,
+        projectDirectory,
+      ),
+    ),
+    targetFramework,
+  });
 }
 
 export function readCsharpTargetFramework(target: TargetSelection): string {
@@ -121,22 +181,56 @@ export function readCsharpReferences(target: TargetSelection): readonly CsharpPr
   ]);
 }
 
+export function readCsharpProperties(
+  target: TargetSelection,
+): Readonly<Record<string, string | number | boolean>> {
+  const raw = target.options?.properties;
+  if (raw === undefined) {
+    return Object.freeze({});
+  }
+  if (!isRecord(raw)) {
+    throw new Error("C# target option 'properties' must be an object.");
+  }
+  const properties: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!isXmlElementName(key) || !isScalarPropertyValue(value)) {
+      throw new Error(`C# target option 'properties.${key}' must be an XML property name with a scalar value.`);
+    }
+    properties[key] = value;
+  }
+  return Object.freeze(properties);
+}
+
 export function readCsharpReflectionReferencePaths(
   target: TargetSelection,
   projectDirectory: string,
 ): readonly string[] {
+  return resolveCsharpReflectionReferencePaths(
+    readCsharpReferences(target),
+    readCsharpProviderReferencePaths(target, projectDirectory),
+    readCsharpTargetFramework(target),
+    projectDirectory,
+  );
+}
+
+function resolveCsharpReflectionReferencePaths(
+  references: readonly CsharpProjectReference[],
+  providerReferences: readonly string[],
+  targetFramework: string,
+  projectDirectory: string,
+): readonly string[] {
   return rejectDuplicateReflectionReferencePaths([
-    ...readCsharpReferences(target)
+    ...references
       .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "assembly" }> => reference.kind === "assembly")
       .map((reference) => resolveProjectPath(projectDirectory, reference.hintPath ?? reference.include)),
     ...resolveDotnetFrameworkReferenceAssemblies(
-      readCsharpReferences(target)
+      references
         .filter((reference): reference is Extract<CsharpProjectReference, { readonly kind: "framework" }> => reference.kind === "framework")
         .map((reference) => reference.include),
-      readCsharpTargetFramework(target),
+      targetFramework,
       projectDirectory,
     ),
-    ...readCsharpProviderReferencePaths(target, projectDirectory),
+    ...providerReferences,
   ]);
 }
 

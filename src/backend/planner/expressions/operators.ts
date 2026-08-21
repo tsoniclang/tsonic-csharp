@@ -21,7 +21,7 @@ import type {
 } from "../context.js";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpAssignmentOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
@@ -70,7 +70,7 @@ export function tryPlanBinaryExpression(
   planCallArgument: CallArgumentPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!HasSourceKind(input.ast, node, KindBinaryExpression)) {
+  if (!HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     return undefined;
   }
   const mutationDiagnosticsStart = diagnostics.length;
@@ -85,9 +85,9 @@ export function tryPlanBinaryExpression(
   if (mutation !== undefined || diagnostics.length > mutationDiagnosticsStart) {
     return mutation;
   }
-  const expression = input.ast.as.AsBinaryExpression(node);
+  const expression = input.program.source.ast.as.AsBinaryExpression(node);
   const sourceOperator = sourceOperatorFromKindName(
-    input.ast.operatorKindName(node),
+    input.program.source.ast.operatorKindName(node),
   );
   const typeTestStart = diagnostics.length;
   const typeTest = tryPlanTypeTestExpression(
@@ -107,7 +107,7 @@ export function tryPlanBinaryExpression(
     expression.Right !== undefined
   ) {
     const jsValueOperation = selectCsharpJsValueBinaryOperation(
-      input,
+      input.policy,
       expression.Left,
       expression.Right,
       sourceFile,
@@ -182,7 +182,7 @@ export function tryPlanBinaryExpression(
       return jsValueAssignment.expression;
     }
   }
-  const selection = selectCsharpBinaryOperation(input, node, sourceFile);
+  const selection = selectCsharpBinaryOperation(input.policy, node, sourceFile);
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -212,17 +212,17 @@ function tryPlanJsValueAssignment(
   readonly handled: boolean;
   readonly expression?: CsharpExpression;
 } {
-  if (input.ast.is.IsPropertyAccessExpression(left)) {
-    const property = input.ast.as.AsPropertyAccessExpression(left);
+  if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
+    const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
     const receiverNode = property?.Expression;
-    const targetProperty = selectCsharpTargetProperty(input, left, sourceFile);
+    const targetProperty = selectCsharpTargetProperty(input.policy, left, sourceFile);
     if (
       targetProperty.kind === "source-owned" &&
       receiverNode !== undefined
     ) {
       const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-        input.objectShapes,
-        input.semantics(sourceFile),
+        input.types.objectShapes,
+        input.program.source.semantics.forFile(sourceFile),
         targetProperty,
         sourceFile,
       );
@@ -299,7 +299,7 @@ function tryPlanJsValueAssignment(
       return { handled: false };
     }
     const selection = selectCsharpJsValueReceiverExpressionOperation(
-      input,
+      input.policy,
       receiverNode,
       sourceFile,
       "property-write",
@@ -330,18 +330,18 @@ function tryPlanJsValueAssignment(
         selection,
         receiver,
         [
-          { kind: "LiteralExpression", value: input.ast.text(nameNode) },
+          { kind: "LiteralExpression", value: input.program.source.ast.text(nameNode) },
           value,
         ],
       ),
     };
   }
-  if (input.ast.is.IsElementAccessExpression(left)) {
-    const element = input.ast.as.AsElementAccessExpression(left);
+  if (input.program.source.ast.is.IsElementAccessExpression(left)) {
+    const element = input.program.source.ast.as.AsElementAccessExpression(left);
     const receiverNode = element?.Expression;
     const argumentNode = element?.ArgumentExpression;
     const selection = selectCsharpJsValueReceiverExpressionOperation(
-      input,
+      input.policy,
       receiverNode,
       sourceFile,
       "element-write",

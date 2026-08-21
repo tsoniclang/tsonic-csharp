@@ -24,7 +24,7 @@ import {
 } from "../providers/operations.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,
@@ -68,7 +68,7 @@ export function selectCsharpProviderElement(
   sourceFile: SourceFile,
 ): CsharpProviderElementSelection {
   const source = host.semantics(sourceFile)
-    .getResolvedElementAccessInfo(elementAccess);
+    .operations.elementAccess(elementAccess);
   if (source === undefined) {
     return {
       kind: "missing",

@@ -18,7 +18,7 @@ import {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../policy/types/index.js";
@@ -80,7 +80,7 @@ export function getObjectLiteralPropertySourceName(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const nameNode = input.ast.name(property) ?? Node_Name(input.ast, property);
+  const nameNode = input.program.source.ast.name(property) ?? Node_Name(input.program.source.ast, property);
   if (nameNode === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       property,
@@ -88,8 +88,8 @@ export function getObjectLiteralPropertySourceName(
     ));
     return undefined;
   }
-  if (HasSourceKind(input.ast, nameNode, KindNumericLiteral)) {
-    const value = parseFiniteNumberLiteral(Node_Text(input.ast, nameNode));
+  if (HasSourceKind(input.program.source.ast, nameNode, KindNumericLiteral)) {
+    const value = parseFiniteNumberLiteral(Node_Text(input.program.source.ast, nameNode));
     if (value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         nameNode,
@@ -99,13 +99,13 @@ export function getObjectLiteralPropertySourceName(
     }
     return String(value);
   }
-  if (!HasSourceKind(input.ast, nameNode, KindIdentifier) &&
-    !HasSourceKind(input.ast, nameNode, KindStringLiteral)) {
+  if (!HasSourceKind(input.program.source.ast, nameNode, KindIdentifier) &&
+    !HasSourceKind(input.program.source.ast, nameNode, KindStringLiteral)) {
     diagnostics.push(unsupportedNodeDiagnostic(
       nameNode,
       "Object-shape object initializers require identifier, string-literal, or numeric-literal property names.",
     ));
     return undefined;
   }
-  return Node_Text(input.ast, nameNode);
+  return Node_Text(input.program.source.ast, nameNode);
 }

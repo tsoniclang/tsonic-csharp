@@ -1,7 +1,7 @@
 import type {
   CsharpExpression,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export function csharpTupleType(elements: readonly CsharpTypeNode[]): CsharpTypeNode {
   return elements.length >= 2

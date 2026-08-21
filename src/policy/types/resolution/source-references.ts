@@ -5,7 +5,7 @@ import type {
   SourceCallableTypeEvidence,
   SourceFileSemantics,
 } from "@tsonic/target-api/source";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType, selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { csharpSourceTypeArgumentNodes } from "./source-syntax.js";
@@ -33,12 +33,12 @@ export function resolveTypeReferenceNode(
   if (typeName === undefined) {
     return undefined;
   }
-  const semanticType = queries.getTypeFromTypeNode(node);
+  const semanticType = queries.types.authoredType(node);
   const subjects = [
-    ...sourceFactSubjectsForNode(typeName, queries, node),
+    ...sourceFactSubjectsForNode(typeName, host.navigation, node),
     ...(semanticType === undefined
       ? []
-      : queries.getTypeFactSubjects(semanticType)),
+      : queries.facts.typeSubjects(semanticType)),
   ];
   const direct = resolveDirectSourceFacts(subjects, queries.sourceFile, state);
   if (direct !== undefined) {
@@ -46,7 +46,7 @@ export function resolveTypeReferenceNode(
   }
   const standardTransformation = semanticType === undefined
     ? undefined
-    : queries.selectStandardTypeTransformation(node, semanticType);
+    : queries.types.standardTransformation(node, semanticType);
   if (
     standardTransformation !== undefined &&
     standardTransformation.kind !== "structural" &&
@@ -151,7 +151,7 @@ export function resolveCheckerTransformedSourceType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const standard = queries.selectStandardTypeTransformation(
+  const standard = queries.types.standardTransformation(
     authoredRoot,
     selectedType,
   );
@@ -178,8 +178,8 @@ export function resolveCheckerTransformedSourceType(
   if (direct !== undefined) {
     return direct;
   }
-  if (queries.isTuple(selectedType)) {
-    const infos = queries.getTupleElementInfos(selectedType);
+  if (queries.types.isTuple(selectedType)) {
+    const infos = queries.types.tupleElementInfos(selectedType);
     const elements = infos.map((element) => {
       const evidence = [
         ...sourceTupleElementTypeEvidenceNodes(host.ast, queries, element),
@@ -224,7 +224,7 @@ export function resolveCheckerTransformedSourceType(
 export function resolveStandardSourceTypeTransformation(
   { host, resolveCallableEvidence, resolveSignatureParameterEvidence, resolveSignatureParameterListTarget, resolveSourceTypeComponentEvidence }: CsharpTypeResolutionScope,
   transformation: NonNullable<
-    ReturnType<SourceFileSemantics["selectStandardTypeTransformation"]>
+    ReturnType<SourceFileSemantics["types"]["standardTransformation"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -408,7 +408,7 @@ export function targetPreservesAuthoredSourcePrimitiveFacts(
   queries: SourceFileSemantics,
 ): boolean {
   const required = new Set(definedValues(
-    queries.getAuthoredTypeFactSubjects(node)
+    queries.facts.authoredTypeSubjects(node)
       .map((subject) =>
         host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey)?.kind
       ),
@@ -460,7 +460,7 @@ export function resolveSourceValueDeclaration(
     const resolved = resolveAuthoredAndSelectedSourceType(
       syntax.type,
       sourceFile,
-      selectedType ?? queries.getTypeAtLocation(node),
+      selectedType ?? queries.types.expressionType(node),
       queries.sourceFile,
       state,
     );
@@ -473,13 +473,13 @@ export function resolveSourceValueDeclaration(
   }
   const declarationQueries = host.semantics(sourceFile);
   const declaredTarget = resolveTypeWithState(
-    declarationQueries.getDeclaredValueType(declaration),
+    declarationQueries.declarations.declaredValueType(declaration),
     sourceFile,
     nextState(state),
   );
   if (syntax.initializer === undefined) {
     return resolveTypeWithState(
-      selectedType ?? queries.getTypeAtLocation(node),
+      selectedType ?? queries.types.expressionType(node),
       queries.sourceFile,
       nextState(state),
     ) ?? declaredTarget;
@@ -509,14 +509,14 @@ export function resolveSourceValueDeclaration(
   if (initializerTarget === undefined) {
     return declaredTarget;
   }
-  const declaredType = declarationQueries.getTypeAtLocation(
+  const declaredType = declarationQueries.types.expressionType(
     syntax.initializer,
   );
-  const selectedValueType = selectedType ?? queries.getTypeAtLocation(node);
+  const selectedValueType = selectedType ?? queries.types.expressionType(node);
   if (declaredType === undefined || selectedValueType === undefined) {
     return initializerTarget;
   }
-  const refinement = declarationQueries.selectTypeRefinement(
+  const refinement = declarationQueries.types.refinement(
     declaredType,
     selectedValueType,
   );
@@ -526,7 +526,7 @@ export function resolveSourceValueDeclaration(
   if (
     refinement.kind === "members" &&
     refinement.types.length > 0 &&
-    refinement.types.every((member) => !declarationQueries.isNullish(member))
+    refinement.types.every((member) => !declarationQueries.types.isNullish(member))
   ) {
     return getCsharpNullableElementTargetType(initializerTarget) ??
       initializerTarget;

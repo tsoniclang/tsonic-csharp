@@ -13,7 +13,7 @@ import type {
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import { runtimeArrayHelperCall } from "../expressions/arrays/helpers.js";
 import {
   getArrayBoundaryCoreCarrierForExpression,
@@ -60,7 +60,7 @@ export function planArrayBindingPattern(
     diagnostics.push(unsupportedNodeDiagnostic(patternNode, `Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. ${detail.reason}`, detail.evidence));
     return [];
   }
-  const elements = AsBindingPattern(input.ast, patternNode)?.Elements?.Nodes ?? [];
+  const elements = AsBindingPattern(input.program.source.ast, patternNode)?.Elements?.Nodes ?? [];
   return elements.flatMap((elementNode, index) => {
     if (elementNode === undefined) {
       return [];
@@ -97,7 +97,7 @@ function planArrayBindingElement(
   planBindingNameFromProjection: BindingProjectionPlanner,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
 ): readonly CsharpStatement[] {
-  const element = AsBindingElement(input.ast, elementNode);
+  const element = AsBindingElement(input.program.source.ast, elementNode);
   if (element === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array binding pattern element must be a binding element."));
     return [];

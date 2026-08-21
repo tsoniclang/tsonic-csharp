@@ -5,7 +5,7 @@ import type {
   CsharpStatement,
   CsharpSwitchLabel,
   CsharpSwitchSection,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeRequiresUnsafe,
 } from "../types/target-types.js";

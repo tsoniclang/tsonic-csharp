@@ -1,6 +1,6 @@
 import type {
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 
 export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
   if (left.kind !== right.kind) {

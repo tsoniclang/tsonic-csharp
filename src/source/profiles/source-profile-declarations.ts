@@ -3,11 +3,14 @@ import {
   typescriptNoLibUtilityDeclarations,
 } from "@tsonic/target-api/provider";
 import type {
-  TargetProviderSourceProfileContext,
+  TargetCompilationSessionContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api/provider";
+import {
+  csharpTargetId,
+} from "../../target-model/identities/source.js";
 
-export const csharpSourceProfileOwnerId = "csharp-provider";
+export const csharpSourceProfileOwnerId = csharpTargetId;
 export const csharpJsSourceProfileOwnerId = "js";
 
 const sharedNoLibDeclarations = `
@@ -520,8 +523,8 @@ declare var Proxy: ProxyConstructor;
 declare function eval(source: string): unknown;
 `.trim();
 
-export function csharpSourceProfileContributions(context: TargetProviderSourceProfileContext): TargetSourceProfileContributions {
-  if (context.selectedSurfaces.some((surface) => surface.id === csharpJsSourceProfileOwnerId)) {
+export function csharpSourceProfileContributions(context: TargetCompilationSessionContext): TargetSourceProfileContributions {
+  if (context.selectedSurfaceIds.includes(csharpJsSourceProfileOwnerId)) {
     return {
       declarations: [],
     };

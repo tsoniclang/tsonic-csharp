@@ -4,7 +4,7 @@ import type {
   CsharpMethodDeclaration,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
 } from "../../../policy/types/index.js";

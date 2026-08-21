@@ -5,7 +5,7 @@ import type {
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import {
   resolveCsharpProviderDeclarationEvidence,
-} from "../../../providers/relations/evidence.js";
+} from "../providers/evidence.js";
 import {
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
@@ -23,10 +23,10 @@ import {
 } from "./source-profile-policy.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedPropertyAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
 >;
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
 const instanceReceiver = { kind: "instance" } as const;

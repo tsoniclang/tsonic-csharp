@@ -3,7 +3,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpExpression,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -26,7 +26,7 @@ import type {
 } from "../context.js";
 
 export function planCsharpExactLiteralConversion(
-  input: Pick<CsharpPlanningContext, "ast">,
+  input: CsharpPlanningContext,
   node: Node,
   target: TargetTypeRef | undefined,
 ): CsharpExactLiteralConversionPlan {
@@ -35,19 +35,19 @@ export function planCsharpExactLiteralConversion(
   }
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
-    return csharpLiteralIsRepresentableAs(input, node, target)
+    return csharpLiteralIsRepresentableAs(input.policy, node, target)
       ? { kind: "source-representation" }
       : { kind: "not-applicable" };
   }
   switch (targetType.name) {
     case "char": {
       if (
-        !input.ast.is.IsStringLiteral(node) &&
-        !input.ast.is.IsNoSubstitutionTemplateLiteral(node)
+        !input.program.source.ast.is.IsStringLiteral(node) &&
+        !input.program.source.ast.is.IsNoSubstitutionTemplateLiteral(node)
       ) {
         return { kind: "not-applicable" };
       }
-      const value = input.ast.text(node);
+      const value = input.program.source.ast.text(node);
       return value.length === 1
         ? {
             kind: "resolved",
@@ -65,12 +65,12 @@ export function planCsharpExactLiteralConversion(
     case "float32":
     case "decimal": {
       if (
-        !input.ast.is.IsNumericLiteral(node) &&
-        !input.ast.is.IsPrefixUnaryExpression(node)
+        !input.program.source.ast.is.IsNumericLiteral(node) &&
+        !input.program.source.ast.is.IsPrefixUnaryExpression(node)
       ) {
         return { kind: "not-applicable" };
       }
-      const value = csharpNumericLiteralValue(input.ast, node);
+      const value = csharpNumericLiteralValue(input.program.source.ast, node);
       if (value === undefined || !Number.isFinite(value)) {
         return {
           kind: "rejected",
@@ -106,7 +106,7 @@ export function planCsharpExactLiteralConversion(
     case "uint64":
     case "int128":
     case "uint128": {
-      const value = csharpBigIntLiteralValue(input.ast, node);
+      const value = csharpBigIntLiteralValue(input.program.source.ast, node);
       if (value === undefined) {
         return { kind: "not-applicable" };
       }
@@ -125,7 +125,7 @@ export function planCsharpExactLiteralConversion(
         : { kind: "resolved", expression };
     }
     default:
-      return csharpLiteralIsRepresentableAs(input, node, target)
+      return csharpLiteralIsRepresentableAs(input.policy, node, target)
         ? { kind: "source-representation" }
         : { kind: "not-applicable" };
   }

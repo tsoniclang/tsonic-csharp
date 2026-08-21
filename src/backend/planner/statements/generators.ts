@@ -9,7 +9,7 @@ import type {
   CsharpParameter,
   CsharpStatement,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -51,7 +51,7 @@ export function hasCsharpGeneratorSyntax(
   declaration: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  const kind = input.ast.kindName(declaration);
+  const kind = input.program.source.ast.kindName(declaration);
   if (
     kind !== "KindFunctionDeclaration" &&
     kind !== "KindFunctionExpression" &&
@@ -59,8 +59,8 @@ export function hasCsharpGeneratorSyntax(
   ) {
     return false;
   }
-  return input.ast.children(declaration).some(
-    (child) => child !== undefined && input.ast.kindName(child) === "KindAsteriskToken",
+  return input.program.source.ast.children(declaration).some(
+    (child) => child !== undefined && input.program.source.ast.kindName(child) === "KindAsteriskToken",
   );
 }
 
@@ -70,15 +70,15 @@ export function isCsharpGeneratorReturnInsideFinally(
   input: CsharpPlanningContext,
 ): boolean {
   for (
-    let current = input.ast.parent(returnStatement);
+    let current = input.program.source.ast.parent(returnStatement);
     current !== undefined && current !== generatorDeclaration;
-    current = input.ast.parent(current)
+    current = input.program.source.ast.parent(current)
   ) {
-    const parent = input.ast.parent(current);
-    if (parent === undefined || !input.ast.is.IsTryStatement(parent)) {
+    const parent = input.program.source.ast.parent(current);
+    if (parent === undefined || !input.program.source.ast.is.IsTryStatement(parent)) {
       continue;
     }
-    const tryStatement = input.ast.as.AsTryStatement(parent)!;
+    const tryStatement = input.program.source.ast.as.AsTryStatement(parent)!;
     if (tryStatement.FinallyBlock === current) {
       return true;
     }
@@ -99,7 +99,7 @@ export function planCsharpGeneratorFunction(
   if (!hasCsharpGeneratorSyntax(declaration, input)) {
     return undefined;
   }
-  const source = input.semantics(sourceFile).getResolvedGeneratorInfo(
+  const source = input.program.source.semantics.forFile(sourceFile).operations.generator(
     declaration,
   );
   if (source === undefined) {
@@ -109,8 +109,8 @@ export function planCsharpGeneratorFunction(
     ));
     return undefined;
   }
-  const generatorType = input.types.resolveSelectedType(
-    input.ast.typeNode(declaration),
+  const generatorType = input.types.policy.resolveSelectedType(
+    input.program.source.ast.typeNode(declaration),
     source.sourceReturnType,
     sourceFile,
   );
@@ -262,13 +262,13 @@ function hasSupportedGeneratorReturn(
       return;
     }
     if (
-      input.ast.is.IsReturnStatement(node) &&
+      input.program.source.ast.is.IsReturnStatement(node) &&
       !isCsharpGeneratorReturnInsideFinally(node, declaration, input)
     ) {
       found = true;
       return;
     }
-    input.ast.forEachChild(node, (child) => {
+    input.program.source.ast.forEachChild(node, (child) => {
       if (child !== undefined) {
         visit(child);
       }
@@ -282,7 +282,7 @@ function isFunctionLikeBoundary(
   node: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  switch (input.ast.kindName(node)) {
+  switch (input.program.source.ast.kindName(node)) {
     case "KindArrowFunction":
     case "KindConstructor":
     case "KindFunctionDeclaration":
@@ -307,8 +307,8 @@ function firstUnsupportedGeneratorYield(
   const stack = [body];
   while (stack.length > 0) {
     const node = stack.pop()!;
-    if (input.ast.is.IsYieldExpression(node)) {
-      const evidence = input.semanticsFor(node).getResolvedYieldInfo(node);
+    if (input.program.source.ast.is.IsYieldExpression(node)) {
+      const evidence = input.program.source.semantics.forNode(node).operations.yield(node);
       if (evidence?.generator.declaration === declaration) {
         const reason = unsupportedYieldRegionReason(node, declaration, input);
         if (reason !== undefined) {
@@ -316,7 +316,7 @@ function firstUnsupportedGeneratorYield(
         }
       }
     }
-    const children = input.ast.children(node);
+    const children = input.program.source.ast.children(node);
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const child = children[index];
       if (child !== undefined) {
@@ -333,16 +333,16 @@ function unsupportedYieldRegionReason(
   input: CsharpPlanningContext,
 ): string | undefined {
   for (
-    let current = input.ast.parent(yieldExpression);
+    let current = input.program.source.ast.parent(yieldExpression);
     current !== undefined && current !== declaration;
-    current = input.ast.parent(current)
+    current = input.program.source.ast.parent(current)
   ) {
-    if (input.ast.is.IsCatchClause(current)) {
+    if (input.program.source.ast.is.IsCatchClause(current)) {
       return "C# native iterators cannot suspend from a catch clause.";
     }
-    const parent = input.ast.parent(current);
-    if (parent !== undefined && input.ast.is.IsTryStatement(parent)) {
-      const statement = input.ast.as.AsTryStatement(parent);
+    const parent = input.program.source.ast.parent(current);
+    if (parent !== undefined && input.program.source.ast.is.IsTryStatement(parent)) {
+      const statement = input.program.source.ast.as.AsTryStatement(parent);
       if (statement?.FinallyBlock === current) {
         return "C# native iterators cannot suspend from a finally clause.";
       }

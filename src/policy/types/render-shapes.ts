@@ -1,10 +1,10 @@
 import type {
   TargetTypeRef,
-} from "./model/definitions.js";
+} from "../../target-model/types/model.js";
 import type {
   CsharpTargetNamedTypeRef,
   CsharpTargetTypeRenderShape,
-} from "./model/definitions.js";
+} from "../../target-model/types/model.js";
 
 export function csharpRenderShapeForTargetNamedType(
   type: Extract<TargetTypeRef, { readonly kind: "target-named" }>,

@@ -12,7 +12,7 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpStatement,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -37,7 +37,7 @@ export function planIfStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const statement = AsIfStatement(input.ast, node)!;
+  const statement = AsIfStatement(input.program.source.ast, node)!;
   const condition = planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
     return [];
@@ -63,7 +63,7 @@ export function planWhileStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const statement = AsWhileStatement(input.ast, node)!;
+  const statement = AsWhileStatement(input.program.source.ast, node)!;
   const condition = planConditionExpression(statement.Expression, "While statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
     return [];
@@ -86,7 +86,7 @@ export function planDoStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const statement = AsDoStatement(input.ast, node)!;
+  const statement = AsDoStatement(input.program.source.ast, node)!;
   const condition = planConditionExpression(statement.Expression, "Do statement", sourceFile, input, diagnostics, state);
   if (condition === undefined) {
     return [];

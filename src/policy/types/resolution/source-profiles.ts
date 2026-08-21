@@ -1,4 +1,4 @@
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../model/definitions.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type {
@@ -27,7 +27,7 @@ import { csharpEnumerableTargetType } from "../collections.js";
 import { csharpNullableTargetType } from "../storage/nullable.js";
 import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../model/scalar-types.js";
-import { csharpTargetNamedType } from "../model/target-refs.js";
+import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -180,7 +180,7 @@ export function resolveUnionType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const rawSourceMembers = queries.getUnionOrIntersectionTypes(type);
+  const rawSourceMembers = queries.types.unionOrIntersectionTypes(type);
   const sourceMembers = definedValues(rawSourceMembers);
   if (sourceMembers.length !== rawSourceMembers.length) {
     return undefined;
@@ -203,7 +203,7 @@ export function resolveCallableType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  const callable = queries.selectCallableType(type);
+  const callable = queries.types.callable(type);
   return callable === undefined
     ? undefined
     : resolveCallableEvidence(callable, queries, state);

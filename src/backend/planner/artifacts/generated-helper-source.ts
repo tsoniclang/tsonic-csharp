@@ -1,14 +1,14 @@
 import type {
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   nullableCsharpType,
   qualifiedCsharpType,
 } from "../types/index.js";
 import type {
   CsharpOutputSourceFile,
-} from "../../artifacts/model.js";
+} from "../../artifact-model/output.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

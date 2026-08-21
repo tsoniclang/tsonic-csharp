@@ -1,4 +1,4 @@
-import type { CsharpExpression, CsharpTypeNode } from "../../backend/roslyn/syntax.js";
+import type { CsharpExpression, CsharpTypeNode } from "../../backend/target-ast/roslyn/index.js";
 import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 
 export function printCsharpType(type: CsharpTypeNode): string {

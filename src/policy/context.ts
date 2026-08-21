@@ -12,9 +12,6 @@ import type {
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
 import type {
-  CsharpSourceOutputIdentityPlanner,
-} from "./names/source-output-identities.js";
-import type {
   CsharpProviderRelationResolver,
 } from "../providers/model/relation-resolver.js";
 import type {
@@ -25,6 +22,9 @@ import type {
   CsharpProjectTypePolicy,
   CsharpTypePolicy,
 } from "./types/index.js";
+import type {
+  CsharpSourceIdentityPolicy,
+} from "./identities/source-nodes.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly ast: AstReader;
@@ -36,7 +36,7 @@ export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly types: CsharpTypePolicy;
   readonly objectShapes: CsharpObjectShapePolicy;
   readonly projectTypes: CsharpProjectTypePolicy;
-  readonly outputIdentities: CsharpSourceOutputIdentityPlanner;
+  readonly sourceIdentities: CsharpSourceIdentityPolicy;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
   semanticsFor(node: Node): SourceFileSemantics;
   hasSemantics(sourceFile: SourceFile): boolean;

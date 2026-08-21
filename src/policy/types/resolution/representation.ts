@@ -1,5 +1,5 @@
 import type { AstReader, Node } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../model/definitions.js";
+import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../model/scalar-types.js";
 import { getCsharpNullableElementTargetType } from "../storage/nullable.js";
 import { getCsharpTaskResultTargetType } from "../callables/delegates.js";

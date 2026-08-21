@@ -7,14 +7,14 @@ import {
   csharpLangModule,
   csharpProviderVersion,
   csharpSourceVirtualModulesProviderId,
-} from "../../source/extension/identity.js";
+} from "../../target-model/identities/source.js";
 import {
   csharpNativePointerExport,
 } from "../../source/extension/explicit-safety.js";
 import type {
   CsharpTargetBindingFact,
   TargetTypeRef,
-} from "../../policy/types/model/definitions.js";
+} from "../../target-model/types/model.js";
 import type {
   CsharpProviderTargetRelation,
 } from "../relations/index.js";

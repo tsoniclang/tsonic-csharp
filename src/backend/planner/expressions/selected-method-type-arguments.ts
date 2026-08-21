@@ -14,7 +14,7 @@ import {
 } from "../objects/index.js";
 import type {
   CsharpTypeNode,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -66,7 +66,7 @@ export function renderSelectedCsharpTargetMethodTypeArguments(
       ));
       return undefined;
     }
-    const projected = input.objectShapes.resolveProjectConstructibleSelectedType(
+    const projected = input.types.objectShapes.resolveProjectConstructibleSelectedType(
       argument.targetType,
       argument.explicitTypeNode,
       argument.selectedType,

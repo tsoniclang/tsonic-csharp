@@ -13,7 +13,7 @@ import type {
 } from "../selection/call-selection.js";
 
 type ResolvedSourceElementAccessInfo = NonNullable<
-  ReturnType<SourceFileSemantics["getResolvedElementAccessInfo"]>
+  ReturnType<SourceFileSemantics["operations"]["elementAccess"]>
 >;
 
 export type CsharpProjectElementSelection =

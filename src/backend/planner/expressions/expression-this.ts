@@ -1,7 +1,7 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression } from "../../roslyn/syntax.js";
+import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
 import {
   HasSourceKind,
   HasSyntacticModifier,
@@ -31,7 +31,7 @@ export function planThisExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  if (input.sourceThisBinding === undefined) {
+  if (input.scope.sourceThisBinding === undefined) {
     const binding = classifyThisBinding(node, input);
     if (binding.kind === "unsupported") {
       diagnostics.push(unsupportedNodeDiagnostic(node, binding.reason));
@@ -43,7 +43,7 @@ export function planThisExpression(
     node,
     sourceFile,
   );
-  const carrier = input.sourceThisBinding?.targetType ??
+  const carrier = input.scope.sourceThisBinding?.targetType ??
     probeCarrierFromResolution(runtimeResolution);
   if (carrier === undefined) {
     const detail = missingCarrierDiagnosticDetail(runtimeResolution, "Runtime carrier fact is missing for the TSTS-selected this receiver.");
@@ -56,7 +56,7 @@ export function planThisExpression(
   }
   return {
     kind: "IdentifierName",
-    name: input.sourceThisBinding?.name ?? "this",
+    name: input.scope.sourceThisBinding?.name ?? "this",
   };
 }
 
@@ -65,37 +65,37 @@ type ThisBindingClassification =
   | { readonly kind: "unsupported"; readonly reason: string };
 
 function classifyThisBinding(node: Node, input: CsharpPlanningContext): ThisBindingClassification {
-  for (let current = input.ast.parent(node); current !== undefined; current = input.ast.parent(current)) {
-    if (HasSourceKind(input.ast, current, KindArrowFunction)) {
+  for (let current = input.program.source.ast.parent(node); current !== undefined; current = input.program.source.ast.parent(current)) {
+    if (HasSourceKind(input.program.source.ast, current, KindArrowFunction)) {
       continue;
     }
-    if (HasSourceKind(input.ast, current, KindConstructor)) {
+    if (HasSourceKind(input.program.source.ast, current, KindConstructor)) {
       return isClassInstanceMember(current, input)
         ? { kind: "instance" }
         : unsupportedThis("constructor outside a class declaration");
     }
     if (
-      HasSourceKind(input.ast, current, KindMethodDeclaration) ||
-      HasSourceKind(input.ast, current, KindGetAccessor) ||
-      HasSourceKind(input.ast, current, KindSetAccessor)
+      HasSourceKind(input.program.source.ast, current, KindMethodDeclaration) ||
+      HasSourceKind(input.program.source.ast, current, KindGetAccessor) ||
+      HasSourceKind(input.program.source.ast, current, KindSetAccessor)
     ) {
       if (!isClassInstanceMember(current, input)) {
         return unsupportedThis("object-literal or non-class method receiver");
       }
-      return HasSyntacticModifier(input.ast, current, ModifierFlagsStatic)
+      return HasSyntacticModifier(input.program.source.ast, current, ModifierFlagsStatic)
         ? unsupportedThis("static class member receiver")
         : { kind: "instance" };
     }
-    if (HasSourceKind(input.ast, current, KindPropertyDeclaration)) {
+    if (HasSourceKind(input.program.source.ast, current, KindPropertyDeclaration)) {
       return unsupportedThis("class field initializer receiver");
     }
-    if (HasSourceKind(input.ast, current, KindClassStaticBlockDeclaration)) {
+    if (HasSourceKind(input.program.source.ast, current, KindClassStaticBlockDeclaration)) {
       return unsupportedThis("class static block receiver");
     }
-    if (HasSourceKind(input.ast, current, KindFunctionDeclaration) || HasSourceKind(input.ast, current, KindFunctionExpression)) {
+    if (HasSourceKind(input.program.source.ast, current, KindFunctionDeclaration) || HasSourceKind(input.program.source.ast, current, KindFunctionExpression)) {
       return unsupportedThis("runtime-bound function receiver");
     }
-    if (HasSourceKind(input.ast, current, KindSourceFile)) {
+    if (HasSourceKind(input.program.source.ast, current, KindSourceFile)) {
       return unsupportedThis("top-level module receiver");
     }
   }
@@ -103,7 +103,7 @@ function classifyThisBinding(node: Node, input: CsharpPlanningContext): ThisBind
 }
 
 function isClassInstanceMember(node: Node, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.ast, input.ast.parent(node), KindClassDeclaration);
+  return HasSourceKind(input.program.source.ast, input.program.source.ast.parent(node), KindClassDeclaration);
 }
 
 function unsupportedThis(context: string): ThisBindingClassification {

@@ -3,10 +3,6 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  readCsharpLanguageDialect,
-  readCsharpMemorySafetyRules,
-} from "../../../options/csharp-target-options.js";
 import type {
   CsharpSafetyApplication,
 } from "../../../analysis/safety/application-index.js";
@@ -17,7 +13,7 @@ import type {
   CsharpAccessorModifier,
   CsharpExpression,
   CsharpModifier,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -65,7 +61,7 @@ export function tryPlanCsharpExplicitSafetyExpression(
     ));
     return { handled: true };
   }
-  if (readCsharpLanguageDialect(input.target) !== "csharp15-preview") {
+  if (input.program.configuration.languageDialect !== "csharp15-preview") {
     diagnostics.push(targetDiagnostic(
       "CSHARP_UNSAFE_EXPRESSION_DIALECT_UNSUPPORTED",
       "C# unsafe expressions require target option languageDialect='csharp15-preview'.",
@@ -75,7 +71,7 @@ export function tryPlanCsharpExplicitSafetyExpression(
   const expressionFact = selected.fact;
   const plannerState = state ?? createDestructuringPlannerState(
     sourceFile,
-    input.ast,
+    input.program.source.ast,
   );
   const expression = withExplicitUnsafeContext(plannerState, () =>
     planExpression(
@@ -99,7 +95,7 @@ export function isExplicitUnsafeBlockMarker(
 ): boolean {
   const expression = statement === undefined
     ? undefined
-    : AsExpressionStatement(input.ast, statement)?.Expression;
+    : AsExpressionStatement(input.program.source.ast, statement)?.Expression;
   const selected = expression === undefined
     ? undefined
     : exactSafetyOperation(expression, input);
@@ -111,7 +107,7 @@ export function isErasedSafetyExpressionStatement(
   statement: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  const expression = AsExpressionStatement(input.ast, statement)?.Expression;
+  const expression = AsExpressionStatement(input.program.source.ast, statement)?.Expression;
   if (expression === undefined) {
     return false;
   }
@@ -140,16 +136,16 @@ export function csharpSafetyModifiersForDeclaration(
   additionalDeclaration?: Node,
 ): readonly CsharpModifier[] {
   if (
-    readCsharpLanguageDialect(input.target) !== "csharp15-preview" ||
-    readCsharpMemorySafetyRules(input.target) !== "preview"
+    input.program.configuration.languageDialect !== "csharp15-preview" ||
+    input.program.configuration.memorySafetyRules !== "preview"
   ) {
     return [];
   }
   const applications = uniqueApplications([
-    ...input.safetyApplications.forDeclaration(declaration),
+    ...input.program.safetyApplications.forDeclaration(declaration),
     ...(additionalDeclaration === undefined
       ? []
-      : input.safetyApplications.forDeclaration(additionalDeclaration)),
+      : input.program.safetyApplications.forDeclaration(additionalDeclaration)),
   ]).filter((application) => application.applicationPlacement === placement);
   const contracts = new Set(applications.map((application) =>
     application.contract));
@@ -200,14 +196,14 @@ export function diagnoseUnavailableCsharpSafetyAccessors(
   diagnostics: TargetDiagnostic[],
 ): void {
   if (
-    readCsharpLanguageDialect(input.target) !== "csharp15-preview" ||
-    readCsharpMemorySafetyRules(input.target) !== "preview"
+    input.program.configuration.languageDialect !== "csharp15-preview" ||
+    input.program.configuration.memorySafetyRules !== "preview"
   ) {
     return;
   }
   const available = new Set(availablePlacements);
   for (const application of uniqueApplications(
-    input.safetyApplications.forDeclaration(declaration),
+    input.program.safetyApplications.forDeclaration(declaration),
   )) {
     if (
       application.contract !== "requires-unsafe" ||
@@ -229,7 +225,7 @@ export function diagnoseCsharpSafetyApplications(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  const applications = input.safetyApplications.forSourceFile(sourceFile);
+  const applications = input.program.safetyApplications.forSourceFile(sourceFile);
   const conflicts = diagnoseConflictingSafetyApplications(
     sourceFile,
     input,
@@ -248,7 +244,7 @@ export function diagnoseCsharpSafetyApplications(
     )) {
       continue;
     }
-    if (readCsharpLanguageDialect(input.target) !== "csharp15-preview") {
+    if (input.program.configuration.languageDialect !== "csharp15-preview") {
       diagnostics.push(targetDiagnostic(
         "CSHARP_SAFETY_CONTRACT_DIALECT_UNSUPPORTED",
         "C# declaration caller-safety contracts require target option languageDialect='csharp15-preview'.",
@@ -262,7 +258,7 @@ export function diagnoseCsharpSafetyApplications(
       ));
       continue;
     }
-    if (readCsharpMemorySafetyRules(input.target) !== "preview") {
+    if (input.program.configuration.memorySafetyRules !== "preview") {
       diagnostics.push(targetDiagnostic(
         "CSHARP_SAFETY_CONTRACT_RULES_UNSUPPORTED",
         "C# declaration caller-safety contracts require target option memorySafetyRules='preview'; selecting preview syntax alone does not opt the assembly into updated memory-safety rules.",
@@ -277,12 +273,12 @@ function diagnoseConflictingSafetyApplications(
   diagnostics: TargetDiagnostic[],
 ): ReadonlySet<Node> {
   const conflicts = new Set<Node>();
-  for (const application of input.safetyApplications.forSourceFile(sourceFile)) {
+  for (const application of input.program.safetyApplications.forSourceFile(sourceFile)) {
     for (const declaration of application.targetDeclarations) {
       if (conflicts.has(declaration)) {
         continue;
       }
-      const related = input.safetyApplications.forDeclaration(declaration)
+      const related = input.program.safetyApplications.forDeclaration(declaration)
         .filter((candidate) =>
           candidate.applicationPlacement === application.applicationPlacement);
       if (new Set(related.map((candidate) => candidate.contract)).size <= 1) {
@@ -310,11 +306,11 @@ function exactSafetyOperation(
 ) {
   let current: Node | undefined = expression;
   while (current !== undefined) {
-    const operation = input.safetyApplications.operationForSubject(current);
+    const operation = input.program.safetyApplications.operationForSubject(current);
     if (operation !== undefined) {
       return operation;
     }
-    current = AsParenthesizedExpression(input.ast, current)?.Expression;
+    current = AsParenthesizedExpression(input.program.source.ast, current)?.Expression;
   }
   return undefined;
 }
@@ -330,12 +326,12 @@ function compareSafetyApplications(
   right: CsharpSafetyApplication,
   input: CsharpPlanningContext,
 ): number {
-  const leftPath = input.ast.getPath(left.sourceFile);
-  const rightPath = input.ast.getPath(right.sourceFile);
+  const leftPath = input.program.source.ast.getPath(left.sourceFile);
+  const rightPath = input.program.source.ast.getPath(right.sourceFile);
   const pathOrder = leftPath.localeCompare(rightPath);
   return pathOrder !== 0
     ? pathOrder
-    : input.ast.pos(left.sourceSubject) - input.ast.pos(right.sourceSubject);
+    : input.program.source.ast.pos(left.sourceSubject) - input.program.source.ast.pos(right.sourceSubject);
 }
 
 function uniqueValues<T>(values: readonly T[]): readonly T[] {

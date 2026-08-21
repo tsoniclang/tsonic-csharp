@@ -16,7 +16,7 @@ import type {
   CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpTypeMember,
-} from "../../roslyn/syntax.js";
+} from "../../target-ast/roslyn/index.js";
 import {
   AsGetAccessorDeclaration,
   AsParameterDeclaration,
@@ -73,8 +73,8 @@ export function planPropertyDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
-  const declaration = AsPropertyDeclaration(input.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "property declaration", diagnostics);
+  const declaration = AsPropertyDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics);
   const sourceField = getClassPropertySourceField(node, declaration, input);
   if (sourceField !== undefined) {
     diagnoseUnavailableCsharpSafetyAccessors(
@@ -104,7 +104,7 @@ export function planPropertyDeclaration(
     invalidCsharpType("property type"),
     diagnostics,
   );
-  const type = input.ast.questionToken(node) === undefined
+  const type = input.program.source.ast.questionToken(node) === undefined
     ? declaredType
     : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
@@ -175,7 +175,7 @@ function shouldEmitAutoProperty(
   _sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  const dispatch = input.navigation.memberDispatch(node);
+  const dispatch = input.program.source.navigation.memberDispatch(node);
   return autoPropertyNames.has(propertyName) ||
     dispatch?.overridesBase === true ||
     dispatch?.hasDerivedOverride === true;
@@ -189,13 +189,13 @@ export function mergeAccessorProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.ast, node, "accessor declaration", diagnostics);
-  const accessor = HasSourceKind(input.ast, node, KindGetAccessor)
-    ? AsGetAccessorDeclaration(input.ast, node)!
-    : AsSetAccessorDeclaration(input.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics);
+  const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
+    ? AsGetAccessorDeclaration(input.program.source.ast, node)!
+    : AsSetAccessorDeclaration(input.program.source.ast, node)!;
   const name = planIdentifierName(accessor.name, "PropertyDeclaration", input, diagnostics, "Accessor name");
   const existing = accessorProperties.get(name);
-  const next = HasSourceKind(input.ast, node, KindGetAccessor)
+  const next = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)
     : mergeSetterAccessor(existing, node, name, sourceFile, input, diagnostics);
   accessorProperties.set(name, next);
@@ -214,7 +214,7 @@ function getClassPropertySourceField(
   declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
   input: CsharpPlanningContext,
 ): CsharpSourceField | undefined {
-  return readCsharpSourceField(input.sourceFacts, [
+  return readCsharpSourceField(input.program.source.sourceFacts, [
     node,
     declaration.name,
     declaration.Type,
@@ -230,9 +230,9 @@ function mergeGetterAccessor(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
-  const declaration = AsGetAccessorDeclaration(input.ast, node)!;
+  const declaration = AsGetAccessorDeclaration(input.program.source.ast, node)!;
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? invalidCsharpType("get accessor type"), diagnostics);
-  const state = createDestructuringPlannerState(node, input.ast);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   state.currentReturnType = type;
   return {
     kind: "PropertyDeclaration",
@@ -273,10 +273,10 @@ function mergeSetterAccessor(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
-  const declaration = AsSetAccessorDeclaration(input.ast, node)!;
+  const declaration = AsSetAccessorDeclaration(input.program.source.ast, node)!;
   const parameterNodes = declaration.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes[0];
-  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.ast, parameterNode)!;
+  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(input.program.source.ast, parameterNode)!;
   if (parameterDeclaration === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor requires exactly one parameter."));
   }
@@ -290,7 +290,7 @@ function mergeSetterAccessor(
     existing?.type ?? invalidCsharpType("set accessor type"),
     diagnostics,
   );
-  const parameterAlias = HasSourceKind(input.ast, parameterDeclaration?.name, KindObjectBindingPattern) || HasSourceKind(input.ast, parameterDeclaration?.name, KindArrayBindingPattern)
+  const parameterAlias = HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, parameterDeclaration?.name, KindArrayBindingPattern)
     ? undefined
     : parameterDeclaration === undefined
       ? undefined
@@ -298,9 +298,9 @@ function mergeSetterAccessor(
           name: planIdentifierName(parameterDeclaration.name, "value", input, diagnostics, "Set accessor parameter name"),
           type,
         };
-  const state = createDestructuringPlannerState(node, input.ast);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameterName = parameterDeclaration?.name;
-  const parameterPrelude = HasSourceKind(input.ast, parameterName, KindObjectBindingPattern) || HasSourceKind(input.ast, parameterName, KindArrayBindingPattern)
+  const parameterPrelude = HasSourceKind(input.program.source.ast, parameterName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, parameterName, KindArrayBindingPattern)
     ? planParameterBindingPrelude(parameterName, "value", sourceFile, input, diagnostics, state)
     : [];
   return {

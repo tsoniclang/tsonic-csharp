@@ -6,7 +6,7 @@ import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
 import { getRuntimeCarrierForExpression } from "../../types/runtime-carriers.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { BindingDefaultExpressionPlanner } from "../binding-array-patterns.js";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../roslyn/syntax.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import type { DestructuringPlannerState } from "../binding-state.js";
 import type { ExpressionPlanner } from "../../expressions/expression-planner-types.js";
@@ -19,7 +19,7 @@ export function isDestructuringAssignmentExpression(
   node: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
-  return csharpDestructuringAssignmentSyntax(input.ast, node) !== undefined;
+  return csharpDestructuringAssignmentSyntax(input.program.source.ast, node) !== undefined;
 }
 
 export function pushMissingDestructuringAssignmentFactsDiagnostic(
@@ -124,7 +124,7 @@ function planDestructuringAssignmentCore(
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): DestructuringAssignmentPlan | undefined {
   const selectedOperator = selectCsharpDestructuringAssignmentOperation(
-    input,
+    input.policy,
     node,
     sourceFile,
   );
