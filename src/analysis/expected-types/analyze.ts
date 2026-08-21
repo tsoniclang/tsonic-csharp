@@ -79,6 +79,7 @@ export function analyzeCsharpExpectedTypes(
   const binaryUses = createTargetUseClassificationBuilder();
   let expectedTargetUseCount = 0;
   const callableReturnTargets = new WeakMap<Node, TargetTypeRef>();
+  const contextualCallables = new Set<Node>();
 
   for (const callable of callables.declarationContracts) {
     const targetType = returnExpressionTarget(callable);
@@ -94,6 +95,12 @@ export function analyzeCsharpExpectedTypes(
   ): void => {
     if (expression === undefined || targetType === undefined) {
       return;
+    }
+    if (
+      isCallableBoundary(expression) &&
+      getCsharpDelegateSignature(targetType) !== undefined
+    ) {
+      contextualCallables.add(expression);
     }
     const key = targetTypeRefKey(targetType);
     let types = byExpression.get(expression);
@@ -207,8 +214,7 @@ export function analyzeCsharpExpectedTypes(
 
   function refreshCallableTargets(): boolean {
     let changed = false;
-    for (const callable of callables.declarationContracts) {
-      const declaration = callable.sourceDeclaration;
+    for (const declaration of contextualCallables) {
       const contextualTargets = [
         ...(byExpression.get(declaration)?.values() ?? []),
       ].filter((use) =>
@@ -236,6 +242,10 @@ export function analyzeCsharpExpectedTypes(
           targetTypes.set(targetTypeRefKey(targetType), targetType);
         }
       }
+    }
+    for (const callable of callables.declarationContracts) {
+      const declaration = callable.sourceDeclaration;
+      const targetType = callableTargets.get(declaration);
       const returnTarget = returnExpressionTarget(callable, targetType);
       const previousReturnTarget = callableReturnTargets.get(declaration);
       if (
@@ -363,6 +373,20 @@ export function analyzeCsharpExpectedTypes(
       );
     }
 
+    const yieldSelection = evidence.yield(node);
+    if (yieldSelection?.operand !== undefined) {
+      const expectedYieldType = yieldSelection.yieldKind === "delegate"
+        ? evidence.yieldTargetType(node)
+        : getCsharpGeneratorProtocol(
+            evidence.generatorTargetType(yieldSelection.generator.declaration),
+          )?.yieldType;
+      record(
+        yieldSelection.operand.expression,
+        expectedYieldType,
+        "required",
+      );
+    }
+
     policy.ast.forEachChild(node, (child) => {
       if (child !== undefined) {
         visit(child, sourceFile);
@@ -469,15 +493,12 @@ export function analyzeCsharpExpectedTypes(
       return;
     }
     if (policy.ast.is.IsBinaryExpression(expression)) {
-      const sourceFile = policy.ast.getSourceFile(expression);
-      const expectedSelection = sourceFile === undefined
-        ? undefined
-        : selectCsharpBinaryOperation(
-            policy,
-            expression,
-            sourceFile,
-            targetType,
-          );
+      const expectedSelection = selectCsharpBinaryOperation(
+        policy,
+        expression,
+        evidence.nodeTargetType,
+        targetType,
+      );
       if (expectedSelection !== undefined) {
         const result = binaryUses.set(
           expectedBinaryUse(expression, targetType),

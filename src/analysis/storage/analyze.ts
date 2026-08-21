@@ -97,12 +97,20 @@ export function analyzeCsharpStorage(
   const effectiveTypes = new WeakMap<Node, TargetTypeRef>();
   const requiredTypes = new WeakMap<Node, TargetTypeRef>();
   for (const node of nodes) {
+    const directRequirement = resolvedTypes.get(node);
+    if (directRequirement !== undefined) {
+      requiredTypes.set(node, directRequirement);
+      effectiveTypes.set(node, directRequirement);
+      continue;
+    }
     const sourceType = evidence.storageTargetType(node);
     if (sourceType === undefined) {
       continue;
     }
-    const declaration = policy.navigation.referenceFor(node)?.declaration ?? node;
-    const required = resolvedTypes.get(declaration);
+    const declaration = policy.navigation.referenceFor(node)?.declaration;
+    const required = declaration === undefined
+      ? undefined
+      : resolvedTypes.get(declaration);
     if (required !== undefined) {
       requiredTypes.set(node, required);
       effectiveTypes.set(node, required);
@@ -272,6 +280,9 @@ export function analyzeCsharpStorage(
     expression: Node,
     expectedType: TargetTypeRef,
   ): void {
+    if (!policy.ast.is.IsIdentifier(expression)) {
+      return;
+    }
     const sourceType = evidence.nodeTargetType(expression);
     const conversion = conversions.selectExpression(
       expression,

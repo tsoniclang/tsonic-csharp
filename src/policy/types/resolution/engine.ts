@@ -106,6 +106,9 @@ import {
   resolveProjectSourceType as resolveProjectSourceTypeImplementation,
   projectSourceDeclarationTargetType as projectSourceDeclarationTargetTypeImplementation,
 } from "./project-types.js";
+import {
+  createCsharpTypeResolutionQueryCache,
+} from "./query-cache.js";
 
 type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
@@ -481,15 +484,40 @@ export function createCsharpTypeResolutionServices(
   host: CsharpTypePolicyHost,
 ): CsharpTypeResolutionServices {
   let scope!: CsharpTypeResolutionScope;
+  const queryCache = createCsharpTypeResolutionQueryCache();
   const methods = {
-    resolveNode: (...args: DropScope<Parameters<typeof resolveNodeImplementation>>) =>
-      resolveNodeImplementation(scope, ...args),
-    resolveType: (...args: DropScope<Parameters<typeof resolveTypeImplementation>>) =>
-      resolveTypeImplementation(scope, ...args),
-    resolveStorage: (...args: DropScope<Parameters<typeof resolveStorageImplementation>>) =>
-      resolveStorageImplementation(scope, ...args),
-    resolveReadStorage: (...args: DropScope<Parameters<typeof resolveReadStorageImplementation>>) =>
-      resolveReadStorageImplementation(scope, ...args),
+    resolveNode: (
+      node: Node | undefined,
+      sourceFile?: SourceFile,
+    ) => queryCache.resolveNode(
+      node,
+      sourceFile,
+      () => resolveNodeImplementation(scope, node, sourceFile),
+    ),
+    resolveType: (
+      type: Type | undefined,
+      sourceFile: SourceFile,
+    ) => queryCache.resolveType(
+      type,
+      sourceFile,
+      () => resolveTypeImplementation(scope, type, sourceFile),
+    ),
+    resolveStorage: (
+      node: Node | undefined,
+      sourceFile?: SourceFile,
+    ) => queryCache.resolveStorage(
+      node,
+      sourceFile,
+      () => resolveStorageImplementation(scope, node, sourceFile),
+    ),
+    resolveReadStorage: (
+      node: Node | undefined,
+      sourceFile?: SourceFile,
+    ) => queryCache.resolveReadStorage(
+      node,
+      sourceFile,
+      () => resolveReadStorageImplementation(scope, node, sourceFile),
+    ),
     catchVariableStorageCarrier: (...args: DropScope<Parameters<typeof catchVariableStorageCarrierImplementation>>) =>
       catchVariableStorageCarrierImplementation(scope, ...args),
     resolveValue: (...args: DropScope<Parameters<typeof resolveValueImplementation>>) =>

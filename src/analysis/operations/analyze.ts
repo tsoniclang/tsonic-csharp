@@ -461,7 +461,11 @@ function visit(
           sourceFile,
           sourceOperator,
         ),
-        target: selectCsharpBinaryOperation(policy, node, sourceFile),
+        target: selectCsharpBinaryOperation(
+          policy,
+          node,
+          evidence.nodeTargetType,
+        ),
         destructuring: selectCsharpDestructuringAssignmentOperation(
           policy,
           node,

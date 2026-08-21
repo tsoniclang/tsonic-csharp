@@ -104,10 +104,8 @@ export function analyzeCsharpTargetProgram(
   if (project.kind === "rejected") {
     return rejectedTargetStage(project.diagnostics);
   }
-  const sourceFiles = Object.freeze(input.source.sourceFiles.filter(
-    (sourceFile): sourceFile is SourceFile => sourceFile !== undefined,
-  ));
   const source = input.source;
+  const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,

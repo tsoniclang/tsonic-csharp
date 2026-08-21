@@ -176,6 +176,7 @@ test("expected-result specializations are classified by exact target use", () =>
   assert.match(analysis, /createTargetUseClassificationBuilder/u);
   assert.match(analysis, /"binary-expected-result"/u);
   assert.match(analysis, /csharpTargetRepresentationContractId/u);
+  assert.match(analysis, /evidence\.nodeTargetType/u);
 
   const planner = readFileSync(
     resolve(
@@ -186,6 +187,15 @@ test("expected-result specializations are classified by exact target use", () =>
   );
   assert.match(planner, /program\.expectedTypes\.binaryExpected/u);
   assert.doesNotMatch(planner, /selectCsharpBinaryOperation/u);
+});
+
+test("C# analysis walks only the host-selected project source graph", () => {
+  const analysis = readFileSync(
+    resolve(repositoryRoot, "src/analysis/program/analyze.ts"),
+    "utf8",
+  );
+  assert.match(analysis, /source\.navigation\.sourceFiles/u);
+  assert.doesNotMatch(analysis, /tsts-provider:\/\//u);
 });
 
 test("C# conversion analysis seals sparse exact uses without a type Cartesian product", () => {

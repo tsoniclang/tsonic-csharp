@@ -93,10 +93,14 @@ export type CsharpOperationSelection<T> =
   | T
   | { readonly kind: "rejected"; readonly reason: string };
 
+export type CsharpOperationTargetTypeQuery = (
+  node: Node,
+) => TargetTypeRef | undefined;
+
 export function selectCsharpBinaryOperation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   if (!input.ast.is.IsBinaryExpression(node)) {
@@ -116,7 +120,7 @@ export function selectCsharpBinaryOperation(
   const leftType = resolveBinaryOperandType(
     input,
     left,
-    sourceFile,
+    targetTypeFor,
   );
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType)
@@ -124,10 +128,10 @@ export function selectCsharpBinaryOperation(
   const rightType = resolveBinaryOperandType(
     input,
     right,
-    sourceFile,
+    targetTypeFor,
     nullishRightExpectation,
   );
-  const selectedResultType = input.types.resolveNode(node, sourceFile);
+  const selectedResultType = targetTypeFor(node);
   if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
@@ -314,21 +318,21 @@ function selectBinaryOperationTypes(
 function resolveBinaryOperandType(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedType?: TargetTypeRef,
 ): TargetTypeRef | undefined {
   if (input.ast.is.IsBinaryExpression(node)) {
     const nested = selectCsharpBinaryOperation(
       input,
       node,
-      sourceFile,
+      targetTypeFor,
       expectedType,
     );
     if (nested.kind === "resolved") {
       return nested.resultType;
     }
   }
-  const selected = input.types.resolveNode(node, sourceFile);
+  const selected = targetTypeFor(node);
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 
