@@ -9,6 +9,7 @@ import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { nextState } from "./state.js";
+import { sourceDeclarationReferenceFactSubjects } from "./source-evidence.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -471,7 +472,7 @@ export function resolveDeclaredNamedType(
         typeArguments,
       )
     : resolveProviderType(
-        [reference.symbol, reference.declaration],
+        sourceDeclarationReferenceFactSubjects(reference),
         typeArguments,
       );
 }
