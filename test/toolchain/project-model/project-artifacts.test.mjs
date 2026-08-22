@@ -251,7 +251,7 @@ test("project artifact includes runtime references only from selected target or 
   assert.match(withRuntimeReferences, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
-test("target provider contributes one canonical JS-value runtime independently of JS surface declarations", () => {
+test("the JS surface alone contributes its canonical runtime assembly", () => {
   const targetPack = createCsharpTargetPack();
   const jsSurface = targetPack.surfaces.find((surface) => surface.id === "js");
 
@@ -261,12 +261,10 @@ test("target provider contributes one canonical JS-value runtime independently o
   const references = targetRuntimeReferences(targetPack, []);
   const referencesWithJsSurface = targetRuntimeReferences(targetPack, ["js"]);
 
-  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
+  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
   assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
-  assert.deepEqual(
-    jsSurface.runtimeContributions(fakeCompositionContext(["js"])),
-    {},
-  );
+  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Runtime").length, 1);
+  assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Runtime").length, 1);
 });
 
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {
@@ -347,7 +345,12 @@ function targetRuntimeReferences(targetPack, selectedSurfaceIds) {
   try {
     session.sourceProfileContributions();
     session.sourceCompilerContributions();
-    return session.runtimeContributions().references;
+    const references = [...(session.runtimeContributions().references ?? [])];
+    for (const surface of targetPack.surfaces.filter((candidate) =>
+      selectedSurfaceIds.includes(candidate.id))) {
+      references.push(...(surface.runtimeContributions(context).references ?? []));
+    }
+    return references;
   } finally {
     session.close();
   }

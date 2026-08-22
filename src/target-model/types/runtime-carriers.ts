@@ -25,9 +25,9 @@ export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
 
 export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
-    "Tsonic.CSharp.Js.TsValue",
+    "Tsonic.CSharp.Runtime.TsValue",
     undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"),
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsValue"),
     {
       valueType: true,
       absorbsNullish: true,
@@ -37,11 +37,11 @@ export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
 }
 
 export function csharpTsUnionTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Js.TsUnion", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsUnion"));
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsUnion", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsUnion"));
 }
 
 export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Js.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsThrownValueException"), {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "TsThrownValueException"), {
     throwable: true,
   });
 }
@@ -152,10 +152,10 @@ export function isCsharpClosedJsRuntimeCarrier(type: TargetTypeRef | undefined):
   return isCsharpJsValueTargetType(type) ||
     type?.kind === "target-named" &&
     (
-      type.id === "Tsonic.CSharp.Js.TsObject" ||
-      type.id === "Tsonic.CSharp.Js.TsArray" ||
-      type.id === "Tsonic.CSharp.Js.TsUnion" ||
-      type.id === "Tsonic.CSharp.Js.TsFunction"
+      type.id === "Tsonic.CSharp.Runtime.TsObject" ||
+      type.id === "Tsonic.CSharp.Runtime.TsArray" ||
+      type.id === "Tsonic.CSharp.Runtime.TsUnion" ||
+      type.id === "Tsonic.CSharp.Runtime.TsFunction"
     );
 }
 

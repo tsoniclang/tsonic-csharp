@@ -238,9 +238,36 @@ test("C# runtime-reference construction has one owner and preserves core target 
   assert.doesNotMatch(session, /function csharpRuntimeAssemblyReference/u);
   assert.doesNotMatch(composition, /function csharpRuntimeAssemblyReference/u);
   assert.match(session, /"@tsonic\/csharp-runtime"/u);
-  assert.match(session, /"@tsonic\/csharp-js"/u);
-  assert.doesNotMatch(composition, /"@tsonic\/csharp-js"/u);
+  assert.doesNotMatch(session, /"@tsonic\/csharp-js"/u);
+  assert.match(composition, /"@tsonic\/csharp-js"/u);
   assert.doesNotMatch(composition, /"@tsonic\/csharp-runtime"/u);
+});
+
+test("compiler-intrinsic value carriers belong to the core C# runtime", () => {
+  const carriers = readFileSync(
+    resolve(repositoryRoot, "src/target-model/types/runtime-carriers.ts"),
+    "utf8",
+  );
+  const exceptionFlow = readFileSync(
+    resolve(repositoryRoot, "src/backend/planner/expressions/exception-flow.ts"),
+    "utf8",
+  );
+  const intrinsicTypes = [
+    "TsValue",
+    "TsUnion",
+    "TsThrownValueException",
+    "TsObject",
+    "TsArray",
+    "TsFunction",
+  ];
+
+  for (const typeName of intrinsicTypes) {
+    assert.match(carriers, new RegExp(`Tsonic\\.CSharp\\.Runtime\\.${typeName}`, "u"));
+    assert.doesNotMatch(carriers, new RegExp(`Tsonic\\.CSharp\\.Js\\.${typeName}`, "u"));
+  }
+  for (const typeName of ["Error", "TypeError", "RangeError", ...intrinsicTypes]) {
+    assert.doesNotMatch(exceptionFlow, new RegExp(`Tsonic\\.CSharp\\.Js\\.${typeName}`, "u"));
+  }
 });
 
 function awaitRuntimeExports(relativePath) {

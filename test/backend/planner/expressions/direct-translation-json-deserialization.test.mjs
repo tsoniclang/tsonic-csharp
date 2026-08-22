@@ -213,30 +213,30 @@ namespace Tsonic.Generated
     {
         public static string? parse(string json)
         {
-            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
-            if (Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title")) != "string")
+            Tsonic.CSharp.Runtime.TsValue obj = Tsonic.CSharp.Js.JSON.parse(json);
+            if (Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title")) != "string")
             {
                 return null;
             }
-            return Tsonic.CSharp.Js.TsValue.CastDynamic<string>(obj.ReadDynamicSlot("title"));
+            return Tsonic.CSharp.Runtime.TsValue.CastDynamic<string>(obj.ReadDynamicSlot("title"));
         }
         public static string update(string json)
         {
-            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.from(Tsonic.CSharp.Js.JSON.parse(json));
-            obj.WriteDynamicSlot("title", Tsonic.CSharp.Js.TsValue.from((double)1));
-            return Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
+            Tsonic.CSharp.Runtime.TsValue obj = Tsonic.CSharp.Js.JSON.parse(json);
+            obj.WriteDynamicSlot("title", Tsonic.CSharp.Runtime.TsValue.from((double)1));
+            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
         }
         public static bool identity(string json)
         {
-            Tsonic.CSharp.Js.TsValue raw = Tsonic.CSharp.Js.JSON.parse(json);
-            Tsonic.CSharp.Js.TsValue left = Tsonic.CSharp.Js.TsValue.from(raw);
-            Tsonic.CSharp.Js.TsValue right = Tsonic.CSharp.Js.TsValue.from(raw);
-            return Tsonic.CSharp.Js.TsValue.ApplyDynamicBinaryBoolean(left, "===", right);
+            Tsonic.CSharp.Runtime.TsValue raw = Tsonic.CSharp.Js.JSON.parse(json);
+            Tsonic.CSharp.Runtime.TsValue left = raw;
+            Tsonic.CSharp.Runtime.TsValue right = raw;
+            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicBinaryBoolean(left, "===", right);
         }
         public static string create()
         {
-            Tsonic.CSharp.Js.TsValue obj = Tsonic.CSharp.Js.TsValue.CreateDynamicObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
-            return Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
+            Tsonic.CSharp.Runtime.TsValue obj = Tsonic.CSharp.Runtime.TsValue.CreateDynamicObject("title", Tsonic.CSharp.Js.JSON.parse("\\\"created\\\""));
+            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(obj.ReadDynamicSlot("title"));
         }
     }
 }
@@ -264,11 +264,11 @@ test("broad value object literals lower directly into nested closed JS-value car
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(
     source,
-    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Js\.TsValue\.from\(\(int\)1\), "child", Tsonic\.CSharp\.Js\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Js\.TsValue\.from\("ready"\)\)\)/u,
+    /TsValue createUnknown\(\)[\s\S]*TsValue\.CreateDynamicObject\("value", Tsonic\.CSharp\.Runtime\.TsValue\.from\(\(int\)1\), "child", Tsonic\.CSharp\.Runtime\.TsValue\.CreateDynamicObject\("label", Tsonic\.CSharp\.Runtime\.TsValue\.from\("ready"\)\)\)/u,
   );
   assert.match(
     source,
-    /TsValue createAny\(\)[\s\S]*TsValue\.CreateDynamicObject\("enabled", Tsonic\.CSharp\.Js\.TsValue\.from\(true\)\)/u,
+    /TsValue createAny\(\)[\s\S]*TsValue\.CreateDynamicObject\("enabled", Tsonic\.CSharp\.Runtime\.TsValue\.from\(true\)\)/u,
   );
   assert.equal(compiled.artifacts.has("generated/TsonicObjectShapes.cs"), false);
 });

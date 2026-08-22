@@ -2,9 +2,16 @@ import type {
   TargetProviderDescriptor,
   TargetSurfaceImplementation,
 } from "@tsonic/target-api";
+import type {
+  TargetRuntimeContributionContext,
+} from "@tsonic/target-api/provider";
+import type {
+  TargetRuntimeContributions,
+} from "@tsonic/target-api/artifacts";
 import {
   csharpJsSurfaceSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
+import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
 
 export const csharpTargetProvider: TargetProviderDescriptor = Object.freeze({
   id: "csharp-provider",
@@ -23,8 +30,18 @@ export const csharpTargetSurfaces: readonly TargetSurfaceImplementation[] = Obje
     sourceCompilerContributions() {
       return Object.freeze({});
     },
-    runtimeContributions() {
-      return Object.freeze({});
+    runtimeContributions(
+      context: TargetRuntimeContributionContext,
+    ): TargetRuntimeContributions {
+      return Object.freeze({
+        references: Object.freeze([
+          csharpRuntimeAssemblyReference(
+            context,
+            "@tsonic/csharp-js",
+            "Tsonic.CSharp.Js",
+          ),
+        ]),
+      });
     },
   }),
 ]);

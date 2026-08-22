@@ -40,13 +40,13 @@ const tsValueSupportedTargetNamedTypes = new Set([
   "System.Single",
   "System.Double",
   "System.Decimal",
-  "Tsonic.CSharp.Js.Error",
-  "Tsonic.CSharp.Js.TypeError",
-  "Tsonic.CSharp.Js.RangeError",
-  "Tsonic.CSharp.Js.TsValue",
-  "Tsonic.CSharp.Js.TsObject",
-  "Tsonic.CSharp.Js.TsArray",
-  "Tsonic.CSharp.Js.TsFunction",
+  "Tsonic.CSharp.Runtime.Error",
+  "Tsonic.CSharp.Runtime.TypeError",
+  "Tsonic.CSharp.Runtime.RangeError",
+  "Tsonic.CSharp.Runtime.TsValue",
+  "Tsonic.CSharp.Runtime.TsObject",
+  "Tsonic.CSharp.Runtime.TsArray",
+  "Tsonic.CSharp.Runtime.TsFunction",
 ]);
 
 export function isCsharpJsThrowableValueCarrier(carrier: TargetTypeRef | undefined): boolean {

@@ -100,7 +100,7 @@ test("for await preserves destructuring and exact selected element types", () =>
   assert.match(source, /int value/);
   assert.match(
     source,
-    /AsyncGenerator<\(string, int\), System\.ValueTuple, Tsonic\.CSharp\.Js\.TsValue>/,
+    /AsyncGenerator<\(string, int\), System\.ValueTuple, Tsonic\.CSharp\.Runtime\.TsValue>/,
   );
   assert.doesNotMatch(source, /Generator<[^>]*\bvoid\b/);
 });

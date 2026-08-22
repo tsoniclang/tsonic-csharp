@@ -695,7 +695,7 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static Tsonic.CSharp.Js.TsValue use(Tsonic.CSharp.Js.TsValue value, string key)
+        public static Tsonic.CSharp.Runtime.TsValue use(Tsonic.CSharp.Runtime.TsValue value, string key)
         {
             value.ReadDynamicSlot("name");
             value.WriteDynamicSlot("name", 1);
@@ -705,16 +705,16 @@ namespace Tsonic.Generated
             value.InvokeDynamicSlot("create", false, false, () => new object?[] { 4 });
             value.InvokeDynamicElement(() => key, false, false, () => new object?[] { 5 });
             value.ConstructDynamic(6);
-            Tsonic.CSharp.Js.TsValue.ApplyDynamicBinary(value, "+", 1);
-            Tsonic.CSharp.Js.TsValue.ApplyDynamicLogical(value, "&&", () => value);
-            Tsonic.CSharp.Js.TsValue.ApplyDynamicUnaryBoolean(value, "!");
-            Tsonic.CSharp.Js.TsValue.ApplyDynamicTypeof(value);
+            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicBinary(value, "+", 1);
+            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicLogical(value, "&&", () => value);
+            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicUnaryBoolean(value, "!");
+            Tsonic.CSharp.Runtime.TsValue.ApplyDynamicTypeof(value);
             _ = value;
-            if (Tsonic.CSharp.Js.TsValue.ToDynamicBoolean(value))
+            if (Tsonic.CSharp.Runtime.TsValue.ToDynamicBoolean(value))
             {
                 return value;
             }
-            return Tsonic.CSharp.Js.TsValue.ToDynamicBoolean(value) ? value : Tsonic.CSharp.Js.TsValue.from(key);
+            return Tsonic.CSharp.Runtime.TsValue.ToDynamicBoolean(value) ? value : Tsonic.CSharp.Runtime.TsValue.from(key);
         }
     }
 }
@@ -744,7 +744,7 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static Tsonic.CSharp.Js.TsValue optional(Tsonic.CSharp.Js.TsValue value, Func<string> key, Func<Tsonic.CSharp.Js.TsValue> argument)
+        public static Tsonic.CSharp.Runtime.TsValue optional(Tsonic.CSharp.Runtime.TsValue value, Func<string> key, Func<Tsonic.CSharp.Runtime.TsValue> argument)
         {
             value.ReadDynamicSlotOptional("name");
             value.ReadDynamicElementOptional(() => key());
@@ -752,7 +752,7 @@ namespace Tsonic.Generated
             value.InvokeDynamicSlot("create", true, false, () => new object?[] { argument() });
             value.InvokeDynamicSlot("create", false, true, () => new object?[] { argument() });
             value.InvokeDynamicElement(() => key(), true, true, () => new object?[] { argument() });
-            return Tsonic.CSharp.Js.TsValue.ApplyDynamicLogical(value, "??", () => argument());
+            return Tsonic.CSharp.Runtime.TsValue.ApplyDynamicLogical(value, "??", () => argument());
         }
     }
 }
@@ -774,7 +774,7 @@ test("direct C# dynamic translation lowers instanceof through the exact closed c
   assert.deepEqual(compiled.targetDiagnostics, []);
   assert.match(
     compiled.artifacts.get("src/Index.cs") ?? "",
-    /return Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<Marker>\(value\);/u,
+    /return Tsonic\.CSharp\.Runtime\.TsValue\.IsDynamicInstanceOf<Marker>\(value\);/u,
   );
 });
 

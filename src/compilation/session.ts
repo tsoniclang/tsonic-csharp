@@ -111,11 +111,6 @@ export function createCsharpCompilationSession(
             "@tsonic/csharp-runtime",
             "Tsonic.CSharp.Runtime",
           ),
-          csharpRuntimeAssemblyReference(
-            context,
-            "@tsonic/csharp-js",
-            "Tsonic.CSharp.Js",
-          ),
         ]),
       });
     },

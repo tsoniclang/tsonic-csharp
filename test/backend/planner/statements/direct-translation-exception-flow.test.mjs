@@ -27,8 +27,8 @@ test("canonical C# catch storage preserves exact provider narrowing and rethrow"
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /return System\.Int32\.Parse\(value\);/);
   assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
-  assert.match(source, /TsValue error = Tsonic\.CSharp\.Js\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
-  assert.match(source, /if \(Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<System\.FormatException>\(error\)\)/);
+  assert.match(source, /TsValue error = Tsonic\.CSharp\.Runtime\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
+  assert.match(source, /if \(Tsonic\.CSharp\.Runtime\.TsValue\.IsDynamicInstanceOf<System\.FormatException>\(error\)\)/);
   assert.match(source, /throw;/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
@@ -92,9 +92,9 @@ test("canonical C# preserves explicit throw when the active catch binding is rea
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
-  assert.match(source, /TsValue error = Tsonic\.CSharp\.Js\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
-  assert.match(source, /error = Tsonic\.CSharp\.Js\.TsValue\.from\(new System\.Exception\("replacement"\)\);/);
-  assert.match(source, /throw Tsonic\.CSharp\.Js\.TsThrownValueException\.from\(error\);/);
+  assert.match(source, /TsValue error = Tsonic\.CSharp\.Runtime\.TsThrownValueException\.toValue\(__tsonic_catch0\);/);
+  assert.match(source, /error = Tsonic\.CSharp\.Runtime\.TsValue\.from\(new System\.Exception\("replacement"\)\);/);
+  assert.match(source, /throw Tsonic\.CSharp\.Runtime\.TsThrownValueException\.from\(error\);/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
 
@@ -126,8 +126,8 @@ test("canonical C# carries project exception heritage through throw and catch na
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
   assert.match(source, /throw new ReturnSignal\("done"\);/);
   assert.match(source, /catch \(System\.Exception __tsonic_catch0\)/);
-  assert.match(source, /if \(Tsonic\.CSharp\.Js\.TsValue\.IsDynamicInstanceOf<ReturnSignal>\(error\)\)/);
-  assert.match(source, /return Tsonic\.CSharp\.Js\.TsValue\.CastDynamic<ReturnSignal>\(error\)\.value;/);
+  assert.match(source, /if \(Tsonic\.CSharp\.Runtime\.TsValue\.IsDynamicInstanceOf<ReturnSignal>\(error\)\)/);
+  assert.match(source, /return Tsonic\.CSharp\.Runtime\.TsValue\.CastDynamic<ReturnSignal>\(error\)\.value;/);
   assert.match(source, /throw;/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
