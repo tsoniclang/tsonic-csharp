@@ -4,8 +4,11 @@ import type {
   Node,
   Type,
 } from "@tsonic/tsts";
-import type { SourceFileSemantics } from "@tsonic/target-api/source";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type {
+  SourceDeclarationReference,
+  SourceFileSemantics,
+  SourceProgramNavigation,
+} from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 
 export function sourceFactSubjectsForNode(
@@ -20,9 +23,19 @@ export function sourceFactSubjectsForNode(
   }
   subjects.push(node);
   if (reference !== undefined) {
-    subjects.push(reference.symbol, reference.declaration);
+    subjects.push(...sourceDeclarationReferenceFactSubjects(reference));
   }
   return Object.freeze([...new Set(subjects)]);
+}
+
+
+export function sourceDeclarationReferenceFactSubjects(
+  reference: SourceDeclarationReference,
+): readonly ExtensionFactSubject[] {
+  return Object.freeze([
+    ...(reference.symbol === undefined ? [] : [reference.symbol]),
+    reference.declaration,
+  ]);
 }
 
 

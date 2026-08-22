@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
@@ -176,6 +177,74 @@ export function compileCsharpSource(options) {
     ),
     artifacts: new Map(result.artifacts.map((artifact) => [artifact.path, artifact.text])),
   };
+}
+
+export function assertCsharpCompilationSucceeded(compiled) {
+  assertCsharpCheckingSucceeded(compiled);
+  assertEmptyDiagnosticCollection(
+    "C# target compilation",
+    compiled.result.diagnostics,
+  );
+}
+
+export function assertCsharpCheckingSucceeded(compiled) {
+  if (compiled.sourceDiagnosticsText !== "") {
+    assert.fail(
+      `C# source checking produced diagnostics:\n${truncateDiagnosticText(compiled.sourceDiagnosticsText)}`,
+    );
+  }
+  assertEmptyDiagnosticCollection(
+    "C# extension checking",
+    compiled.extensionDiagnostics,
+  );
+}
+
+function assertEmptyDiagnosticCollection(label, diagnostics) {
+  if (!Array.isArray(diagnostics)) {
+    assert.fail(`${label} returned a non-array diagnostic collection.`);
+  }
+  if (diagnostics.length === 0) {
+    return;
+  }
+  const maximumDiagnostics = 8;
+  const summary = diagnostics
+    .slice(0, maximumDiagnostics)
+    .map((diagnostic, index) => boundedDiagnosticSummary(diagnostic, index))
+    .join("\n");
+  const omitted = diagnostics.length > maximumDiagnostics
+    ? `\n... ${diagnostics.length - maximumDiagnostics} additional diagnostic(s) omitted.`
+    : "";
+  assert.fail(
+    `${label} produced ${diagnostics.length} diagnostic(s):\n${summary}${omitted}`,
+  );
+}
+
+function boundedDiagnosticSummary(diagnostic, index) {
+  if (diagnostic === null || typeof diagnostic !== "object") {
+    return `${index + 1}. <invalid diagnostic>`;
+  }
+  const code = scalarDiagnosticCode(diagnostic);
+  const message = typeof diagnostic.message === "string"
+    ? truncateDiagnosticText(diagnostic.message)
+    : "<missing message>";
+  return `${index + 1}. ${code}: ${message}`;
+}
+
+function scalarDiagnosticCode(diagnostic) {
+  for (const key of ["code", "extensionCode", "numericCode"]) {
+    const value = diagnostic[key];
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value);
+    }
+  }
+  return "<missing code>";
+}
+
+function truncateDiagnosticText(text) {
+  const maximumCodeUnits = 512;
+  return text.length <= maximumCodeUnits
+    ? text
+    : `${text.slice(0, maximumCodeUnits)}... <truncated>`;
 }
 
 function normalizeAdditionalFiles(files, projectRoot) {
