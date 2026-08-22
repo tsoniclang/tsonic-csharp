@@ -3,15 +3,10 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  selectCsharpTargetCall,
-} from "../../../policy/members/index.js";
-import {
-  selectCsharpJsValueReceiverExpressionOperation,
-} from "../../../policy/js-value-operations/index.js";
 import type {
+  CsharpConstructionClassification,
   CsharpTargetCallSelection,
-} from "../../../policy/members/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
@@ -51,12 +46,16 @@ export function translateCsharpConstruction(
 ): CsharpExpression | undefined {
   const expression = input.program.source.ast.as.AsNewExpression(node);
   const calleeNode = expression?.Expression;
-  const jsValueOperation = selectCsharpJsValueReceiverExpressionOperation(
-    input.policy,
-    calleeNode,
-    sourceFile,
-    "construct",
-  );
+  const classification = input.program.operations.construction(node);
+  if (classification === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_CONSTRUCTION_CLASSIFICATION_MISSING",
+      "C# planning received a construction without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const jsValueOperation = classification.jsValue;
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
@@ -94,7 +93,15 @@ export function translateCsharpConstruction(
       arguments_ as readonly CsharpExpression[],
     );
   }
-  const selection = selectCsharpTargetCall(input.policy, node, sourceFile);
+  const selection = classification.target;
+  if (selection === undefined) {
+    diagnostics.push(targetPolicyDiagnostic(
+      node,
+      "CSHARP_TARGET_CONSTRUCTION_CLASSIFICATION_INCOMPLETE",
+      "The sealed C# construction classification selected neither a JS-value operation nor a target constructor.",
+    ));
+    return undefined;
+  }
   switch (selection.kind) {
     case "resolved":
       return translateSelectedConstruction(
@@ -110,6 +117,7 @@ export function translateCsharpConstruction(
       return translateSourceOwnedConstruction(
         node,
         selection,
+        classification,
         sourceFile,
         input,
         diagnostics,
@@ -243,17 +251,19 @@ function translateSourceOwnedConstruction(
     CsharpTargetCallSelection,
     { readonly kind: "source-owned" }
   >,
+  classification: CsharpConstructionClassification,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression | undefined {
-  const declaration = input.program.source.semantics.forFile(sourceFile)
-    .declarations.signatureDeclaration(selection.source.selectedSignature);
+  const declaration = input.program.sourceEvidence.signatureDeclaration(
+    selection.source.selectedSignature,
+  );
   if (
-    !input.program.source.navigation.isProjectDeclaration(declaration) &&
-    !input.program.source.navigation.isProjectConstructibleObject(
+    !input.program.sourceNavigation.isProjectDeclaration(declaration) &&
+    !input.program.sourceNavigation.isProjectConstructibleObject(
       selection.source.sourceCallee.expression,
     )
   ) {
@@ -263,7 +273,7 @@ function translateSourceOwnedConstruction(
     ));
     return undefined;
   }
-  const targetType = input.types.policy.resolveNode(node, sourceFile);
+  const targetType = input.types.classifications.resolveNode(node, sourceFile);
   const type = targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType);
@@ -277,6 +287,7 @@ function translateSourceOwnedConstruction(
   const arguments_ = translateSourceOwnedArguments(
     node,
     selection.source,
+    classification,
     sourceFile,
     input,
     diagnostics,

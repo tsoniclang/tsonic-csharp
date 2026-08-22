@@ -1,40 +1,33 @@
 import type { CsharpPlanningContext } from "../context.js";
-import { sanitizeIdentifier } from "../../../policy/names/identifiers.js";
+import type {
+  CsharpProjectProperty,
+} from "../../../target-model/project/model.js";
+import type {
+  CsharpProjectReference,
+} from "../../../target-model/project/references.js";
 
-export {
-  readCsharpProjectProperties,
-} from "./project-property-options.js";
-export {
-  readReferencesOption,
-} from "./project-reference-options.js";
+export function readCsharpProjectProperties(
+  input: CsharpPlanningContext,
+  options: { readonly allowUnsafeBlocks?: boolean },
+): readonly CsharpProjectProperty[] {
+  return options.allowUnsafeBlocks === true
+    ? Object.freeze([
+        ...input.program.project.properties,
+        Object.freeze({ name: "AllowUnsafeBlocks", value: "true" }),
+      ])
+    : input.program.project.properties;
+}
+
+export function readReferencesOption(
+  input: CsharpPlanningContext,
+): readonly CsharpProjectReference[] {
+  return input.program.project.references;
+}
 
 export function readNamespace(input: CsharpPlanningContext): string {
-  return formatNamespace(input.program.configuration.namespace ?? "Tsonic.Generated");
+  return input.program.project.namespace;
 }
 
 export function readAssemblyName(input: CsharpPlanningContext): string {
-  return formatAssemblyName(input.program.configuration.assemblyName ?? "TsonicGenerated");
-}
-
-function formatNamespace(value: string): string {
-  const segments = value.split(".");
-  if (segments.some((segment) => !isPlainIdentifier(segment))) {
-    throw new Error("C# target option 'namespace' must be a dot-separated C# identifier path.");
-  }
-  return segments.map(sanitizeIdentifier).join(".");
-}
-
-function formatAssemblyName(value: string): string {
-  if (!isAssemblyName(value)) {
-    throw new Error("C# target option 'assemblyName' must be a file-safe .NET assembly name.");
-  }
-  return value;
-}
-
-function isAssemblyName(value: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value);
-}
-
-function isPlainIdentifier(value: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+  return input.program.project.assemblyName;
 }

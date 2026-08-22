@@ -23,7 +23,7 @@ export function planCsharpModuleInitialization(input: CsharpPlanningContext, dia
   const entries = new Map<string, ModuleInitializationEntry>();
   const runtimeImportTargets = new Set<string>();
   for (const sourceFile of input.program.sourceFiles) {
-    const dependencies = input.program.source.navigation.moduleDependencies(sourceFile)
+    const dependencies = input.program.sourceNavigation.moduleDependencies(sourceFile)
       .map((dependency) => dependency.sourceFile);
     for (const dependency of dependencies) {
       runtimeImportTargets.add(normalizedFileName(input, dependency));
@@ -35,7 +35,10 @@ export function planCsharpModuleInitialization(input: CsharpPlanningContext, dia
     });
   }
   diagnoseRuntimeModuleCycles(input, entries, diagnostics);
-  const entrypointFileName = normalizedPath(resolve(input.input.paths.projectRoot, input.input.project.entryPoint));
+  const entrypointFileName = normalizedPath(resolve(
+    input.host.paths.projectRoot,
+    input.host.entryPoint,
+  ));
   const entrypointRequiresInitializer = input.program.configuration.outputType === "Exe";
   const asyncModules = new Map<string, boolean>();
   const isAsync = (sourceFile: SourceFile): boolean =>
@@ -79,7 +82,7 @@ function moduleRequiresAsyncInitialization(
     return false;
   }
   visiting.add(fileName);
-  const result = input.program.source.navigation.moduleHasTopLevelAwait(entry.sourceFile) ||
+  const result = input.program.sourceNavigation.moduleHasTopLevelAwait(entry.sourceFile) ||
     entry.dependencies.some((dependency) =>
       moduleRequiresAsyncInitialization(
         normalizedFileName(input, dependency),
@@ -182,7 +185,7 @@ function reportRuntimeModuleCycle(
 }
 
 function projectRelativeFileName(input: CsharpPlanningContext, fileName: string): string {
-  const projectRoot = normalizedPath(resolve(input.input.paths.projectRoot));
+  const projectRoot = normalizedPath(resolve(input.host.paths.projectRoot));
   const normalizedFileName = normalizedPath(resolve(fileName));
   const relativeName = normalizedPath(relative(projectRoot, normalizedFileName));
   return relativeName.length > 0 && relativeName !== "." && !relativeName.startsWith("../") && relativeName !== ".."

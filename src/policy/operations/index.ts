@@ -1,5 +1,5 @@
 export * from "./selection/index.js";
-export * from "./syntax/syntax.js";
+export * from "../../target-model/syntax/operators.js";
 export * from "./syntax/regexp-literal.js";
 export * from "./collections/js-array-mutations.js";
 export * from "./iteration/index.js";

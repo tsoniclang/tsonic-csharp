@@ -18,7 +18,7 @@ export function planCsharpProject(
   input: CsharpPlanningContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectPlan {
-  const project = input.program.configuration.project;
+  const project = input.program.project.project;
   if (project.kind === "user-owned") {
     return Object.freeze({ kind: "user-owned", projectFile: project.projectFile });
   }

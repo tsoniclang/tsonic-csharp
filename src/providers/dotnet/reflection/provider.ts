@@ -70,6 +70,9 @@ import {
   isDotnetProviderDiagnostic,
 } from "./diagnostics.js";
 import {
+  dotnetProviderDiagnosticToExtensionDiagnostic,
+} from "../diagnostics.js";
+import {
   defaultProviderCacheRoot,
   defaultToolBuildRoot,
   defaultToolProjectPath,
@@ -148,6 +151,10 @@ export function createDotnetReflectionTypeDataProvider(
   };
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
+  const targetRelationProjections = new Map<
+    string,
+    readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic
+  >();
   const targetBindingIndex = createDotnetTargetBindingIndex();
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
   const telemetry = options.telemetry ?? dotnetProviderGlobalTelemetry;
@@ -473,6 +480,17 @@ export function createDotnetReflectionTypeDataProvider(
     resolveTargetRelations(
       request: DotnetProviderTargetRelationRequest,
     ): readonly DotnetProviderTargetRelationTemplate[] | ExtensionDiagnostic {
+      const projectionKey = targetRelationProjectionKey(request);
+      const existing = targetRelationProjections.get(projectionKey);
+      if (existing !== undefined) {
+        const referenceDiagnostic = validateReferenceSnapshot();
+        return referenceDiagnostic === undefined
+          ? existing
+          : dotnetProviderDiagnosticToExtensionDiagnostic(
+              providerIdentity.id,
+              referenceDiagnostic,
+            );
+      }
       const model = resolveDotnetProviderDeclarationProjection(
         {
           provider: typeDataProvider,
@@ -491,9 +509,15 @@ export function createDotnetReflectionTypeDataProvider(
         moduleSpecifierPolicy,
       );
       if ("extensionId" in model) {
+        targetRelationProjections.set(projectionKey, model);
         return model;
       }
-      return dotnetProviderTargetRelationTemplates(model, targetBindingIndex);
+      const relations = dotnetProviderTargetRelationTemplates(
+        model,
+        targetBindingIndex,
+      );
+      targetRelationProjections.set(projectionKey, relations);
+      return relations;
     },
     getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot {
       return telemetry.snapshot();
@@ -555,6 +579,17 @@ export function createDotnetReflectionTypeDataProvider(
   ): value is DotnetProviderDiagnostic {
     return "code" in value && "message" in value;
   }
+}
+
+function targetRelationProjectionKey(
+  request: DotnetProviderTargetRelationRequest,
+): string {
+  return JSON.stringify([
+    request.moduleSpecifier,
+    request.providerModuleId,
+    request.exportName,
+    request.exportId,
+  ]);
 }
 
 function exactSourceTypeMaterialization(

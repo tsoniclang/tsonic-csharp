@@ -5,10 +5,7 @@ import {
 } from "@tsonic/tsts";
 import type {
   CsharpSourceField,
-} from "../../../policy/types/index.js";
-import {
-  readCsharpSourceField,
-} from "../../../policy/types/index.js";
+} from "../../../analysis/source-evidence/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpFieldDeclaration,
@@ -175,7 +172,7 @@ function shouldEmitAutoProperty(
   _sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  const dispatch = input.program.source.navigation.memberDispatch(node);
+  const dispatch = input.program.sourceNavigation.memberDispatch(node);
   return autoPropertyNames.has(propertyName) ||
     dispatch?.overridesBase === true ||
     dispatch?.hasDerivedOverride === true;
@@ -214,7 +211,7 @@ function getClassPropertySourceField(
   declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
   input: CsharpPlanningContext,
 ): CsharpSourceField | undefined {
-  return readCsharpSourceField(input.program.source.sourceFacts, [
+  return input.program.sourceEvidence.sourceField([
     node,
     declaration.name,
     declaration.Type,

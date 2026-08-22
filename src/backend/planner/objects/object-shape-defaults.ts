@@ -9,11 +9,11 @@ import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import type { BindingDefaultExpressionPlanner } from "../bindings/binding-array-patterns.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import {
   getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function planObjectShapeDefaultProjection(
   projected: CsharpExpression,

@@ -3,8 +3,8 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
-import type { CsharpTargetParameter } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpTargetParameter } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpArgument,
@@ -31,9 +31,6 @@ import {
   planArrowFunctionExpression,
   planFunctionExpression,
 } from "./expression-lambdas.js";
-import {
-  selectCsharpSourceArgument,
-} from "../../../policy/members/selection/argument-selection.js";
 
 export function planCallArgumentCore(
   node: Node,
@@ -49,7 +46,14 @@ export function planCallArgumentCore(
   state?: DestructuringPlannerState,
   selectedTargetParameter?: CsharpTargetParameter,
 ): CsharpArgument | undefined {
-  const selected = selectCsharpSourceArgument(input.program.source.sourceFacts, node);
+  const selected = input.program.sourceEvidence.argument(node);
+  if (selected === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# call planning received an argument without sealed passing evidence.",
+    ));
+    return undefined;
+  }
   if (selected.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selected.reason));
     return undefined;
@@ -79,22 +83,6 @@ export function planCallArgumentCore(
   if (!isAstNode(input.program.source.ast, argument.storageExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry exact source storage expressions before C# argument emission."));
     return undefined;
-  }
-  if (selectedTargetParameter?.csharpOutputMayBeNull === true) {
-    const requirement = input.artifacts.requireStorage(
-      argument.storageExpression,
-      {
-        kind: "nullable-reference-write",
-        writtenType: selectedTargetParameter.type,
-      },
-    );
-    if (requirement.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        requirement.reason,
-      ));
-      return undefined;
-    }
   }
   const passing = getCsharpArgumentPassing(argument.passingMode, node, diagnostics);
   if (argument.passingMode !== "by-value" && passing === undefined) {

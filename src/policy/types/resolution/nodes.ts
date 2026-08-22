@@ -3,17 +3,17 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../storage/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
-import { getCsharpCollectionElementTargetType } from "../collections.js";
-import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../storage/nullable.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { resolveCsharpSourceLiteralTargetType } from "./source-literal-policy.js";
 import { resolveKeywordType } from "./source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
-import { targetTypeRefEquals } from "../model/equality.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function resolveNodeWithState(
   { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -22,6 +22,14 @@ export function resolveNodeWithState(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
+    return undefined;
+  }
+  if (
+    host.ast.is.IsSourceFile(node) ||
+    host.ast.is.IsImportDeclaration(node) ||
+    host.ast.is.IsImportClause(node) ||
+    host.ast.kindName(node) === "KindEndOfFile"
+  ) {
     return undefined;
   }
   const scopedTargetType = host.representations.scopedTargetType(node);

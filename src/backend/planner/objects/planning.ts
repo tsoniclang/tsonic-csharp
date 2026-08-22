@@ -19,10 +19,10 @@ import {
 } from "../types/target-types.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   isCsharpJsValueObjectShapeTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   objectShapeDeclarationMatches,
   renderObjectShapeInterfaces,
@@ -221,8 +221,8 @@ export function planCsharpObjectShapeSourceFile(
 function renderObjectShapeDeclaration(
   input: CsharpPlanningContext,
   fact: CsharpObjectShapeFact,
-  capabilities: readonly import("../../../policy/types/index.js").CsharpObjectShapeCapability[],
-  projections: readonly import("../../../policy/types/index.js").CsharpObjectShapeProjection[],
+  capabilities: readonly import("../../../target-model/types/index.js").CsharpObjectShapeCapability[],
+  projections: readonly import("../../../target-model/types/index.js").CsharpObjectShapeProjection[],
   receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {

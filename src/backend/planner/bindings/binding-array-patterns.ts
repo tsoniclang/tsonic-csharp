@@ -7,7 +7,7 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -33,10 +33,10 @@ import {
   csharpCollectionUsesJsArraySemantics,
   getCsharpNullableElementTargetType,
   resolveCsharpArrayBindingCarrier,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpArrayBindingCarrier,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function planArrayBindingPattern(
   patternNode: Node,

@@ -7,7 +7,7 @@ import {
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
   isCsharpIntegralTargetType,
-} from "../../../dist/policy/types/model/scalar-types.js";
+} from "../../../dist/target-model/types/scalar-types.js";
 
 test("pure C# source literals select exact integral and floating representations", () => {
   assert.deepEqual(

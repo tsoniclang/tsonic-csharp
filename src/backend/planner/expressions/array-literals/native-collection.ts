@@ -10,7 +10,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -24,7 +24,7 @@ import {
 } from "../../diagnostics.js";
 import {
   getCsharpArrayLiteralConstructionTargetType,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";

@@ -30,7 +30,7 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
-  const targetType = input.types.policy.resolveNode(node, sourceFile);
+  const targetType = input.types.classifications.resolveNode(node, sourceFile);
   if (targetType === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(
       node,

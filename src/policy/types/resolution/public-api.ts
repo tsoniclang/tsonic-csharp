@@ -1,12 +1,13 @@
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
-import type { ResolvedSourceCallInfo, CsharpSourceTargetTypeBinding, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
+import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
+import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { SourceDeclarationReference } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../storage/runtime-carriers.js";
-import { csharpTargetParameterValueType } from "../callables/member-facts.js";
-import { targetTypeRefEquals } from "../model/equality.js";
+import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { nextState } from "./state.js";
 
 export function resolveNode(

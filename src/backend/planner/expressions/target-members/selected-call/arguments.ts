@@ -1,5 +1,5 @@
 import { applyCsharpConversionSelection } from "../../conversions.js";
-import { csharpTargetParameterValueType } from "../../../../../policy/types/index.js";
+import { csharpTargetParameterValueType } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -8,11 +8,11 @@ import type {
   CsharpSelectedTargetCall,
   CsharpProviderArgumentMapping,
   ResolvedSourceCallInfo,
-} from "../../../../../policy/members/index.js";
+} from "../../../../../analysis/operations/index.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import type { CsharpTargetParameter } from "../../../../../policy/types/index.js";
+import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 

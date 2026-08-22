@@ -1,14 +1,13 @@
 import type {
-  CsharpSourceCallableContract,
-  CsharpSourceCallableArtifactIdentity,
   CsharpObjectShapeFact,
   CsharpObjectShapeCapability,
   CsharpObjectShapeProjection,
   CsharpObjectShapeProjectionKind,
-  CsharpObjectShapePolicy,
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+} from "../../../../target-model/types/index.js";
+import type {
+  CsharpObjectShapeClassifications,
+} from "../../../../analysis/object-shapes/index.js";
 import type {
   TargetArtifactContractGraph,
   TargetArtifactDependency,
@@ -17,7 +16,6 @@ import type {
 import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpArtifactSnapshot, CsharpArtifactFacet } from "../contracts.js";
 import type { CsharpGeneratedHelper } from "../generated-helpers.js";
-import type { CsharpStorageRequirement, CsharpStorageTypeResult, CsharpUnfulfilledStorageRequirement } from "../storage-requirements.js";
 
 export type CsharpArtifactRequestResult =
   | { readonly kind: "accepted" }
@@ -89,24 +87,6 @@ export interface CsharpArtifactGraph {
     rootKind: "value" | "object-shape",
   ): CsharpObjectShapeProjectionRequestResult;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
-  requireStorage(
-    storageExpression: Node,
-    requirement: CsharpStorageRequirement,
-  ): CsharpArtifactRequestResult;
-  resolveStorageType(
-    declaration: Node,
-    sourceType: TargetTypeRef,
-  ): CsharpStorageTypeResult;
-  requiredStorageType(storageExpression: Node): TargetTypeRef | undefined;
-  consumeTypedLocationIdentity(declaration: Node): boolean;
-  publishSourceCallable(
-    identity: CsharpSourceCallableArtifactIdentity,
-    callable: CsharpSourceCallableContract,
-  ): CsharpArtifactRequestResult;
-  sourceCallable(
-    identity: CsharpSourceCallableArtifactIdentity,
-  ): CsharpSourceCallableContract | undefined;
-  unfulfilledStorageRequirements(): readonly CsharpUnfulfilledStorageRequirement[];
   requireGeneratedHelper(
     helper: CsharpGeneratedHelper,
   ): CsharpArtifactRequestResult;
@@ -119,8 +99,7 @@ export interface CsharpArtifactGraph {
 
 export interface CsharpArtifactGraphHost {
   readonly ast: AstReader;
-  readonly objectShapes: CsharpObjectShapePolicy;
-  readonly navigation: SourceProgramNavigation;
+  readonly objectShapes: CsharpObjectShapeClassifications;
 }
 
 export interface MutableObjectShapeArtifact {

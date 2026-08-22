@@ -12,7 +12,7 @@ import {
   csharpGeneratorTargetType,
   csharpIteratorResultTargetType,
   closeCsharpGeneratorProtocolType,
-} from "../callables/generators.js";
+} from "../../../target-model/types/generators.js";
 import {
   csharpJsArrayTargetType,
   csharpJsDateTargetType,
@@ -21,12 +21,12 @@ import {
   csharpJsSetTargetType,
 } from "./surface-types.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
-import { combineCsharpTargetUnionMembers } from "../storage/runtime-carriers.js";
-import { csharpDelegateTargetType, csharpTaskTargetType } from "../callables/delegates.js";
-import { csharpEnumerableTargetType } from "../collections.js";
-import { csharpNullableTargetType } from "../storage/nullable.js";
-import { csharpQualifiedTypeRenderShape } from "../render-shapes.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../model/scalar-types.js";
+import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
+import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/delegates.js";
+import { csharpEnumerableTargetType } from "../../../target-model/types/collections.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
+import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";

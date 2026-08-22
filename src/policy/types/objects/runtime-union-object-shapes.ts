@@ -8,13 +8,13 @@ import type {
 } from "./object-shape-policy.js";
 import {
   resolveCsharpObjectShapeMemberBySelectedSubject,
-} from "./object-shape-members.js";
+} from "../../../target-model/types/object-shape-members.js";
 import {
   getCsharpRuntimeUnionArms,
-} from "../storage/runtime-carriers.js";
+} from "../../../target-model/types/runtime-carriers.js";
 import {
   targetTypeRefEquals,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 
 export interface CsharpRuntimeUnionObjectShapeMember {
   readonly armIndex: number;

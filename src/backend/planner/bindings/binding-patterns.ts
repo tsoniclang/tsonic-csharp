@@ -10,7 +10,7 @@ import {
 import type { Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -24,7 +24,7 @@ import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { getCsharpTypeFromSemanticType } from "../types/csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { requireCsharpIdentifier } from "../../../policy/names/identifiers.js";
+import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import {
   getObjectShapeForBindingSource,
   planObjectBindingPattern,
@@ -114,7 +114,7 @@ function planBindingNameFromProjection(
         name: requireCsharpIdentifier(Node_Text(input.program.source.ast, name), diagnostics, "Destructuring binding"),
         type: projectedType ??
           getCsharpTypeFromSemanticType(
-            input.program.source.semantics.forFile(sourceFile).types.expressionType(name),
+            input.program.sourceEvidence.expressionType(name),
             sourceFile,
             input,
           ) ??

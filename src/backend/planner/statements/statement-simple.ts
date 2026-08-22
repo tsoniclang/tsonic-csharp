@@ -59,17 +59,18 @@ import {
 } from "../bindings/binding-state.js";
 import {
   expressionStatement,
-  isCsharpThrowableCarrier,
   isVoidCsharpType,
   planDiscardedExpression,
   planExplicitlyDiscardedExpression,
 } from "./statement-output.js";
 import {
-  directSourceYieldExpression,
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
   planDiscardedCsharpYield,
 } from "./statement-yield.js";
+import {
+  directCsharpSourceYieldExpression,
+} from "../../../target-model/syntax/yield-expression.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -108,7 +109,10 @@ export function planReturnStatement(
       });
       return [];
     }
-    const directYield = directSourceYieldExpression(statement.Expression, input);
+    const directYield = directCsharpSourceYieldExpression(
+      input.program.source.ast,
+      statement.Expression,
+    );
     const yieldPlan = directYield === undefined
       ? undefined
       : planCsharpYieldValue(
@@ -170,7 +174,7 @@ export function planReturnStatement(
     if (discarded === undefined) {
       return [];
     }
-    const discardedType = input.types.policy.resolveNode(
+    const discardedType = input.types.classifications.resolveNode(
       voidExpression.Expression,
       sourceFile,
     );
@@ -191,17 +195,6 @@ export function planReturnStatement(
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
-  if (
-    statement.Expression !== undefined &&
-    state.observedReturnTargetTypes !== undefined
-  ) {
-    const observed = input.types.policy.resolveNode(statement.Expression, sourceFile);
-    if (observed === undefined) {
-      state.returnTargetObservationIncomplete = true;
-    } else {
-      state.observedReturnTargetTypes.push(observed);
-    }
-  }
   const expression = statement.Expression === undefined
     ? undefined
     : expectedReturnExpressionType === undefined
@@ -273,7 +266,15 @@ export function planThrowStatement(
     sourceFile,
   );
   const carrier = probeCarrierFromResolution(carrierResolution);
-  if (!isCsharpThrowableCarrier(carrier, input.policy)) {
+  const throwable = input.program.operations.throwable(statement.Expression);
+  if (throwable === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      statement.Expression,
+      "Throw expression has no sealed C# throwable classification.",
+    ));
+    return [];
+  }
+  if (!throwable) {
     if (isCsharpJsThrowableValueCarrier(carrier)) {
       const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
       const boxed = expression === undefined
@@ -347,7 +348,7 @@ export function planExpressionStatement(
   const expression = AsExpressionStatement(input.program.source.ast, node)!.Expression;
   const directYield = state === undefined || expression === undefined
     ? undefined
-    : directSourceYieldExpression(expression, input);
+    : directCsharpSourceYieldExpression(input.program.source.ast, expression);
   if (directYield !== undefined) {
     return planDiscardedCsharpYield(
       directYield,
@@ -363,7 +364,10 @@ export function planExpressionStatement(
     input.program.source.ast.is.IsBinaryExpression(expression)
   ) {
     const binary = AsBinaryExpression(input.program.source.ast, expression);
-    const rightYield = directSourceYieldExpression(binary?.Right, input);
+    const rightYield = directCsharpSourceYieldExpression(
+      input.program.source.ast,
+      binary?.Right,
+    );
     if (
       rightYield !== undefined &&
       binary?.Left !== undefined &&
@@ -394,7 +398,7 @@ export function planExpressionStatement(
   if (HasSourceKind(input.program.source.ast, expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(input.program.source.ast, expression!)!;
     const planned = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
-    const discardedType = input.types.policy.resolveNode(
+    const discardedType = input.types.classifications.resolveNode(
       voidExpression.Expression,
       sourceFile,
     );

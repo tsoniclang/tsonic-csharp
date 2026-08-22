@@ -25,7 +25,6 @@ import {
   missingCarrierDiagnosticDetail,
   resolveRuntimeCarrierForStorage,
 } from "../types/runtime-carriers.js";
-import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
   csharpCatchExceptionType,
@@ -34,7 +33,7 @@ import {
 } from "../expressions/exception-flow.js";
 import {
   isCsharpJsValueTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";
@@ -119,10 +118,27 @@ function planCatchClause(
     );
     const carrier = probeCarrierFromResolution(carrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-    if (
-      !isCsharpThrowableCarrier(carrier, input.policy) &&
-      !isCsharpJsValueTargetType(carrier)
-    ) {
+    const throwable = input.program.operations.throwable(variable.name);
+    if (throwable === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        variable.name,
+        "Catch variable has no sealed C# throwable classification.",
+      ));
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(
+            clause.Block,
+            sourceFile,
+            input,
+            diagnostics,
+            state,
+          ),
+        },
+      };
+    }
+    if (!throwable && !isCsharpJsValueTargetType(carrier)) {
       const detail = carrier === undefined
         ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the catch variable.")
         : { reason: "Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue catch carrier.", evidence: [] };
@@ -217,7 +233,7 @@ function catchVariableRequiresTargetBinding(
   catchBlock: Node | undefined,
   input: CsharpPlanningContext,
 ): boolean {
-  const binding = input.program.source.navigation.referenceFor(variableName);
+  const binding = input.program.sourceNavigation.referenceFor(variableName);
   if (binding === undefined || catchBlock === undefined) {
     return true;
   }
@@ -226,7 +242,7 @@ function catchVariableRequiresTargetBinding(
     if (node === undefined || required) {
       return;
     }
-    const reference = input.program.source.navigation.referenceFor(node);
+    const reference = input.program.sourceNavigation.referenceFor(node);
     if (
       !sourceNodesEqual(input.program.source.ast, node, variableName) &&
       reference?.symbol === binding.symbol

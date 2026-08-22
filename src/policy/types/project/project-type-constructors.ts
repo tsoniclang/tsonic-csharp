@@ -10,7 +10,7 @@ import type {
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
 import {
   tryCsharpIdentifier,
-} from "../../names/identifiers.js";
+} from "../../../target-model/names/identifiers.js";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -40,7 +40,7 @@ import {
 } from "../callables/member-substitution.js";
 import {
   targetTypeRefKey,
-} from "../model/equality.js";
+} from "../../../target-model/types/equality.js";
 
 type CsharpProviderSignatureRelation = Extract<
   CsharpProviderTargetRelation,

@@ -1,6 +1,6 @@
 import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName } from "./construction.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../storage/nullable.js";
-import { csharpObjectShapesEqual } from "./equality.js";
+import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
+import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIncludesNullish, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceStruct } from "../../resolution/source-markers.js";
 import {
@@ -8,7 +8,7 @@ import {
   sourcePropertyTypeEvidenceNodes,
   sourceTransformedTypeFactEvidenceNodes,
 } from "@tsonic/target-api/source";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../model/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
@@ -29,8 +29,18 @@ import type {
 } from "../../resolution/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
+import type {
+  CsharpProjectTypeCatalog,
+} from "../../project/project-types.js";
+import {
+  substituteTargetTypeParameters,
+} from "../../callables/substitution.js";
+import {
+  isCsharpJsValueTargetType,
+} from "../../../../target-model/types/runtime-carriers.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly typeResolver: CsharpRecursiveTypeResolver;
 }
 
@@ -110,6 +120,14 @@ export function createCsharpObjectShapePolicy(
     if (node === undefined) {
       return undefined;
     }
+    if (
+      host.ast.is.IsSourceFile(node) ||
+      host.ast.is.IsImportDeclaration(node) ||
+      host.ast.is.IsImportClause(node) ||
+      host.ast.kindName(node) === "KindEndOfFile"
+    ) {
+      return undefined;
+    }
     const cached = nodeShapes.get(node);
     if (cached !== undefined) {
       return cached;
@@ -134,12 +152,17 @@ export function createCsharpObjectShapePolicy(
       );
       const selectedShape = resolveTarget(selectedTarget);
       const source = selectedObjectShapeSource(node, queries, host, state);
+      const declaration = host.navigation.declarationFor(node);
+      const authoredTypeRoot = declaration === undefined
+        ? undefined
+        : host.ast.typeNode(declaration);
       const shape = resolveSemanticShape(
         source.type,
         node,
         queries,
         state,
         source.contextualProjectTarget ?? selectedTarget,
+        authoredTypeRoot,
       );
       if (shape !== undefined) {
         return remember(node, shape);
@@ -456,6 +479,12 @@ export function createCsharpObjectShapePolicy(
   function rememberTargetShape(
     shape: CsharpObjectShapeFact,
   ): CsharpObjectShapeFact {
+    if (
+      isCsharpJsValueTargetType(shape.targetType) ||
+      shape.targetType.kind === "type-parameter"
+    ) {
+      return shape;
+    }
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -539,12 +568,15 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const targetType = selectedTarget ??
+      const selectedType = selectedTarget ??
         host.typeResolver.resolveType(
           type,
           queries.sourceFile,
           nextState(state),
         );
+      const targetType = selectedType === undefined
+        ? undefined
+        : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType
@@ -592,7 +624,10 @@ export function createCsharpObjectShapePolicy(
         declaredKind === "interface" &&
         !objectLiteral
       ) {
-        return {
+        return resolveProjectInterfaceShape(
+          contextualProjectType,
+          state,
+        ) ?? {
           targetType: contextualProjectType,
           members,
         };
@@ -609,6 +644,49 @@ export function createCsharpObjectShapePolicy(
     } finally {
       activeTypes.delete(type);
     }
+  }
+
+  function resolveProjectInterfaceShape(
+    targetType: CsharpTargetNamedTypeRef,
+    state: CsharpTypeResolutionState,
+  ): CsharpObjectShapeFact | undefined {
+    const definition = host.projectTypeCatalog.definitionForTarget(targetType);
+    const typeArguments = targetType.typeArguments ?? [];
+    if (
+      definition?.kind !== "interface" ||
+      typeArguments.length !== definition.typeParameterNames.length
+    ) {
+      return undefined;
+    }
+    const queries = host.semantics(definition.sourceFile);
+    const declaredType = queries.declarations.declaredType(
+      definition.declaration,
+    );
+    if (declaredType === undefined) {
+      return undefined;
+    }
+    const declaredMembers = deriveMembers(
+      declaredType,
+      queries,
+      nextState(state),
+      host.ast.typeNode(definition.declaration),
+    );
+    if (declaredMembers === undefined) {
+      return undefined;
+    }
+    const substitutions = new Map(
+      definition.typeParameterNames.map((name, index) => [
+        name,
+        typeArguments[index]!,
+      ]),
+    );
+    return {
+      targetType,
+      members: Object.freeze(declaredMembers.map((member) => ({
+        ...member,
+        type: substituteTargetTypeParameters(member.type, substitutions),
+      }))),
+    };
   }
 
   function deriveMembers(

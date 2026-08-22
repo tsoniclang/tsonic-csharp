@@ -10,7 +10,6 @@ import {
   type Node,
   type SourceFile,
 } from "@tsonic/tsts";
-import { readCsharpSourceStruct } from "../../../policy/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -55,7 +54,7 @@ export function planTopLevelVariableStatement(
   }
   const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
-    const valueType = readCsharpSourceStruct(input.program.source.sourceFacts, declaration);
+    const valueType = input.program.sourceEvidence.sourceStruct(declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
@@ -90,7 +89,6 @@ export function planTopLevelVariableStatement(
       const registration = planResourceRegistrationStatement(
         declaration,
         field,
-        sourceFile,
         input,
         diagnostics,
         state,

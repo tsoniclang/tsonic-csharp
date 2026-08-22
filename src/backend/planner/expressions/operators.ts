@@ -4,18 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  selectCsharpBinaryOperation,
   sourceOperatorFromKindName,
-} from "../../../policy/operations/index.js";
-import {
-  selectCsharpJsValueBinaryOperation,
-  selectCsharpJsValueReceiverExpressionOperation,
-  selectCsharpJsValueReceiverOperation,
-} from "../../../policy/js-value-operations/index.js";
-import {
-  resolveCsharpJsValueObjectShapeProperty,
-  selectCsharpTargetProperty,
-} from "../../../policy/members/index.js";
+} from "../../../target-model/syntax/operators.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -106,13 +96,15 @@ export function tryPlanBinaryExpression(
     expression?.Left !== undefined &&
     expression.Right !== undefined
   ) {
-    const jsValueOperation = selectCsharpJsValueBinaryOperation(
-      input.policy,
-      expression.Left,
-      expression.Right,
-      sourceFile,
-      sourceOperator,
-    );
+    const classification = input.program.operations.binary(node);
+    if (classification === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# planning received a binary expression without a sealed target classification.",
+      ));
+      return undefined;
+    }
+    const jsValueOperation = classification.jsValue;
     if (jsValueOperation.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
@@ -182,7 +174,15 @@ export function tryPlanBinaryExpression(
       return jsValueAssignment.expression;
     }
   }
-  const selection = selectCsharpBinaryOperation(input.policy, node, sourceFile);
+  const classification = input.program.operations.binary(node);
+  if (classification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a binary expression without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.target;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -215,17 +215,24 @@ function tryPlanJsValueAssignment(
   if (input.program.source.ast.is.IsPropertyAccessExpression(left)) {
     const property = input.program.source.ast.as.AsPropertyAccessExpression(left);
     const receiverNode = property?.Expression;
-    const targetProperty = selectCsharpTargetProperty(input.policy, left, sourceFile);
+    const propertyClassification = input.program.operations.property(left);
+    if (propertyClassification === undefined) {
+      return { handled: false };
+    }
+    const targetProperty = propertyClassification.selection;
     if (
       targetProperty.kind === "source-owned" &&
       receiverNode !== undefined
     ) {
-      const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-        input.types.objectShapes,
-        input.program.source.semantics.forFile(sourceFile),
-        targetProperty,
-        sourceFile,
-      );
+      const jsValueProperty = propertyClassification.sourceOwned
+        ?.jsValueProperty;
+      if (jsValueProperty === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(
+          left,
+          "A source-owned property assignment has no sealed C# property classification.",
+        ));
+        return { handled: true };
+      }
       if (jsValueProperty.kind === "rejected") {
         diagnostics.push(unsupportedNodeDiagnostic(left, jsValueProperty.reason));
         return { handled: true };
@@ -238,11 +245,8 @@ function tryPlanJsValueAssignment(
           ));
           return { handled: true };
         }
-        const selection = selectCsharpJsValueReceiverOperation(
-          jsValueProperty.shape.targetType,
-          "property-write",
-          property?.QuestionDotToken !== undefined,
-        );
+        const selection = propertyClassification.sourceOwned!
+          .jsValuePropertyWrite;
         if (selection.kind !== "resolved") {
           diagnostics.push(unsupportedNodeDiagnostic(
             left,
@@ -298,13 +302,14 @@ function tryPlanJsValueAssignment(
     if (sourceOperator !== "=") {
       return { handled: false };
     }
-    const selection = selectCsharpJsValueReceiverExpressionOperation(
-      input.policy,
-      receiverNode,
-      sourceFile,
-      "property-write",
-      property?.QuestionDotToken !== undefined,
-    );
+    const selection = input.program.operations.binary(node)?.propertyWrite;
+    if (selection === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "A property assignment has no sealed C# write classification.",
+      ));
+      return { handled: true };
+    }
     if (selection.kind === "not-js-value") {
       return { handled: false };
     }
@@ -340,13 +345,14 @@ function tryPlanJsValueAssignment(
     const element = input.program.source.ast.as.AsElementAccessExpression(left);
     const receiverNode = element?.Expression;
     const argumentNode = element?.ArgumentExpression;
-    const selection = selectCsharpJsValueReceiverExpressionOperation(
-      input.policy,
-      receiverNode,
-      sourceFile,
-      "element-write",
-      element?.QuestionDotToken !== undefined,
-    );
+    const selection = input.program.operations.binary(node)?.elementWrite;
+    if (selection === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "An element assignment has no sealed C# write classification.",
+      ));
+      return { handled: true };
+    }
     if (selection.kind === "not-js-value") {
       return { handled: false };
     }

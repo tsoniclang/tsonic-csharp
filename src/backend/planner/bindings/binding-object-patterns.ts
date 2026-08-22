@@ -11,7 +11,7 @@ import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "../objects/fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "../objects/index.js";
-import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import {
   isSourceOwnedBindingSource,
   planObjectBindingElement,

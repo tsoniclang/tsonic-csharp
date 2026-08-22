@@ -4,12 +4,15 @@ import type {
   CsharpObjectShapeProjection,
   CsharpObjectShapeProjectionKind,
   TargetTypeRef,
-} from "../../../../../policy/types/index.js";
+} from "../../../../../target-model/types/index.js";
 import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { CsharpArtifactRequestResult, CsharpObjectShapeProjectionRequestResult, CsharpObjectShapeArtifact } from "../model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { accepted, rejected } from "../result.js";
-import { csharpObjectShapeMemberContractKey, selectCsharpObjectShapePropertyOrder } from "../../../../../policy/types/index.js";
+import {
+  csharpObjectShapeMemberContractKey,
+  resolveCsharpObjectShapePropertyOrder,
+} from "../../../../../target-model/types/index.js";
 import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
 
@@ -206,7 +209,7 @@ export function requireObjectShapeProjection(
       `Selected '${projectionKind}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
     );
   }
-  const propertyOrder = selectCsharpObjectShapePropertyOrder(
+  const propertyOrder = resolveCsharpObjectShapePropertyOrder(
     preferredShape,
     node,
     projectionKind,

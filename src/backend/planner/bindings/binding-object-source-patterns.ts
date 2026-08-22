@@ -19,8 +19,7 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import {
   requireCsharpIdentifier,
   tryCsharpIdentifier,
-} from "../../../policy/names/identifiers.js";
-import { isSourceOwnedProjectShapeSubject } from "../../../policy/types/index.js";
+} from "../../../target-model/names/identifiers.js";
 
 export function planObjectBindingElement(
   elementNode: Node,
@@ -63,10 +62,11 @@ export function planObjectBindingElement(
 
 export function isSourceOwnedBindingSource(
   sourceNode: Node | undefined,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): boolean {
-  return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input.policy);
+  return sourceNode !== undefined &&
+    input.program.sourceEvidence.sourceOwnedProjectShape(sourceNode) === true;
 }
 
 function getDirectSourcePropertyName(

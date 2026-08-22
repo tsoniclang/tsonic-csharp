@@ -16,12 +16,12 @@ import type {
 import type {
   CsharpGeneratorProtocol,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpAsyncEnumerableTargetType,
   csharpEnumerableTargetType,
   getCsharpGeneratorProtocol,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -99,9 +99,7 @@ export function planCsharpGeneratorFunction(
   if (!hasCsharpGeneratorSyntax(declaration, input)) {
     return undefined;
   }
-  const source = input.program.source.semantics.forFile(sourceFile).operations.generator(
-    declaration,
-  );
+  const source = input.program.sourceEvidence.generator(declaration);
   if (source === undefined) {
     diagnostics.push(generatorDiagnostic(
       "CSHARP_GENERATOR_EVIDENCE_NOT_PROVEN",
@@ -109,10 +107,8 @@ export function planCsharpGeneratorFunction(
     ));
     return undefined;
   }
-  const generatorType = input.types.policy.resolveSelectedType(
-    input.program.source.ast.typeNode(declaration),
-    source.sourceReturnType,
-    sourceFile,
+  const generatorType = input.program.sourceEvidence.generatorTargetType(
+    declaration,
   );
   const protocol = getCsharpGeneratorProtocol(generatorType);
   if (
@@ -169,8 +165,6 @@ export function planCsharpGeneratorFunction(
   state.currentReturnType = returnTypeNode;
   state.currentReturnExpressionType = returnTypeNode;
   state.currentReturnExpressionTargetType = protocol.returnType;
-  state.observedReturnTargetTypes = undefined;
-  state.returnTargetObservationIncomplete = undefined;
   const hasExplicitReturn = unsupportedYield === undefined &&
     hasSupportedGeneratorReturn(declaration, bodyNode, input);
   const iteratorStatements: readonly CsharpStatement[] = [
@@ -308,7 +302,7 @@ function firstUnsupportedGeneratorYield(
   while (stack.length > 0) {
     const node = stack.pop()!;
     if (input.program.source.ast.is.IsYieldExpression(node)) {
-      const evidence = input.program.source.semantics.forNode(node).operations.yield(node);
+      const evidence = input.program.sourceEvidence.yield(node);
       if (evidence?.generator.declaration === declaration) {
         const reason = unsupportedYieldRegionReason(node, declaration, input);
         if (reason !== undefined) {

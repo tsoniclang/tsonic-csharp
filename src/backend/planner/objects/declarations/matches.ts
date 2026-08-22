@@ -7,7 +7,7 @@ import type {
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeProjection,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   sameCsharpType,
 } from "../../types/index.js";
@@ -33,7 +33,7 @@ import {
 import {
   csharpObjectShapeMemberContractKey,
   csharpObjectShapeProjectionMethodName,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,

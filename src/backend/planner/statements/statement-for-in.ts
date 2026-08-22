@@ -19,8 +19,7 @@ import {
   isCsharpIndexKeyIteration,
   isCsharpKeyCollectionIteration,
   isCsharpObjectShapeKeyIteration,
-  selectCsharpIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
@@ -44,12 +43,14 @@ export function planForInStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-  const selectedIteration = selectCsharpIteration(
-    input.policy,
-    statementNode,
-    statement.Expression,
-    sourceFile,
-  );
+  const selectedIteration = input.program.operations.iteration(statementNode);
+  if (selectedIteration === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      diagnosticNode,
+      "C# planning received a for-in statement without a sealed target classification.",
+    ));
+    return [];
+  }
   if (selectedIteration.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       diagnosticNode,

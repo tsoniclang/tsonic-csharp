@@ -1,18 +1,18 @@
 import type {
   SourcePrimitiveKind,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { csharpTupleType } from "./csharp-tuples.js";
-import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../policy/names/identifiers.js";
+import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpRenderShapeForTargetNamedType,
   csharpSourcePrimitiveCsharpPredefinedName,
   isCsharpNullableReferenceTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type);

@@ -25,7 +25,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
 
 export function planMethodModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  addDispatchModifiers(modifiers, input.program.source.navigation.memberDispatch(node));
+  addDispatchModifiers(modifiers, input.program.sourceNavigation.memberDispatch(node));
   if (isAsyncNode(input.program.source.ast, node)) {
     modifiers.push("async");
   }
@@ -34,13 +34,13 @@ export function planMethodModifiers(node: Node, name: Node | undefined, _sourceF
 
 export function planPropertyModifiers(node: Node, name: Node | undefined, _sourceFile: SourceFile, input: CsharpPlanningContext): CsharpPropertyDeclaration["modifiers"] {
   const modifiers: CsharpPropertyDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  addDispatchModifiers(modifiers, input.program.source.navigation.memberDispatch(node));
+  addDispatchModifiers(modifiers, input.program.sourceNavigation.memberDispatch(node));
   return modifiers;
 }
 
 function addDispatchModifiers(
   modifiers: CsharpModifier[],
-  dispatch: ReturnType<CsharpPlanningContext["program"]["source"]["navigation"]["memberDispatch"]>,
+  dispatch: ReturnType<CsharpPlanningContext["program"]["sourceNavigation"]["memberDispatch"]>,
 ): void {
   if (dispatch?.overridesBase === true) {
     modifiers.push("override");

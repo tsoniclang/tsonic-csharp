@@ -6,15 +6,13 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeCapability,
   CsharpObjectShapeProjection,
-  CsharpSourceCallableContract,
-  TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   canonicalCsharpObjectShapeImplementedTypes,
   canonicalCsharpObjectShapeMembers,
   csharpObjectShapeMemberContractParts,
   targetTypeRefKey,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export type CsharpArtifactFacet =
   | "generated-helper-surface"
@@ -22,9 +20,7 @@ export type CsharpArtifactFacet =
   | "object-shape-materialization"
   | "object-shape-type-surface"
   | "source-file-implementation"
-  | "source-file-public-surface"
-  | "source-callable-surface"
-  | "storage-representation";
+  | "source-file-public-surface";
 
 export type CsharpArtifactSnapshot =
   | {
@@ -40,19 +36,10 @@ export type CsharpArtifactSnapshot =
       readonly receiverBoundMethodKeys: readonly string[];
     }
   | {
-      readonly kind: "source-callable";
-      readonly callable: CsharpSourceCallableContract;
-    }
-  | {
       readonly kind: "source-file";
       readonly owner: string;
     }
-  | {
-      readonly kind: "storage";
-      readonly targetType?: TargetTypeRef;
-      readonly nullableWrittenType?: TargetTypeRef;
-      readonly typedLocationIdentity: boolean;
-    };
+  ;
 
 export interface CsharpArtifactContractCandidate {
   readonly owner: string;
@@ -188,87 +175,6 @@ export function csharpObjectShapeTypeSurface(
       encodeContractParts(["receiver-bound-method", memberKey])
     ),
   ]);
-}
-
-export function csharpStorageContractCandidate(
-  owner: string,
-  targetType: TargetTypeRef | undefined,
-  nullableWrittenType: TargetTypeRef | undefined,
-  typedLocationIdentity: boolean,
-): CsharpArtifactContractCandidate {
-  return {
-    owner,
-    contract: {
-      facets: [{
-        facet: "storage-representation",
-        value: encodeContractParts([
-          "storage",
-          targetType === undefined
-            ? "source-representation"
-            : targetTypeRefKey(targetType),
-          nullableWrittenType === undefined
-            ? "non-null-output"
-            : `nullable-output:${targetTypeRefKey(nullableWrittenType)}`,
-          typedLocationIdentity
-            ? "typed-location-identity"
-            : "ordinary-storage-identity",
-        ]),
-      }],
-    },
-    dependencies: Object.freeze([]),
-    artifact: Object.freeze({
-      kind: "storage",
-      ...(targetType === undefined ? {} : { targetType }),
-      ...(nullableWrittenType === undefined
-        ? {}
-        : { nullableWrittenType }),
-      typedLocationIdentity,
-    }),
-  };
-}
-
-export function csharpSourceCallableContractCandidate(
-  owner: string,
-  callable: CsharpSourceCallableContract,
-): CsharpArtifactContractCandidate {
-  return {
-    owner,
-    contract: {
-      facets: [{
-        facet: "source-callable-surface",
-        value: encodeContractParts([
-          "source-callable",
-          ...callable.methodTypeParameterNames.map((name) =>
-            encodeContractParts(["type-parameter", name])
-          ),
-          ...callable.parameters.map((parameter, index) =>
-            encodeContractParts([
-              "parameter",
-              String(index),
-              parameter.targetParameter.name,
-              targetTypeRefKey(parameter.targetParameter.type),
-              parameter.targetParameter.passingMode,
-              parameter.targetParameter.optional === true
-                ? "optional"
-                : "required",
-              parameter.targetParameter.paramsArray === true
-                ? "params"
-                : "ordinary",
-            ])
-          ),
-          encodeContractParts([
-            "return",
-            targetTypeRefKey(callable.returnType),
-          ]),
-        ]),
-      }],
-    },
-    dependencies: Object.freeze([]),
-    artifact: Object.freeze({
-      kind: "source-callable",
-      callable,
-    }),
-  };
 }
 
 export function encodeContractParts(parts: readonly string[]): string {

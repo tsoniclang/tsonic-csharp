@@ -9,4 +9,4 @@ export type {
 } from "./object-shape-policy/api.js";
 export {
   csharpObjectShapesEqual,
-} from "./object-shape-policy/equality.js";
+} from "../../../target-model/types/object-shape-equality.js";

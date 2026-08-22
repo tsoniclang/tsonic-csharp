@@ -15,15 +15,13 @@ import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
 import {
-  selectCsharpConversion,
-} from "../../../policy/conversions/index.js";
-import {
   csharpIteratorResultTargetType,
   getCsharpGeneratorProtocol,
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   applyCsharpConversionSelection,
+  readCsharpConversionClassification,
 } from "../expressions/conversions.js";
 import {
   allocateGeneratorDelegationNames,
@@ -34,40 +32,10 @@ import {
 import {
   planExpressionWithExpectedType,
 } from "../expressions/index.js";
-
 export interface CsharpYieldValuePlan {
   readonly statements: readonly CsharpStatement[];
   readonly resumeExpression: CsharpExpression;
-  readonly resumeType: import("../../../policy/types/index.js").TargetTypeRef;
-}
-
-export function directSourceYieldExpression(
-  node: Node | undefined,
-  input: CsharpPlanningContext,
-): Node | undefined {
-  let current = node;
-  while (current !== undefined) {
-    if (input.program.source.ast.is.IsYieldExpression(current)) {
-      return current;
-    }
-    if (
-      input.program.source.ast.is.IsParenthesizedExpression(current) ||
-      input.program.source.ast.is.IsAsExpression(current) ||
-      input.program.source.ast.is.IsTypeAssertion(current) ||
-      input.program.source.ast.is.IsSatisfiesExpression(current) ||
-      input.program.source.ast.is.IsNonNullExpression(current)
-    ) {
-      const typeNode = input.program.source.ast.typeNode(current);
-      current = input.program.source.ast.children(current).find((child) =>
-        child !== undefined &&
-        child !== typeNode &&
-        !isTypeOnlyYieldWrapperChild(child, input)
-      );
-      continue;
-    }
-    return undefined;
-  }
-  return undefined;
+  readonly resumeType: import("../../../target-model/types/index.js").TargetTypeRef;
 }
 
 export function planCsharpYieldValue(
@@ -78,9 +46,7 @@ export function planCsharpYieldValue(
   state: DestructuringPlannerState,
 ): CsharpYieldValuePlan | undefined {
   const generator = state.generator;
-  const source = input.program.source.semantics.forNode(yieldExpression).operations.yield(
-    yieldExpression,
-  );
+  const source = input.program.sourceEvidence.yield(yieldExpression);
   if (
     generator === undefined ||
     source === undefined ||
@@ -156,10 +122,8 @@ function planCsharpDelegatedYield(
     ));
     return undefined;
   }
-  const delegatedType = input.types.policy.resolveSelectedValue(
-    operand.expression,
-    operand.type,
-    sourceFile,
+  const delegatedType = input.program.sourceEvidence.yieldTargetType(
+    source.yieldExpression,
   );
   const inner = getCsharpGeneratorProtocol(delegatedType);
   if (
@@ -293,11 +257,22 @@ function planCsharpDelegatedYield(
 export function convertCsharpYieldResumeExpression(
   yieldExpression: Node,
   plan: CsharpYieldValuePlan,
-  targetType: import("../../../policy/types/index.js").TargetTypeRef,
+  targetType: import("../../../target-model/types/index.js").TargetTypeRef,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
+  const selection = readCsharpConversionClassification(
+    yieldExpression,
+    input,
+    diagnostics,
+    plan.resumeType,
+    targetType,
+    "implicit",
+  );
+  if (selection === undefined) {
+    return undefined;
+  }
   return applyCsharpConversionSelection(
     yieldExpression,
     sourceFile,
@@ -305,7 +280,7 @@ export function convertCsharpYieldResumeExpression(
     diagnostics,
     plan.resumeType,
     targetType,
-    selectCsharpConversion(input.policy, plan.resumeType, targetType, "implicit"),
+    selection,
     plan.resumeExpression,
   );
 }
@@ -392,13 +367,6 @@ export function invokeGeneratorController(
       expression,
     })),
   };
-}
-
-function isTypeOnlyYieldWrapperChild(
-  child: Node,
-  input: CsharpPlanningContext,
-): boolean {
-  return input.program.source.ast.kindName(child).endsWith("Token");
 }
 
 function yieldDiagnostic(

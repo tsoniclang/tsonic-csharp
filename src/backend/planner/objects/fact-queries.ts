@@ -5,7 +5,7 @@ import type {
 import type {
   CsharpObjectShapeFact,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";

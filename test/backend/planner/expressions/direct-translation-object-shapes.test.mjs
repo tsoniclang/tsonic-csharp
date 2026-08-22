@@ -5,6 +5,30 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
+test("nullable structural returns preserve exact authored member carriers", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function close(
+        inner: string,
+        closeEnd: int,
+        endSuffix: string,
+      ): { inner: string; endPos: int } | undefined {
+        return { inner, endPos: closeEnd + endSuffix.length };
+      }
+    `,
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  assert.match(
+    compiled.artifacts.get("src/Index.cs") ?? "",
+    /endPos = closeEnd \+ endSuffix\.Length,/u,
+  );
+});
+
 test("direct C# translation derives mapped utility shapes from exact project member provenance", () => {
   const compiled = compileCsharpSource({
     sourceText: `

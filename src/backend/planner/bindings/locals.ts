@@ -35,7 +35,7 @@ import {
 } from "../types/target-types.js";
 import {
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -49,10 +49,12 @@ import {
   planResourceRegistrationStatement,
 } from "../statements/resource-management.js";
 import {
-  directSourceYieldExpression,
   convertCsharpYieldResumeExpression,
   planCsharpYieldValue,
 } from "../statements/statement-yield.js";
+import {
+  directCsharpSourceYieldExpression,
+} from "../../../target-model/syntax/yield-expression.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -86,34 +88,22 @@ export function planLocalDeclaration(
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
     : undefined;
-  const inferredTargetType = input.types.policy.resolveStorage(
+  const inferredTargetType = input.program.sourceEvidence.storageTargetType(
     declarationNode,
-    sourceFile,
   );
-  const storageType = inferredTargetType === undefined
-    ? undefined
-    : input.artifacts.resolveStorageType(
-        declarationNode,
-        inferredTargetType,
-      );
-  if (storageType?.kind === "rejected") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declarationNode,
-      storageType.reason,
-    ));
-  }
-  const requiredStorageType = storageType?.kind === "resolved" &&
+  const storageType = input.program.storage.type(declarationNode);
+  const requiredStorageType = storageType !== undefined &&
       inferredTargetType !== undefined &&
-      !targetTypeRefEquals(storageType.type, inferredTargetType)
-    ? csharpTypeFromTargetTypeRef(storageType.type)
+      !targetTypeRefEquals(storageType, inferredTargetType)
+    ? csharpTypeFromTargetTypeRef(storageType)
     : undefined;
   const type = requiredStorageType ??
     inferredLambdaType ??
     explicitType ??
     constAssertionType ??
-    (inferredTargetType === undefined
+    (storageType === undefined
       ? undefined
-      : csharpTypeFromTargetTypeRef(inferredTargetType)) ??
+      : csharpTypeFromTargetTypeRef(storageType)) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   let initializer: CsharpExpression | undefined;
@@ -188,7 +178,6 @@ export function planLocalDeclarationStatements(
     const registration = planResourceRegistrationStatement(
       declarationNode,
       local,
-      sourceFile,
       input,
       diagnostics,
       state,
@@ -208,7 +197,10 @@ export function planLocalDeclarationStatements(
   }
   const directYield = state.generator === undefined
     ? undefined
-    : directSourceYieldExpression(variable.Initializer, input);
+    : directCsharpSourceYieldExpression(
+        input.program.source.ast,
+        variable.Initializer,
+      );
   if (directYield !== undefined) {
     if (!input.program.source.ast.is.IsIdentifier(variable.name)) {
       diagnostics.push(unsupportedNodeDiagnostic(
@@ -240,7 +232,7 @@ export function planLocalDeclarationStatements(
       state,
       yieldPlan.resumeExpression,
     );
-    const targetType = input.types.policy.resolveStorage(
+    const targetType = input.types.classifications.resolveStorage(
       declarationNode,
       sourceFile,
     );
@@ -328,7 +320,7 @@ function sourceInitializerReferencesDeclaration(
   declaration: Node,
   input: CsharpPlanningContext,
 ): boolean {
-  if (input.program.source.navigation.referenceFor(node)?.declaration === declaration) {
+  if (input.program.sourceNavigation.referenceFor(node)?.declaration === declaration) {
     return true;
   }
   return input.program.source.ast.children(node).some((child) =>
@@ -378,7 +370,7 @@ function getConstAssertionInitializerType(
     return undefined;
   }
   return getCsharpTypeFromSemanticType(
-    input.program.source.semantics.forFile(sourceFile).types.expressionType(assertion.Expression),
+    input.program.sourceEvidence.expressionType(assertion.Expression),
     sourceFile,
     input,
   );

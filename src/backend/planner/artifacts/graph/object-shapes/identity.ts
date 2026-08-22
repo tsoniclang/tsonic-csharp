@@ -1,5 +1,5 @@
-import type { CsharpObjectShapeFact } from "../../../../../policy/types/index.js";
-import { targetTypeRefKey } from "../../../../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../../../target-model/types/index.js";
+import { targetTypeRefKey } from "../../../../../target-model/types/index.js";
 
 export function objectShapeArtifactKey(fact: CsharpObjectShapeFact): string {
   return `object-shape:${targetTypeRefKey(fact.targetType)}`;

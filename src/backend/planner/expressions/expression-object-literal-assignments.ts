@@ -23,7 +23,7 @@ import type {
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";

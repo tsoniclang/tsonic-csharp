@@ -86,11 +86,16 @@ test("C# backend consumes only resolved C# typed-location operations", () => {
     "backend/planner/expressions/expression-typed-locations.ts",
   );
   const planner = readFileSync(plannerPath, "utf8");
+  const analysis = readFileSync(
+    join(sourceRoot, "analysis/operations/analyze.ts"),
+    "utf8",
+  );
 
-  assert.match(planner, /selectCsharpTypedLocationOperation/u);
+  assert.match(analysis, /selectCsharpTypedLocationOperation/u);
+  assert.match(planner, /input\.program\.operations\.typedLocation/u);
   assert.doesNotMatch(
     planner,
-    /pointerOperationFactKey|PointerOperationFact|sourceFacts|getResolvedStorageInfo|getResolvedPropertyAccessInfo|getResolvedElementAccessInfo/u,
+    /selectCsharpTypedLocationOperation|pointerOperationFactKey|PointerOperationFact|sourceFacts|getResolvedStorageInfo|getResolvedPropertyAccessInfo|getResolvedElementAccessInfo/u,
   );
   assert.equal(
     existsSync(join(sourceRoot, "backend/planner/expression-pointer-operations.ts")),

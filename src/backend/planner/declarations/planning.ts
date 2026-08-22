@@ -28,7 +28,6 @@ import {
   getAsyncReturnExpressionExpectedType,
   getDeclarationReturnTargetType,
   getExplicitReturnType,
-  reconcileInferredReturnTargetContract,
 } from "./declaration-return-types.js";
 import {
   planClassMembers,
@@ -50,9 +49,6 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import {
-  publishCsharpSourceCallableContract,
-} from "../artifacts/source-callable-contracts.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -101,7 +97,7 @@ export function planClassDeclaration(
     name: className,
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(heritage.interfaces.length === 0 && !jsonSerializable
       ? {}
@@ -148,7 +144,7 @@ function getImplementedInterfacePropertyNames(
   input: CsharpPlanningContext,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  const heritage = input.program.source.navigation.declaredHeritage(classDeclaration);
+  const heritage = input.program.sourceNavigation.declaredHeritage(classDeclaration);
   if (heritage.kind !== "resolved") {
     return names;
   }
@@ -189,7 +185,7 @@ function collectImplementedInterfacePropertyNames(
       names.add(name);
     }
   }
-  const heritage = input.program.source.navigation.declaredHeritage(declaration);
+  const heritage = input.program.sourceNavigation.declaredHeritage(declaration);
   if (heritage.kind !== "resolved") {
     return;
   }
@@ -235,14 +231,6 @@ export function planFunctionDeclaration(
       parameters.prelude,
       planBlockStatements,
     );
-    const effectiveReturnTargetType = generator?.generatorType ?? declaredReturnTargetType;
-    publishCsharpSourceCallableContract(
-      node,
-      parameters.targetParameters,
-      effectiveReturnTargetType,
-      input,
-      diagnostics,
-    );
     return {
       kind: "MethodDeclaration",
       name,
@@ -253,7 +241,7 @@ export function planFunctionDeclaration(
         input,
       ),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
       returnType: generator?.generatorTypeNode ?? declaredReturnType,
       parameters: parameters.parameters,
       body: generator?.body ?? { kind: "Block", statements: [] },
@@ -262,9 +250,6 @@ export function planFunctionDeclaration(
   const async = isAsyncNode(input.program.source.ast, node);
   state.currentReturnType = declaredReturnType;
   state.currentReturnTypeSubject = declaration.Type;
-  if (declaration.Type === undefined && !async) {
-    state.observedReturnTargetTypes = [];
-  }
   if (async) {
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
@@ -278,37 +263,20 @@ export function planFunctionDeclaration(
     diagnostics,
     state,
   );
-  const reconciledReturn = declaredReturnTargetType === undefined ||
-      declaration.Type !== undefined || async
-    ? declaredReturnTargetType === undefined
-      ? undefined
-      : { kind: "resolved" as const, type: declaredReturnTargetType }
-    : reconcileInferredReturnTargetContract(
-        input.policy,
-        declaredReturnTargetType,
-        state.observedReturnTargetTypes ?? [],
-        state.returnTargetObservationIncomplete === true,
-      );
-  if (reconciledReturn?.kind === "rejected") {
+  const returnContract = input.program.declarations.returnContract(node);
+  if (returnContract?.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      reconciledReturn.reason,
+      returnContract.reason,
     ));
   }
-  const effectiveReturnTargetType = reconciledReturn?.kind === "resolved"
-    ? reconciledReturn.type
+  const effectiveReturnTargetType = returnContract?.kind === "resolved"
+    ? returnContract.type
     : declaredReturnTargetType;
   const returnType = effectiveReturnTargetType === undefined
     ? declaredReturnType
     : csharpTypeFromTargetTypeRef(effectiveReturnTargetType) ??
       declaredReturnType;
-  publishCsharpSourceCallableContract(
-    node,
-    parameters.targetParameters,
-    effectiveReturnTargetType,
-    input,
-    diagnostics,
-  );
   return {
     kind: "MethodDeclaration",
     name,
@@ -319,7 +287,7 @@ export function planFunctionDeclaration(
       input,
     ),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     returnType,
     parameters: parameters.parameters,
     body: {

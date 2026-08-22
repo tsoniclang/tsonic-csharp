@@ -4,16 +4,8 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  selectCsharpUnaryOperation,
   sourceOperatorFromKindName,
-} from "../../../policy/operations/index.js";
-import {
-  selectCsharpJsValueUnaryOperation,
-} from "../../../policy/js-value-operations/index.js";
-import {
-  resolveCsharpJsValueObjectShapeProperty,
-  selectCsharpTargetProperty,
-} from "../../../policy/members/index.js";
+} from "../../../target-model/syntax/operators.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -50,7 +42,6 @@ export function planPrefixUnaryExpression(
       node,
       operandNode,
       sourceOperator,
-      sourceFile,
       input,
       diagnostics,
     )
@@ -58,12 +49,15 @@ export function planPrefixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const jsValueOperation = selectCsharpJsValueUnaryOperation(
-      input.policy,
-      operandNode,
-      sourceFile,
-      sourceOperator,
-    );
+    const classification = input.program.operations.unary(node);
+    if (classification === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# planning received a unary expression without a sealed target classification.",
+      ));
+      return undefined;
+    }
+    const jsValueOperation = classification.jsValue;
     if (jsValueOperation.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
@@ -84,7 +78,15 @@ export function planPrefixUnaryExpression(
           );
     }
   }
-  const selection = selectCsharpUnaryOperation(input.policy, node, sourceFile);
+  const classification = input.program.operations.unary(node);
+  if (classification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a unary expression without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.target;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -130,7 +132,6 @@ export function planPostfixUnaryExpression(
       node,
       operandNode,
       sourceOperator,
-      sourceFile,
       input,
       diagnostics,
     )
@@ -138,12 +139,15 @@ export function planPostfixUnaryExpression(
     return undefined;
   }
   if (sourceOperator !== undefined) {
-    const jsValueOperation = selectCsharpJsValueUnaryOperation(
-      input.policy,
-      operandNode,
-      sourceFile,
-      sourceOperator,
-    );
+    const classification = input.program.operations.unary(node);
+    if (classification === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# planning received a unary expression without a sealed target classification.",
+      ));
+      return undefined;
+    }
+    const jsValueOperation = classification.jsValue;
     if (jsValueOperation.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
       return undefined;
@@ -164,7 +168,15 @@ export function planPostfixUnaryExpression(
           );
     }
   }
-  const selection = selectCsharpUnaryOperation(input.policy, node, sourceFile);
+  const classification = input.program.operations.unary(node);
+  if (classification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a unary expression without a sealed target classification.",
+    ));
+    return undefined;
+  }
+  const selection = classification.target;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -198,7 +210,6 @@ function rejectUnloweredJsValueObjectShapeUpdate(
   node: Node,
   operand: Node | undefined,
   sourceOperator: string | undefined,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): boolean {
@@ -209,16 +220,22 @@ function rejectUnloweredJsValueObjectShapeUpdate(
   ) {
     return false;
   }
-  const selection = selectCsharpTargetProperty(input.policy, operand, sourceFile);
+  const classification = input.program.operations.property(operand);
+  if (classification === undefined) {
+    return false;
+  }
+  const selection = classification.selection;
   if (selection.kind !== "source-owned") {
     return false;
   }
-  const jsValueProperty = resolveCsharpJsValueObjectShapeProperty(
-    input.types.objectShapes,
-    input.program.source.semantics.forFile(sourceFile),
-    selection,
-    sourceFile,
-  );
+  const jsValueProperty = classification.sourceOwned?.jsValueProperty;
+  if (jsValueProperty === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A source-owned property update has no sealed C# property classification.",
+    ));
+    return true;
+  }
   if (jsValueProperty.kind === "not-js-value-object-shape") {
     return false;
   }

@@ -15,10 +15,9 @@ import { materializeCsharpOutputPlan } from "./emission/materialize.js";
 export function compileCsharpTarget(
   request: CsharpTargetAnalysisRequest,
 ): TargetCompileResult {
-  const { input } = request;
   return runTargetCompilationStages({
     analyze: () => analyzeCsharpTargetProgram(request),
-    plan: (program) => planCsharpOutput(createCsharpPlanningContext(input, program)),
+    plan: (program) => planCsharpOutput(createCsharpPlanningContext(program)),
     materialize: materializeCsharpOutputPlan,
   });
 }

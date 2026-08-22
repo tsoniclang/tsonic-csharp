@@ -3,13 +3,11 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  selectCsharpResourceManagement,
-} from "../../../policy/operations/index.js";
 import type {
   CsharpResourceDisposalArm,
   CsharpResourceDisposalOperation,
-} from "../../../policy/operations/index.js";
+  CsharpResolvedResourceManagement,
+} from "../../../analysis/operations/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -187,7 +185,6 @@ export function planResourceScopeStatements(
 export function planResourceRegistrationStatement(
   declaration: Node,
   local: CsharpLocalDeclaration,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
@@ -200,11 +197,14 @@ export function planResourceRegistrationStatement(
     ));
     return undefined;
   }
-  const selected = selectCsharpResourceManagement(
-    input.policy,
-    declaration,
-    sourceFile,
-  );
+  const selected = input.program.operations.resource(declaration);
+  if (selected === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      declaration,
+      "C# planning received a resource declaration without a sealed target classification.",
+    ));
+    return undefined;
+  }
   if (selected.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(declaration, selected.reason));
     return undefined;
@@ -285,10 +285,7 @@ function resourceRegistrationName(
     : "AddAsync";
 }
 
-type CsharpResolvedRegistration = Extract<
-  ReturnType<typeof selectCsharpResourceManagement>,
-  { readonly kind: "resolved" }
->["registration"];
+type CsharpResolvedRegistration = CsharpResolvedResourceManagement["registration"];
 
 function runtimeUnionDisposalBody(
   parameterName: string,

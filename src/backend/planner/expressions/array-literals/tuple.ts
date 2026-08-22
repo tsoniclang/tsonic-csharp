@@ -24,10 +24,10 @@ import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import {
   csharpNullableTargetType,
   targetTypeRefEquals,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
@@ -51,7 +51,6 @@ export function planTupleLiteralExpression(
   }
   const elements = completeOptionalTupleElements(
     node,
-    sourceFile,
     input,
     diagnostics,
     plannedElements,
@@ -69,7 +68,6 @@ export function planTupleLiteralExpression(
 
 function completeOptionalTupleElements(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   elements: readonly CsharpExpression[],
@@ -85,11 +83,10 @@ function completeOptionalTupleElements(
     ));
     return undefined;
   }
-  const selection = input.program.source.semantics.forFile(sourceFile)
-    .types.contextualTupleSelection(node, elements.length);
+  const selection = input.program.sourceEvidence.contextualTuple(node);
   if (
-    selection.kind !== "selected" ||
-    selection.elements.length !== tupleTarget.elements.length
+    selection?.kind !== "selected" ||
+    selection.elementTypes.length !== tupleTarget.elements.length
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -97,19 +94,11 @@ function completeOptionalTupleElements(
     ));
     return undefined;
   }
-  for (let index = 0; index < selection.elements.length; index += 1) {
-    const sourceElement = selection.elements[index]!;
-    const authoredTypeNode = sourceElement.declaration === undefined
-      ? undefined
-      : input.program.source.ast.typeNode(sourceElement.declaration);
-    const resolved = input.types.policy.resolveSelectedType(
-      authoredTypeNode,
-      sourceElement.type,
-      sourceFile,
-    );
+  for (let index = 0; index < selection.elementTypes.length; index += 1) {
+    const resolved = selection.elementTypes[index];
     const sourceTarget = resolved === undefined
       ? undefined
-      : sourceElement.elementKind === "optional"
+      : selection.optionalElementIndexes.includes(index)
         ? csharpNullableTargetType(resolved)
         : resolved;
     if (

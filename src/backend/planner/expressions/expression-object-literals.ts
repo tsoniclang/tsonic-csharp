@@ -11,19 +11,16 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import {
   isCsharpJsValueTargetType,
   isCsharpJsValueObjectShapeTargetType,
   projectCsharpJsValueObjectLiteralShape,
   validateCsharpJsValueObjectShapeCarrier,
-} from "../../../policy/types/index.js";
-import {
-  selectCsharpJsObjectLiteralOperation,
-} from "../../../policy/js-value-operations/index.js";
+} from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
-import type { CsharpObjectShapeFact } from "../../../policy/types/index.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
 import {
@@ -59,6 +56,13 @@ export function planObjectLiteralExpressionWithExpectedType(
     node,
     sourceFile,
   );
+  if (resolved === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Object literal planning requires a sealed target-shape classification produced during C# analysis.",
+    ));
+    return undefined;
+  }
   if (resolved.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       resolved.subject,
@@ -182,8 +186,18 @@ function planJsValueObjectLiteral(
       planned.expression,
     );
   }
+  const operation = input.program.operations.jsObjectLiteral(node);
+  if (operation?.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      operation?.kind === "rejected"
+        ? operation.reason
+        : "C# object-literal planning requires a sealed JS-value operation classification produced during analysis.",
+    ));
+    return undefined;
+  }
   return translateCsharpJsValueInvocation(
-    selectCsharpJsObjectLiteralOperation(),
+    operation,
     undefined,
     arguments_,
   );

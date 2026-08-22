@@ -6,7 +6,7 @@ import type {
 import {
   targetTypeRefEquals,
   type TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
@@ -17,7 +17,7 @@ import {
 import {
   getCsharpRuntimeUnionArms,
   isCsharpRuntimeUnionTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 
 export function tryPlanRuntimeUnionTypeTest(
   node: Node,
@@ -78,7 +78,7 @@ function getRuntimeUnionStorageCarrier(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
-  const storageCarrier = input.types.policy.resolveStorage(node, sourceFile);
+  const storageCarrier = input.types.classifications.resolveStorage(node, sourceFile);
   return isCsharpRuntimeUnionTargetType(storageCarrier)
     ? storageCarrier
     : undefined;

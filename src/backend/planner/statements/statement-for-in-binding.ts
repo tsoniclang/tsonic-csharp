@@ -24,7 +24,7 @@ import {
 } from "../diagnostics.js";
 import {
   requireCsharpIdentifier,
-} from "../../../policy/names/identifiers.js";
+} from "../../../target-model/names/identifiers.js";
 import {
   expressionStatement,
 } from "./statement-output.js";
@@ -33,11 +33,11 @@ import {
 } from "../types/target-types.js";
 import {
   type CsharpResolvedIteration,
-} from "../../../policy/operations/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   CsharpPropertyKeyIterationPolicy,
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   DestructuringPlannerState,
 } from "../bindings/index.js";
@@ -107,21 +107,8 @@ export function planForInBinding(
       ));
       return undefined;
     }
-    const requirement = input.artifacts.requireStorage(first, {
-      kind: "target-representation",
-      declaration: first,
-      targetType,
-    });
-    if (requirement.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(first, requirement.reason));
-      return undefined;
-    }
-    const storageType = input.artifacts.resolveStorageType(first, targetType);
-    if (storageType.kind === "rejected") {
-      diagnostics.push(unsupportedNodeDiagnostic(first, storageType.reason));
-      return undefined;
-    }
-    const currentType = csharpTypeFromTargetTypeRef(storageType.type);
+    const storageType = input.program.storage.type(first) ?? targetType;
+    const currentType = csharpTypeFromTargetTypeRef(storageType);
     if (currentType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         first,

@@ -3,7 +3,7 @@ import type {
   ProviderSignatureDeclaration,
 } from "@tsonic/tsts";
 import type { DotnetMemberDeclaration, DotnetSignatureDeclaration } from "../model/index.js";
-import { csharpSourcePrimitiveRuntimeKind } from "../../../policy/types/model/scalar-types.js";
+import { csharpSourcePrimitiveRuntimeKind } from "../../../target-model/types/scalar-types.js";
 import {
   dotnetTypeParameterToProviderTypeParameter,
   tryDotnetTypeRefToProviderType,

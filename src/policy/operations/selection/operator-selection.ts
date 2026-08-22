@@ -27,14 +27,17 @@ import {
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";
+import {
+  sourcePrimitiveImplicitlyConverts,
+} from "../../conversions/source-primitives.js";
 import type {
   CsharpSourceOperator,
-} from "../syntax/syntax.js";
+} from "../../../target-model/syntax/operators.js";
 import {
   csharpDestructuringAssignmentSyntax,
   isCsharpAssignmentOperator,
   sourceOperatorFromKindName,
-} from "../syntax/syntax.js";
+} from "../../../target-model/syntax/operators.js";
 
 export interface CsharpResolvedBinaryOperation {
   readonly kind: "resolved";
@@ -47,6 +50,7 @@ export interface CsharpResolvedBinaryOperation {
   readonly leftInputType: TargetTypeRef;
   readonly rightInputType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
+  readonly expectedResultCompatible: boolean;
 }
 
 export type CsharpTargetBinaryOperation =
@@ -89,10 +93,14 @@ export type CsharpOperationSelection<T> =
   | T
   | { readonly kind: "rejected"; readonly reason: string };
 
+export type CsharpOperationTargetTypeQuery = (
+  node: Node,
+) => TargetTypeRef | undefined;
+
 export function selectCsharpBinaryOperation(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedResultType?: TargetTypeRef,
 ): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   if (!input.ast.is.IsBinaryExpression(node)) {
@@ -112,7 +120,7 @@ export function selectCsharpBinaryOperation(
   const leftType = resolveBinaryOperandType(
     input,
     left,
-    sourceFile,
+    targetTypeFor,
   );
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType)
@@ -120,10 +128,10 @@ export function selectCsharpBinaryOperation(
   const rightType = resolveBinaryOperandType(
     input,
     right,
-    sourceFile,
+    targetTypeFor,
     nullishRightExpectation,
   );
-  const selectedResultType = input.types.resolveNode(node, sourceFile);
+  const selectedResultType = targetTypeFor(node);
   if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
@@ -191,6 +199,14 @@ export function selectCsharpBinaryOperation(
         leftType,
         rightType,
         ...operationTypes,
+        expectedResultCompatible: expectedResultType !== undefined &&
+          (
+            targetTypeRefEquals(operationTypes.resultType, expectedResultType) ||
+            sourcePrimitiveImplicitlyConverts(
+              expectedResultType,
+              operationTypes.resultType,
+            )
+          ),
       }
     : rejected(incompatibility);
 }
@@ -242,7 +258,7 @@ function selectBinaryOperationTypes(
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
-      rightInputType: rightType,
+      rightInputType: operator === "=" ? leftType : rightType,
       resultType: leftType,
     };
   }
@@ -302,21 +318,21 @@ function selectBinaryOperationTypes(
 function resolveBinaryOperandType(
   input: CsharpPolicyContext,
   node: Node,
-  sourceFile: SourceFile,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
   expectedType?: TargetTypeRef,
 ): TargetTypeRef | undefined {
   if (input.ast.is.IsBinaryExpression(node)) {
     const nested = selectCsharpBinaryOperation(
       input,
       node,
-      sourceFile,
+      targetTypeFor,
       expectedType,
     );
     if (nested.kind === "resolved") {
       return nested.resultType;
     }
   }
-  const selected = input.types.resolveNode(node, sourceFile);
+  const selected = targetTypeFor(node);
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 

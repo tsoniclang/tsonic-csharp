@@ -13,7 +13,7 @@ import {
 } from "../../types/index.js";
 import {
   sourceOperatorFromKindName,
-} from "../syntax/syntax.js";
+} from "../../../target-model/syntax/operators.js";
 
 export type CsharpJsArrayMutationSelection =
   | {

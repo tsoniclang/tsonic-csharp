@@ -46,7 +46,7 @@ function createCheckedCsharpSource(options) {
     outputRoot: "/output",
     targetOutputRoot: "/output/csharp",
   };
-  const targetSession = targetPack.createCompilationSession({
+  const sessionContext = {
     project,
     projectDirectory: projectRoot,
     target,
@@ -59,7 +59,8 @@ function createCheckedCsharpSource(options) {
       selectedCapabilities,
       selectedSurfaces,
     }),
-  });
+  };
+  const targetSession = targetPack.createCompilationSession(sessionContext);
   const sourceProfile = collectTargetSourceProfileContributions({
     project,
     projectRoot,

@@ -1,25 +1,14 @@
-import type { TargetTypeRef } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import {
-  isCsharpThrowableType,
   isCsharpVoidTargetType,
-} from "../../../policy/types/index.js";
-import type {
-  CsharpPolicyContext,
-} from "../../../policy/context.js";
+} from "../../../target-model/types/index.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
     kind: "ExpressionStatement",
     expression,
   };
-}
-
-export function isCsharpThrowableCarrier(
-  carrier: TargetTypeRef | undefined,
-  input: Pick<CsharpPolicyContext, "projectTypes" | "providers" | "target">,
-): boolean {
-  return isCsharpThrowableType(input, carrier);
 }
 
 export function isVoidCsharpType(type: CsharpTypeNode): boolean {

@@ -38,12 +38,13 @@ test("synchronous generator yield expressions receive exact next values", () => 
     import type { int } from "@tsonic/csharp/types.js";
     export function* counter(): Generator<int, string, int> {
       const increment: int = yield 0;
-      yield increment;
+      yield increment + 1;
       return "complete";
     }
   `);
 
   assert.match(source, /ConsumeNext\(\)/);
+  assert.match(source, /yield return increment \+ 1;/);
   assert.doesNotMatch(source, /default\(int\).*NextValue|Task/);
 });
 

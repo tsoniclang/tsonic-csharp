@@ -1,37 +1,34 @@
 import type { CsharpPlanningContext } from "../context.js";
 import { AsTypeParameterDeclaration } from "@tsonic/target-api/source";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpGenericConstraint, CsharpTypeParameter } from "../../target-ast/roslyn/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import {
+import type {
   CsharpTypeParameterConstraint,
-  resolveCsharpTypeParameterConstraints,
-} from "../../../policy/constraints/index.js";
+} from "../../../target-model/declarations/generic-constraints.js";
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[],
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeParameter[] {
   return nodes
     .filter((node): node is Node => node !== undefined)
-    .map((node) => planTypeParameter(node, sourceFile, input, diagnostics));
+    .map((node) => planTypeParameter(node, input, diagnostics));
 }
 
 function planTypeParameter(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeParameter {
   const declaration = AsTypeParameterDeclaration(input.program.source.ast, node)!;
   const name = planIdentifierName(declaration.name, "T", input, diagnostics, "Type parameter name");
-  const constraints = planTypeParameterConstraints(node, sourceFile, input, diagnostics);
+  const constraints = planTypeParameterConstraints(node, input, diagnostics);
   if (declaration.Expression !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Expression-based generic type parameters are outside the current C# planning surface."));
   }
@@ -43,18 +40,21 @@ function planTypeParameter(
 
 function planTypeParameterConstraints(
   node: Node,
-  sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpGenericConstraint[] {
   const declaration = AsTypeParameterDeclaration(input.program.source.ast, node)!;
   const typeParameterName = input.program.source.ast.text(declaration.name);
-  const resolution = resolveCsharpTypeParameterConstraints(
+  const resolution = input.program.sourceEvidence.typeParameterConstraints(
     node,
-    typeParameterName,
-    sourceFile,
-    input.policy,
   );
+  if (resolution === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      declaration.Constraint ?? node,
+      `C# planning received type parameter '${typeParameterName}' without a sealed target constraint classification.`,
+    ));
+    return [];
+  }
   if (resolution.kind === "unsupported") {
     diagnostics.push(unsupportedNodeDiagnostic(
       declaration.Constraint ?? node,

@@ -266,7 +266,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-name-runtime-member-filter",
     pattern: /\.filter\s*\(\s*\(?\s*(?:member|row|candidate|record)\s*\)?\s*=>\s*(?:member|row|candidate|record)\.sourceName\s*(?:={2,3}|!={1,2})/g,
-    allowedFilePattern: /(?:^|\/)src\/policy\/types\/objects\/object-shape-members\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/target-model\/types\/object-shape-members\.ts$/,
     replacement:
       "Do not select target/runtime members by filtering sourceName at execution time; use declarative rows indexed by selected source identity or explicit operation metadata.",
   },

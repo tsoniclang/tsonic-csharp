@@ -5,11 +5,11 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   TargetTypeRef,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   getCsharpCollectionElementTargetType,
   targetTypeRefEquals,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";

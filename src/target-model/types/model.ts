@@ -31,6 +31,11 @@ export interface CsharpObjectShapeFact {
   readonly constructible?: boolean;
 }
 
+export interface CsharpSourceTargetTypeBinding {
+  readonly declaration: Node;
+  readonly targetType: TargetTypeRef;
+}
+
 export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "source-global"; readonly name: string; readonly typeArguments?: readonly TargetTypeRef[] }

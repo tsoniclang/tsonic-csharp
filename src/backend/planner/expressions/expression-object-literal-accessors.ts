@@ -4,7 +4,6 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  createCsharpScopedPlanningContext,
   createCsharpThisBindingPlanningContext,
 } from "../context.js";
 import type {
@@ -12,10 +11,11 @@ import type {
 } from "../context.js";
 import {
   csharpDelegateTargetType,
-} from "../../../policy/types/index.js";
+  targetTypeRefEquals,
+} from "../../../target-model/types/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
@@ -188,23 +188,22 @@ function planSetter(
   }
   const sourceTarget = csharpDelegateTargetType("System.Action", [valueType]);
   const bodyTarget = lambdaTargetContextFromTargetRef(sourceTarget);
-  const scoped = createCsharpScopedPlanningContext(input, [{
-    declaration: parameterNode,
-    targetType: valueType,
-  }]);
-  if (bodyTarget === undefined || scoped.kind === "rejected") {
+  const sealedParameterType = input.program.storage.requiredType(parameterNode);
+  if (
+    bodyTarget === undefined ||
+    sealedParameterType === undefined ||
+    !targetTypeRefEquals(sealedParameterType, valueType)
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       accessorNode,
-      scoped.kind === "rejected"
-        ? scoped.reason
-        : "Object-literal setter has no exact parameter-carrier contract.",
+      "Object-literal setter has no exact sealed parameter-carrier contract.",
     ));
     return undefined;
   }
   const parameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
-    scoped.context,
+    input,
     diagnostics,
     state,
     bodyTarget,
@@ -213,7 +212,7 @@ function planSetter(
     accessorNode,
     declaration.Body,
     sourceFile,
-    scoped.context,
+    input,
     diagnostics,
     state,
     bodyTarget,

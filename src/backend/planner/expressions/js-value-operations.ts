@@ -6,14 +6,14 @@ import type {
 } from "@tsonic/target-api/artifacts";
 import type {
   CsharpJsValueOperationSelection,
-} from "../../../policy/js-value-operations/index.js";
+} from "../../../analysis/operations/index.js";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";

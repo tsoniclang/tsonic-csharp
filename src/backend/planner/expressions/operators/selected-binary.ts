@@ -5,7 +5,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpResolvedBinaryOperation,
-} from "../../../../policy/operations/index.js";
+} from "../../../../analysis/operations/index.js";
 import type {
   CsharpPlanningContext,
 } from "../../context.js";

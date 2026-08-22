@@ -4,20 +4,12 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  selectCsharpJsTypeofOperation,
-} from "../../../policy/js-value-operations/index.js";
-import {
-  getCsharpTypeofRuntimeKind,
-  selectCsharpTypeofComparison,
   sourceOperatorFromKindName,
-} from "../../../policy/operations/index.js";
-import type {
-  CsharpTypeofRuntimeKind,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/syntax/operators.js";
 import {
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -54,11 +46,16 @@ export function planTypeofExpression(
     return undefined;
   }
   const operand = input.program.source.ast.as.AsTypeOfExpression(node)?.Expression;
-  const jsValueOperation = selectCsharpJsTypeofOperation(
-    input.policy,
-    operand,
-    sourceFile,
-  );
+  const jsValueOperation = operand === undefined
+    ? undefined
+    : input.program.operations.jsTypeof(operand);
+  if (jsValueOperation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a typeof expression without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
@@ -75,8 +72,9 @@ export function planTypeofExpression(
           [planned],
         );
   }
-  const operandType = input.types.policy.resolveNode(operand, sourceFile);
-  const runtimeKind = getCsharpTypeofRuntimeKind(operandType);
+  const runtimeKind = operand === undefined
+    ? undefined
+    : input.program.operations.typeofRuntimeKind(operand);
   if (operand === undefined || runtimeKind === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -115,7 +113,7 @@ export function tryPlanTypeTestExpression(
   if (planned === undefined || targetType === undefined) {
     return undefined;
   }
-  if (isCsharpJsValueTargetType(input.types.policy.resolveNode(left, sourceFile))) {
+  if (isCsharpJsValueTargetType(input.types.classifications.resolveNode(left, sourceFile))) {
     const runtimeType = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
     return runtimeType === undefined
       ? undefined
@@ -158,29 +156,21 @@ export function tryPlanTypeofComparisonExpression(
   ) {
     return undefined;
   }
-  const expression = input.program.source.ast.as.AsBinaryExpression(node);
-  const comparison = getTypeofComparison(
-    expression?.Left,
-    expression?.Right,
-    input,
-  ) ?? getTypeofComparison(
-    expression?.Right,
-    expression?.Left,
-    input,
-  );
+  const comparison = input.program.operations.binary(node)?.typeofComparison;
   if (comparison === undefined) {
     return undefined;
   }
-  const operandType = input.types.policy.resolveNode(
-    comparison.operand,
-    sourceFile,
-  );
   const negated = sourceOperator === "!==" || sourceOperator === "!=";
-  const jsValueOperation = selectCsharpJsTypeofOperation(
-    input.policy,
+  const jsValueOperation = input.program.operations.jsTypeof(
     comparison.operand,
-    sourceFile,
   );
+  if (jsValueOperation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a typeof comparison without a sealed operation classification.",
+    ));
+    return undefined;
+  }
   if (jsValueOperation.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
@@ -211,11 +201,7 @@ export function tryPlanTypeofComparisonExpression(
           },
         };
   }
-  const selection = selectCsharpTypeofComparison(
-    operandType,
-    comparison.runtimeKind,
-    negated,
-  );
+  const selection = comparison.selection;
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
@@ -257,38 +243,4 @@ export function tryPlanTypeofComparisonExpression(
     type: targetType,
     negated: selection.negated,
   };
-}
-
-function getTypeofComparison(
-  typeofNode: Node | undefined,
-  literalNode: Node | undefined,
-  input: CsharpPlanningContext,
-): {
-  readonly operand: Node;
-  readonly runtimeKind: CsharpTypeofRuntimeKind;
-} | undefined {
-  if (
-    typeofNode === undefined ||
-    literalNode === undefined ||
-    !input.program.source.ast.is.IsTypeOfExpression(typeofNode) ||
-    !input.program.source.ast.is.IsStringLiteral(literalNode)
-  ) {
-    return undefined;
-  }
-  const operand = input.program.source.ast.as.AsTypeOfExpression(typeofNode)?.Expression;
-  const runtimeKind = runtimeKindLiteral(input.program.source.ast.text(literalNode));
-  return operand === undefined || runtimeKind === undefined
-    ? undefined
-    : { operand, runtimeKind };
-}
-
-function runtimeKindLiteral(
-  value: string,
-): CsharpTypeofRuntimeKind | undefined {
-  return value === "string" ||
-    value === "number" ||
-    value === "boolean" ||
-    value === "bigint"
-    ? value
-    : undefined;
 }

@@ -1,13 +1,13 @@
 import type {
   CsharpPlanningContext } from "../context.js";
 import { requireCsharpIdentifier,
-  tryCsharpIdentifier } from "../../../policy/names/identifiers.js";
+  tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type { CsharpExpression, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { AstReader,
   Node,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../policy/types/index.js";
-import type { CsharpGeneratorProtocol } from "../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { CsharpGeneratorProtocol } from "../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   KindIdentifier,
@@ -39,8 +39,6 @@ export interface DestructuringPlannerState {
   currentReturnExpressionType?: CsharpTypeNode;
   currentReturnExpressionTypeSubject?: Node;
   currentReturnExpressionTargetType?: TargetTypeRef;
-  observedReturnTargetTypes?: TargetTypeRef[];
-  returnTargetObservationIncomplete?: boolean;
   generator?: CsharpGeneratorPlannerContext;
   resourceScope?: CsharpResourceScopePlannerContext;
 }
@@ -381,7 +379,7 @@ function localBindingKey(
   node: Node,
   input: CsharpPlanningContext,
 ): object | undefined {
-  const symbol = input.program.source.navigation.referenceFor(node)?.symbol;
+  const symbol = input.program.sourceNavigation.referenceFor(node)?.symbol;
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 

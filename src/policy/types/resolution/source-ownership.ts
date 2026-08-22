@@ -15,7 +15,7 @@ import type {
 } from "../../../target-model/types/model.js";
 import {
   isCsharpJsValueTargetType,
-} from "../storage/runtime-carriers.js";
+} from "../../../target-model/types/runtime-carriers.js";
 
 export function isTypeParameterTargetRef(
   type: TargetTypeRef | undefined,

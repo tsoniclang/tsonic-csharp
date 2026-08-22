@@ -3,7 +3,7 @@ import type {
   CsharpObjectShapeCapability,
   CsharpObjectShapeProjection,
   TargetTypeRef,
-} from "../../../../../policy/types/index.js";
+} from "../../../../../target-model/types/index.js";
 import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { JsonClosureState } from "../model.js";
 import {
@@ -18,7 +18,7 @@ import {
   isCsharpStringTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
-} from "../../../../../policy/types/index.js";
+} from "../../../../../target-model/types/index.js";
 import { rejected } from "../result.js";
 import { maximumJsonClosureDepth } from "../model.js";
 import { objectShapeArtifactKey } from "./identity.js";

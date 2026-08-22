@@ -6,10 +6,10 @@ import type {
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import {
   getCsharpNullableElementTargetType,
-} from "../storage/nullable.js";
+} from "../../../target-model/types/nullable.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
-} from "./object-shape-members.js";
+} from "../../../target-model/types/object-shape-members.js";
 import type {
   CsharpObjectShapePolicy,
 } from "./object-shape-policy.js";
@@ -23,7 +23,7 @@ import type {
 import {
   csharpArrayBindingProjectionTarget,
   resolveCsharpArrayBindingCarrier,
-} from "../storage/binding-array-carrier.js";
+} from "../../../target-model/types/binding-array-carrier.js";
 import { nextState } from "../resolution/state.js";
 
 export interface CsharpBindingProjectionPolicyHost {

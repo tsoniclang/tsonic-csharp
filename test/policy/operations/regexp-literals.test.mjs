@@ -7,6 +7,9 @@ import {
   csharpJsRegExpTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
+  selectCsharpRegularExpressionLiteral,
+} from "../../../dist/policy/operations/index.js";
+import {
   printCsharpExpression,
 } from "../../../dist/print/source/index.js";
 
@@ -15,7 +18,6 @@ test("RegExp literal emission consumes the direct JS-surface policy selection", 
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
-    {},
     directInput(node, csharpJsRegExpTargetType()),
     diagnostics,
   );
@@ -32,7 +34,6 @@ test("RegExp literal emission fails closed without the explicit JS target relati
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
-    {},
     directInput(node, undefined),
     diagnostics,
   );
@@ -48,7 +49,6 @@ test("RegExp literal emission rejects unsupported source semantics before C# AST
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
-    {},
     directInput(node, csharpJsRegExpTargetType()),
     diagnostics,
   );
@@ -65,8 +65,9 @@ function regexpNode(text) {
 }
 
 function directInput(node, targetType) {
-  return {
-    policy: {
+  const sourceFile = {};
+  const selection = selectCsharpRegularExpressionLiteral(
+    {
       ast: {
         is: {
           IsRegularExpressionLiteral: (candidate) => candidate === node,
@@ -76,6 +77,16 @@ function directInput(node, targetType) {
       types: {
         resolveNode: (candidate) =>
           candidate === node ? targetType : undefined,
+      },
+    },
+    node,
+    sourceFile,
+  );
+  return {
+    program: {
+      operations: {
+        regularExpression: (candidate) =>
+          candidate === node ? selection : undefined,
       },
     },
   };

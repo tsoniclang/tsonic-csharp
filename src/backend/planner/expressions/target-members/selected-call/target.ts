@@ -1,4 +1,4 @@
-import { csharpObjectShapeProjectionMethodName } from "../../../../../policy/types/index.js";
+import { csharpObjectShapeProjectionMethodName } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-method-type-arguments.js";
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
@@ -8,8 +8,8 @@ import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
-import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../policy/members/index.js";
-import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../policy/types/index.js";
+import type { CsharpSelectedTargetCall, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
+import type { CsharpTargetMember, CsharpObjectShapeProjection } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
@@ -122,7 +122,7 @@ function registerSelectedCallArtifacts(
       ));
       return undefined;
     }
-    const targetType = input.types.policy.resolveNode(subject, sourceFile);
+    const targetType = input.types.classifications.resolveNode(subject, sourceFile);
     if (targetType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,

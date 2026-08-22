@@ -1,5 +1,3 @@
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
 import type {
   TargetCompilationSession,
   TargetCompilationSessionContext,
@@ -10,7 +8,6 @@ import type {
 import type {
   TargetCompileResult,
   TargetRuntimeContributions,
-  TargetRuntimeReference,
 } from "@tsonic/target-api/artifacts";
 import {
   createDotnetReflectionTypeDataProvider,
@@ -37,8 +34,7 @@ import {
 import {
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
-
-const require = createRequire(import.meta.url);
+import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
 
 type CsharpCompilationSessionState =
   | "created"
@@ -110,8 +106,16 @@ export function createCsharpCompilationSession(
       state = "runtime-contributed";
       return Object.freeze({
         references: Object.freeze([
-          runtimeAssemblyReference(context, "@tsonic/csharp-runtime", "Tsonic.CSharp.Runtime"),
-          runtimeAssemblyReference(context, "@tsonic/csharp-js", "Tsonic.CSharp.Js"),
+          csharpRuntimeAssemblyReference(
+            context,
+            "@tsonic/csharp-runtime",
+            "Tsonic.CSharp.Runtime",
+          ),
+          csharpRuntimeAssemblyReference(
+            context,
+            "@tsonic/csharp-js",
+            "Tsonic.CSharp.Js",
+          ),
         ]),
       });
     },
@@ -131,37 +135,6 @@ export function createCsharpCompilationSession(
       state = "closed";
     },
   });
-}
-
-function runtimeAssemblyReference(
-  context: TargetCompilationSessionContext,
-  packageName: string,
-  assemblyName: string,
-): TargetRuntimeReference {
-  const packageRoot = resolveRuntimePackageRoot(context, packageName);
-  return Object.freeze({
-    kind: "assembly",
-    include: assemblyName,
-    attributes: Object.freeze({
-      HintPath: resolve(packageRoot, `runtimes/net10.0/${assemblyName}.dll`),
-    }),
-  });
-}
-
-function resolveRuntimePackageRoot(
-  context: TargetCompilationSessionContext,
-  packageName: string,
-): string {
-  const packageJsonSpecifier = `${packageName}/package.json`;
-  const projectRequire = createRequire(resolve(context.paths.projectRoot, "package.json"));
-  for (const resolver of [projectRequire, require]) {
-    try {
-      return dirname(resolver.resolve(packageJsonSpecifier));
-    } catch {
-      continue;
-    }
-  }
-  throw new Error(`Required C# runtime package '${packageName}' is not installed or does not export package.json.`);
 }
 
 function requireState(

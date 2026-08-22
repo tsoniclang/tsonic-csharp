@@ -1,17 +1,17 @@
-import type { TargetTypeRef } from "../../../../policy/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypeParameter,
 } from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../../policy/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../../diagnostics.js";
 import {
   tryCsharpIdentifier,
-} from "../../../../policy/names/identifiers.js";
+} from "../../../../target-model/names/identifiers.js";
 import {
   pushObjectShapeDeclarationDiagnostic,
 } from "./diagnostics.js";

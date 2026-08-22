@@ -9,14 +9,6 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
-import type {
-  CsharpSourceCallableParameterContract,
-  CsharpTargetParameter,
-  TargetTypeRef,
-} from "../../../policy/types/index.js";
-import {
-  csharpNullableTargetType,
-} from "../../../policy/types/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
@@ -40,7 +32,6 @@ import {
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
   readonly prelude: readonly CsharpStatement[];
-  readonly targetParameters?: readonly CsharpSourceCallableParameterContract[];
 }
 
 export function planParameters(
@@ -60,9 +51,7 @@ export function planParametersWithPrelude(
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): PlannedParameterList {
   const parameters: CsharpParameter[] = [];
-  const targetParameters: CsharpSourceCallableParameterContract[] = [];
   const prelude: CsharpStatement[] = [];
-  let targetParametersClosed = true;
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
@@ -85,21 +74,6 @@ export function planParametersWithPrelude(
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
-      const targetParameter = getTargetParameter(
-        parameterNode!,
-        sourceName,
-        typeSubject,
-        questionToken,
-        parameter.DotDotDotToken !== undefined,
-        defaultValue !== undefined,
-        sourceFile,
-        input,
-      );
-      if (targetParameter === undefined) {
-        targetParametersClosed = false;
-      } else {
-        targetParameters.push(targetParameter);
-      }
       const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
         parameterNode!,
         input,
@@ -128,21 +102,6 @@ export function planParametersWithPrelude(
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
-      const targetParameter = getTargetParameter(
-        parameterNode!,
-        parameterName,
-        typeSubject,
-        questionToken,
-        parameter.DotDotDotToken !== undefined,
-        defaultValue !== undefined,
-        sourceFile,
-        input,
-      );
-      if (targetParameter === undefined) {
-        targetParametersClosed = false;
-      } else {
-        targetParameters.push(targetParameter);
-      }
       prelude.push(...planParameterBindingPrelude(bindingName, parameterName, sourceFile, input, diagnostics, state));
       continue;
     }
@@ -162,59 +121,11 @@ export function planParametersWithPrelude(
       attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
       ...(defaultValue === undefined ? {} : { defaultValue }),
     });
-    const targetParameter = getTargetParameter(
-      parameterNode!,
-      targetName,
-      typeSubject,
-      questionToken,
-      parameter.DotDotDotToken !== undefined,
-      defaultValue !== undefined,
-      sourceFile,
-      input,
-    );
-    if (targetParameter === undefined) {
-      targetParametersClosed = false;
-    } else {
-      targetParameters.push(targetParameter);
-    }
   }
   return {
     parameters,
     prelude,
-    ...(targetParametersClosed && targetParameters.length === parameters.length
-      ? { targetParameters: Object.freeze(targetParameters) }
-      : {}),
   };
-}
-
-function getTargetParameter(
-  sourceParameter: Node,
-  name: string,
-  typeSubject: Node | undefined,
-  questionToken: Node | undefined,
-  rest: boolean,
-  hasDefault: boolean,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): CsharpSourceCallableParameterContract | undefined {
-  const selectedType = input.types.policy.resolveNode(typeSubject, sourceFile);
-  if (selectedType === undefined) {
-    return undefined;
-  }
-  const targetType: TargetTypeRef = questionToken === undefined
-    ? selectedType
-    : csharpNullableTargetType(selectedType);
-  const targetParameter: CsharpTargetParameter = Object.freeze({
-    name,
-    type: targetType,
-    passingMode: "by-value",
-    ...(questionToken !== undefined || hasDefault ? { optional: true } : {}),
-    ...(rest ? { paramsArray: true } : {}),
-  });
-  return Object.freeze({
-    sourceParameter,
-    targetParameter,
-  });
 }
 
 function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {

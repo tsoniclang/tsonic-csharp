@@ -3,17 +3,13 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import {
-  selectCsharpFlowReadConversion,
-} from "../../../policy/conversions/index.js";
 import type {
   TargetTypeRef,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import {
   type CsharpTargetNamedTypeRef,
-  combineCsharpTargetUnionMembers,
   targetTypeRefEquals,
-} from "../../../policy/types/index.js";
+} from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -39,14 +35,21 @@ export function planFlowReadUseSiteProjection(
   } = {},
 ): CsharpExpression | undefined {
   const storageType = options.storageType ??
-    input.types.policy.resolveReadStorage(node, sourceFile);
+    input.types.classifications.resolveReadStorage(node, sourceFile);
   const selectedType = options.selectedType ??
-    input.types.policy.resolveNode(node, sourceFile);
+    input.types.classifications.resolveNode(node, sourceFile);
   if (storageType === undefined) {
     return baseExpression;
   }
-  const sourceRefinement = input.program.source.semantics
-    .selectValueTypeRefinement(node);
+  const refinementClassification = input.program.sourceEvidence.valueRefinement(node);
+  if (refinementClassification === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# planning received a source value without finalized refinement evidence.",
+    ));
+    return undefined;
+  }
+  const sourceRefinement = refinementClassification.source;
   if (sourceRefinement.kind === "not-project-reference") {
     if (
       selectedType === undefined ||
@@ -93,26 +96,7 @@ export function planFlowReadUseSiteProjection(
   ) {
     return baseExpression;
   }
-  const refinedMembers = sourceRefinement.refinement.kind === "members"
-    ? sourceRefinement.refinement.types.map((member) =>
-        input.types.policy.resolveType(member, sourceFile)
-      )
-    : undefined;
-  const selectedValueType = input.types.policy.resolveSelectedValue(
-    node,
-    sourceRefinement.selectedType,
-    sourceFile,
-  );
-  const refinedSelectedType = selectedValueType !== undefined &&
-      !targetTypeRefEquals(storageType, selectedValueType)
-    ? selectedValueType
-    : refinedMembers === undefined
-      ? input.types.policy.resolveType(sourceRefinement.selectedType, sourceFile)
-      : refinedMembers.some((member) => member === undefined)
-        ? undefined
-        : combineCsharpTargetUnionMembers(
-            refinedMembers as readonly TargetTypeRef[],
-          );
+  const refinedSelectedType = refinementClassification.flowReadTargetType;
   if (refinedSelectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -130,7 +114,10 @@ export function planFlowReadUseSiteProjection(
     diagnostics,
     storageType,
     refinedSelectedType,
-    selectCsharpFlowReadConversion(input.policy, storageType, refinedSelectedType),
+    refinementClassification.flowReadConversion ?? {
+      kind: "rejected",
+      reason: "The sealed C# flow-read classification has no conversion.",
+    },
     baseExpression,
   );
 }

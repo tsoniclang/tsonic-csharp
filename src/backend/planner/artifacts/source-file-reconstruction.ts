@@ -39,7 +39,7 @@ export function reconstructCsharpSourceFiles(
 ): readonly PlannedCsharpSourceFile[] | undefined {
   const sourceFilesByOwner = new Map<string, SourceFile>();
   const ownerBySourceFile = new Map<SourceFile, string>();
-  for (const sourceFile of input.program.source.navigation.sourceFiles) {
+  for (const sourceFile of input.program.sourceNavigation.sourceFiles) {
     const owner = sourceFileArtifactOwner(input, sourceFile);
     if (owner === undefined) {
       diagnostics.push(reconstructionDiagnostic(
@@ -181,7 +181,7 @@ export function reconstructCsharpSourceFiles(
     return undefined;
   }
   return Object.freeze(
-    input.program.source.navigation.sourceFiles.flatMap((sourceFile) => {
+    input.program.sourceNavigation.sourceFiles.flatMap((sourceFile) => {
       const owner = ownerBySourceFile.get(sourceFile);
       const planned = owner === undefined ? undefined : plannedByOwner.get(owner);
       return planned === undefined ? [] : [planned];
@@ -237,7 +237,7 @@ function sourceFilePublicDependencies(
       readonly reason: string;
     } {
   const dependencies: TargetArtifactDependency<CsharpArtifactFacet>[] = [];
-  for (const reference of input.program.source.navigation.moduleReferences(sourceFile)) {
+  for (const reference of input.program.sourceNavigation.moduleReferences(sourceFile)) {
     const dependencyOwner = ownerBySourceFile.get(reference.sourceFile) ??
       sourceFileArtifactOwner(input, reference.sourceFile);
     if (dependencyOwner === undefined) {

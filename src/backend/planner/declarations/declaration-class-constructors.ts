@@ -39,9 +39,6 @@ import {
   planAttributesForSubject,
 } from "./attributes.js";
 import {
-  publishCsharpSourceCallableContract,
-} from "../artifacts/source-callable-contracts.js";
-import {
   withCsharpSafetyModifiers,
 } from "../safety/explicit-safety.js";
 
@@ -79,17 +76,6 @@ export function planConstructorDeclaration(
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const classDeclaration = input.program.source.ast.parent(node);
-  const constructedType = classDeclaration === undefined
-    ? undefined
-    : input.types.policy.resolveNode(classDeclaration, sourceFile);
-  publishCsharpSourceCallableContract(
-    node,
-    parameters.targetParameters,
-    constructedType,
-    input,
-    diagnostics,
-  );
   const baseArguments = leadingSuperCall === undefined
     ? undefined
     : planBaseConstructorArguments(leadingSuperCall.Arguments?.Nodes ?? [], sourceFile, input, diagnostics);
