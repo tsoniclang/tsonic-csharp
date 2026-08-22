@@ -16,6 +16,7 @@ import {
   csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTsValueTargetType,
   csharpTargetNamedType,
   csharpTaskTargetType,
   csharpVoidTargetType,
@@ -50,7 +51,7 @@ const voidType = csharpVoidTargetType();
 const objectType = csharpObjectTargetType();
 const objectRuntimeType = jsRuntimeTargetType("Object");
 const jsonRuntimeType = jsRuntimeTargetType("JSON");
-const jsonValueType = jsRuntimeTargetType("TsValue");
+const jsonValueType = csharpTsValueTargetType();
 const promiseRuntimeType = jsRuntimeTargetType("PromiseRuntime");
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {
