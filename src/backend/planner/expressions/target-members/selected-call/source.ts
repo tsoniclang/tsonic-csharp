@@ -1,4 +1,4 @@
-import { applyCalleeTypeArguments, isProjectSourceDeclaration, sourceCalleeRequiresExactTargetArity, targetDelegatePreservesOmission } from "./helpers.js";
+import { applyCalleeTypeArguments, isProjectSourceDeclaration, sourceCalleeRequiresExactTargetArity } from "./helpers.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -190,15 +190,7 @@ export function translateSourceOwnedArguments(
       source,
       input,
     );
-    if (
-      !exactTargetArity ||
-      targetDelegatePreservesOmission(
-        source,
-        parameterIndex,
-        sourceFile,
-        input,
-      )
-    ) {
+    if (!exactTargetArity) {
       continue;
     }
     const declaration = input.program.source.ast.as.AsParameterDeclaration(

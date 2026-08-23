@@ -151,6 +151,7 @@ export const csharpNativeSourceProfilePropertyPolicies:
             readonly: true,
           }),
           receiver: instanceReceiver,
+          invocation: { kind: "member" },
         };
       },
     })),

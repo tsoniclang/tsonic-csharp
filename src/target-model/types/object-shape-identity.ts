@@ -6,12 +6,13 @@ import type {
 import {
   targetTypeRefKey,
 } from "./equality.js";
+import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
 
 export function csharpObjectShapeMemberContractParts(
   member: CsharpObjectShapeMemberFact,
 ): readonly string[] {
   return [
-    member.sourceName,
+    ...csharpSourceMemberKeyParts(member.sourceKey),
     member.targetName,
     member.memberKind,
     member.optional === true ? "optional" : "required",

@@ -1,29 +1,12 @@
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { getCsharpDelegateSignature } from "../../../../../target-model/types/index.js";
 import { sourceFileIdentity } from "@tsonic/target-api/source";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetMember, CsharpTargetParameter, TargetTypeRef } from "../../../../../target-model/types/index.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-
-export function targetDelegatePreservesOmission(
-  source: ResolvedSourceCallInfo,
-  parameterIndex: number,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): boolean {
-  const targetCalleeType = input.types.classifications.resolveNode(
-    source.sourceCallee.expression,
-    sourceFile,
-  );
-  const signature = getCsharpDelegateSignature(targetCalleeType);
-  return signature?.parameters.length ===
-      source.sourceSelectedSignatureParameters.length &&
-    signature.optionalParameterIndexes?.includes(parameterIndex) === true;
-}
 
 export function sourceCalleeRequiresExactTargetArity(
   source: ResolvedSourceCallInfo,

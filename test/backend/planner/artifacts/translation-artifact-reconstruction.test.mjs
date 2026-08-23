@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   csharpDelegateTargetType,
   csharpObjectShapeMemberContractKey,
+  csharpPropertySourceMemberKey,
   targetTypeRefKey,
 } from "../../../../dist/policy/types/index.js";
 import {
@@ -16,6 +17,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
   const inner = {
     targetType: innerType,
     members: [{
+      sourceKey: csharpPropertySourceMemberKey("value"),
       sourceName: "value",
       targetName: "value",
       memberKind: "property",
@@ -25,6 +27,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
   const outer = {
     targetType: outerType,
     members: [{
+      sourceKey: csharpPropertySourceMemberKey("inner"),
       sourceName: "inner",
       targetName: "inner",
       memberKind: "property",
@@ -83,6 +86,7 @@ test("target-owned object shapes reconstruct from canonical artifact state", () 
 
 test("object-shape receiver requirements strengthen one exact generated type surface monotonically", () => {
   const method = {
+    sourceKey: csharpPropertySourceMemberKey("read"),
     sourceName: "read",
     targetName: "read",
     memberKind: "method",
@@ -138,6 +142,7 @@ test("object-shape receiver requirements strengthen one exact generated type sur
   assert.match(
     artifacts.requireObjectShapeMethodReceiver(shape, {
       ...method,
+      sourceKey: csharpPropertySourceMemberKey("other"),
       sourceName: "other",
     }).reason,
     /exact method member/u,

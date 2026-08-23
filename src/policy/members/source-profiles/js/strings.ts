@@ -1,14 +1,21 @@
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
+  TargetTypeRef,
 } from "../../../types/index.js";
 import {
   csharpJsArrayTargetType,
+  csharpJsRegExpMatchArrayTargetType,
+  csharpJsRegExpStringIteratorTargetType,
+  csharpJsRegExpTargetType,
   csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpWellKnownSymbolSourceMemberKey,
+  getCsharpDelegateSignature,
+  targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -32,16 +39,23 @@ import {
   targetParameter,
   targetProperty,
 } from "./common.js";
+import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
+import {
+  csharpJsReplacementCallbackParameter,
+} from "./replacement-callback.js";
 
 const stringType = csharpStringTargetType();
 const intType = csharpSourcePrimitiveTargetType("int32");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringHelperType = jsRuntimeTargetType("String");
+const regexpProtocolDispatchType = jsRuntimeTargetType("RegExpProtocolDispatch");
 const globalsType = jsRuntimeTargetType("Globals");
 
 const stringReceiver = { kind: "target-parameter", targetParameterIndex: 0 } as const;
 const noReceiver = { kind: "none" } as const;
+const regexpStringMembers = jsRegExpSourceProfileIdentity.stringMembers;
+const stringOwner = jsRegExpSourceProfileIdentity.owners.string;
 
 const stringHelperRows = [
   {
@@ -112,39 +126,6 @@ const stringHelperRows = [
     targetName: "at",
     parameters: [targetParameter("index", intType)],
     returnType: csharpNullableTargetType(stringType),
-  },
-  {
-    sourceName: "split",
-    targetName: "split",
-    parameters: [
-      targetParameter("separator", stringType),
-      targetParameter("limit", intType, { optional: true }),
-    ],
-    returnType: csharpJsArrayTargetType(stringType),
-  },
-  {
-    sourceName: "replace",
-    targetName: "replace",
-    parameters: [
-      targetParameter("search", stringType),
-      targetParameter("replacement", stringType),
-    ],
-    returnType: stringType,
-  },
-  {
-    sourceName: "replaceAll",
-    targetName: "replaceAll",
-    parameters: [
-      targetParameter("search", stringType),
-      targetParameter("replacement", stringType),
-    ],
-    returnType: stringType,
-  },
-  {
-    sourceName: "search",
-    targetName: "search",
-    parameters: [targetParameter("pattern", stringType)],
-    returnType: intType,
   },
   {
     sourceName: "slice",
@@ -349,11 +330,35 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
       jsMemberIdentity("StringConstructor", "raw"),
       "String.raw requires a closed template-raw carrier and is not represented by the current JS source-profile runtime.",
     ),
-    ...["match", "matchAll"].map((sourceName) =>
-      jsUnsupportedCallPolicy(
-        jsMemberIdentity("String", sourceName),
-        `String.${sourceName} requires an exact RegExp match-result carrier that is not represented by the current JS source-profile runtime.`,
-      )
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.match),
+      (context) => stringRegExpPatternMember(context, "match"),
+      stringReceiver,
+    ),
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.matchAll),
+      (context) => stringRegExpPatternMember(context, "matchAll"),
+      stringReceiver,
+    ),
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.replace),
+      (context) => stringReplacementMember(context, "replace"),
+      stringReceiver,
+    ),
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.replaceAll),
+      (context) => stringReplacementMember(context, "replaceAll"),
+      stringReceiver,
+    ),
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.search),
+      (context) => stringRegExpPatternMember(context, "search"),
+      stringReceiver,
+    ),
+    jsCallPolicy(
+      jsMemberIdentity(stringOwner, regexpStringMembers.split),
+      (context) => stringRegExpPatternMember(context, "split"),
+      stringReceiver,
     ),
   ]);
 
@@ -411,4 +416,282 @@ function receiverStringHelper(
     row.parameters,
     row.returnType!,
   );
+}
+
+function stringRegExpPatternMember(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  operation: "match" | "matchAll" | "search" | "split",
+): CsharpTargetMember | undefined {
+  const pattern = resolveStringOperationArgument(context, 0);
+  const custom = resolveCustomRegExpProtocol(
+    context,
+    0,
+    operation === "matchAll" ? "match-all" : operation,
+  );
+  if (
+    pattern === undefined ||
+    !targetTypeRefEquals(pattern, stringType) &&
+      !targetTypeRefEquals(pattern, csharpJsRegExpTargetType()) &&
+      custom === undefined
+  ) {
+    return undefined;
+  }
+  if (
+    operation === "matchAll" &&
+    !targetTypeRefEquals(pattern, csharpJsRegExpTargetType()) &&
+    custom === undefined
+  ) {
+    return undefined;
+  }
+  const resultType = operation === "match"
+    ? csharpNullableTargetType(csharpJsRegExpMatchArrayTargetType())
+    : operation === "matchAll"
+      ? csharpJsRegExpStringIteratorTargetType()
+      : operation === "search"
+        ? doubleType
+        : csharpJsArrayTargetType(stringType);
+  if (custom !== undefined) {
+    return customProtocolTargetMember(
+      operation,
+      custom,
+      resultType,
+      operation === "split"
+        ? custom.signature.parameters.slice(1).map((type, index) =>
+            targetParameter(`argument${index}`, type, {
+              ...(custom.signature.optionalParameterIndexes?.includes(index + 1) === true
+                ? { optional: true }
+                : {}),
+            })
+          )
+        : [],
+    );
+  }
+  const parameters = [targetParameter("pattern", pattern)];
+  if (operation === "split") {
+    parameters.push(targetParameter("limit", doubleType, { optional: true }));
+  }
+  return receiverHelperMethod(
+    `Tsonic.CSharp.Js.String.${operation}:${targetTypeKey(pattern)}`,
+    operation,
+    operation,
+    stringHelperType,
+    stringType,
+    parameters,
+    resultType,
+  );
+}
+
+function stringReplacementMember(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  operation: "replace" | "replaceAll",
+): CsharpTargetMember | undefined {
+  const search = resolveStringOperationArgument(context, 0);
+  const replacement = resolveStringOperationArgument(context, 1);
+  const custom = resolveCustomRegExpProtocol(context, 0, "replace");
+  if (
+    search === undefined ||
+    replacement === undefined ||
+    !targetTypeRefEquals(search, stringType) &&
+      !targetTypeRefEquals(search, csharpJsRegExpTargetType()) &&
+      custom === undefined
+  ) {
+    return undefined;
+  }
+  if (custom !== undefined) {
+    const selectedReplacement = custom.signature.parameters[1];
+    if (
+      custom.signature.parameters.length !== 2 ||
+      selectedReplacement === undefined ||
+      !targetTypeRefEquals(selectedReplacement, replacement)
+    ) {
+      return undefined;
+    }
+    return customProtocolTargetMember(
+      operation,
+      custom,
+      stringType,
+      [targetParameter("replacement", replacement)],
+    );
+  }
+  const replacementParameter = targetTypeRefEquals(replacement, stringType)
+    ? targetParameter("replacement", stringType)
+    : csharpJsReplacementCallbackParameter(
+        "replacement",
+        replacement,
+        stringType,
+      );
+  if (replacementParameter === undefined) {
+    return undefined;
+  }
+  return receiverHelperMethod(
+    `Tsonic.CSharp.Js.String.${operation}:${targetTypeKey(search)}:${
+      targetTypeRefEquals(replacement, stringType) ? "string" : "callback"
+    }`,
+    operation,
+    operation,
+    stringHelperType,
+    stringType,
+    [
+      targetParameter("search", search),
+      replacementParameter,
+    ],
+    stringType,
+  );
+}
+
+type CustomRegExpProtocolKind =
+  | "match"
+  | "match-all"
+  | "replace"
+  | "search"
+  | "split";
+
+function resolveCustomRegExpProtocol(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  argumentIndex: number,
+  kind: CustomRegExpProtocolKind,
+): {
+  readonly receiverType: TargetTypeRef;
+  readonly memberTargetName: string;
+  readonly signature: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>;
+} | undefined {
+  const argument = context.source.sourceArguments[argumentIndex];
+  const argumentBindings = context.source.sourceArgumentBindings.filter(
+    (binding) => binding.sourceArgumentIndex === argumentIndex,
+  );
+  const argumentBinding = argumentBindings.length === 1
+    ? argumentBindings[0]
+    : undefined;
+  const selectedParameter = argumentBinding === undefined
+    ? undefined
+    : context.source.sourceSelectedSignatureParameters.find((parameter) =>
+        parameter.parameterIndex === argumentBinding.sourceParameterIndex
+      );
+  const authoredTypeNode = selectedParameter?.authoredTypeNode;
+  const authoredMembers = authoredTypeNode === undefined ||
+      !context.host.ast.is.IsTypeLiteralNode(authoredTypeNode)
+    ? []
+    : context.host.ast.members(authoredTypeNode).filter(
+        (member): member is NonNullable<typeof member> => member !== undefined,
+      );
+  if (
+    argument === undefined ||
+    argumentBinding?.sourceForm !== "value" ||
+    selectedParameter === undefined ||
+    authoredMembers.length !== 1
+  ) {
+    return undefined;
+  }
+  const sourceKey = csharpWellKnownSymbolSourceMemberKey(kind);
+  const selectedMember = context.host.objectShapes?.resolveTypeMember(
+    selectedParameter.selectedType,
+    context.sourceFile,
+    sourceKey,
+  );
+  const receiverType = context.host.types.resolveSelectedValue(
+    argument.expression,
+    argument.type,
+    context.sourceFile,
+  );
+  const actualMember = context.host.objectShapes?.resolveTypeMember(
+    argument.type,
+    context.sourceFile,
+    sourceKey,
+  );
+  const selectedSignature = getCsharpDelegateSignature(selectedMember?.type);
+  const actualSignature = getCsharpDelegateSignature(actualMember?.type);
+  const expectedReturn = kind === "match"
+    ? csharpNullableTargetType(csharpJsRegExpMatchArrayTargetType())
+    : kind === "match-all"
+      ? csharpJsRegExpStringIteratorTargetType()
+      : kind === "search"
+        ? doubleType
+        : kind === "split"
+          ? csharpJsArrayTargetType(stringType)
+          : stringType;
+  if (
+    receiverType === undefined ||
+    selectedMember?.memberKind !== "method" ||
+    selectedMember.optional === true ||
+    selectedMember.sourceDeclarations?.includes(authoredMembers[0]!) !== true ||
+    actualMember?.memberKind !== "method" ||
+    actualMember.optional === true ||
+    selectedSignature === undefined ||
+    actualSignature === undefined ||
+    !csharpDelegateSignaturesEqual(selectedSignature, actualSignature) ||
+    selectedSignature.parameters[0] === undefined ||
+    !targetTypeRefEquals(selectedSignature.parameters[0], stringType) ||
+    !targetTypeRefEquals(selectedSignature.returnType, expectedReturn) ||
+    (kind === "replace" && selectedSignature.parameters.length !== 2) ||
+    (kind === "split" && selectedSignature.parameters.length !== 2) ||
+    (kind !== "replace" && kind !== "split" && selectedSignature.parameters.length !== 1)
+  ) {
+    return undefined;
+  }
+  return {
+    receiverType,
+    memberTargetName: actualMember.targetName,
+    signature: actualSignature,
+  };
+}
+
+function csharpDelegateSignaturesEqual(
+  left: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
+  right: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
+): boolean {
+  const leftOptional = left.optionalParameterIndexes ?? [];
+  const rightOptional = right.optionalParameterIndexes ?? [];
+  return left.parameters.length === right.parameters.length &&
+    left.parameters.every((parameter, index) =>
+      targetTypeRefEquals(parameter, right.parameters[index]!)
+    ) &&
+    targetTypeRefEquals(left.returnType, right.returnType) &&
+    left.restParameterIndex === right.restParameterIndex &&
+    leftOptional.length === rightOptional.length &&
+    leftOptional.every((index, position) => index === rightOptional[position]);
+}
+
+function customProtocolTargetMember(
+  operation: "match" | "matchAll" | "replace" | "replaceAll" | "search" | "split",
+  protocol: NonNullable<ReturnType<typeof resolveCustomRegExpProtocol>>,
+  resultType: TargetTypeRef,
+  forwardedParameters: readonly CsharpTargetParameter[],
+): CsharpTargetMember {
+  return receiverHelperMethod(
+    `Tsonic.CSharp.Js.RegExpProtocolDispatch.${operation}:${targetTypeKey(protocol.receiverType)}`,
+    operation,
+    "Invoke",
+    regexpProtocolDispatchType,
+    stringType,
+    [
+      targetParameter("protocol", protocol.receiverType),
+      ...forwardedParameters,
+    ],
+    resultType,
+    {
+      csharpInvocation: {
+        kind: "ecmascript-protocol-dispatch",
+        protocolTargetParameterIndex: 1,
+        protocolMemberName: protocol.memberTargetName,
+      },
+    },
+  );
+}
+
+function resolveStringOperationArgument(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  index: number,
+): TargetTypeRef | undefined {
+  const argument = context.source.sourceArguments[index];
+  return argument === undefined
+    ? undefined
+    : context.host.types.resolveSelectedValue(
+        argument.expression,
+        argument.type,
+        context.sourceFile,
+      );
+}
+
+function targetTypeKey(type: TargetTypeRef): string {
+  return type.kind === "target-named" ? type.id : type.kind;
 }

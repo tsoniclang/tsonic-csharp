@@ -69,6 +69,7 @@ export interface LambdaTargetContext {
     readonly parameterTargetTypes: readonly TargetTypeRef[];
     readonly returnType?: CsharpTypeNode;
     readonly returnTargetType?: TargetTypeRef;
+    readonly restParameterIndex?: number;
   };
 }
 
@@ -372,8 +373,14 @@ export function planLambdaParameters(
     .map((parameterNode, index): CsharpLambdaParameter => {
       const parameter = AsParameterDeclaration(input.program.source.ast, parameterNode)!;
       diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode, "lambda parameter declaration", diagnostics);
-      if (parameter.DotDotDotToken !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
+      if (
+        parameter.DotDotDotToken !== undefined &&
+        expectedContext?.signature.restParameterIndex !== index
+      ) {
+        diagnostics.push(unsupportedNodeDiagnostic(
+          parameterNode,
+          "A lambda rest parameter requires exact selected delegate rest-parameter evidence before C# emission.",
+        ));
       }
       if (!HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
@@ -474,6 +481,9 @@ export function lambdaTargetContextFromTargetRef(type: TargetTypeRef | undefined
       parameterTargetTypes: signature.parameters,
       ...(isCsharpVoidTargetType(signature.returnType) ? {} : { returnType }),
       returnTargetType: signature.returnType,
+      ...(signature.restParameterIndex === undefined
+        ? {}
+        : { restParameterIndex: signature.restParameterIndex }),
     },
   };
 }

@@ -10,7 +10,10 @@ import { csharpTargetNamedType } from "../../../../target-model/types/factories.
 import { csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../../target-model/types/model.js";
+import {
+  csharpWellKnownSymbolTargetMemberName,
+} from "../../../../target-model/types/source-member-keys.js";
 
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
@@ -105,6 +108,14 @@ export function objectShapeMemberTargetName(sourceName: string): string {
     : `__tsonic_member_${
       createHash("sha256").update(sourceName).digest("hex")
     }`;
+}
+
+export function objectShapeMemberTargetNameForKey(
+  sourceKey: CsharpSourceMemberKey,
+): string | undefined {
+  return sourceKey.kind === "property"
+    ? objectShapeMemberTargetName(sourceKey.name)
+    : csharpWellKnownSymbolTargetMemberName(sourceKey.symbol);
 }
 
 export function mergeCsharpObjectShapeSubjects(

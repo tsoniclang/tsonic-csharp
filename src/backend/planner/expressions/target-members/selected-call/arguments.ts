@@ -1,5 +1,11 @@
 import { applyCsharpConversionSelection } from "../../conversions.js";
-import { csharpTargetParameterValueType } from "../../../../../target-model/types/index.js";
+import {
+  csharpSourceArgumentExpectedType,
+  csharpTargetParameterValueType,
+  getCsharpDelegateSignature,
+  getCsharpJsArrayElementTargetType,
+  targetTypeRefEquals,
+} from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
@@ -138,6 +144,17 @@ export function translateCallArgument(
     ));
     return undefined;
   }
+  if (parameter.csharpSourceArgumentAdapter !== undefined) {
+    return translateEcmascriptArgumentVectorCallback(
+      expression,
+      parameter,
+      sourceForm,
+      sourceFile,
+      input,
+      diagnostics,
+      planCallArgument,
+    );
+  }
   const targetType = csharpTargetParameterValueType(parameter, sourceForm);
   const expectedType = csharpTypeFromTargetTypeRef(targetType);
   if (expectedType === undefined) {
@@ -195,4 +212,141 @@ export function translateCallArgument(
     parameter.passingMode,
     parameter,
   );
+}
+
+function translateEcmascriptArgumentVectorCallback(
+  expression: Node,
+  parameter: CsharpTargetParameter,
+  sourceForm: CsharpSelectedCallArgument["sourceForm"],
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planCallArgument: CallArgumentPlanner,
+): CsharpArgument | undefined {
+  const adapter = parameter.csharpSourceArgumentAdapter;
+  if (
+    adapter?.kind !== "ecmascript-argument-vector-callback" ||
+    sourceForm !== "value" ||
+    parameter.passingMode !== "by-value"
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter requires one ordinary by-value source argument.",
+    ));
+    return undefined;
+  }
+  const sourceSignature = getCsharpDelegateSignature(
+    adapter.sourceCallableType,
+  );
+  const targetSignature = getCsharpDelegateSignature(parameter.type);
+  const vectorType = targetSignature?.parameters[0];
+  if (
+    sourceSignature === undefined ||
+    targetSignature === undefined ||
+    targetSignature.parameters.length !== 1 ||
+    vectorType === undefined ||
+    !targetTypeRefEquals(
+      sourceSignature.returnType,
+      targetSignature.returnType,
+    ) ||
+    sourceSignature.restParameterIndex !== undefined &&
+      sourceSignature.restParameterIndex !==
+        sourceSignature.parameters.length - 1
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter has no exact source-callable and target argument-vector contract.",
+    ));
+    return undefined;
+  }
+  const sourceCallableType = csharpTypeFromTargetTypeRef(
+    adapter.sourceCallableType,
+  );
+  const vectorCsharpType = csharpTypeFromTargetTypeRef(vectorType);
+  if (sourceCallableType === undefined || vectorCsharpType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      expression,
+      "The selected ECMAScript callback adapter contains an unrenderable callable or argument-vector type.",
+    ));
+    return undefined;
+  }
+  const plannedSource = planCallArgument(
+    expression,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceCallableType,
+    undefined,
+    csharpSourceArgumentExpectedType(parameter, sourceForm),
+    "by-value",
+  );
+  if (plannedSource === undefined) {
+    return undefined;
+  }
+  const parameterName = `__tsonic_ecmascriptArguments_${
+    Math.max(0, input.program.source.ast.pos(expression))
+  }_${Math.max(0, input.program.source.ast.end(expression))}`;
+  const vectorExpression = {
+    kind: "IdentifierName" as const,
+    name: parameterName,
+  };
+  const callbackArguments: CsharpArgument[] = [];
+  for (let index = 0; index < sourceSignature.parameters.length; index += 1) {
+    const sourceParameterType = sourceSignature.parameters[index]!;
+    const rest = sourceSignature.restParameterIndex === index;
+    const projectedType = rest
+      ? getCsharpJsArrayElementTargetType(sourceParameterType)
+      : sourceParameterType;
+    const projectedCsharpType = projectedType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(projectedType);
+    if (projectedCsharpType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        rest
+          ? "An ECMAScript callback rest parameter requires an exact JS-array element representation."
+          : `ECMAScript callback parameter ${index} has no renderable target representation.`,
+      ));
+      return undefined;
+    }
+    callbackArguments.push({
+      kind: "Argument",
+      expression: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: vectorExpression,
+          name: rest ? "Rest" : "Get",
+          typeArguments: [projectedCsharpType],
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: { kind: "LiteralExpression", value: index },
+        }],
+      },
+    });
+  }
+  return {
+    kind: "Argument",
+    expression: {
+      kind: "LambdaExpression",
+      parameters: [{
+        kind: "Parameter",
+        name: parameterName,
+        type: vectorCsharpType,
+      }],
+      body: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "ParenthesizedExpression",
+          expression: {
+            kind: "CastExpression",
+            type: sourceCallableType,
+            expression: plannedSource.expression,
+          },
+        },
+        arguments: callbackArguments,
+      },
+    },
+  };
 }

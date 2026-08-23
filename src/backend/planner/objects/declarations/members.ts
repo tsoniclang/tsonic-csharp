@@ -26,6 +26,8 @@ import {
   canonicalCsharpObjectShapeMembers,
   csharpObjectShapeMemberContractKey,
   csharpDelegateTargetType,
+  getCsharpNullableElementTargetType,
+  getCsharpDelegateSignature,
   isCsharpVoidTargetType,
 } from "../../../../target-model/types/index.js";
 
@@ -211,6 +213,10 @@ function renderObjectShapeMethodMember(
   const parameters: CsharpParameter[] = signature.parameters.map((type, index) => ({
     name: `arg${index}`,
     type,
+    ...(signature.restParameterIndex === index ? { isParams: true } : {}),
+    ...(signature.optionalParameterIndexes.has(index)
+      ? { defaultValue: { kind: "DefaultExpression" as const, type } }
+      : {}),
   }));
   const call: CsharpExpression = {
     kind: "InvocationExpression",
@@ -257,14 +263,38 @@ function renderObjectShapeMethodMember(
   }];
 }
 
-interface CsharpDelegateSignatureMetadata {
-  readonly parameters: readonly TargetTypeRef[];
-  readonly returnType?: TargetTypeRef;
-}
-
-function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode; readonly returnsVoid: boolean } | undefined {
-  const metadata = (type as { readonly csharpDelegateSignature?: CsharpDelegateSignatureMetadata }).csharpDelegateSignature;
-  if (metadata?.returnType === undefined) {
+function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): {
+  readonly parameters: readonly CsharpTypeNode[];
+  readonly returnType: CsharpTypeNode;
+  readonly returnsVoid: boolean;
+  readonly optionalParameterIndexes: ReadonlySet<number>;
+  readonly restParameterIndex?: number;
+} | undefined {
+  const metadata = getCsharpDelegateSignature(type);
+  if (
+    metadata === undefined ||
+    !Array.isArray(metadata.parameters) ||
+    metadata.returnType === undefined
+  ) {
+    return undefined;
+  }
+  const optionalParameterIndexes = new Set(
+    metadata.optionalParameterIndexes ?? [],
+  );
+  const restParameterIndex = metadata.restParameterIndex;
+  if (
+    optionalParameterIndexes.size !==
+      (metadata.optionalParameterIndexes?.length ?? 0) ||
+    [...optionalParameterIndexes].some((index) =>
+      index < 0 ||
+      index >= metadata.parameters.length ||
+      index === restParameterIndex ||
+      getCsharpNullableElementTargetType(metadata.parameters[index]) === undefined
+    ) ||
+    restParameterIndex !== undefined &&
+      (restParameterIndex !== metadata.parameters.length - 1 ||
+        restParameterIndex < 0)
+  ) {
     return undefined;
   }
   const parameters = metadata.parameters.map(csharpTypeFromTargetTypeRef);
@@ -275,5 +305,7 @@ function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readon
         parameters: parameters as readonly CsharpTypeNode[],
         returnType,
         returnsVoid: isCsharpVoidTargetType(metadata.returnType),
+        optionalParameterIndexes,
+        ...(restParameterIndex === undefined ? {} : { restParameterIndex }),
       };
 }

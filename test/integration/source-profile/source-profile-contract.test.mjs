@@ -10,6 +10,19 @@ import {
   csharpSourceProfileContributions,
   csharpSourceProfileOwnerId,
 } from "../../../dist/source/profiles/source-profile-declarations.js";
+import { jsRegExpSourceProfileDeclarations } from "@tsonic/js-source-profile";
+
+test("only the JS surface composes the canonical RegExp declaration contract", () => {
+  const nativeText = sourceProfileFiles("csharp").map((file) => file.text).join("\n");
+  const jsText = sourceProfileFiles("js").map((file) => file.text).join("\n");
+
+  assert.equal(nativeText.includes(jsRegExpSourceProfileDeclarations), false);
+  assert.equal((nativeText.match(/interface RegExp \{\}/gu) ?? []).length, 1);
+  assert.equal(nativeText.includes("interface RegExpConstructor"), false);
+  assert.equal(jsText.split(jsRegExpSourceProfileDeclarations).length - 1, 1);
+  assert.equal((jsText.match(/interface RegExp \{/gu) ?? []).length, 2);
+  assert.equal((jsText.match(/interface RegExpConstructor \{/gu) ?? []).length, 1);
+});
 
 test("C# source profile accepts CLR names and rejects JS names under noLib", () => {
   const valid = createSourceProfileSession({

@@ -40,7 +40,7 @@ export function renderJsonSerializableObjectShapeMethod(
     expressionStatement(invokeMember(writer, "WriteStartObject")),
   ];
   for (const member of fact.members) {
-    if (member.memberKind === "method") {
+    if (member.memberKind === "method" || member.sourceKey.kind !== "property") {
       continue;
     }
     statements.push(

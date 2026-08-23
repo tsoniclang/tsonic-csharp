@@ -33,6 +33,7 @@ export function canUseCsharpJsValueObjectShapeCarrier(
 ): boolean {
   return (implemented?.length ?? 0) === 0 &&
     members.every((member) =>
+      member.sourceKey.kind === "property" &&
       member.memberKind === "property" &&
       member.accessor === undefined &&
       isCsharpJsValueTargetType(member.type)

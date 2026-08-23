@@ -6,6 +6,7 @@ import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provide
 import {
   csharpTargetId,
 } from "../../../target-model/identities/source.js";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 
 export type CsharpSourceProfileOwner = typeof csharpTargetId | "js";
 
@@ -19,6 +20,7 @@ export interface CsharpSourceProfileDeclarationIdentity {
 
 export function csharpSourceProfileDeclarationIdentity(
   ast: AstReader,
+  semantics: SourceFileSemantics,
   declaration: Node | undefined,
 ): CsharpSourceProfileDeclarationIdentity | undefined {
   if (declaration === undefined) {
@@ -38,7 +40,7 @@ export function csharpSourceProfileDeclarationIdentity(
     kind === "KindFunctionDeclaration" &&
     parentKind === "KindSourceFile"
   ) {
-    const name = declarationName(ast, declaration);
+    const name = declarationName(ast, semantics, declaration);
     return name === undefined
       ? undefined
       : {
@@ -50,7 +52,7 @@ export function csharpSourceProfileDeclarationIdentity(
         };
   }
   if (sourceProfileTypeDeclarationKind(kind) && parentKind === "KindSourceFile") {
-    const name = declarationName(ast, declaration);
+    const name = declarationName(ast, semantics, declaration);
     return name === undefined
       ? undefined
       : { owner, kind: "type", name, declaration };
@@ -60,7 +62,7 @@ export function csharpSourceProfileDeclarationIdentity(
     parent !== undefined &&
     parentKind === "KindTypeAliasDeclaration"
   ) {
-    const declaringName = declarationName(ast, parent);
+    const declaringName = declarationName(ast, semantics, parent);
     return declaringName === undefined
       ? undefined
       : { owner, kind: "indexer", declaringName, declaration };
@@ -68,7 +70,7 @@ export function csharpSourceProfileDeclarationIdentity(
   if (parent === undefined || !sourceProfileTypeDeclarationKind(parentKind)) {
     return undefined;
   }
-  const declaringName = declarationName(ast, parent);
+  const declaringName = declarationName(ast, semantics, parent);
   if (declaringName === undefined) {
     return undefined;
   }
@@ -84,7 +86,7 @@ export function csharpSourceProfileDeclarationIdentity(
   if (!sourceProfileNamedMemberDeclarationKind(kind)) {
     return undefined;
   }
-  const name = declarationName(ast, declaration);
+  const name = declarationName(ast, semantics, declaration);
   return name === undefined
     ? undefined
     : { owner, kind: "member", declaringName, name, declaration };
@@ -103,11 +105,18 @@ function csharpSourceProfileOwner(
 
 function declarationName(
   ast: AstReader,
+  semantics: SourceFileSemantics,
   declaration: Node,
 ): string | undefined {
   const name = ast.name(declaration);
   if (name === undefined) {
     return undefined;
+  }
+  if (ast.is.IsComputedPropertyName(name)) {
+    const selected = semantics.operations.wellKnownSymbol(name);
+    return selected === undefined
+      ? undefined
+      : wellKnownMemberKey(selected.kind);
   }
   const kind = ast.kindName(name);
   if (
@@ -120,6 +129,30 @@ function declarationName(
   }
   const text = ast.text(name);
   return text === "" ? undefined : text;
+}
+
+function wellKnownMemberKey(
+  kind: NonNullable<
+    ReturnType<SourceFileSemantics["operations"]["wellKnownSymbol"]>
+  >["kind"],
+): string {
+  switch (kind) {
+    case "async-dispose": return "@@asyncDispose";
+    case "async-iterator": return "@@asyncIterator";
+    case "dispose": return "@@dispose";
+    case "has-instance": return "@@hasInstance";
+    case "is-concat-spreadable": return "@@isConcatSpreadable";
+    case "iterator": return "@@iterator";
+    case "match": return "@@match";
+    case "match-all": return "@@matchAll";
+    case "replace": return "@@replace";
+    case "search": return "@@search";
+    case "species": return "@@species";
+    case "split": return "@@split";
+    case "to-primitive": return "@@toPrimitive";
+    case "to-string-tag": return "@@toStringTag";
+    case "unscopables": return "@@unscopables";
+  }
 }
 
 function sourceProfileTypeDeclarationKind(kind: string | undefined): boolean {
