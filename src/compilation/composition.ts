@@ -11,6 +11,10 @@ import type {
 import {
   csharpJsSurfaceSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
+import {
+  createJsSourceSemanticsExtension,
+  jsSourceSemanticsModules,
+} from "@tsonic/js-source-profile";
 import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
 
 export const csharpTargetProvider: TargetProviderDescriptor = Object.freeze({
@@ -28,7 +32,10 @@ export const csharpTargetSurfaces: readonly TargetSurfaceImplementation[] = Obje
     displayName: "JavaScript surface",
     sourceProfileContributions: csharpJsSurfaceSourceProfileContributions,
     sourceCompilerContributions() {
-      return Object.freeze({});
+      return Object.freeze({
+        semanticsModules: jsSourceSemanticsModules(),
+        extensions: Object.freeze([createJsSourceSemanticsExtension()]),
+      });
     },
     runtimeContributions(
       context: TargetRuntimeContributionContext,

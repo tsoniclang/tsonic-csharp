@@ -92,6 +92,9 @@ import {
 import {
   tryPlanCsharpNativePointerOperation,
 } from "./expression-native-pointers.js";
+import {
+  tryPlanCsharpJsStringConversion,
+} from "./expression-js-string-conversion.js";
 
 export function planExpression(
   node: Node,
@@ -200,6 +203,16 @@ function planExpressionCore(
   );
   if (explicitSafety.handled) {
     return explicitSafety.expression;
+  }
+  const jsStringConversion = tryPlanCsharpJsStringConversion(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    scopedPlanExpression,
+  );
+  if (jsStringConversion.handled) {
+    return jsStringConversion.expression;
   }
   const nativePointerOperation = tryPlanCsharpNativePointerOperation(
     node,

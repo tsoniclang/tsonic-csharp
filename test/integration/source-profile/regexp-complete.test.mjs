@@ -58,6 +58,31 @@ test("complete RegExp operations consume selected JS-source-profile evidence", (
   assert.match(source, /indices\?\[0\]\?\.Item1/u);
 });
 
+test("explicit JsString preserves exact UTF-16 semantics without changing native string defaults", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import { jsstr } from "@tsonic/js/lang.js";
+      import type { JsString } from "@tsonic/js/types.js";
+
+      export function exact(input: string): string {
+        const value: JsString = jsstr(input);
+        const first: JsString = value.charAt(0);
+        const matched: JsRegExpExecArray | null = /./.exec(value);
+        return RegExp.escape(first) + (matched?.[0] ?? first).toWellFormed();
+      }
+    `,
+  });
+
+  assertCsharpCompilationSucceeded(compiled);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /Tsonic\.CSharp\.Js\.String\.charAt\(value, 0\)/u);
+  assert.match(source, /Tsonic\.CSharp\.Js\.RegExp\.escape\(first\)/u);
+  assert.match(source, /\.exec\(value\)/u);
+  assert.match(source, /Tsonic\.CSharp\.Js\.String\.toWellFormed/u);
+  assert.doesNotMatch(source, /\bjsstr\b|new\s+JsString/u);
+});
+
 test("custom well-known RegExp protocols use exact structural member evidence", () => {
   const compiled = compileCsharpSource({
     surface: "js",

@@ -11,6 +11,7 @@ import {
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpJsStringTargetType,
   csharpStringTargetType,
 } from "../../../target-model/types/scalar-types.js";
 
@@ -182,6 +183,74 @@ export function csharpJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeR
     undefined,
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
     { enumerableElementType: csharpJsRegExpExecArrayTargetType() },
+  );
+}
+
+export function csharpExactJsRegExpExecArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpExactJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.JsRegExpExecArray",
+    "RegExpExecArray",
+    csharpExactJsRegExpMatchArrayTargetType(),
+  );
+}
+
+export function csharpExactJsRegExpMatchArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpExactJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.JsRegExpMatchArray",
+    "RegExpMatchArray",
+  );
+}
+
+export function csharpExactJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
+  const pair: TargetTypeRef = {
+    kind: "tuple",
+    elements: [
+      csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("float64"),
+    ],
+  };
+  return csharpJsArrayLikeTargetType(
+    "Tsonic.CSharp.Js.JsRegExpIndicesArray",
+    "RegExpIndicesArray",
+    csharpNullableTargetType(pair),
+  );
+}
+
+export function csharpExactJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpNamedGroups",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
+  );
+}
+
+export function csharpExactJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpNamedIndices",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
+  );
+}
+
+export function csharpExactJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpStringIterator",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
+    { enumerableElementType: csharpExactJsRegExpExecArrayTargetType() },
+  );
+}
+
+function csharpExactJsRegExpArrayTargetType(
+  id: string,
+  name: string,
+  baseType?: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return csharpJsArrayLikeTargetType(
+    id,
+    name,
+    csharpNullableTargetType(csharpJsStringTargetType()),
+    baseType,
   );
 }
 

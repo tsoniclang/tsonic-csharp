@@ -45,6 +45,7 @@ import {
   selectCsharpUnaryOperation,
   sourceOperatorFromKindName,
   selectCsharpJsArrayMutation,
+  selectCsharpJsStringConversion,
   selectCsharpRegularExpressionLiteral,
 } from "../../policy/operations/index.js";
 import type {
@@ -121,6 +122,9 @@ const jsObjectLiteralKey = createTargetClassificationKey<ReturnType<typeof selec
 const jsArrayMutationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsArrayMutation>>(
   "csharp.operation.js-array-mutation",
 );
+const jsStringConversionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsStringConversion>>(
+  "csharp.operation.js-string-conversion",
+);
 const providerValueKey = createTargetClassificationKey<ReturnType<typeof selectCsharpProviderValue>>(
   "csharp.operation.provider-value",
 );
@@ -160,6 +164,7 @@ export function analyzeCsharpTargetOperations(
     jsVoid: (node) => facts.get(node, jsVoidKey),
     jsObjectLiteral: (node) => facts.get(node, jsObjectLiteralKey),
     jsArrayMutation: (node) => facts.get(node, jsArrayMutationKey),
+    jsStringConversion: (node) => facts.get(node, jsStringConversionKey),
     providerValue: (node) => facts.get(node, providerValueKey),
     regularExpression: (node) => facts.get(node, regularExpressionKey),
     throwable: (node) => facts.get(node, throwableKey),
@@ -213,6 +218,14 @@ function visit(
       node,
       regularExpressionKey,
       selectCsharpRegularExpressionLiteral(policy, node, sourceFile),
+    );
+  }
+  if (ast.is.IsCallExpression(node)) {
+    setClassification(
+      builder,
+      node,
+      jsStringConversionKey,
+      selectCsharpJsStringConversion(policy, node, sourceFile),
     );
   }
   if (ast.is.IsDeleteExpression(node) || ast.is.IsBinaryExpression(node)) {

@@ -693,20 +693,23 @@ export function analyzeCsharpExpectedTypes(
     parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
     sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1],
   ): TargetTypeRef {
-    const fallback = csharpSourceArgumentExpectedType(parameter, sourceForm);
+    const declaredExpectedType = csharpSourceArgumentExpectedType(
+      parameter,
+      sourceForm,
+    );
     if (
       expression === undefined ||
       parameter.csharpSourceArgumentAdapter === undefined ||
       !isCallableBoundary(expression)
     ) {
-      return fallback;
+      return declaredExpectedType;
     }
     const callable = callables.get({
       kind: "declaration",
       declaration: expression,
     });
     if (callable === undefined || callable.methodTypeParameterNames.length > 0) {
-      return fallback;
+      return declaredExpectedType;
     }
     const parameters = Object.freeze(callable.parameters.map((candidate) =>
       candidate.targetParameter.type));
@@ -719,7 +722,7 @@ export function analyzeCsharpExpectedTypes(
         candidate.targetParameter.paramsArray === true ? [index] : [],
     );
     if (restParameterIndexes.length > 1) {
-      return fallback;
+      return declaredExpectedType;
     }
     return isCsharpVoidTargetType(callable.returnType)
       ? csharpDelegateTargetType("System.Action", parameters, undefined, {

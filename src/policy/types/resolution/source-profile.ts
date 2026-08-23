@@ -29,6 +29,12 @@ export type CsharpSourceProfileTypeKind =
   | "regexp-named-groups"
   | "regexp-named-indices"
   | "regexp-string-iterator"
+  | "js-regexp-exec-array"
+  | "js-regexp-match-array"
+  | "js-regexp-indices-array"
+  | "js-regexp-named-groups"
+  | "js-regexp-named-indices"
+  | "js-regexp-string-iterator"
   | "map"
   | "readonly-map"
   | "set"
@@ -113,6 +119,36 @@ const sourceProfileTypePolicies = Object.freeze([
     "js",
     jsRegExpSourceProfileIdentity.owners.regExpStringIterator,
     "regexp-string-iterator",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpExecArray,
+    "js-regexp-exec-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpMatchArray,
+    "js-regexp-match-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpIndicesArray,
+    "js-regexp-indices-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpNamedGroups,
+    "js-regexp-named-groups",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpNamedIndices,
+    "js-regexp-named-indices",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.jsRegExpStringIterator,
+    "js-regexp-string-iterator",
   ),
   sourceProfileTypePolicy("js", "Map", "map"),
   sourceProfileTypePolicy("js", "ReadonlyMap", "readonly-map"),

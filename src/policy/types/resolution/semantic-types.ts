@@ -12,6 +12,7 @@ import {
 } from "../../../target-model/types/runtime-carriers.js";
 import {
   csharpBigIntegerTargetType,
+  csharpJsStringTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpNeverTargetType,
@@ -21,6 +22,7 @@ import {
   readCsharpSourceDefaultValue,
   readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
+  readCsharpSourceJsStringMarker,
   readCsharpSourcePointerType,
 } from "./source-markers.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
@@ -156,6 +158,9 @@ export function resolveDirectSourceFacts(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    if (readCsharpSourceJsStringMarker(host.sourceFacts, subject)) {
+      return csharpJsStringTargetType();
+    }
     const defaultValue = readCsharpSourceDefaultValue(
       host.sourceFacts,
       subject,

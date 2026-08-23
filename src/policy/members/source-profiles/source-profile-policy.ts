@@ -157,6 +157,7 @@ export function selectCsharpSourceProfileCallPolicy(
   const identity = csharpSourceProfileDeclarationIdentity(
     host.ast,
     semantics,
+    host.sourceFacts,
     declaration,
   );
   if (identity === undefined) {
@@ -222,6 +223,7 @@ function sourceProfilePropertyIdentities(
     const identity = csharpSourceProfileDeclarationIdentity(
       host.ast,
       semantics,
+      host.sourceFacts,
       source.selectedDeclaration,
     );
     return identity === undefined ? [] : [identity];
@@ -234,7 +236,12 @@ function sourceProfilePropertyIdentities(
     source.selectedSymbol,
   );
   const identities = declarations.map((declaration) =>
-    csharpSourceProfileDeclarationIdentity(host.ast, semantics, declaration)
+    csharpSourceProfileDeclarationIdentity(
+      host.ast,
+      semantics,
+      host.sourceFacts,
+      declaration,
+    )
   );
   return identities.length > 0 &&
       identities.every(
@@ -254,6 +261,7 @@ export function selectCsharpSourceProfileElementPolicy(
   const identity = csharpSourceProfileDeclarationIdentity(
     host.ast,
     host.semantics(sourceFile),
+    host.sourceFacts,
     source.selectedDeclaration,
   );
   if (identity === undefined) {

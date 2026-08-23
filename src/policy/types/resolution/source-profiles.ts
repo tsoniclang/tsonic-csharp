@@ -24,6 +24,12 @@ import {
   csharpJsRegExpNamedIndicesTargetType,
   csharpJsRegExpStringIteratorTargetType,
   csharpJsRegExpTargetType,
+  csharpExactJsRegExpExecArrayTargetType,
+  csharpExactJsRegExpIndicesArrayTargetType,
+  csharpExactJsRegExpMatchArrayTargetType,
+  csharpExactJsRegExpNamedGroupsTargetType,
+  csharpExactJsRegExpNamedIndicesTargetType,
+  csharpExactJsRegExpStringIteratorTargetType,
   csharpJsSetTargetType,
 } from "./surface-types.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
@@ -146,6 +152,30 @@ export function resolveSourceProfileType(
     case "regexp-string-iterator":
       return typeArguments.length === 1
         ? csharpJsRegExpStringIteratorTargetType()
+        : undefined;
+    case "js-regexp-exec-array":
+      return typeArguments.length === 0
+        ? csharpExactJsRegExpExecArrayTargetType()
+        : undefined;
+    case "js-regexp-match-array":
+      return typeArguments.length === 0
+        ? csharpExactJsRegExpMatchArrayTargetType()
+        : undefined;
+    case "js-regexp-indices-array":
+      return typeArguments.length === 0
+        ? csharpExactJsRegExpIndicesArrayTargetType()
+        : undefined;
+    case "js-regexp-named-groups":
+      return typeArguments.length === 0
+        ? csharpExactJsRegExpNamedGroupsTargetType()
+        : undefined;
+    case "js-regexp-named-indices":
+      return typeArguments.length === 0
+        ? csharpExactJsRegExpNamedIndicesTargetType()
+        : undefined;
+    case "js-regexp-string-iterator":
+      return typeArguments.length === 1
+        ? csharpExactJsRegExpStringIteratorTargetType()
         : undefined;
     case "map":
     case "readonly-map":

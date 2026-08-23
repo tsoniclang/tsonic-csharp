@@ -12,6 +12,13 @@ import {
   csharpJsRegExpNamedIndicesTargetType,
   csharpJsRegExpStringIteratorTargetType,
   csharpJsRegExpTargetType,
+  csharpExactJsRegExpExecArrayTargetType,
+  csharpExactJsRegExpIndicesArrayTargetType,
+  csharpExactJsRegExpMatchArrayTargetType,
+  csharpExactJsRegExpNamedGroupsTargetType,
+  csharpExactJsRegExpNamedIndicesTargetType,
+  csharpExactJsRegExpStringIteratorTargetType,
+  csharpJsStringTargetType,
   csharpNullableTargetType,
   csharpRuntimeUndefinedTargetType,
   csharpSourcePrimitiveTargetType,
@@ -50,6 +57,11 @@ const regexpMatchArrayOwner = identity.owners.regExpMatchArray;
 const regexpIndicesArrayOwner = identity.owners.regExpIndicesArray;
 const regexpNamedGroupsOwner = identity.owners.regExpNamedGroups;
 const regexpNamedIndicesOwner = identity.owners.regExpNamedIndices;
+const exactExecArrayOwner = identity.owners.jsRegExpExecArray;
+const exactMatchArrayOwner = identity.owners.jsRegExpMatchArray;
+const exactIndicesArrayOwner = identity.owners.jsRegExpIndicesArray;
+const exactNamedGroupsOwner = identity.owners.jsRegExpNamedGroups;
+const exactNamedIndicesOwner = identity.owners.jsRegExpNamedIndices;
 const regexpMembers = identity.regExpMembers;
 const regexpConstructorMembers = identity.regExpConstructorMembers;
 const regexpResultMembers = identity.regExpResultMembers;
@@ -63,6 +75,13 @@ const namedGroupsType = csharpJsRegExpNamedGroupsTargetType();
 const namedIndicesType = csharpJsRegExpNamedIndicesTargetType();
 const iteratorType = csharpJsRegExpStringIteratorTargetType();
 const stringType = csharpStringTargetType();
+const jsStringType = csharpJsStringTargetType();
+const exactExecArrayType = csharpExactJsRegExpExecArrayTargetType();
+const exactMatchArrayType = csharpExactJsRegExpMatchArrayTargetType();
+const exactIndicesArrayType = csharpExactJsRegExpIndicesArrayTargetType();
+const exactNamedGroupsType = csharpExactJsRegExpNamedGroupsTargetType();
+const exactNamedIndicesType = csharpExactJsRegExpNamedIndicesTargetType();
+const exactIteratorType = csharpExactJsRegExpStringIteratorTargetType();
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -92,30 +111,17 @@ export const csharpJsRegExpCallPolicies:
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpConstructorOwner, regexpConstructorMembers.escape),
-      () =>
-        staticMethod(
-          "Tsonic.CSharp.Js.RegExp.escape",
-          regexpConstructorMembers.escape,
-          "escape",
-          regexpType,
-          [targetParameter("value", stringType)],
-          stringType,
-        ),
+      (context) => regexpEscapeMember(context),
       noReceiver,
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, regexpMembers.test),
-      () => regexpInstanceMethod(regexpMembers.test, [stringType], boolType),
+      (context) => regexpInputMember(context, "test"),
       instanceReceiver,
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, regexpMembers.exec),
-      () =>
-        regexpInstanceMethod(
-          regexpMembers.exec,
-          [stringType],
-          csharpNullableTargetType(execArrayType),
-        ),
+      (context) => regexpInputMember(context, "exec"),
       instanceReceiver,
     ),
     jsCallPolicy(
@@ -125,24 +131,12 @@ export const csharpJsRegExpCallPolicies:
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, wellKnown.match),
-      () =>
-        regexpInstanceMethod(
-          wellKnown.match,
-          [stringType],
-          csharpNullableTargetType(matchArrayType),
-          "match",
-        ),
+      (context) => regexpInputMember(context, "match"),
       instanceReceiver,
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, wellKnown.matchAll),
-      () =>
-        regexpInstanceMethod(
-          wellKnown.matchAll,
-          [stringType],
-          iteratorType,
-          "matchAll",
-        ),
+      (context) => regexpInputMember(context, "matchAll"),
       instanceReceiver,
     ),
     jsCallPolicy(
@@ -152,25 +146,12 @@ export const csharpJsRegExpCallPolicies:
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, wellKnown.search),
-      () =>
-        regexpInstanceMethod(
-          wellKnown.search,
-          [stringType],
-          doubleType,
-          "search",
-        ),
+      (context) => regexpInputMember(context, "search"),
       instanceReceiver,
     ),
     jsCallPolicy(
       jsMemberIdentity(regexpOwner, wellKnown.split),
-      () =>
-        regexpInstanceMethod(
-          wellKnown.split,
-          [stringType, doubleType],
-          csharpJsArrayTargetType(stringType),
-          "split",
-          { optionalIndexes: [1] },
-        ),
+      (context) => regexpInputMember(context, "split"),
       instanceReceiver,
     ),
   ]);
@@ -220,6 +201,22 @@ export const csharpJsRegExpPropertyPolicies:
       csharpNullableTargetType(doubleType),
       csharpNullableTargetType(stringType),
     ),
+    ...regexpResultPropertyPolicies(
+      exactExecArrayOwner,
+      exactExecArrayType,
+      doubleType,
+      jsStringType,
+      exactNamedGroupsType,
+      exactIndicesArrayType,
+    ),
+    ...regexpResultPropertyPolicies(
+      exactMatchArrayOwner,
+      exactMatchArrayType,
+      csharpNullableTargetType(doubleType),
+      csharpNullableTargetType(jsStringType),
+      exactNamedGroupsType,
+      exactIndicesArrayType,
+    ),
     jsPropertyPolicy(
       jsMemberIdentity(regexpIndicesArrayOwner, regexpResultMembers.groups),
       () =>
@@ -259,6 +256,45 @@ export const csharpJsRegExpPropertyPolicies:
       instanceReceiver,
       { kind: "source-name-indexer" },
     ),
+    jsPropertyPolicy(
+      jsMemberIdentity(exactIndicesArrayOwner, regexpResultMembers.groups),
+      () =>
+        targetProperty(
+          "Tsonic.CSharp.Js.JsRegExpIndicesArray.groups",
+          regexpResultMembers.groups,
+          regexpResultMembers.groups,
+          exactIndicesArrayType,
+          csharpNullableTargetType(exactNamedIndicesType),
+          { readonly: true },
+        ),
+      instanceReceiver,
+    ),
+    jsPropertyPolicy(
+      jsIndexerIdentity(exactNamedGroupsOwner),
+      () =>
+        targetIndexer(
+          "Tsonic.CSharp.Js.JsRegExpNamedGroups.indexer",
+          exactNamedGroupsType,
+          stringType,
+          csharpNullableTargetType(jsStringType),
+          false,
+        ),
+      instanceReceiver,
+      { kind: "source-name-indexer" },
+    ),
+    jsPropertyPolicy(
+      jsIndexerIdentity(exactNamedIndicesOwner),
+      () =>
+        targetIndexer(
+          "Tsonic.CSharp.Js.JsRegExpNamedIndices.indexer",
+          exactNamedIndicesType,
+          stringType,
+          nullablePairType,
+          false,
+        ),
+      instanceReceiver,
+      { kind: "source-name-indexer" },
+    ),
   ]);
 
 export const csharpJsRegExpElementPolicies:
@@ -275,6 +311,22 @@ export const csharpJsRegExpElementPolicies:
             receiverType,
             intType,
             stringType,
+            false,
+          ),
+      )
+    ),
+    ...([
+      [exactExecArrayOwner, exactExecArrayType],
+      [exactMatchArrayOwner, exactMatchArrayType],
+    ] as const).map(([owner, receiverType]) =>
+      jsElementPolicy(
+        jsMemberIdentity(owner, regexpResultMembers.first),
+        () =>
+          targetIndexer(
+            `Tsonic.CSharp.Js.${owner}.first`,
+            receiverType,
+            intType,
+            jsStringType,
             false,
           ),
       )
@@ -299,6 +351,28 @@ export const csharpJsRegExpElementPolicies:
           stringType,
           nullablePairType,
           false,
+      ),
+    ),
+    jsElementPolicy(
+      jsIndexerIdentity(exactNamedGroupsOwner),
+      () =>
+        targetIndexer(
+          "Tsonic.CSharp.Js.JsRegExpNamedGroups.indexer",
+          exactNamedGroupsType,
+          stringType,
+          csharpNullableTargetType(jsStringType),
+          false,
+        ),
+    ),
+    jsElementPolicy(
+      jsIndexerIdentity(exactNamedIndicesOwner),
+      () =>
+        targetIndexer(
+          "Tsonic.CSharp.Js.JsRegExpNamedIndices.indexer",
+          exactNamedIndicesType,
+          stringType,
+          nullablePairType,
+          false,
         ),
     ),
   ]);
@@ -315,7 +389,8 @@ function regexpConstructionMember(
   const flags = resolveArgumentType(context, 1);
   const patternInvalid = arguments_[0] !== undefined && (
     pattern === undefined ||
-    !targetTypeRefEquals(pattern, stringType) &&
+      !targetTypeRefEquals(pattern, stringType) &&
+      !targetTypeRefEquals(pattern, jsStringType) &&
       !targetTypeRefEquals(pattern, regexpType) &&
       !targetTypeRefEquals(pattern, undefinedType)
   );
@@ -350,6 +425,27 @@ function regexpConstructionMember(
     parameters: Object.freeze(parameters),
     returnType: regexpType,
   });
+}
+
+function regexpEscapeMember(
+  context: CsharpSourceProfileCallPolicyContext,
+): CsharpTargetMember | undefined {
+  const input = resolveArgumentType(context, 0);
+  if (
+    input === undefined ||
+    !targetTypeRefEquals(input, stringType) &&
+      !targetTypeRefEquals(input, jsStringType)
+  ) {
+    return undefined;
+  }
+  return staticMethod(
+    `Tsonic.CSharp.Js.RegExp.escape:${targetTypeListKey([{ type: input }])}`,
+    regexpConstructorMembers.escape,
+    "escape",
+    regexpType,
+    [targetParameter("value", input)],
+    stringType,
+  );
 }
 
 function resolveArgumentType(
@@ -398,25 +494,70 @@ function regexpInstanceMethod(
   );
 }
 
+function regexpInputMember(
+  context: CsharpSourceProfileCallPolicyContext,
+  operation: "test" | "exec" | "match" | "matchAll" | "search" | "split",
+): CsharpTargetMember | undefined {
+  const inputType = resolveArgumentType(context, 0);
+  if (
+    inputType === undefined ||
+    !targetTypeRefEquals(inputType, stringType) &&
+      !targetTypeRefEquals(inputType, jsStringType)
+  ) {
+    return undefined;
+  }
+  const exact = targetTypeRefEquals(inputType, jsStringType);
+  const sourceName = operation === "test" || operation === "exec"
+    ? regexpMembers[operation]
+    : wellKnown[operation === "matchAll" ? "matchAll" : operation];
+  const targetName = operation === "test" || operation === "exec"
+    ? operation
+    : operation;
+  const resultType = operation === "test"
+    ? boolType
+    : operation === "exec"
+      ? csharpNullableTargetType(exact ? exactExecArrayType : execArrayType)
+      : operation === "match"
+        ? csharpNullableTargetType(exact ? exactMatchArrayType : matchArrayType)
+        : operation === "matchAll"
+          ? exact ? exactIteratorType : iteratorType
+          : operation === "search"
+            ? doubleType
+            : csharpJsArrayTargetType(exact ? jsStringType : stringType);
+  return regexpInstanceMethod(
+    sourceName,
+    operation === "split" ? [inputType, doubleType] : [inputType],
+    resultType,
+    targetName,
+    operation === "split" ? { optionalIndexes: [1] } : {},
+  );
+}
+
 function regexpReplacementMember(
   context: CsharpSourceProfileCallPolicyContext,
 ): CsharpTargetMember | undefined {
+  const input = resolveArgumentType(context, 0);
   const replacement = resolveArgumentType(context, 1);
-  if (replacement === undefined) {
+  if (
+    input === undefined ||
+    replacement === undefined ||
+    !targetTypeRefEquals(input, stringType) &&
+      !targetTypeRefEquals(input, jsStringType)
+  ) {
     return undefined;
   }
-  if (targetTypeRefEquals(replacement, stringType)) {
+  if (targetTypeRefEquals(replacement, input)) {
     return regexpInstanceMethod(
       wellKnown.replace,
-      [stringType, stringType],
-      stringType,
+      [input, input],
+      input,
       "replace",
     );
   }
   const callback = csharpJsReplacementCallbackParameter(
     "replacement",
     replacement,
-    stringType,
+    input,
   );
   return callback === undefined
     ? undefined
@@ -425,8 +566,8 @@ function regexpReplacementMember(
         wellKnown.replace,
         "replace",
         regexpType,
-        [targetParameter("input", stringType), callback],
-        stringType,
+        [targetParameter("input", input), callback],
+        input,
       );
 }
 
@@ -450,6 +591,8 @@ function regexpResultPropertyPolicies(
   declaringType: TargetTypeRef,
   indexType: TargetTypeRef,
   inputType: TargetTypeRef,
+  groupsType: TargetTypeRef = namedGroupsType,
+  indicesType: TargetTypeRef = indicesArrayType,
 ): readonly CsharpSourceProfilePropertyPolicy[] {
   return [
     jsPropertyPolicy(
@@ -486,7 +629,7 @@ function regexpResultPropertyPolicies(
           regexpResultMembers.groups,
           regexpResultMembers.groups,
           declaringType,
-          csharpNullableTargetType(namedGroupsType),
+          csharpNullableTargetType(groupsType),
           { readonly: true },
         ),
       instanceReceiver,
@@ -499,7 +642,7 @@ function regexpResultPropertyPolicies(
           regexpResultMembers.indices,
           regexpResultMembers.indices,
           declaringType,
-          csharpNullableTargetType(indicesArrayType),
+          csharpNullableTargetType(indicesType),
           { readonly: true },
         ),
       instanceReceiver,

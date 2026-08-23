@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createCompilerSessionFromFiles,
+  createSourceSemanticsExtension,
   formatDiagnostics,
 } from "@tsonic/tsts";
 import {
@@ -10,7 +11,11 @@ import {
   csharpSourceProfileContributions,
   csharpSourceProfileOwnerId,
 } from "../../../dist/source/profiles/source-profile-declarations.js";
-import { jsRegExpSourceProfileDeclarations } from "@tsonic/js-source-profile";
+import {
+  createJsSourceSemanticsExtension,
+  jsRegExpSourceProfileDeclarations,
+  jsSourceSemanticsModules,
+} from "@tsonic/js-source-profile";
 
 test("only the JS surface composes the canonical RegExp declaration contract", () => {
   const nativeText = sourceProfileFiles("csharp").map((file) => file.text).join("\n");
@@ -143,6 +148,14 @@ function createSourceProfileSession(options) {
       moduleResolution: "bundler",
       strict: true,
     },
+    extensionHostOptions: options.profile === "js"
+      ? {
+          extensions: [
+            createSourceSemanticsExtension({ modules: jsSourceSemanticsModules() }),
+            createJsSourceSemanticsExtension(),
+          ],
+        }
+      : undefined,
   });
 }
 

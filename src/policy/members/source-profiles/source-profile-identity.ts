@@ -1,7 +1,10 @@
 import type {
   AstReader,
   Node,
+  ReadonlySourceFactResolver,
 } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provider";
 import {
   csharpTargetId,
@@ -21,10 +24,19 @@ export interface CsharpSourceProfileDeclarationIdentity {
 export function csharpSourceProfileDeclarationIdentity(
   ast: AstReader,
   semantics: SourceFileSemantics,
+  sourceFacts: ReadonlySourceFactResolver | undefined,
   declaration: Node | undefined,
 ): CsharpSourceProfileDeclarationIdentity | undefined {
   if (declaration === undefined) {
     return undefined;
+  }
+  const providerIdentity = jsProviderDeclarationIdentity(
+    ast,
+    sourceFacts,
+    declaration,
+  );
+  if (providerIdentity !== undefined) {
+    return providerIdentity;
   }
   const sourceFile = ast.getSourceFile(declaration);
   const owner = sourceFile === undefined
@@ -90,6 +102,72 @@ export function csharpSourceProfileDeclarationIdentity(
   return name === undefined
     ? undefined
     : { owner, kind: "member", declaringName, name, declaration };
+}
+
+function jsProviderDeclarationIdentity(
+  ast: AstReader,
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  declaration: Node,
+): CsharpSourceProfileDeclarationIdentity | undefined {
+  const fact = sourceFacts?.getFact(
+    declaration,
+    providerVirtualDeclarationFactKey,
+  );
+  if (
+    fact?.providerId !== jsSourceSemanticsIdentity.providerId ||
+    fact.exportName === undefined
+  ) {
+    return undefined;
+  }
+  const kind = ast.kindName(declaration);
+  if (sourceProfileTypeDeclarationKind(kind)) {
+    return {
+      owner: "js",
+      kind: "type",
+      name: fact.exportName,
+      declaration,
+    };
+  }
+  if (kind === "KindIndexSignature") {
+    return {
+      owner: "js",
+      kind: "indexer",
+      declaringName: fact.exportName,
+      declaration,
+    };
+  }
+  const name = providerMemberName(fact.memberKey, fact.memberName);
+  if (name === undefined) {
+    return fact.signatureId === undefined
+      ? undefined
+      : {
+          owner: "js",
+          kind: "call",
+          declaringName: fact.exportName,
+          name: fact.exportName,
+          declaration,
+        };
+  }
+  return {
+    owner: "js",
+    kind: "member",
+    declaringName: fact.exportName,
+    name,
+    declaration,
+  };
+}
+
+function providerMemberName(
+  memberKey: import("@tsonic/tsts").ProviderMemberKey | undefined,
+  memberName: string | undefined,
+): string | undefined {
+  if (memberKey?.kind === "property-key") {
+    return memberKey.name;
+  }
+  if (memberKey?.kind === "well-known-symbol") {
+    return `@@${memberKey.name}`;
+  }
+  return memberName;
 }
 
 function csharpSourceProfileOwner(
