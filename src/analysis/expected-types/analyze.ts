@@ -13,12 +13,14 @@ import {
 } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import {
-    csharpSourceArgumentExpectedType,
-    csharpTargetParameterValueType,
+  csharpDelegateTargetType,
+  csharpSourceArgumentExpectedType,
+  csharpTargetParameterValueType,
   getCsharpDelegateSignature,
   getCsharpArrayLiteralElementTargetType,
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
+  isCsharpVoidTargetType,
   isCsharpJsValueTargetType,
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
@@ -672,15 +674,71 @@ export function analyzeCsharpExpectedTypes(
     strength: ExpectedTypeStrength,
   ): void {
     for (const argument of arguments_) {
+      const expression = sourceArguments[argument.sourceArgumentIndex]
+        ?.expression;
       record(
-        sourceArguments[argument.sourceArgumentIndex]?.expression,
-        csharpSourceArgumentExpectedType(
+        expression,
+        sourceArgumentExpectedType(
+          expression,
           argument.targetParameter,
           argument.sourceForm,
         ),
         strength,
       );
     }
+  }
+
+  function sourceArgumentExpectedType(
+    expression: Node | undefined,
+    parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
+    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1],
+  ): TargetTypeRef {
+    const fallback = csharpSourceArgumentExpectedType(parameter, sourceForm);
+    if (
+      expression === undefined ||
+      parameter.csharpSourceArgumentAdapter === undefined ||
+      !isCallableBoundary(expression)
+    ) {
+      return fallback;
+    }
+    const callable = callables.get({
+      kind: "declaration",
+      declaration: expression,
+    });
+    if (callable === undefined || callable.methodTypeParameterNames.length > 0) {
+      return fallback;
+    }
+    const parameters = Object.freeze(callable.parameters.map((candidate) =>
+      candidate.targetParameter.type));
+    const optionalParameterIndexes = Object.freeze(callable.parameters.flatMap(
+      (candidate, index) =>
+        candidate.targetParameter.optional === true ? [index] : [],
+    ));
+    const restParameterIndexes = callable.parameters.flatMap(
+      (candidate, index) =>
+        candidate.targetParameter.paramsArray === true ? [index] : [],
+    );
+    if (restParameterIndexes.length > 1) {
+      return fallback;
+    }
+    return isCsharpVoidTargetType(callable.returnType)
+      ? csharpDelegateTargetType("System.Action", parameters, undefined, {
+          optionalParameterIndexes,
+          ...(restParameterIndexes[0] === undefined
+            ? {}
+            : { restParameterIndex: restParameterIndexes[0] }),
+        })
+      : csharpDelegateTargetType(
+          "System.Func",
+          parameters,
+          callable.returnType,
+          {
+            optionalParameterIndexes,
+            ...(restParameterIndexes[0] === undefined
+              ? {}
+              : { restParameterIndex: restParameterIndexes[0] }),
+          },
+        );
   }
 
   function recordSelectedCallReceiver(
