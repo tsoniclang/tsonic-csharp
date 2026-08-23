@@ -486,7 +486,11 @@ function stringReplacementMember(
   operation: "replace" | "replaceAll",
 ): CsharpTargetMember | undefined {
   const search = resolveStringOperationArgument(context, 0);
-  const replacement = resolveStringOperationArgument(context, 1);
+  const replacement = context.host.types.resolveSourceCallParameter(
+    context.source,
+    1,
+    context.sourceFile,
+  );
   const custom = resolveCustomRegExpProtocol(context, 0, "replace");
   if (
     search === undefined ||

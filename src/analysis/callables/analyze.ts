@@ -7,6 +7,7 @@ import {
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import {
   csharpNullableTargetType,
+  getCsharpDelegateSignature,
   isCsharpSourceCallableArtifactDeclaration,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
@@ -94,6 +95,8 @@ function sourceCallableContract(
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
+    getCsharpDelegateSignature(evidence.contextualTargetType(declaration))
+      ?.returnType ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     constructorReturnType(policy, declaration, sourceFile);
   if (returnType === undefined) {

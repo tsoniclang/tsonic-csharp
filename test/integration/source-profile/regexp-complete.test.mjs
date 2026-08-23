@@ -28,11 +28,21 @@ test("complete RegExp operations consume selected JS-source-profile evidence", (
           /(?<word>\\p{Letter}+)(\\d+)?/dgu,
           (whole, capture, offset, original, groups) => whole,
         );
+        let callbackArgumentsAreExact = false;
+        const callbackReplacement = "a1".replace(
+          /([a-z])(\\d)/,
+          (whole, letter, digit, offset, original) => {
+            callbackArgumentsAreExact = whole === "a1" && letter === "a" &&
+              digit === "1" && offset === 0 && original === "a1";
+            return digit + letter;
+          },
+        );
         const all = input.replaceAll(/\\d+/g, (whole, ...rest) => whole);
         const searched = input.search(dynamic);
         const split = input.split(dynamic, 3);
         return RegExp.escape(first) + named + indexed + matched + count +
-          replaced + all + searched + split.length + called.source;
+          replaced + callbackReplacement + callbackArgumentsAreExact + all +
+          searched + split.length + called.source;
       }
     `,
   });

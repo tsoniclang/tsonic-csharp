@@ -1,6 +1,5 @@
 import { applyCsharpConversionSelection } from "../../conversions.js";
 import {
-  csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
   getCsharpJsArrayElementTargetType,
@@ -235,8 +234,11 @@ function translateEcmascriptArgumentVectorCallback(
     ));
     return undefined;
   }
+  const effectiveSourceCallableType =
+    input.program.expectedTypes.callableTarget(expression) ??
+      adapter.sourceCallableType;
   const sourceSignature = getCsharpDelegateSignature(
-    adapter.sourceCallableType,
+    effectiveSourceCallableType,
   );
   const targetSignature = getCsharpDelegateSignature(parameter.type);
   const vectorType = targetSignature?.parameters[0];
@@ -260,7 +262,7 @@ function translateEcmascriptArgumentVectorCallback(
     return undefined;
   }
   const sourceCallableType = csharpTypeFromTargetTypeRef(
-    adapter.sourceCallableType,
+    effectiveSourceCallableType,
   );
   const vectorCsharpType = csharpTypeFromTargetTypeRef(vectorType);
   if (sourceCallableType === undefined || vectorCsharpType === undefined) {
@@ -277,7 +279,7 @@ function translateEcmascriptArgumentVectorCallback(
     diagnostics,
     sourceCallableType,
     undefined,
-    csharpSourceArgumentExpectedType(parameter, sourceForm),
+    effectiveSourceCallableType,
     "by-value",
   );
   if (plannedSource === undefined) {
