@@ -32,6 +32,17 @@ export function substituteCsharpTargetMember(
     parameters: member.parameters.map((parameter) => ({
       ...parameter,
       type: substituteTargetTypeParameters(parameter.type, substitutions),
+      ...(parameter.csharpSourceArgumentAdapter === undefined
+        ? {}
+        : {
+            csharpSourceArgumentAdapter: {
+              ...parameter.csharpSourceArgumentAdapter,
+              sourceCallableType: substituteTargetTypeParameters(
+                parameter.csharpSourceArgumentAdapter.sourceCallableType,
+                substitutions,
+              ),
+            },
+          }),
     })),
     ...(member.returnType === undefined
       ? {}

@@ -8,6 +8,7 @@ import { isTsonicSourceProfileDeclarationPath } from "@tsonic/target-api/provide
 import {
   csharpTargetId,
 } from "../../../target-model/identities/source.js";
+import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
 
 export type CsharpSourceProfileTypeKind =
   | "boolean"
@@ -22,6 +23,12 @@ export type CsharpSourceProfileTypeKind =
   | "record"
   | "date"
   | "regexp"
+  | "regexp-exec-array"
+  | "regexp-match-array"
+  | "regexp-indices-array"
+  | "regexp-named-groups"
+  | "regexp-named-indices"
+  | "regexp-string-iterator"
   | "map"
   | "readonly-map"
   | "set"
@@ -54,7 +61,6 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy(csharpTargetId, "Generator", "generator"),
   sourceProfileTypePolicy(csharpTargetId, "AsyncGenerator", "async-generator"),
   sourceProfileTypePolicy(csharpTargetId, "Record", "record"),
-  sourceProfileTypePolicy(csharpTargetId, "RegExp", "regexp"),
   sourceProfileTypePolicy(csharpTargetId, "Iterable", "iterable"),
   sourceProfileTypePolicy(
     csharpTargetId,
@@ -73,7 +79,41 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "AsyncGenerator", "async-generator"),
   sourceProfileTypePolicy("js", "Record", "record"),
   sourceProfileTypePolicy("js", "Date", "date"),
-  sourceProfileTypePolicy("js", "RegExp", "regexp"),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExp,
+    "regexp",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpExecArray,
+    "regexp-exec-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpMatchArray,
+    "regexp-match-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpIndicesArray,
+    "regexp-indices-array",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpNamedGroups,
+    "regexp-named-groups",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpNamedIndices,
+    "regexp-named-indices",
+  ),
+  sourceProfileTypePolicy(
+    "js",
+    jsRegExpSourceProfileIdentity.owners.regExpStringIterator,
+    "regexp-string-iterator",
+  ),
   sourceProfileTypePolicy("js", "Map", "map"),
   sourceProfileTypePolicy("js", "ReadonlyMap", "readonly-map"),
   sourceProfileTypePolicy("js", "Set", "set"),

@@ -59,6 +59,10 @@ export interface CsharpSourceProfilePropertyPolicyContext {
   readonly identity: CsharpSourceProfileDeclarationIdentity;
 }
 
+export type CsharpTargetPropertyInvocation =
+  | { readonly kind: "member" }
+  | { readonly kind: "source-name-indexer" };
+
 export interface CsharpSourceProfileElementPolicyContext {
   readonly host: CsharpProviderCallSelectionHost;
   readonly source: ResolvedSourceElementAccessInfo;
@@ -81,6 +85,7 @@ export type CsharpSourceProfilePropertyPolicyResult =
       readonly kind: "resolved";
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
+      readonly invocation: CsharpTargetPropertyInvocation;
     }
   | {
       readonly kind: "rejected";
@@ -148,8 +153,10 @@ export function selectCsharpSourceProfileCallPolicy(
 ): CsharpSourceProfileCallPolicyResult | undefined {
   const declaration = host.semantics(sourceFile)
     .declarations.signatureDeclaration(source.selectedSignature);
+  const semantics = host.semantics(sourceFile);
   const identity = csharpSourceProfileDeclarationIdentity(
     host.ast,
+    semantics,
     declaration,
   );
   if (identity === undefined) {
@@ -211,8 +218,10 @@ function sourceProfilePropertyIdentities(
   sourceFile: SourceFile,
 ): readonly CsharpSourceProfileDeclarationIdentity[] {
   if (source.selectedDeclaration !== undefined) {
+    const semantics = host.semantics(sourceFile);
     const identity = csharpSourceProfileDeclarationIdentity(
       host.ast,
+      semantics,
       source.selectedDeclaration,
     );
     return identity === undefined ? [] : [identity];
@@ -220,11 +229,12 @@ function sourceProfilePropertyIdentities(
   if (source.selectedSymbol === undefined) {
     return [];
   }
-  const declarations = host.semantics(sourceFile).declarations.symbolDeclarations(
+  const semantics = host.semantics(sourceFile);
+  const declarations = semantics.declarations.symbolDeclarations(
     source.selectedSymbol,
   );
   const identities = declarations.map((declaration) =>
-    csharpSourceProfileDeclarationIdentity(host.ast, declaration)
+    csharpSourceProfileDeclarationIdentity(host.ast, semantics, declaration)
   );
   return identities.length > 0 &&
       identities.every(
@@ -243,6 +253,7 @@ export function selectCsharpSourceProfileElementPolicy(
 ): CsharpSourceProfileElementPolicyResult | undefined {
   const identity = csharpSourceProfileDeclarationIdentity(
     host.ast,
+    host.semantics(sourceFile),
     source.selectedDeclaration,
   );
   if (identity === undefined) {

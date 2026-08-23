@@ -13,13 +13,16 @@ import {
 } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import {
-  csharpTargetParameterValueType,
+    csharpSourceArgumentExpectedType,
+    csharpTargetParameterValueType,
   getCsharpDelegateSignature,
   getCsharpArrayLiteralElementTargetType,
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
   isCsharpJsValueTargetType,
-  resolveCsharpObjectShapeMemberBySourceContract,
+  csharpPropertySourceMemberKey,
+  csharpWellKnownSymbolSourceMemberKey,
+  resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
@@ -557,17 +560,32 @@ export function analyzeCsharpExpectedTypes(
         if (property === undefined) {
           continue;
         }
-        const sourceName = ObjectLiteralProperty_SourceName(
-          policy.ast,
-          property,
-        );
-        const selected = sourceName.kind === "rejected"
-          ? undefined
-          : resolveCsharpObjectShapeMemberBySourceContract(
-              resolution.shape,
-              sourceName.name,
-              "checked-object-literal-property",
-            );
+        const propertyName = policy.ast.name(property);
+        const selected = propertyName !== undefined &&
+            policy.ast.is.IsComputedPropertyName(propertyName)
+          ? (() => {
+              const symbol = evidence.wellKnownSymbol(propertyName);
+              return symbol === undefined
+                ? undefined
+                : resolveCsharpObjectShapeMemberBySourceKey(
+                    resolution.shape,
+                    csharpWellKnownSymbolSourceMemberKey(symbol.kind),
+                    "checked-object-literal-property",
+                  );
+            })()
+          : (() => {
+              const sourceName = ObjectLiteralProperty_SourceName(
+                policy.ast,
+                property,
+              );
+              return sourceName.kind === "rejected"
+                ? undefined
+                : resolveCsharpObjectShapeMemberBySourceKey(
+                    resolution.shape,
+                    csharpPropertySourceMemberKey(sourceName.name),
+                    "checked-object-literal-property",
+                  );
+            })();
         if (selected?.kind !== "resolved") {
           continue;
         }
@@ -656,7 +674,7 @@ export function analyzeCsharpExpectedTypes(
     for (const argument of arguments_) {
       record(
         sourceArguments[argument.sourceArgumentIndex]?.expression,
-        csharpTargetParameterValueType(
+        csharpSourceArgumentExpectedType(
           argument.targetParameter,
           argument.sourceForm,
         ),

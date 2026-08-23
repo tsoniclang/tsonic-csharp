@@ -66,6 +66,7 @@ export function selectCsharpSourceCoreFixedArrayProperty(
       readonly: true,
     }),
     receiver: instanceReceiver,
+    invocation: { kind: "member" },
   };
 }
 

@@ -1,6 +1,7 @@
 import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers } from "./object-shape-identity.js";
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
+import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
 
 export function csharpObjectShapesEqual(
   left: CsharpObjectShapeFact,
@@ -15,7 +16,7 @@ export function csharpObjectShapesEqual(
     leftMembers.every((member, index) => {
       const other = rightMembers[index];
       return other !== undefined &&
-        member.sourceName === other.sourceName &&
+        csharpSourceMemberKeysEqual(member.sourceKey, other.sourceKey) &&
         member.targetName === other.targetName &&
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&

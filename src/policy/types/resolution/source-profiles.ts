@@ -17,6 +17,12 @@ import {
   csharpJsArrayTargetType,
   csharpJsDateTargetType,
   csharpJsMapTargetType,
+  csharpJsRegExpExecArrayTargetType,
+  csharpJsRegExpIndicesArrayTargetType,
+  csharpJsRegExpMatchArrayTargetType,
+  csharpJsRegExpNamedGroupsTargetType,
+  csharpJsRegExpNamedIndicesTargetType,
+  csharpJsRegExpStringIteratorTargetType,
   csharpJsRegExpTargetType,
   csharpJsSetTargetType,
 } from "./surface-types.js";
@@ -25,9 +31,7 @@ import { combineCsharpTargetUnionMembers } from "../../../target-model/types/run
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/delegates.js";
 import { csharpEnumerableTargetType } from "../../../target-model/types/collections.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
-import { csharpQualifiedTypeRenderShape } from "../../../target-model/types/render-shapes.js";
 import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
-import { csharpTargetNamedType } from "../../../target-model/types/factories.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -118,16 +122,31 @@ export function resolveSourceProfileType(
     case "regexp":
       return typeArguments.length !== 0
         ? undefined
-        : identity.ownerId === "js"
-          ? csharpJsRegExpTargetType()
-          : csharpTargetNamedType(
-              "System.Text.RegularExpressions.Regex",
-              undefined,
-              csharpQualifiedTypeRenderShape(
-                "System.Text.RegularExpressions",
-                "Regex",
-              ),
-            );
+        : csharpJsRegExpTargetType();
+    case "regexp-exec-array":
+      return typeArguments.length === 0
+        ? csharpJsRegExpExecArrayTargetType()
+        : undefined;
+    case "regexp-match-array":
+      return typeArguments.length === 0
+        ? csharpJsRegExpMatchArrayTargetType()
+        : undefined;
+    case "regexp-indices-array":
+      return typeArguments.length === 0
+        ? csharpJsRegExpIndicesArrayTargetType()
+        : undefined;
+    case "regexp-named-groups":
+      return typeArguments.length === 0
+        ? csharpJsRegExpNamedGroupsTargetType()
+        : undefined;
+    case "regexp-named-indices":
+      return typeArguments.length === 0
+        ? csharpJsRegExpNamedIndicesTargetType()
+        : undefined;
+    case "regexp-string-iterator":
+      return typeArguments.length === 1
+        ? csharpJsRegExpStringIteratorTargetType()
+        : undefined;
     case "map":
     case "readonly-map":
       return typeArguments.length === 2
@@ -230,16 +249,44 @@ export function resolveCallableEvidence(
   if (returnType === undefined) {
     return undefined;
   }
+  const optionalParameterIndexes = callable.parameters.flatMap(
+    (parameter, index) =>
+      parameter.parameterKind === "optional" ||
+          parameter.omissionKind === "undefined"
+        ? [index]
+        : [],
+  );
+  const restParameterIndexes = callable.parameters.flatMap(
+    (parameter, index) => parameter.parameterKind === "rest" ? [index] : [],
+  );
+  if (
+    restParameterIndexes.length > 1 ||
+    restParameterIndexes[0] !== undefined &&
+      restParameterIndexes[0] !== callable.parameters.length - 1
+  ) {
+    return undefined;
+  }
+  const delegateOptions = {
+    ...(optionalParameterIndexes.length === 0
+      ? {}
+      : { optionalParameterIndexes }),
+    ...(restParameterIndexes[0] === undefined
+      ? {}
+      : { restParameterIndex: restParameterIndexes[0] }),
+  };
   return returnType.kind === "target-named" &&
       (returnType as CsharpTargetNamedTypeRef).csharpSpecialType === "void"
     ? csharpDelegateTargetType(
         "System.Action",
         parameterTypes as readonly TargetTypeRef[],
+        undefined,
+        delegateOptions,
       )
     : csharpDelegateTargetType(
         "System.Func",
         parameterTypes as readonly TargetTypeRef[],
         returnType,
+        delegateOptions,
       );
 }
 

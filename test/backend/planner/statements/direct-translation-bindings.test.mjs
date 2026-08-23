@@ -44,7 +44,7 @@ namespace Tsonic.Generated
             int count = __tsonic_destructure1.Item2;
             User __tsonic_destructure2 = user;
             int age = __tsonic_destructure2.age ?? 0;
-            __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11 identity = new __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11
+            __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd identity = new __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd
             {
                 name = __tsonic_destructure2.name,
                 active = __tsonic_destructure2.active,
@@ -71,7 +71,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_f6c289dcaa1c0c663f7aa8939a0e646825c958e9b9efdca5b2330efc5ac3ab11
+    public class __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd
     {
         public required bool active;
         public required string name;

@@ -32,6 +32,7 @@ import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceContract,
+  resolveCsharpObjectShapeMemberBySourceKey,
 } from "../../../target-model/types/index.js";
 
 export function planObjectShapeBindingPattern(
@@ -158,9 +159,9 @@ function planObjectShapeRestBindingElement(
     }
   }
   const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
-    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceKey(
       sourceShape,
-      restMember.sourceName,
+      restMember.sourceKey,
       "finalized-object-rest-member",
     );
     if (sourceMemberLookup.kind !== "resolved") {

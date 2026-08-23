@@ -291,6 +291,7 @@ function selectIteratorResultProperty(
       readonly: true,
     }),
     receiver: instanceReceiver,
+    invocation: { kind: "member" },
   };
 }
 

@@ -17,7 +17,7 @@ import type {
 } from "../../../target-model/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
-  resolveCsharpObjectShapeMemberBySourceContract,
+  resolveCsharpObjectShapeMemberBySourceKey,
 } from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
@@ -62,9 +62,9 @@ export function planObjectShapeSpreadAssignments(
   }
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const sourceMember of sourceShape.members) {
-    const targetMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+    const targetMemberLookup = resolveCsharpObjectShapeMemberBySourceKey(
       targetShape,
-      sourceMember.sourceName,
+      sourceMember.sourceKey,
       "finalized-object-spread-member",
     );
     if (targetMemberLookup.kind !== "resolved") {

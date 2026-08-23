@@ -41,6 +41,9 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
+  csharpWellKnownSymbolTargetMemberName,
+} from "../../../target-model/types/index.js";
+import {
   hasCsharpGeneratorSyntax,
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
@@ -152,11 +155,11 @@ function planMethodDeclarationName(
 ): string {
   if (nameNode !== undefined && input.program.source.ast.is.IsComputedPropertyName(nameNode)) {
     const selected = input.program.sourceEvidence.wellKnownSymbol(nameNode);
-    if (selected?.kind === "dispose") {
-      return "Dispose";
-    }
-    if (selected?.kind === "async-dispose") {
-      return "DisposeAsync";
+    if (selected !== undefined) {
+      const targetName = csharpWellKnownSymbolTargetMemberName(selected.kind);
+      if (targetName !== undefined) {
+        return targetName;
+      }
     }
   }
   return planIdentifierName(

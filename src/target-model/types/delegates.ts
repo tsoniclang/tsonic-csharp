@@ -23,6 +23,10 @@ export function csharpDelegateTargetType(
   kind: "System.Action" | "System.Func",
   parameters: readonly TargetTypeRef[],
   returnType?: TargetTypeRef,
+  options: {
+    readonly optionalParameterIndexes?: readonly number[];
+    readonly restParameterIndex?: number;
+  } = {},
 ): CsharpDelegateTargetTypeRef {
   const typeArguments = returnType === undefined
     ? parameters
@@ -39,6 +43,17 @@ export function csharpDelegateTargetType(
     csharpDelegateSignature: {
       parameters,
       returnType: returnType ?? csharpVoidTargetType(),
+      ...(options.optionalParameterIndexes === undefined ||
+          options.optionalParameterIndexes.length === 0
+        ? {}
+        : {
+            optionalParameterIndexes: Object.freeze([
+              ...options.optionalParameterIndexes,
+            ]),
+          }),
+      ...(options.restParameterIndex === undefined
+        ? {}
+        : { restParameterIndex: options.restParameterIndex }),
     },
   } satisfies CsharpDelegateTargetTypeRef;
 }

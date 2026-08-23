@@ -12,6 +12,7 @@
   "exclude": ["node_modules", "dist"],
   "references": [
     { "path": "../tsonic/packages/source-core" },
+    { "path": "../tsonic/packages/js-source-profile" },
     { "path": "../tsonic/packages/target-api" }
   ]
 }

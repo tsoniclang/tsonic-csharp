@@ -293,6 +293,10 @@ function targetParameterEquals(
       right.csharpAcceptsClosedSourceArgument &&
     left.csharpOmittableOptionalArgument ===
       right.csharpOmittableOptionalArgument &&
+    sourceArgumentAdaptersEqual(
+      left.csharpSourceArgumentAdapter,
+      right.csharpSourceArgumentAdapter,
+    ) &&
     closedValueEquals(left.defaultValue, right.defaultValue) &&
     closedValueEquals(
       left.unsupportedDefaultValue,
@@ -303,6 +307,16 @@ function targetParameterEquals(
       left.unsupportedAttributes,
       right.unsupportedAttributes,
     );
+}
+
+function sourceArgumentAdaptersEqual(
+  left: CsharpTargetParameter["csharpSourceArgumentAdapter"],
+  right: CsharpTargetParameter["csharpSourceArgumentAdapter"],
+): boolean {
+  return left === undefined || right === undefined
+    ? left === right
+    : left.kind === right.kind &&
+      targetTypeRefEquals(left.sourceCallableType, right.sourceCallableType);
 }
 
 function closedValueEquals(left: unknown, right: unknown): boolean {

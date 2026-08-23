@@ -14,9 +14,13 @@ import {
   csharpJsCollectionPropertyPolicies,
 } from "./collections.js";
 import {
-  csharpJsDateRegExpCallPolicies,
-  csharpJsDateRegExpPropertyPolicies,
-} from "./date-regexp.js";
+  csharpJsDateCallPolicies,
+} from "./date.js";
+import {
+  csharpJsRegExpCallPolicies,
+  csharpJsRegExpElementPolicies,
+  csharpJsRegExpPropertyPolicies,
+} from "./regexp.js";
 import {
   csharpJsGlobalCallPolicies,
   csharpJsGlobalPropertyPolicies,
@@ -38,7 +42,8 @@ export const csharpJsSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
     ...csharpJsArrayCallPolicies,
     ...csharpJsCollectionCallPolicies,
-    ...csharpJsDateRegExpCallPolicies,
+    ...csharpJsDateCallPolicies,
+    ...csharpJsRegExpCallPolicies,
     ...csharpJsGlobalCallPolicies,
     ...csharpJsNumberCallPolicies,
     ...csharpJsObjectCallPolicies,
@@ -49,7 +54,7 @@ export const csharpJsSourceProfilePropertyPolicies:
   readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze([
     ...csharpJsArrayPropertyPolicies,
     ...csharpJsCollectionPropertyPolicies,
-    ...csharpJsDateRegExpPropertyPolicies,
+    ...csharpJsRegExpPropertyPolicies,
     ...csharpJsGlobalPropertyPolicies,
     ...csharpJsNumberPropertyPolicies,
     ...csharpJsStringPropertyPolicies,
@@ -59,5 +64,6 @@ export const csharpJsSourceProfileElementPolicies:
   readonly CsharpSourceProfileElementPolicy[] = Object.freeze([
     ...csharpJsArrayElementPolicies,
     ...csharpJsCollectionElementPolicies,
+    ...csharpJsRegExpElementPolicies,
     ...csharpJsStringElementPolicies,
   ]);

@@ -75,7 +75,7 @@ export function printCsharpExpression(
     case "AssignmentExpression":
       return `${context.printExpression(expression.left)} ${printCsharpAssignmentOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
     case "IsPatternExpression":
-      return `${context.printExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}`;
+      return `${context.printExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}${expression.designation === undefined ? "" : ` ${expression.designation}`}`;
     case "NullPatternExpression":
       return `${context.printExpression(expression.expression)} is ${expression.negated ? "not " : ""}null`;
     case "PrefixUnaryExpression":

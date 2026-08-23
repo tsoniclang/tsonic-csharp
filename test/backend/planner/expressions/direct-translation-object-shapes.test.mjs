@@ -49,9 +49,9 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_8f634654c128e4e535990a963f0c96be7b2e377255b1de80720440f538998ce9 clone(__TsonicShape_8f634654c128e4e535990a963f0c96be7b2e377255b1de80720440f538998ce9 input)
+        public static __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207 clone(__TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207 input)
         {
-            return new __TsonicShape_8f634654c128e4e535990a963f0c96be7b2e377255b1de80720440f538998ce9
+            return new __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207
             {
                 id = input.id,
                 label = input.label,
@@ -66,7 +66,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_8f634654c128e4e535990a963f0c96be7b2e377255b1de80720440f538998ce9
+    public class __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207
     {
         public required double id;
         public required string label;
@@ -102,14 +102,14 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static double score(__TsonicShape_ce218ab765e2e25da20d4b3ff0be58c13c20c2bef516b9985d5833cd5a36988b result)
+        public static double score(__TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 result)
         {
             if (result.kind == "found")
             {
-                __TsonicShape_ce218ab765e2e25da20d4b3ff0be58c13c20c2bef516b9985d5833cd5a36988b found = result;
+                __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 found = result;
                 return found.value + 1;
             }
-            __TsonicShape_ce218ab765e2e25da20d4b3ff0be58c13c20c2bef516b9985d5833cd5a36988b missing = result;
+            __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 missing = result;
             return missing.value - 1;
         }
     }
@@ -121,7 +121,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_ce218ab765e2e25da20d4b3ff0be58c13c20c2bef516b9985d5833cd5a36988b
+    public class __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9
     {
         public required string kind;
         public required double value;
@@ -150,11 +150,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_e9abbadafeb069d16a6148a5b05d704e9b2a9443e5128b5b611de88c37f2a41d left(__TsonicShape_e9abbadafeb069d16a6148a5b05d704e9b2a9443e5128b5b611de88c37f2a41d value)
+        public static __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 left(__TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 value)
         {
             return value;
         }
-        public static __TsonicShape_e9abbadafeb069d16a6148a5b05d704e9b2a9443e5128b5b611de88c37f2a41d right(__TsonicShape_e9abbadafeb069d16a6148a5b05d704e9b2a9443e5128b5b611de88c37f2a41d value)
+        public static __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 right(__TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 value)
         {
             return value;
         }
@@ -167,7 +167,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_e9abbadafeb069d16a6148a5b05d704e9b2a9443e5128b5b611de88c37f2a41d
+    public class __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8
     {
         public required double alpha;
         public required string zeta;

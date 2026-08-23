@@ -46,6 +46,9 @@ export function resolveCsharpObjectShapePropertyOrder(
   projection: CsharpObjectShapeProjectionKind,
   ast: AstReader,
 ): CsharpObjectShapePropertyOrderSelection {
+  const stringMembers = fact.members.filter((member) =>
+    member.sourceKey.kind === "property"
+  );
   if (isSourceDeclaredNominalShape(fact)) {
     return rejected(
       `Selected '${projection}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
@@ -59,7 +62,7 @@ export function resolveCsharpObjectShapePropertyOrder(
     );
   }
   if (projection === "has-own") {
-    if (fact.members.some((member) => member.optional === true)) {
+    if (stringMembers.some((member) => member.optional === true)) {
       return rejected(
         "Selected 'has-own' operation requires exact present-versus-absent storage for every optional property.",
       );
@@ -67,7 +70,7 @@ export function resolveCsharpObjectShapePropertyOrder(
     return {
       kind: "resolved",
       propertyOrder: Object.freeze(
-        fact.members.map((member) => member.sourceName).sort(),
+        stringMembers.map((member) => member.sourceName).sort(),
       ),
     };
   }
@@ -144,6 +147,7 @@ export function resolveCsharpObjectShapePropertyOrder(
     );
   }
   const authored = [...entries]
+    .filter((entry) => entry.member.sourceKey.kind === "property")
     .sort((left, right) => left.start - right.start)
     .map((entry) => entry.member);
   return {
@@ -161,8 +165,11 @@ export function csharpObjectShapeProjectionMembers(
   fact: CsharpObjectShapeFact,
   projection: CsharpObjectShapeProjection,
 ): readonly CsharpObjectShapeFact["members"][number][] | undefined {
+  const stringMembers = fact.members.filter((member) =>
+    member.sourceKey.kind === "property"
+  );
   if (
-    projection.propertyOrder.length !== fact.members.length ||
+    projection.propertyOrder.length !== stringMembers.length ||
     new Set(projection.propertyOrder).size !== projection.propertyOrder.length
   ) {
     return undefined;

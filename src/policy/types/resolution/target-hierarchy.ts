@@ -5,6 +5,7 @@ import type {
   CsharpProjectTypePolicy,
 } from "../project/project-types.js";
 import type {
+  CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
 import {
@@ -47,6 +48,11 @@ export function isCsharpThrowableType(
     pending.push(...(host.projectTypes.directSupertypes(candidate) ?? []));
     if (candidate.kind !== "target-named") {
       continue;
+    }
+    const declaredBaseType =
+      (candidate as CsharpTargetNamedTypeRef).csharpBaseType;
+    if (declaredBaseType !== undefined) {
+      pending.push(declaredBaseType);
     }
     const binding = csharpTargetBindingFact(
       host.providers.findTargetBindingByTargetId(candidate.id),

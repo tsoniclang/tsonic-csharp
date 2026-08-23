@@ -4,8 +4,14 @@ import type {
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
+  CsharpSourceMemberKey,
   TargetTypeRef,
 } from "./model.js";
+import {
+  csharpPropertySourceMemberKey,
+  csharpSourceMemberDisplayName,
+  csharpSourceMemberKeysEqual,
+} from "./source-member-keys.js";
 
 export type CsharpObjectShapeMemberLookupProvenance =
   | "checked-property-access"
@@ -46,8 +52,24 @@ export function resolveCsharpObjectShapeMemberBySourceContract(
       "empty-source-name",
     );
   }
-  const matches = objectShape.members.filter(
-    (member) => member.sourceName === sourceName,
+  return resolveCsharpObjectShapeMemberBySourceKey(
+    objectShape,
+    csharpPropertySourceMemberKey(sourceName),
+    provenance,
+  );
+}
+
+export function resolveCsharpObjectShapeMemberBySourceKey(
+  objectShape: CsharpObjectShapeFact,
+  sourceKey: CsharpSourceMemberKey,
+  provenance: Exclude<
+    CsharpObjectShapeMemberLookupProvenance,
+    "checked-property-access"
+  >,
+): CsharpObjectShapeMemberLookupResult {
+  const sourceName = csharpSourceMemberDisplayName(sourceKey);
+  const matches = objectShape.members.filter((member) =>
+    csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
   );
   return matches.length === 1
     ? {

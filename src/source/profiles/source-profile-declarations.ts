@@ -6,6 +6,7 @@ import type {
   TargetCompilationSessionContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api/provider";
+import { jsRegExpSourceProfileDeclarations } from "@tsonic/js-source-profile";
 import {
   csharpTargetId,
 } from "../../target-model/identities/source.js";
@@ -143,6 +144,7 @@ interface ReadonlyArray<T> extends Iterable<T> {
 
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
+${jsRegExpSourceProfileDeclarations}
 
 interface TemplateStringsArray extends ReadonlyArray<string> {
   readonly raw: readonly string[];
@@ -227,7 +229,6 @@ interface String {
   [Symbol.iterator](): IterableIterator<string>;
   readonly length: number;
   readonly [index: number]: string;
-  split(separator: string | RegExp, limit?: number): string[];
   startsWith(value: string, position?: number): boolean;
   endsWith(value: string, endPosition?: number): boolean;
   includes(value: string, position?: number): boolean;
@@ -247,11 +248,6 @@ interface String {
   indexOf(searchString: string, position?: number): number;
   lastIndexOf(searchString: string, position?: number): number;
   at(index: number): string | undefined;
-  match(regexp: RegExp): RegExpMatchArray | null;
-  matchAll(regexp: RegExp): IterableIterator<RegExpMatchArray>;
-  replace(searchValue: string | RegExp, replaceValue: string): string;
-  replaceAll(searchValue: string | RegExp, replaceValue: string): string;
-  search(regexp: string | RegExp): number;
   concat(...strings: string[]): string;
   repeat(count: number): string;
   padStart(maxLength: number, fillString?: string): string;
@@ -340,30 +336,6 @@ interface ArrayLike<T> {
   readonly length: number;
   readonly [n: number]: T;
 }
-
-interface RegExp {
-  readonly source: string;
-  readonly flags: string;
-  readonly global: boolean;
-  readonly ignoreCase: boolean;
-  readonly multiline: boolean;
-  lastIndex: number;
-  test(value: string): boolean;
-  exec(value: string): RegExpExecArray | null;
-}
-interface RegExpExecArray extends Array<string> {
-  index: number;
-  input: string;
-}
-interface RegExpMatchArray extends Array<string> {
-  index?: number;
-  input?: string;
-}
-interface RegExpConstructor {
-  new (pattern: string | RegExp, flags?: string): RegExp;
-  (pattern: string | RegExp, flags?: string): RegExp;
-}
-declare var RegExp: RegExpConstructor;
 
 interface Map<K, V> extends Iterable<[K, V]> {
   readonly size: number;

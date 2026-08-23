@@ -18,7 +18,10 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
 import {
+  csharpPropertySourceMemberKey,
+  csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceContract,
+  resolveCsharpObjectShapeMemberBySourceKey,
 } from "../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
@@ -45,6 +48,48 @@ export function findObjectShapeMember(
   const lookup = resolveCsharpObjectShapeMemberBySourceContract(
     objectShape,
     sourceName,
+    "checked-object-literal-property",
+  );
+  return lookup.kind === "resolved" ? lookup.member : undefined;
+}
+
+export function findObjectShapeMemberForProperty(
+  objectShape: CsharpObjectShapeFact,
+  property: Node,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpObjectShapeFact["members"][number] | undefined {
+  const name = input.program.source.ast.name(property);
+  if (
+    name !== undefined &&
+    input.program.source.ast.is.IsComputedPropertyName(name)
+  ) {
+    const selected = input.program.sourceEvidence.wellKnownSymbol(name);
+    if (selected === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        property,
+        "Computed object-shape members require exact selected well-known-symbol evidence.",
+      ));
+      return undefined;
+    }
+    const lookup = resolveCsharpObjectShapeMemberBySourceKey(
+      objectShape,
+      csharpWellKnownSymbolSourceMemberKey(selected.kind),
+      "checked-object-literal-property",
+    );
+    return lookup.kind === "resolved" ? lookup.member : undefined;
+  }
+  const sourceName = getObjectLiteralPropertySourceName(
+    property,
+    input,
+    diagnostics,
+  );
+  if (sourceName === undefined) {
+    return undefined;
+  }
+  const lookup = resolveCsharpObjectShapeMemberBySourceKey(
+    objectShape,
+    csharpPropertySourceMemberKey(sourceName),
     "checked-object-literal-property",
   );
   return lookup.kind === "resolved" ? lookup.member : undefined;

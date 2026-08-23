@@ -184,7 +184,8 @@ function delegateSignaturesEqual(
     numberListsEqual(
       source.optionalParameterIndexes ?? [],
       target.optionalParameterIndexes ?? [],
-    );
+    ) &&
+    source.restParameterIndex === target.restParameterIndex;
 }
 
 function numberListsEqual(
@@ -239,6 +240,19 @@ export function namedTargetTypeImplicitlyAccepts(
         visited,
       )
     ) === true
+  ) {
+    return true;
+  }
+  const declaredBaseType =
+    (source as CsharpTargetNamedTypeRef).csharpBaseType;
+  if (
+    declaredBaseType !== undefined &&
+    namedTargetTypeImplicitlyAccepts(
+      input,
+      declaredBaseType,
+      target,
+      visited,
+    )
   ) {
     return true;
   }

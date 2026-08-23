@@ -127,6 +127,25 @@ test("operation selection consumes atomic shared semantic decisions", () => {
   assert.deepEqual(violations, []);
 });
 
+test("RegExp literals consume structured TSTS syntax without target parsing", () => {
+  const policy = readFileSync(
+    join(repoRoot, "src/policy/operations/syntax/regexp-literal.ts"),
+    "utf8",
+  );
+  assert.match(policy, /\.regularExpressionLiteral\(node\)/u);
+  assert.doesNotMatch(
+    policy,
+    /\b(?:ast\.text|lastIndexOf|startsWith|parseRegularExpressionLiteral|validateCsharpJsRegExpPatternAndFlags)\b/u,
+  );
+  const product = sourceFiles(join(repoRoot, "src"))
+    .map((file) => readFileSync(file, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(
+    product,
+    /\b(?:parseRegularExpressionLiteral|validateCsharpJsRegExpPatternAndFlags)\b/u,
+  );
+});
+
 test("retired target observation and operation-fact architecture is absent", () => {
   const forbidden = /\b(?:registerTargetSemanticProvider|TargetSemanticProvider|TargetOperationFact|SelectedTargetSignatureFact|deferObservation|csharpRuntimeCarrierFactKey|recordCsharpRuntimeCarrierFact|csharpTargetOperationFact|surfaceTargetOperationFact)\b/gu;
   const hits = productHits(forbidden);
