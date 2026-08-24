@@ -1,4 +1,4 @@
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName } from "./construction.js";
+import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName, objectShapeMemberTargetNameForKey } from "./construction.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIncludesNullish, typeIsExcludedFromObjectShape } from "./source-evidence.js";
@@ -13,6 +13,7 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
   CsharpRuntimeUnionTargetTypeRef,
+  CsharpSourceMemberKey,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "../../../../target-model/types/model.js";
@@ -38,6 +39,12 @@ import {
 import {
   isCsharpJsValueTargetType,
 } from "../../../../target-model/types/runtime-carriers.js";
+import {
+  csharpPropertySourceMemberKey,
+  csharpSourceMemberDisplayName,
+  csharpSourceMemberKeysEqual,
+} from "../../../../target-model/types/source-member-keys.js";
+import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
@@ -55,6 +62,11 @@ export interface CsharpObjectShapePolicy {
     sourceFile: SourceFile,
     authoredTypeRoot?: Node,
   ): CsharpObjectShapeFact | undefined;
+  resolveTypeMember(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    sourceKey: CsharpSourceMemberKey,
+  ): CsharpObjectShapeMemberFact | undefined;
   resolveObjectLiteralTargetShape(
     expectedShape: CsharpObjectShapeFact | undefined,
     objectLiteral: Node,
@@ -527,6 +539,7 @@ export function createCsharpObjectShapePolicy(
         return type === undefined
           ? undefined
           : {
+              sourceKey: csharpPropertySourceMemberKey(field.sourceName),
               sourceName: field.sourceName,
               sourceSubjects: [field.sourceType],
               ...(sourceType === undefined
@@ -709,8 +722,8 @@ export function createCsharpObjectShapePolicy(
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): CsharpObjectShapeMemberFact | undefined {
-    const sourceName = property.name;
-    if (sourceName.length === 0) {
+    const sourcePropertyName = property.name;
+    if (sourcePropertyName.length === 0) {
       return undefined;
     }
     const declarations = [...new Set([
@@ -721,6 +734,18 @@ export function createCsharpObjectShapePolicy(
     ])]
       .filter((declaration): declaration is Node => declaration !== undefined);
     const sourceType = property.type;
+    const sourceKey = resolveObjectShapeSourceMemberKey(
+      declarations,
+      sourcePropertyName,
+      host.ast,
+      queries,
+    );
+    const targetName = sourceKey === undefined
+      ? undefined
+      : objectShapeMemberTargetNameForKey(sourceKey);
+    if (sourceKey === undefined || targetName === undefined) {
+      return undefined;
+    }
     const method = declarations.some((declaration) =>
       host.ast.is.IsMethodDeclaration(declaration) ||
       host.ast.is.IsMethodSignatureDeclaration(declaration)
@@ -753,7 +778,8 @@ export function createCsharpObjectShapePolicy(
     }
     const optional = property.optional || typeIncludesNullish(sourceType, queries);
     return {
-      sourceName,
+      sourceKey,
+      sourceName: csharpSourceMemberDisplayName(sourceKey),
       sourceSubjects: declarations.length === 0
         ? [property.symbol]
         : [property.symbol, ...declarations],
@@ -761,7 +787,7 @@ export function createCsharpObjectShapePolicy(
         ? {}
         : { sourceDeclarations: Object.freeze([...declarations]) }),
       sourceTypes: [sourceType],
-      targetName: objectShapeMemberTargetName(sourceName),
+      targetName,
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
       ...(optional ? { optional: true } : {}),
@@ -775,6 +801,27 @@ export function createCsharpObjectShapePolicy(
             },
           }),
     };
+  }
+
+  function resolveTypeMember(
+    type: Type | undefined,
+    sourceFile: SourceFile,
+    sourceKey: CsharpSourceMemberKey,
+  ): CsharpObjectShapeMemberFact | undefined {
+    if (type === undefined || activeTypes.has(type)) {
+      return undefined;
+    }
+    const queries = host.semantics(sourceFile);
+    activeTypes.add(type);
+    try {
+      const members = deriveMembers(type, queries, { depth: 0 });
+      const matches = members?.filter((member) =>
+        csharpSourceMemberKeysEqual(member.sourceKey, sourceKey)
+      ) ?? [];
+      return matches.length === 1 ? matches[0] : undefined;
+    } finally {
+      activeTypes.delete(type);
+    }
   }
 
   function resolvePropertyType(
@@ -826,6 +873,7 @@ export function createCsharpObjectShapePolicy(
     resolveNodeWithState,
     resolveTarget,
     resolveType,
+    resolveTypeMember,
     resolveTypeWithState,
     resolveObjectLiteralTargetShape,
     resolveProjectConstructibleSelectedType,

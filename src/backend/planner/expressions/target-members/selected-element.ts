@@ -7,6 +7,8 @@ import type {
   CsharpTargetElementSelection,
 } from "../../../../analysis/operations/index.js";
 import {
+  csharpNullableTargetType,
+  getCsharpNullableElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   targetTypeRefEquals,
@@ -347,8 +349,10 @@ function translateSourceOwnedElement(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const receiverType = classification.receiverType;
+  const indexableReceiverType =
+    getCsharpNullableElementTargetType(receiverType) ?? receiverType;
   if (
-    receiverType?.kind === "tuple" &&
+    indexableReceiverType?.kind === "tuple" &&
     selection.source.selectedElementIndex !== undefined
   ) {
     const receiver = translateCsharpSelectedReceiver(
@@ -361,23 +365,31 @@ function translateSourceOwnedElement(
     return receiver === undefined
       ? undefined
       : {
-          kind: "SimpleMemberAccessExpression",
+          kind: selection.source.optionalChain
+            ? "ConditionalAccessExpression"
+            : "SimpleMemberAccessExpression",
           receiver,
           name: `Item${selection.source.selectedElementIndex + 1}`,
         };
   }
   const selectedResultType = classification.selectedResultType;
   const elementType = getCsharpReadOnlyIndexableCollectionElementTargetType(
-    receiverType,
+    indexableReceiverType,
   );
+  const expectedResultType = elementType === undefined
+    ? undefined
+    : selection.source.optionalChain
+      ? csharpNullableTargetType(elementType)
+      : elementType;
   if (
     elementType === undefined ||
     selectedResultType === undefined ||
-    !targetTypeRefEquals(elementType, selectedResultType) ||
+    expectedResultType === undefined ||
+    !targetTypeRefEquals(expectedResultType, selectedResultType) ||
     (
       selection.source.accessMode !== "read" &&
-      !isCsharpDenseMutableCollectionTargetType(receiverType) &&
-      receiverType?.kind !== "array"
+      !isCsharpDenseMutableCollectionTargetType(indexableReceiverType) &&
+      indexableReceiverType?.kind !== "array"
     )
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(

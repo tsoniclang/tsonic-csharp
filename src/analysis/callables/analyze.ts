@@ -7,6 +7,7 @@ import {
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import {
   csharpNullableTargetType,
+  getCsharpDelegateSignature,
   isCsharpSourceCallableArtifactDeclaration,
   targetTypeRefEquals,
 } from "../../policy/types/index.js";
@@ -94,6 +95,8 @@ function sourceCallableContract(
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
+    getCsharpDelegateSignature(evidence.contextualTargetType(declaration))
+      ?.returnType ??
     (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     constructorReturnType(policy, declaration, sourceFile);
   if (returnType === undefined) {
@@ -293,6 +296,10 @@ function targetParameterEquals(
       right.csharpAcceptsClosedSourceArgument &&
     left.csharpOmittableOptionalArgument ===
       right.csharpOmittableOptionalArgument &&
+    sourceArgumentAdaptersEqual(
+      left.csharpSourceArgumentAdapter,
+      right.csharpSourceArgumentAdapter,
+    ) &&
     closedValueEquals(left.defaultValue, right.defaultValue) &&
     closedValueEquals(
       left.unsupportedDefaultValue,
@@ -303,6 +310,16 @@ function targetParameterEquals(
       left.unsupportedAttributes,
       right.unsupportedAttributes,
     );
+}
+
+function sourceArgumentAdaptersEqual(
+  left: CsharpTargetParameter["csharpSourceArgumentAdapter"],
+  right: CsharpTargetParameter["csharpSourceArgumentAdapter"],
+): boolean {
+  return left === undefined || right === undefined
+    ? left === right
+    : left.kind === right.kind &&
+      targetTypeRefEquals(left.sourceCallableType, right.sourceCallableType);
 }
 
 function closedValueEquals(left: unknown, right: unknown): boolean {

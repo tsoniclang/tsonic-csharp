@@ -275,6 +275,9 @@ function csharpApplyExternAliasToDelegateSignature(
     ...(signature.optionalParameterIndexes === undefined
       ? {}
       : { optionalParameterIndexes: signature.optionalParameterIndexes }),
+    ...(signature.restParameterIndex === undefined
+      ? {}
+      : { restParameterIndex: signature.restParameterIndex }),
   };
 }
 

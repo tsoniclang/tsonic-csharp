@@ -22,6 +22,7 @@ import type {
   CsharpSourceProfilePropertyPolicy,
   CsharpSourceProfilePropertyPolicyContext,
   CsharpSourceProfilePropertyPolicyResult,
+  CsharpTargetPropertyInvocation,
 } from "../source-profile-policy.js";
 import type {
   CsharpTargetElementInvocation,
@@ -93,9 +94,11 @@ export function jsCallPolicy(
   createTargetMember: JsSourceProfileTargetMemberFactory,
   receiver: CsharpTargetReceiverRelation,
   options: {
-    readonly targetParameterBySourceParameter?: readonly (
-      number | undefined
-    )[];
+    readonly targetParameterBySourceParameter?:
+      | readonly (number | undefined)[]
+      | ((
+        context: CsharpSourceProfileCallPolicyContext,
+      ) => readonly (number | undefined)[]);
     readonly targetMethodTypeArguments?: (
       context: CsharpSourceProfileCallPolicyContext,
     ) => readonly TargetTypeRef[] | undefined;
@@ -111,6 +114,10 @@ export function jsCallPolicy(
         options.targetMethodTypeArguments === undefined
           ? []
           : options.targetMethodTypeArguments(context);
+      const targetParameterBySourceParameter =
+        typeof options.targetParameterBySourceParameter === "function"
+          ? options.targetParameterBySourceParameter(context)
+          : options.targetParameterBySourceParameter;
       const call = targetMember === undefined ||
           targetMethodTypeArguments === undefined
         ? undefined
@@ -120,8 +127,7 @@ export function jsCallPolicy(
             receiver,
             targetMethodTypeArguments,
             {
-              targetParameterBySourceParameter:
-                options.targetParameterBySourceParameter,
+              targetParameterBySourceParameter,
             },
           );
       return call === undefined
@@ -171,6 +177,7 @@ export function jsPropertyPolicy(
     context: CsharpSourceProfilePropertyPolicyContext,
   ) => CsharpTargetMember | undefined,
   receiver: CsharpTargetReceiverRelation,
+  invocation: CsharpTargetPropertyInvocation = { kind: "member" },
 ): CsharpSourceProfilePropertyPolicy {
   return Object.freeze({
     source,
@@ -187,7 +194,7 @@ export function jsPropertyPolicy(
               `The exact selected JS source-profile property '${formatSourceIdentity(source)}' has no closed C# target relation.`,
             ),
           }
-        : { kind: "resolved", targetMember, receiver };
+        : { kind: "resolved", targetMember, receiver, invocation };
     },
   });
 }

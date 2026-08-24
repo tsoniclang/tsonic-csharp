@@ -25,12 +25,14 @@ cat > "$CANONICAL_TSCONFIG" <<EOF
       "@tsonic/tsts": ["$TSONIC_ROOT/packages/tsts/dist/src/index.d.ts"],
       "@tsonic/source-core": ["$TSONIC_ROOT/packages/source-core/src/public/index.ts"],
       "@tsonic/source-core/*": ["$TSONIC_ROOT/packages/source-core/src/public/*.ts"],
+      "@tsonic/js-source-profile": ["$TSONIC_ROOT/packages/js-source-profile/src/index.ts"],
       "@tsonic/target-api": ["$TSONIC_ROOT/packages/target-api/src/public/index.ts"],
       "@tsonic/target-api/*": ["$TSONIC_ROOT/packages/target-api/src/public/*.ts"]
     }
   },
   "references": [
     { "path": "$TSONIC_ROOT/packages/source-core" },
+    { "path": "$TSONIC_ROOT/packages/js-source-profile" },
     { "path": "$TSONIC_ROOT/packages/target-api" }
   ]
 }

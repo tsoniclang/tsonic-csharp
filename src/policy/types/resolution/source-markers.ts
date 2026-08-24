@@ -3,6 +3,7 @@ import {
   fieldFactKey,
   functionPointerFactKey,
   pointerFactKey,
+  sourceMarkerFactKey,
   structFactKey,
 } from "@tsonic/tsts";
 import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
@@ -46,6 +47,14 @@ export interface CsharpSourceFixedArrayType {
   readonly kind: "csharp-fixed-array";
   readonly sourceElementType: Node;
   readonly length: number;
+}
+
+export function readCsharpSourceJsStringMarker(
+  sourceFacts: ReadonlySourceFactResolver | undefined,
+  subject: ExtensionFactSubject | undefined,
+): boolean {
+  const fact = sourceFacts?.getFact(subject, sourceMarkerFactKey);
+  return fact?.marker === "js-string";
 }
 
 export function readCsharpSourceDefaultValue(

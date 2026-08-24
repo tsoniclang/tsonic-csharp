@@ -89,6 +89,9 @@ export function substituteTargetTypeParameters(
                 ...(delegateSignature.optionalParameterIndexes === undefined
                   ? {}
                   : { optionalParameterIndexes: delegateSignature.optionalParameterIndexes }),
+                ...(delegateSignature.restParameterIndex === undefined
+                  ? {}
+                  : { restParameterIndex: delegateSignature.restParameterIndex }),
               },
             }),
       };

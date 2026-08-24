@@ -68,6 +68,8 @@ function selectDelete(
   );
   const identity = csharpSourceProfileDeclarationIdentity(
     input.ast,
+    input.semantics(sourceFile),
+    input.sourceFacts,
     source?.selectedDeclaration,
   );
   if (
@@ -122,6 +124,8 @@ function selectLengthAssignment(
     .operations.propertyAccess(left);
   const identity = csharpSourceProfileDeclarationIdentity(
     input.ast,
+    input.semantics(sourceFile),
+    input.sourceFacts,
     source?.selectedDeclaration,
   );
   if (

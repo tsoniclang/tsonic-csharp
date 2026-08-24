@@ -14,7 +14,7 @@ import {
 } from "../../../dist/print/source/index.js";
 
 test("RegExp literal emission consumes the direct JS-surface policy selection", () => {
-  const node = regexpNode("/provider[/-]pattern/im");
+  const node = regexpNode("provider[/-]pattern", "im");
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
@@ -30,7 +30,7 @@ test("RegExp literal emission consumes the direct JS-surface policy selection", 
 });
 
 test("RegExp literal emission fails closed without the explicit JS target relation", () => {
-  const node = regexpNode("/value/g");
+  const node = regexpNode("value", "g");
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
@@ -44,8 +44,8 @@ test("RegExp literal emission fails closed without the explicit JS target relati
   ]);
 });
 
-test("RegExp literal emission rejects unsupported source semantics before C# AST construction", () => {
-  const node = regexpNode("/(?<name>a)/g");
+test("RegExp literal emission preserves complete ECMAScript syntax for the runtime", () => {
+  const node = regexpNode("(?<name>a)", "g");
   const diagnostics = [];
   const expression = planRegularExpressionLiteral(
     node,
@@ -53,15 +53,18 @@ test("RegExp literal emission rejects unsupported source semantics before C# AST
     diagnostics,
   );
 
-  assert.equal(expression, undefined);
-  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.code), [
-    "CSHARP_JS_REGEXP_UNSUPPORTED",
-  ]);
-  assert.match(diagnostics[0].message, /Named capture/u);
+  assert.deepEqual(diagnostics, []);
+  assert.equal(
+    printCsharpExpression(expression),
+    'new Tsonic.CSharp.Js.RegExp("(?<name>a)", "g")',
+  );
 });
 
-function regexpNode(text) {
-  return { kind: "regexp", text };
+function regexpNode(pattern, flags) {
+  return {
+    kind: "regexp",
+    syntax: { pattern, flags },
+  };
 }
 
 function directInput(node, targetType) {
@@ -69,10 +72,8 @@ function directInput(node, targetType) {
   const selection = selectCsharpRegularExpressionLiteral(
     {
       ast: {
-        is: {
-          IsRegularExpressionLiteral: (candidate) => candidate === node,
-        },
-        text: (candidate) => candidate?.text ?? "",
+        regularExpressionLiteral: (candidate) =>
+          candidate === node ? node.syntax : undefined,
       },
       types: {
         resolveNode: (candidate) =>

@@ -144,7 +144,9 @@ export function planObjectShapeForInStatement(
           initializer: {
             kind: "ArrayCreationExpression",
             elementType: keyType,
-            elements: objectShape.members.map((member) => ({ kind: "LiteralExpression", value: member.sourceName }) satisfies CsharpExpression),
+            elements: objectShape.members
+              .filter((member) => member.sourceKey.kind === "property")
+              .map((member) => ({ kind: "LiteralExpression", value: member.sourceName }) satisfies CsharpExpression),
           },
         },
         plannedLoop,

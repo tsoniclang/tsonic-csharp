@@ -8,6 +8,12 @@ import {
 import {
   csharpTargetNamedType,
 } from "../../../target-model/types/factories.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import {
+  csharpSourcePrimitiveTargetType,
+  csharpJsStringTargetType,
+  csharpStringTargetType,
+} from "../../../target-model/types/scalar-types.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -122,6 +128,175 @@ export function csharpJsRegExpTargetType(): CsharpTargetNamedTypeRef {
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp"),
     ),
     csharpJsSurfaceKind: "regexp",
+  };
+}
+
+export function csharpJsRegExpExecArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.RegExpExecArray",
+    "RegExpExecArray",
+    csharpJsRegExpMatchArrayTargetType(),
+  );
+}
+
+export function csharpJsRegExpMatchArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.RegExpMatchArray",
+    "RegExpMatchArray",
+  );
+}
+
+export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
+  const pair: TargetTypeRef = {
+    kind: "tuple",
+    elements: [
+      csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("float64"),
+    ],
+  };
+  return csharpJsArrayLikeTargetType(
+    "Tsonic.CSharp.Js.RegExpIndicesArray",
+    "RegExpIndicesArray",
+    csharpNullableTargetType(pair),
+  );
+}
+
+export function csharpJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.RegExpNamedGroups",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
+  );
+}
+
+export function csharpJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.RegExpNamedIndices",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
+  );
+}
+
+export function csharpJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.RegExpStringIterator",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
+    { enumerableElementType: csharpJsRegExpExecArrayTargetType() },
+  );
+}
+
+export function csharpExactJsRegExpExecArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpExactJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.JsRegExpExecArray",
+    "RegExpExecArray",
+    csharpExactJsRegExpMatchArrayTargetType(),
+  );
+}
+
+export function csharpExactJsRegExpMatchArrayTargetType(): CsharpTargetNamedTypeRef {
+  return csharpExactJsRegExpArrayTargetType(
+    "Tsonic.CSharp.Js.JsRegExpMatchArray",
+    "RegExpMatchArray",
+  );
+}
+
+export function csharpExactJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
+  const pair: TargetTypeRef = {
+    kind: "tuple",
+    elements: [
+      csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("float64"),
+    ],
+  };
+  return csharpJsArrayLikeTargetType(
+    "Tsonic.CSharp.Js.JsRegExpIndicesArray",
+    "RegExpIndicesArray",
+    csharpNullableTargetType(pair),
+  );
+}
+
+export function csharpExactJsRegExpNamedGroupsTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpNamedGroups",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedGroups"),
+  );
+}
+
+export function csharpExactJsRegExpNamedIndicesTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpNamedIndices",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpNamedIndices"),
+  );
+}
+
+export function csharpExactJsRegExpStringIteratorTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsRegExpStringIterator",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpStringIterator"),
+    { enumerableElementType: csharpExactJsRegExpExecArrayTargetType() },
+  );
+}
+
+function csharpExactJsRegExpArrayTargetType(
+  id: string,
+  name: string,
+  baseType?: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return csharpJsArrayLikeTargetType(
+    id,
+    name,
+    csharpNullableTargetType(csharpJsStringTargetType()),
+    baseType,
+  );
+}
+
+function csharpJsRegExpArrayTargetType(
+  id: string,
+  name: string,
+  baseType?: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return csharpJsArrayLikeTargetType(
+    id,
+    name,
+    csharpNullableTargetType(csharpStringTargetType()),
+    baseType,
+  );
+}
+
+function csharpJsArrayLikeTargetType(
+  id: string,
+  name: string,
+  elementType: TargetTypeRef,
+  baseType?: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  const type = csharpTargetNamedType(
+    id,
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+    {
+      enumerableElementType: elementType,
+      readOnlyIndexableElementType: elementType,
+      denseMutableElementType: elementType,
+      indexableLengthMemberName: "length",
+      collectionSemantics: "js-sparse",
+      baseType,
+    },
+  );
+  return {
+    ...type,
+    csharpJsArrayMutation: {
+      deleteAtMemberName: "deleteAt",
+      setLengthMemberName: "setLength",
+    },
+    csharpPropertyKeyIteration: {
+      kind: "index",
+      lengthMemberName: "length",
+      keyConversion: "invariant-string",
+    },
   };
 }
 

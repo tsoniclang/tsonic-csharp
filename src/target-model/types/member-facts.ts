@@ -89,3 +89,13 @@ export function csharpTargetParameterValueType(
     ? parameter.type.element
     : parameter.type;
 }
+
+export function csharpSourceArgumentExpectedType(
+  parameter: CsharpTargetParameter,
+  sourceForm: "value" | "spread-element" | "spread-sequence",
+): TargetTypeRef {
+  return sourceForm === "value" &&
+      parameter.csharpSourceArgumentAdapter !== undefined
+    ? parameter.csharpSourceArgumentAdapter.sourceCallableType
+    : csharpTargetParameterValueType(parameter, sourceForm);
+}

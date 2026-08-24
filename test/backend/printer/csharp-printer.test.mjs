@@ -12,6 +12,7 @@ import {
 } from "../../../dist/print/source/index.js";
 import {
   csharpDelegateTargetType,
+  csharpPropertySourceMemberKey,
   csharpTargetTypeFromBinding,
   targetTypeRefEquals,
 } from "../../../dist/policy/types/index.js";
@@ -369,6 +370,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
   const rawDelegateShape = {
     targetType: { kind: "target-named", id: "__Shape" },
     members: [{
+      sourceKey: csharpPropertySourceMemberKey("visit"),
       sourceName: "visit",
       targetName: "Visit",
       memberKind: "method",
@@ -444,11 +446,13 @@ test("object shape declarations enforce required members while leaving optional 
   const shape = {
     targetType: { kind: "target-named", id: "__Shape" },
     members: [{
+      sourceKey: csharpPropertySourceMemberKey("requiredValue"),
       sourceName: "requiredValue",
       targetName: "requiredValue",
       memberKind: "property",
       type: { kind: "target-named", id: "System.String", csharpRender: { kind: "predefined", name: "string" } },
     }, {
+      sourceKey: csharpPropertySourceMemberKey("optionalValue"),
       sourceName: "optionalValue",
       targetName: "optionalValue",
       memberKind: "property",

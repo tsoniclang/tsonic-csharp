@@ -10,6 +10,7 @@ import type {
 } from "../../policy/members/index.js";
 import type {
   CsharpJsArrayMutationSelection,
+  CsharpJsStringConversionSelection,
   CsharpRegularExpressionLiteralSelection,
 } from "../../policy/operations/index.js";
 import type {
@@ -139,6 +140,7 @@ export interface CsharpTargetOperationClassifications {
   jsVoid(node: Node): CsharpJsValueOperationSelection | undefined;
   jsObjectLiteral(node: Node): CsharpJsValueOperationSelection | undefined;
   jsArrayMutation(node: Node): CsharpJsArrayMutationSelection | undefined;
+  jsStringConversion(node: Node): CsharpJsStringConversionSelection | undefined;
   providerValue(node: Node): CsharpProviderValueSelection | undefined;
   regularExpression(node: Node): CsharpRegularExpressionLiteralSelection | undefined;
   throwable(node: Node): boolean | undefined;

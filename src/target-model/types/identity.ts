@@ -13,6 +13,11 @@ export function isCsharpStringTargetType(type: TargetTypeRef | undefined): boole
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSpecialType === "string";
 }
 
+export function isCsharpJsStringTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (type as CsharpTargetNamedTypeRef).csharpJsStringCarrier === true;
+}
+
 export function isCsharpVoidTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSpecialType === "void";
 }

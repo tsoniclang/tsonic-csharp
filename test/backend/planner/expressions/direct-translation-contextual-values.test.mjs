@@ -37,7 +37,7 @@ namespace Tsonic.Generated
             {
                 return null;
             }
-            return new __TsonicShape_914f00e13b622196099d9955fa7faab4858959516fb54e3181021da04e0b4dd0
+            return new __TsonicShape_057cd9bd1e63a8137d2c4ed3efae9ad246edaa7eb9b3afb5df7cd1273410af99
             {
                 title = title,
                 id = id.Value,
@@ -69,7 +69,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_914f00e13b622196099d9955fa7faab4858959516fb54e3181021da04e0b4dd0 : TodoCreateInput
+    public class __TsonicShape_057cd9bd1e63a8137d2c4ed3efae9ad246edaa7eb9b3afb5df7cd1273410af99 : TodoCreateInput
     {
         public required int id
         {
@@ -109,11 +109,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13 nextId
+        public static __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf nextId
         {
             get;
             private set;
-        } = default(__TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13)!;
+        } = default(__TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf)!;
         public static int takeNext()
         {
             int id = nextId.value;
@@ -123,7 +123,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            nextId = new __TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13
+            nextId = new __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf
             {
                 value = 1,
             };
@@ -142,7 +142,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_72c9a7b778e4f7764f0f26c255f6b1ce7253331ca629ad304c7f1bb2e29bfb13
+    public class __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf
     {
         public required int value;
     }
@@ -209,7 +209,7 @@ namespace Tsonic.Generated
     {
         public static Box<double> create()
         {
-            return new __TsonicShape_2b812f9dee3e60774c5ed159e0b2f13f84bbd0244f59ae7e2f9e269fc64a9ec5
+            return new __TsonicShape_e10a2a56263f655b709a07df1215b5682ed40965604a8df8baaecf7e0023c2bd
             {
                 value = 1,
                 label = "one",
@@ -229,7 +229,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_2b812f9dee3e60774c5ed159e0b2f13f84bbd0244f59ae7e2f9e269fc64a9ec5 : Box<double>
+    public class __TsonicShape_e10a2a56263f655b709a07df1215b5682ed40965604a8df8baaecf7e0023c2bd : Box<double>
     {
         public required string label
         {
@@ -290,7 +290,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            makeItem = (int id, string title) => (new __TsonicShape_b9c9d57e6f6fe683c883bef1fb946f3a0d8442192caa5a7a6eaa81309e8c0450
+            makeItem = (int id, string title) => (new __TsonicShape_bdeebe94cfb6cdba43ee8942a2e9a35c50c7324dccdb3679838753c2aee9e636
             {
                 id = id,
                 title = title,
@@ -310,7 +310,7 @@ namespace Tsonic.Generated
 
 namespace Tsonic.Generated
 {
-    public class __TsonicShape_b9c9d57e6f6fe683c883bef1fb946f3a0d8442192caa5a7a6eaa81309e8c0450 : ItemDto
+    public class __TsonicShape_bdeebe94cfb6cdba43ee8942a2e9a35c50c7324dccdb3679838753c2aee9e636 : ItemDto
     {
         public required int id
         {

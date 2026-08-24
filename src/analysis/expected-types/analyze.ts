@@ -13,13 +13,18 @@ import {
 } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import {
+  csharpDelegateTargetType,
+  csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
   getCsharpArrayLiteralElementTargetType,
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
+  isCsharpVoidTargetType,
   isCsharpJsValueTargetType,
-  resolveCsharpObjectShapeMemberBySourceContract,
+  csharpPropertySourceMemberKey,
+  csharpWellKnownSymbolSourceMemberKey,
+  resolveCsharpObjectShapeMemberBySourceKey,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
@@ -557,17 +562,32 @@ export function analyzeCsharpExpectedTypes(
         if (property === undefined) {
           continue;
         }
-        const sourceName = ObjectLiteralProperty_SourceName(
-          policy.ast,
-          property,
-        );
-        const selected = sourceName.kind === "rejected"
-          ? undefined
-          : resolveCsharpObjectShapeMemberBySourceContract(
-              resolution.shape,
-              sourceName.name,
-              "checked-object-literal-property",
-            );
+        const propertyName = policy.ast.name(property);
+        const selected = propertyName !== undefined &&
+            policy.ast.is.IsComputedPropertyName(propertyName)
+          ? (() => {
+              const symbol = evidence.wellKnownSymbol(propertyName);
+              return symbol === undefined
+                ? undefined
+                : resolveCsharpObjectShapeMemberBySourceKey(
+                    resolution.shape,
+                    csharpWellKnownSymbolSourceMemberKey(symbol.kind),
+                    "checked-object-literal-property",
+                  );
+            })()
+          : (() => {
+              const sourceName = ObjectLiteralProperty_SourceName(
+                policy.ast,
+                property,
+              );
+              return sourceName.kind === "rejected"
+                ? undefined
+                : resolveCsharpObjectShapeMemberBySourceKey(
+                    resolution.shape,
+                    csharpPropertySourceMemberKey(sourceName.name),
+                    "checked-object-literal-property",
+                  );
+            })();
         if (selected?.kind !== "resolved") {
           continue;
         }
@@ -654,15 +674,74 @@ export function analyzeCsharpExpectedTypes(
     strength: ExpectedTypeStrength,
   ): void {
     for (const argument of arguments_) {
+      const expression = sourceArguments[argument.sourceArgumentIndex]
+        ?.expression;
       record(
-        sourceArguments[argument.sourceArgumentIndex]?.expression,
-        csharpTargetParameterValueType(
+        expression,
+        sourceArgumentExpectedType(
+          expression,
           argument.targetParameter,
           argument.sourceForm,
         ),
         strength,
       );
     }
+  }
+
+  function sourceArgumentExpectedType(
+    expression: Node | undefined,
+    parameter: Parameters<typeof csharpSourceArgumentExpectedType>[0],
+    sourceForm: Parameters<typeof csharpSourceArgumentExpectedType>[1],
+  ): TargetTypeRef {
+    const declaredExpectedType = csharpSourceArgumentExpectedType(
+      parameter,
+      sourceForm,
+    );
+    if (
+      expression === undefined ||
+      parameter.csharpSourceArgumentAdapter === undefined ||
+      !isCallableBoundary(expression)
+    ) {
+      return declaredExpectedType;
+    }
+    const callable = callables.get({
+      kind: "declaration",
+      declaration: expression,
+    });
+    if (callable === undefined || callable.methodTypeParameterNames.length > 0) {
+      return declaredExpectedType;
+    }
+    const parameters = Object.freeze(callable.parameters.map((candidate) =>
+      candidate.targetParameter.type));
+    const optionalParameterIndexes = Object.freeze(callable.parameters.flatMap(
+      (candidate, index) =>
+        candidate.targetParameter.optional === true ? [index] : [],
+    ));
+    const restParameterIndexes = callable.parameters.flatMap(
+      (candidate, index) =>
+        candidate.targetParameter.paramsArray === true ? [index] : [],
+    );
+    if (restParameterIndexes.length > 1) {
+      return declaredExpectedType;
+    }
+    return isCsharpVoidTargetType(callable.returnType)
+      ? csharpDelegateTargetType("System.Action", parameters, undefined, {
+          optionalParameterIndexes,
+          ...(restParameterIndexes[0] === undefined
+            ? {}
+            : { restParameterIndex: restParameterIndexes[0] }),
+        })
+      : csharpDelegateTargetType(
+          "System.Func",
+          parameters,
+          callable.returnType,
+          {
+            optionalParameterIndexes,
+            ...(restParameterIndexes[0] === undefined
+              ? {}
+              : { restParameterIndex: restParameterIndexes[0] }),
+          },
+        );
   }
 
   function recordSelectedCallReceiver(

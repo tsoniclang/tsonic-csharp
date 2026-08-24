@@ -79,6 +79,15 @@ export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
   };
 }
 
+export function csharpJsStringTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.JsString",
+    undefined,
+    { kind: "predefined", name: "string" },
+    { jsStringCarrier: true },
+  );
+}
+
 export function csharpObjectTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
     "System.Object",

@@ -38,8 +38,7 @@ import {
   planLambdaParameters,
 } from "./expression-lambdas.js";
 import {
-  findObjectShapeMember,
-  getObjectLiteralPropertySourceName,
+  findObjectShapeMemberForProperty,
 } from "./expression-object-literal-support.js";
 
 export function planObjectShapeMethodMemberAssignment(
@@ -49,8 +48,12 @@ export function planObjectShapeMethodMemberAssignment(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpObjectInitializerAssignment | undefined {
-  const sourceName = getObjectLiteralPropertySourceName(methodNode, input, diagnostics);
-  const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
+  const member = findObjectShapeMemberForProperty(
+    objectShape,
+    methodNode,
+    input,
+    diagnostics,
+  );
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
     return undefined;

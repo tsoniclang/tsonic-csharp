@@ -77,6 +77,20 @@ export function translateSelectedTargetCall(
       diagnostics,
     );
   }
+  if (
+    selection.targetMember.csharpInvocation?.kind ===
+      "ecmascript-protocol-dispatch"
+  ) {
+    return translateEcmascriptProtocolDispatch(
+      node,
+      source,
+      sourceFile,
+      input,
+      selection.targetMember,
+      arguments_,
+      diagnostics,
+    );
+  }
   const callee = translateSelectedTargetCallee(
     node,
     source,
@@ -93,6 +107,148 @@ export function translateSelectedTargetCall(
         callee,
         arguments: arguments_,
       };
+}
+
+function translateEcmascriptProtocolDispatch(
+  node: Node,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  member: CsharpTargetMember,
+  arguments_: readonly CsharpArgument[],
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const invocation = member.csharpInvocation;
+  const protocolIndex = invocation?.kind === "ecmascript-protocol-dispatch"
+    ? invocation.protocolTargetParameterIndex
+    : -1;
+  const declaringType = member.declaringType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(member.declaringType);
+  const protocolType = member.parameters[protocolIndex]?.type;
+  const resultType = member.returnType;
+  const forwardedParameters = member.parameters.slice(protocolIndex + 1);
+  const suppliedForwardedCount = arguments_.length - protocolIndex - 1;
+  if (
+    invocation?.kind !== "ecmascript-protocol-dispatch" ||
+    member.static !== true ||
+    protocolIndex !== 1 ||
+    arguments_.length < 2 ||
+    declaringType === undefined ||
+    protocolType === undefined ||
+    resultType === undefined ||
+    suppliedForwardedCount < 0 ||
+    suppliedForwardedCount > forwardedParameters.length ||
+    forwardedParameters.slice(suppliedForwardedCount).some((parameter) =>
+      parameter.optional !== true &&
+      parameter.csharpOmittableOptionalArgument !== true
+    )
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Selected ECMAScript protocol dispatch does not contain one exact source-order receiver, protocol subject, forwarded argument list, and result carrier.",
+    ));
+    return undefined;
+  }
+  const selectedForwardedParameters = forwardedParameters.slice(
+    0,
+    suppliedForwardedCount,
+  );
+  const genericTypes = [
+    protocolType,
+    ...selectedForwardedParameters.map((parameter) => parameter.type),
+    resultType,
+  ].map(csharpTypeFromTargetTypeRef);
+  if (genericTypes.some((type) => type === undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Selected ECMAScript protocol dispatch contains an unrenderable protocol, argument, or result carrier.",
+    ));
+    return undefined;
+  }
+  const protocolName = "__tsonic_protocol";
+  const inputName = "__tsonic_input";
+  const forwardedNames = selectedForwardedParameters.map(
+    (_parameter, index) => `__tsonic_protocolArgument${index}`,
+  );
+  const lambda = {
+    kind: "LambdaExpression" as const,
+    parameters: [protocolName, inputName, ...forwardedNames].map((name) => ({
+      kind: "Parameter" as const,
+      name,
+    })),
+    body: {
+      kind: "InvocationExpression" as const,
+      callee: {
+        kind: "SimpleMemberAccessExpression" as const,
+        receiver: { kind: "IdentifierName" as const, name: protocolName },
+        name: invocation.protocolMemberName,
+      },
+      arguments: [inputName, ...forwardedNames].map((name) => ({
+        kind: "Argument" as const,
+        expression: { kind: "IdentifierName" as const, name },
+      })),
+    },
+  };
+  const invocationExpression = {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: declaringType,
+      name: member.targetName,
+      typeArguments: genericTypes as NonNullable<
+        Extract<CsharpExpression, {
+          readonly kind: "SimpleMemberAccessExpression";
+        }>["typeArguments"]
+      >,
+    },
+    arguments: [
+      ...arguments_,
+      { kind: "Argument", expression: lambda },
+    ],
+  } satisfies CsharpExpression;
+  if (!sourceCallIsOptional(input, source)) {
+    return invocationExpression;
+  }
+  const receiverType = csharpTypeFromTargetTypeRef(member.parameters[0]!.type);
+  const optionalResult = input.types.classifications.resolveNode(
+    node,
+    sourceFile,
+  );
+  const optionalResultType = optionalResult === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(optionalResult);
+  if (receiverType === undefined || optionalResultType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Optional ECMAScript protocol dispatch requires exact receiver and lifted result target types.",
+    ));
+    return undefined;
+  }
+  const receiverName = `__tsonic_protocolReceiver_${Math.max(0, input.program.source.ast.pos(node))}_${Math.max(0, input.program.source.ast.end(node))}`;
+  return {
+    kind: "ConditionalExpression",
+    condition: {
+      kind: "IsPatternExpression",
+      expression: arguments_[0]!.expression,
+      type: receiverType,
+      designation: receiverName,
+    },
+    whenTrue: {
+      ...invocationExpression,
+      arguments: [
+        {
+          kind: "Argument",
+          expression: { kind: "IdentifierName", name: receiverName },
+        },
+        ...invocationExpression.arguments.slice(1),
+      ],
+    },
+    whenFalse: {
+      kind: "DefaultExpression",
+      type: optionalResultType,
+    },
+  };
 }
 
 function registerSelectedCallArtifacts(

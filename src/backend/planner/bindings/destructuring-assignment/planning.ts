@@ -29,7 +29,7 @@ import {
 } from "../../../../target-model/types/index.js";
 import { allocateDestructuringTemp } from "../binding-state.js";
 import { csharpConstructibleTypeFromObjectShapeFact, csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "../../objects/index.js";
-import { csharpObjectShapeMemberLookupFailureMessage, resolveCsharpObjectShapeMemberBySourceContract } from "../../../../target-model/types/index.js";
+import { csharpObjectShapeMemberLookupFailureMessage, resolveCsharpObjectShapeMemberBySourceContract, resolveCsharpObjectShapeMemberBySourceKey } from "../../../../target-model/types/index.js";
 import { csharpTupleExpression } from "../../types/csharp-tuples.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { getCsharpTypeForExpressionCarrier } from "../binding-patterns.js";
@@ -526,9 +526,9 @@ function planObjectAssignmentRestElement(
     }
   }
   const assignments = restShape.members.map((restMember) => {
-    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceContract(
+    const sourceMemberLookup = resolveCsharpObjectShapeMemberBySourceKey(
       sourceShape,
-      restMember.sourceName,
+      restMember.sourceKey,
       "finalized-object-rest-member",
     );
     if (sourceMemberLookup.kind !== "resolved") {

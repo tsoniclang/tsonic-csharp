@@ -32,6 +32,7 @@ export function csharpTargetNamedType(
     readonly valueType?: true;
     readonly absorbsNullish?: true;
     readonly jsValueCarrier?: true;
+    readonly jsStringCarrier?: true;
     readonly jsObjectShape?: true;
   } = {},
 ): CsharpTargetNamedTypeRef {
@@ -67,6 +68,9 @@ export function csharpTargetNamedType(
     ...(metadata.absorbsNullish === true ? { csharpAbsorbsNullish: true } : {}),
     ...(metadata.jsValueCarrier === true
       ? { csharpJsValueCarrier: true }
+      : {}),
+    ...(metadata.jsStringCarrier === true
+      ? { csharpJsStringCarrier: true }
       : {}),
     ...(metadata.jsObjectShape === true
       ? { csharpJsObjectShape: true }

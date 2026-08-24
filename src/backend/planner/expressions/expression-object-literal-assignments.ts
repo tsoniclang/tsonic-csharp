@@ -38,8 +38,7 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  findObjectShapeMember,
-  getObjectLiteralPropertySourceName,
+  findObjectShapeMemberForProperty,
 } from "./expression-object-literal-support.js";
 import {
   planObjectShapeMethodMemberAssignment,
@@ -138,14 +137,12 @@ export function planExplicitObjectShapeLiteralMember(
     ));
     return undefined;
   }
-  const sourceName = getObjectLiteralPropertySourceName(
+  const member = findObjectShapeMemberForProperty(
+    objectShape,
     property,
     input,
     diagnostics,
   );
-  const member = sourceName === undefined
-    ? undefined
-    : findObjectShapeMember(objectShape, sourceName);
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       property,

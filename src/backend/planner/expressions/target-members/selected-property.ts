@@ -117,6 +117,51 @@ function translateSelectedProperty(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const member = selection.targetMember;
+  if (selection.invocation.kind === "source-name-indexer") {
+    if (member.kind !== "indexer") {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Checked source-name index access selected C# ${member.kind} '${member.id}'.`,
+      ));
+      return undefined;
+    }
+    if (selection.receiver.kind !== "instance") {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "A source-name index access requires an exact instance receiver relation.",
+      ));
+      return undefined;
+    }
+    const access = input.program.source.ast.as.AsPropertyAccessExpression(node);
+    const sourceName = access?.name;
+    if (sourceName === undefined || !input.program.source.ast.is.IsIdentifier(sourceName)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "The exact selected source index signature has no authored identifier key.",
+      ));
+      return undefined;
+    }
+    const receiver = translateCsharpSelectedReceiver(
+      selection.source.receiver,
+      sourceFile,
+      input,
+      diagnostics,
+      planExpression,
+    );
+    if (receiver === undefined) {
+      return undefined;
+    }
+    return {
+      kind: selection.source.optionalChain
+        ? "ConditionalElementAccessExpression"
+        : "ElementAccessExpression",
+      receiver,
+      argument: {
+        kind: "LiteralExpression",
+        value: input.program.source.ast.text(sourceName),
+      },
+    };
+  }
   if (
     member.kind !== "property" &&
     member.kind !== "field" &&

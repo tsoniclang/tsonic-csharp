@@ -31,6 +31,7 @@
       "@tsonic/tsts": ["../tsonic/packages/tsts/dist/src/index.d.ts"],
       "@tsonic/source-core": ["../tsonic/packages/source-core/src/public/index.ts"],
       "@tsonic/source-core/*": ["../tsonic/packages/source-core/src/public/*.ts"],
+      "@tsonic/js-source-profile": ["../tsonic/packages/js-source-profile/src/index.ts"],
       "@tsonic/target-api": ["../tsonic/packages/target-api/src/public/index.ts"],
       "@tsonic/target-api/*": ["../tsonic/packages/target-api/src/public/*.ts"]
     }

@@ -31,6 +31,9 @@ import {
   selectCsharpComposedSourceProfileElement,
   selectCsharpComposedSourceProfileProperty,
 } from "../source-profiles/source-profile-selection.js";
+import type {
+  CsharpTargetPropertyInvocation,
+} from "../source-profiles/source-profile-policy.js";
 import {
   selectCsharpSourceCoreFixedArrayElement,
   selectCsharpSourceCoreFixedArrayProperty,
@@ -80,6 +83,7 @@ export type CsharpTargetPropertySelection =
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
       readonly origin: "provider" | "source-profile";
+      readonly invocation: CsharpTargetPropertyInvocation;
     }
   | {
       readonly kind: "source-owned";
@@ -186,6 +190,7 @@ export function selectCsharpTargetProperty(
       targetMember: provider.property.targetMember,
       receiver: provider.property.receiver,
       origin: "provider",
+      invocation: { kind: "member" },
     };
   }
   if (provider.kind !== "not-provider") {
@@ -205,6 +210,7 @@ export function selectCsharpTargetProperty(
           targetMember: fixedArray.targetMember,
           receiver: fixedArray.receiver,
           origin: "source-profile",
+          invocation: { kind: "member" },
         };
   }
   const profile = selectCsharpComposedSourceProfileProperty(
@@ -227,6 +233,7 @@ export function selectCsharpTargetProperty(
         targetMember: profile.targetMember,
         receiver: profile.receiver,
         origin: "source-profile",
+        invocation: profile.invocation,
       };
 }
 

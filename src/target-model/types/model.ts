@@ -2,13 +2,22 @@ import type {
   ArgumentPassingMode,
   ExtensionFactSubject,
   Node,
+  ResolvedSourceWellKnownSymbolInfo,
   SourcePrimitiveKind,
   Type,
 } from "@tsonic/tsts";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
 
+export type CsharpSourceMemberKey =
+  | { readonly kind: "property"; readonly name: string }
+  | {
+      readonly kind: "well-known-symbol";
+      readonly symbol: ResolvedSourceWellKnownSymbolInfo["kind"];
+    };
+
 export interface CsharpObjectShapeMemberFact {
+  readonly sourceKey: CsharpSourceMemberKey;
   readonly sourceName: string;
   readonly sourceSubjects?: readonly ExtensionFactSubject[];
   readonly sourceDeclarations?: readonly Node[];
@@ -156,6 +165,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpValueType?: true;
   readonly csharpAbsorbsNullish?: true;
   readonly csharpJsValueCarrier?: true;
+  readonly csharpJsStringCarrier?: true;
   readonly csharpJsObjectShape?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
   readonly csharpArrayLiteralConstructionType?: TargetTypeRef;
@@ -245,6 +255,12 @@ export interface CsharpTargetParameter extends TargetParameter {
   readonly csharpAcceptsCheckedSourceArgument?: true;
   readonly csharpAcceptsClosedSourceArgument?: true;
   readonly csharpOmittableOptionalArgument?: true;
+  readonly csharpSourceArgumentAdapter?: CsharpSourceArgumentAdapter;
+}
+
+export interface CsharpSourceArgumentAdapter {
+  readonly kind: "ecmascript-argument-vector-callback";
+  readonly sourceCallableType: TargetTypeRef;
 }
 
 export type CsharpObjectShapeCapability =
@@ -316,6 +332,11 @@ export type CsharpTargetInvocation =
       readonly kind: "object-shape-projection";
       readonly targetParameterIndex: number;
       readonly projection: CsharpObjectShapeProjectionKind;
+    }
+  | {
+      readonly kind: "ecmascript-protocol-dispatch";
+      readonly protocolTargetParameterIndex: number;
+      readonly protocolMemberName: string;
     };
 
 export interface CsharpTargetConversionOperatorFact {
@@ -353,6 +374,7 @@ export interface CsharpDelegateSignatureShape {
   readonly parameters: readonly TargetTypeRef[];
   readonly returnType: TargetTypeRef;
   readonly optionalParameterIndexes?: readonly number[];
+  readonly restParameterIndex?: number;
 }
 
 export type CsharpDelegateTargetTypeRef = CsharpTargetNamedTypeRef & {
