@@ -11,6 +11,24 @@ This package owns C#/.NET-specific source-to-source compilation concerns:
 
 Tsonic itself remains the generic compiler shell and host. It consumes this package as a target pack.
 
+## Provider object literals
+
+Provider-backed interfaces accept contextual object literals only when the
+provider's exact type relation opts into
+`objectLiteralConstruction: { kind: "object-initializer" }`. Every authored
+property must also resolve through exact provider member relations to one
+writable C# property or field with the selected storage type. No structural or
+name-based fallback is used.
+
+```ts
+declare function configure(options: Options): void;
+configure({ enabled: true });
+```
+
+```csharp
+Configure(new Acme.Options { Enabled = true });
+```
+
 ## Neutral typed locations
 
 The neutral source contract uses `Pointer<T>` with `addressOf`,

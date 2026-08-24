@@ -45,6 +45,7 @@ import {
   csharpSourceMemberKeysEqual,
 } from "../../../../target-model/types/source-member-keys.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
+import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
@@ -173,7 +174,7 @@ export function createCsharpObjectShapePolicy(
         node,
         queries,
         state,
-        source.contextualProjectTarget ?? selectedTarget,
+        source.contextualTarget ?? selectedTarget,
         authoredTypeRoot,
       );
       if (shape !== undefined) {
@@ -574,8 +575,7 @@ export function createCsharpObjectShapePolicy(
       type === undefined ||
       activeTypes.has(type) ||
       requiresUnresolvedStructuralProjection(type, node, queries, host) ||
-      typeIsExcludedFromObjectShape(type, queries) ||
-      !typeHasProjectOwnedShapeDeclaration(type, node, queries, host)
+      typeIsExcludedFromObjectShape(type, queries)
     ) {
       return undefined;
     }
@@ -590,6 +590,21 @@ export function createCsharpObjectShapePolicy(
       const targetType = selectedType === undefined
         ? undefined
         : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
+      const providerShape = resolveProviderObjectLiteralShape({
+        type,
+        queries,
+        state,
+        selectedTarget: targetType,
+        authoredTypeRoot,
+        host,
+        resolvePropertyType,
+      });
+      if (providerShape !== undefined) {
+        return providerShape;
+      }
+      if (!typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
+        return undefined;
+      }
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType

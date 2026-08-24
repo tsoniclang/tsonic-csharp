@@ -59,6 +59,10 @@ export type CsharpTargetBinaryOperation =
       readonly operator: string;
     }
   | {
+      readonly kind: "string-ordinal-relational";
+      readonly operator: Extract<CsharpSourceOperator, "<" | "<=" | ">" | ">=">;
+    }
+  | {
       readonly kind: "nullish-test";
       readonly operand: "left" | "right";
       readonly negated: boolean;
@@ -138,8 +142,17 @@ export function selectCsharpBinaryOperation(
     );
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
+  const stringRelational = selectStringRelational(
+    sourceOperator,
+    leftType,
+    rightType,
+  );
   const targetOperator = targetBinaryOperator(sourceOperator);
-  if (nullishTest === undefined && targetOperator === undefined) {
+  if (
+    nullishTest === undefined &&
+    stringRelational === undefined &&
+    targetOperator === undefined
+  ) {
     return rejected(
       `Source operator '${sourceOperator}' requires a dedicated C# translation policy.`,
     );
@@ -190,7 +203,7 @@ export function selectCsharpBinaryOperation(
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperation: nullishTest ?? {
+        targetOperation: nullishTest ?? stringRelational ?? {
           kind: "operator",
           operator: targetOperator!,
         },
@@ -439,6 +452,24 @@ function selectNullishTest(
   };
 }
 
+function selectStringRelational(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): CsharpTargetBinaryOperation | undefined {
+  if (
+    (operator !== "<" && operator !== "<=" && operator !== ">" && operator !== ">=") ||
+    !isCsharpStringTargetType(left) ||
+    !isCsharpStringTargetType(right)
+  ) {
+    return undefined;
+  }
+  return {
+    kind: "string-ordinal-relational",
+    operator,
+  };
+}
+
 export function selectCsharpUnaryOperation(
   input: CsharpPolicyContext,
   node: Node,
@@ -534,9 +565,13 @@ function validateBinaryTargetSemantics(
       : `C# nullish operator '${operator}' requires a nullable or runtime-union left operand.`;
   }
   if (isRelational(operator)) {
-    return isNumeric(left) && isNumeric(right)
+    return (
+        isNumeric(left) && isNumeric(right)
+      ) || (
+        isCsharpStringTargetType(left) && isCsharpStringTargetType(right)
+      )
       ? undefined
-      : `C# relational operator '${operator}' requires numeric source-primitive operands.`;
+      : `C# relational operator '${operator}' requires numeric source-primitive operands or two exact string operands.`;
   }
   if (isShift(operator)) {
     return isCsharpIntegralTargetType(left) &&

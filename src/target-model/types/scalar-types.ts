@@ -141,6 +141,15 @@ export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   });
 }
 
+export function csharpRuntimeErrorTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Runtime.Error",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Error"),
+    { throwable: true },
+  );
+}
+
 export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): TargetTypeRef {
   return { kind: "source-primitive", name: kind };
 }

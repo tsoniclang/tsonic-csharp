@@ -92,12 +92,17 @@ export type CsharpProviderBindingTypeArgumentSource =
   | "callee"
   | "selected-operation-type-arguments";
 
+export interface CsharpProviderObjectLiteralConstruction {
+  readonly kind: "object-initializer";
+}
+
 export type CsharpProviderTargetRelation =
   | {
       readonly kind: "type";
       readonly source: CsharpProviderTypeSourceIdentity;
       readonly targetBinding: CsharpTargetBindingFact;
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly objectLiteralConstruction?: CsharpProviderObjectLiteralConstruction;
     }
   | {
       readonly kind: "value";
@@ -384,6 +389,17 @@ export function assertCsharpProviderTargetRelationContract(
     "binding",
   );
   if (relation.kind === "type") {
+    if (
+      relation.objectLiteralConstruction !== undefined &&
+      (
+        relation.objectLiteralConstruction.kind !== "object-initializer" ||
+        Object.keys(relation.objectLiteralConstruction).length !== 1
+      )
+    ) {
+      throw new Error(
+        "C# provider type relation has an invalid object-literal construction contract.",
+      );
+    }
     return;
   }
   if (

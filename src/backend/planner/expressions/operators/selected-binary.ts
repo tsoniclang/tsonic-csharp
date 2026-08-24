@@ -29,6 +29,10 @@ import {
 import {
   planBinaryOperand,
 } from "./operands.js";
+import {
+  callStatic,
+  literalNumber,
+} from "../csharp-expression-builders.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -56,6 +60,40 @@ export function planSelectedCsharpBinaryOperation(
           expression: operand,
           negated: selection.targetOperation.negated,
         };
+  }
+  if (selection.targetOperation.kind === "string-ordinal-relational") {
+    const operatorToken = csharpBinaryOperatorTokenFromText(
+      selection.targetOperation.operator,
+    );
+    const left = planExpression(
+      selection.left,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    const right = planExpression(
+      selection.right,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    if (operatorToken === undefined || left === undefined || right === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected C# string relational operator '${selection.targetOperation.operator}' could not be planned exactly.`,
+      ));
+      return undefined;
+    }
+    return {
+      kind: "BinaryExpression",
+      left: callStatic(
+        { kind: "PredefinedType", name: "string" },
+        "CompareOrdinal",
+        [left, right],
+      ),
+      operatorToken,
+      right: literalNumber(0),
+    };
   }
   const targetOperator = selection.targetOperation.operator;
   const assignmentToken = csharpAssignmentOperatorTokenFromText(

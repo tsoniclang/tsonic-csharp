@@ -70,7 +70,10 @@ test("JS surface profile accepts JS names and rejects CLR names under noLib", ()
       "const parts = path.split(\"/\");",
       "const count = parts.length;",
       "const raw = String.raw(template, path);",
-      "export const result = `${count}:${raw}`;",
+      "class NamedError extends Error { constructor(message: string) { super(message); this.name = \"NamedError\"; } }",
+      "const encoded = encodeURIComponent(path);",
+      "const decoded = decodeURIComponent(encoded);",
+      "export const result = `${count}:${raw}:${decoded}:${new NamedError(path).name}`;",
       "",
     ].join("\n"),
   });
