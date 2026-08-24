@@ -168,6 +168,22 @@ function validateCsharpProviderRelation(
       `C# target capability '${capabilityId}' supplied a provider ${relation.kind} relation without an exact target member.`,
     );
   }
+  if (
+    relation.kind === "type" &&
+    relation.objectLiteralConstruction !== undefined &&
+    (
+      !isContributionRecord(relation.objectLiteralConstruction) ||
+      !hasExactContributionFields(
+        relation.objectLiteralConstruction,
+        ["kind"],
+      ) ||
+      relation.objectLiteralConstruction.kind !== "object-initializer"
+    )
+  ) {
+    throw new Error(
+      `C# target capability '${capabilityId}' supplied an invalid provider object-literal construction contract.`,
+    );
+  }
 }
 
 function isValidCsharpProviderSource(

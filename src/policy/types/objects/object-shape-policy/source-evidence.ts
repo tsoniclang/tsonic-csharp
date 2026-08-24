@@ -8,7 +8,7 @@ import { nextState } from "../../resolution/state.js";
 
 interface SelectedObjectShapeSource {
   readonly type: Type | undefined;
-  readonly contextualProjectTarget?: TargetTypeRef;
+  readonly contextualTarget?: TargetTypeRef;
 }
 
 export function selectedObjectShapeSource(
@@ -39,18 +39,33 @@ export function selectedObjectShapeSource(
         host.ast.is.IsInterfaceDeclaration(declaration)
       )
     );
-  if (!projectDeclaration) {
+  const providerDeclaration = [
+    ...queries.facts.typeSubjects(contextualType),
+    ...(contextualSymbol === undefined
+      ? []
+      : [contextualSymbol, ...contextualDeclarations]),
+  ].some((subject) =>
+    subject !== undefined &&
+    host.sourceFacts?.getFact(
+      subject,
+      providerVirtualDeclarationFactKey,
+    ) !== undefined
+  );
+  if (!projectDeclaration && !providerDeclaration) {
     return { type: semanticType };
   }
-  const contextualProjectTarget = host.typeResolver.resolveType(
+  const contextualTarget = host.typeResolver.resolveType(
     contextualType,
     queries.sourceFile,
     nextState(state),
   );
-  return contextualProjectTarget !== undefined &&
-      isProjectSourceTargetType(contextualProjectTarget)
-    ? { type: contextualType, contextualProjectTarget }
-    : { type: semanticType };
+  if (contextualTarget === undefined) {
+    return { type: semanticType };
+  }
+  if (projectDeclaration && !isProjectSourceTargetType(contextualTarget)) {
+    return { type: semanticType };
+  }
+  return { type: contextualType, contextualTarget };
 }
 
 export function sourceSubjects(

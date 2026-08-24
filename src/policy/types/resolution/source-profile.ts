@@ -14,6 +14,7 @@ export type CsharpSourceProfileTypeKind =
   | "boolean"
   | "number"
   | "string"
+  | "error"
   | "array"
   | "readonly-array"
   | "promise"
@@ -59,6 +60,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy(csharpTargetId, "Boolean", "boolean"),
   sourceProfileTypePolicy(csharpTargetId, "Number", "number"),
   sourceProfileTypePolicy(csharpTargetId, "String", "string"),
+  sourceProfileTypePolicy(csharpTargetId, "Error", "error"),
   sourceProfileTypePolicy(csharpTargetId, "Array", "array"),
   sourceProfileTypePolicy(csharpTargetId, "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy(csharpTargetId, "Promise", "promise"),
@@ -76,6 +78,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "Boolean", "boolean"),
   sourceProfileTypePolicy("js", "Number", "number"),
   sourceProfileTypePolicy("js", "String", "string"),
+  sourceProfileTypePolicy("js", "Error", "error"),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),

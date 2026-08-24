@@ -41,6 +41,7 @@ export type {
   CsharpProviderBindingTypeArgumentSource,
   CsharpProviderIdentityResult,
   CsharpProviderMemberSourceIdentity,
+  CsharpProviderObjectLiteralConstruction,
   CsharpProviderParameterRelation,
   CsharpProviderSignatureSourceIdentity,
   CsharpProviderSourceIdentity,

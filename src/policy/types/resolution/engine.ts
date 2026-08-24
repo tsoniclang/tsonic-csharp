@@ -6,7 +6,6 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type {
-  SourceDeclarationReference,
   SourceCallableTypeEvidence,
   SourceFileSemantics,
   SourceTypeComponentEvidence,
@@ -37,7 +36,6 @@ import {
   resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation,
   resolveSourceCallResult as resolveSourceCallResultImplementation,
   resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation,
-  resolveDeclaredNamedType as resolveDeclaredNamedTypeImplementation,
   withSourceTargetBindings as withSourceTargetBindingsImplementation,
 } from "./public-api.js";
 import {
@@ -194,10 +192,6 @@ export interface CsharpTypeResolutionScope {
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
-): TargetTypeRef | undefined;
-  resolveDeclaredNamedType(
-  reference: SourceDeclarationReference,
-  typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined;
   withSourceTargetBindings(
   bindings: readonly CsharpSourceTargetTypeBinding[],
@@ -544,8 +538,6 @@ export function createCsharpTypeResolutionServices(
       resolveSourceCallResultImplementation(scope, ...args),
     resolveSourceCallResultWithState: (...args: DropScope<Parameters<typeof resolveSourceCallResultWithStateImplementation>>) =>
       resolveSourceCallResultWithStateImplementation(scope, ...args),
-    resolveDeclaredNamedType: (...args: DropScope<Parameters<typeof resolveDeclaredNamedTypeImplementation>>) =>
-      resolveDeclaredNamedTypeImplementation(scope, ...args),
     withSourceTargetBindings: (...args: DropScope<Parameters<typeof withSourceTargetBindingsImplementation>>) =>
       withSourceTargetBindingsImplementation(scope, ...args),
     resolveNodeWithState: (
@@ -681,7 +673,6 @@ export function createCsharpTypeResolutionServices(
     resolveSourceCallParameter: methods.resolveSourceCallParameter,
     resolveSourceCallArgumentParameter: methods.resolveSourceCallArgumentParameter,
     resolveSourceCallResult: methods.resolveSourceCallResult,
-    resolveDeclaredNamedType: methods.resolveDeclaredNamedType,
     withSourceTargetBindings: methods.withSourceTargetBindings,
   } satisfies CsharpTypePolicy);
   scope = Object.freeze({

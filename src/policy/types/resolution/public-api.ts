@@ -3,13 +3,11 @@ import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { ResolvedSourceCallInfo, CsharpScopedTypePolicyResult, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
-import type { SourceDeclarationReference } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { nextState } from "./state.js";
-import { sourceDeclarationReferenceFactSubjects } from "./source-evidence.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -458,23 +456,6 @@ export function resolveSourceCallResultWithState(
     sourceFile,
     state,
   );
-}
-
-
-export function resolveDeclaredNamedType(
-  { projectSourceDeclarationTargetType, resolveProviderType }: CsharpTypeResolutionScope,
-  reference: SourceDeclarationReference,
-  typeArguments: readonly TargetTypeRef[],
-): TargetTypeRef | undefined {
-  return reference.project
-    ? projectSourceDeclarationTargetType(
-        reference.declaration,
-        typeArguments,
-      )
-    : resolveProviderType(
-        sourceDeclarationReferenceFactSubjects(reference),
-        typeArguments,
-      );
 }
 
 

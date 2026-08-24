@@ -12,6 +12,7 @@ import {
   createCsharpProviderRelationCatalog,
   providerMemberSourceIdentity,
   providerSignatureSourceIdentity,
+  providerTypeSourceIdentity,
 } from "../../../dist/providers/relations/index.js";
 
 function providerRejection(source, message = "unsupported provider operation") {
@@ -178,6 +179,38 @@ test("provider relation slices merge deterministically and deduplicate exact rep
   ]);
   assert.equal(catalog.relations.length, 1);
   assert.deepEqual(catalog.relations[0], relation);
+});
+
+test("provider type relations opt into one closed object-literal construction contract", () => {
+  const declaration = providerDeclaration({
+    memberId: null,
+    memberStatic: null,
+    memberKey: null,
+    signatureId: null,
+  });
+  const identity = providerTypeSourceIdentity(declaration);
+  assert.equal(identity.kind, "resolved");
+  const relation = {
+    kind: "type",
+    source: identity.identity,
+    targetBinding: providerBinding(),
+    bindingTypeParameters: [],
+    objectLiteralConstruction: { kind: "object-initializer" },
+  };
+  const catalog = createCsharpProviderRelationCatalog([[relation]]);
+  assert.deepEqual(catalog.resolveType(identity.identity), [relation]);
+
+  for (const objectLiteralConstruction of [
+    { kind: "guess" },
+    { kind: "object-initializer", fallback: true },
+  ]) {
+    assert.throws(
+      () => createCsharpProviderRelationCatalog([[
+        { ...relation, objectLiteralConstruction },
+      ]]),
+      /invalid object-literal construction contract/u,
+    );
+  }
 });
 
 test("contradictory duplicate provider relations fail closed", () => {

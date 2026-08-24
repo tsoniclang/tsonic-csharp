@@ -37,7 +37,7 @@ import { combineCsharpTargetUnionMembers } from "../../../target-model/types/run
 import { csharpDelegateTargetType, csharpTaskTargetType } from "../../../target-model/types/delegates.js";
 import { csharpEnumerableTargetType } from "../../../target-model/types/collections.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
-import { csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
+import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
@@ -62,6 +62,10 @@ export function resolveSourceProfileType(
     case "string":
       return typeArguments.length === 0
         ? csharpStringTargetType()
+        : undefined;
+    case "error":
+      return typeArguments.length === 0
+        ? csharpRuntimeErrorTargetType()
         : undefined;
     case "array":
     case "readonly-array": {

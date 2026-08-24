@@ -470,19 +470,11 @@ function resolveDefinitionHeritage(
         },
       };
     }
-    const typeArguments = edge.selectedTypeArguments.map((selected, index) =>
-      host.types.resolveSelectedType(
-        edge.typeArguments[index],
-        selected,
-        definition.sourceFile,
-      )
+    const target = host.types.resolveSelectedType(
+      edge.heritage,
+      edge.selectedType,
+      definition.sourceFile,
     );
-    const target = typeArguments.some((argument) => argument === undefined)
-      ? undefined
-      : host.types.resolveDeclaredNamedType(
-          edge.target,
-          typeArguments as readonly TargetTypeRef[],
-        );
     if (target === undefined) {
       return {
         kind: "unresolved",

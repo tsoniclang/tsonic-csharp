@@ -85,14 +85,6 @@ export function csharpTypeFromObjectShapeFact(
   if (isCsharpJsValueObjectShapeTargetType(fact.targetType)) {
     return targetType;
   }
-  if (targetType.kind !== "IdentifierName") {
-    reportObjectShapeFailure(
-      diagnostics,
-      diagnosticSubject,
-      "Generated object-shape declarations require one exact unqualified compiler-owned target type name.",
-    );
-    return undefined;
-  }
   if (fact.constructible === true || isSourceDeclaredNominalShape(fact)) {
     const result = input.artifacts.registerObjectShape(fact, "source");
     if (result.kind === "rejected") {
@@ -104,6 +96,14 @@ export function csharpTypeFromObjectShapeFact(
       return undefined;
     }
     return targetType;
+  }
+  if (targetType.kind !== "IdentifierName") {
+    reportObjectShapeFailure(
+      diagnostics,
+      diagnosticSubject,
+      "Generated object-shape declarations require one exact unqualified compiler-owned target type name.",
+    );
+    return undefined;
   }
   const result = input.artifacts.registerObjectShape(fact, "synthetic");
   if (result.kind === "rejected") {

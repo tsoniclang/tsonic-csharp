@@ -29,6 +29,17 @@ interface Boolean {}
 interface Number {}
 interface RegExp {}
 
+interface Error {
+  name: string;
+  message: string;
+  stack?: string;
+}
+interface ErrorConstructor {
+  new (message?: string): Error;
+  (message?: string): Error;
+}
+declare var Error: ErrorConstructor;
+
 interface PromiseLike<T> {
   then<TResult1 = T, TResult2 = never>(
     onfulfilled?: ((value: T) => TResult1) | null,
@@ -485,6 +496,8 @@ declare function setTimeout(callback: () => void, delay?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(callback: () => void, delay: number): number;
 declare function clearInterval(id: number): void;
+declare function encodeURIComponent(value: string): string;
+declare function decodeURIComponent(value: string): string;
 
 interface ProxyConstructor {
   new <T extends object>(target: T, handler: object): T;

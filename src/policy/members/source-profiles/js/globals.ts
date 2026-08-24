@@ -261,6 +261,21 @@ export const csharpJsGlobalCallPolicies:
         ),
       noReceiver,
     ),
+    ...["encodeURIComponent", "decodeURIComponent"].map((name) =>
+      jsCallPolicy(
+        jsGlobalCallIdentity(name),
+        () =>
+          staticMethod(
+            `Tsonic.CSharp.Js.Globals.${name}`,
+            name,
+            name,
+            globalsType,
+            [targetParameter("value", stringType)],
+            stringType,
+          ),
+        noReceiver,
+      )
+    ),
     ...["isNaN", "isFinite"].map((name) =>
       jsCallPolicy(
         jsGlobalCallIdentity(name),

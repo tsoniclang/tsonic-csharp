@@ -8,7 +8,6 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type {
-  SourceDeclarationReference,
   SourceFileSemantics,
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
@@ -125,10 +124,6 @@ export interface CsharpTypePolicy {
   resolveSourceCallResult(
     source: ResolvedSourceCallInfo,
     sourceFile: SourceFile,
-  ): TargetTypeRef | undefined;
-  resolveDeclaredNamedType(
-    reference: SourceDeclarationReference,
-    typeArguments: readonly TargetTypeRef[],
   ): TargetTypeRef | undefined;
   withSourceTargetBindings(
     bindings: readonly CsharpSourceTargetTypeBinding[],

@@ -49,6 +49,9 @@ import {
   selectCsharpBinaryOperation,
 } from "../../policy/operations/index.js";
 import type {
+  CsharpTargetBinaryOperation,
+} from "../../policy/operations/index.js";
+import type {
   CsharpTargetCallSelection,
 } from "../../policy/members/index.js";
 import {
@@ -779,15 +782,9 @@ function csharpBinarySelectionsEqual(
   return left.sourceOperator === right.sourceOperator &&
     left.left === right.left &&
     left.right === right.right &&
-    left.targetOperation.kind === right.targetOperation.kind &&
-    (
-      left.targetOperation.kind === "operator" &&
-        right.targetOperation.kind === "operator"
-        ? left.targetOperation.operator === right.targetOperation.operator
-        : left.targetOperation.kind === "nullish-test" &&
-            right.targetOperation.kind === "nullish-test" &&
-            left.targetOperation.operand === right.targetOperation.operand &&
-            left.targetOperation.negated === right.targetOperation.negated
+    csharpBinaryTargetOperationsEqual(
+      left.targetOperation,
+      right.targetOperation,
     ) &&
     targetTypeRefEquals(left.leftType, right.leftType) &&
     targetTypeRefEquals(left.rightType, right.rightType) &&
@@ -795,4 +792,24 @@ function csharpBinarySelectionsEqual(
     targetTypeRefEquals(left.rightInputType, right.rightInputType) &&
     targetTypeRefEquals(left.resultType, right.resultType) &&
     left.expectedResultCompatible === right.expectedResultCompatible;
+}
+
+function csharpBinaryTargetOperationsEqual(
+  left: CsharpTargetBinaryOperation,
+  right: CsharpTargetBinaryOperation,
+): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "operator":
+      return right.kind === "operator" && left.operator === right.operator;
+    case "string-ordinal-relational":
+      return right.kind === "string-ordinal-relational" &&
+        left.operator === right.operator;
+    case "nullish-test":
+      return right.kind === "nullish-test" &&
+        left.operand === right.operand &&
+        left.negated === right.negated;
+  }
 }
