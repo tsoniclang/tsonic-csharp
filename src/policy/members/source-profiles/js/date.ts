@@ -4,6 +4,7 @@ import type {
 } from "../../../types/index.js";
 import {
   csharpJsDateTargetType,
+  csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
 } from "../../../types/index.js";
@@ -42,7 +43,11 @@ const dateNoArgumentRows: readonly {
   { sourceName: "getUTCSeconds", targetName: "getUTCSeconds", returnType: doubleType },
   { sourceName: "getUTCMilliseconds", targetName: "getUTCMilliseconds", returnType: doubleType },
   { sourceName: "toUTCString", targetName: "toUTCString", returnType: stringType },
-  { sourceName: "toJSON", targetName: "toJSON", returnType: stringType },
+  {
+    sourceName: "toJSON",
+    targetName: "toJSON",
+    returnType: csharpNullableTargetType(stringType),
+  },
 ]);
 
 export const csharpJsDateCallPolicies:
