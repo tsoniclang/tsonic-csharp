@@ -216,7 +216,7 @@ function dotnetProviderExportTargetRelationTemplates(
   lookup: DotnetTargetRelationLookup,
 ): readonly DotnetProviderTargetRelationTemplate[] {
   if (declaration.kind === "function") {
-    return declaration.signatures.flatMap((signature) =>
+    return (declaration.signatures ?? []).flatMap((signature) =>
       lookup.getTargetFunctionsForProviderSignature(
         declaration.id,
         signature.id,

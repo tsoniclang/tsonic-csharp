@@ -6,8 +6,10 @@ import {
   csharpJsDateTargetType,
   csharpJsIntlTargetType,
   csharpNullableTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTargetNamedType,
   csharpTsValueTargetType,
   type CsharpJsIntlCarrierName,
 } from "../../../types/index.js";
@@ -194,15 +196,11 @@ function intlConstructor(name: CsharpJsIntlCarrierName): CsharpTargetMember {
 
 function intlConstructorCarrier(name: CsharpJsIntlCarrierName): TargetTypeRef {
   const carrierName = `${name}Constructor`;
-  return {
-    kind: "target-named",
-    id: `Tsonic.CSharp.Js.${carrierName}`,
-    csharpRender: {
-      kind: "qualified",
-      namespace: "Tsonic.CSharp.Js",
-      name: carrierName,
-    },
-  };
+  return csharpTargetNamedType(
+    `Tsonic.CSharp.Js.${carrierName}`,
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", carrierName),
+  );
 }
 
 function dateTimeFormatMember(

@@ -12,10 +12,12 @@ import type {
   DotnetTargetBindingFact,
 } from "../target-projection/index.js";
 import {
-  dotnetFunctionToTargetMemberRecords,
   dotnetTypeTargetMemberProjections,
   providerSignatureProjectionKey,
 } from "../relations/target-relations.js";
+import {
+  dotnetFunctionToTargetMemberRecords,
+} from "../target-projection/members.js";
 import type {
   DotnetTargetMemberProjection,
   DotnetTargetFunctionProjection,

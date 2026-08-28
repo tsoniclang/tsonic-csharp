@@ -121,9 +121,7 @@ function validateDotnetTypeDeclaration(
   validateDotnetConstraints(declaration.implementedContracts ?? [], `${path}.implementedContracts`, collector);
   validateUnsupportedConstraints(declaration.unsupportedImplementedContracts ?? [], `${path}.unsupportedImplementedContracts`, collector);
   const unsupportedMembers = declaration.unsupportedMembers ?? [];
-  validateDotnetMemberList(declaration.members ?? [], `${path}.members`, collector, {
-    sourceVisible: options.sourceVisible,
-  });
+  validateDotnetMemberList(declaration.members ?? [], `${path}.members`, collector);
   validateUnsupportedMembers(unsupportedMembers, `${path}.unsupportedMembers`, collector);
   for (const [index, operator] of (declaration.conversionOperators ?? []).entries()) {
     const operatorPath = `${path}.conversionOperators[${index}]`;
@@ -177,9 +175,6 @@ function validateDotnetMemberList(
   members: readonly DotnetMemberDeclaration[],
   path: string,
   collector: ContractCollector,
-  options: {
-    readonly sourceVisible: boolean;
-  },
 ): void {
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;

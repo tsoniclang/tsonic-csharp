@@ -6,12 +6,11 @@ import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
   csharpObjectTargetType,
-  csharpTargetTypeRefEquals,
   csharpTaskTargetType,
-  csharpVoidTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
+  targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -30,7 +29,6 @@ import {
 } from "../../../types/index.js";
 import { csharpTargetNamedType } from "../../../types/index.js";
 
-const voidType = csharpVoidTargetType();
 const objectType = csharpObjectTargetType();
 const actionType = csharpDelegateTargetType("System.Action", []);
 const noReceiver = { kind: "none" } as const;
@@ -134,7 +132,7 @@ function promiseCombinatorMember(
   if (inputResult === undefined) {
     return undefined;
   }
-  if (name !== "allSettled" && !csharpTargetTypeRefEquals(inputResult, task.result)) {
+  if (name !== "allSettled" && !targetTypeRefEquals(inputResult, task.result)) {
     return undefined;
   }
   return staticMethod(

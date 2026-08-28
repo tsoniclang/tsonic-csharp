@@ -1,5 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api";
+import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import type { CsharpOutputType } from "../../target-model/configuration/model.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type {

@@ -8,7 +8,7 @@ import {
 } from "./delegates.js";
 import {
   isCsharpStringTargetType,
-} from "./scalar-types.js";
+} from "./identity.js";
 
 export type CsharpJsonObjectShapeContract =
   | { readonly kind: "properties" }

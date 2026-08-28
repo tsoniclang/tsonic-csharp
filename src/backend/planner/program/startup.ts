@@ -69,7 +69,7 @@ export function planCsharpStartupSourceFile(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
   }>();
   for (const construction of input.program.sourceModuleConstructions.entries()) {
     const sourceFile = construction.targetSourceFile;
@@ -142,7 +142,7 @@ export function planCsharpStartupSourceFile(
                 ...workerDispatch,
                 ...plannedSources
                 .filter((source) => source === entrypointPlannedSource && source.hasModuleInitializer)
-                .map((source) => ({
+                .map((source): CsharpStatement => ({
                   kind: "ExpressionStatement",
                   expression: asyncEntrypoint
                     ? {
@@ -185,7 +185,7 @@ function planCsharpWorkerDispatch(
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
     readonly planned: PlannedCsharpSourceFile;
-    readonly bootstrap: import("../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
+    readonly bootstrap: import("../../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
   }[],
   binaryEpilogueStatements: readonly CsharpStatement[],
   diagnostics: TargetDiagnostic[],

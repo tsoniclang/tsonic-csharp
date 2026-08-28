@@ -8,7 +8,6 @@ import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeProjectionKind,
   CsharpObjectShapeProjection,
-  TargetTypeRef,
 } from "./model.js";
 import { targetTypeRefKey } from "./equality.js";
 import {

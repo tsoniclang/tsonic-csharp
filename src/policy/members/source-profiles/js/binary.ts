@@ -243,7 +243,10 @@ function dataViewMember(
     context,
     context.source.sourceReceiver,
   );
-  if (receiver?.kind !== "target-named" || receiver.csharpJsSurfaceKind !== "data-view") {
+  if (
+    receiver?.kind !== "target-named" ||
+    (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "data-view"
+  ) {
     return undefined;
   }
   const endian = name.endsWith("16") || name.endsWith("32") || name.endsWith("64");
@@ -366,8 +369,8 @@ function arrayBufferViewProperty(
   const receiver = resolveCsharpSelectedSourceValue(context, context.source.receiver);
   if (
     receiver?.kind !== "target-named" ||
-    receiver.csharpJsSurfaceKind !== "data-view" &&
-      receiver.csharpJsSurfaceKind !== "typed-array"
+    (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "data-view" &&
+      (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "typed-array"
   ) {
     return undefined;
   }
@@ -406,8 +409,8 @@ function typedArrayCallReceiver(
     context.source.sourceReceiver,
   );
   return receiver?.kind === "target-named" &&
-      receiver.csharpJsSurfaceKind === "typed-array"
-    ? receiver
+      (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "typed-array"
+    ? receiver as CsharpTargetNamedTypeRef
     : undefined;
 }
 
@@ -421,7 +424,7 @@ function typedArrayAccessReceiver(
     context.source.receiver,
   );
   return receiver?.kind === "target-named" &&
-      receiver.csharpJsSurfaceKind === "typed-array"
-    ? receiver
+      (receiver as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "typed-array"
+    ? receiver as CsharpTargetNamedTypeRef
     : undefined;
 }

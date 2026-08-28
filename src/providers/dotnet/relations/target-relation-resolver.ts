@@ -123,6 +123,7 @@ function resolveMemberRelations(
         template.exportId === source.identity.exportId &&
         template.memberId === source.identity.memberId &&
         template.memberStatic === source.identity.memberStatic &&
+        template.memberKey !== undefined &&
         providerMemberKeysEqual(template.memberKey, source.identity.memberKey))
       .map((template) => ({
         kind: "member",

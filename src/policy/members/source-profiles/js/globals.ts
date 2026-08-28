@@ -352,16 +352,17 @@ function timerSchedulingMember(
     context,
     context.source.sourceArguments[0],
   );
-  const callback = callbackType === undefined
-    ? undefined
-    : csharpJsArgumentVectorCallbackParameter(
-        "callback",
-        callbackType,
-        voidType,
-        "Tsonic.CSharp.Js.TimerCallback",
-        "TimerCallback",
-        timerArgumentsType,
-      );
+  if (callbackType === undefined) {
+    return undefined;
+  }
+  const callback = csharpJsArgumentVectorCallbackParameter(
+    "callback",
+    callbackType,
+    voidType,
+    "Tsonic.CSharp.Js.TimerCallback",
+    "TimerCallback",
+    timerArgumentsType,
+  );
   return callback === undefined
     ? undefined
     : staticMethod(

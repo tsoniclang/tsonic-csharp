@@ -55,7 +55,7 @@ export const csharpJsWeakCollectionCallPolicies:
       firstParameterReceiver,
       { targetMethodTypeArguments: weakMapTypeArguments },
     ),
-    ...["has", "delete"].map((name) =>
+    ...(["has", "delete"] as const).map((name) =>
       jsCallPolicy(
         jsMemberIdentity("WeakMap", name),
         (context) => weakMapMethod(context, name),
@@ -67,7 +67,7 @@ export const csharpJsWeakCollectionCallPolicies:
       (context) => weakMapMethod(context, "set"),
       instanceReceiver,
     ),
-    ...["has", "delete", "add"].map((name) =>
+    ...(["has", "delete", "add"] as const).map((name) =>
       jsCallPolicy(
         jsMemberIdentity("WeakSet", name),
         (context) => weakSetMethod(context, name),
