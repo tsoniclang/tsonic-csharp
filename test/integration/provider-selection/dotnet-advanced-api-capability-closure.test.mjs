@@ -49,15 +49,23 @@ test("advanced .NET API contracts close through provider selection and C# syntax
         FunctionPointerSignatures,
         GenericNumber,
         MultiIndexer,
+        PointerDelegate,
+        PointerSignatures,
         RankedArraySignatures,
+        RefReturnDelegate,
         StaticInterfaceImplementation,
         ${createAdapter.sourceName},
         ${countAdapter.sourceName},
         ${echoAdapter.sourceName},
         ${valueAdapter.sourceName},
       } from "${moduleSpecifier}";
-      import { loadPointer, storePointer } from "@tsonic/core/lang.js";
+      import {
+        loadPointer,
+        storePointer,
+        unsafeContext,
+      } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
+      import type { ptr } from "@tsonic/csharp/lang.js";
 
       export function ranked(value: RankedArraySignatures): number {
         const matrix = value.MatrixReturn();
@@ -78,6 +86,26 @@ test("advanced .NET API contracts close through provider selection and C# syntax
 
       export function functionPointers(value: FunctionPointerSignatures): void {
         value.Echo(value.CallbackProperty);
+      }
+
+      export function nativePointers(value: PointerSignatures): number {
+        unsafeContext();
+        const pointer = value.PointerReturn();
+        return value.ReadPointer(pointer);
+      }
+
+      export function pointerDelegate(
+        callback: PointerDelegate,
+        pointer: ptr<int32>,
+      ): number {
+        unsafeContext();
+        return callback(pointer);
+      }
+
+      export function refReturnDelegate(callback: RefReturnDelegate): number {
+        const slot = callback();
+        storePointer(slot, 11);
+        return loadPointer(slot);
       }
 
       export function events(value: EventSignatures, callback: (value: number) => void): void {
@@ -113,6 +141,12 @@ test("advanced .NET API contracts close through provider selection and C# syntax
   assert.match(output, /GenericHolder<int>\.Echo\(value\)/);
   assert.match(output, /GenericHolder<int>\.StaticValue/);
   assert.match(output, /value\.Echo\(value\.CallbackProperty\)/);
+  assert.match(output, /int\* pointer = value\.PointerReturn\(\)/);
+  assert.match(output, /return value\.ReadPointer\(pointer\)/);
+  assert.match(output, /return callback\(pointer\)/);
+  assert.match(output, /ref int slot = ref callback\(\)/);
+  assert.match(output, /slot = 11/);
+  assert.match(output, /return slot/);
 });
 
 function fixtureCapability(referenceDirectory) {

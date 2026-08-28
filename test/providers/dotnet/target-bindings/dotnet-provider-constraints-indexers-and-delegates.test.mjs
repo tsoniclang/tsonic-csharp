@@ -703,7 +703,7 @@ test(".NET reflection provider exposes requested conflicted nested type-family t
   assert.equal(binding.kind, "struct");
   assert.equal(binding.sourceName, "Span_Enumerator");
 });
-test(".NET reflection provider keeps requested unsupported source exports target-only", () => {
+test(".NET reflection provider keeps requested pointer delegates source-visible with exact target ABI", () => {
   const reference = buildUnsupportedMemberFixture();
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
@@ -714,23 +714,34 @@ test(".NET reflection provider keeps requested unsupported source exports target
   });
   assert.equal("exports" in module, true, JSON.stringify(module));
 
-  assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
-  const targetOnlyPointerDelegate = module.targetOnlyTypes?.find((declaration) =>
+  const pointerDelegate = module.exports.find((declaration) =>
     declaration.metadataName === "ProviderUnsupportedMemberFixtures.PointerDelegate"
   );
-  assert.ok(targetOnlyPointerDelegate);
-  assert.equal(targetOnlyPointerDelegate.typeKind, "delegate");
-
-  const unsupportedPointerDelegate = module.unsupportedExports?.find((declaration) =>
-    declaration.kind === "unsupported-type-export" &&
-    declaration.sourceName === "PointerDelegate"
+  assert.ok(pointerDelegate);
+  assert.equal(pointerDelegate.typeKind, "delegate");
+  assert.equal(pointerDelegate.sourceShape.kind, "function");
+  assert.equal(pointerDelegate.sourceShape.parameters[0].type.kind, "pointer");
+  assert.equal(pointerDelegate.sourceShape.parameters[0].type.pointee.kind, "source-primitive");
+  assert.equal(pointerDelegate.sourceShape.parameters[0].type.pointee.name, "int32");
+  assert.equal(
+    module.targetOnlyTypes?.some((declaration) =>
+      declaration.metadataName === "ProviderUnsupportedMemberFixtures.PointerDelegate") ?? false,
+    false,
   );
-  assert.ok(unsupportedPointerDelegate);
-  assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
-  assert.match(unsupportedPointerDelegate.reason, /System\.Int32\*/u);
+  assert.equal(
+    module.unsupportedExports?.some((declaration) =>
+      declaration.metadataName === "ProviderUnsupportedMemberFixtures.PointerDelegate") ?? false,
+    false,
+  );
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
-  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "PointerDelegate"), false);
+  const sourcePointerDelegate = sourceModel.exports.find((declaration) =>
+    declaration.name === "PointerDelegate");
+  assert.ok(sourcePointerDelegate);
+  assert.equal(sourcePointerDelegate.type.kind, "function");
+  assert.equal(sourcePointerDelegate.type.parameters[0].type.kind, "provider-ref");
+  assert.equal(sourcePointerDelegate.type.parameters[0].type.moduleSpecifier, "@tsonic/csharp/lang.js");
+  assert.equal(sourcePointerDelegate.type.parameters[0].type.exportName, "ptr");
 
   const bindingProvider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
@@ -740,5 +751,7 @@ test(".NET reflection provider keeps requested unsupported source exports target
   assert.ok(binding);
   assert.equal(binding.kind, "delegate");
   assert.equal(binding.sourceName, "PointerDelegate");
-  assert.equal(binding.csharpType.csharpDelegateSignature, undefined);
+  assert.equal(binding.csharpType.csharpDelegateSignature.parameters[0].kind, "pointer");
+  assert.equal(binding.csharpType.csharpDelegateSignature.returnType.kind, "source-primitive");
+  assert.equal(binding.csharpType.csharpDelegateSignature.returnType.name, "int32");
 });

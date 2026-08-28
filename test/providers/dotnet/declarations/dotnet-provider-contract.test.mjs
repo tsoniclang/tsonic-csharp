@@ -824,12 +824,17 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
   assert.equal(constrainedBinding.typeParameters[0].constraints.length >= constrained.typeParameters[0].constraints.length, true);
 
   const pointerSignatures = rawType(unsupportedModule, "PointerSignatures");
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerReturn") ?? false, false);
-  assert.ok(pointerSignatures.unsupportedMembers?.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "PointerReturn" &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
+  const pointerReturn = pointerSignatures.members?.find((member) =>
+    member.kind === "method" && member.targetName === "PointerReturn");
+  assert.ok(pointerReturn);
+  assert.equal(pointerReturn.signatures[0].returnType.kind, "pointer");
+  assert.equal(pointerReturn.signatures[0].returnType.pointee.kind, "source-primitive");
+  assert.equal(pointerReturn.signatures[0].returnType.pointee.name, "int32");
+  assert.equal(
+    pointerSignatures.unsupportedMembers?.some((member) =>
+      member.targetName === "PointerReturn") ?? false,
+    false,
+  );
 });
 test(".NET target binding provider reports unsupported requested exports with provider evidence", () => {
   const bindingProvider = createDotnetSourceDeclarationProvider({
