@@ -68,6 +68,12 @@ interface PromiseConstructor {
 }
 declare var Promise: PromiseConstructor;
 
+interface Symbol {
+  readonly description: string | undefined;
+  toString(): string;
+  valueOf(): symbol;
+}
+
 interface SymbolConstructor {
   readonly iterator: unique symbol;
   readonly asyncIterator: unique symbol;
