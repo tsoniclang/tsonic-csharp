@@ -102,6 +102,10 @@ export interface CsharpArtifactGraphScope {
   projectionKind: CsharpObjectShapeProjectionKind,
   resultType: TargetTypeRef,
   rootKind: "value" | "object-shape",
+  assignmentSource?: {
+    readonly node: Node;
+    readonly type: TargetTypeRef;
+  },
 ): CsharpObjectShapeProjectionRequestResult;
   objectShapeProjections(
   fact: CsharpObjectShapeFact,

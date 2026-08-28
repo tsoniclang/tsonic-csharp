@@ -80,6 +80,192 @@ export function csharpJsSetTargetType(
   };
 }
 
+export function csharpJsWeakMapTargetType(
+  keyType: TargetTypeRef,
+  valueType: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return {
+    ...csharpTargetNamedType(
+      "Tsonic.CSharp.Js.WeakMap`2",
+      [keyType, valueType],
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakMap"),
+    ),
+    csharpJsSurfaceKind: "weak-map",
+  };
+}
+
+export function csharpJsWeakSetTargetType(
+  elementType: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  return {
+    ...csharpTargetNamedType(
+      "Tsonic.CSharp.Js.WeakSet`1",
+      [elementType],
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "WeakSet"),
+    ),
+    csharpJsSurfaceKind: "weak-set",
+  };
+}
+
+export function getCsharpJsWeakMapTargetTypes(
+  type: TargetTypeRef | undefined,
+): { readonly key: TargetTypeRef; readonly value: TargetTypeRef } | undefined {
+  return type?.kind === "target-named" &&
+      (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "weak-map" &&
+      type.typeArguments?.length === 2
+    ? { key: type.typeArguments[0]!, value: type.typeArguments[1]! }
+    : undefined;
+}
+
+export function getCsharpJsWeakSetElementTargetType(
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  return type?.kind === "target-named" &&
+      (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind === "weak-set" &&
+      type.typeArguments?.length === 1
+    ? type.typeArguments[0]
+    : undefined;
+}
+
+export function csharpJsSymbolTargetType(): CsharpTargetNamedTypeRef {
+  return {
+    ...csharpTargetNamedType(
+      "Tsonic.CSharp.Js.Symbol",
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Symbol"),
+    ),
+    csharpJsSurfaceKind: "symbol",
+  };
+}
+
+export function csharpJsPromiseFulfilledResultTargetType(
+  valueType: TargetTypeRef,
+): CsharpTargetNamedTypeRef {
+  if (
+    valueType.kind === "target-named" &&
+    valueType.id === "System.Void"
+  ) {
+    return csharpTargetNamedType(
+      "Tsonic.CSharp.Js.PromiseFulfilledResult",
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
+    );
+  }
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.PromiseFulfilledResult`1",
+    [valueType],
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseFulfilledResult"),
+  );
+}
+
+export function csharpJsPromiseRejectedResultTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Js.PromiseRejectedResult",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "PromiseRejectedResult"),
+  );
+}
+
+export function csharpJsArrayBufferTargetType(): CsharpTargetNamedTypeRef {
+  return {
+    ...csharpTargetNamedType(
+      "Tsonic.CSharp.Js.ArrayBuffer",
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "ArrayBuffer"),
+    ),
+    csharpJsSurfaceKind: "array-buffer",
+  };
+}
+
+export function csharpJsDataViewTargetType(): CsharpTargetNamedTypeRef {
+  return {
+    ...csharpTargetNamedType(
+      "Tsonic.CSharp.Js.DataView",
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "DataView"),
+    ),
+    csharpJsSurfaceKind: "data-view",
+  };
+}
+
+export type CsharpJsIntlCarrierName =
+  | "IntlDateTimeFormat"
+  | "IntlNumberFormat"
+  | "IntlCollator"
+  | "IntlDateTimeFormatPart"
+  | "IntlNumberFormatPart"
+  | "IntlResolvedDateTimeFormatOptions"
+  | "IntlResolvedNumberFormatOptions"
+  | "IntlResolvedCollatorOptions";
+
+export function csharpJsIntlTargetType(
+  name: CsharpJsIntlCarrierName,
+): CsharpTargetNamedTypeRef {
+  const kind = name === "IntlDateTimeFormat"
+    ? "intl-date-time-format"
+    : name === "IntlNumberFormat"
+      ? "intl-number-format"
+      : name === "IntlCollator"
+        ? "intl-collator"
+        : undefined;
+  return {
+    ...csharpTargetNamedType(
+      `Tsonic.CSharp.Js.${name}`,
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+    ),
+    ...(kind === undefined ? {} : { csharpJsSurfaceKind: kind }),
+  } as CsharpTargetNamedTypeRef;
+}
+
+const typedArrayNames = Object.freeze([
+  "Int8Array",
+  "Uint8Array",
+  "Uint8ClampedArray",
+  "Int16Array",
+  "Uint16Array",
+  "Int32Array",
+  "Uint32Array",
+  "Float32Array",
+  "Float64Array",
+] as const);
+
+export type CsharpJsTypedArrayName = typeof typedArrayNames[number];
+
+export function csharpJsTypedArrayTargetType(
+  name: CsharpJsTypedArrayName,
+): CsharpTargetNamedTypeRef {
+  const elementType = csharpSourcePrimitiveTargetType("float64");
+  return {
+    ...csharpTargetNamedType(
+      `Tsonic.CSharp.Js.${name}`,
+      undefined,
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
+      {
+        enumerableElementType: elementType,
+        readOnlyIndexableElementType: elementType,
+        denseMutableElementType: elementType,
+        indexableLengthMemberName: "length",
+        collectionSemantics: "dense",
+      },
+    ),
+    csharpJsSurfaceKind: "typed-array",
+  };
+}
+
+export function csharpJsTypedArrayElementTargetType(
+  type: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  if (type?.kind !== "target-named" ||
+      (type as CsharpTargetNamedTypeRef).csharpJsSurfaceKind !== "typed-array") {
+    return undefined;
+  }
+  const name = type.id.slice("Tsonic.CSharp.Js.".length) as CsharpJsTypedArrayName;
+  return typedArrayNames.includes(name)
+    ? csharpSourcePrimitiveTargetType("float64")
+    : undefined;
+}
+
 export function getCsharpJsMapTargetTypes(
   type: TargetTypeRef | undefined,
 ): {

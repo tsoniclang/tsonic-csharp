@@ -54,9 +54,15 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
     case "function-pointer": {
       const parameters = type.args.map(csharpTypeFromTargetTypeRef);
       const returnType = csharpTypeFromTargetTypeRef(type.result);
-      return returnType === undefined || parameters.some((parameter) => parameter === undefined)
+      const convention = csharpFunctionPointerCallingConvention(type.abi);
+      return returnType === undefined || parameters.some((parameter) => parameter === undefined) || convention === undefined
         ? undefined
-        : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
+        : {
+            kind: "FunctionPointerType",
+            parameters: parameters as readonly CsharpTypeNode[],
+            returnType,
+            ...convention,
+          };
     }
     case "target-specific":
     case "opaque":
@@ -64,6 +70,29 @@ function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNod
     case "lifetime":
       return undefined;
   }
+}
+
+function csharpFunctionPointerCallingConvention(
+  abi: readonly string[] | undefined,
+): {
+  readonly callingConvention?: "managed" | "unmanaged";
+  readonly callingConventionModifiers?: readonly string[];
+} | undefined {
+  if (abi === undefined || abi.length === 0) {
+    return {};
+  }
+  const [kind, ...modifiers] = abi;
+  if (kind === "managed") {
+    return modifiers.length === 0 ? { callingConvention: "managed" } : undefined;
+  }
+  if (kind !== "unmanaged" || modifiers.some((modifier) =>
+    !["Cdecl", "Stdcall", "Thiscall", "Fastcall", "SuppressGCTransition"].includes(modifier))) {
+    return undefined;
+  }
+  return {
+    callingConvention: "unmanaged",
+    ...(modifiers.length === 0 ? {} : { callingConventionModifiers: modifiers }),
+  };
 }
 
 function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {

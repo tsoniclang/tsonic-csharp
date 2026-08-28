@@ -330,7 +330,7 @@ export function receiverHelperMethod(
       returnType,
       options,
     ),
-    receiverPassing: "first-argument",
+    receiverPassing: "target-parameter",
   });
 }
 

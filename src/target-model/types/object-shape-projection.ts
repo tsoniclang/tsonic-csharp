@@ -18,18 +18,27 @@ import {
 const projectionPrefix = "__tsonicObject";
 
 export function csharpObjectShapeProjectionMethodName(
-  projection: CsharpObjectShapeProjectionKind,
-  resultType: TargetTypeRef,
-  propertyOrder: readonly string[],
+  projection: CsharpObjectShapeProjection,
 ): string {
-  const operation = projection === "has-own"
+  const operation = projection.kind === "has-own"
     ? "HasOwn"
-    : `${projection[0]!.toUpperCase()}${projection.slice(1)}`;
+    : projection.kind === "assign"
+    ? "Assign"
+    : `${projection.kind[0]!.toUpperCase()}${projection.kind.slice(1)}`;
   const identity = createHash("sha256")
     .update(JSON.stringify([
-      projection,
-      targetTypeRefKey(resultType),
-      ...propertyOrder,
+      projection.kind,
+      targetTypeRefKey(projection.resultType),
+      ...projection.propertyOrder,
+      ...(projection.kind === "assign"
+        ? [
+            targetTypeRefKey(projection.sourceShape.targetType),
+            ...projection.assignments.flatMap((assignment) => [
+              assignment.sourceName,
+              assignment.targetName,
+            ]),
+          ]
+        : []),
     ]))
     .digest("hex")
     .slice(0, 12);
@@ -61,10 +70,19 @@ export function resolveCsharpObjectShapePropertyOrder(
       `Selected '${projection}' operation conflicts with a reserved generated object-shape member name.`,
     );
   }
-  if (projection === "has-own") {
-    if (stringMembers.some((member) => member.optional === true)) {
+  if (projection === "has-own" || projection === "assign") {
+    if (stringMembers.some((member) =>
+      member.optional === true ||
+      projection === "assign" && (
+        member.memberKind !== "property" ||
+        member.readonly === true ||
+        member.accessor !== undefined
+      )
+    )) {
       return rejected(
-        "Selected 'has-own' operation requires exact present-versus-absent storage for every optional property.",
+        projection === "assign"
+          ? "Selected 'assign' operation requires exact writable, required data-property storage."
+          : "Selected 'has-own' operation requires exact present-versus-absent storage for every optional property.",
       );
     }
     return {
@@ -161,10 +179,48 @@ export function resolveCsharpObjectShapePropertyOrder(
   };
 }
 
+export function resolveCsharpObjectShapeAssignmentSourceOrder(
+  fact: CsharpObjectShapeFact,
+): CsharpObjectShapePropertyOrderSelection {
+  const stringMembers = fact.members.filter((member) =>
+    member.sourceKey.kind === "property"
+  );
+  if (isSourceDeclaredNominalShape(fact)) {
+    return rejected(
+      "Selected 'assign' operation requires one exact generated structural source carrier; an open nominal source type cannot prove its runtime own-property set.",
+    );
+  }
+  if (fact.members.some((member) =>
+    isCsharpObjectShapeGeneratedMemberName(member.targetName)
+  )) {
+    return rejected(
+      "Selected 'assign' source conflicts with a reserved generated object-shape member name.",
+    );
+  }
+  if (stringMembers.some((member) =>
+    member.optional === true ||
+    member.memberKind !== "property" ||
+    member.accessor !== undefined
+  )) {
+    return rejected(
+      "Selected 'assign' source requires exact readable, required data-property storage.",
+    );
+  }
+  return {
+    kind: "resolved",
+    propertyOrder: Object.freeze(
+      stringMembers.map((member) => member.sourceName).sort(),
+    ),
+  };
+}
+
 export function csharpObjectShapeProjectionMembers(
   fact: CsharpObjectShapeFact,
   projection: CsharpObjectShapeProjection,
 ): readonly CsharpObjectShapeFact["members"][number][] | undefined {
+  if (projection.kind === "assign") {
+    return undefined;
+  }
   const stringMembers = fact.members.filter((member) =>
     member.sourceKey.kind === "property"
   );
@@ -185,6 +241,45 @@ export function csharpObjectShapeProjectionMembers(
   return members.some((member) => member === undefined)
     ? undefined
     : members as readonly CsharpObjectShapeFact["members"][number][];
+}
+
+export function csharpObjectShapeAssignmentMembers(
+  fact: CsharpObjectShapeFact,
+  projection: Extract<CsharpObjectShapeProjection, { readonly kind: "assign" }>,
+): readonly {
+  readonly source: CsharpObjectShapeFact["members"][number];
+  readonly target: CsharpObjectShapeFact["members"][number];
+}[] | undefined {
+  if (
+    projection.assignments.length !== projection.propertyOrder.length ||
+    new Set(projection.propertyOrder).size !== projection.propertyOrder.length ||
+    projection.assignments.some((assignment, index) =>
+      assignment.sourceName !== projection.propertyOrder[index]
+    )
+  ) {
+    return undefined;
+  }
+  const pairs = projection.assignments.map((assignment) => {
+    const source = resolveCsharpObjectShapeMemberBySourceContract(
+      projection.sourceShape,
+      assignment.sourceName,
+      "finalized-object-spread-member",
+    );
+    const target = resolveCsharpObjectShapeMemberBySourceContract(
+      fact,
+      assignment.targetName,
+      "finalized-object-spread-member",
+    );
+    return source.kind === "resolved" && target.kind === "resolved"
+      ? { source: source.member, target: target.member }
+      : undefined;
+  });
+  return pairs.some((pair) => pair === undefined)
+    ? undefined
+    : pairs as readonly {
+        readonly source: CsharpObjectShapeFact["members"][number];
+        readonly target: CsharpObjectShapeFact["members"][number];
+      }[];
 }
 
 function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {

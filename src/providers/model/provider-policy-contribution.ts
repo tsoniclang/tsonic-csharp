@@ -3,12 +3,16 @@ import type {
   CsharpProviderTargetRejection,
   CsharpProviderTargetRelation,
 } from "../relations/index.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import {
   freezeContributionValue,
   hasExactContributionFields,
   isContributionRecord,
   nonEmptyContributionString,
 } from "./contribution-values.js";
+import {
+  canonicalProviderValue,
+} from "./canonical-value.js";
 
 export const csharpProviderPolicyContributionKind = "csharp-provider-policy";
 
@@ -19,6 +23,35 @@ export interface CsharpProviderPolicyContribution
   readonly providerVersion: string;
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
+  readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
+}
+
+export interface CsharpProviderBinaryEpilogue {
+  readonly id: string;
+  readonly declaringType: TargetTypeRef;
+  readonly methodName: string;
+}
+
+export function composeCsharpBinaryEpilogues(
+  ...groups: readonly (readonly CsharpProviderBinaryEpilogue[])[]
+): readonly CsharpProviderBinaryEpilogue[] {
+  const byId = new Map<string, CsharpProviderBinaryEpilogue>();
+  for (const epilogue of groups.flat()) {
+    const existing = byId.get(epilogue.id);
+    if (existing === undefined) {
+      byId.set(epilogue.id, epilogue);
+      continue;
+    }
+    if (canonicalProviderValue(existing) !== canonicalProviderValue(epilogue)) {
+      throw new Error(
+        `C# target capabilities supplied contradictory binary epilogues for identity '${epilogue.id}'.`,
+      );
+    }
+  }
+  return Object.freeze(
+    [...byId.values()].sort((left, right) =>
+      left.id.localeCompare(right.id, "en")),
+  );
 }
 
 export function csharpProviderPolicyContribution(
@@ -26,6 +59,7 @@ export function csharpProviderPolicyContribution(
   providerVersion: string,
   relations: readonly CsharpProviderTargetRelation[],
   rejections: readonly CsharpProviderTargetRejection[],
+  binaryEpilogues: readonly CsharpProviderBinaryEpilogue[],
 ): CsharpProviderPolicyContribution {
   return freezeContributionValue({
     kind: csharpProviderPolicyContributionKind,
@@ -33,6 +67,7 @@ export function csharpProviderPolicyContribution(
     providerVersion,
     relations,
     rejections,
+    binaryEpilogues,
   });
 }
 
@@ -49,11 +84,13 @@ export function validateCsharpProviderPolicyContribution(
       "providerVersion",
       "relations",
       "rejections",
+      "binaryEpilogues",
     ]) ||
     !nonEmptyContributionString(contribution.providerId) ||
     !nonEmptyContributionString(contribution.providerVersion) ||
     !Array.isArray(contribution.relations) ||
-    !Array.isArray(contribution.rejections)
+    !Array.isArray(contribution.rejections) ||
+    !Array.isArray(contribution.binaryEpilogues)
   ) {
     throw new Error(
       `C# target capability '${capabilityId}' supplied an invalid '${csharpProviderPolicyContributionKind}' contribution.`,
@@ -78,6 +115,23 @@ export function validateCsharpProviderPolicyContribution(
       snapshot.providerVersion,
       rejection,
     );
+  }
+  for (const epilogue of snapshot.binaryEpilogues) {
+    if (
+      !isContributionRecord(epilogue) ||
+      !hasExactContributionFields(epilogue, [
+        "id",
+        "declaringType",
+        "methodName",
+      ]) ||
+      !nonEmptyContributionString(epilogue.id) ||
+      !nonEmptyContributionString(epilogue.methodName) ||
+      !isContributionRecord(epilogue.declaringType)
+    ) {
+      throw new Error(
+        `C# target capability '${capabilityId}' supplied an invalid binary epilogue.`,
+      );
+    }
   }
   return snapshot;
 }

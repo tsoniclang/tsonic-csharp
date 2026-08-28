@@ -26,11 +26,23 @@ export function printCsharpType(type: CsharpTypeNode): string {
     case "PointerType":
       return `${printCsharpType(type.pointee)}*`;
     case "FunctionPointerType":
-      return `delegate*<${[...type.parameters, type.returnType].map(printCsharpType).join(", ")}>`;
+      return `delegate*${printFunctionPointerCallingConvention(type)}<${[...type.parameters, type.returnType].map(printCsharpType).join(", ")}>`;
     case "NullableType":
       return `${printCsharpType(type.inner)}?`;
   }
   return failUnsupportedCsharpSyntax(type, "type");
+}
+
+function printFunctionPointerCallingConvention(
+  type: Extract<CsharpTypeNode, { readonly kind: "FunctionPointerType" }>,
+): string {
+  if (type.callingConvention === undefined) {
+    return "";
+  }
+  const modifiers = type.callingConventionModifiers;
+  return type.callingConvention === "unmanaged" && modifiers !== undefined && modifiers.length > 0
+    ? ` unmanaged[${modifiers.join(", ")}]`
+    : ` ${type.callingConvention}`;
 }
 
 export function isCsharpTypeSyntax(expression: CsharpExpression): expression is CsharpTypeNode {

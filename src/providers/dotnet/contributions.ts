@@ -20,9 +20,11 @@ import type {
 } from "./reflection/provider.js";
 import {
   csharpProviderPolicyContributionKind,
+  composeCsharpBinaryEpilogues,
   validateCsharpProviderPolicyContribution,
 } from "../model/provider-policy-contribution.js";
 import type {
+  CsharpProviderBinaryEpilogue,
   CsharpProviderPolicyContribution,
 } from "../model/provider-policy-contribution.js";
 import {
@@ -45,6 +47,7 @@ export interface CsharpDotnetProviderContribution extends TargetCapabilityContri
 export interface CollectedCsharpCapabilityContributions {
   readonly dotnetProviders: readonly CsharpDotnetProviderContribution[];
   readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
+  readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
 }
 
 export interface CsharpCapabilityDotnetProvider {
@@ -58,6 +61,7 @@ export function collectCsharpCapabilityContributions(
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerPolicies: CsharpProviderPolicyContribution[] = [];
+  const binaryEpilogues: CsharpProviderBinaryEpilogue[] = [];
   for (const capability of capabilities) {
     for (const contribution of capability.contributions) {
       if (contribution.kind === csharpDotnetProviderContributionKind) {
@@ -67,11 +71,13 @@ export function collectCsharpCapabilityContributions(
           contribution,
         ));
       } else if (contribution.kind === csharpProviderPolicyContributionKind) {
-        providerPolicies.push(validateCsharpProviderPolicyContribution(
+        const policy = validateCsharpProviderPolicyContribution(
           capability.capabilityId,
           capability.moduleOwnership,
           contribution,
-        ));
+        );
+        providerPolicies.push(policy);
+        binaryEpilogues.push(...policy.binaryEpilogues);
       } else {
         throw new Error(
           `C# target capability '${capability.capabilityId}' supplied unsupported target contribution kind '${contribution.kind}'.`,
@@ -82,6 +88,7 @@ export function collectCsharpCapabilityContributions(
   return Object.freeze({
     dotnetProviders: Object.freeze(dotnetProviders),
     providerPolicies: Object.freeze(providerPolicies),
+    binaryEpilogues: composeCsharpBinaryEpilogues(binaryEpilogues),
   });
 }
 

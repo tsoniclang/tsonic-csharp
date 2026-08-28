@@ -22,6 +22,24 @@ export function csharpJsReplacementCallbackParameter(
   sourceCallableType: TargetTypeRef,
   resultType: TargetTypeRef,
 ): CsharpTargetParameter | undefined {
+  return csharpJsArgumentVectorCallbackParameter(
+    name,
+    sourceCallableType,
+    resultType,
+    "Tsonic.CSharp.Js.ReplacementCallback",
+    "ReplacementCallback",
+    replacementArgumentsType,
+  );
+}
+
+export function csharpJsArgumentVectorCallbackParameter(
+  name: string,
+  sourceCallableType: TargetTypeRef,
+  resultType: TargetTypeRef,
+  targetId: string,
+  targetName: string,
+  argumentVectorType: TargetTypeRef,
+): CsharpTargetParameter | undefined {
   const sourceSignature = getCsharpDelegateSignature(sourceCallableType);
   if (
     sourceSignature === undefined ||
@@ -30,15 +48,15 @@ export function csharpJsReplacementCallbackParameter(
     return undefined;
   }
   const callbackType = csharpTargetNamedType(
-    "Tsonic.CSharp.Js.ReplacementCallback",
+    targetId,
     undefined,
     csharpQualifiedTypeRenderShape(
       "Tsonic.CSharp.Js",
-      "ReplacementCallback",
+      targetName,
     ),
     {
       delegateSignature: {
-        parameters: [replacementArgumentsType],
+        parameters: [argumentVectorType],
         returnType: resultType,
       },
     },

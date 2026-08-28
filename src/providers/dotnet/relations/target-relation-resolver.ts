@@ -152,7 +152,7 @@ function resolveSignatureRelations(
         template.exportId === source.identity.exportId &&
         template.memberId === source.identity.memberId &&
         template.memberStatic === source.identity.memberStatic &&
-        providerMemberKeysEqual(template.memberKey, source.identity.memberKey) &&
+        optionalProviderMemberKeysEqual(template.memberKey, source.identity.memberKey) &&
         template.signatureId === source.identity.signatureId)
       .map((template) => ({
         kind: "signature",
@@ -164,6 +164,8 @@ function resolveSignatureRelations(
         bindingTypeParameters: template.bindingTypeParameters,
         bindingTypeArgumentSource: template.bindingTypeArgumentSource,
         methodTypeParameters: template.methodTypeParameters,
+        invocationTypeParameters: template.invocationTypeParameters,
+        selectedTypeParameterCount: template.selectedTypeParameterCount,
       })),
   };
 }
@@ -175,4 +177,13 @@ function providerMemberKeysEqual(
   return right !== undefined &&
     left.kind === right.kind &&
     left.name === right.name;
+}
+
+function optionalProviderMemberKeysEqual(
+  left: ProviderMemberKey | undefined,
+  right: ProviderMemberKey | undefined,
+): boolean {
+  return left === undefined || right === undefined
+    ? left === right
+    : providerMemberKeysEqual(left, right);
 }

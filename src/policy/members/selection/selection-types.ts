@@ -33,6 +33,7 @@ interface CsharpSelectedTargetCallBase {
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
   readonly targetMethodTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
+  readonly targetInvocationTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
   readonly arguments: readonly CsharpSelectedCallArgument[];
 }
 

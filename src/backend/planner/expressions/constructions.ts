@@ -35,6 +35,7 @@ import {
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function translateCsharpConstruction(
   node: Node,
@@ -219,6 +220,67 @@ function translateSelectedConstruction(
         ...(typeArguments.length === 0 ? {} : { typeArguments }),
       },
       arguments: arguments_,
+    };
+  }
+  if (member.csharpInvocation?.kind === "source-module-construction") {
+    const construction = input.program.sourceModuleConstructions.construction(
+      node,
+    );
+    if (
+      construction === undefined ||
+      construction.sourceArgumentIndex !==
+        member.csharpInvocation.sourceArgumentIndex ||
+      construction.targetParameterIndex !==
+        member.csharpInvocation.targetParameterIndex ||
+      construction.bootstrap.id !== member.csharpInvocation.bootstrap.id ||
+      construction.bootstrap.methodName !==
+        member.csharpInvocation.bootstrap.methodName ||
+      !targetTypeRefEquals(
+        construction.bootstrap.declaringType,
+        member.csharpInvocation.bootstrap.declaringType,
+      )
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected source-module constructor '${member.id}' has no matching sealed source-module construction.`,
+      ));
+      return undefined;
+    }
+    const targetArgument = arguments_[construction.targetParameterIndex];
+    if (targetArgument === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected source-module constructor '${member.id}' has no target argument at index ${construction.targetParameterIndex}.`,
+      ));
+      return undefined;
+    }
+    const entryIdentity = input.outputIdentities.resolveRequired(
+      input.program.source.ast.getFileName(construction.targetSourceFile),
+    );
+    const rewrittenArguments = arguments_.map((argument, index) =>
+      index === construction.targetParameterIndex
+        ? {
+            ...argument,
+            expression: {
+              kind: "LiteralExpression" as const,
+              value: entryIdentity.className,
+            },
+          }
+        : argument);
+    const type = member.declaringType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(member.declaringType);
+    if (type === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        `Selected source-module constructor '${member.id}' has no renderable declaring type.`,
+      ));
+      return undefined;
+    }
+    return {
+      kind: "ObjectCreationExpression",
+      type,
+      arguments: rewrittenArguments,
     };
   }
   if (member.csharpInvocation !== undefined) {

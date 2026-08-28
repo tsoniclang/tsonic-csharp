@@ -18,6 +18,8 @@ export type CsharpSourceProfileTypeKind =
   | "array"
   | "readonly-array"
   | "promise"
+  | "promise-fulfilled-result"
+  | "promise-rejected-result"
   | "iterator-result"
   | "generator"
   | "async-generator"
@@ -40,6 +42,19 @@ export type CsharpSourceProfileTypeKind =
   | "readonly-map"
   | "set"
   | "readonly-set"
+  | "weak-map"
+  | "weak-set"
+  | "array-buffer"
+  | "data-view"
+  | "typed-array"
+  | "intl-date-time-format"
+  | "intl-number-format"
+  | "intl-collator"
+  | "intl-date-time-part"
+  | "intl-number-part"
+  | "intl-date-time-options"
+  | "intl-number-options"
+  | "intl-collator-options"
   | "iterable";
 
 export interface CsharpSourceProfileTypeIdentity {
@@ -83,6 +98,8 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),
   sourceProfileTypePolicy("js", "PromiseLike", "promise"),
+  sourceProfileTypePolicy("js", "PromiseFulfilledResult", "promise-fulfilled-result"),
+  sourceProfileTypePolicy("js", "PromiseRejectedResult", "promise-rejected-result"),
   sourceProfileTypePolicy("js", "IteratorResult", "iterator-result"),
   sourceProfileTypePolicy("js", "Generator", "generator"),
   sourceProfileTypePolicy("js", "AsyncGenerator", "async-generator"),
@@ -157,6 +174,29 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "ReadonlyMap", "readonly-map"),
   sourceProfileTypePolicy("js", "Set", "set"),
   sourceProfileTypePolicy("js", "ReadonlySet", "readonly-set"),
+  sourceProfileTypePolicy("js", "WeakMap", "weak-map"),
+  sourceProfileTypePolicy("js", "WeakSet", "weak-set"),
+  sourceProfileTypePolicy("js", "ArrayBuffer", "array-buffer"),
+  sourceProfileTypePolicy("js", "DataView", "data-view"),
+  ...[
+    "Int8Array",
+    "Uint8Array",
+    "Uint8ClampedArray",
+    "Int16Array",
+    "Uint16Array",
+    "Int32Array",
+    "Uint32Array",
+    "Float32Array",
+    "Float64Array",
+  ].map((name) => sourceProfileTypePolicy("js", name, "typed-array")),
+  sourceProfileTypePolicy("js", "IntlDateTimeFormat", "intl-date-time-format"),
+  sourceProfileTypePolicy("js", "IntlNumberFormat", "intl-number-format"),
+  sourceProfileTypePolicy("js", "IntlCollator", "intl-collator"),
+  sourceProfileTypePolicy("js", "IntlDateTimeFormatPart", "intl-date-time-part"),
+  sourceProfileTypePolicy("js", "IntlNumberFormatPart", "intl-number-part"),
+  sourceProfileTypePolicy("js", "IntlResolvedDateTimeFormatOptions", "intl-date-time-options"),
+  sourceProfileTypePolicy("js", "IntlResolvedNumberFormatOptions", "intl-number-options"),
+  sourceProfileTypePolicy("js", "IntlResolvedCollatorOptions", "intl-collator-options"),
   sourceProfileTypePolicy("js", "Iterable", "iterable"),
   sourceProfileTypePolicy("js", "IterableIterator", "iterable"),
 ]);

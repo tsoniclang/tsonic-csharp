@@ -12,11 +12,13 @@ import type {
   DotnetTargetBindingFact,
 } from "../target-projection/index.js";
 import {
+  dotnetFunctionToTargetMemberRecords,
   dotnetTypeTargetMemberProjections,
   providerSignatureProjectionKey,
 } from "../relations/target-relations.js";
 import type {
   DotnetTargetMemberProjection,
+  DotnetTargetFunctionProjection,
   DotnetTargetRelationLookup,
 } from "../relations/target-relations.js";
 import type {
@@ -39,6 +41,7 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
     string,
     DotnetTargetMemberProjection[]
   >();
+  const functionProjectionsByProviderId = new Map<string, DotnetTargetFunctionProjection[]>();
 
   function rememberModule(module: DotnetModuleModel, request: DotnetProviderCacheRequest): void {
     const targetOnlyDeclarations = new Set(module.targetOnlyTypes ?? []);
@@ -85,6 +88,47 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
         }
       }
     }
+    for (const declaration of module.exports) {
+      if (declaration.kind !== "function") {
+        continue;
+      }
+      const targetBinding = targetBindingsByTargetId.get(
+        declaration.targetBindingId,
+      ) as CsharpTargetBindingFact | undefined;
+      if (targetBinding === undefined) {
+        continue;
+      }
+      const signaturesBySourceId = new Map(
+        declaration.signatures.map((signature) => [signature.sourceId, signature]),
+      );
+      for (const record of dotnetFunctionToTargetMemberRecords(declaration)) {
+        if (record.kind !== "signature") {
+          continue;
+        }
+        const signature = signaturesBySourceId.get(record.sourceSignatureId);
+        const roles = signature?.sourceTypeParameterRoles;
+        const sourceTypeParameterCount =
+          (signature?.sourceTypeParameters ?? signature?.typeParameters)?.length ?? 0;
+        if (signature === undefined || roles === undefined) {
+          continue;
+        }
+        rememberProjection(
+          functionProjectionsByProviderId,
+          providerSignatureProjectionKey(
+            declaration.targetId,
+            signature.sourceId,
+          ),
+          {
+            targetBinding,
+            targetMember: record.targetMember,
+            bindingTypeParameters: typeParameterRelations(roles.binding),
+            methodTypeParameters: typeParameterRelations(roles.method),
+            invocationTypeParameters: typeParameterRelations(roles.invocation),
+            selectedTypeParameterCount: sourceTypeParameterCount,
+          },
+        );
+      }
+    }
   }
 
   function rememberTargetBindingByTargetId(binding: TargetBindingFact): TargetBindingFact {
@@ -123,7 +167,24 @@ export function createDotnetTargetBindingIndex(): DotnetTargetBindingIndex {
         ? direct
         : canonicalSignatureProjectionsByProviderId.get(signatureId) ?? [];
     },
+    getTargetFunctionsForProviderSignature(
+      exportId: string,
+      signatureId: string,
+    ): readonly DotnetTargetFunctionProjection[] {
+      return functionProjectionsByProviderId.get(
+        providerSignatureProjectionKey(exportId, signatureId),
+      ) ?? [];
+    },
   };
+}
+
+function typeParameterRelations(
+  sourceIndexes: readonly number[],
+): readonly { readonly sourceTypeParameterIndex: number; readonly targetTypeParameterIndex: number }[] {
+  return Object.freeze(sourceIndexes.map((sourceTypeParameterIndex, targetTypeParameterIndex) => ({
+    sourceTypeParameterIndex,
+    targetTypeParameterIndex,
+  })));
 }
 
 function sourceDeclarationIsComplete(
@@ -141,10 +202,10 @@ function sourceDeclarationIsComplete(
   );
 }
 
-function rememberProjection(
-  index: Map<string, DotnetTargetMemberProjection[]>,
+function rememberProjection<TProjection extends DotnetTargetMemberProjection>(
+  index: Map<string, TProjection[]>,
   key: string,
-  projection: DotnetTargetMemberProjection,
+  projection: TProjection,
 ): void {
   const existing = index.get(key) ?? [];
   if (!existing.some((candidate) =>
@@ -202,6 +263,10 @@ function mergeTargetBindingFacts(
     ...(candidateDotnet.csharpType === undefined && existingDotnet.csharpType !== undefined ? { csharpType: existingDotnet.csharpType } : {}),
     ...(candidateDotnet.csharpBaseType === undefined && existingDotnet.csharpBaseType !== undefined ? { csharpBaseType: existingDotnet.csharpBaseType } : {}),
     ...(candidateDotnet.csharpRender === undefined && existingDotnet.csharpRender !== undefined ? { csharpRender: existingDotnet.csharpRender } : {}),
+    ...(candidateDotnet.csharpAbstract === undefined && existingDotnet.csharpAbstract !== undefined ? { csharpAbstract: existingDotnet.csharpAbstract } : {}),
+    ...(candidateDotnet.csharpUnmanagedTypeParameterIndexes === undefined && existingDotnet.csharpUnmanagedTypeParameterIndexes !== undefined
+      ? { csharpUnmanagedTypeParameterIndexes: existingDotnet.csharpUnmanagedTypeParameterIndexes }
+      : {}),
   };
 }
 

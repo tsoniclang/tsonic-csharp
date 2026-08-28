@@ -188,7 +188,20 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpFlowRefinementRepresentation?: "identity";
   readonly csharpRuntimeUnionArms?: readonly TargetTypeRef[];
   readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
-  readonly csharpJsSurfaceKind?: "map" | "set" | "date" | "regexp";
+  readonly csharpJsSurfaceKind?:
+    | "map"
+    | "set"
+    | "weak-map"
+    | "weak-set"
+    | "symbol"
+    | "array-buffer"
+    | "data-view"
+    | "typed-array"
+    | "intl-date-time-format"
+    | "intl-number-format"
+    | "intl-collator"
+    | "date"
+    | "regexp";
   readonly csharpCollectionSurface?: "record";
 };
 
@@ -270,13 +283,25 @@ export type CsharpObjectShapeProjectionKind =
   | "keys"
   | "values"
   | "entries"
-  | "has-own";
+  | "has-own"
+  | "assign";
 
-export interface CsharpObjectShapeProjection {
-  readonly kind: CsharpObjectShapeProjectionKind;
-  readonly resultType: TargetTypeRef;
-  readonly propertyOrder: readonly string[];
-}
+export type CsharpObjectShapeProjection =
+  | {
+      readonly kind: Exclude<CsharpObjectShapeProjectionKind, "assign">;
+      readonly resultType: TargetTypeRef;
+      readonly propertyOrder: readonly string[];
+    }
+  | {
+      readonly kind: "assign";
+      readonly resultType: TargetTypeRef;
+      readonly sourceShape: CsharpObjectShapeFact;
+      readonly propertyOrder: readonly string[];
+      readonly assignments: readonly {
+        readonly sourceName: string;
+        readonly targetName: string;
+      }[];
+    };
 
 interface CsharpCallArtifactRequirementBase {
   readonly source:
@@ -292,7 +317,15 @@ export type CsharpCallArtifactRequirement =
     }
   | CsharpCallArtifactRequirementBase & {
       readonly kind: "object-shape-projection";
-      readonly projection: CsharpObjectShapeProjectionKind;
+      readonly projection: Exclude<CsharpObjectShapeProjectionKind, "assign">;
+    }
+  | CsharpCallArtifactRequirementBase & {
+      readonly kind: "object-shape-projection";
+      readonly projection: "assign";
+      readonly assignmentSource: {
+        readonly kind: "argument";
+        readonly index: number;
+      };
     };
 
 export interface CsharpMethodTypeArgumentProjection {
@@ -308,12 +341,13 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly parameters: readonly CsharpTargetParameter[];
   readonly typeParameters?: readonly CsharpTargetTypeParameter[];
   readonly declaringType?: TargetTypeRef;
-  readonly receiverPassing?: "instance" | "first-argument";
+  readonly receiverPassing?: "instance" | "target-parameter";
   readonly readonly?: boolean;
   readonly attributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly csharpReturnPassing?: "byref-readwrite" | "byref-readonly";
   readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
   readonly csharpMethodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjection[];
   readonly csharpInvocation?: CsharpTargetInvocation;
@@ -323,6 +357,16 @@ export type CsharpTargetInvocation =
   | {
       readonly kind: "static-factory-construction";
       readonly factoryType: TargetTypeRef;
+    }
+  | {
+      readonly kind: "source-module-construction";
+      readonly sourceArgumentIndex: number;
+      readonly targetParameterIndex: number;
+      readonly bootstrap: {
+        readonly id: string;
+        readonly declaringType: TargetTypeRef;
+        readonly methodName: string;
+      };
     }
   | {
       readonly kind: "array-creation";
@@ -337,6 +381,63 @@ export type CsharpTargetInvocation =
       readonly kind: "ecmascript-protocol-dispatch";
       readonly protocolTargetParameterIndex: number;
       readonly protocolMemberName: string;
+    }
+  | {
+      readonly kind: "native-indexer-get";
+      readonly indexParameterIndexes: readonly number[];
+    }
+  | {
+      readonly kind: "native-indexer-set";
+      readonly indexParameterIndexes: readonly number[];
+      readonly valueParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-event-add" | "native-event-remove";
+      readonly handlerParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-operator";
+      readonly form: "prefix" | "binary";
+      readonly operator:
+        | "unary-plus"
+        | "unary-negation"
+        | "logical-not"
+        | "ones-complement"
+        | "addition"
+        | "subtraction"
+        | "multiplication"
+        | "division"
+        | "modulus"
+        | "bitwise-and"
+        | "bitwise-or"
+        | "exclusive-or"
+        | "left-shift"
+        | "right-shift"
+        | "unsigned-right-shift"
+        | "equality"
+        | "inequality"
+        | "less-than"
+        | "less-than-or-equal"
+        | "greater-than"
+        | "greater-than-or-equal";
+      readonly operandParameterIndexes: readonly number[];
+      readonly checked?: true;
+    }
+  | {
+      readonly kind: "static-member";
+      readonly operation:
+        | "call"
+        | "property-get"
+        | "property-set"
+        | "event-add"
+        | "event-remove";
+      readonly receiver:
+        | { readonly kind: "declaring-type" }
+        | {
+            readonly kind: "invocation-type-argument";
+            readonly index: number;
+          };
+      readonly valueParameterIndex?: number;
     };
 
 export interface CsharpTargetConversionOperatorFact {
@@ -356,6 +457,8 @@ export interface CsharpTargetBindingFact extends Omit<TargetBindingFact, "member
   readonly attributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly conversionOperators?: readonly CsharpTargetConversionOperatorFact[];
+  readonly csharpAbstract?: true;
+  readonly csharpUnmanagedTypeParameterIndexes?: readonly number[];
 }
 
 export function csharpTargetBindingFact(binding: TargetBindingFact | undefined): CsharpTargetBindingFact | undefined {
@@ -373,6 +476,7 @@ export function csharpTargetMemberFacts(members: readonly TargetMember[] | undef
 export interface CsharpDelegateSignatureShape {
   readonly parameters: readonly TargetTypeRef[];
   readonly returnType: TargetTypeRef;
+  readonly returnPassing?: "byref-readwrite" | "byref-readonly";
   readonly optionalParameterIndexes?: readonly number[];
   readonly restParameterIndex?: number;
 }

@@ -7,6 +7,11 @@ export const supportedPassingModes = new Set([
   "byref-writeonly-must-init",
 ]);
 
+export const supportedReturnPassingModes = new Set([
+  "byref-readonly",
+  "byref-readwrite",
+]);
+
 export const supportedTypeParameterVariance = new Set([
   "in",
   "out",
@@ -110,7 +115,7 @@ export const dotnetTypeRefFieldsByKind = new Map<string, ReadonlySet<string>>([
   ["array", new Set(["kind", "elementType", "rank"])],
   ["tuple", new Set(["kind", "elements"])],
   ["union", new Set(["kind", "types"])],
-  ["function", new Set(["kind", "id", "parameters", "returnType", "typeParameters"])],
+  ["function", new Set(["kind", "id", "parameters", "returnType", "targetReturnType", "returnPassing", "typeParameters"])],
   ["pointer", new Set(["kind", "pointee", "mutability"])],
   ["function-pointer", new Set(["kind", "args", "result", "abi"])],
   ["opaque", new Set(["kind", "id", "displayName", "sourceShape"])],
@@ -123,9 +128,12 @@ export const dotnetSignatureFields = new Set([
   "attributes",
   "unsupportedAttributes",
   "typeParameters",
+  "sourceTypeParameters",
+  "sourceTypeParameterRoles",
   "parameters",
   "returnType",
   "targetReturnType",
+  "returnPassing",
   "returnAttributes",
   "unsupportedReturnAttributes",
   "targetInvocation",

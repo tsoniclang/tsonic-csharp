@@ -546,7 +546,7 @@ function nullableArrayMember(
       [targetParameter("array", shape.receiver), ...parameters],
       returnType,
     ),
-    receiverPassing: "first-argument",
+    receiverPassing: "target-parameter",
   });
 }
 

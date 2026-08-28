@@ -27,7 +27,7 @@ import type {
 } from "../model/provider-policy-contribution.js";
 import {
   csharpBuiltInProviderPolicies,
-} from "../builtins/native-pointer-relations.js";
+} from "../builtins/source-semantic-relations.js";
 import type {
   CsharpProviderRelationResolution,
   CsharpProviderRelationResolver,

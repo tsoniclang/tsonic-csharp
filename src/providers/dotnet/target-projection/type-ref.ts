@@ -69,6 +69,11 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "union":
       throw new Error("Unsupported .NET union target type. Add a typed TSTS target union/carrier model before exposing this declaration.");
     case "function":
+      if (type.returnPassing !== undefined) {
+        throw new Error(
+          "A by-reference delegate source shape cannot be projected to System.Func; it requires its exact named CLR delegate carrier.",
+        );
+      }
       return type.returnType.kind === "void"
         ? csharpDelegateTargetType(
             "System.Action",
@@ -159,7 +164,12 @@ function dotnetDelegateSignatureFromSourceShape(
   );
   return {
     parameters,
-    returnType: dotnetTypeRefToTargetTypeRef(sourceShape.returnType),
+    returnType: dotnetTypeRefToTargetTypeRef(
+      sourceShape.targetReturnType ?? sourceShape.returnType,
+    ),
+    ...(sourceShape.returnPassing === undefined
+      ? {}
+      : { returnPassing: sourceShape.returnPassing }),
     ...(optionalParameterIndexes.length === 0
       ? {}
       : { optionalParameterIndexes }),

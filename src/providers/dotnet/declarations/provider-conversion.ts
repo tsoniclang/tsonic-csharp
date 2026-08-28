@@ -7,6 +7,7 @@ import type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
 } from "../model/types.js";
+import { csharpLangModule } from "../../../target-model/identities/source.js";
 
 export function dotnetTypeRefToProviderType(
   type: DotnetTypeRef,
@@ -64,11 +65,21 @@ export function tryDotnetTypeRefToProviderType(
       return tryDotnetTypeRefToProviderType(type.sourceShape, `${identityPath}.sourceShape`);
     }
     case "array": {
-      if (type.rank !== undefined && type.rank !== 1) {
+      const elementType = tryDotnetTypeRefToProviderType(type.elementType, `${identityPath}.elementType`);
+      if (elementType === undefined) {
         return undefined;
       }
-      const elementType = tryDotnetTypeRefToProviderType(type.elementType, `${identityPath}.elementType`);
-      return elementType === undefined ? undefined : { kind: "array", elementType };
+      const rank = type.rank ?? 1;
+      return rank === 1
+        ? { kind: "array", elementType }
+        : rank >= 2 && rank <= 32
+          ? {
+              kind: "provider-ref",
+              moduleSpecifier: csharpLangModule,
+              exportName: `array${rank}`,
+              typeArguments: [elementType],
+            }
+          : undefined;
     }
     case "nullable": {
       const elementType = tryDotnetTypeRefToProviderType(type.elementType, `${identityPath}.elementType`);
@@ -116,9 +127,29 @@ export function tryDotnetTypeRefToProviderType(
           : {}),
       };
     }
-    case "pointer":
-    case "function-pointer":
-      return undefined;
+    case "pointer": {
+      const pointee = tryDotnetTypeRefToProviderType(type.pointee, `${identityPath}.pointee`);
+      return pointee === undefined
+        ? undefined
+        : {
+            kind: "provider-ref",
+            moduleSpecifier: csharpLangModule,
+            exportName: "ptr",
+            typeArguments: [pointee],
+          };
+    }
+    case "function-pointer": {
+      const args = mapDotnetProviderTypes(type.args, `${identityPath}.args`);
+      const result = tryDotnetTypeRefToProviderType(type.result, `${identityPath}.result`);
+      return args === undefined || result === undefined
+        ? undefined
+        : {
+            kind: "provider-ref",
+            moduleSpecifier: csharpLangModule,
+            exportName: "fnptr",
+            typeArguments: [{ kind: "tuple", elementTypes: args }, result],
+          };
+    }
     case "opaque": {
       if (type.sourceShape === undefined) {
         return undefined;
@@ -138,9 +169,20 @@ export function dotnetTypeParameterToProviderTypeParameter(
   const variance = typeParameter.variance === "target-defined"
     ? undefined
     : typeParameter.variance;
+  const constraints = (typeParameter.constraints ?? []).flatMap((constraint, index) => {
+    if (constraint.kind !== "implements") {
+      return [];
+    }
+    const selected = tryDotnetTypeRefToProviderType(
+      constraint.contract,
+      `${identityPath}.constraints[${index}]`,
+    );
+    return selected === undefined ? [] : [selected];
+  });
   return {
     name: typeParameter.name,
     ...(variance !== undefined ? { variance } : {}),
+    ...(constraints.length === 0 ? {} : { constraints }),
     ...(defaultType !== undefined ? { defaultType } : {}),
   };
 }

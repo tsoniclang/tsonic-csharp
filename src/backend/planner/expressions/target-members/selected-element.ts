@@ -207,7 +207,7 @@ function translateProjectIndexerElement(
       ? "ConditionalElementAccessExpression"
       : "ElementAccessExpression",
     receiver,
-    argument: argument.expression,
+    arguments: [argument.expression],
   };
   if (
     selection.source.accessMode !== "read" ||
@@ -332,7 +332,7 @@ function translateSelectedElement(
       ? "ConditionalElementAccessExpression"
       : "ElementAccessExpression",
     receiver,
-    argument: argument.expression,
+    arguments: [argument.expression],
   };
 }
 
@@ -418,7 +418,7 @@ function translateSourceOwnedElement(
           ? "ConditionalElementAccessExpression"
           : "ElementAccessExpression",
         receiver,
-        argument,
+        arguments: [argument],
       };
 }
 

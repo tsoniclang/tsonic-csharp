@@ -112,7 +112,7 @@ export function planClassDeclaration(
       ...safetyDefaultConstructors,
       ...members,
       ...(jsonSerializable && objectShape !== undefined
-        ? [renderJsonSerializableObjectShapeMethod(objectShape)]
+        ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
     ],
   };

@@ -21,6 +21,7 @@ import {
   csharpNativePointerExport,
   csharpSafetyProviderNames,
 } from "../extension/explicit-safety.js";
+import { csharpRankedArrayDescriptors } from "./ranked-arrays.js";
 
 export function createCsharpSourceVirtualModulesProvider(): SourceDeclarationProvider {
   return createSourceSemanticsVirtualModuleProvider({
@@ -61,9 +62,64 @@ export function csharpProviderExportsForModule(
         nativePointerProviderDeclaration(
           csharpNativePointerExport,
         ),
+        ...csharpRankedArrayProviderDeclarations(),
         unsafeContextProviderDeclaration(csharpSafetyProviderNames),
         ...safetyProviderDeclarations(csharpSafetyProviderNames),
       ];
+}
+
+function csharpRankedArrayProviderDeclarations(): ProviderDeclarationModel["exports"] {
+  return csharpRankedArrayDescriptors.map((descriptor) => {
+    const typeParameter = { kind: "type-parameter" as const, name: "T" };
+    const int32Type = { kind: "source-primitive" as const, name: "int32" as const };
+    const indexParameters = descriptor.indexParameterNames.map((name) => ({
+      name,
+      type: int32Type,
+    }));
+    return {
+      id: descriptor.exportName,
+      name: descriptor.exportName,
+      kind: "interface" as const,
+      typeParameters: [{ name: "T" }],
+      members: [
+        {
+          id: descriptor.markerMemberId,
+          name: "__tsonicRankedArray",
+          kind: "property" as const,
+          readonly: true,
+          type: {
+            kind: "function" as const,
+            id: descriptor.markerMemberId,
+            parameters: [{ name: "value", type: typeParameter }],
+            returnType: { kind: "literal" as const, value: descriptor.rank },
+          },
+        },
+        {
+          id: descriptor.getMemberId,
+          name: "get",
+          kind: "method" as const,
+          signatures: [{
+            id: descriptor.getSignatureId,
+            parameters: indexParameters,
+            returnType: typeParameter,
+          }],
+        },
+        {
+          id: descriptor.setMemberId,
+          name: "set",
+          kind: "method" as const,
+          signatures: [{
+            id: descriptor.setSignatureId,
+            parameters: [
+              ...indexParameters,
+              { name: "value", type: typeParameter },
+            ],
+            returnType: { kind: "void" as const },
+          }],
+        },
+      ],
+    };
+  });
 }
 
 function csharpLangProviderImports(): readonly ProviderImportDeclaration[] {

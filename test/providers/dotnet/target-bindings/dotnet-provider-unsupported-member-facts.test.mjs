@@ -1,209 +1,315 @@
-import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import assert from "node:assert/strict";
+import test from "node:test";
 
-import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import {
+  createDotnetReflectionTypeDataProvider,
+  dotnetModuleToProviderDeclarationModel,
+} from "../../../../dist/public/provider-dotnet.js";
+import {
+  buildUnsupportedMemberFixture,
+  getCompleteDotnetModule,
+  idEndsWith,
+  namedDotnetTypeRef,
+  testTargetId,
+} from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import {
+  dotnetExportToTargetBinding,
+} from "../../../../dist/providers/dotnet/model/index.js";
 
-test(".NET reflection provider records unsupported members instead of silently dropping them", () => {
-  const reference = buildUnsupportedMemberFixture();
-  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
-  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {});
+const moduleSpecifier =
+  "@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js";
+
+test(".NET reflection provider exposes every representable advanced native member through exact source and target facts", () => {
+  const provider = createDotnetReflectionTypeDataProvider({
+    references: [buildUnsupportedMemberFixture()],
+  });
+  const module = getCompleteDotnetModule(provider, moduleSpecifier, {});
   assert.equal("exports" in module, true);
 
-  const typeByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
-  const targetOnlyTypeByName = new Map(module.targetOnlyTypes?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
-  const staticInterface = typeByName.get("IStaticInterfaceMember");
-  const genericHolder = typeByName.get("GenericHolder");
-  const multiIndexer = typeByName.get("MultiIndexer");
-  const pointerSignatures = typeByName.get("PointerSignatures");
-  const rankedArraySignatures = typeByName.get("RankedArraySignatures");
-  const byRefReturnSignatures = typeByName.get("ByRefReturnSignatures");
-  const genericNumber = typeByName.get("GenericNumber");
-  const pointerConversion = typeByName.get("PointerConversion");
-  const pointerDelegate = targetOnlyTypeByName.get("PointerDelegate");
-  const refReturnDelegate = targetOnlyTypeByName.get("RefReturnDelegate");
-  assert.ok(staticInterface);
-  assert.ok(genericHolder);
-  assert.ok(multiIndexer);
-  assert.ok(pointerSignatures);
-  assert.ok(rankedArraySignatures);
-  assert.ok(byRefReturnSignatures);
-  assert.ok(genericNumber);
-  assert.ok(pointerConversion);
-  assert.ok(pointerDelegate);
-  assert.ok(refReturnDelegate);
-
-  const staticInterfaceUnsupported = unsupportedMembersByMetadataName(staticInterface);
-  assert.equal(staticInterface.members?.some((member) => member.targetName === "Create") ?? false, false);
-  assert.equal(staticInterface.members?.some((member) => member.targetName === "StaticCount") ?? false, false);
-  assert.match(
-    staticInterfaceUnsupported.get("ProviderUnsupportedMemberFixtures.IStaticInterfaceMember.Create()")?.reason ?? "",
-    /Static interface methods/u,
+  const staticInterface = requireType(module, "IStaticInterfaceMember");
+  const genericHolder = requireType(module, "GenericHolder");
+  const multiIndexer = requireType(module, "MultiIndexer");
+  const pointerSignatures = requireType(module, "PointerSignatures");
+  const rankedArrays = requireType(module, "RankedArraySignatures");
+  const byRefReturns = requireType(module, "ByRefReturnSignatures");
+  const genericNumber = requireType(module, "GenericNumber");
+  const pointerConversion = requireType(module, "PointerConversion");
+  const pointerDelegate = requireType(module, "PointerDelegate");
+  const refReturnDelegate = requireType(module, "RefReturnDelegate");
+  const functionPointers = requireType(
+    module,
+    "FunctionPointerSignatures",
   );
-  assert.match(
-    staticInterfaceUnsupported.get("ProviderUnsupportedMemberFixtures.IStaticInterfaceMember.StaticCount")?.reason ?? "",
-    /Static interface properties/u,
+  const events = requireType(module, "EventSignatures");
+
+  assert.deepEqual(
+    unsupportedMetadataNames(module),
+    [],
+    "Every declaration in this fixture has an exact source representation.",
   );
 
-  const genericHolderUnsupported = unsupportedMembersByMetadataName(genericHolder);
-  assert.equal(genericHolder.members?.some((member) => member.targetName === "Echo") ?? false, false);
-  assert.equal(genericHolder.members?.some((member) => member.targetName === "StaticValue") ?? false, false);
-  assert.match(
-    genericHolderUnsupported.get("ProviderUnsupportedMemberFixtures.GenericHolder`1.Echo(T)")?.reason ?? "",
-    /declaring generic type parameter/u,
-  );
-  assert.match(
-    genericHolderUnsupported.get("ProviderUnsupportedMemberFixtures.GenericHolder`1.StaticValue")?.reason ?? "",
-    /declaring generic type parameter/u,
-  );
-
-  const multiIndexerUnsupported = unsupportedMembersByMetadataName(multiIndexer);
-  assert.equal(multiIndexer.members?.some((member) => member.kind === "indexer") ?? false, false);
-  assert.match(
-    multiIndexerUnsupported.get("ProviderUnsupportedMemberFixtures.MultiIndexer.Item(System.Int32,System.Int32)")?.reason ?? "",
-    /multiple parameters/u,
+  const staticCreate = requireFunction(module, staticInterface.targetId, "Create");
+  assert.deepEqual(staticCreate.signatures[0].sourceTypeParameterRoles, {
+    binding: [],
+    method: [],
+    invocation: [0],
+  });
+  assert.deepEqual(staticCreate.signatures[0].targetInvocation, {
+    kind: "static-member",
+    operation: "call",
+    receiver: { kind: "invocation-type-argument", index: 0 },
+  });
+  assert.equal(
+    staticCreate.signatures[0].sourceTypeParameters[0].constraints[0].kind,
+    "implements",
   );
 
-  const pointerUnsupported = [...unsupportedMembersByMetadataName(pointerSignatures).values()];
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerReturn") ?? false, false);
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "ReadPointer") ?? false, false);
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerField") ?? false, false);
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerProperty") ?? false, false);
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "Item") ?? false, false);
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "constructor" &&
-    /parameter 'pointer'/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "field" &&
-    member.targetName === "PointerField" &&
-    /Field type/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "property" &&
-    member.targetName === "PointerProperty" &&
-    /Property type/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "indexer" &&
-    member.targetName === "Item" &&
-    /parameter 'pointer'/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "PointerReturn" &&
-    /return type/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-  assert.ok(pointerUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "ReadPointer" &&
-    /parameter 'pointer'/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-
-  const rankedArrayUnsupported = [...unsupportedMembersByMetadataName(rankedArraySignatures).values()];
-  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixField") ?? false, false);
-  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixProperty") ?? false, false);
-  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixReturn") ?? false, false);
-  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "AcceptMatrix") ?? false, false);
-  assert.ok(rankedArrayUnsupported.some((member) =>
-    member.memberKind === "constructor" &&
-    /parameter 'matrix'/u.test(member.reason) &&
-    /ranked CLR array/u.test(member.reason) &&
-    member.reason.includes("System.Int32[,]")
-  ));
-  assert.ok(rankedArrayUnsupported.some((member) =>
-    member.memberKind === "field" &&
-    member.targetName === "MatrixField" &&
-    /Field type/u.test(member.reason) &&
-    /ranked CLR array/u.test(member.reason)
-  ));
-  assert.ok(rankedArrayUnsupported.some((member) =>
-    member.memberKind === "property" &&
-    member.targetName === "MatrixProperty" &&
-    /Property type/u.test(member.reason) &&
-    /ranked CLR array/u.test(member.reason)
-  ));
-  assert.ok(rankedArrayUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "MatrixReturn" &&
-    /return type/u.test(member.reason) &&
-    /ranked CLR array/u.test(member.reason)
-  ));
-  assert.ok(rankedArrayUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "AcceptMatrix" &&
-    /parameter 'matrix'/u.test(member.reason) &&
-    /ranked CLR array/u.test(member.reason)
-  ));
-
-  const byRefReturnUnsupported = [...unsupportedMembersByMetadataName(byRefReturnSignatures).values()];
-  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ValueProperty") ?? false, false);
-  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "Item") ?? false, false);
-  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ValueRef") ?? false, false);
-  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ReadonlyValueRef") ?? false, false);
-  assert.ok(byRefReturnUnsupported.some((member) =>
-    member.memberKind === "property" &&
-    member.targetName === "ValueProperty" &&
-    /By-reference property or indexer returns/u.test(member.reason)
-  ));
-  assert.ok(byRefReturnUnsupported.some((member) =>
-    member.memberKind === "indexer" &&
-    member.targetName === "Item" &&
-    /By-reference property or indexer returns/u.test(member.reason)
-  ));
-  assert.ok(byRefReturnUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "ValueRef" &&
-    /returns 'System\.Int32&' by reference/u.test(member.reason)
-  ));
-  assert.ok(byRefReturnUnsupported.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "ReadonlyValueRef" &&
-    /returns 'System\.Int32&' by reference/u.test(member.reason)
-  ));
-
-  const genericNumberUnsupported = unsupportedMembersByMetadataName(genericNumber);
-  assert.equal(genericNumber.members?.some((member) => member.kind === "operator") ?? false, false);
-  assert.ok([...genericNumberUnsupported.values()].some((member) =>
-    member.memberKind === "operator" &&
-    member.targetName === "op_Addition" &&
-    /generic-operator/u.test(member.reason)
-  ));
-
-  const pointerConversionUnsupported = [...unsupportedMembersByMetadataName(pointerConversion).values()];
-  assert.equal(pointerConversion.conversionOperators?.length ?? 0, 0);
-  assert.equal(pointerConversion.members?.some((member) => member.kind === "operator") ?? false, false);
-  assert.ok(pointerConversionUnsupported.some((member) =>
-    member.memberKind === "operator" &&
-    member.targetName === "op_Explicit" &&
-    /return type/u.test(member.reason) &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
-
-  assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
-  const unsupportedPointerDelegate = module.unsupportedExports?.find((declaration) =>
-    declaration.kind === "unsupported-type-export" &&
-    declaration.sourceName === "PointerDelegate"
+  const staticCount = requireFunction(
+    module,
+    staticInterface.targetId,
+    "StaticCount",
   );
-  assert.ok(unsupportedPointerDelegate);
-  assert.equal(unsupportedPointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
-  assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
-  assert.equal(pointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
+  assert.deepEqual(staticCount.signatures[0].targetInvocation, {
+    kind: "static-member",
+    operation: "property-get",
+    receiver: { kind: "invocation-type-argument", index: 0 },
+  });
 
-  assert.equal(module.exports.some((declaration) => declaration.sourceName === "RefReturnDelegate"), false);
-  const unsupportedRefReturnDelegate = module.unsupportedExports?.find((declaration) =>
-    declaration.kind === "unsupported-type-export" &&
-    declaration.sourceName === "RefReturnDelegate"
+  const genericEcho = requireFunction(module, genericHolder.targetId, "Echo");
+  assert.deepEqual(genericEcho.signatures[0].sourceTypeParameterRoles, {
+    binding: [0],
+    method: [],
+    invocation: [],
+  });
+  assert.deepEqual(genericEcho.signatures[0].targetInvocation, {
+    kind: "static-member",
+    operation: "call",
+    receiver: { kind: "declaring-type" },
+  });
+  const genericValue = requireFunction(
+    module,
+    genericHolder.targetId,
+    "StaticValue",
   );
-  assert.ok(unsupportedRefReturnDelegate);
-  assert.equal(unsupportedRefReturnDelegate.metadataName, "ProviderUnsupportedMemberFixtures.RefReturnDelegate");
-  assert.match(unsupportedRefReturnDelegate.reason, /Delegate invoke return type returns 'System\.Int32&' by reference/u);
-  assert.equal(refReturnDelegate.metadataName, "ProviderUnsupportedMemberFixtures.RefReturnDelegate");
+  assert.deepEqual(genericValue.signatures[0].sourceTypeParameterRoles, {
+    binding: [0],
+    method: [],
+    invocation: [],
+  });
+
+  const indexerGet = requireMember(multiIndexer, "method", "get", "Item");
+  assert.deepEqual(indexerGet.signatures[0].targetInvocation, {
+    kind: "native-indexer-get",
+    indexParameterIndexes: [0, 1],
+  });
+  assert.deepEqual(
+    indexerGet.signatures[0].parameters.map((parameter) =>
+      parameter.type.kind === "source-primitive"
+        ? parameter.type.name
+        : parameter.type.kind),
+    ["int32", "int32"],
+  );
+
+  const pointerConstructor = requireMember(
+    pointerSignatures,
+    "constructor",
+    "constructor",
+    ".ctor",
+  );
+  assertPointer(pointerConstructor.signatures[0].parameters[0].type);
+  assertPointer(requireMember(
+    pointerSignatures,
+    "field",
+    "PointerField",
+  ).type);
+  assertPointer(requireMember(
+    pointerSignatures,
+    "property",
+    "PointerProperty",
+  ).type);
+  assertPointer(requireMember(
+    pointerSignatures,
+    "indexer",
+    "Item",
+  ).signatures[0].parameters[0].type);
+  assertPointer(requireMember(
+    pointerSignatures,
+    "method",
+    "PointerReturn",
+  ).signatures[0].returnType);
+  assertPointer(requireMember(
+    pointerSignatures,
+    "method",
+    "ReadPointer",
+  ).signatures[0].parameters[0].type);
+
+  assertRankedArray(requireMember(
+    rankedArrays,
+    "field",
+    "MatrixField",
+  ).type, 2);
+  assertRankedArray(requireMember(
+    rankedArrays,
+    "property",
+    "MatrixProperty",
+  ).type, 2);
+  assertRankedArray(requireMember(
+    rankedArrays,
+    "method",
+    "MatrixReturn",
+  ).signatures[0].returnType, 2);
+  assertRankedArray(requireMember(
+    rankedArrays,
+    "method",
+    "AcceptMatrix",
+  ).signatures[0].parameters[0].type, 2);
+
+  const valueProperty = requireMember(
+    byRefReturns,
+    "property",
+    "ValueProperty",
+  );
+  assert.equal(valueProperty.returnPassing, "byref-readwrite");
+  assertPointerLocation(valueProperty.sourceType, "int32");
+  const byRefIndexer = requireMember(byRefReturns, "indexer", "Item");
+  assert.equal(
+    byRefIndexer.signatures[0].returnPassing,
+    "byref-readwrite",
+  );
+  assertPointerLocation(
+    byRefIndexer.signatures[0].returnType,
+    "int32",
+  );
+  const mutableRef = requireMember(
+    byRefReturns,
+    "method",
+    "ValueRef",
+  ).signatures[0];
+  assert.equal(mutableRef.returnPassing, "byref-readwrite");
+  assertPointerLocation(mutableRef.returnType, "int32");
+  const readonlyRef = requireMember(
+    byRefReturns,
+    "method",
+    "ReadonlyValueRef",
+  ).signatures[0];
+  assert.equal(readonlyRef.returnPassing, "byref-readonly");
+  assertPointerLocation(readonlyRef.returnType, "int32");
+
+  const addition = requireMember(
+    genericNumber,
+    "operator",
+    "operatorAdd",
+    "op_Addition",
+  );
+  assert.equal(addition.sourceProjection, "operator-adapter");
+  assert.equal(addition.receiverPassing, "target-parameter");
+  assert.deepEqual(addition.signatures[0].targetInvocation, {
+    kind: "native-operator",
+    form: "binary",
+    operator: "addition",
+    operandParameterIndexes: [0, 1],
+  });
+
+  assert.equal(pointerConversion.conversionOperators.length, 1);
+  assert.equal(
+    pointerConversion.conversionOperators[0].conversionKind,
+    "explicit",
+  );
+  assertPointer(pointerConversion.conversionOperators[0].targetType);
+
+  assert.equal(pointerDelegate.typeKind, "delegate");
+  assert.equal(pointerDelegate.sourceShape.kind, "function");
+  assertPointer(pointerDelegate.sourceShape.parameters[0].type);
+  assert.equal(refReturnDelegate.typeKind, "delegate");
+  assert.equal(refReturnDelegate.sourceShape.kind, "function");
+  assert.equal(
+    refReturnDelegate.sourceShape.returnPassing,
+    "byref-readwrite",
+  );
+  assertPointerLocation(
+    refReturnDelegate.sourceShape.returnType,
+    "int32",
+  );
+  assert.equal(refReturnDelegate.sourceShape.targetReturnType.kind, "source-primitive");
+
+  const functionPointerConstructor = requireMember(
+    functionPointers,
+    "constructor",
+    "constructor",
+    ".ctor",
+  );
+  assertFunctionPointer(
+    functionPointerConstructor.signatures[0].parameters[0].type,
+  );
+  assertFunctionPointer(requireMember(
+    functionPointers,
+    "field",
+    "CallbackField",
+  ).type);
+  assertFunctionPointer(requireMember(
+    functionPointers,
+    "property",
+    "CallbackProperty",
+  ).type);
+  const functionPointerEcho = requireMember(
+    functionPointers,
+    "method",
+    "Echo",
+  ).signatures[0];
+  assertFunctionPointer(functionPointerEcho.parameters[0].type);
+  assertFunctionPointer(functionPointerEcho.returnType);
+
+  const addChanged = requireMember(
+    events,
+    "method",
+    "addChanged",
+    "Changed",
+  );
+  assert.deepEqual(addChanged.signatures[0].targetInvocation, {
+    kind: "native-event-add",
+    handlerParameterIndex: 0,
+  });
+  const removeChanged = requireMember(
+    events,
+    "method",
+    "removeChanged",
+    "Changed",
+  );
+  assert.deepEqual(removeChanged.signatures[0].targetInvocation, {
+    kind: "native-event-remove",
+    handlerParameterIndex: 0,
+  });
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.ok(sourceModel.exports.some((declaration) =>
+    declaration.kind === "type" &&
+    declaration.name === "PointerDelegate"));
+  assert.ok(sourceModel.exports.some((declaration) =>
+    declaration.kind === "type" &&
+    declaration.name === "RefReturnDelegate"));
+
+  const pointerBinding = provider.findTargetBindingByTargetId(
+    pointerSignatures.targetId,
+  );
+  assert.ok(pointerBinding);
+  assert.equal(
+    pointerBinding.members.some((member) =>
+      member.returnType?.kind === "pointer"),
+    true,
+  );
+  const refBinding = provider.findTargetBindingByTargetId(
+    byRefReturns.targetId,
+  );
+  assert.ok(refBinding);
+  assert.deepEqual(
+    new Set(refBinding.members.flatMap((member) =>
+      member.csharpReturnPassing === undefined
+        ? []
+        : [member.csharpReturnPassing])),
+    new Set(["byref-readwrite", "byref-readonly"]),
+  );
 });
+
 test(".NET target binding facts preserve unsupported target-only constraint evidence", () => {
   const declaration = {
     kind: "type",
@@ -218,30 +324,45 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
         constraints: [{ kind: "reference-type" }],
         unsupportedConstraints: [
           {
-            targetId: testTargetId("ProviderModelFixtures.PointerContract"),
+            targetId: testTargetId(
+              "ProviderModelFixtures.PointerContract",
+            ),
             metadataName: "ProviderModelFixtures.PointerContract",
-            reason: "Constraint uses a provider type-ref that is not representable.",
+            reason:
+              "Constraint uses a provider type-ref that is not representable.",
           },
         ],
       },
     ],
-    implementedContracts: [{ kind: "implements", contract: namedDotnetTypeRef("ProviderModelFixtures.IRepresentable") }],
+    implementedContracts: [{
+      kind: "implements",
+      contract: namedDotnetTypeRef(
+        "ProviderModelFixtures.IRepresentable",
+      ),
+    }],
     unsupportedImplementedContracts: [
       {
-        targetId: testTargetId("ProviderModelFixtures.IUnrepresentable"),
+        targetId: testTargetId(
+          "ProviderModelFixtures.IUnrepresentable",
+        ),
         metadataName: "ProviderModelFixtures.IUnrepresentable",
-        reason: "Implemented contract uses a provider type-ref that is not representable.",
+        reason:
+          "Implemented contract uses a provider type-ref that is not representable.",
       },
     ],
   };
 
   const binding = dotnetExportToTargetBinding(declaration);
 
-  assert.deepEqual(binding.typeParameters[0].constraints.map((constraint) => constraint.kind), [
-    "reference-type",
-    "target-specific",
-  ]);
-  assert.equal(binding.typeParameters[0].constraints[1].name, "unsupported-constraint");
+  assert.deepEqual(
+    binding.typeParameters[0].constraints.map((constraint) =>
+      constraint.kind),
+    ["reference-type", "target-specific"],
+  );
+  assert.equal(
+    binding.typeParameters[0].constraints[1].name,
+    "unsupported-constraint",
+  );
   assert.equal(
     binding.typeParameters[0].constraints[1].payloadId,
     [
@@ -250,7 +371,99 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
       "Constraint uses a provider type-ref that is not representable.",
     ].map((value) => encodeURIComponent(value)).join("|"),
   );
-  assert.deepEqual(binding.typeParameters[0].unsupportedConstraints, declaration.typeParameters[0].unsupportedConstraints);
+  assert.deepEqual(
+    binding.typeParameters[0].unsupportedConstraints,
+    declaration.typeParameters[0].unsupportedConstraints,
+  );
   assert.equal(binding.implementedContracts[0].kind, "implements");
-  assert.deepEqual(binding.unsupportedImplementedContracts, declaration.unsupportedImplementedContracts);
+  assert.deepEqual(
+    binding.unsupportedImplementedContracts,
+    declaration.unsupportedImplementedContracts,
+  );
 });
+
+function requireType(module, sourceName) {
+  const matches = [
+    ...module.exports,
+    ...(module.targetOnlyTypes ?? []),
+  ].filter((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === sourceName);
+  assert.equal(matches.length, 1, `Missing exact type '${sourceName}'.`);
+  return matches[0];
+}
+
+function requireFunction(module, targetBindingId, targetName) {
+  const matches = module.exports.filter((declaration) =>
+    declaration.kind === "function" &&
+    declaration.targetBindingId === targetBindingId &&
+    declaration.targetName === targetName);
+  assert.equal(
+    matches.length,
+    1,
+    `Missing exact static source adapter '${targetName}'.`,
+  );
+  return matches[0];
+}
+
+function requireMember(
+  declaration,
+  kind,
+  sourceName,
+  targetName = sourceName,
+) {
+  const matches = declaration.members?.filter((member) =>
+    member.kind === kind &&
+    member.sourceName === sourceName &&
+    member.targetName === targetName) ?? [];
+  assert.equal(
+    matches.length,
+    1,
+    `Missing exact ${kind} '${sourceName}' -> '${targetName}'.`,
+  );
+  return matches[0];
+}
+
+function unsupportedMetadataNames(module) {
+  return [
+    ...(module.unsupportedExports ?? []).map((entry) => entry.metadataName),
+    ...[
+      ...module.exports,
+      ...(module.targetOnlyTypes ?? []),
+    ].flatMap((declaration) =>
+      declaration.kind === "type"
+        ? (declaration.unsupportedMembers ?? []).map((member) =>
+            member.metadataName)
+        : []),
+  ].sort();
+}
+
+function assertPointer(type) {
+  assert.equal(type?.kind, "pointer");
+  assert.equal(type.pointee.kind, "source-primitive");
+  assert.equal(type.pointee.name, "int32");
+}
+
+function assertRankedArray(type, rank) {
+  assert.equal(type?.kind, "array");
+  assert.equal(type.rank, rank);
+  assert.equal(type.elementType.kind, "source-primitive");
+  assert.equal(type.elementType.name, "int32");
+}
+
+function assertPointerLocation(type, pointeeName) {
+  assert.equal(type?.kind, "provider-ref");
+  assert.equal(type.moduleSpecifier, "@tsonic/core/types.js");
+  assert.equal(type.exportName, "Pointer");
+  assert.equal(type.typeArguments.length, 1);
+  assert.equal(type.typeArguments[0].kind, "source-primitive");
+  assert.equal(type.typeArguments[0].name, pointeeName);
+}
+
+function assertFunctionPointer(type) {
+  assert.equal(type?.kind, "function-pointer");
+  assert.equal(type.args.length, 1);
+  assert.equal(type.args[0].kind, "source-primitive");
+  assert.equal(type.args[0].name, "int32");
+  assert.equal(type.result.kind, "void");
+  assert.deepEqual(type.abi, ["unmanaged", "Cdecl"]);
+}

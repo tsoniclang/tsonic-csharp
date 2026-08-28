@@ -6,7 +6,7 @@ import type {
   TargetCompilationSessionContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api/provider";
-import { jsRegExpSourceProfileDeclarations } from "@tsonic/js-source-profile";
+import { jsStandardSourceProfileDeclarations } from "@tsonic/js-source-profile";
 import {
   csharpTargetId,
 } from "../../target-model/identities/source.js";
@@ -155,7 +155,7 @@ interface ReadonlyArray<T> extends Iterable<T> {
 
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
-${jsRegExpSourceProfileDeclarations}
+${jsStandardSourceProfileDeclarations}
 
 interface TemplateStringsArray extends ReadonlyArray<string> {
   readonly raw: readonly string[];

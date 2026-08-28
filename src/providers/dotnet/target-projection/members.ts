@@ -8,6 +8,7 @@ import type {
 } from "../../../policy/types/index.js";
 import type {
   DotnetConversionOperatorDeclaration,
+  DotnetFunctionDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
   DotnetSignatureDeclaration,
@@ -93,6 +94,9 @@ export function dotnetMemberToTargetMemberRecords(
               ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
               parameters: [],
               returnType: dotnetTypeRefToTargetTypeRef(member.type),
+              ...(member.returnPassing === undefined
+                ? {}
+                : { csharpReturnPassing: member.returnPassing }),
               ...(member.attributes !== undefined && member.attributes.length > 0
                 ? { attributes: member.attributes.map(dotnetAttributeToTargetAttribute) }
                 : {}),
@@ -102,6 +106,30 @@ export function dotnetMemberToTargetMemberRecords(
             },
           }];
   }
+}
+
+export function dotnetFunctionToTargetMemberRecords(
+  declaration: DotnetFunctionDeclaration,
+): readonly DotnetTargetMemberRecord[] {
+  const member: DotnetMemberDeclaration = {
+    kind: "method",
+    sourceName: declaration.sourceName,
+    targetName: declaration.targetName,
+    targetId: declaration.targetId,
+    metadataName: declaration.metadataName,
+    static: true,
+    targetDeclaringType: declaration.targetDeclaringType,
+    signatures: declaration.signatures,
+  };
+  return declaration.signatures.map((signature) => ({
+    kind: "signature" as const,
+    sourceSignatureId: signature.sourceId,
+    targetMember: dotnetSignatureToTargetMember(
+      member,
+      signature,
+      dotnetTypeRefToTargetTypeRef(declaration.targetDeclaringType),
+    ),
+  }));
 }
 
 export function dotnetConversionOperatorToTargetConversionOperator(
@@ -137,6 +165,9 @@ function dotnetSignatureToTargetMember(
     ...(signature.targetReturnType !== undefined || signature.returnType !== undefined
       ? { returnType: dotnetTypeRefToTargetTypeRef(signature.targetReturnType ?? signature.returnType!) }
       : {}),
+    ...(signature.returnPassing === undefined
+      ? {}
+      : { csharpReturnPassing: signature.returnPassing }),
     ...(signature.attributes !== undefined && signature.attributes.length > 0
       ? { attributes: signature.attributes.map(dotnetAttributeToTargetAttribute) }
       : {}),
@@ -152,14 +183,15 @@ function dotnetSignatureToTargetMember(
     ...(signature.targetInvocation === undefined
       ? {}
       : {
-          csharpInvocation: signature.targetInvocation.kind === "array-creation"
-            ? signature.targetInvocation
-            : {
-                ...signature.targetInvocation,
-                factoryType: dotnetTypeRefToTargetTypeRef(
-                  signature.targetInvocation.factoryType,
-                ),
-              },
+          csharpInvocation:
+            signature.targetInvocation.kind === "static-factory-construction"
+              ? {
+                  ...signature.targetInvocation,
+                  factoryType: dotnetTypeRefToTargetTypeRef(
+                    signature.targetInvocation.factoryType,
+                  ),
+                }
+              : signature.targetInvocation,
         }),
     ...(signature.targetInvocation?.kind !== "array-creation" &&
         signature.typeParameters !== undefined &&

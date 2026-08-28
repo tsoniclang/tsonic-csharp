@@ -156,15 +156,20 @@ sealed partial class ReflectionProvider : IDisposable
             .Cast<object>()
             .ToArray();
 
-        var exports = exportTypes
+        var sourceTypes = exportTypes
+            .Concat(closureTypes)
+            .DistinctBy(TargetId)
+            .ToArray();
+        var typeExports = sourceTypes
             .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes
-                .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
-                .Where(export => export is not null)
-                .Cast<object>())
             .ToArray();
+        var staticMemberExports = sourceTypes
+            .Where(type => completeSourceTargetIds.Contains(TargetId(type)))
+            .SelectMany(StaticSourceAdapterFunctions)
+            .ToArray();
+        var exports = typeExports.Concat(staticMemberExports).ToArray();
 
         return new
         {

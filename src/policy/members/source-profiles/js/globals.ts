@@ -1,8 +1,9 @@
 import type {
+  CsharpTargetMember,
   CsharpTargetParameter,
+  TargetTypeRef,
 } from "../../../types/index.js";
 import {
-  csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
@@ -10,6 +11,9 @@ import {
 import type {
   CsharpSourceProfileCallPolicy,
   CsharpSourceProfilePropertyPolicy,
+} from "../source-profile-policy.js";
+import {
+  resolveCsharpSelectedSourceValue,
 } from "../source-profile-policy.js";
 import {
   closedObjectParameter,
@@ -23,15 +27,18 @@ import {
   targetParameter,
   targetProperty,
 } from "./common.js";
+import {
+  csharpJsArgumentVectorCallbackParameter,
+} from "./replacement-callback.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const voidType = csharpVoidTargetType();
-const actionType = csharpDelegateTargetType("System.Action", []);
 const globalsType = jsRuntimeTargetType("Globals");
 const timersType = jsRuntimeTargetType("Timers");
+const timerArgumentsType = jsRuntimeTargetType("TimerCallbackArguments");
 const mathType = jsRuntimeTargetType("Math");
 const consoleType = jsRuntimeTargetType("console");
 const noReceiver = { kind: "none" } as const;
@@ -297,18 +304,7 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("setTimeout"),
-      () =>
-        staticMethod(
-          "Tsonic.CSharp.Js.Timers.setTimeout",
-          "setTimeout",
-          "setTimeout",
-          timersType,
-          [
-            targetParameter("callback", actionType),
-            targetParameter("delay", doubleType, { optional: true }),
-          ],
-          doubleType,
-        ),
+      (context) => timerSchedulingMember(context, "setTimeout"),
       noReceiver,
     ),
     jsCallPolicy(
@@ -326,18 +322,7 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("setInterval"),
-      () =>
-        staticMethod(
-          "Tsonic.CSharp.Js.Timers.setInterval",
-          "setInterval",
-          "setInterval",
-          timersType,
-          [
-            targetParameter("callback", actionType),
-            targetParameter("delay", doubleType),
-          ],
-          doubleType,
-        ),
+      (context) => timerSchedulingMember(context, "setInterval"),
       noReceiver,
     ),
     jsCallPolicy(
@@ -358,6 +343,47 @@ export const csharpJsGlobalCallPolicies:
       "eval requires runtime source evaluation with lexical-scope access, which has no closed C# source-to-source representation.",
     ),
   ]);
+
+function timerSchedulingMember(
+  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
+  name: "setTimeout" | "setInterval",
+): CsharpTargetMember | undefined {
+  const callbackType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[0],
+  );
+  const callback = callbackType === undefined
+    ? undefined
+    : csharpJsArgumentVectorCallbackParameter(
+        "callback",
+        callbackType,
+        voidType,
+        "Tsonic.CSharp.Js.TimerCallback",
+        "TimerCallback",
+        timerArgumentsType,
+      );
+  return callback === undefined
+    ? undefined
+    : staticMethod(
+        `Tsonic.CSharp.Js.Timers.${name}:${targetTypeIdentity(callbackType)}`,
+        name,
+        name,
+        timersType,
+        [
+          callback,
+          targetParameter("delay", doubleType, { optional: true }),
+          closedObjectParameter("arguments", { paramsArray: true }),
+        ],
+        doubleType,
+      );
+}
+
+function targetTypeIdentity(type: TargetTypeRef): string {
+  if (type.kind === "target-named" || type.kind === "opaque") {
+    return type.id;
+  }
+  return type.kind === "source-primitive" ? type.name : type.kind;
+}
 
 const mathPropertyNames = [
   "E",

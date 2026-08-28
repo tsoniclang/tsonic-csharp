@@ -1,4 +1,4 @@
-import { dotnetSignatureFields, requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConstraintKinds, supportedDotnetMemberKinds, supportedPassingModes, supportedTypeParameterVariance } from "./support.js";
+import { dotnetSignatureFields, requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConstraintKinds, supportedDotnetMemberKinds, supportedPassingModes, supportedReturnPassingModes, supportedTypeParameterVariance } from "./support.js";
 import { validateDotnetAssemblyReference, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetParameterDefaultValue, validateOptionalDotnetUnsupportedDefaultValue } from "./dotnet-identities.js";
 import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
 import type {
@@ -27,6 +27,8 @@ export function validateDotnetSignatureList(
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
     requireNonEmptyString(signature.sourceId, `${signaturePath}.sourceId`, collector);
     validateDotnetTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
+    validateDotnetTypeParameters(signature.sourceTypeParameters ?? [], `${signaturePath}.sourceTypeParameters`, collector);
+    validateSourceTypeParameterRoles(signature, signaturePath, collector);
     validateDotnetParameters(signature.parameters, `${signaturePath}.parameters`, collector);
     if (signature.returnType === undefined) {
       if (options.requireReturnType) {
@@ -40,6 +42,38 @@ export function validateDotnetSignatureList(
       });
     }
     validateOptionalDotnetTypeRef(signature.targetReturnType, `${signaturePath}.targetReturnType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    if (signature.returnPassing !== undefined) {
+      if (!supportedReturnPassingModes.has(signature.returnPassing)) {
+        collector.add(
+          `${signaturePath}.returnPassing`,
+          "Signature returnPassing is not a supported .NET return ABI.",
+          signature.returnPassing,
+        );
+      }
+      if (signature.targetReturnType === undefined) {
+        collector.add(
+          `${signaturePath}.targetReturnType`,
+          "A by-reference source location requires an explicit target pointee return type.",
+        );
+      }
+      if (
+        signature.returnType?.kind !== "provider-ref" ||
+        signature.returnType.moduleSpecifier !== "@tsonic/core/types.js" ||
+        signature.returnType.exportName !== "Pointer" ||
+        signature.returnType.typeArguments?.length !== 1
+      ) {
+        collector.add(
+          `${signaturePath}.returnType`,
+          "A .NET by-reference return must expose the exact shared Pointer<T> source location contract.",
+          signature.returnType,
+        );
+      }
+    } else if (signature.targetReturnType !== undefined && signature.returnType?.kind === "provider-ref" && signature.returnType.moduleSpecifier === "@tsonic/core/types.js" && signature.returnType.exportName === "Pointer") {
+      collector.add(
+        `${signaturePath}.returnPassing`,
+        "A shared Pointer<T> source result cannot target a CLR value return without an explicit by-reference return ABI.",
+      );
+    }
     validateDotnetTargetInvocation(
       signature.targetInvocation,
       signature,
@@ -72,6 +106,28 @@ function validateDotnetTargetInvocation(
 ): void {
   if (invocation === undefined) {
     return;
+  }
+  const supportedFields = invocation.kind === "array-creation"
+    ? new Set(["kind", "lengthParameterIndex"])
+    : invocation.kind === "static-factory-construction"
+      ? new Set(["kind", "factoryType"])
+      : invocation.kind === "native-indexer-get"
+        ? new Set(["kind", "indexParameterIndexes"])
+        : invocation.kind === "native-indexer-set"
+          ? new Set(["kind", "indexParameterIndexes", "valueParameterIndex"])
+          : invocation.kind === "native-event-add" || invocation.kind === "native-event-remove"
+            ? new Set(["kind", "handlerParameterIndex"])
+            : invocation.kind === "native-operator"
+              ? new Set(["kind", "form", "operator", "operandParameterIndexes", "checked"])
+              : new Set(["kind", "operation", "receiver", "valueParameterIndex"]);
+  for (const key of Object.keys(invocation)) {
+    if (!supportedFields.has(key)) {
+      collector.add(
+        `${path}.targetInvocation.${key}`,
+        `Field is not valid for '${invocation.kind}' .NET target invocation.`,
+        (invocation as unknown as Readonly<Record<string, unknown>>)[key],
+      );
+    }
   }
   switch (invocation.kind) {
     case "array-creation": {
@@ -108,6 +164,222 @@ function validateDotnetTargetInvocation(
         },
       );
       return;
+    case "native-indexer-get":
+      validateNativeIndexerInvocation(
+        invocation.indexParameterIndexes,
+        undefined,
+        signature,
+        path,
+        collector,
+      );
+      return;
+    case "native-indexer-set":
+      validateNativeIndexerInvocation(
+        invocation.indexParameterIndexes,
+        invocation.valueParameterIndex,
+        signature,
+        path,
+        collector,
+      );
+      return;
+    case "native-event-add":
+    case "native-event-remove":
+      if (
+        !Number.isSafeInteger(invocation.handlerParameterIndex) ||
+        invocation.handlerParameterIndex < 0 ||
+        invocation.handlerParameterIndex >= signature.parameters.length ||
+        signature.parameters.length !== 1
+      ) {
+        collector.add(
+          `${path}.targetInvocation.handlerParameterIndex`,
+          "Native event subscription must identify the only exact handler parameter.",
+          invocation.handlerParameterIndex,
+        );
+      }
+      if (signature.returnType?.kind !== "void") {
+        collector.add(
+          `${path}.returnType`,
+          "Native event subscription source operations must return void.",
+          signature.returnType,
+        );
+      }
+      return;
+    case "native-operator": {
+      const supportedOperators = new Set([
+        "unary-plus",
+        "unary-negation",
+        "logical-not",
+        "ones-complement",
+        "addition",
+        "subtraction",
+        "multiplication",
+        "division",
+        "modulus",
+        "bitwise-and",
+        "bitwise-or",
+        "exclusive-or",
+        "left-shift",
+        "right-shift",
+        "unsigned-right-shift",
+        "equality",
+        "inequality",
+        "less-than",
+        "less-than-or-equal",
+        "greater-than",
+        "greater-than-or-equal",
+      ]);
+      const expectedArity = invocation.form === "prefix"
+        ? 1
+        : invocation.form === "binary"
+          ? 2
+          : 0;
+      const indexes = new Set(invocation.operandParameterIndexes);
+      if (
+        expectedArity === 0 ||
+        !supportedOperators.has(invocation.operator) ||
+        invocation.operandParameterIndexes.length !== expectedArity ||
+        indexes.size !== expectedArity ||
+        invocation.operandParameterIndexes.some((index) =>
+          !Number.isSafeInteger(index) ||
+          index < 0 ||
+          index >= signature.parameters.length
+        ) ||
+        signature.parameters.length !== expectedArity ||
+        signature.parameters.some((parameter) => parameter.passingMode !== "by-value") ||
+        invocation.checked !== undefined && invocation.checked !== true
+      ) {
+        collector.add(
+          `${path}.targetInvocation`,
+          "Native operator invocation must identify one supported unary or binary C# operator over every by-value parameter exactly once.",
+          invocation,
+        );
+      }
+      return;
+    }
+    case "static-member": {
+      const valueOperations = new Set(["property-set", "event-add", "event-remove"]);
+      const operationValid = invocation.operation === "call" ||
+        invocation.operation === "property-get" ||
+        valueOperations.has(invocation.operation);
+      const receiverValid = invocation.receiver.kind === "declaring-type" ||
+        invocation.receiver.kind === "invocation-type-argument" &&
+          invocation.receiver.index === 0;
+      const receiverFields = Object.keys(invocation.receiver);
+      const receiverShapeValid = invocation.receiver.kind === "declaring-type"
+        ? receiverFields.length === 1 && receiverFields[0] === "kind"
+        : receiverFields.length === 2 &&
+          receiverFields.includes("kind") &&
+          receiverFields.includes("index");
+      const invocationTypeParameterCount =
+        signature.sourceTypeParameterRoles?.invocation.length ?? 0;
+      const expectedValueIndex = valueOperations.has(invocation.operation)
+        ? signature.parameters.length - 1
+        : undefined;
+      if (
+        !operationValid ||
+        !receiverValid ||
+        !receiverShapeValid ||
+        invocationTypeParameterCount !==
+          (invocation.receiver.kind === "invocation-type-argument" ? 1 : 0) ||
+        invocation.valueParameterIndex !== expectedValueIndex ||
+        (invocation.operation === "property-get" && signature.parameters.length !== 0) ||
+        (valueOperations.has(invocation.operation) && signature.parameters.length !== 1)
+      ) {
+        collector.add(
+          `${path}.targetInvocation`,
+          "Static-member invocation must identify one exact declaring or dispatch receiver type and the exact call/property/event operand contract.",
+          invocation,
+        );
+      }
+      return;
+    }
+  }
+}
+
+function validateSourceTypeParameterRoles(
+  signature: DotnetSignatureDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  const sourceParameters = signature.sourceTypeParameters ?? signature.typeParameters ?? [];
+  const roles = signature.sourceTypeParameterRoles;
+  if (roles === undefined) {
+    if (signature.sourceTypeParameters !== undefined) {
+      collector.add(
+        `${path}.sourceTypeParameterRoles`,
+        "A distinct source type-parameter list requires exact binding, method, and invocation roles.",
+      );
+    }
+    return;
+  }
+  const indexes = [...roles.binding, ...roles.method, ...roles.invocation];
+  if (
+    new Set(indexes).size !== indexes.length ||
+    indexes.length !== sourceParameters.length ||
+    indexes.some((index) =>
+      !Number.isSafeInteger(index) || index < 0 || index >= sourceParameters.length
+    )
+  ) {
+    collector.add(
+      `${path}.sourceTypeParameterRoles`,
+      "Source type-parameter roles must partition the exact source type-parameter list.",
+      roles,
+    );
+  }
+}
+
+function validateNativeIndexerInvocation(
+  indexParameterIndexes: readonly number[],
+  valueParameterIndex: number | undefined,
+  signature: DotnetSignatureDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  const indexes = new Set<number>();
+  for (const [position, index] of indexParameterIndexes.entries()) {
+    if (
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= signature.parameters.length ||
+      indexes.has(index)
+    ) {
+      collector.add(
+        `${path}.targetInvocation.indexParameterIndexes[${position}]`,
+        "Native-indexer invocation indexes must uniquely identify existing signature parameters.",
+        index,
+      );
+    }
+    indexes.add(index);
+  }
+  if (indexParameterIndexes.length === 0) {
+    collector.add(
+      `${path}.targetInvocation.indexParameterIndexes`,
+      "Native-indexer invocation requires at least one exact index parameter.",
+    );
+  }
+  if (
+    valueParameterIndex !== undefined &&
+    (
+      !Number.isSafeInteger(valueParameterIndex) ||
+      valueParameterIndex < 0 ||
+      valueParameterIndex >= signature.parameters.length ||
+      indexes.has(valueParameterIndex)
+    )
+  ) {
+    collector.add(
+      `${path}.targetInvocation.valueParameterIndex`,
+      "Native-indexer setter valueParameterIndex must identify one non-index signature parameter.",
+      valueParameterIndex,
+    );
+  }
+  if (
+    signature.parameters.length !== indexParameterIndexes.length +
+      (valueParameterIndex === undefined ? 0 : 1)
+  ) {
+    collector.add(
+      `${path}.targetInvocation`,
+      "Native-indexer invocation must cover every signature parameter exactly once.",
+    );
   }
 }
 

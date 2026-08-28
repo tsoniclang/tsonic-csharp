@@ -99,9 +99,7 @@ export function csharpObjectShapeContractCandidate(
             ...canonicalProjections.map((projection) =>
               encodeContractParts([
                 "projection",
-                projection.kind,
-                targetTypeRefKey(projection.resultType),
-                ...projection.propertyOrder,
+                ...objectShapeProjectionContractParts(projection),
               ])
             ),
           ]),
@@ -145,11 +143,26 @@ export function csharpObjectShapeContractCandidate(
 export function objectShapeProjectionKey(
   projection: CsharpObjectShapeProjection,
 ): string {
-  return encodeContractParts([
+  return encodeContractParts(objectShapeProjectionContractParts(projection));
+}
+
+function objectShapeProjectionContractParts(
+  projection: CsharpObjectShapeProjection,
+): readonly string[] {
+  return [
     projection.kind,
     targetTypeRefKey(projection.resultType),
     ...projection.propertyOrder,
-  ]);
+    ...(projection.kind === "assign"
+      ? [
+          targetTypeRefKey(projection.sourceShape.targetType),
+          ...projection.assignments.flatMap((assignment) => [
+            assignment.sourceName,
+            assignment.targetName,
+          ]),
+        ]
+      : []),
+  ];
 }
 
 export function csharpObjectShapeTypeSurface(

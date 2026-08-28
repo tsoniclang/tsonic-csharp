@@ -76,7 +76,10 @@ export function dotnetMemberToProviderMember(
   member: DotnetMemberDeclaration,
   declaringType: DotnetTypeDeclaration,
 ): ProviderMemberDeclaration | undefined {
-  if (member.kind === "event" || member.kind === "operator") {
+  if (
+    member.kind === "event" ||
+    member.kind === "operator" && member.sourceProjection !== "operator-adapter"
+  ) {
     return undefined;
   }
   if (member.kind !== "constructor" && reservedProviderConstructorSourceNames.has(member.sourceName)) {
@@ -100,18 +103,19 @@ export function dotnetMemberToProviderMember(
       kind: "field",
     };
   }
-  const type = member.type === undefined
+  const sourceMemberType = member.sourceType ?? member.type;
+  const type = sourceMemberType === undefined
     ? undefined
     : tryDotnetTypeRefToProviderType(
-        member.type,
+        sourceMemberType,
         `${exactProviderMemberId}.type`,
       );
-  if (member.type !== undefined && type === undefined) {
+  if (sourceMemberType !== undefined && type === undefined) {
     return undefined;
   }
   const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
   const sourceParameterOptions = {
-    sourceParameterOffset: member.sourceParameterOffset,
+    sourceReceiverParameterIndex: member.sourceReceiverParameterIndex,
     parentTypeParameterNames: declaringType.typeParameters?.map((parameter) => parameter.name) ?? [],
   };
   const providerSignatureIds = dotnetProviderSignatureIdsForMember(
@@ -129,7 +133,9 @@ export function dotnetMemberToProviderMember(
   return {
     id: providerMemberId,
     name: member.sourceName,
-    kind: dotnetMemberKindToProviderKind(member.kind),
+    kind: member.sourceProjection === "operator-adapter"
+      ? "method"
+      : dotnetMemberKindToProviderKind(member.kind),
     ...(member.sourceStatic !== undefined || member.static !== undefined ? { static: member.sourceStatic ?? member.static } : {}),
     ...(isReadonlyProviderMember(member) ? { readonly: true } : {}),
     ...(type !== undefined ? { type } : {}),

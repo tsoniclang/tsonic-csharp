@@ -91,6 +91,57 @@ export function translateSelectedTargetCall(
       diagnostics,
     );
   }
+  if (
+    selection.targetMember.csharpInvocation?.kind === "native-indexer-get" ||
+    selection.targetMember.csharpInvocation?.kind === "native-indexer-set"
+  ) {
+    return translateNativeIndexerCall(
+      node,
+      source,
+      sourceFile,
+      input,
+      selection.targetMember,
+      arguments_,
+      diagnostics,
+      planExpression,
+    );
+  }
+  if (
+    selection.targetMember.csharpInvocation?.kind === "native-event-add" ||
+    selection.targetMember.csharpInvocation?.kind === "native-event-remove"
+  ) {
+    return translateNativeEventSubscription(
+      node,
+      source,
+      sourceFile,
+      input,
+      selection.targetMember,
+      arguments_,
+      diagnostics,
+      planExpression,
+    );
+  }
+  if (selection.targetMember.csharpInvocation?.kind === "native-operator") {
+    return translateNativeOperatorCall(
+      node,
+      selection.targetMember,
+      arguments_,
+      diagnostics,
+    );
+  }
+  if (
+    selection.targetMember.csharpInvocation?.kind ===
+      "static-member"
+  ) {
+    return translateStaticMemberCall(
+      node,
+      selection,
+      arguments_,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+  }
   const callee = translateSelectedTargetCallee(
     node,
     source,
@@ -106,6 +157,355 @@ export function translateSelectedTargetCall(
         kind: "InvocationExpression",
         callee,
         arguments: arguments_,
+      };
+}
+
+function translateStaticMemberCall(
+  node: Node,
+  selection: CsharpSelectedTargetCall,
+  arguments_: readonly CsharpArgument[],
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const member = selection.targetMember;
+  const invocation = member.csharpInvocation;
+  if (invocation?.kind !== "static-member") {
+    return undefined;
+  }
+  const receiverTargetType = invocation.receiver.kind === "declaring-type"
+    ? member.declaringType
+    : selection.targetInvocationTypeArguments[invocation.receiver.index]
+      ?.targetType;
+  const receiverType = receiverTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(receiverTargetType);
+  const expectedInvocationArity = invocation.receiver.kind ===
+      "invocation-type-argument"
+    ? 1
+    : 0;
+  if (
+    receiverType === undefined ||
+    selection.targetInvocationTypeArguments.length !== expectedInvocationArity ||
+    (invocation.receiver.kind === "invocation-type-argument" &&
+      invocation.receiver.index !== 0)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected static operation has no exact renderable receiver type.",
+    ));
+    return undefined;
+  }
+  const access: CsharpExpression = {
+    kind: "SimpleMemberAccessExpression",
+    receiver: receiverType,
+    name: member.targetName,
+  };
+  if (invocation.operation === "call") {
+    const typeArguments = renderSelectedCsharpTargetMethodTypeArguments(
+      selection,
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    if (typeArguments === undefined) {
+      return undefined;
+    }
+    return {
+      kind: "InvocationExpression",
+      callee: typeArguments.length === 0
+        ? access
+        : {
+            kind: "SimpleMemberAccessExpression",
+            receiver: receiverType,
+            name: member.targetName,
+            typeArguments,
+          },
+      arguments: arguments_,
+    };
+  }
+  if (invocation.operation === "property-get") {
+    if (arguments_.length === 0 && invocation.valueParameterIndex === undefined) {
+      return access;
+    }
+  } else {
+    const valueIndex = invocation.valueParameterIndex;
+    const value = valueIndex === undefined ? undefined : arguments_[valueIndex];
+    if (
+      arguments_.length === 1 &&
+      valueIndex === 0 &&
+      value !== undefined &&
+      value.passing === undefined
+    ) {
+      return {
+        kind: "AssignmentExpression",
+        left: access,
+        operatorToken: {
+          kind: invocation.operation === "event-add"
+            ? "PlusEqualsToken"
+            : invocation.operation === "event-remove"
+              ? "MinusEqualsToken"
+              : "EqualsToken",
+        },
+        right: value.expression,
+      };
+    }
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    node,
+    "The selected static operation arguments contradict its exact call/property/event contract.",
+  ));
+  return undefined;
+}
+
+function translateNativeOperatorCall(
+  node: Node,
+  member: CsharpTargetMember,
+  arguments_: readonly CsharpArgument[],
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const invocation = member.csharpInvocation;
+  if (invocation?.kind !== "native-operator") {
+    return undefined;
+  }
+  const expectedArity = invocation.form === "prefix" ? 1 : 2;
+  const indexes = new Set(invocation.operandParameterIndexes);
+  if (
+    invocation.operandParameterIndexes.length !== expectedArity ||
+    indexes.size !== expectedArity ||
+    arguments_.length !== member.parameters.length ||
+    invocation.operandParameterIndexes.some((index) =>
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= arguments_.length ||
+      arguments_[index]?.passing !== undefined
+    )
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected native C# operator relation does not cover one exact operand vector.",
+    ));
+    return undefined;
+  }
+  const operands = invocation.operandParameterIndexes.map((index) =>
+    arguments_[index]!.expression);
+  const expression: CsharpExpression | undefined = invocation.form === "prefix"
+    ? nativePrefixOperatorExpression(invocation.operator, operands[0]!)
+    : nativeBinaryOperatorExpression(
+        invocation.operator,
+        operands[0]!,
+        operands[1]!,
+      );
+  if (expression === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      `The selected native C# operator '${invocation.operator}' does not match its declared unary/binary form.`,
+    ));
+    return undefined;
+  }
+  return invocation.checked === true
+    ? { kind: "CheckedExpression", expression }
+    : expression;
+}
+
+function nativePrefixOperatorExpression(
+  operator: Extract<
+    NonNullable<CsharpTargetMember["csharpInvocation"]>,
+    { readonly kind: "native-operator" }
+  >["operator"],
+  operand: CsharpExpression,
+): CsharpExpression | undefined {
+  const token = operator === "unary-plus"
+    ? "PlusToken" as const
+    : operator === "unary-negation"
+      ? "MinusToken" as const
+      : operator === "logical-not"
+        ? "ExclamationToken" as const
+        : operator === "ones-complement"
+          ? "TildeToken" as const
+          : undefined;
+  return token === undefined
+    ? undefined
+    : { kind: "PrefixUnaryExpression", operatorToken: { kind: token }, operand };
+}
+
+function nativeBinaryOperatorExpression(
+  operator: Extract<
+    NonNullable<CsharpTargetMember["csharpInvocation"]>,
+    { readonly kind: "native-operator" }
+  >["operator"],
+  left: CsharpExpression,
+  right: CsharpExpression,
+): CsharpExpression | undefined {
+  const tokens = {
+    addition: "PlusToken",
+    subtraction: "MinusToken",
+    multiplication: "AsteriskToken",
+    division: "SlashToken",
+    modulus: "PercentToken",
+    "bitwise-and": "AmpersandToken",
+    "bitwise-or": "BarToken",
+    "exclusive-or": "CaretToken",
+    "left-shift": "LessThanLessThanToken",
+    "right-shift": "GreaterThanGreaterThanToken",
+    "unsigned-right-shift": "GreaterThanGreaterThanGreaterThanToken",
+    equality: "EqualsEqualsToken",
+    inequality: "ExclamationEqualsToken",
+    "less-than": "LessThanToken",
+    "less-than-or-equal": "LessThanEqualsToken",
+    "greater-than": "GreaterThanToken",
+    "greater-than-or-equal": "GreaterThanEqualsToken",
+  } as const;
+  const token = tokens[operator as keyof typeof tokens];
+  return token === undefined
+    ? undefined
+    : {
+        kind: "BinaryExpression",
+        left,
+        operatorToken: { kind: token },
+        right,
+      };
+}
+
+function translateNativeEventSubscription(
+  node: Node,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  member: CsharpTargetMember,
+  arguments_: readonly CsharpArgument[],
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  const invocation = member.csharpInvocation;
+  if (
+    (invocation?.kind !== "native-event-add" &&
+      invocation?.kind !== "native-event-remove") ||
+    sourceCallIsOptional(input, source) ||
+    arguments_.length !== 1 ||
+    invocation.handlerParameterIndex !== 0 ||
+    arguments_[0]?.passing !== undefined
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A selected native C# event operation requires one exact non-optional handler argument.",
+    ));
+    return undefined;
+  }
+  const receiver = member.static === true
+    ? member.declaringType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(member.declaringType)
+    : source.sourceReceiver === undefined
+      ? undefined
+      : translateCsharpSelectedReceiver(
+          source.sourceReceiver,
+          sourceFile,
+          input,
+          diagnostics,
+          planExpression,
+        );
+  if (receiver === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected native C# event operation has no exact renderable instance or declaring-type receiver.",
+    ));
+    return undefined;
+  }
+  return {
+    kind: "AssignmentExpression",
+    left: {
+      kind: "SimpleMemberAccessExpression",
+      receiver,
+      name: member.targetName,
+    },
+    operatorToken: {
+      kind: invocation.kind === "native-event-add"
+        ? "PlusEqualsToken"
+        : "MinusEqualsToken",
+    },
+    right: arguments_[0]!.expression,
+  };
+}
+
+function translateNativeIndexerCall(
+  node: Node,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  member: CsharpTargetMember,
+  arguments_: readonly CsharpArgument[],
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  const invocation = member.csharpInvocation;
+  const sourceReceiver = source.sourceReceiver;
+  if (
+    (invocation?.kind !== "native-indexer-get" &&
+      invocation?.kind !== "native-indexer-set") ||
+    member.static === true ||
+    sourceReceiver === undefined ||
+    sourceCallIsOptional(input, source)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "A selected native C# indexer call requires one non-optional instance receiver and an explicit indexer invocation relation.",
+    ));
+    return undefined;
+  }
+  const receiver = translateCsharpSelectedReceiver(
+    sourceReceiver,
+    sourceFile,
+    input,
+    diagnostics,
+    planExpression,
+  );
+  const indexSet = new Set(invocation.indexParameterIndexes);
+  const valueParameterIndex = invocation.kind === "native-indexer-set"
+    ? invocation.valueParameterIndex
+    : undefined;
+  if (
+    receiver === undefined ||
+    invocation.indexParameterIndexes.length === 0 ||
+    indexSet.size !== invocation.indexParameterIndexes.length ||
+    invocation.indexParameterIndexes.some((index) =>
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= member.parameters.length ||
+      arguments_[index] === undefined ||
+      arguments_[index]!.passing !== undefined
+    ) ||
+    (valueParameterIndex !== undefined && (
+      !Number.isSafeInteger(valueParameterIndex) ||
+      valueParameterIndex < 0 ||
+      valueParameterIndex >= member.parameters.length ||
+      indexSet.has(valueParameterIndex) ||
+      arguments_[valueParameterIndex] === undefined ||
+      arguments_[valueParameterIndex]!.passing !== undefined
+    )) ||
+    arguments_.length !== invocation.indexParameterIndexes.length +
+      (valueParameterIndex === undefined ? 0 : 1)
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "The selected native C# indexer relation does not cover one exact index argument vector and optional assigned value.",
+    ));
+    return undefined;
+  }
+  const indexer: CsharpExpression = {
+    kind: "ElementAccessExpression",
+    receiver,
+    arguments: invocation.indexParameterIndexes.map((index) =>
+      arguments_[index]!.expression),
+  };
+  return valueParameterIndex === undefined
+    ? indexer
+    : {
+        kind: "AssignmentExpression",
+        left: indexer,
+        operatorToken: { kind: "EqualsToken" },
+        right: arguments_[valueParameterIndex]!.expression,
       };
 }
 
@@ -307,6 +707,20 @@ function registerSelectedCallArtifacts(
       ));
       return undefined;
     }
+    const assignmentSubject = requirement.projection === "assign"
+      ? source.sourceArguments[requirement.assignmentSource.index]?.expression
+      : undefined;
+    const assignmentType = assignmentSubject === undefined
+      ? undefined
+      : input.types.classifications.resolveNode(assignmentSubject, sourceFile);
+    if (requirement.projection === "assign" &&
+      (assignmentSubject === undefined || assignmentType === undefined)) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        subject,
+        `Selected target call '${member.id}' requires exact assignment-source value and type evidence.`,
+      ));
+      return undefined;
+    }
     const result = input.artifacts.requireObjectShapeProjection(
       subject,
       targetType,
@@ -314,6 +728,9 @@ function registerSelectedCallArtifacts(
       requirement.projection,
       member.returnType,
       requirement.rootKind,
+      assignmentSubject === undefined || assignmentType === undefined
+        ? undefined
+        : { node: assignmentSubject, type: assignmentType },
     );
     if (result.kind === "rejected") {
       diagnostics.push(unsupportedNodeDiagnostic(subject, result.reason));
@@ -365,9 +782,7 @@ function translateObjectShapeProjectionCall(
       kind: "SimpleMemberAccessExpression",
       receiver,
       name: csharpObjectShapeProjectionMethodName(
-        invocation.projection,
-        member.returnType,
-        projection.propertyOrder,
+        projection,
       ),
     },
     arguments: arguments_.slice(1),

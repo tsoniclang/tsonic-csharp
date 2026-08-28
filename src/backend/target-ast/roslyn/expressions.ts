@@ -12,12 +12,13 @@ export type CsharpExpression =
   | { readonly kind: "InvocationExpression"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "AwaitExpression"; readonly expression: CsharpExpression }
   | { readonly kind: "UnsafeExpression"; readonly expression: CsharpExpression }
+  | { readonly kind: "CheckedExpression"; readonly expression: CsharpExpression }
   | CsharpObjectCreationExpression
   | { readonly kind: "CastExpression"; readonly type: CsharpTypeNode; readonly expression: CsharpExpression }
   | { readonly kind: "SimpleMemberAccessExpression"; readonly receiver: CsharpExpression; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "ConditionalAccessExpression"; readonly receiver: CsharpExpression; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
-  | { readonly kind: "ElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
-  | { readonly kind: "ConditionalElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
+  | { readonly kind: "ElementAccessExpression"; readonly receiver: CsharpExpression; readonly arguments: readonly CsharpExpression[] }
+  | { readonly kind: "ConditionalElementAccessExpression"; readonly receiver: CsharpExpression; readonly arguments: readonly CsharpExpression[] }
   | { readonly kind: "BinaryExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpBinaryOperatorToken; readonly right: CsharpExpression }
   | { readonly kind: "AssignmentExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpAssignmentOperatorToken; readonly right: CsharpExpression }
   | { readonly kind: "IsPatternExpression"; readonly expression: CsharpExpression; readonly type: CsharpTypeNode; readonly negated?: boolean; readonly designation?: string }

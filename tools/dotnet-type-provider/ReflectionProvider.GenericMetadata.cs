@@ -48,6 +48,71 @@ sealed partial class ReflectionProvider
             .ToArray();
     }
 
+    int[]? UnmanagedTypeParameterIndexes(Type type)
+    {
+        if (!type.IsValueType)
+        {
+            return null;
+        }
+        var rootParameters = type.GetGenericArguments()
+            .Where(parameter => parameter.IsGenericParameter)
+            .Select((parameter, index) => (parameter, index))
+            .ToDictionary(item => item.parameter, item => item.index);
+        var required = new HashSet<int>();
+        return CollectUnmanagedRequirements(
+                type,
+                rootParameters,
+                required,
+                new HashSet<Type>())
+            ? required.OrderBy(index => index).ToArray()
+            : null;
+    }
+
+    static bool CollectUnmanagedRequirements(
+        Type type,
+        IReadOnlyDictionary<Type, int> rootParameters,
+        ISet<int> required,
+        ISet<Type> active)
+    {
+        type = UnwrapByRef(type);
+        if (type.IsGenericParameter)
+        {
+            if (rootParameters.TryGetValue(type, out var index))
+            {
+                required.Add(index);
+                return true;
+            }
+            return IsUnmanagedConstraint(type);
+        }
+        if (
+            type.IsPointer ||
+            type.IsFunctionPointer ||
+            type.IsEnum ||
+            type.IsPrimitive
+        )
+        {
+            return true;
+        }
+        if (!type.IsValueType || !active.Add(type))
+        {
+            return false;
+        }
+        try
+        {
+            return type
+                .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .All(field => CollectUnmanagedRequirements(
+                    field.FieldType,
+                    rootParameters,
+                    required,
+                    active));
+        }
+        finally
+        {
+            active.Remove(type);
+        }
+    }
+
     object TypeParameter(Type parameter, GenericParameterContext? genericParameters = null)
     {
         genericParameters ??= GenericParameterContext.Empty;

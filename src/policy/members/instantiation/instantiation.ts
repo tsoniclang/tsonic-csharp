@@ -6,11 +6,13 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
+import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderTargetRelation,
+  CsharpTargetReceiverRelation,
 } from "../../../providers/relations/index.js";
 import type {
   CsharpTargetMember,
@@ -24,6 +26,7 @@ import {
   csharpTargetParameterValueType,
   csharpTargetStorageIdentityEquals,
   substituteCsharpTargetMember,
+  targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../types/index.js";
 import {
@@ -35,6 +38,9 @@ import {
   mergeCsharpTypeParameterSubstitutions,
   resolveCsharpTargetBindingArguments,
 } from "./binding-instantiation.js";
+import {
+  validateCsharpProviderConstraints,
+} from "./constraint-satisfaction.js";
 import {
   selectCsharpSourceArgument,
 } from "../selection/argument-selection.js";
@@ -75,6 +81,7 @@ export interface CsharpProviderCallInstantiationHost {
   readonly projectTypes: CsharpProjectTypePolicy;
   readonly target: TargetSelection;
   readonly types: CsharpTypePolicy;
+  semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
 export function instantiateCsharpProviderCall(
@@ -92,7 +99,7 @@ export function instantiateCsharpProviderCall(
     return { kind: "rejected", reason: relationError };
   }
   const bindingArguments = resolveProviderBindingTypeArguments(
-    host.types,
+    host,
     relation,
     source,
     sourceFile,
@@ -117,9 +124,22 @@ export function instantiateCsharpProviderCall(
         "The exact selected method type-argument evidence does not close the provider target method type parameters.",
     };
   }
+  const invocationArguments = resolveInvocationTypeArguments(
+    host.types,
+    relation,
+    source,
+    sourceFile,
+  );
+  if (invocationArguments === undefined) {
+    return {
+      kind: "rejected",
+      reason:
+        "The exact selected invocation type-argument evidence does not close the provider target invocation.",
+    };
+  }
   const substitutions = targetTypeParameterSubstitutions(
     relation,
-    bindingArguments,
+    bindingArguments.map((argument) => argument.targetType),
     methodArguments,
   );
   if (substitutions === undefined) {
@@ -133,6 +153,17 @@ export function instantiateCsharpProviderCall(
     relation.targetMember,
     substitutions,
   );
+  const constraintError = validateCsharpProviderConstraints(host, {
+    targetBinding: relation.targetBinding,
+    bindingArguments,
+    targetMember,
+    methodArguments,
+    invocationArguments,
+    sourceFile,
+  });
+  if (constraintError !== undefined) {
+    return { kind: "rejected", reason: constraintError };
+  }
   const arguments_ = relateCallArguments(relation, targetMember, source);
   if (arguments_ === undefined) {
     return {
@@ -163,6 +194,7 @@ export function instantiateCsharpProviderCall(
       targetMember,
       receiver: relation.receiver,
       targetMethodTypeArguments: methodArguments,
+      targetInvocationTypeArguments: invocationArguments,
       arguments: arguments_,
       argumentMappings: argumentValidation.argumentMappings,
     },
@@ -214,11 +246,11 @@ export function compareInstantiatedProviderCalls(
 }
 
 function resolveProviderBindingTypeArguments(
-  types: CsharpTypePolicy,
+  host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
-): readonly TargetTypeRef[] | undefined {
+): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     relation.bindingTypeArgumentSource !==
       "selected-operation-type-arguments"
@@ -234,20 +266,52 @@ function resolveProviderBindingTypeArguments(
             type: source.sourceCallee.type,
           }
         : { type: source.sourceResultType };
-    return resolveCsharpTargetBindingArguments(
-      types,
+    const targetArguments = resolveCsharpTargetBindingArguments(
+      host.types,
       relation.targetBinding,
       [evidence],
       sourceFile,
     );
+    if (targetArguments === undefined) {
+      return undefined;
+    }
+    if (targetArguments.length === 0) {
+      return Object.freeze([]);
+    }
+    const sourceArguments = evidence.type === undefined
+      ? undefined
+      : host.semantics(sourceFile).types.effectiveTypeArguments(evidence.type);
+    if (
+      sourceArguments === undefined ||
+      sourceArguments.length !== targetArguments.length
+    ) {
+      return targetArguments.map((targetType) => ({
+        kind: "target-derived",
+        targetType,
+      }));
+    }
+    const resolved = sourceArguments.map((selectedType, index) => {
+      const targetType = targetArguments[index]!;
+      const selectedTarget = host.types.resolveType(selectedType, sourceFile);
+      return selectedTarget !== undefined &&
+          targetTypeRefEquals(selectedTarget, targetType)
+        ? {
+            kind: "selected-source" as const,
+            targetType,
+            selectedType,
+          }
+        : { kind: "target-derived" as const, targetType };
+    });
+    return Object.freeze(resolved);
   }
   return resolveSelectedTypeArguments(
-    types,
+    host.types,
     source.sourceSelectedMethodTypeArguments ?? [],
     relation.bindingTypeParameters,
     relation.targetBinding.typeParameters?.length ?? 0,
+    relation.selectedTypeParameterCount,
     sourceFile,
-  )?.map((argument) => argument.targetType);
+  );
 }
 
 function validateProviderCallRelation(
@@ -326,21 +390,35 @@ function resolveMethodTypeArguments(
   sourceFile: SourceFile,
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
-  if (
-    relation.bindingTypeArgumentSource ===
-      "selected-operation-type-arguments"
-  ) {
-    return relation.methodTypeParameters.length === 0 &&
-        (relation.targetMember.typeParameters?.length ?? 0) === 0
-      ? []
-      : undefined;
-  }
   const targetArity = relation.targetMember.typeParameters?.length ?? 0;
   return resolveSelectedTypeArguments(
     types,
     sourceArguments,
     relation.methodTypeParameters,
     targetArity,
+    relation.selectedTypeParameterCount,
+    sourceFile,
+  );
+}
+
+function resolveInvocationTypeArguments(
+  types: CsharpTypePolicy,
+  relation: CsharpProviderSignatureRelation,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
+  const targetArity = relation.targetMember.csharpInvocation?.kind ===
+      "static-member" &&
+      relation.targetMember.csharpInvocation.receiver.kind ===
+        "invocation-type-argument"
+    ? 1
+    : 0;
+  return resolveSelectedTypeArguments(
+    types,
+    source.sourceSelectedMethodTypeArguments ?? [],
+    relation.invocationTypeParameters,
+    targetArity,
+    relation.selectedTypeParameterCount,
     sourceFile,
   );
 }
@@ -354,10 +432,11 @@ function resolveSelectedTypeArguments(
     "bindingTypeParameters"
   ],
   targetArity: number,
+  sourceArity: number,
   sourceFile: SourceFile,
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
-    sourceArguments.length !== relations.length ||
+    sourceArguments.length !== sourceArity ||
     relations.length !== targetArity
   ) {
     return undefined;
@@ -600,7 +679,11 @@ function validateArgumentsTargetSelectedParameters(
       conversion,
     });
   }
-  if (!everyRequiredTargetParameterIsSupplied(targetMember, arguments_)) {
+  if (!everyRequiredTargetParameterIsSupplied(
+    targetMember,
+    arguments_,
+    relation.receiver,
+  )) {
     return {
       kind: "rejected",
       reason:
@@ -616,14 +699,17 @@ function validateArgumentsTargetSelectedParameters(
 function everyRequiredTargetParameterIsSupplied(
   targetMember: CsharpTargetMember,
   arguments_: readonly CsharpSelectedCallArgument[],
+  receiver: CsharpTargetReceiverRelation,
 ): boolean {
   const supplied = new Set(
     arguments_.map((argument) => argument.targetParameterIndex),
   );
+  if (receiver.kind === "target-parameter") {
+    supplied.add(receiver.targetParameterIndex);
+  }
   return targetMember.parameters.every((parameter, index) =>
     supplied.has(index) ||
     parameter.optional === true ||
     parameter.csharpOmittableOptionalArgument === true ||
-    parameter.paramsArray === true ||
-    targetMember.receiverPassing === "first-argument" && index === 0);
+    parameter.paramsArray === true);
 }

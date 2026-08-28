@@ -67,10 +67,6 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
-            if (!type.IsSZArray)
-            {
-                return null;
-            }
             var elementType = TypeRef(
                 type.GetElementType()!,
                 requireDelegateSourceShape,
@@ -84,7 +80,12 @@ sealed partial class ReflectionProvider
                     type,
                     typeNullability,
                     typeNullabilityMetadata,
-                    new { kind = "array", elementType },
+                    new
+                    {
+                        kind = "array",
+                        elementType,
+                        rank = type.IsSZArray ? (int?)null : type.GetArrayRank(),
+                    },
                     includeTopLevelReferenceNullability);
         }
         if (IsNullableShape(type, out var nullableElement))
@@ -102,7 +103,51 @@ sealed partial class ReflectionProvider
         }
         if (type.IsPointer)
         {
-            return null;
+            var pointee = TypeRef(
+                type.GetElementType()!,
+                requireDelegateSourceShape,
+                genericParameters,
+                genericNullability: genericNullability,
+                includeTopLevelReferenceNullability: false);
+            return pointee is null
+                ? null
+                : new { kind = "pointer", pointee, mutability = "mut" };
+        }
+        if (type.IsFunctionPointer)
+        {
+            var args = type.GetFunctionPointerParameterTypes()
+                .Select(parameter => TypeRef(
+                    parameter,
+                    requireDelegateSourceShape,
+                    genericParameters,
+                    genericNullability: genericNullability,
+                    includeTopLevelReferenceNullability: false))
+                .ToArray();
+            var result = TypeRef(
+                type.GetFunctionPointerReturnType(),
+                requireDelegateSourceShape,
+                genericParameters,
+                genericNullability: genericNullability,
+                includeTopLevelReferenceNullability: false);
+            if (result is null || args.Any(argument => argument is null))
+            {
+                return null;
+            }
+            var conventions = type.GetFunctionPointerCallingConventions()
+                .Select(convention => convention.Name.StartsWith("CallConv", StringComparison.Ordinal)
+                    ? convention.Name["CallConv".Length..]
+                    : convention.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+            return new
+            {
+                kind = "function-pointer",
+                args,
+                result,
+                abi = type.IsUnmanagedFunctionPointer
+                    ? new[] { "unmanaged" }.Concat(conventions).ToArray()
+                    : new[] { "managed" },
+            };
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         var typeArguments = type.IsGenericType
@@ -153,7 +198,12 @@ sealed partial class ReflectionProvider
         }
         if (type.IsPointer)
         {
-            return $"Pointer type '{TypeMetadataName(type)}' requires an explicit provider pointer type model before it can be exposed safely.";
+            var pointee = type.GetElementType()!;
+            return $"Pointer pointee type '{TypeMetadataName(pointee)}' is not representable. {TypeRefFailureReason(pointee)}";
+        }
+        if (type.IsFunctionPointer)
+        {
+            return $"Function-pointer signature '{TypeMetadataName(type)}' contains a type that is not representable by the provider.";
         }
         if (type.IsArray)
         {
@@ -242,17 +292,69 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
-            if (!type.IsSZArray)
-            {
-                return null;
-            }
             var element = SourceShape(
                 type.GetElementType()!,
                 genericParameters,
                 typeNullability?.ElementType,
                 typeNullabilityMetadata?.ElementType,
                 genericNullability);
-            return element is null ? null : new SourceTypeProjection(new { kind = "array", elementType = element });
+            if (element is null)
+            {
+                return null;
+            }
+            return type.IsSZArray
+                ? new SourceTypeProjection(new { kind = "array", elementType = element })
+                : new SourceTypeProjection(new
+                {
+                    kind = "provider-ref",
+                    moduleSpecifier = "@tsonic/csharp/lang.js",
+                    exportName = $"array{type.GetArrayRank()}",
+                    typeArguments = new[] { element },
+                });
+        }
+        if (type.IsPointer)
+        {
+            var pointee = SourceShape(
+                type.GetElementType()!,
+                genericParameters,
+                genericNullability: genericNullability);
+            return pointee is null
+                ? null
+                : new SourceTypeProjection(new
+                {
+                    kind = "provider-ref",
+                    moduleSpecifier = "@tsonic/csharp/lang.js",
+                    exportName = "ptr",
+                    typeArguments = new[] { pointee },
+                });
+        }
+        if (type.IsFunctionPointer)
+        {
+            var parameters = type.GetFunctionPointerParameterTypes()
+                .Select(parameter => SourceShape(
+                    parameter,
+                    genericParameters,
+                    genericNullability: genericNullability))
+                .ToArray();
+            var result = SourceShape(
+                type.GetFunctionPointerReturnType(),
+                genericParameters,
+                genericNullability: genericNullability);
+            if (result is null || parameters.Any(parameter => parameter is null))
+            {
+                return null;
+            }
+            return new SourceTypeProjection(new
+            {
+                kind = "provider-ref",
+                moduleSpecifier = "@tsonic/csharp/lang.js",
+                exportName = "fnptr",
+                typeArguments = new object[]
+                {
+                    new { kind = "tuple", elementTypes = parameters },
+                    result,
+                },
+            });
         }
         if (type.IsGenericParameter)
         {
@@ -718,13 +820,21 @@ sealed partial class ReflectionProvider
             var returnNullabilityMetadata = genericNullability.ResolveMetadata(
                 invoke.ReturnType,
                 NullableMetadata.ForParameter(invoke.ReturnParameter));
-            var returnType = TypeRef(
-                invoke.ReturnType,
+            var targetReturnType = TypeRef(
+                UnwrapByRef(invoke.ReturnType),
                 genericParameters: genericParameters,
                 typeNullability: returnNullability,
                 typeNullabilityMetadata: returnNullabilityMetadata,
                 genericNullability: genericNullability);
-            if (parameters is null || returnType is null)
+            var returnPassing = ReturnPassingMode(invoke.ReturnParameter);
+            var returnType = returnPassing is null
+                ? targetReturnType
+                : ByRefReturnSourceType(
+                    invoke.ReturnType,
+                    genericParameters,
+                    returnNullability,
+                    returnNullabilityMetadata);
+            if (parameters is null || returnType is null || targetReturnType is null)
             {
                 return null;
             }
@@ -734,6 +844,8 @@ sealed partial class ReflectionProvider
                 id = TypeTargetId(type),
                 parameters,
                 returnType,
+                targetReturnType = returnPassing is null ? null : targetReturnType,
+                returnPassing,
             };
         }
         finally

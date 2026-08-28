@@ -53,7 +53,7 @@ export function element(receiver: CsharpExpression, argument: CsharpExpression):
   return {
     kind: "ElementAccessExpression",
     receiver,
-    argument,
+    arguments: [argument],
   };
 }
 

@@ -255,10 +255,46 @@ function sourceFilePublicDependencies(
       });
     }
   }
+  for (const construction of input.program.sourceModuleConstructions.from(
+    sourceFile,
+  )) {
+    const dependencyOwner = ownerBySourceFile.get(
+      construction.targetSourceFile,
+    ) ?? sourceFileArtifactOwner(input, construction.targetSourceFile);
+    if (dependencyOwner === undefined) {
+      return {
+        kind: "rejected",
+        code: "CSHARP_SOURCE_MODULE_DEPENDENCY_IDENTITY_MISSING",
+        reason:
+          `A source module constructed by '${owner}' has no stable target artifact identity.`,
+      };
+    }
+    if (dependencyOwner !== owner) {
+      dependencies.push({
+        owner: dependencyOwner,
+        facet: "source-file-implementation",
+      });
+    }
+  }
   return {
     kind: "resolved",
-    dependencies: Object.freeze(dependencies),
+    dependencies: Object.freeze(uniqueDependencies(dependencies)),
   };
+}
+
+function uniqueDependencies(
+  dependencies: readonly TargetArtifactDependency<CsharpArtifactFacet>[],
+): readonly TargetArtifactDependency<CsharpArtifactFacet>[] {
+  const byIdentity = new Map<string, TargetArtifactDependency<CsharpArtifactFacet>>();
+  for (const dependency of dependencies) {
+    byIdentity.set(
+      `${dependency.owner.length}:${dependency.owner}:${dependency.facet}`,
+      dependency,
+    );
+  }
+  return [...byIdentity.values()].sort((left, right) =>
+    left.owner.localeCompare(right.owner) ||
+    left.facet.localeCompare(right.facet));
 }
 
 function sourceFileArtifactOwner(

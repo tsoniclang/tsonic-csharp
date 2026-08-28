@@ -7,3 +7,8 @@ export * from "./numbers.js";
 export * from "./objects.js";
 export * from "./registry.js";
 export * from "./strings.js";
+export * from "./weak-collections.js";
+export * from "./symbols.js";
+export * from "./binary.js";
+export * from "./promises.js";
+export * from "./intl.js";

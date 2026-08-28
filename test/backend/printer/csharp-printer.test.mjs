@@ -161,7 +161,7 @@ test("printer preserves a cast as the receiver of every postfix operation", () =
     printCsharpExpression({
       kind: "ElementAccessExpression",
       receiver: cast,
-      argument: { kind: "LiteralExpression", value: 0 },
+      arguments: [{ kind: "LiteralExpression", value: 0 }],
     }),
     "((Derived)value)[0]",
   );

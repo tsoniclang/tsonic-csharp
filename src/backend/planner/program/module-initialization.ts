@@ -22,6 +22,10 @@ interface ModuleInitializationEntry {
 export function planCsharpModuleInitialization(input: CsharpPlanningContext, diagnostics: TargetDiagnostic[]): CsharpModuleInitializationPlan {
   const entries = new Map<string, ModuleInitializationEntry>();
   const runtimeImportTargets = new Set<string>();
+  const runtimeEntryTargets = new Set(
+    input.program.sourceModuleConstructions.targets().map((sourceFile) =>
+      normalizedFileName(input, sourceFile)),
+  );
   for (const sourceFile of input.program.sourceFiles) {
     const dependencies = input.program.sourceNavigation.moduleDependencies(sourceFile)
       .map((dependency) => dependency.sourceFile);
@@ -56,6 +60,7 @@ export function planCsharpModuleInitialization(input: CsharpPlanningContext, dia
     requiresInitializer(sourceFile) {
       const fileName = normalizedFileName(input, sourceFile);
       return (entrypointRequiresInitializer && fileName === entrypointFileName) ||
+        runtimeEntryTargets.has(fileName) ||
         runtimeImportTargets.has(fileName) ||
         entries.get(fileName)?.required === true;
     },

@@ -7,6 +7,16 @@ public interface IStaticInterfaceMember
     static abstract int Create();
 }
 
+public sealed class StaticInterfaceImplementation : IStaticInterfaceMember
+{
+    public static int StaticCount => 7;
+
+    public static int Create()
+    {
+        return StaticCount;
+    }
+}
+
 public sealed class GenericHolder<T>
 {
     public static T StaticValue => default!;
@@ -90,6 +100,36 @@ public sealed class ByRefReturnSignatures
 public unsafe delegate int PointerDelegate(int* pointer);
 
 public delegate ref int RefReturnDelegate();
+
+public unsafe sealed class FunctionPointerSignatures
+{
+    public delegate* unmanaged[Cdecl]<int, void> CallbackField;
+
+    public FunctionPointerSignatures(
+        delegate* unmanaged[Cdecl]<int, void> callback)
+    {
+        CallbackField = callback;
+    }
+
+    public delegate* unmanaged[Cdecl]<int, void> CallbackProperty =>
+        CallbackField;
+
+    public delegate* unmanaged[Cdecl]<int, void> Echo(
+        delegate* unmanaged[Cdecl]<int, void> callback)
+    {
+        return callback;
+    }
+}
+
+public sealed class EventSignatures
+{
+    public event Action<int>? Changed;
+
+    public void Raise(int value)
+    {
+        Changed?.Invoke(value);
+    }
+}
 
 public readonly struct GenericNumber<T>
 {

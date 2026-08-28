@@ -32,9 +32,16 @@ import {
   csharpSourceSemanticsModules,
 } from "../source/profiles/source-modules.js";
 import {
+  csharpJsSourceProfileOwnerId,
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
 import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
+import {
+  csharpJsEventLoopBinaryEpilogue,
+} from "../providers/builtins/binary-epilogues.js";
+import {
+  composeCsharpBinaryEpilogues,
+} from "../providers/model/provider-policy-contribution.js";
 
 type CsharpCompilationSessionState =
   | "created"
@@ -54,6 +61,13 @@ export function createCsharpCompilationSession(
   );
   const capabilityContributions = collectCsharpCapabilityContributions(
     context.capabilities,
+  );
+  const jsEnabled = context.selectedSurfaceIds.includes(
+    csharpJsSourceProfileOwnerId,
+  );
+  const binaryEpilogues = composeCsharpBinaryEpilogues(
+    capabilityContributions.binaryEpilogues,
+    jsEnabled ? [csharpJsEventLoopBinaryEpilogue] : [],
   );
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
@@ -121,6 +135,7 @@ export function createCsharpCompilationSession(
         input,
         configuration,
         providers: relationResolver,
+        binaryEpilogues,
       }));
     },
     close(): void {

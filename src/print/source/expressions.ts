@@ -48,15 +48,17 @@ export function printCsharpExpression(
     case "ConditionalAccessExpression":
       return `${printPostfixOperand(expression.receiver, context)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ElementAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}[${context.printExpression(expression.argument)}]`;
+      return `${printPostfixOperand(expression.receiver, context)}[${expression.arguments.map(context.printExpression).join(", ")}]`;
     case "ConditionalElementAccessExpression":
-      return `${printPostfixOperand(expression.receiver, context)}?[${context.printExpression(expression.argument)}]`;
+      return `${printPostfixOperand(expression.receiver, context)}?[${expression.arguments.map(context.printExpression).join(", ")}]`;
     case "InvocationExpression":
       return `${printPostfixOperand(expression.callee, context)}(${expression.arguments.map(context.printArgument).join(", ")})`;
     case "AwaitExpression":
       return `await ${context.printExpression(expression.expression)}`;
     case "UnsafeExpression":
       return `unsafe(${context.printExpression(expression.expression)})`;
+    case "CheckedExpression":
+      return `checked(${context.printExpression(expression.expression)})`;
     case "ObjectCreationExpression":
       if (expression.collectionInitializers !== undefined) {
         return printCsharpCollectionInitializer(expression.type, expression.arguments ?? [], expression.collectionInitializers, context);
@@ -125,6 +127,7 @@ function postfixOperandRequiresParentheses(
   switch (expression.kind) {
     case "AwaitExpression":
     case "UnsafeExpression":
+    case "CheckedExpression":
     case "CastExpression":
     case "BinaryExpression":
     case "AssignmentExpression":

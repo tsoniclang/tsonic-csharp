@@ -17,7 +17,7 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
     case "union":
       return type.types.map(dotnetTypeRefKey).join("|");
     case "function":
-      return `fn:${type.id}(${type.parameters.map((parameter) => dotnetTypeRefKey(parameter.type)).join(",")})=>${dotnetTypeRefKey(type.returnType)}`;
+      return `fn:${type.id}(${type.parameters.map((parameter) => dotnetTypeRefKey(parameter.type)).join(",")})=>${type.returnPassing ?? "value"}:${dotnetTypeRefKey(type.returnType)}${type.targetReturnType === undefined ? "" : `->${dotnetTypeRefKey(type.targetReturnType)}`}`;
     case "pointer":
       return `ptr(${dotnetTypeRefKey(type.pointee)})`;
     case "function-pointer":

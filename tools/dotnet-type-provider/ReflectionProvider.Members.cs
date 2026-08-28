@@ -45,7 +45,6 @@ sealed partial class ReflectionProvider
                 targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
-                receiverPassing = IsExtensionMethod(first) ? "first-argument" : null,
                 signatures,
             };
         }
@@ -55,10 +54,28 @@ sealed partial class ReflectionProvider
             yield return member;
         }
 
-        foreach (var group in Operators(type).GroupBy(MethodGroupKey))
+        foreach (var group in Operators(type).GroupBy(OperatorProjectionGroupKey))
         {
             var first = group.First();
-            var signatures = group.Select(method => MethodSignature(method)).Where(signature => signature is not null).Cast<object>().ToArray();
+            var projection = OperatorSourceProjectionFor(first);
+            if (projection is null)
+            {
+                continue;
+            }
+            var signatures = group.Select(method =>
+            {
+                var selected = OperatorSourceProjectionFor(method);
+                return selected is null
+                    ? null
+                    : MethodSignature(method, targetInvocation: new
+                    {
+                        kind = "native-operator",
+                        form = selected.Form,
+                        @operator = selected.Operator,
+                        operandParameterIndexes = Enumerable.Range(0, method.GetParameters().Length).ToArray(),
+                        @checked = selected.Checked ? true : (bool?)null,
+                    });
+            }).Where(signature => signature is not null).Cast<object>().ToArray();
             if (signatures.Length == 0)
             {
                 continue;
@@ -66,15 +83,376 @@ sealed partial class ReflectionProvider
             yield return new
             {
                 kind = "operator",
-                sourceName = SourceMemberName(first.Name),
+                sourceName = projection.SourceName,
                 targetName = first.Name,
                 targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
+                sourceStatic = false,
+                sourceProjection = "operator-adapter",
+                receiverPassing = "target-parameter",
+                sourceReceiverParameterIndex = projection.ReceiverParameterIndex,
                 signatures,
             };
         }
     }
+
+    IEnumerable<object> StaticSourceAdapterFunctions(Type type)
+    {
+        if (!RequiresStaticSourceAdapter(type))
+        {
+            yield break;
+        }
+
+        foreach (var function in StaticMethodAdapterFunctions(type))
+        {
+            yield return function;
+        }
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(property => property.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedPropertyReason(type, property) is not null)
+            {
+                continue;
+            }
+            if (property.GetMethod is { IsPublic: true } getter)
+            {
+                var function = StaticAccessorAdapterFunction(
+                    type,
+                    getter,
+                    property.Name,
+                    "property-get");
+                if (function is not null)
+                {
+                    yield return function;
+                }
+            }
+            if (property.SetMethod is { IsPublic: true } setter)
+            {
+                var function = StaticAccessorAdapterFunction(
+                    type,
+                    setter,
+                    property.Name,
+                    "property-set");
+                if (function is not null)
+                {
+                    yield return function;
+                }
+            }
+        }
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(field => !field.IsSpecialName)
+            .OrderBy(field => field.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedFieldReason(type, field) is not null)
+            {
+                continue;
+            }
+            var getter = StaticFieldAdapterFunction(type, field, false);
+            if (getter is not null)
+            {
+                yield return getter;
+            }
+            if (!field.IsLiteral && !field.IsInitOnly)
+            {
+                var setter = StaticFieldAdapterFunction(type, field, true);
+                if (setter is not null)
+                {
+                    yield return setter;
+                }
+            }
+        }
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedSourceEventReason(eventInfo) is not null)
+            {
+                continue;
+            }
+            foreach (var (accessor, operation) in new[]
+            {
+                (eventInfo.AddMethod, "event-add"),
+                (eventInfo.RemoveMethod, "event-remove"),
+            })
+            {
+                if (accessor is not { IsPublic: true })
+                {
+                    continue;
+                }
+                var function = StaticAccessorAdapterFunction(
+                    type,
+                    accessor,
+                    eventInfo.Name,
+                    operation);
+                if (function is not null)
+                {
+                    yield return function;
+                }
+            }
+        }
+    }
+
+    IEnumerable<object> StaticMethodAdapterFunctions(Type type)
+    {
+        foreach (var group in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .Where(method => UnsupportedMethodReason(type, method) is null)
+            .OrderBy(MethodId, StringComparer.Ordinal)
+            .GroupBy(method => method.Name, StringComparer.Ordinal))
+        {
+            var first = group.First();
+            var signatures = group
+                .Select(method =>
+                {
+                    var plan = StaticAdapterTypeParameterPlanFor(type, method);
+                    return plan is null
+                        ? null
+                        : MethodSignature(
+                            method,
+                            plan.Context,
+                            StaticMemberTargetInvocation(plan, "call"),
+                            plan,
+                            method.Name);
+                })
+                .Where(signature => signature is not null)
+                .Cast<object>()
+                .ToArray();
+            var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+            if (signatures.Length == 0 || targetDeclaringType is null)
+            {
+                continue;
+            }
+            var adapterId = StaticAdapterId(type, first.Name, "call");
+            yield return new
+            {
+                kind = "function",
+                sourceName = StaticAdapterSourceName(type, "call", first.Name),
+                targetId = adapterId,
+                metadataName = StaticAdapterMetadataName(type, first.Name, "call"),
+                targetName = first.Name,
+                targetBindingId = TargetId(type),
+                targetDeclaringType,
+                signatures,
+            };
+        }
+    }
+
+    object? StaticAccessorAdapterFunction(
+        Type type,
+        MethodInfo accessor,
+        string targetName,
+        string operation)
+    {
+        var plan = StaticAdapterTypeParameterPlanFor(type, accessor);
+        var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+        if (plan is null || targetDeclaringType is null)
+        {
+            return null;
+        }
+        var valueParameterIndex = operation is "property-set" or "event-add" or "event-remove"
+            ? accessor.GetParameters().Length - 1
+            : (int?)null;
+        var signature = MethodSignature(
+            accessor,
+            plan.Context,
+            StaticMemberTargetInvocation(plan, operation, valueParameterIndex),
+            plan,
+            targetName);
+        if (signature is null)
+        {
+            return null;
+        }
+        var adapterId = StaticAdapterId(type, targetName, operation);
+        return new
+        {
+            kind = "function",
+            sourceName = StaticAdapterSourceName(
+                type,
+                operation,
+                targetName),
+            targetId = adapterId,
+            metadataName = StaticAdapterMetadataName(type, targetName, operation),
+            targetName,
+            targetBindingId = TargetId(type),
+            targetDeclaringType,
+            signatures = new[] { signature },
+        };
+    }
+
+    object? StaticFieldAdapterFunction(Type type, FieldInfo field, bool write)
+    {
+        var plan = StaticAdapterTypeParameterPlanFor(type, null);
+        var fieldType = TypeRef(
+            field.FieldType,
+            typeNullability: nullability.Create(field),
+            typeNullabilityMetadata: NullableMetadata.ForField(field));
+        var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
+        if (plan is null || fieldType is null || targetDeclaringType is null)
+        {
+            return null;
+        }
+        var operation = write ? "property-set" : "property-get";
+        var adapterId = StaticAdapterId(type, field.Name, operation);
+        var parameters = write
+            ? new object[]
+            {
+                new
+                {
+                    name = "value",
+                    type = fieldType,
+                    passingMode = "by-value",
+                },
+            }
+            : Array.Empty<object>();
+        var signature = new
+        {
+            id = adapterId,
+            sourceId = adapterId,
+            targetName = field.Name,
+            sourceTypeParameters = plan.SourceTypeParameters,
+            sourceTypeParameterRoles = plan.SourceTypeParameterRoles,
+            parameters,
+            returnType = write ? new { kind = "void" } : fieldType,
+            targetInvocation = StaticMemberTargetInvocation(
+                plan,
+                operation,
+                write ? 0 : (int?)null),
+        };
+        return new
+        {
+            kind = "function",
+            sourceName = StaticAdapterSourceName(
+                type,
+                write ? "field-set" : "field-get",
+                field.Name),
+            targetId = adapterId,
+            metadataName = StaticAdapterMetadataName(type, field.Name, operation),
+            targetName = field.Name,
+            targetBindingId = TargetId(type),
+            targetDeclaringType,
+            signatures = new[] { signature },
+        };
+    }
+
+    StaticAdapterTypeParameterPlan? StaticAdapterTypeParameterPlanFor(
+        Type type,
+        MethodInfo? method)
+    {
+        var context = method is null
+            ? GenericParameterContext.Empty
+            : GenericParameterContext.ForMethod(method, type);
+        var declaringParameters = TypeParameters(type);
+        var methodParameters = method is null
+            ? Array.Empty<object>()
+            : MethodTypeParameters(method, context);
+        var requiresDispatch = method is not null &&
+            type.IsInterface &&
+            (method.IsAbstract || method.IsVirtual);
+        object[] dispatchParameters;
+        object receiver;
+        if (requiresDispatch)
+        {
+            var contract = TypeRef(
+                type,
+                requireDelegateSourceShape: false,
+                genericParameters: context);
+            if (contract is null)
+            {
+                return null;
+            }
+            var dispatchName = StaticDispatchTypeParameterName(type, method!, context);
+            dispatchParameters = new object[]
+            {
+                new
+                {
+                    name = dispatchName,
+                    constraints = new[] { new { kind = "implements", contract } },
+                },
+            };
+            receiver = new { kind = "invocation-type-argument", index = 0 };
+        }
+        else
+        {
+            dispatchParameters = Array.Empty<object>();
+            receiver = new { kind = "declaring-type" };
+        }
+        var sourceTypeParameters = dispatchParameters
+            .Concat(declaringParameters)
+            .Concat(methodParameters)
+            .ToArray();
+        var bindingStart = dispatchParameters.Length;
+        var methodStart = bindingStart + declaringParameters.Length;
+        return new StaticAdapterTypeParameterPlan(
+            context,
+            sourceTypeParameters,
+            new
+            {
+                binding = Enumerable.Range(bindingStart, declaringParameters.Length).ToArray(),
+                method = Enumerable.Range(methodStart, methodParameters.Length).ToArray(),
+                invocation = Enumerable.Range(0, dispatchParameters.Length).ToArray(),
+            },
+            receiver);
+    }
+
+    static object StaticMemberTargetInvocation(
+        StaticAdapterTypeParameterPlan plan,
+        string operation,
+        int? valueParameterIndex = null)
+    {
+        return new
+        {
+            kind = "static-member",
+            operation,
+            receiver = plan.Receiver,
+            valueParameterIndex,
+        };
+    }
+
+    string StaticDispatchTypeParameterName(
+        Type type,
+        MethodInfo method,
+        GenericParameterContext context)
+    {
+        var names = type.GetGenericArguments()
+            .Where(parameter => parameter.IsGenericParameter)
+            .Select(parameter => parameter.Name)
+            .Concat(method.GetGenericArguments()
+                .Where(parameter => parameter.IsGenericParameter)
+                .Select(context.SourceName))
+            .ToHashSet(StringComparer.Ordinal);
+        var name = "TDispatch";
+        for (var suffix = 2; names.Contains(name); suffix++)
+        {
+            name = $"TDispatch{suffix}";
+        }
+        return name;
+    }
+
+    string StaticAdapterSourceName(
+        Type type,
+        string operation,
+        string memberName)
+    {
+        var typeName = ProviderSourceTypeName(type);
+        var operationName = Identifier(operation);
+        return $"__dotnet_{typeName.Length}_{typeName}_{operationName.Length}_{operationName}_{memberName.Length}_{memberName}";
+    }
+
+    static string StaticAdapterId(Type type, string targetName, string operation)
+    {
+        return $"{TargetId(type)}.{targetName}#source-{operation}";
+    }
+
+    static string StaticAdapterMetadataName(Type type, string targetName, string operation)
+    {
+        return $"{MetadataName(type)}.{targetName}#source-{operation}";
+    }
+
+    sealed record StaticAdapterTypeParameterPlan(
+        GenericParameterContext Context,
+        object[] SourceTypeParameters,
+        object SourceTypeParameterRoles,
+        object Receiver);
 
     IEnumerable<object> ConversionOperators(Type type)
     {
@@ -186,18 +564,32 @@ sealed partial class ReflectionProvider
             var indexParameters = property.GetIndexParameters();
             if (indexParameters.Length > 0)
             {
-                if (indexParameters.Length != 1)
+                if (indexParameters.Length > 1)
                 {
+                    foreach (var adapter in MultiParameterIndexerMembers(type, property, attributes))
+                    {
+                        yield return adapter;
+                    }
                     continue;
                 }
                 var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
                 var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
                 var parameters = Parameters(indexParameters, targetId);
-                var returnType = TypeRef(
-                    property.PropertyType,
-                    typeNullability: nullability.Create(property),
-                    typeNullabilityMetadata: NullableMetadata.ForProperty(property));
-                if (parameters is null || returnType is null)
+                var returnNullability = nullability.Create(property);
+                var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
+                var targetReturnType = TypeRef(
+                    UnwrapByRef(property.PropertyType),
+                    typeNullability: returnNullability,
+                    typeNullabilityMetadata: returnNullabilityMetadata);
+                var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
+                var returnType = returnPassing is null
+                    ? targetReturnType
+                    : ByRefReturnSourceType(
+                        property.PropertyType,
+                        GenericParameterContext.Empty,
+                        returnNullability,
+                        returnNullabilityMetadata);
+                if (parameters is null || returnType is null || targetReturnType is null)
                 {
                     continue;
                 }
@@ -222,22 +614,34 @@ sealed partial class ReflectionProvider
                             targetName = property.Name,
                             parameters,
                             returnType,
+                            targetReturnType = returnPassing is null ? null : targetReturnType,
+                            returnPassing,
                         },
                     },
                 };
                 continue;
             }
 
+            var propertyNullability = nullability.Create(property);
+            var propertyNullabilityMetadata = NullableMetadata.ForProperty(property);
             var typeRef = TypeRef(
-                property.PropertyType,
-                typeNullability: nullability.Create(property),
-                typeNullabilityMetadata: NullableMetadata.ForProperty(property));
-            if (typeRef is null)
+                UnwrapByRef(property.PropertyType),
+                typeNullability: propertyNullability,
+                typeNullabilityMetadata: propertyNullabilityMetadata);
+            var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
+            var sourceType = returnPassing is null
+                ? null
+                : ByRefReturnSourceType(
+                    property.PropertyType,
+                    GenericParameterContext.Empty,
+                    propertyNullability,
+                    propertyNullabilityMetadata);
+            if (typeRef is null || (returnPassing is not null && sourceType is null))
             {
                 continue;
             }
             var isStatic = accessors[0].IsStatic;
-            if ((type.IsInterface && isStatic) || (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type)))
+            if (isStatic && RequiresStaticSourceAdapter(type))
             {
                 continue;
             }
@@ -252,9 +656,109 @@ sealed partial class ReflectionProvider
                 readable = HasPublicGetter(property) ? true : (bool?)null,
                 writable = HasPublicSetter(property) ? true : (bool?)null,
                 type = typeRef,
+                sourceType,
+                returnPassing,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
+        }
+    }
+
+    IEnumerable<object> MultiParameterIndexerMembers(Type type, PropertyInfo property, AttributeCollection attributes)
+    {
+        var indexParameters = property.GetIndexParameters();
+        var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
+        var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+        var returnNullability = nullability.Create(property);
+        var returnNullabilityMetadata = NullableMetadata.ForProperty(property);
+        var targetReturnType = TypeRef(
+            UnwrapByRef(property.PropertyType),
+            typeNullability: returnNullability,
+            typeNullabilityMetadata: returnNullabilityMetadata);
+        var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
+        var sourceReturnType = returnPassing is null
+            ? targetReturnType
+            : ByRefReturnSourceType(
+                property.PropertyType,
+                GenericParameterContext.Empty,
+                returnNullability,
+                returnNullabilityMetadata);
+        if (targetReturnType is null || sourceReturnType is null)
+        {
+            yield break;
+        }
+        if (property.GetMethod is { IsPublic: true } getter)
+        {
+            var getId = $"{targetId}#get";
+            var parameters = Parameters(getter.GetParameters(), getId);
+            if (parameters is not null)
+            {
+                yield return new
+                {
+                    kind = "method",
+                    sourceName = "get",
+                    targetName = property.Name,
+                    targetId = getId,
+                    metadataName = $"{metadataName}#get",
+                    @static = getter.IsStatic ? true : (bool?)null,
+                    signatures = new[]
+                    {
+                        new
+                        {
+                            id = getId,
+                            sourceId = getId,
+                            targetName = property.Name,
+                            parameters,
+                            returnType = sourceReturnType,
+                            targetReturnType = returnPassing is null ? null : targetReturnType,
+                            returnPassing,
+                            targetInvocation = new
+                            {
+                                kind = "native-indexer-get",
+                                indexParameterIndexes = Enumerable.Range(0, indexParameters.Length).ToArray(),
+                            },
+                        },
+                    },
+                    attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                    unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
+                };
+            }
+        }
+        if (property.SetMethod is { IsPublic: true } setter)
+        {
+            var setId = $"{targetId}#set";
+            var parameters = Parameters(setter.GetParameters(), setId);
+            if (parameters is not null)
+            {
+                yield return new
+                {
+                    kind = "method",
+                    sourceName = "set",
+                    targetName = property.Name,
+                    targetId = setId,
+                    metadataName = $"{metadataName}#set",
+                    @static = setter.IsStatic ? true : (bool?)null,
+                    signatures = new[]
+                    {
+                        new
+                        {
+                            id = setId,
+                            sourceId = setId,
+                            targetName = property.Name,
+                            parameters,
+                            returnType = new { kind = "void" },
+                            targetInvocation = new
+                            {
+                                kind = "native-indexer-set",
+                                indexParameterIndexes = Enumerable.Range(0, indexParameters.Length).ToArray(),
+                                valueParameterIndex = indexParameters.Length,
+                            },
+                        },
+                    },
+                    attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                    unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
+                };
+            }
         }
     }
 
@@ -299,23 +803,15 @@ sealed partial class ReflectionProvider
         {
             return "Property has no public accessor visible to the provider.";
         }
-        if (property.PropertyType.IsByRef)
-        {
-            return "By-reference property or indexer returns require an explicit provider ref-return declaration model before they can be exposed safely.";
-        }
         var indexParameters = property.GetIndexParameters();
         if (indexParameters.Length > 0)
         {
-            if (indexParameters.Length != 1)
-            {
-                return "Indexers with multiple parameters require a provider multi-indexer declaration model before they can be exposed safely.";
-            }
             if (Parameters(indexParameters) is null)
             {
                 return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
             if (TypeRef(
-                property.PropertyType,
+                UnwrapByRef(property.PropertyType),
                 typeNullability: nullability.Create(property),
                 typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
             {
@@ -323,22 +819,17 @@ sealed partial class ReflectionProvider
             }
         }
         if (TypeRef(
-            property.PropertyType,
+            UnwrapByRef(property.PropertyType),
             typeNullability: nullability.Create(property),
             typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
         {
             return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
-        var isStatic = accessors[0].IsStatic;
-        if (type.IsInterface && isStatic)
-        {
-            return "Static interface properties require a provider static-interface-member declaration model before they can be exposed safely.";
-        }
-        if (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type))
-        {
-            return "Static properties that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
-        }
-        if (!HasPublicGetter(property))
+        if (
+            !HasPublicGetter(property) &&
+            !(accessors[0].IsStatic && RequiresStaticSourceAdapter(type) &&
+              HasPublicSetter(property))
+        )
         {
             return "Write-only properties require a provider write-only member declaration model before they can be exposed safely.";
         }
@@ -361,7 +852,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            if ((type.IsInterface && field.IsStatic) || (field.IsStatic && UsesDeclaringTypeParameter(field.FieldType, type)))
+            if (field.IsStatic && RequiresStaticSourceAdapter(type))
             {
                 continue;
             }
@@ -420,14 +911,6 @@ sealed partial class ReflectionProvider
         {
             return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
-        if (type.IsInterface && field.IsStatic)
-        {
-            return "Static interface fields require a provider static-interface-member declaration model before they can be exposed safely.";
-        }
-        if (field.IsStatic && UsesDeclaringTypeParameter(field.FieldType, type))
-        {
-            return "Static fields that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
-        }
         return null;
     }
 
@@ -435,39 +918,62 @@ sealed partial class ReflectionProvider
     {
         foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
         {
-            var eventHandlerType = eventInfo.EventHandlerType;
-            if (eventHandlerType is null)
-            {
-                continue;
-            }
-            var typeRef = TypeRef(
-                eventHandlerType,
-                requireDelegateSourceShape: false,
-                typeNullability: nullability.Create(eventInfo),
-                typeNullabilityMetadata: NullableMetadata.ForEvent(eventInfo));
-            if (typeRef is null)
-            {
-                continue;
-            }
             var accessor = EventAccessor(eventInfo);
-            if (accessor is null)
+            if (accessor?.IsStatic == true && RequiresStaticSourceAdapter(type))
             {
                 continue;
             }
-            var attributes = AttributeFacts(eventInfo.GetCustomAttributesData(), "event", EventTargetId(type, eventInfo));
+            foreach (var adapter in EventSubscriptionMembers(type, eventInfo))
+            {
+                yield return adapter;
+            }
+        }
+    }
+
+    IEnumerable<object> EventSubscriptionMembers(Type type, EventInfo eventInfo)
+    {
+        var eventId = EventTargetId(type, eventInfo);
+        var metadataName = EventMetadataName(type, eventInfo);
+        foreach (var (accessor, operation, sourcePrefix) in new[]
+        {
+            (eventInfo.AddMethod, "native-event-add", "add"),
+            (eventInfo.RemoveMethod, "native-event-remove", "remove"),
+        })
+        {
+            if (accessor is not { IsPublic: true })
+            {
+                continue;
+            }
+            var id = $"{eventId}#{sourcePrefix}";
+            var parameters = Parameters(accessor.GetParameters(), id);
+            if (parameters is null || parameters.Length != 1)
+            {
+                continue;
+            }
             yield return new
             {
-                kind = "event",
-                sourceName = SourceMemberName(eventInfo.Name),
+                kind = "method",
+                sourceName = $"{sourcePrefix}{eventInfo.Name}",
                 targetName = eventInfo.Name,
-                targetId = EventTargetId(type, eventInfo),
-                metadataName = EventMetadataName(type, eventInfo),
+                targetId = id,
+                metadataName = $"{metadataName}#{sourcePrefix}",
                 @static = accessor.IsStatic ? true : (bool?)null,
-                readable = false,
-                writable = false,
-                type = typeRef,
-                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
-                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
+                signatures = new[]
+                {
+                    new
+                    {
+                        id,
+                        sourceId = id,
+                        targetName = eventInfo.Name,
+                        parameters,
+                        returnType = new { kind = "void" },
+                        targetInvocation = new
+                        {
+                            kind = operation,
+                            handlerParameterIndex = 0,
+                        },
+                    },
+                },
             };
         }
     }
@@ -519,7 +1025,7 @@ sealed partial class ReflectionProvider
         {
             return "Event has no public add/remove accessor visible to the provider.";
         }
-        return "C# events require explicit add/remove subscription semantics; the provider records this event as unsupported until source event facts exist.";
+        return null;
     }
 
     static bool HasPublicGetter(PropertyInfo property)
@@ -536,6 +1042,7 @@ sealed partial class ReflectionProvider
     {
         return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => !method.IsSpecialName)
+            .Where(method => !method.IsStatic || !RequiresStaticSourceAdapter(type))
             .Where(method => UnsupportedMethodReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
     }
@@ -561,8 +1068,8 @@ sealed partial class ReflectionProvider
                 @static = true,
                 sourceStatic = false,
                 sourceProjection = "extension-method",
-                receiverPassing = "first-argument",
-                sourceParameterOffset = 1,
+                receiverPassing = "target-parameter",
+                sourceReceiverParameterIndex = 0,
                 targetDeclaringType,
                 signatures,
             };
@@ -624,6 +1131,86 @@ sealed partial class ReflectionProvider
             .OrderBy(OperatorId, StringComparer.Ordinal);
     }
 
+    static string OperatorProjectionGroupKey(MethodInfo method)
+    {
+        var projection = OperatorSourceProjectionFor(method);
+        return projection is null
+            ? $"unsupported:{OperatorId(method)}"
+            : $"{projection.SourceName}:{projection.ReceiverParameterIndex}";
+    }
+
+    static OperatorSourceProjection? OperatorSourceProjectionFor(MethodInfo method)
+    {
+        var descriptor = method.Name switch
+        {
+            "op_UnaryPlus" => ("operatorPlus", "prefix", "unary-plus", false),
+            "op_UnaryNegation" => ("operatorNegate", "prefix", "unary-negation", false),
+            "op_CheckedUnaryNegation" => ("checkedOperatorNegate", "prefix", "unary-negation", true),
+            "op_LogicalNot" => ("operatorNot", "prefix", "logical-not", false),
+            "op_OnesComplement" => ("operatorOnesComplement", "prefix", "ones-complement", false),
+            "op_Addition" => ("operatorAdd", "binary", "addition", false),
+            "op_CheckedAddition" => ("checkedOperatorAdd", "binary", "addition", true),
+            "op_Subtraction" => ("operatorSubtract", "binary", "subtraction", false),
+            "op_CheckedSubtraction" => ("checkedOperatorSubtract", "binary", "subtraction", true),
+            "op_Multiply" => ("operatorMultiply", "binary", "multiplication", false),
+            "op_CheckedMultiply" => ("checkedOperatorMultiply", "binary", "multiplication", true),
+            "op_Division" => ("operatorDivide", "binary", "division", false),
+            "op_Modulus" => ("operatorModulus", "binary", "modulus", false),
+            "op_BitwiseAnd" => ("operatorBitwiseAnd", "binary", "bitwise-and", false),
+            "op_BitwiseOr" => ("operatorBitwiseOr", "binary", "bitwise-or", false),
+            "op_ExclusiveOr" => ("operatorExclusiveOr", "binary", "exclusive-or", false),
+            "op_LeftShift" => ("operatorLeftShift", "binary", "left-shift", false),
+            "op_RightShift" => ("operatorRightShift", "binary", "right-shift", false),
+            "op_UnsignedRightShift" => ("operatorUnsignedRightShift", "binary", "unsigned-right-shift", false),
+            "op_Equality" => ("operatorEquals", "binary", "equality", false),
+            "op_Inequality" => ("operatorNotEquals", "binary", "inequality", false),
+            "op_LessThan" => ("operatorLessThan", "binary", "less-than", false),
+            "op_LessThanOrEqual" => ("operatorLessThanOrEqual", "binary", "less-than-or-equal", false),
+            "op_GreaterThan" => ("operatorGreaterThan", "binary", "greater-than", false),
+            "op_GreaterThanOrEqual" => ("operatorGreaterThanOrEqual", "binary", "greater-than-or-equal", false),
+            _ => ((string SourceName, string Form, string Operator, bool Checked)?)null,
+        };
+        if (descriptor is null)
+        {
+            return null;
+        }
+        var parameters = method.GetParameters();
+        var expectedArity = descriptor.Value.Form == "prefix" ? 1 : 2;
+        if (parameters.Length != expectedArity || parameters.Any(parameter => parameter.ParameterType.IsByRef))
+        {
+            return null;
+        }
+        var declaringType = method.DeclaringType!;
+        var receiverParameterIndex = Array.FindIndex(parameters, parameter =>
+            OperatorOperandBelongsToDeclaringType(UnwrapByRef(parameter.ParameterType), declaringType));
+        return receiverParameterIndex < 0
+            ? null
+            : new OperatorSourceProjection(
+                descriptor.Value.SourceName,
+                descriptor.Value.Form,
+                descriptor.Value.Operator,
+                descriptor.Value.Checked,
+                receiverParameterIndex);
+    }
+
+    static bool OperatorOperandBelongsToDeclaringType(Type operandType, Type declaringType)
+    {
+        if (operandType == declaringType)
+        {
+            return true;
+        }
+        return declaringType.IsGenericTypeDefinition &&
+            operandType.IsGenericType &&
+            operandType.GetGenericTypeDefinition() == declaringType;
+    }
+
+    sealed record OperatorSourceProjection(
+        string SourceName,
+        string Form,
+        string Operator,
+        bool Checked,
+        int ReceiverParameterIndex);
+
     IEnumerable<object> UnsupportedMethods(Type type)
     {
         foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
@@ -651,14 +1238,6 @@ sealed partial class ReflectionProvider
         if (!IsSourceIdentifier(SourceMemberName(method.Name)))
         {
             return $"CLR method name '{method.Name}' is not an exact source identifier; provider aliases must be declared explicitly rather than synthesized.";
-        }
-        if (type.IsInterface && method.IsStatic)
-        {
-            return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
-        }
-        if (method.IsStatic && UsesDeclaringTypeParameter(method, type))
-        {
-            return "Static methods that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
         }
         if (Parameters(method.GetParameters()) is null)
         {
@@ -696,9 +1275,9 @@ sealed partial class ReflectionProvider
         {
             return "Conversion operators require exactly one source parameter before provider conversion facts can be exposed safely.";
         }
-        if (UsesDeclaringTypeParameter(method, type))
+        if (OperatorSourceProjectionFor(method) is null)
         {
-            return "Operators that use declaring generic type parameters require a provider generic-operator declaration model before they can be exposed safely.";
+            return "Operator has no exact legal TypeScript adapter and C# operator-expression projection.";
         }
         if (Parameters(method.GetParameters()) is null)
         {
@@ -710,14 +1289,22 @@ sealed partial class ReflectionProvider
     string? UnsupportedReturnTypeReason(MethodInfo method, string context)
     {
         var returnType = method.ReturnType;
-        if (returnType.IsByRef)
-        {
-            return $"{context} returns '{TypeMetadataName(returnType)}' by reference; by-reference returns require an explicit provider ref-return declaration model before they can be exposed safely.";
-        }
-        return TypeRef(
-            returnType,
-            typeNullability: nullability.Create(method.ReturnParameter),
-            typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter)) is null
+        var returnNullability = nullability.Create(method.ReturnParameter);
+        var returnNullabilityMetadata = NullableMetadata.ForParameter(method.ReturnParameter);
+        var genericParameters = GenericParameterContext.ForMethod(method, method.DeclaringType!);
+        var targetType = TypeRef(
+            UnwrapByRef(returnType),
+            genericParameters: genericParameters,
+            typeNullability: returnNullability,
+            typeNullabilityMetadata: returnNullabilityMetadata);
+        var sourceType = returnType.IsByRef
+            ? ByRefReturnSourceType(
+                returnType,
+                genericParameters,
+                returnNullability,
+                returnNullabilityMetadata)
+            : targetType;
+        return targetType is null || sourceType is null
             ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
             : null;
     }
@@ -772,19 +1359,34 @@ sealed partial class ReflectionProvider
             HasRuntimeAttribute(method, typeof(System.Runtime.CompilerServices.ExtensionAttribute));
     }
 
-    object? MethodSignature(MethodInfo method, GenericParameterContext? genericParameters = null)
+    object? MethodSignature(
+        MethodInfo method,
+        GenericParameterContext? genericParameters = null,
+        object? targetInvocation = null,
+        StaticAdapterTypeParameterPlan? sourceTypeParameterPlan = null,
+        string? targetName = null)
     {
         genericParameters ??= GenericParameterContext.ForMethod(method, method.DeclaringType!);
         var id = method.IsSpecialName && method.Name.StartsWith("op_", StringComparison.Ordinal) && !IsConversionOperator(method)
             ? OperatorId(method)
             : MethodId(method);
         var parameters = Parameters(method.GetParameters(), id, genericParameters);
-        var returnType = TypeRef(
-            method.ReturnType,
+        var returnNullability = nullability.Create(method.ReturnParameter);
+        var returnNullabilityMetadata = NullableMetadata.ForParameter(method.ReturnParameter);
+        var targetReturnType = TypeRef(
+            UnwrapByRef(method.ReturnType),
             genericParameters: genericParameters,
-            typeNullability: nullability.Create(method.ReturnParameter),
-            typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter));
-        if (parameters is null || returnType is null)
+            typeNullability: returnNullability,
+            typeNullabilityMetadata: returnNullabilityMetadata);
+        var returnPassing = ReturnPassingMode(method.ReturnParameter);
+        var returnType = returnPassing is null
+            ? targetReturnType
+            : ByRefReturnSourceType(
+                method.ReturnType,
+                genericParameters,
+                returnNullability,
+                returnNullabilityMetadata);
+        if (parameters is null || returnType is null || targetReturnType is null)
         {
             return null;
         }
@@ -796,14 +1398,19 @@ sealed partial class ReflectionProvider
         {
             id,
             sourceId,
-            targetName = method.Name,
+            targetName = targetName ?? method.Name,
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
             unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
+            sourceTypeParameters = sourceTypeParameterPlan?.SourceTypeParameters,
+            sourceTypeParameterRoles = sourceTypeParameterPlan?.SourceTypeParameterRoles,
             parameters,
             returnType,
+            targetReturnType = returnPassing is null ? null : targetReturnType,
+            returnPassing,
             returnAttributes = returnAttributes.Supported.Length == 0 ? null : returnAttributes.Supported,
             unsupportedReturnAttributes = returnAttributes.Unsupported.Length == 0 ? null : returnAttributes.Unsupported,
+            targetInvocation,
         };
     }
 
@@ -1158,6 +1765,40 @@ sealed partial class ReflectionProvider
         return HasRuntimeAttribute(parameter, typeof(System.Runtime.InteropServices.InAttribute))
             ? "byref-readonly"
             : "byref-readwrite";
+    }
+
+    static string? ReturnPassingMode(ParameterInfo? parameter)
+    {
+        if (parameter is null || !parameter.ParameterType.IsByRef)
+        {
+            return null;
+        }
+        var readonlyReturn = parameter.IsIn ||
+            parameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute)) ||
+            parameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.InteropServices.InAttribute));
+        return readonlyReturn ? "byref-readonly" : "byref-readwrite";
+    }
+
+    object? ByRefReturnSourceType(
+        Type returnType,
+        GenericParameterContext genericParameters,
+        NullabilityInfo returnNullability,
+        NullableMetadata returnNullabilityMetadata)
+    {
+        var pointee = SourceShape(
+            UnwrapByRef(returnType),
+            genericParameters,
+            returnNullability,
+            returnNullabilityMetadata);
+        return pointee is null
+            ? null
+            : new
+            {
+                kind = "provider-ref",
+                moduleSpecifier = "@tsonic/core/types.js",
+                exportName = "Pointer",
+                typeArguments = new[] { pointee },
+            };
     }
 
     static MethodInfo? EventAccessor(EventInfo eventInfo)

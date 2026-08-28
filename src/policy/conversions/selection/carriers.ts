@@ -181,6 +181,7 @@ function delegateSignaturesEqual(
       target.parameters[index] !== undefined &&
       targetTypeRefEquals(parameter, target.parameters[index]!)) &&
     targetTypeRefEquals(source.returnType, target.returnType) &&
+    source.returnPassing === target.returnPassing &&
     numberListsEqual(
       source.optionalParameterIndexes ?? [],
       target.optionalParameterIndexes ?? [],

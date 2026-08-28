@@ -50,6 +50,8 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
+  readonly abstract: boolean;
+  readonly publicParameterlessConstructor: boolean;
 }
 
 export interface CsharpProjectTypeCatalog {
@@ -426,7 +428,25 @@ function projectTypeDefinition(
     typeParameterNames: Object.freeze(
       typeParameterNames.map((parameter) => host.ast.text(parameter)),
     ),
+    abstract:
+      kind === "class" && host.ast.hasModifierKind(declaration, "abstract"),
+    publicParameterlessConstructor:
+      kind === "struct" ||
+      kind === "class" && projectClassHasParameterlessConstructor(
+        host,
+        declaration,
+      ),
   });
+}
+
+function projectClassHasParameterlessConstructor(
+  host: CsharpProjectTypeCatalogHost,
+  declaration: Node,
+): boolean {
+  const constructors = host.navigation.classConstructors(declaration);
+  return constructors.kind === "resolved" &&
+    constructors.signatures.some((signature) =>
+      signature.parameters.length === 0);
 }
 
 function resolveDefinitionHeritage(

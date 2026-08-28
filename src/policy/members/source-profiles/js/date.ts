@@ -1,5 +1,6 @@
 import type {
   CsharpTargetMember,
+  TargetTypeRef,
 } from "../../../types/index.js";
 import {
   csharpJsDateTargetType,
@@ -26,6 +27,23 @@ const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const noReceiver = { kind: "none" } as const;
 const instanceReceiver = { kind: "instance" } as const;
+const dateNoArgumentRows: readonly {
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly returnType: TargetTypeRef;
+}[] = Object.freeze([
+  { sourceName: "valueOf", targetName: "valueOf", returnType: doubleType },
+  { sourceName: "getUTCFullYear", targetName: "getUTCFullYear", returnType: doubleType },
+  { sourceName: "getUTCMonth", targetName: "getUTCMonth", returnType: doubleType },
+  { sourceName: "getUTCDate", targetName: "getUTCDate", returnType: doubleType },
+  { sourceName: "getUTCDay", targetName: "getUTCDay", returnType: doubleType },
+  { sourceName: "getUTCHours", targetName: "getUTCHours", returnType: doubleType },
+  { sourceName: "getUTCMinutes", targetName: "getUTCMinutes", returnType: doubleType },
+  { sourceName: "getUTCSeconds", targetName: "getUTCSeconds", returnType: doubleType },
+  { sourceName: "getUTCMilliseconds", targetName: "getUTCMilliseconds", returnType: doubleType },
+  { sourceName: "toUTCString", targetName: "toUTCString", returnType: stringType },
+  { sourceName: "toJSON", targetName: "toJSON", returnType: stringType },
+]);
 
 export const csharpJsDateCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
@@ -133,7 +151,56 @@ export const csharpJsDateCallPolicies:
         ),
       instanceReceiver,
     ),
+    ...dateNoArgumentRows.map(({ sourceName, targetName, returnType }) =>
+      jsCallPolicy(
+        jsMemberIdentity("Date", sourceName),
+        () =>
+          instanceMethod(
+            `Tsonic.CSharp.Js.Date.${targetName}`,
+            sourceName,
+            targetName,
+            dateType,
+            [],
+            returnType,
+          ),
+        instanceReceiver,
+      )
+    ),
+    ...dateMutationPolicies(),
   ]);
+
+function dateMutationPolicies(): readonly CsharpSourceProfileCallPolicy[] {
+  const rows = [
+    ["setTime", ["time"]],
+    ["setUTCMilliseconds", ["ms"]],
+    ["setUTCSeconds", ["sec", "ms"]],
+    ["setUTCMinutes", ["min", "sec", "ms"]],
+    ["setUTCHours", ["hours", "min", "sec", "ms"]],
+    ["setUTCDate", ["date"]],
+    ["setUTCMonth", ["month", "date"]],
+    ["setUTCFullYear", ["year", "month", "date"]],
+  ] as const;
+  return rows.map(([name, parameters]) =>
+    jsCallPolicy(
+      jsMemberIdentity("Date", name),
+      () =>
+        instanceMethod(
+          `Tsonic.CSharp.Js.Date.${name}`,
+          name,
+          name,
+          dateType,
+          parameters.map((parameter, index) =>
+            targetParameter(parameter, doubleType, {
+              ...(index === 0 ? { csharpAcceptsCheckedSourceArgument: true } : {}),
+              ...(index > 0 ? { optional: true, csharpAcceptsCheckedSourceArgument: true } : {}),
+            })
+          ),
+          doubleType,
+        ),
+      instanceReceiver,
+    )
+  );
+}
 
 function dateConstructor(
   context: CsharpSourceProfileCallPolicyContext,

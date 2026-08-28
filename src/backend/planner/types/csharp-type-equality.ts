@@ -41,10 +41,17 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
       return right.kind === "PointerType" && sameCsharpType(left.pointee, right.pointee);
     case "FunctionPointerType":
       return right.kind === "FunctionPointerType" &&
+        left.callingConvention === right.callingConvention &&
+        stringListsEqual(left.callingConventionModifiers, right.callingConventionModifiers) &&
         left.parameters.length === right.parameters.length &&
         left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
         sameCsharpType(left.returnType, right.returnType);
     case "NullableType":
       return right.kind === "NullableType" && sameCsharpType(left.inner, right.inner);
   }
+}
+
+function stringListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  return (left ?? []).length === (right ?? []).length &&
+    (left ?? []).every((value, index) => value === (right ?? [])[index]);
 }

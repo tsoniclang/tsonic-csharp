@@ -108,11 +108,7 @@ export function objectShapeDeclarationMatches(
   }
   const projectionMethodNames = new Set(
     projections.map((projection) =>
-      csharpObjectShapeProjectionMethodName(
-        projection.kind,
-        projection.resultType,
-        projection.propertyOrder,
-      )
+      csharpObjectShapeProjectionMethodName(projection)
     ),
   );
   if ([...projectionMethodNames].some((name) =>
