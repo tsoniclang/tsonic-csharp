@@ -27,18 +27,6 @@ export function planCsharpStartupSourceFile(
     ? undefined
     : plannedSourcesByFileName.get(input.program.source.ast.getFileName(entrypointSourceFile));
   if (input.program.configuration.outputType === "Library") {
-    if (input.program.binaryEpilogues.length > 0) {
-      diagnostics.push({
-        code: "CSHARP_LIBRARY_BINARY_EPILOGUE_UNSUPPORTED",
-        category: "error",
-        source: "tsonic-csharp",
-        message:
-          "C# library output cannot own provider binary epilogues because a library has no compiler-owned process completion boundary.",
-        evidence: Object.freeze(input.program.binaryEpilogues.map((epilogue) =>
-          `provider.binaryEpilogue=${epilogue.id}`)),
-      });
-      return undefined;
-    }
     if (
       entrypointSourceFile === undefined ||
       entrypointPlannedSource?.hasModuleInitializer !== true
@@ -129,13 +117,15 @@ export function planCsharpStartupSourceFile(
                   "Task",
                 )
               : predefined("void"),
-            parameters: [{
-              name: "args",
-              type: {
-                kind: "ArrayType",
-                elementType: predefined("string"),
-              },
-            }],
+            parameters: workerEntries.length === 0
+              ? []
+              : [{
+                  name: "args",
+                  type: {
+                    kind: "ArrayType",
+                    elementType: predefined("string"),
+                  },
+                }],
             body: {
               kind: "Block",
               statements: [

@@ -441,8 +441,8 @@ function applyDelegateAdapter(
   if (
     sourceSignature === undefined ||
     targetSignature === undefined ||
-    sourceSignature.parameters.length !== targetSignature.parameters.length ||
-    selection.parameterConversions.length !== targetSignature.parameters.length
+    sourceSignature.parameters.length > targetSignature.parameters.length ||
+    selection.parameterConversions.length !== sourceSignature.parameters.length
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -468,7 +468,7 @@ function applyDelegateAdapter(
     return undefined;
   }
   const arguments_: CsharpArgument[] = [];
-  for (let index = 0; index < parameters.length; index += 1) {
+  for (let index = 0; index < sourceSignature.parameters.length; index += 1) {
     const parameter = parameters[index]!;
     const converted = applyCsharpConversionSelection(
       node,

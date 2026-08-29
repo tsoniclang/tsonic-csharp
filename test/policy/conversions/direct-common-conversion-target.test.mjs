@@ -176,6 +176,21 @@ test("delegate adapters reject parameter directions without exact implicit conve
   );
 });
 
+test("delegate adapters discard target callback parameters omitted by source callbacks", () => {
+  const source = csharpDelegateTargetType("System.Action", []);
+  const target = csharpDelegateTargetType("System.Action", [string, int32]);
+
+  assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
+    kind: "delegate-adapter",
+    parameterConversions: [],
+    returnConversion: { kind: "identity" },
+  });
+  assert.equal(
+    selectCsharpConversion(host, target, source, "implicit").kind,
+    "rejected",
+  );
+});
+
 test("nullable target annotations retain required delegate adaptation", () => {
   const source = csharpDelegateTargetType("System.Action", [float64]);
   const target = csharpNullableTargetType(

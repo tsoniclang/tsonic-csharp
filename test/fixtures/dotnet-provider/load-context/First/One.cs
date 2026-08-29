@@ -21,3 +21,12 @@ public class Family<TFirst, TSecond>
 
     public TSecond Second(TSecond value) => value;
 }
+
+public class ConstrainedFamily
+{
+}
+
+public class ConstrainedFamily<TValue> where TValue : System.IEquatable<TValue>
+{
+    public TValue Echo(TValue value) => value;
+}

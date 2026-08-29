@@ -204,6 +204,25 @@ export function translateCallArgument(
     selectedMapping?.kind === "by-value" &&
     selectedMapping.conversion.kind === "delegate-adapter"
   ) {
+    if (
+      delegateAdapterIsDirectlyTargetTypable(
+        expression,
+        selectedMapping,
+        input,
+      )
+    ) {
+      return planCallArgument(
+        expression,
+        sourceFile,
+        input,
+        diagnostics,
+        expectedType,
+        undefined,
+        targetType,
+        parameter.passingMode,
+        parameter,
+      );
+    }
     const sourceExpectedType = csharpTypeFromTargetTypeRef(
       selectedMapping.sourceType,
     );
@@ -252,6 +271,26 @@ export function translateCallArgument(
     parameter.passingMode,
     parameter,
   );
+}
+
+function delegateAdapterIsDirectlyTargetTypable(
+  expression: Node,
+  mapping: Extract<CsharpProviderArgumentMapping, { readonly kind: "by-value" }>,
+  input: CsharpPlanningContext,
+): boolean {
+  const sourceSignature = getCsharpDelegateSignature(mapping.sourceType);
+  const targetSignature = getCsharpDelegateSignature(mapping.targetType);
+  return (
+    input.program.source.ast.is.IsArrowFunction(expression) ||
+    input.program.source.ast.is.IsFunctionExpression(expression)
+  ) &&
+    sourceSignature !== undefined &&
+    targetSignature !== undefined &&
+    sourceSignature.parameters.length === targetSignature.parameters.length &&
+    mapping.conversion.kind === "delegate-adapter" &&
+    mapping.conversion.parameterConversions.every((conversion) =>
+      conversion.kind === "identity") &&
+    mapping.conversion.returnConversion.kind === "identity";
 }
 
 function translateEcmascriptArgumentVectorCallback(

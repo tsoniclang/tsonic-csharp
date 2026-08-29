@@ -304,6 +304,27 @@ function objectAssignMember(
     context.source.sourceResultType,
     context.sourceFile,
   );
+  if (
+    targetType !== undefined &&
+    sourceType !== undefined &&
+    resultType !== undefined &&
+    context.source.sourceArguments.length === 2 &&
+    isCsharpRecordDictionaryTargetType(targetType) &&
+    targetTypeRefEquals(targetType, sourceType) &&
+    targetTypeRefEquals(targetType, resultType)
+  ) {
+    return staticMethod(
+      `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(resultType)}`,
+      "assign",
+      "assign",
+      objectRuntimeType,
+      [
+        targetParameter("target", targetType),
+        targetParameter("source", sourceType),
+      ],
+      resultType,
+    );
+  }
   const targetShape = targetType === undefined
     ? undefined
     : context.host.objectShapes?.resolveNode(
@@ -434,7 +455,7 @@ function jsonStringifyMember(
             csharpAcceptsCheckedSourceArgument: true,
           }),
         ],
-        csharpNullableTargetType(stringType),
+        stringType,
         {
           csharpArtifactRequirements: [{
             kind: "object-shape-capability",

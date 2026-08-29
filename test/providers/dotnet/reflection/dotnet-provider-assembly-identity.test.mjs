@@ -300,6 +300,48 @@ test(".NET provider type families normalize positional type-parameter identity a
   }]);
 });
 
+test(".NET provider keeps variant-only CLR family constraints in exact target facts", () => {
+  const { firstDll } = buildLoadContextFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [firstDll], disablePersistentCache: true });
+  const binding = createDotnetSourceDeclarationProvider({ provider });
+  const requestContext = {
+    containingFile: "constrained-family.ts",
+    requestedExports: ["ConstrainedFamily"],
+  };
+  const resolution = binding.resolveModule("@tsonic/dotnet/Acme.First.js", requestContext);
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = binding.getDeclarationModel(
+    resolution,
+    completeProviderDeclarationRequest(requestContext),
+  );
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const family = model.exports
+    .filter((entry) => entry.sourceTypeFamily?.exportName === "ConstrainedFamily")
+    .sort((left, right) => left.sourceTypeFamily.typeArgumentCount - right.sourceTypeFamily.typeArgumentCount);
+  assert.deepEqual(family.map((entry) => ({
+    arity: entry.sourceTypeFamily.typeArgumentCount,
+    constraints: entry.typeParameters?.map((parameter) => parameter.constraints) ?? [],
+  })), [
+    { arity: 0, constraints: [] },
+    { arity: 1, constraints: [undefined] },
+  ]);
+
+  const rawModule = getCompleteDotnetModule(
+    provider,
+    "@tsonic/dotnet/Acme.First.js",
+    {},
+  );
+  assert.equal("exports" in rawModule, true, JSON.stringify(rawModule));
+  const generic = rawModule.exports.find((entry) =>
+    entry.metadataName === "Acme.First.ConstrainedFamily`1");
+  assert.ok(generic);
+  const targetBinding = provider.findTargetBindingByTargetId(generic.targetId);
+  assert.ok(targetBinding);
+  assert.equal(targetBinding.typeParameters?.[0]?.constraints.length, 1);
+  assert.match(JSON.stringify(targetBinding.typeParameters[0].constraints[0]), /IEquatable/u);
+});
+
 function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&

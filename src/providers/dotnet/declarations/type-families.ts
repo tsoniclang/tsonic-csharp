@@ -14,28 +14,41 @@ import {
 export function normalizeProviderTypeFamilyParameters(
   exports: readonly ProviderExportDeclaration[],
 ): readonly ProviderExportDeclaration[] {
-  const canonicalNamesByFamily = canonicalTypeParameterNamesByFamily(exports);
+  const contractsByFamily = canonicalTypeParameterContractsByFamily(exports);
   return exports.map((declaration) => {
     const family = declaration.sourceTypeFamily;
     if (family === undefined) {
       return declaration;
     }
-    const canonicalNames = canonicalNamesByFamily.get(family.exportName)?.slice(0, family.typeArgumentCount);
+    const contract = contractsByFamily.get(family.exportName);
+    if (contract === undefined) {
+      return declaration;
+    }
+    const canonicalNames = contract.canonicalNames.slice(
+      0,
+      family.typeArgumentCount,
+    );
     const typeParameters = declaration.typeParameters ?? [];
-    if (canonicalNames === undefined || canonicalNames.length !== typeParameters.length) {
+    if (canonicalNames.length !== typeParameters.length) {
       return declaration;
     }
     const renames = new Map(typeParameters.map((parameter, index) => [parameter.name, canonicalNames[index]!]));
-    if ([...renames].every(([name, canonicalName]) => name === canonicalName)) {
-      return declaration;
-    }
-    return renameProviderExportTypeParameters(declaration, typeParameters, canonicalNames, renames);
+    return renameProviderExportTypeParameters(
+      declaration,
+      typeParameters,
+      canonicalNames,
+      renames,
+      contract.minimumArity,
+    );
   });
 }
 
-function canonicalTypeParameterNamesByFamily(
+function canonicalTypeParameterContractsByFamily(
   exports: readonly ProviderExportDeclaration[],
-): ReadonlyMap<string, readonly string[]> {
+): ReadonlyMap<string, {
+  readonly canonicalNames: readonly string[];
+  readonly minimumArity: number;
+}> {
   const variantsByFamily = new Map<string, ProviderExportDeclaration[]>();
   for (const declaration of exports) {
     const family = declaration.sourceTypeFamily;
@@ -50,7 +63,13 @@ function canonicalTypeParameterNamesByFamily(
     const widestVariant = [...variants].sort((left, right) =>
       (right.typeParameters?.length ?? 0) - (left.typeParameters?.length ?? 0)
       || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))[0];
-    return [familyName, (widestVariant?.typeParameters ?? []).map((parameter) => parameter.name)];
+    return [familyName, {
+      canonicalNames: (widestVariant?.typeParameters ?? []).map(
+        (parameter) => parameter.name,
+      ),
+      minimumArity: Math.min(...variants.map((variant) =>
+        variant.sourceTypeFamily!.typeArgumentCount)),
+    }];
   }));
 }
 
@@ -59,13 +78,19 @@ function renameProviderExportTypeParameters(
   typeParameters: readonly ProviderTypeParameterDeclaration[],
   canonicalNames: readonly string[],
   renames: ReadonlyMap<string, string>,
+  minimumArity: number,
 ): ProviderExportDeclaration {
   return {
     ...declaration,
-    typeParameters: typeParameters.map((parameter, index) => ({
-      ...renameProviderTypeParameter(parameter, renames),
-      name: canonicalNames[index]!,
-    })),
+    typeParameters: typeParameters.map((parameter, index) => {
+      const renamed = renameProviderTypeParameter(parameter, renames);
+      if (index < minimumArity) {
+        return { ...renamed, name: canonicalNames[index]! };
+      }
+      const { constraints: _constraints, defaultType: _defaultType, ...common } =
+        renamed;
+      return { ...common, name: canonicalNames[index]! };
+    }),
     ...(declaration.type === undefined
       ? {}
       : { type: renameProviderTypeExpressionTypeParameters(declaration.type, renames) }),

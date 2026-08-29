@@ -19,6 +19,7 @@ import {
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
   isCsharpValueTypeTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -452,7 +453,12 @@ function nullishValueType(
     !isCsharpRuntimeNullTargetType(arm) &&
     !isCsharpRuntimeUndefinedTargetType(arm)
   );
-  return valueArms?.length === 1 ? valueArms[0] : undefined;
+  if (valueArms?.length === 1) {
+    return valueArms[0];
+  }
+  return type !== undefined && isCsharpReferenceCarrier(type)
+    ? type
+    : undefined;
 }
 
 function operatorRequiresNumericPromotion(
@@ -763,10 +769,18 @@ function isNullishCapable(type: TargetTypeRef): boolean {
   return getCsharpNullableElementTargetType(type) !== undefined ||
     isCsharpRuntimeNullTargetType(type) ||
     isCsharpRuntimeUndefinedTargetType(type) ||
+    isCsharpReferenceCarrier(type) ||
     (
       type.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpRuntimeUnionArms !== undefined
     );
+}
+
+function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
+  return type.kind === "array" ||
+    type.kind === "target-named" &&
+      !isCsharpValueTypeTargetType(type) &&
+      !isCsharpVoidTargetType(type);
 }
 
 function supportsIntrinsicEquality(

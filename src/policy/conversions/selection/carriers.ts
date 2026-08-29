@@ -175,7 +175,7 @@ export function selectDelegateConversion(
     return undefined;
   }
   if (
-    sourceSignature.parameters.length !== targetSignature.parameters.length ||
+    sourceSignature.parameters.length > targetSignature.parameters.length ||
     sourceSignature.returnPassing !== targetSignature.returnPassing ||
     !numberListsEqual(
       sourceSignature.optionalParameterIndexes ?? [],
@@ -185,11 +185,11 @@ export function selectDelegateConversion(
   ) {
     return rejectedDelegateConversion(source, target);
   }
-  const parameterConversions = targetSignature.parameters.map(
-    (targetParameter, index) => selectCsharpConversion(
+  const parameterConversions = sourceSignature.parameters.map(
+    (sourceParameter, index) => selectCsharpConversion(
       input,
-      targetParameter,
-      sourceSignature.parameters[index],
+      targetSignature.parameters[index]!,
+      sourceParameter,
       "implicit",
     ),
   );
