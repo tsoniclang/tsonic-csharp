@@ -347,7 +347,8 @@ sealed partial class ReflectionProvider
         var fieldType = TypeRef(
             field.FieldType,
             typeNullability: nullability.Create(field),
-            typeNullabilityMetadata: NullableMetadata.ForField(field));
+            typeNullabilityMetadata: NullableMetadata.ForField(field),
+            signatureEvidence: SignatureEvidence(field));
         var targetDeclaringType = TypeRef(type, requireDelegateSourceShape: false);
         if (plan is null || fieldType is null || targetDeclaringType is null)
         {
@@ -539,11 +540,13 @@ sealed partial class ReflectionProvider
             var sourceType = TypeRef(
                 UnwrapByRef(parameters[0].ParameterType),
                 typeNullability: nullability.Create(parameters[0]),
-                typeNullabilityMetadata: NullableMetadata.ForParameter(parameters[0]));
+                typeNullabilityMetadata: NullableMetadata.ForParameter(parameters[0]),
+                signatureEvidence: SignatureEvidence(parameters[0]));
             var targetType = TypeRef(
                 method.ReturnType,
                 typeNullability: nullability.Create(method.ReturnParameter),
-                typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter));
+                typeNullabilityMetadata: NullableMetadata.ForParameter(method.ReturnParameter),
+                signatureEvidence: SignatureEvidence(method.ReturnParameter));
             if (sourceType is null || targetType is null)
             {
                 continue;
@@ -650,7 +653,8 @@ sealed partial class ReflectionProvider
                 var targetReturnType = TypeRef(
                     UnwrapByRef(property.PropertyType),
                     typeNullability: returnNullability,
-                    typeNullabilityMetadata: returnNullabilityMetadata);
+                    typeNullabilityMetadata: returnNullabilityMetadata,
+                    signatureEvidence: SignatureEvidence(property));
                 var indexerReturnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
                 var returnType = indexerReturnPassing is null
                     ? targetReturnType
@@ -697,7 +701,8 @@ sealed partial class ReflectionProvider
             var typeRef = TypeRef(
                 UnwrapByRef(property.PropertyType),
                 typeNullability: propertyNullability,
-                typeNullabilityMetadata: propertyNullabilityMetadata);
+                typeNullabilityMetadata: propertyNullabilityMetadata,
+                signatureEvidence: SignatureEvidence(property));
             var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
             var sourceType = returnPassing is null
                 ? null
@@ -744,7 +749,8 @@ sealed partial class ReflectionProvider
         var targetReturnType = TypeRef(
             UnwrapByRef(property.PropertyType),
             typeNullability: returnNullability,
-            typeNullabilityMetadata: returnNullabilityMetadata);
+            typeNullabilityMetadata: returnNullabilityMetadata,
+            signatureEvidence: SignatureEvidence(property));
         var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
         var sourceReturnType = returnPassing is null
             ? targetReturnType
@@ -883,7 +889,8 @@ sealed partial class ReflectionProvider
             if (TypeRef(
                 UnwrapByRef(property.PropertyType),
                 typeNullability: nullability.Create(property),
-                typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
+                typeNullabilityMetadata: NullableMetadata.ForProperty(property),
+                signatureEvidence: SignatureEvidence(property)) is null)
             {
                 return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
             }
@@ -891,7 +898,8 @@ sealed partial class ReflectionProvider
         if (TypeRef(
             UnwrapByRef(property.PropertyType),
             typeNullability: nullability.Create(property),
-            typeNullabilityMetadata: NullableMetadata.ForProperty(property)) is null)
+            typeNullabilityMetadata: NullableMetadata.ForProperty(property),
+            signatureEvidence: SignatureEvidence(property)) is null)
         {
             return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
@@ -917,7 +925,8 @@ sealed partial class ReflectionProvider
             var typeRef = TypeRef(
                 field.FieldType,
                 typeNullability: nullability.Create(field),
-                typeNullabilityMetadata: NullableMetadata.ForField(field));
+                typeNullabilityMetadata: NullableMetadata.ForField(field),
+                signatureEvidence: SignatureEvidence(field));
             if (typeRef is null)
             {
                 continue;
@@ -977,7 +986,8 @@ sealed partial class ReflectionProvider
         if (TypeRef(
             field.FieldType,
             typeNullability: nullability.Create(field),
-            typeNullabilityMetadata: NullableMetadata.ForField(field)) is null)
+            typeNullabilityMetadata: NullableMetadata.ForField(field),
+            signatureEvidence: SignatureEvidence(field)) is null)
         {
             return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
@@ -1374,7 +1384,8 @@ sealed partial class ReflectionProvider
             UnwrapByRef(returnType),
             genericParameters: genericParameters,
             typeNullability: returnNullability,
-            typeNullabilityMetadata: returnNullabilityMetadata);
+            typeNullabilityMetadata: returnNullabilityMetadata,
+            signatureEvidence: SignatureEvidence(method.ReturnParameter));
         var sourceType = returnType.IsByRef
             ? ByRefReturnSourceType(
                 returnType,
@@ -1423,7 +1434,8 @@ sealed partial class ReflectionProvider
             if (TypeRef(
                 parameterType,
                 typeNullability: nullability.Create(parameter),
-                typeNullabilityMetadata: NullableMetadata.ForParameter(parameter)) is null)
+                typeNullabilityMetadata: NullableMetadata.ForParameter(parameter),
+                signatureEvidence: SignatureEvidence(parameter)) is null)
             {
                 return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
             }
@@ -1455,7 +1467,8 @@ sealed partial class ReflectionProvider
             UnwrapByRef(method.ReturnType),
             genericParameters: genericParameters,
             typeNullability: returnNullability,
-            typeNullabilityMetadata: returnNullabilityMetadata);
+            typeNullabilityMetadata: returnNullabilityMetadata,
+            signatureEvidence: SignatureEvidence(method.ReturnParameter));
         var returnPassing = ReturnPassingMode(method.ReturnParameter);
         var returnType = returnPassing is null
             ? targetReturnType
@@ -1604,7 +1617,8 @@ sealed partial class ReflectionProvider
                 genericParameters: genericParameters,
                 typeNullability: parameterNullability,
                 typeNullabilityMetadata: parameterNullabilityMetadata,
-                genericNullability: genericNullability);
+                genericNullability: genericNullability,
+                signatureEvidence: SignatureEvidence(parameter));
             if (type is null)
             {
                 return null;
@@ -1616,7 +1630,8 @@ sealed partial class ReflectionProvider
                 parameterNullability,
                 parameterNullabilityMetadata,
                 genericParameters,
-                genericNullability);
+                genericNullability,
+                SignatureEvidence(parameter));
             var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, index, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
@@ -1852,6 +1867,7 @@ sealed partial class ReflectionProvider
             return null;
         }
         var readonlyReturn = parameter.IsIn ||
+            HasRuntimeAttribute(parameter, typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute)) ||
             parameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute)) ||
             parameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.InteropServices.InAttribute));
         return readonlyReturn ? "byref-readonly" : "byref-readwrite";

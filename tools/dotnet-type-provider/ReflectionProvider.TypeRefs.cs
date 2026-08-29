@@ -13,7 +13,8 @@ sealed partial class ReflectionProvider
         NullabilityInfo? typeNullability = null,
         NullableMetadata? typeNullabilityMetadata = null,
         GenericNullabilityContext? genericNullability = null,
-        bool includeTopLevelReferenceNullability = true)
+        bool includeTopLevelReferenceNullability = true,
+        SignatureTypeEvidence? signatureEvidence = null)
     {
         genericParameters ??= GenericParameterContext.Empty;
         genericNullability ??= GenericNullabilityContext.Empty;
@@ -52,7 +53,8 @@ sealed partial class ReflectionProvider
                     typeNullability,
                     typeNullabilityMetadata,
                     genericNullability,
-                    includeTopLevelReferenceNullability);
+                    includeTopLevelReferenceNullability,
+                    signatureEvidence);
             }
             if (genericParameters.IsOmitted(type))
             {
@@ -73,7 +75,8 @@ sealed partial class ReflectionProvider
                 genericParameters,
                 typeNullability?.ElementType,
                 typeNullabilityMetadata?.ElementType,
-                genericNullability);
+                genericNullability,
+                signatureEvidence: signatureEvidence?.ElementType);
             return elementType is null
                 ? null
                 : ReferenceNullabilityTypeRef(
@@ -96,7 +99,8 @@ sealed partial class ReflectionProvider
                 genericParameters,
                 GenericArgumentNullability(typeNullability, 0),
                 GenericArgumentNullabilityMetadata(typeNullabilityMetadata, 0),
-                genericNullability);
+                genericNullability,
+                signatureEvidence: SignatureTypeArgument(signatureEvidence, 0));
             return elementType is null
                 ? null
                 : new { kind = "nullable", elementType };
@@ -108,45 +112,50 @@ sealed partial class ReflectionProvider
                 requireDelegateSourceShape,
                 genericParameters,
                 genericNullability: genericNullability,
-                includeTopLevelReferenceNullability: false);
+                includeTopLevelReferenceNullability: false,
+                signatureEvidence: signatureEvidence?.ElementType);
             return pointee is null
                 ? null
                 : new { kind = "pointer", pointee, mutability = "mut" };
         }
         if (type.IsFunctionPointer)
         {
-            var args = type.GetFunctionPointerParameterTypes()
-                .Select(parameter => TypeRef(
+            var functionPointer = signatureEvidence?.FunctionPointer;
+            var parameterTypes = type.GetFunctionPointerParameterTypes();
+            if (
+                functionPointer is null ||
+                functionPointer.Parameters.Length != parameterTypes.Length ||
+                StringComparer.Ordinal.Equals(functionPointer.Abi[0], "unmanaged") != type.IsUnmanagedFunctionPointer
+            )
+            {
+                return null;
+            }
+            var args = parameterTypes
+                .Select((parameter, index) => TypeRef(
                     parameter,
                     requireDelegateSourceShape,
                     genericParameters,
                     genericNullability: genericNullability,
-                    includeTopLevelReferenceNullability: false))
+                    includeTopLevelReferenceNullability: false,
+                    signatureEvidence: functionPointer.Parameters[index]))
                 .ToArray();
             var result = TypeRef(
                 type.GetFunctionPointerReturnType(),
                 requireDelegateSourceShape,
                 genericParameters,
                 genericNullability: genericNullability,
-                includeTopLevelReferenceNullability: false);
+                includeTopLevelReferenceNullability: false,
+                signatureEvidence: functionPointer.Result);
             if (result is null || args.Any(argument => argument is null))
             {
                 return null;
             }
-            var conventions = type.GetFunctionPointerCallingConventions()
-                .Select(convention => convention.Name.StartsWith("CallConv", StringComparison.Ordinal)
-                    ? convention.Name["CallConv".Length..]
-                    : convention.Name)
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToArray();
             return new
             {
                 kind = "function-pointer",
                 args,
                 result,
-                abi = type.IsUnmanagedFunctionPointer
-                    ? new[] { "unmanaged" }.Concat(conventions).ToArray()
-                    : new[] { "managed" },
+                abi = functionPointer.Abi,
             };
         }
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
@@ -157,7 +166,8 @@ sealed partial class ReflectionProvider
                 genericParameters,
                 GenericArgumentNullability(typeNullability, index),
                 GenericArgumentNullabilityMetadata(typeNullabilityMetadata, index),
-                genericNullability)).ToArray()
+                genericNullability,
+                signatureEvidence: SignatureTypeArgument(signatureEvidence, index))).ToArray()
             : Array.Empty<object?>();
         if (typeArguments.Any(argument => argument is null))
         {
@@ -454,7 +464,8 @@ sealed partial class ReflectionProvider
         NullabilityInfo parameterNullability,
         NullableMetadata parameterNullabilityMetadata,
         GenericParameterContext? genericParameters = null,
-        GenericNullabilityContext? genericNullability = null)
+        GenericNullabilityContext? genericNullability = null,
+        SignatureTypeEvidence? signatureEvidence = null)
     {
         var effectiveParameterType = EffectiveParameterType(parameterType, genericParameters);
         if (isParamsArray)
@@ -464,7 +475,8 @@ sealed partial class ReflectionProvider
                 parameterNullability,
                 parameterNullabilityMetadata,
                 genericParameters,
-                genericNullability);
+                genericNullability,
+                signatureEvidence);
         }
         if (
             IsRuntimeType(UnwrapByRef(parameterType), typeof(object)) &&
@@ -483,7 +495,8 @@ sealed partial class ReflectionProvider
             typeNullability: parameterNullability,
             typeNullabilityMetadata: parameterNullabilityMetadata,
             genericNullability: genericNullability,
-            includeTopLevelReferenceNullability: false);
+            includeTopLevelReferenceNullability: false,
+            signatureEvidence: signatureEvidence);
         return type is null ? null : SourceUndefinedUnionTypeRef(type);
     }
 
@@ -503,7 +516,8 @@ sealed partial class ReflectionProvider
         NullabilityInfo parameterNullability,
         NullableMetadata parameterNullabilityMetadata,
         GenericParameterContext? genericParameters = null,
-        GenericNullabilityContext? genericNullability = null)
+        GenericNullabilityContext? genericNullability = null,
+        SignatureTypeEvidence? signatureEvidence = null)
     {
         var elementType = parameterType.GetElementType();
         var elementNullability = elementType is null
@@ -526,7 +540,8 @@ sealed partial class ReflectionProvider
             typeNullability: elementNullability,
             typeNullabilityMetadata: elementNullabilityMetadata,
             genericNullability: genericNullability,
-            includeTopLevelReferenceNullability: false);
+            includeTopLevelReferenceNullability: false,
+            signatureEvidence: signatureEvidence?.ElementType);
         return sourceElementType is null
             ? null
             : new
@@ -837,7 +852,8 @@ sealed partial class ReflectionProvider
                 genericParameters: genericParameters,
                 typeNullability: returnNullability,
                 typeNullabilityMetadata: returnNullabilityMetadata,
-                genericNullability: genericNullability);
+                genericNullability: genericNullability,
+                signatureEvidence: SignatureEvidence(invoke.ReturnParameter));
             var returnPassing = ReturnPassingMode(invoke.ReturnParameter);
             var returnType = returnPassing is null
                 ? targetReturnType
@@ -877,6 +893,13 @@ sealed partial class ReflectionProvider
     {
         return typeNullabilityMetadata is not null && index < typeNullabilityMetadata.GenericTypeArguments.Count
             ? typeNullabilityMetadata.GenericTypeArguments[index]
+            : null;
+    }
+
+    static SignatureTypeEvidence? SignatureTypeArgument(SignatureTypeEvidence? evidence, int index)
+    {
+        return evidence?.TypeArguments is { } arguments && index < arguments.Length
+            ? arguments[index]
             : null;
     }
 

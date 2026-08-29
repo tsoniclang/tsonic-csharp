@@ -315,13 +315,6 @@ export function analyzeCsharpStorage(
           ?.declaration;
         if (
           declaration !== undefined &&
-          policy.ast.is.IsParameterDeclaration(declaration)
-        ) {
-          requireTargetType(expression, declaration, requiredStorageType);
-          return;
-        }
-        if (
-          declaration !== undefined &&
           policy.ast.is.IsVariableDeclaration(declaration)
         ) {
           const variable = policy.ast.as.AsVariableDeclaration(declaration);
@@ -334,13 +327,6 @@ export function analyzeCsharpStorage(
     }
     const reference = policy.navigation.referenceFor(expression);
     const declaration = reference?.declaration;
-    if (
-      declaration !== undefined &&
-      policy.ast.is.IsParameterDeclaration(declaration)
-    ) {
-      requireTargetType(expression, declaration, requiredStorageType);
-      return;
-    }
     if (
       declaration === undefined ||
       !policy.ast.is.IsVariableDeclaration(declaration)

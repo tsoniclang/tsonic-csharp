@@ -156,6 +156,7 @@ export function selectCsharpBinaryOperation(
     sourceOperator,
     leftType,
     rightType,
+    input,
   );
   const targetOperator = targetBinaryOperator(sourceOperator);
   if (
@@ -239,13 +240,14 @@ function selectStrictReferenceIdentity(
   operator: CsharpSourceOperator,
   left: TargetTypeRef,
   right: TargetTypeRef,
+  input: CsharpPolicyContext,
 ): Extract<CsharpTargetBinaryOperation, { readonly kind: "reference-identity" }> |
     undefined {
   if (operator !== "===" && operator !== "!==") {
     return undefined;
   }
-  const leftIdentity = referenceIdentityCarrier(left);
-  const rightIdentity = referenceIdentityCarrier(right);
+  const leftIdentity = referenceIdentityCarrier(left, input);
+  const rightIdentity = referenceIdentityCarrier(right, input);
   return leftIdentity !== undefined && rightIdentity !== undefined &&
       targetTypeRefEquals(leftIdentity, rightIdentity)
     ? { kind: "reference-identity", negated: operator === "!==" }
@@ -254,8 +256,17 @@ function selectStrictReferenceIdentity(
 
 function referenceIdentityCarrier(
   type: TargetTypeRef,
+  input: CsharpPolicyContext,
 ): TargetTypeRef | undefined {
-  if (isCsharpStringTargetType(type) || isCsharpValueTypeTargetType(type)) {
+  const providerKind = type.kind === "target-named"
+    ? input.providers.findTargetBindingByTargetId(type.id)?.kind
+    : undefined;
+  if (
+    isCsharpStringTargetType(type) ||
+    isCsharpValueTypeTargetType(type) ||
+    providerKind === "enum" ||
+    providerKind === "struct"
+  ) {
     return undefined;
   }
   const nullableElement = getCsharpNullableElementTargetType(type);

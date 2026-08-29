@@ -89,7 +89,15 @@ function csharpFunctionPointerCallingConvention(
     return modifiers.length === 0 ? { callingConvention: "managed" } : undefined;
   }
   if (kind !== "unmanaged" || modifiers.some((modifier) =>
-    !["Cdecl", "Stdcall", "Thiscall", "Fastcall", "SuppressGCTransition"].includes(modifier))) {
+    ![
+      "Cdecl",
+      "Fastcall",
+      "MemberFunction",
+      "Stdcall",
+      "SuppressGCTransition",
+      "Swift",
+      "Thiscall",
+    ].includes(modifier))) {
     return undefined;
   }
   return {
