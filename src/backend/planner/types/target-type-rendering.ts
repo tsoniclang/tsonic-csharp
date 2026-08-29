@@ -81,6 +81,9 @@ function csharpFunctionPointerCallingConvention(
   if (abi === undefined || abi.length === 0) {
     return {};
   }
+  if (abi.length === 1 && abi[0] === "target-default") {
+    return {};
+  }
   const [kind, ...modifiers] = abi;
   if (kind === "managed") {
     return modifiers.length === 0 ? { callingConvention: "managed" } : undefined;

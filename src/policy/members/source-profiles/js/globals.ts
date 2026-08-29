@@ -32,7 +32,7 @@ import {
 } from "./replacement-callback.js";
 import {
   csharpJsEventLoopBinaryEpilogue,
-} from "../../../../providers/builtins/binary-epilogues.js";
+} from "../../../../target-model/project/binary-epilogues.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");

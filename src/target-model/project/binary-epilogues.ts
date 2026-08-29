@@ -1,14 +1,14 @@
 import {
   csharpTargetNamedType,
-} from "../../target-model/types/factories.js";
+} from "../types/factories.js";
+import type {
+  CsharpTargetBinaryEpilogue,
+} from "../types/model.js";
 import {
   csharpQualifiedTypeRenderShape,
-} from "../../target-model/types/render-shapes.js";
-import type {
-  CsharpProviderBinaryEpilogue,
-} from "../model/provider-policy-contribution.js";
+} from "../types/render-shapes.js";
 
-export const csharpJsEventLoopBinaryEpilogue: CsharpProviderBinaryEpilogue =
+export const csharpJsEventLoopBinaryEpilogue: CsharpTargetBinaryEpilogue =
   Object.freeze({
     id: "tsonic.csharp.js.event-loop-v1",
     declaringType: Object.freeze(csharpTargetNamedType(

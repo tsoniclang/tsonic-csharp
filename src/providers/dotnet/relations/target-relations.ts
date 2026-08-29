@@ -300,6 +300,12 @@ function dotnetProviderMemberTargetRelationTemplates(
       const selectedTypeArgumentsCloseBinding =
         projection.targetMember.kind === "constructor" ||
         projection.targetMember.csharpInvocation?.kind === "array-creation";
+      const selectedTypeParameterCount =
+        projection.targetMember.csharpInvocation?.kind === "array-creation"
+          ? signature.typeParameters?.length ?? 0
+          : projection.targetMember.kind === "constructor"
+            ? declaration.typeParameters?.length ?? 0
+            : signature.typeParameters?.length ?? 0;
       const relationBindingTypeParameters =
         projection.targetMember.csharpInvocation?.kind === "array-creation"
           ? providerTypeParameterRelations(
@@ -337,7 +343,7 @@ function dotnetProviderMemberTargetRelationTemplates(
               ),
         methodTypeParameters,
         invocationTypeParameters: [],
-        selectedTypeParameterCount: signature.typeParameters?.length ?? 0,
+        selectedTypeParameterCount,
       };
     }));
 }

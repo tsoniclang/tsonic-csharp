@@ -34,7 +34,7 @@ export {
 } from "../providers/model/provider-policy-contribution.js";
 export type { CsharpProviderPolicyContribution } from "../providers/model/provider-policy-contribution.js";
 export type { CsharpProviderBinaryEpilogue } from "../providers/model/provider-policy-contribution.js";
-export { csharpJsEventLoopBinaryEpilogue } from "../providers/builtins/binary-epilogues.js";
+export { csharpJsEventLoopBinaryEpilogue } from "../target-model/project/binary-epilogues.js";
 export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,

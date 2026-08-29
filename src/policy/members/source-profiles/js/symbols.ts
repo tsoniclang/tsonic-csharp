@@ -3,6 +3,7 @@ import {
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -35,11 +36,9 @@ export const csharpJsSymbolCallPolicies:
             );
         const parameters = argument === undefined
           ? []
-          : argumentType?.kind === "source-primitive" &&
-              argumentType.name === "float64"
+          : argumentType !== undefined && targetTypeRefEquals(argumentType, doubleType)
             ? [targetParameter("description", doubleType)]
-            : argumentType?.kind === "target-named" &&
-                argumentType.id === stringType.id
+            : argumentType !== undefined && targetTypeRefEquals(argumentType, stringType)
               ? [targetParameter("description", stringType)]
               : undefined;
         return parameters === undefined || context.source.sourceArguments.length > 1

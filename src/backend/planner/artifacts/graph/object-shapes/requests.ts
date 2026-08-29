@@ -270,7 +270,10 @@ export function requireObjectShapeProjection(
             targetMember.member.optional !== true &&
             targetMember.member.readonly !== true &&
             targetMember.member.accessor === undefined
-          ? Object.freeze({ sourceName, targetName: sourceName })
+          ? Object.freeze({
+              sourceName: sourceMember.member.sourceName,
+              targetName: targetMember.member.sourceName,
+            })
           : undefined;
       })
     : undefined;

@@ -1341,9 +1341,17 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedOperatorReason(Type type, MethodInfo method)
     {
-        if (IsConversionOperator(method) && method.GetParameters().Length != 1)
+        if (IsConversionOperator(method))
         {
-            return "Conversion operators require exactly one source parameter before provider conversion facts can be exposed safely.";
+            if (method.GetParameters().Length != 1)
+            {
+                return "Conversion operators require exactly one source parameter before provider conversion facts can be exposed safely.";
+            }
+            if (Parameters(method.GetParameters()) is null)
+            {
+                return UnsupportedParametersReason(method.GetParameters(), "Conversion operator signature")!;
+            }
+            return UnsupportedReturnTypeReason(method, "Conversion operator return type");
         }
         if (OperatorSourceProjectionFor(method) is null)
         {

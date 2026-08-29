@@ -2,8 +2,10 @@ import {
   type AstReader,
 } from "@tsonic/tsts";
 import type {
+  Node,
   ReadonlySourceFactResolver,
   SourceFile,
+  Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -426,9 +428,10 @@ function resolveInvocationTypeArguments(
 
 function resolveSelectedTypeArguments(
   types: CsharpTypePolicy,
-  sourceArguments: ReadonlyArray<NonNullable<
-    ResolvedSourceCallInfo["sourceSelectedMethodTypeArguments"]
-  >[number]>,
+  sourceArguments: readonly {
+    readonly selectedType: Type;
+    readonly explicitTypeNode?: Node;
+  }[],
   relations: CsharpProviderSignatureRelation[
     "bindingTypeParameters"
   ],
