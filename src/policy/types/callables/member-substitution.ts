@@ -74,6 +74,17 @@ export function substituteCsharpTargetMember(
                 }),
           })),
         }),
+    ...(member.csharpBinaryEpilogues === undefined
+      ? {}
+      : {
+          csharpBinaryEpilogues: member.csharpBinaryEpilogues.map((epilogue) => ({
+            ...epilogue,
+            declaringType: substituteTargetTypeParameters(
+              epilogue.declaringType,
+              substitutions,
+            ),
+          })),
+        }),
     ...(member.csharpInvocation === undefined
       ? {}
       : member.csharpInvocation.kind === "static-factory-construction"

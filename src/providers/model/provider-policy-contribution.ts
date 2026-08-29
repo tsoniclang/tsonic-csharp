@@ -3,7 +3,9 @@ import type {
   CsharpProviderTargetRejection,
   CsharpProviderTargetRelation,
 } from "../relations/index.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
+import type {
+  CsharpTargetBinaryEpilogue,
+} from "../../target-model/types/model.js";
 import {
   freezeContributionValue,
   hasExactContributionFields,
@@ -26,11 +28,7 @@ export interface CsharpProviderPolicyContribution
   readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
 }
 
-export interface CsharpProviderBinaryEpilogue {
-  readonly id: string;
-  readonly declaringType: TargetTypeRef;
-  readonly methodName: string;
-}
+export type CsharpProviderBinaryEpilogue = CsharpTargetBinaryEpilogue;
 
 export function composeCsharpBinaryEpilogues(
   ...groups: readonly (readonly CsharpProviderBinaryEpilogue[])[]

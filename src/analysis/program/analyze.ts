@@ -90,6 +90,9 @@ import {
 import {
   analyzeCsharpSourceModuleConstructions,
 } from "../source-modules/index.js";
+import {
+  composeCsharpBinaryEpilogues,
+} from "../../providers/model/provider-policy-contribution.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -258,7 +261,10 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes,
     storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index,
-    binaryEpilogues: request.binaryEpilogues,
+    binaryEpilogues: composeCsharpBinaryEpilogues(
+      request.binaryEpilogues,
+      analysis.operations.binaryEpilogues(),
+    ),
   });
   return resolvedTargetStage(program);
 }

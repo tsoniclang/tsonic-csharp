@@ -95,6 +95,35 @@ export function planSelectedCsharpBinaryOperation(
       right: literalNumber(0),
     };
   }
+  if (selection.targetOperation.kind === "reference-identity") {
+    const left = planExpression(
+      selection.left,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    const right = planExpression(
+      selection.right,
+      sourceFile,
+      input,
+      diagnostics,
+    );
+    if (left === undefined || right === undefined) {
+      return undefined;
+    }
+    const comparison = callStatic(
+      { kind: "PredefinedType", name: "object" },
+      "ReferenceEquals",
+      [left, right],
+    );
+    return selection.targetOperation.negated
+      ? {
+          kind: "PrefixUnaryExpression",
+          operatorToken: { kind: "ExclamationToken" },
+          operand: comparison,
+        }
+      : comparison;
+  }
   const targetOperator = selection.targetOperation.operator;
   const assignmentToken = csharpAssignmentOperatorTokenFromText(
     targetOperator,

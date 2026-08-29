@@ -55,6 +55,12 @@ export type CsharpProviderArgumentMapping =
         "by-value"
       >;
       readonly proof: "storage-identity";
+    }
+  | {
+      readonly kind: "checked-source";
+      readonly effectiveArgumentIndex: number;
+      readonly targetType: TargetTypeRef;
+      readonly proof: "selected-provider-signature";
     };
 
 export type CsharpSelectedTargetCall =

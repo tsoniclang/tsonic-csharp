@@ -35,6 +35,7 @@ export type {
   CsharpCatchClause,
   CsharpForInitializer,
   CsharpLocalDeclaration,
+  CsharpLocalRefKind,
   CsharpStatement,
   CsharpSwitchLabel,
   CsharpSwitchSection,

@@ -269,20 +269,24 @@ function dotnetProviderMemberTargetRelationTemplates(
 ): readonly DotnetProviderTargetRelationTemplate[] {
   const memberKey = providerMemberKey(member.name);
   if (member.signatures === undefined) {
-    return lookup.getTargetMembersForProviderMember(member.id).map((projection) => ({
-      kind: "member",
-      exportId: declaration.id,
-      memberId: member.id,
-      memberStatic: member.static === true,
-      memberKey,
-      targetBinding: projection.targetBinding,
-      targetMember: projection.targetMember,
-      receiver: providerReceiverRelation(projection),
-      bindingTypeParameters,
-      bindingTypeArgumentSource: providerBindingTypeArgumentSource(
-        projection.targetMember,
-      ),
-    }));
+    return lookup.getTargetMembersForProviderMember(member.id).map((projection) => {
+      const receiver = providerReceiverRelation(projection);
+      return {
+        kind: "member",
+        exportId: declaration.id,
+        memberId: member.id,
+        memberStatic: member.static === true,
+        memberKey,
+        targetBinding: projection.targetBinding,
+        targetMember: projection.targetMember,
+        receiver,
+        bindingTypeParameters,
+        bindingTypeArgumentSource: providerBindingTypeArgumentSource(
+          projection.targetMember,
+          receiver,
+        ),
+      };
+    });
   }
   return member.signatures.flatMap((signature) =>
     lookup.getTargetMembersForProviderSignature(
@@ -311,6 +315,7 @@ function dotnetProviderMemberTargetRelationTemplates(
             projection.targetMember.typeParameters?.length ?? 0,
             `signature '${signature.id}'`,
           );
+      const receiver = providerReceiverRelation(projection);
       return {
         kind: "signature" as const,
         exportId: declaration.id,
@@ -320,13 +325,16 @@ function dotnetProviderMemberTargetRelationTemplates(
         signatureId: signature.id,
         targetBinding: projection.targetBinding,
         targetMember: projection.targetMember,
-        receiver: providerReceiverRelation(projection),
+        receiver,
         parameters,
         bindingTypeParameters: relationBindingTypeParameters,
         bindingTypeArgumentSource:
           selectedTypeArgumentsCloseBinding
             ? "selected-operation-type-arguments"
-            : providerBindingTypeArgumentSource(projection.targetMember),
+            : providerBindingTypeArgumentSource(
+                projection.targetMember,
+                receiver,
+              ),
         methodTypeParameters,
         invocationTypeParameters: [],
         selectedTypeParameterCount: signature.typeParameters?.length ?? 0,
@@ -343,11 +351,14 @@ export function providerSignatureProjectionKey(
 
 function providerBindingTypeArgumentSource(
   member: CsharpTargetMember,
+  receiver: CsharpTargetReceiverRelation,
 ): Exclude<
   CsharpProviderBindingTypeArgumentSource,
   "selected-operation-type-arguments"
 > {
-  return member.static === true ? "callee" : "receiver";
+  return receiver.kind !== "none" || member.static !== true
+    ? "receiver"
+    : "callee";
 }
 
 function providerTypeParameterRelations(

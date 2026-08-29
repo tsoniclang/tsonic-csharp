@@ -375,10 +375,12 @@ export function analyzeCsharpConversions(
       if (subject === undefined) {
         continue;
       }
-      const subjectType = storage.type(subject) ??
-        evidence.nodeTargetType(subject);
-      const shape = objectShapes.resolveNode(subject) ??
-        objectShapes.resolveTarget(subjectType);
+      const subjectType = requirement.projection === "assign"
+        ? member.returnType
+        : storage.type(subject) ?? evidence.nodeTargetType(subject);
+      const shape = requirement.projection === "assign"
+        ? objectShapes.resolveTarget(subjectType) ?? objectShapes.resolveNode(subject)
+        : objectShapes.resolveNode(subject) ?? objectShapes.resolveTarget(subjectType);
       if (requirement.projection === "assign") {
         const assignmentSubject = classification.target.source.sourceArguments[
           requirement.assignmentSource.index

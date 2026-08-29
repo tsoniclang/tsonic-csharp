@@ -29,6 +29,7 @@ export interface CsharpBuiltInProviderPolicy {
 const nativePointerType: TargetTypeRef = Object.freeze({
   kind: "pointer",
   pointee: Object.freeze({ kind: "type-parameter", name: "T" }),
+  mutability: "mut",
 });
 
 const nativePointerBinding: CsharpTargetBindingFact = Object.freeze({

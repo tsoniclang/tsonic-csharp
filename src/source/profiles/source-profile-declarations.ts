@@ -349,12 +349,7 @@ interface ArrayConstructor {
 }
 declare var Array: ArrayConstructor;
 
-interface ArrayLike<T> {
-  readonly length: number;
-  readonly [n: number]: T;
-}
-
-interface Map<K, V> extends Iterable<[K, V]> {
+interface Map<K, V> extends ReadonlyMap<K, V> {
   readonly size: number;
   get(key: K): V | undefined;
   set(key: K, value: V): this;
@@ -379,7 +374,7 @@ interface MapConstructor {
 }
 declare var Map: MapConstructor;
 
-interface Set<T> extends Iterable<T> {
+interface Set<T> extends ReadonlySet<T> {
   readonly size: number;
   add(value: T): this;
   has(value: T): boolean;

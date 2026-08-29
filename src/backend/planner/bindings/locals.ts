@@ -68,6 +68,22 @@ export function planLocalDeclaration(
   const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
   const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
     getTargetTypeRefForNode(input, variable.name, sourceFile);
+  const nativeRefReturn = variable.Initializer !== undefined &&
+      input.program.source.ast.variableDeclarationKind(declarationNode) === "const"
+    ? input.program.operations.nativeRefReturn(variable.Initializer)
+    : undefined;
+  if (
+    nativeRefReturn?.kind === "resolved" &&
+    nativeRefReturn.returnType === undefined
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      variable.Initializer ?? declarationNode,
+      "A selected C# native ref-return local has no closed pointee type.",
+    ));
+  }
+  const nativeRefTargetType = nativeRefReturn?.kind === "resolved"
+    ? nativeRefReturn.returnType
+    : undefined;
   const explicitType = variable.Type === undefined
     ? undefined
     : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
@@ -97,7 +113,10 @@ export function planLocalDeclaration(
       !targetTypeRefEquals(storageType, inferredTargetType)
     ? csharpTypeFromTargetTypeRef(storageType)
     : undefined;
-  const type = requiredStorageType ??
+  const type = (nativeRefTargetType === undefined
+      ? undefined
+      : csharpTypeFromTargetTypeRef(nativeRefTargetType)) ??
+    requiredStorageType ??
     inferredLambdaType ??
     explicitType ??
     constAssertionType ??
@@ -120,7 +139,7 @@ export function planLocalDeclaration(
       state,
       lambdaInitializer && variable.Type === undefined
         ? undefined
-        : expectedTargetType,
+        : nativeRefTargetType ?? expectedTargetType,
     );
   } else if (inferredTargetType !== undefined) {
     const undefinedValue = planCsharpSourceUndefinedValue(
@@ -143,6 +162,13 @@ export function planLocalDeclaration(
     name,
     type,
     ...(initializer === undefined ? {} : { initializer }),
+    ...(nativeRefReturn?.kind !== "resolved"
+      ? {}
+      : {
+          refKind: nativeRefReturn.returnPassing === "byref-readonly"
+            ? "ref-readonly" as const
+            : "ref" as const,
+        }),
   };
 }
 
@@ -191,6 +217,7 @@ export function planLocalDeclarationStatements(
         ...(local.initializer === undefined
           ? {}
           : { initializer: local.initializer }),
+        ...(local.refKind === undefined ? {} : { refKind: local.refKind }),
       },
       ...(registration === undefined ? [] : [registration]),
     ];
@@ -257,6 +284,7 @@ export function planLocalDeclarationStatements(
         name: local.name,
         type: local.type,
         initializer,
+        ...(local.refKind === undefined ? {} : { refKind: local.refKind }),
       },
     ];
   }
@@ -311,6 +339,7 @@ export function planLocalDeclarationStatements(
       name: local.name,
       type: local.type,
       ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
+      ...(local.refKind === undefined ? {} : { refKind: local.refKind }),
     },
   ];
 }

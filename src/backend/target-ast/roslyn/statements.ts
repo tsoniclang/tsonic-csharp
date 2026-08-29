@@ -12,7 +12,7 @@ export type CsharpStatement =
   | { readonly kind: "YieldReturnStatement"; readonly expression: CsharpExpression }
   | { readonly kind: "YieldBreakStatement" }
   | { readonly kind: "ExpressionStatement"; readonly expression: CsharpExpression }
-  | { readonly kind: "LocalDeclarationStatement"; readonly name: string; readonly type: CsharpTypeNode; readonly initializer?: CsharpExpression }
+  | { readonly kind: "LocalDeclarationStatement"; readonly name: string; readonly type: CsharpTypeNode; readonly initializer?: CsharpExpression; readonly refKind?: CsharpLocalRefKind }
   | { readonly kind: "Block"; readonly body: CsharpBlock }
   | { readonly kind: "UnsafeStatement"; readonly body: CsharpBlock }
   | { readonly kind: "BreakStatement" }
@@ -76,4 +76,7 @@ export interface CsharpLocalDeclaration {
   readonly name: string;
   readonly type: CsharpTypeNode;
   readonly initializer?: CsharpExpression;
+  readonly refKind?: CsharpLocalRefKind;
 }
+
+export type CsharpLocalRefKind = "ref" | "ref-readonly";

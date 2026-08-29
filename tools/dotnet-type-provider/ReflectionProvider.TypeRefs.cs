@@ -456,6 +456,7 @@ sealed partial class ReflectionProvider
         GenericParameterContext? genericParameters = null,
         GenericNullabilityContext? genericNullability = null)
     {
+        var effectiveParameterType = EffectiveParameterType(parameterType, genericParameters);
         if (isParamsArray)
         {
             return NullableParamsArrayParameterSourceTypeRef(
@@ -467,12 +468,12 @@ sealed partial class ReflectionProvider
         }
         if (
             IsRuntimeType(UnwrapByRef(parameterType), typeof(object)) &&
-            ParameterAllowsSourceUndefined(parameterType, parameterNullability, parameterNullabilityMetadata)
+            ParameterAllowsSourceUndefined(effectiveParameterType, parameterNullability, parameterNullabilityMetadata)
         )
         {
             return new { kind = "unknown" };
         }
-        if (!ParameterAllowsSourceUndefined(parameterType, parameterNullability, parameterNullabilityMetadata))
+        if (!ParameterAllowsSourceUndefined(effectiveParameterType, parameterNullability, parameterNullabilityMetadata))
         {
             return null;
         }
@@ -484,6 +485,17 @@ sealed partial class ReflectionProvider
             genericNullability: genericNullability,
             includeTopLevelReferenceNullability: false);
         return type is null ? null : SourceUndefinedUnionTypeRef(type);
+    }
+
+    static Type EffectiveParameterType(
+        Type parameterType,
+        GenericParameterContext? genericParameters)
+    {
+        parameterType = UnwrapByRef(parameterType);
+        return parameterType.IsGenericParameter &&
+            genericParameters?.TryGetSubstitution(parameterType, out var substitution) == true
+                ? UnwrapByRef(substitution)
+                : parameterType;
     }
 
     object? NullableParamsArrayParameterSourceTypeRef(

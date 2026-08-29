@@ -132,9 +132,11 @@ test("advanced .NET API contracts close through provider selection and C# syntax
   assert.match(output, /matrix\[0, 1\] = 42/);
   assert.match(output, /return matrix\[0, 1\]/);
   assert.match(output, /return value\[2, 3\]/);
-  assert.match(output, /value\.ValueRef\(\) = 9/);
-  assert.match(output, /value\.Changed \+= callback/);
-  assert.match(output, /value\.Changed -= callback/);
+  assert.match(output, /ref int slot = ref value\.ValueRef\(\)/);
+  assert.match(output, /slot = 9/);
+  assert.match(output, /value\.Changed \+= \(int __tsonic_arg0\) => callback\(__tsonic_arg0\)/);
+  assert.match(output, /value\.Changed -= \(int __tsonic_arg0\) => callback\(__tsonic_arg0\)/);
+  assert.match(output, /events\([^)]*Action<double> callback\)/);
   assert.match(output, /return left \+ right/);
   assert.match(output, /StaticInterfaceImplementation\.Create\(\)/);
   assert.match(output, /StaticInterfaceImplementation\.StaticCount/);

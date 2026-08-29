@@ -50,6 +50,7 @@ import {
   getCsharpTaskResultTargetType,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
+  targetTypeRefKey,
 } from "../../../target-model/types/index.js";
 import {
   csharpSourceTypeArgumentNodes,
@@ -526,7 +527,7 @@ function createLambdaPlanningContext(
     if (!targetTypeRefEquals(sealedTarget, binding.targetType)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         binding.declaration,
-        "The sealed lambda parameter representation conflicts with its exact selected C# delegate parameter representation.",
+        `The sealed lambda parameter representation '${targetTypeRefKey(sealedTarget)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(binding.targetType)}'.`,
       ));
       return undefined;
     }

@@ -71,7 +71,8 @@ test("the JavaScript surface closes identity, binary, collection, Date, and obje
   assert.match(source, /Tsonic\.CSharp\.Js\.Uint32Array/u);
   assert.match(source, /Tsonic\.CSharp\.Js\.Set/u);
   assert.match(source, /Tsonic\.CSharp\.Js\.Date/u);
-  assert.match(source, /Object\.assign/u);
+  assert.match(source, /\.__tsonicObjectAssign_/u);
+  assert.match(source, /object\.ReferenceEquals/u);
 });
 
 test("JavaScript capability globals remain absent from the native C# source profile", () => {
@@ -94,6 +95,7 @@ test("JavaScript capability globals remain absent from the native C# source prof
 test("the JavaScript surface closes Promise, Intl, JSON, console, and timer APIs", () => {
   const compiled = compileCsharpSource({
     surface: "js",
+    targetOptions: { outputType: "Exe" },
     sourceText: `
       export async function asynchronous(): Promise<string> {
         const first = Promise.resolve(1);
@@ -134,11 +136,13 @@ test("the JavaScript surface closes Promise, Intl, JSON, console, and timer APIs
 
   assertCsharpCompilationSucceeded(compiled);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  const program = [...compiled.artifacts.values()].join("\n");
   assert.match(source, /PromiseRuntime/u);
   assert.match(source, /IntlDateTimeFormat/u);
   assert.match(source, /IntlNumberFormat/u);
   assert.match(source, /IntlCollator/u);
   assert.match(source, /JSON\.stringify/u);
   assert.match(source, /Timers/u);
-  assert.match(source, /Console/u);
+  assert.match(program, /JsEventLoop\.Run/u);
+  assert.match(source, /Tsonic\.CSharp\.Js\.console/u);
 });

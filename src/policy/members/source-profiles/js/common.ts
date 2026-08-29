@@ -272,7 +272,8 @@ export function staticMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
+    "typeParameters" | "csharpArtifactRequirements" | "csharpBinaryEpilogues" |
+      "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
   return Object.freeze({
@@ -317,7 +318,8 @@ export function receiverHelperMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
+    "typeParameters" | "csharpArtifactRequirements" | "csharpBinaryEpilogues" |
+      "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
   return Object.freeze({

@@ -6,16 +6,26 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    ISet<string> CompleteSourceTargetIds(Type[] allTypes, ISet<string> sourceExportableTargetIds)
+    ISet<string> CompleteSourceTargetIds(
+        Type[] allTypes,
+        ISet<string> sourceExportableTargetIds,
+        IReadOnlyDictionary<string, StaticSourceAdapterIdentity[]> staticAdapterIdentitiesByTargetId)
     {
         var completeExports = request.CompleteExports.ToHashSet(StringComparer.Ordinal);
         var completeExportIds = request.CompleteExportIds.ToHashSet(StringComparer.Ordinal);
+        var requestedExports = request.Exports.ToHashSet(StringComparer.Ordinal);
+        var requestedTargetIds = request.TargetIds.ToHashSet(StringComparer.Ordinal);
         var allTypesByTargetId = allTypes.ToDictionary(TargetId, StringComparer.Ordinal);
         var completeTargetIds = allTypes
             .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
             .Where(type => request.CompleteAllExports ||
                 completeExports.Contains(ProviderSourceExportName(type)) ||
-                completeExportIds.Contains(TargetId(type)))
+                completeExportIds.Contains(TargetId(type)) ||
+                staticAdapterIdentitiesByTargetId[TargetId(type)].Any(identity =>
+                    requestedExports.Contains(identity.SourceName) ||
+                    requestedTargetIds.Contains(identity.TargetId) ||
+                    completeExports.Contains(identity.SourceName) ||
+                    completeExportIds.Contains(identity.TargetId)))
             .Select(TargetId)
             .ToHashSet(StringComparer.Ordinal);
         var pending = new Queue<string>(completeTargetIds);

@@ -7,9 +7,12 @@ import {
   selectCsharpFlowReadConversion,
 } from "../../../dist/policy/conversions/index.js";
 import {
+  csharpDelegateTargetType,
+  csharpExceptionTargetType,
   csharpSourcePrimitiveTargetType,
   csharpNullableTargetType,
   csharpTargetNamedType,
+  csharpTsValueTargetType,
   csharpRuntimeUnionTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
@@ -140,6 +143,50 @@ test("native arrays convert only through explicit target input capability", () =
     ).kind,
     "rejected",
   );
+});
+
+test("delegate adapters retain exact contravariant parameter conversions", () => {
+  const source = csharpDelegateTargetType(
+    "System.Action",
+    [csharpTsValueTargetType(), string, float64],
+  );
+  const target = csharpDelegateTargetType(
+    "System.Action",
+    [csharpNullableTargetType(csharpExceptionTargetType()), string, int32],
+  );
+
+  assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
+    kind: "delegate-adapter",
+    parameterConversions: [
+      { kind: "js-value-box" },
+      { kind: "identity" },
+      { kind: "implicit", proof: "numeric" },
+    ],
+    returnConversion: { kind: "identity" },
+  });
+});
+
+test("delegate adapters reject parameter directions without exact implicit conversions", () => {
+  const source = csharpDelegateTargetType("System.Action", [int32]);
+  const target = csharpDelegateTargetType("System.Action", [string]);
+
+  assert.equal(
+    selectCsharpConversion(host, source, target, "implicit").kind,
+    "rejected",
+  );
+});
+
+test("nullable target annotations retain required delegate adaptation", () => {
+  const source = csharpDelegateTargetType("System.Action", [float64]);
+  const target = csharpNullableTargetType(
+    csharpDelegateTargetType("System.Action", [int32]),
+  );
+
+  assert.deepEqual(selectCsharpConversion(host, source, target, "implicit"), {
+    kind: "delegate-adapter",
+    parameterConversions: [{ kind: "implicit", proof: "numeric" }],
+    returnConversion: { kind: "identity" },
+  });
 });
 
 test("flow reads project one exact runtime-union arm", () => {

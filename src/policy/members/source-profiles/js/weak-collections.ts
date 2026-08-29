@@ -43,11 +43,13 @@ export const csharpJsWeakCollectionCallPolicies:
       jsConstructIdentity("WeakMapConstructor"),
       weakMapConstructor,
       noReceiver,
+      { targetParameterBySourceParameter: weakConstructorParameterMapping },
     ),
     jsCallPolicy(
       jsConstructIdentity("WeakSetConstructor"),
       weakSetConstructor,
       noReceiver,
+      { targetParameterBySourceParameter: weakConstructorParameterMapping },
     ),
     jsCallPolicy(
       jsMemberIdentity("WeakMap", "get"),
@@ -245,6 +247,12 @@ function weakConstructorParameters(
       ? csharpNullableTargetType(collection)
       : collection,
   )];
+}
+
+function weakConstructorParameterMapping(
+  context: CsharpSourceProfileCallPolicyContext,
+): readonly (number | undefined)[] {
+  return context.source.sourceArguments.length === 0 ? [undefined] : [0];
 }
 
 function weakMapTypeArguments(

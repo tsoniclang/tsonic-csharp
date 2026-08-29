@@ -41,7 +41,11 @@ export type CsharpConversionSelection =
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
     }
-  | { readonly kind: "delegate-adapter" }
+  | {
+      readonly kind: "delegate-adapter";
+      readonly parameterConversions: readonly CsharpConversionSelection[];
+      readonly returnConversion: CsharpConversionSelection;
+    }
   | {
       readonly kind: "provider-argument-adapter";
       readonly adapter: CsharpProviderArgumentAdapter;

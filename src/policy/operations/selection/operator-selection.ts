@@ -18,6 +18,7 @@ import {
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
+  isCsharpValueTypeTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -65,6 +66,10 @@ export type CsharpTargetBinaryOperation =
   | {
       readonly kind: "nullish-test";
       readonly operand: "left" | "right";
+      readonly negated: boolean;
+    }
+  | {
+      readonly kind: "reference-identity";
       readonly negated: boolean;
     };
 
@@ -147,6 +152,11 @@ export function selectCsharpBinaryOperation(
     leftType,
     rightType,
   );
+  const referenceIdentity = selectStrictReferenceIdentity(
+    sourceOperator,
+    leftType,
+    rightType,
+  );
   const targetOperator = targetBinaryOperator(sourceOperator);
   if (
     nullishTest === undefined &&
@@ -192,6 +202,7 @@ export function selectCsharpBinaryOperation(
     nullishResultType,
   );
   const incompatibility = nullishTest === undefined
+      && referenceIdentity === undefined
     ? validateBinaryTargetSemantics(
         sourceOperator,
         operationTypes.leftInputType,
@@ -203,7 +214,7 @@ export function selectCsharpBinaryOperation(
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperation: nullishTest ?? stringRelational ?? {
+        targetOperation: nullishTest ?? referenceIdentity ?? stringRelational ?? {
           kind: "operator",
           operator: targetOperator!,
         },
@@ -222,6 +233,39 @@ export function selectCsharpBinaryOperation(
           ),
       }
     : rejected(incompatibility);
+}
+
+function selectStrictReferenceIdentity(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+): Extract<CsharpTargetBinaryOperation, { readonly kind: "reference-identity" }> |
+    undefined {
+  if (operator !== "===" && operator !== "!==") {
+    return undefined;
+  }
+  const leftIdentity = referenceIdentityCarrier(left);
+  const rightIdentity = referenceIdentityCarrier(right);
+  return leftIdentity !== undefined && rightIdentity !== undefined &&
+      targetTypeRefEquals(leftIdentity, rightIdentity)
+    ? { kind: "reference-identity", negated: operator === "!==" }
+    : undefined;
+}
+
+function referenceIdentityCarrier(
+  type: TargetTypeRef,
+): TargetTypeRef | undefined {
+  if (isCsharpStringTargetType(type) || isCsharpValueTypeTargetType(type)) {
+    return undefined;
+  }
+  const nullableElement = getCsharpNullableElementTargetType(type);
+  const carrier = nullableElement !== undefined &&
+      !isCsharpValueTypeTargetType(nullableElement)
+    ? nullableElement
+    : type;
+  return carrier.kind === "target-named" || carrier.kind === "array"
+    ? carrier
+    : undefined;
 }
 
 export function selectCsharpDestructuringAssignmentOperation(

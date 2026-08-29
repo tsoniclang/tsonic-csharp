@@ -200,6 +200,47 @@ export function translateCallArgument(
       ? undefined
       : { kind: "Argument", expression: adapted };
   }
+  if (
+    selectedMapping?.kind === "by-value" &&
+    selectedMapping.conversion.kind === "delegate-adapter"
+  ) {
+    const sourceExpectedType = csharpTypeFromTargetTypeRef(
+      selectedMapping.sourceType,
+    );
+    if (sourceExpectedType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        "Exact provider delegate adaptation requires a renderable source callable carrier.",
+      ));
+      return undefined;
+    }
+    const sourceArgument = planCallArgument(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      sourceExpectedType,
+      undefined,
+      selectedMapping.sourceType,
+      "by-value",
+    );
+    if (sourceArgument === undefined) {
+      return undefined;
+    }
+    const adapted = applyCsharpConversionSelection(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      selectedMapping.sourceType,
+      selectedMapping.targetType,
+      selectedMapping.conversion,
+      sourceArgument.expression,
+    );
+    return adapted === undefined
+      ? undefined
+      : { kind: "Argument", expression: adapted };
+  }
   return planCallArgument(
     expression,
     sourceFile,

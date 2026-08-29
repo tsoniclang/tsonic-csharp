@@ -22,6 +22,9 @@ import {
   invalidCsharpType,
   nullableCsharpType,
 } from "../types/index.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../types/target-types.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
@@ -59,7 +62,7 @@ export function planParametersWithPrelude(
     diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, parameterNode!, "parameter declaration", diagnostics);
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
-      const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics);
+      const type = getParameterType(parameterNode, typeSubject, questionToken, sourceFile, input, diagnostics);
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -87,7 +90,7 @@ export function planParametersWithPrelude(
       const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.program.source.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
-      const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
+      const type = getParameterType(parameterNode, typeSubject, questionToken, sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -106,7 +109,7 @@ export function planParametersWithPrelude(
       continue;
     }
     const typeSubject = getParameterTypeSubject(parameter);
-    const type = getParameterType(typeSubject, questionToken, sourceFile, input, diagnostics);
+    const type = getParameterType(parameterNode, typeSubject, questionToken, sourceFile, input, diagnostics);
     const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
@@ -133,6 +136,7 @@ function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsPara
 }
 
 function getParameterType(
+  parameterNode: Node | undefined,
   typeSubject: Node | undefined,
   questionToken: Node | undefined,
   sourceFile: SourceFile,
@@ -140,7 +144,12 @@ function getParameterType(
   diagnostics: TargetDiagnostic[],
   errorType?: CsharpTypeNode,
 ): CsharpTypeNode {
-  const type = getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics);
+  const requiredType = parameterNode === undefined
+    ? undefined
+    : input.program.storage.requiredType(parameterNode);
+  const type = requiredType === undefined
+    ? getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics)
+    : csharpTypeFromTargetTypeRef(requiredType) ?? invalidCsharpType("required parameter storage type");
   return questionToken === undefined ? type : nullableCsharpType(type);
 }
 

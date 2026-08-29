@@ -723,7 +723,7 @@ function registerSelectedCallArtifacts(
     }
     const result = input.artifacts.requireObjectShapeProjection(
       subject,
-      targetType,
+      requirement.projection === "assign" ? member.returnType : targetType,
       sourceFile,
       requirement.projection,
       member.returnType,

@@ -138,12 +138,18 @@ function printCsharpSwitchSection(
 }
 
 function printCsharpLocalDeclaration(
-  local: Pick<CsharpLocalDeclaration, "name" | "type" | "initializer">,
+  local: Pick<CsharpLocalDeclaration, "name" | "type" | "initializer" | "refKind">,
   context: CsharpPrintContext,
 ): string {
+  const referencePrefix = local.refKind === "ref-readonly"
+    ? "ref readonly "
+    : local.refKind === "ref"
+      ? "ref "
+      : "";
+  const initializerPrefix = local.refKind === undefined ? "" : "ref ";
   return local.initializer === undefined
-    ? `${context.printType(local.type)} ${local.name}`
-    : `${context.printType(local.type)} ${local.name} = ${context.printExpression(local.initializer)}`;
+    ? `${referencePrefix}${context.printType(local.type)} ${local.name}`
+    : `${referencePrefix}${context.printType(local.type)} ${local.name} = ${initializerPrefix}${context.printExpression(local.initializer)}`;
 }
 
 function printCsharpForInitializer(

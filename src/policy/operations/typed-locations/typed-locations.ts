@@ -3,6 +3,9 @@ import type {
   SourceFile,
   Type,
 } from "@tsonic/tsts";
+import {
+  AsVariableDeclaration,
+} from "@tsonic/target-api/source";
 import type {
   CsharpPolicyContext,
 } from "../../context.js";
@@ -129,10 +132,20 @@ export function selectCsharpTypedLocationOperation(
       `The selected '${source.sourceOperation}' operation has no accepted C# target contract.`,
     );
   }
+  const nativeLocation = source.kind === "location-load" ||
+      source.kind === "location-store"
+    ? selectCsharpNativeRefReturn(input, source.locationExpression, sourceFile)
+    : undefined;
+  if (nativeLocation?.kind === "rejected") {
+    return rejected(source.kind, nativeLocation.reason);
+  }
   const pointeeType = input.types.resolveTypedLocationOperationPointee(
     source,
     sourceFile,
-  );
+  ) ?? (source.explicitPointeeTypeNode === undefined &&
+      nativeLocation?.kind === "resolved"
+    ? nativeLocation.returnType
+    : undefined);
   if (pointeeType === undefined) {
     return rejected(
       source.kind,
@@ -200,6 +213,7 @@ export function selectCsharpTypedLocationOperation(
         pointeeType,
         locationType,
         sourceFile,
+        nativeLocation,
       );
       if (location.kind === "rejected") {
         return rejected(
@@ -289,8 +303,9 @@ function selectCsharpTypedLocationOperand(
   pointeeType: TargetTypeRef,
   locationType: TargetTypeRef,
   sourceFile: SourceFile,
+  preselectedNative?: CsharpNativeRefReturnSelection,
 ): CsharpTypedLocationOperandSelection {
-  const native = selectCsharpNativeRefReturn(
+  const native = preselectedNative ?? selectCsharpNativeRefReturn(
     input,
     expression,
     sourceFile,
@@ -337,7 +352,7 @@ function selectCsharpTypedLocationOperand(
       };
 }
 
-type CsharpNativeRefReturnSelection =
+export type CsharpNativeRefReturnSelection =
   | {
       readonly kind: "resolved";
       readonly targetIdentity: string;
@@ -347,11 +362,33 @@ type CsharpNativeRefReturnSelection =
   | { readonly kind: "not-native" }
   | { readonly kind: "rejected"; readonly reason: string };
 
-function selectCsharpNativeRefReturn(
+export function selectCsharpNativeRefReturn(
   input: CsharpPolicyContext,
   expression: Node,
   sourceFile: SourceFile,
+  visited: WeakSet<Node> = new WeakSet<Node>(),
 ): CsharpNativeRefReturnSelection {
+  if (visited.has(expression)) {
+    return {
+      kind: "rejected",
+      reason: "A C# native ref-return alias contains a declaration cycle.",
+    };
+  }
+  visited.add(expression);
+  if (input.ast.is.IsIdentifier(expression)) {
+    const declaration = input.navigation.referenceFor(expression)?.declaration;
+    if (
+      declaration === undefined ||
+      !input.ast.is.IsVariableDeclaration(declaration) ||
+      input.ast.variableDeclarationKind(declaration) !== "const"
+    ) {
+      return { kind: "not-native" };
+    }
+    const initializer = AsVariableDeclaration(input.ast, declaration)?.Initializer;
+    return initializer === undefined
+      ? { kind: "not-native" }
+      : selectCsharpNativeRefReturn(input, initializer, sourceFile, visited);
+  }
   if (input.ast.is.IsCallExpression(expression)) {
     const selection = selectCsharpTargetCall(input, expression, sourceFile);
     if (selection.kind === "resolved" && selection.call.origin === "provider") {

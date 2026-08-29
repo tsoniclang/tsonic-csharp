@@ -7,6 +7,71 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
+    sealed record StaticSourceAdapterIdentity(string SourceName, string TargetId);
+
+    IEnumerable<StaticSourceAdapterIdentity> StaticSourceAdapterIdentities(Type type)
+    {
+        if (!RequiresStaticSourceAdapter(type))
+        {
+            yield break;
+        }
+
+        foreach (var group in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .Where(method => UnsupportedMethodReason(type, method) is null)
+            .OrderBy(MethodId, StringComparer.Ordinal)
+            .GroupBy(method => method.Name, StringComparer.Ordinal))
+        {
+            yield return StaticAdapterIdentity(type, "call", group.First().Name);
+        }
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(property => property.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedPropertyReason(type, property) is not null)
+            {
+                continue;
+            }
+            if (property.GetMethod is { IsPublic: true })
+            {
+                yield return StaticAdapterIdentity(type, "property-get", property.Name);
+            }
+            if (property.SetMethod is { IsPublic: true })
+            {
+                yield return StaticAdapterIdentity(type, "property-set", property.Name);
+            }
+        }
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(field => !field.IsSpecialName)
+            .OrderBy(field => field.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedFieldReason(type, field) is not null)
+            {
+                continue;
+            }
+            yield return StaticAdapterIdentity(type, "field-get", field.Name);
+            if (!field.IsLiteral && !field.IsInitOnly)
+            {
+                yield return StaticAdapterIdentity(type, "field-set", field.Name);
+            }
+        }
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            if (UnsupportedSourceEventReason(eventInfo) is not null)
+            {
+                continue;
+            }
+            if (eventInfo.AddMethod is { IsPublic: true })
+            {
+                yield return StaticAdapterIdentity(type, "event-add", eventInfo.Name);
+            }
+            if (eventInfo.RemoveMethod is { IsPublic: true })
+            {
+                yield return StaticAdapterIdentity(type, "event-remove", eventInfo.Name);
+            }
+        }
+    }
+
     IEnumerable<object> Members(Type type)
     {
         foreach (var member in Constructors(type))
@@ -222,12 +287,12 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
-            var adapterId = StaticAdapterId(type, first.Name, "call");
+            var identity = StaticAdapterIdentity(type, "call", first.Name);
             yield return new
             {
                 kind = "function",
-                sourceName = StaticAdapterSourceName(type, "call", first.Name),
-                targetId = adapterId,
+                sourceName = identity.SourceName,
+                targetId = identity.TargetId,
                 metadataName = StaticAdapterMetadataName(type, first.Name, "call"),
                 targetName = first.Name,
                 targetBindingId = TargetId(type),
@@ -262,15 +327,12 @@ sealed partial class ReflectionProvider
         {
             return null;
         }
-        var adapterId = StaticAdapterId(type, targetName, operation);
+        var identity = StaticAdapterIdentity(type, operation, targetName);
         return new
         {
             kind = "function",
-            sourceName = StaticAdapterSourceName(
-                type,
-                operation,
-                targetName),
-            targetId = adapterId,
+            sourceName = identity.SourceName,
+            targetId = identity.TargetId,
             metadataName = StaticAdapterMetadataName(type, targetName, operation),
             targetName,
             targetBindingId = TargetId(type),
@@ -292,7 +354,8 @@ sealed partial class ReflectionProvider
             return null;
         }
         var operation = write ? "property-set" : "property-get";
-        var adapterId = StaticAdapterId(type, field.Name, operation);
+        var identity = StaticAdapterIdentity(type, write ? "field-set" : "field-get", field.Name);
+        var adapterId = identity.TargetId;
         var parameters = write
             ? new object[]
             {
@@ -321,10 +384,7 @@ sealed partial class ReflectionProvider
         return new
         {
             kind = "function",
-            sourceName = StaticAdapterSourceName(
-                type,
-                write ? "field-set" : "field-get",
-                field.Name),
+            sourceName = identity.SourceName,
             targetId = adapterId,
             metadataName = StaticAdapterMetadataName(type, field.Name, operation),
             targetName = field.Name,
@@ -436,6 +496,16 @@ sealed partial class ReflectionProvider
         var typeName = ProviderSourceTypeName(type);
         var operationName = Identifier(operation);
         return $"__dotnet_{typeName.Length}_{typeName}_{operationName.Length}_{operationName}_{memberName.Length}_{memberName}";
+    }
+
+    StaticSourceAdapterIdentity StaticAdapterIdentity(
+        Type type,
+        string operation,
+        string memberName)
+    {
+        return new StaticSourceAdapterIdentity(
+            StaticAdapterSourceName(type, operation, memberName),
+            StaticAdapterId(type, memberName, operation));
     }
 
     static string StaticAdapterId(Type type, string targetName, string operation)
@@ -581,8 +651,8 @@ sealed partial class ReflectionProvider
                     UnwrapByRef(property.PropertyType),
                     typeNullability: returnNullability,
                     typeNullabilityMetadata: returnNullabilityMetadata);
-                var returnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
-                var returnType = returnPassing is null
+                var indexerReturnPassing = ReturnPassingMode(property.GetMethod?.ReturnParameter);
+                var returnType = indexerReturnPassing is null
                     ? targetReturnType
                     : ByRefReturnSourceType(
                         property.PropertyType,
@@ -614,8 +684,8 @@ sealed partial class ReflectionProvider
                             targetName = property.Name,
                             parameters,
                             returnType,
-                            targetReturnType = returnPassing is null ? null : targetReturnType,
-                            returnPassing,
+                            targetReturnType = indexerReturnPassing is null ? null : targetReturnType,
+                            returnPassing = indexerReturnPassing,
                         },
                     },
                 };
@@ -1782,8 +1852,8 @@ sealed partial class ReflectionProvider
     object? ByRefReturnSourceType(
         Type returnType,
         GenericParameterContext genericParameters,
-        NullabilityInfo returnNullability,
-        NullableMetadata returnNullabilityMetadata)
+        NullabilityInfo? returnNullability,
+        NullableMetadata? returnNullabilityMetadata)
     {
         var pointee = SourceShape(
             UnwrapByRef(returnType),

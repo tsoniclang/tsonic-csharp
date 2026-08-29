@@ -384,7 +384,7 @@ test("checked-source parameter acceptance is scoped to the exact provider relati
   const fixture = createCallFixture({
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
     targetParameters: [
-      targetParameter("callback", csharpObjectTargetType(), {
+      targetParameter("callback", csharpStringTargetType(), {
         csharpAcceptsCheckedSourceArgument: true,
       }),
     ],
@@ -399,6 +399,38 @@ test("checked-source parameter acceptance is scoped to the exact provider relati
     selected.call.targetMember.parameters[0].csharpAcceptsCheckedSourceArgument,
     true,
   );
+  assert.deepEqual(selected.call.argumentMappings, [{
+    kind: "checked-source",
+    effectiveArgumentIndex: 0,
+    targetType: csharpStringTargetType(),
+    proof: "selected-provider-signature",
+  }]);
+});
+
+test("checked-source acceptance never discards an available exact conversion", () => {
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
+    targetParameters: [
+      targetParameter("value", csharpObjectTargetType(), {
+        csharpAcceptsCheckedSourceArgument: true,
+      }),
+    ],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.argumentMappings, [{
+    kind: "by-value",
+    effectiveArgumentIndex: 0,
+    sourceType: csharpSourcePrimitiveTargetType("int32"),
+    targetType: csharpObjectTargetType(),
+    conversion: { kind: "implicit", proof: "reference" },
+  }]);
 });
 
 test("optional source and target parameters may be omitted only when both contracts agree", () => {
@@ -658,6 +690,11 @@ test("static-interface dispatch validates the exact selected invocation type", (
     },
   });
   const fixture = createCallFixture({
+    declaration: providerDeclaration({
+      memberId: null,
+      memberStatic: null,
+      memberKey: null,
+    }),
     member,
     receiver: false,
     methodTypeArguments: [{ selectedType }],

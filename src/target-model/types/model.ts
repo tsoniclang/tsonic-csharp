@@ -328,6 +328,12 @@ export type CsharpCallArtifactRequirement =
       };
     };
 
+export interface CsharpTargetBinaryEpilogue {
+  readonly id: string;
+  readonly declaringType: TargetTypeRef;
+  readonly methodName: string;
+}
+
 export interface CsharpMethodTypeArgumentProjection {
   readonly kind: "project-constructible-object-shape";
   readonly targetTypeParameterIndex: number;
@@ -349,6 +355,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly csharpReturnPassing?: "byref-readwrite" | "byref-readonly";
   readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
+  readonly csharpBinaryEpilogues?: readonly CsharpTargetBinaryEpilogue[];
   readonly csharpMethodTypeArgumentProjections?: readonly CsharpMethodTypeArgumentProjection[];
   readonly csharpInvocation?: CsharpTargetInvocation;
 }

@@ -200,10 +200,13 @@ export function requireObjectShapeProjection(
     readonly type: TargetTypeRef;
   },
 ): CsharpObjectShapeProjectionRequestResult {
-  const preferredShape = node === undefined
-    ? host.objectShapes.resolveTarget(type)
-    : host.objectShapes.resolveNode(node, sourceFile) ??
-      host.objectShapes.resolveTarget(type);
+  const preferredShape = projectionKind === "assign"
+    ? host.objectShapes.resolveTarget(type) ??
+      (node === undefined ? undefined : host.objectShapes.resolveNode(node, sourceFile))
+    : node === undefined
+      ? host.objectShapes.resolveTarget(type)
+      : host.objectShapes.resolveNode(node, sourceFile) ??
+        host.objectShapes.resolveTarget(type);
   if (preferredShape === undefined) {
     return rootKind === "object-shape"
       ? rejected(

@@ -296,6 +296,9 @@ export function analyzeCsharpExpectedTypes(
       recordSelectedCallArguments(
         call.target.source.sourceArguments,
         call.target.call.arguments,
+        call.target.call.origin === "provider"
+          ? call.target.call.argumentMappings
+          : undefined,
         "required",
       );
     } else if (call?.source !== undefined) {
@@ -315,6 +318,9 @@ export function analyzeCsharpExpectedTypes(
       recordSelectedCallArguments(
         construction.target.source.sourceArguments,
         construction.target.call.arguments,
+        construction.target.call.origin === "provider"
+          ? construction.target.call.argumentMappings
+          : undefined,
         "required",
       );
     } else if (construction?.target?.kind === "source-owned") {
@@ -667,6 +673,7 @@ export function analyzeCsharpExpectedTypes(
     sourceArguments: readonly { readonly expression: Node }[],
     arguments_: readonly {
       readonly sourceArgumentIndex: number;
+      readonly effectiveArgumentIndex: number;
       readonly targetParameter: Parameters<
         typeof csharpTargetParameterValueType
       >[0];
@@ -674,18 +681,24 @@ export function analyzeCsharpExpectedTypes(
         typeof csharpTargetParameterValueType
       >[1];
     }[],
+    argumentMappings: readonly import("../../policy/members/index.js").CsharpProviderArgumentMapping[] | undefined,
     strength: ExpectedTypeStrength,
   ): void {
     for (const argument of arguments_) {
       const expression = sourceArguments[argument.sourceArgumentIndex]
         ?.expression;
+      const mapping = argumentMappings?.find((candidate) =>
+        candidate.effectiveArgumentIndex === argument.effectiveArgumentIndex);
       record(
         expression,
-        sourceArgumentExpectedType(
-          expression,
-          argument.targetParameter,
-          argument.sourceForm,
-        ),
+        mapping?.kind === "by-value" &&
+            mapping.conversion.kind === "delegate-adapter"
+          ? mapping.sourceType
+          : sourceArgumentExpectedType(
+              expression,
+              argument.targetParameter,
+              argument.sourceForm,
+            ),
         strength,
       );
     }
@@ -810,6 +823,9 @@ function csharpBinaryTargetOperationsEqual(
     case "nullish-test":
       return right.kind === "nullish-test" &&
         left.operand === right.operand &&
+        left.negated === right.negated;
+    case "reference-identity":
+      return right.kind === "reference-identity" &&
         left.negated === right.negated;
   }
 }

@@ -29,6 +29,7 @@ import type {
   CsharpTypeofRuntimeKind,
   resolveCsharpRuntimeUnionObjectShapeProperty,
   TargetTypeRef,
+  CsharpTargetBinaryEpilogue,
 } from "../../policy/types/index.js";
 
 export interface CsharpMethodTypeArgumentProjectionClassification {
@@ -45,6 +46,7 @@ import type {
   CsharpResolvedDestructuringAssignmentOperation,
   CsharpSourceFlowCallSelection,
   CsharpTypeofComparisonSelection,
+  CsharpNativeRefReturnSelection,
   CsharpTypedLocationOperationSelection,
 } from "../../policy/operations/index.js";
 
@@ -123,6 +125,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  binaryEpilogues(): readonly CsharpTargetBinaryEpilogue[];
   resultType(node: Node): TargetTypeRef | undefined;
   call(node: Node): CsharpCallClassification | undefined;
   construction(node: Node): CsharpConstructionClassification | undefined;
@@ -134,6 +137,7 @@ export interface CsharpTargetOperationClassifications {
   resource(node: Node): CsharpOperationSelection<CsharpResolvedResourceManagement> | undefined;
   nativePointer(node: Node): CsharpNativePointerOperationSelection | undefined;
   typedLocation(node: Node): CsharpTypedLocationOperationSelection | undefined;
+  nativeRefReturn(node: Node): CsharpNativeRefReturnSelection | undefined;
   jsCondition(node: Node): CsharpJsValueOperationSelection | undefined;
   jsTypeof(node: Node): CsharpJsValueOperationSelection | undefined;
   typeofRuntimeKind(node: Node): CsharpTypeofRuntimeKind | undefined;

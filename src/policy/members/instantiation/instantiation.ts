@@ -30,6 +30,7 @@ import {
   targetTypeRefKey,
 } from "../../types/index.js";
 import {
+  csharpConversionIsApplicable,
   compareCsharpImplicitConversionTargets,
   selectCsharpProviderArgumentConversion,
 } from "../../conversions/index.js";
@@ -598,12 +599,6 @@ function validateArgumentsTargetSelectedParameters(
           `Source argument ${binding.sourceArgumentIndex} uses '${sourceArgument.argument.passingMode}', but exact target parameter '${argument.targetParameter.name}' requires '${argument.targetParameter.passingMode}'.`,
       };
     }
-    if (
-      argument.targetParameter.csharpAcceptsCheckedSourceArgument === true &&
-      sourceArgument.argument.passingMode === "by-value"
-    ) {
-      continue;
-    }
     const sourceType = host.types.resolveNode(
       sourceArgument.argument.storageExpression,
       sourceFile,
@@ -613,17 +608,29 @@ function validateArgumentsTargetSelectedParameters(
           sourceFile,
         )
       : undefined);
+    const targetType = csharpTargetParameterValueType(
+      argument.targetParameter,
+      argument.sourceForm,
+    );
     if (sourceType === undefined) {
+      if (
+        argument.targetParameter.csharpAcceptsCheckedSourceArgument === true &&
+        sourceArgument.argument.passingMode === "by-value"
+      ) {
+        argumentMappings.push({
+          kind: "checked-source",
+          effectiveArgumentIndex: argument.effectiveArgumentIndex,
+          targetType,
+          proof: "selected-provider-signature",
+        });
+        continue;
+      }
       return {
         kind: "rejected",
         reason:
           `Source argument ${binding.sourceArgumentIndex} has no closed C# representation for its exact selected target parameter '${argument.targetParameter.name}'.`,
       };
     }
-    const targetType = csharpTargetParameterValueType(
-      argument.targetParameter,
-      argument.sourceForm,
-    );
     const parameterRelation = relation.parameters.find((candidate) =>
       candidate.targetParameterIndex === argument.targetParameterIndex);
     if (sourceArgument.argument.passingMode !== "by-value") {
@@ -651,13 +658,18 @@ function validateArgumentsTargetSelectedParameters(
       targetType,
       parameterRelation?.argumentAdapter,
     );
-    if (
-      conversion.kind !== "identity" &&
-      conversion.kind !== "implicit" &&
-      conversion.kind !== "delegate-adapter" &&
-      conversion.kind !== "provider-argument-adapter" &&
-      conversion.kind !== "lifted-provider-argument-adapter"
-    ) {
+    if (!csharpConversionIsApplicable(conversion, "implicit")) {
+      if (
+        argument.targetParameter.csharpAcceptsCheckedSourceArgument === true
+      ) {
+        argumentMappings.push({
+          kind: "checked-source",
+          effectiveArgumentIndex: argument.effectiveArgumentIndex,
+          targetType,
+          proof: "selected-provider-signature",
+        });
+        continue;
+      }
       const detail = conversion.kind === "rejected" ||
           conversion.kind === "ambiguous"
         ? ` ${conversion.reason}`
@@ -672,10 +684,7 @@ function validateArgumentsTargetSelectedParameters(
       kind: "by-value",
       effectiveArgumentIndex: argument.effectiveArgumentIndex,
       sourceType,
-      targetType: csharpTargetParameterValueType(
-        argument.targetParameter,
-        argument.sourceForm,
-      ),
+      targetType,
       conversion,
     });
   }
