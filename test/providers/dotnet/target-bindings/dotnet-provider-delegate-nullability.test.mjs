@@ -106,6 +106,25 @@ test(".NET provider distinguishes authored T from T? inside generic delegate use
   assertSourceGenericDelegateArgumentNullability(nullable.parameters[0].type, true);
 });
 
+test(".NET provider does not project outer delegate nullability onto value parameters", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference], disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderDelegateNullabilityFixtures.js", {
+    requestedExports: ["GenericCallbackHost"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const rawHost = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "GenericCallbackHost"
+  );
+  assert.ok(rawHost);
+  const callback = requireRawMethod(rawHost, "NullableValueCallback").signatures[0].parameters[0];
+  assert.equal(callback.type.kind, "nullable-reference");
+  assert.equal(callback.type.elementType.sourceShape.kind, "function");
+  const argument = callback.type.elementType.sourceShape.parameters[0];
+  assert.deepEqual(argument.type, { kind: "source-primitive", name: "int32" });
+  assert.equal(argument.sourceType, undefined);
+});
+
 test(".NET provider projects Queryable expression-tree parameters from exact delegate type arguments", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {

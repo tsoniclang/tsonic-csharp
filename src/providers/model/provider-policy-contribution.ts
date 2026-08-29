@@ -3,12 +3,18 @@ import type {
   CsharpProviderTargetRejection,
   CsharpProviderTargetRelation,
 } from "../relations/index.js";
+import type {
+  CsharpTargetBinaryExecutionDriver,
+} from "../../target-model/types/model.js";
 import {
   freezeContributionValue,
   hasExactContributionFields,
   isContributionRecord,
   nonEmptyContributionString,
 } from "./contribution-values.js";
+import {
+  canonicalProviderValue,
+} from "./canonical-value.js";
 
 export const csharpProviderPolicyContributionKind = "csharp-provider-policy";
 
@@ -19,6 +25,36 @@ export interface CsharpProviderPolicyContribution
   readonly providerVersion: string;
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
+  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
+}
+
+export type CsharpProviderBinaryExecutionDriver =
+  CsharpTargetBinaryExecutionDriver;
+
+export function composeCsharpBinaryExecutionDriver(
+  ...drivers: readonly (CsharpProviderBinaryExecutionDriver | undefined)[]
+): CsharpProviderBinaryExecutionDriver | undefined {
+  const byId = new Map<string, CsharpProviderBinaryExecutionDriver>();
+  for (const driver of drivers) {
+    if (driver === undefined) continue;
+    const existing = byId.get(driver.id);
+    if (existing === undefined) {
+      byId.set(driver.id, driver);
+      continue;
+    }
+    if (canonicalProviderValue(existing) !== canonicalProviderValue(driver)) {
+      throw new Error(
+        `C# target capabilities supplied contradictory binary execution drivers for identity '${driver.id}'.`,
+      );
+    }
+  }
+  if (byId.size > 1) {
+    throw new Error(
+      `C# target capabilities supplied multiple binary execution drivers: ${[...byId.keys()].sort().join(", ")}.`,
+    );
+  }
+  const driver = byId.values().next().value;
+  return driver === undefined ? undefined : Object.freeze(driver);
 }
 
 export function csharpProviderPolicyContribution(
@@ -26,6 +62,7 @@ export function csharpProviderPolicyContribution(
   providerVersion: string,
   relations: readonly CsharpProviderTargetRelation[],
   rejections: readonly CsharpProviderTargetRejection[],
+  binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver,
 ): CsharpProviderPolicyContribution {
   return freezeContributionValue({
     kind: csharpProviderPolicyContributionKind,
@@ -33,6 +70,9 @@ export function csharpProviderPolicyContribution(
     providerVersion,
     relations,
     rejections,
+    ...(binaryExecutionDriver === undefined
+      ? {}
+      : { binaryExecutionDriver }),
   });
 }
 
@@ -49,6 +89,7 @@ export function validateCsharpProviderPolicyContribution(
       "providerVersion",
       "relations",
       "rejections",
+      "binaryExecutionDriver",
     ]) ||
     !nonEmptyContributionString(contribution.providerId) ||
     !nonEmptyContributionString(contribution.providerVersion) ||
@@ -78,6 +119,26 @@ export function validateCsharpProviderPolicyContribution(
       snapshot.providerVersion,
       rejection,
     );
+  }
+  const driver = snapshot.binaryExecutionDriver;
+  if (driver !== undefined) {
+    if (
+      !isContributionRecord(driver) ||
+      !hasExactContributionFields(driver, [
+        "id",
+        "declaringType",
+        "runMethodName",
+        "runWithEntrypointMethodName",
+      ]) ||
+      !nonEmptyContributionString(driver.id) ||
+      !nonEmptyContributionString(driver.runMethodName) ||
+      !nonEmptyContributionString(driver.runWithEntrypointMethodName) ||
+      !isContributionRecord(driver.declaringType)
+    ) {
+      throw new Error(
+        `C# target capability '${capabilityId}' supplied an invalid binary execution driver.`,
+      );
+    }
   }
   return snapshot;
 }

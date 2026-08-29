@@ -85,6 +85,10 @@ export interface CsharpArtifactGraph {
     projection: CsharpObjectShapeProjectionKind,
     resultType: TargetTypeRef,
     rootKind: "value" | "object-shape",
+    assignmentSource?: {
+      readonly node: Node;
+      readonly type: TargetTypeRef;
+    },
   ): CsharpObjectShapeProjectionRequestResult;
   objectShapeArtifacts(): readonly CsharpObjectShapeArtifact[];
   requireGeneratedHelper(

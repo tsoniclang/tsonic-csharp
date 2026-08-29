@@ -38,13 +38,15 @@ function missingRequestedMaterializedExports(
   if (request.materialization.kind === "complete") {
     return [];
   }
-  const declarations = module.exports.filter((declaration) => declaration.kind === "type");
+  const declarations = module.exports;
   return request.materialization.completeExports.filter((requested) =>
     requested.exportId === undefined
       ? !declarations.some((declaration) =>
         declaration.sourceName === requested.exportName ||
-        declaration.sourceTypeFamily?.exportName === requested.exportName)
-      : !declarations.some((declaration) => declaration.targetId === requested.exportId)
+        (declaration.kind === "type" &&
+          declaration.sourceTypeFamily?.exportName === requested.exportName))
+      : !declarations.some((declaration) =>
+        "targetId" in declaration && declaration.targetId === requested.exportId)
   );
 }
 

@@ -55,6 +55,8 @@ export function createCsharpCompilationSession(
   const capabilityContributions = collectCsharpCapabilityContributions(
     context.capabilities,
   );
+  const binaryExecutionDriver =
+    capabilityContributions.binaryExecutionDriver;
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
     targetFramework: configuration.targetFramework,
@@ -121,6 +123,9 @@ export function createCsharpCompilationSession(
         input,
         configuration,
         providers: relationResolver,
+        ...(binaryExecutionDriver === undefined
+          ? {}
+          : { binaryExecutionDriver }),
       }));
     },
     close(): void {

@@ -47,6 +47,13 @@ sealed partial class ReflectionProvider
             return omittedMethodParameters.Contains(parameter);
         }
 
+        public bool CanProjectOmittedMethodParameters()
+        {
+            return omittedMethodParameters.All(parameter =>
+                (parameter.GenericParameterAttributes & GenericParameterAttributes.SpecialConstraintMask) == 0 &&
+                parameter.GetGenericParameterConstraints().Length == 0);
+        }
+
         public string SourceName(Type parameter)
         {
             return sourceNames.TryGetValue(parameter, out var name) ? name : parameter.Name;

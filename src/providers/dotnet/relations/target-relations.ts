@@ -35,7 +35,14 @@ import {
 export interface DotnetTargetMemberProjection {
   readonly targetBinding: CsharpTargetBindingFact;
   readonly targetMember: CsharpTargetMember;
-  readonly sourceParameterOffset: number;
+  readonly sourceReceiverParameterIndex?: number;
+}
+
+export interface DotnetTargetFunctionProjection extends DotnetTargetMemberProjection {
+  readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+  readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+  readonly invocationTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+  readonly selectedTypeParameterCount: number;
 }
 
 export interface DotnetTargetRelationLookup {
@@ -45,6 +52,10 @@ export interface DotnetTargetRelationLookup {
     memberId: string,
     signatureId: string,
   ): readonly DotnetTargetMemberProjection[];
+  getTargetFunctionsForProviderSignature(
+    exportId: string,
+    signatureId: string,
+  ): readonly DotnetTargetFunctionProjection[];
 }
 
 export type DotnetProviderTargetRelationTemplate =
@@ -57,9 +68,9 @@ export type DotnetProviderTargetRelationTemplate =
   | {
       readonly kind: "member";
       readonly exportId: string;
-      readonly memberId: string;
-      readonly memberStatic: boolean;
-      readonly memberKey: ProviderMemberKey;
+      readonly memberId?: string;
+      readonly memberStatic?: boolean;
+      readonly memberKey?: ProviderMemberKey;
       readonly targetBinding: CsharpTargetBindingFact;
       readonly targetMember: CsharpTargetMember;
       readonly receiver: CsharpTargetReceiverRelation;
@@ -72,9 +83,9 @@ export type DotnetProviderTargetRelationTemplate =
   | {
       readonly kind: "signature";
       readonly exportId: string;
-      readonly memberId: string;
-      readonly memberStatic: boolean;
-      readonly memberKey: ProviderMemberKey;
+      readonly memberId?: string;
+      readonly memberStatic?: boolean;
+      readonly memberKey?: ProviderMemberKey;
       readonly signatureId: string;
       readonly targetBinding: CsharpTargetBindingFact;
       readonly targetMember: CsharpTargetMember;
@@ -83,6 +94,8 @@ export type DotnetProviderTargetRelationTemplate =
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly invocationTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly selectedTypeParameterCount: number;
     };
 
 export function dotnetProviderTargetRelationTemplates(
@@ -133,7 +146,9 @@ export function dotnetTypeTargetMemberProjections(
       appendProjection(memberProjections, providerMember.id, {
         targetBinding,
         targetMember: record.targetMember,
-        sourceParameterOffset: member.sourceParameterOffset ?? 0,
+        ...(member.sourceReceiverParameterIndex === undefined
+          ? {}
+          : { sourceReceiverParameterIndex: member.sourceReceiverParameterIndex }),
       });
       continue;
     }
@@ -142,7 +157,7 @@ export function dotnetTypeTargetMemberProjections(
       providerMember.id,
       member.kind === "constructor" ? undefined : member.targetName,
       {
-        sourceParameterOffset: member.sourceParameterOffset,
+        sourceReceiverParameterIndex: member.sourceReceiverParameterIndex,
         parentTypeParameterNames:
           declaration.typeParameters?.map((parameter) => parameter.name) ?? [],
       },
@@ -163,7 +178,9 @@ export function dotnetTypeTargetMemberProjections(
       const projection = {
         targetBinding,
         targetMember: record.targetMember,
-        sourceParameterOffset: member.sourceParameterOffset ?? 0,
+        ...(member.sourceReceiverParameterIndex === undefined
+          ? {}
+          : { sourceReceiverParameterIndex: member.sourceReceiverParameterIndex }),
       };
       appendProjection(
         signatureProjections,
@@ -198,6 +215,26 @@ function dotnetProviderExportTargetRelationTemplates(
   declaration: ProviderExportDeclaration,
   lookup: DotnetTargetRelationLookup,
 ): readonly DotnetProviderTargetRelationTemplate[] {
+  if (declaration.kind === "function") {
+    return (declaration.signatures ?? []).flatMap((signature) =>
+      lookup.getTargetFunctionsForProviderSignature(
+        declaration.id,
+        signature.id,
+      ).map((projection) => ({
+        kind: "signature" as const,
+        exportId: declaration.id,
+        signatureId: signature.id,
+        targetBinding: projection.targetBinding,
+        targetMember: projection.targetMember,
+        receiver: { kind: "none" as const },
+        parameters: providerParameterRelations(signature.parameters, projection),
+        bindingTypeParameters: projection.bindingTypeParameters,
+        bindingTypeArgumentSource: "selected-operation-type-arguments" as const,
+        methodTypeParameters: projection.methodTypeParameters,
+        invocationTypeParameters: projection.invocationTypeParameters,
+        selectedTypeParameterCount: projection.selectedTypeParameterCount,
+      })));
+  }
   const targetBinding = lookup.getTargetBinding(declaration.id);
   if (targetBinding === undefined) {
     return [];
@@ -232,20 +269,24 @@ function dotnetProviderMemberTargetRelationTemplates(
 ): readonly DotnetProviderTargetRelationTemplate[] {
   const memberKey = providerMemberKey(member.name);
   if (member.signatures === undefined) {
-    return lookup.getTargetMembersForProviderMember(member.id).map((projection) => ({
-      kind: "member",
-      exportId: declaration.id,
-      memberId: member.id,
-      memberStatic: member.static === true,
-      memberKey,
-      targetBinding: projection.targetBinding,
-      targetMember: projection.targetMember,
-      receiver: providerReceiverRelation(projection),
-      bindingTypeParameters,
-      bindingTypeArgumentSource: providerBindingTypeArgumentSource(
-        projection.targetMember,
-      ),
-    }));
+    return lookup.getTargetMembersForProviderMember(member.id).map((projection) => {
+      const receiver = providerReceiverRelation(projection);
+      return {
+        kind: "member",
+        exportId: declaration.id,
+        memberId: member.id,
+        memberStatic: member.static === true,
+        memberKey,
+        targetBinding: projection.targetBinding,
+        targetMember: projection.targetMember,
+        receiver,
+        bindingTypeParameters,
+        bindingTypeArgumentSource: providerBindingTypeArgumentSource(
+          projection.targetMember,
+          receiver,
+        ),
+      };
+    });
   }
   return member.signatures.flatMap((signature) =>
     lookup.getTargetMembersForProviderSignature(
@@ -259,6 +300,12 @@ function dotnetProviderMemberTargetRelationTemplates(
       const selectedTypeArgumentsCloseBinding =
         projection.targetMember.kind === "constructor" ||
         projection.targetMember.csharpInvocation?.kind === "array-creation";
+      const selectedTypeParameterCount =
+        projection.targetMember.csharpInvocation?.kind === "array-creation"
+          ? signature.typeParameters?.length ?? 0
+          : projection.targetMember.kind === "constructor"
+            ? declaration.typeParameters?.length ?? 0
+            : signature.typeParameters?.length ?? 0;
       const relationBindingTypeParameters =
         projection.targetMember.csharpInvocation?.kind === "array-creation"
           ? providerTypeParameterRelations(
@@ -274,6 +321,7 @@ function dotnetProviderMemberTargetRelationTemplates(
             projection.targetMember.typeParameters?.length ?? 0,
             `signature '${signature.id}'`,
           );
+      const receiver = providerReceiverRelation(projection);
       return {
         kind: "signature" as const,
         exportId: declaration.id,
@@ -283,14 +331,19 @@ function dotnetProviderMemberTargetRelationTemplates(
         signatureId: signature.id,
         targetBinding: projection.targetBinding,
         targetMember: projection.targetMember,
-        receiver: providerReceiverRelation(projection),
+        receiver,
         parameters,
         bindingTypeParameters: relationBindingTypeParameters,
         bindingTypeArgumentSource:
           selectedTypeArgumentsCloseBinding
             ? "selected-operation-type-arguments"
-            : providerBindingTypeArgumentSource(projection.targetMember),
+            : providerBindingTypeArgumentSource(
+                projection.targetMember,
+                receiver,
+              ),
         methodTypeParameters,
+        invocationTypeParameters: [],
+        selectedTypeParameterCount,
       };
     }));
 }
@@ -304,11 +357,14 @@ export function providerSignatureProjectionKey(
 
 function providerBindingTypeArgumentSource(
   member: CsharpTargetMember,
+  receiver: CsharpTargetReceiverRelation,
 ): Exclude<
   CsharpProviderBindingTypeArgumentSource,
   "selected-operation-type-arguments"
 > {
-  return member.static === true ? "callee" : "receiver";
+  return receiver.kind !== "none" || member.static !== true
+    ? "receiver"
+    : "callee";
 }
 
 function providerTypeParameterRelations(
@@ -335,18 +391,20 @@ function providerTypeParameterRelations(
 function providerReceiverRelation(
   projection: DotnetTargetMemberProjection,
 ): CsharpTargetReceiverRelation {
-  if (projection.sourceParameterOffset === 1) {
-    if (projection.targetMember.receiverPassing !== "first-argument") {
+  if (projection.sourceReceiverParameterIndex !== undefined) {
+    if (
+      projection.targetMember.receiverPassing !== "target-parameter" ||
+      projection.sourceReceiverParameterIndex < 0 ||
+      projection.sourceReceiverParameterIndex >= projection.targetMember.parameters.length
+    ) {
       throw new Error(
-        `.NET provider target member '${projection.targetMember.id}' hides one source parameter without first-argument receiver metadata.`,
+        `.NET provider target member '${projection.targetMember.id}' has an invalid exact receiver-parameter projection.`,
       );
     }
-    return { kind: "target-parameter", targetParameterIndex: 0 };
-  }
-  if (projection.sourceParameterOffset !== 0) {
-    throw new Error(
-      `.NET provider target member '${projection.targetMember.id}' has unsupported source parameter offset ${projection.sourceParameterOffset}; every omitted target parameter requires an explicit provider role.`,
-    );
+    return {
+      kind: "target-parameter",
+      targetParameterIndex: projection.sourceReceiverParameterIndex,
+    };
   }
   return projection.targetMember.static === true ||
       projection.targetMember.kind === "constructor"
@@ -360,19 +418,20 @@ function providerParameterRelations(
 ): readonly CsharpProviderParameterRelation[] {
   const sourceParameterCount = sourceParameters.length;
   const targetParameterCount = projection.targetMember.parameters.length;
-  if (
-    sourceParameterCount + projection.sourceParameterOffset !==
-      targetParameterCount
-  ) {
+  const receiverIndex = projection.sourceReceiverParameterIndex;
+  if (sourceParameterCount + (receiverIndex === undefined ? 0 : 1) !== targetParameterCount) {
     throw new Error(
-      `.NET provider signature '${projection.targetMember.id}' exposes ${sourceParameterCount} source parameters but relates to ${targetParameterCount} target parameters with offset ${projection.sourceParameterOffset}.`,
+      `.NET provider signature '${projection.targetMember.id}' does not relate its exact source parameters and optional receiver to every target parameter.`,
     );
   }
+  const targetIndexes = Array.from(
+    { length: targetParameterCount },
+    (_, index) => index,
+  ).filter((index) => index !== receiverIndex);
   return Object.freeze(
     Array.from({ length: sourceParameterCount }, (_, sourceParameterIndex) => {
       const sourceParameter = sourceParameters[sourceParameterIndex]!;
-      const targetParameterIndex =
-        sourceParameterIndex + projection.sourceParameterOffset;
+      const targetParameterIndex = targetIndexes[sourceParameterIndex]!;
       const targetParameter =
         projection.targetMember.parameters[targetParameterIndex]!;
       return {

@@ -6,7 +6,7 @@ import type {
   TargetCompilationSessionContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api/provider";
-import { jsRegExpSourceProfileDeclarations } from "@tsonic/js-source-profile";
+import { jsStandardSourceProfileDeclarations } from "@tsonic/js-source-profile";
 import {
   csharpTargetId,
 } from "../../target-model/identities/source.js";
@@ -67,6 +67,12 @@ interface PromiseConstructor {
   all<T extends readonly unknown[]>(values: T): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
 }
 declare var Promise: PromiseConstructor;
+
+interface Symbol {
+  readonly description: string | undefined;
+  toString(): string;
+  valueOf(): symbol;
+}
 
 interface SymbolConstructor {
   readonly iterator: unique symbol;
@@ -155,7 +161,7 @@ interface ReadonlyArray<T> extends Iterable<T> {
 
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
-${jsRegExpSourceProfileDeclarations}
+${jsStandardSourceProfileDeclarations}
 
 interface TemplateStringsArray extends ReadonlyArray<string> {
   readonly raw: readonly string[];
@@ -343,12 +349,7 @@ interface ArrayConstructor {
 }
 declare var Array: ArrayConstructor;
 
-interface ArrayLike<T> {
-  readonly length: number;
-  readonly [n: number]: T;
-}
-
-interface Map<K, V> extends Iterable<[K, V]> {
+interface Map<K, V> extends ReadonlyMap<K, V> {
   readonly size: number;
   get(key: K): V | undefined;
   set(key: K, value: V): this;
@@ -373,7 +374,7 @@ interface MapConstructor {
 }
 declare var Map: MapConstructor;
 
-interface Set<T> extends Iterable<T> {
+interface Set<T> extends ReadonlySet<T> {
   readonly size: number;
   add(value: T): this;
   has(value: T): boolean;

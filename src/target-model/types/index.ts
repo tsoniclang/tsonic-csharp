@@ -16,4 +16,5 @@ export * from "./object-shape-identity.js";
 export * from "./object-shape-equality.js";
 export * from "./object-shape-projection.js";
 export * from "./js-value-object-shapes.js";
+export * from "./json-object-shapes.js";
 export * from "./source-member-keys.js";

@@ -7,6 +7,7 @@ import type {
 } from "../../../target-model/types/index.js";
 import {
   csharpObjectShapeProjectionMethodName,
+  csharpObjectShapeAssignmentMembers,
   csharpObjectShapeProjectionMembers,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -20,6 +21,7 @@ import type {
 import type {
   CsharpExpression,
   CsharpMethodDeclaration,
+  CsharpStatement,
 } from "../../target-ast/roslyn/index.js";
 import {
   objectShapeStorageMemberName,
@@ -72,23 +74,43 @@ function renderObjectShapeProjectionMethod(
   if (expression.kind === "rejected") {
     return expression;
   }
+  const assignment = projection.kind === "assign"
+    ? renderAssignStatements(input, fact, projection)
+    : undefined;
+  if (assignment?.kind === "rejected") {
+    return assignment;
+  }
+  const assignmentSourceType = projection.kind === "assign"
+    ? csharpTypeFromTargetTypeRef(projection.sourceShape.targetType)
+    : undefined;
+  if (projection.kind === "assign" && assignmentSourceType === undefined) {
+    return rejected(
+      "Closed object assignment source has no renderable selected carrier.",
+    );
+  }
   return {
     kind: "resolved",
     method: {
       kind: "MethodDeclaration",
-      name: csharpObjectShapeProjectionMethodName(
-        projection.kind,
-        projection.resultType,
-        projection.propertyOrder,
-      ),
+      name: csharpObjectShapeProjectionMethodName(projection),
       modifiers: ["public"],
       returnType,
       parameters: projection.kind === "has-own"
         ? [{ name: "key", type: stringType }]
+        : projection.kind === "assign"
+        ? [{ name: "source", type: assignmentSourceType! }]
         : [],
       body: {
         kind: "Block",
-        statements: [{ kind: "ReturnStatement", expression: expression.expression }],
+        statements: projection.kind === "assign"
+          ? [
+              ...(assignment?.kind === "resolved" ? assignment.statements : []),
+              {
+                kind: "ReturnStatement" as const,
+                expression: { kind: "IdentifierName" as const, name: "this" },
+              },
+            ]
+          : [{ kind: "ReturnStatement", expression: expression.expression }],
       },
     },
   };
@@ -101,7 +123,9 @@ function renderProjectionExpression(
 ):
   | { readonly kind: "resolved"; readonly expression: CsharpExpression }
   | { readonly kind: "rejected"; readonly reason: string } {
-  const members = csharpObjectShapeProjectionMembers(fact, projection);
+  const members = projection.kind === "assign"
+    ? csharpObjectShapeAssignmentMembers(fact, projection)?.map((pair) => pair.target)
+    : csharpObjectShapeProjectionMembers(fact, projection);
   if (members === undefined) {
     return rejected(
       `Closed object '${projection.kind}' projection does not identify every exact own member once.`,
@@ -202,7 +226,67 @@ function renderProjectionExpression(
         ),
       };
     }
+    case "assign": {
+      if (!targetTypeRefEquals(projection.resultType, fact.targetType)) {
+        return rejected("Object.assign requires its selected result and target carrier to be identical.");
+      }
+      if (members.some((member) =>
+        member.memberKind !== "property" ||
+        member.readonly === true ||
+        member.accessor?.setter === false
+      )) {
+        return rejected("Object.assign requires exact writable data properties on the target carrier.");
+      }
+      return {
+        kind: "resolved",
+        expression: { kind: "IdentifierName", name: "this" },
+      };
+    }
   }
+}
+
+function renderAssignStatements(
+  input: CsharpPlanningContext,
+  fact: CsharpObjectShapeFact,
+  projection: Extract<CsharpObjectShapeProjection, { readonly kind: "assign" }>,
+):
+  | { readonly kind: "resolved"; readonly statements: readonly CsharpStatement[] }
+  | { readonly kind: "rejected"; readonly reason: string } {
+  const pairs = csharpObjectShapeAssignmentMembers(fact, projection);
+  if (pairs === undefined) {
+    return rejected(
+      "Object.assign does not carry one exact source-to-target field relation.",
+    );
+  }
+  const statements: CsharpStatement[] = [];
+  for (const pair of pairs) {
+    const source: CsharpExpression = {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "source" },
+      name: objectShapeStorageMemberName(projection.sourceShape, pair.source),
+    };
+    const converted = convertClosedShapeValue(
+      input,
+      pair.source.type,
+      pair.target.type,
+      source,
+    );
+    if (converted.kind === "rejected") {
+      return rejected(
+        `Object.assign source member '${pair.source.sourceName}' cannot be stored in its exact target member: ${converted.reason}`,
+      );
+    }
+    statements.push({
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: memberExpression(fact, pair.target),
+        operatorToken: { kind: "EqualsToken" },
+        right: converted.expression,
+      },
+    });
+  }
+  return { kind: "resolved", statements };
 }
 
 function jsArrayExpression(

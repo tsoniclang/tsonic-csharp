@@ -127,7 +127,7 @@ test(".NET explicit CLR array target refs preserve provider-supplied rank facts"
     rank: 2,
   });
 });
-test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
+test(".NET provider function source shapes preserve parameter modes and exact pointer parameters", () => {
   const functionType = dotnetTypeRefToProviderType({
     kind: "function",
     id: "test.callback",
@@ -153,9 +153,9 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
   assert.equal(functionType.parameters[1].passingMode, undefined);
   assert.equal(functionType.parameters[1].optional, true);
 
-  assert.equal(tryDotnetTypeRefToProviderType({
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "function",
-    id: "test.unsupported-pointer-callback",
+    id: "test.pointer-callback",
     parameters: [
       {
         name: "pointer",
@@ -168,7 +168,20 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
       },
     ],
     returnType: { kind: "void" },
-  }), undefined);
+  }), {
+    kind: "function",
+    id: '["$","test.pointer-callback"]',
+    parameters: [{
+      name: "pointer",
+      type: {
+        kind: "provider-ref",
+        moduleSpecifier: "@tsonic/csharp/lang.js",
+        exportName: "ptr",
+        typeArguments: [{ kind: "source-primitive", name: "int32" }],
+      },
+    }],
+    returnType: { kind: "void" },
+  });
 });
 test(".NET provider declaration model exposes namespace members as fact-backed provider members", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -231,50 +244,80 @@ test(".NET provider declaration model exposes namespace members as fact-backed p
     },
   ]);
 });
-test(".NET provider source type conversion fails closed for every unsupported target-only type ref", () => {
+test(".NET provider source type conversion preserves exact native source markers and rejects invalid ranks", () => {
   const intType = { kind: "source-primitive", name: "int32" };
   const pointerType = {
     kind: "pointer",
     pointee: intType,
     mutability: "mut",
   };
+  const pointerProviderType = {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/csharp/lang.js",
+    exportName: "ptr",
+    typeArguments: [intType],
+  };
 
-  assert.equal(tryDotnetTypeRefToProviderType(pointerType), undefined);
-  assert.equal(tryDotnetTypeRefToProviderType({
+  assert.deepEqual(tryDotnetTypeRefToProviderType(pointerType), pointerProviderType);
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "function-pointer",
     args: [intType],
     result: { kind: "void" },
     abi: ["Cdecl"],
-  }), undefined);
-  assert.equal(tryDotnetTypeRefToProviderType({
+  }), {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/csharp/lang.js",
+    exportName: "fnptr",
+    typeArguments: [
+      { kind: "tuple", elementTypes: [intType] },
+      { kind: "void" },
+    ],
+  });
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "array",
     rank: 2,
     elementType: intType,
-  }), undefined);
-  assert.equal(tryDotnetTypeRefToProviderType({
+  }), {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/csharp/lang.js",
+    exportName: "array2",
+    typeArguments: [intType],
+  });
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "named",
     targetId: testTargetId("ProviderModelFixtures.PointerBacked"),
     metadataName: "ProviderModelFixtures.PointerBacked",
     sourceShape: pointerType,
-  }), undefined);
-  assert.equal(tryDotnetTypeRefToProviderType({
+  }), pointerProviderType);
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "provider-ref",
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
     exportName: "Box",
     typeArguments: [pointerType],
-  }), undefined);
+  }), {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    exportName: "Box",
+    typeArguments: [pointerProviderType],
+  });
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "provider-ref",
     name: "Box",
   }), undefined);
-  assert.equal(tryDotnetTypeRefToProviderType({
+  assert.deepEqual(tryDotnetTypeRefToProviderType({
     kind: "opaque",
     id: "ProviderModelFixtures.PointerOpaque",
     sourceShape: pointerType,
-  }), undefined);
+  }), pointerProviderType);
+  const unsupportedRankedArray = {
+    kind: "array",
+    rank: 33,
+    elementType: intType,
+  };
+  assert.equal(tryDotnetTypeRefToProviderType(unsupportedRankedArray), undefined);
   assert.throws(
-    () => dotnetTypeRefToProviderType(pointerType),
-    /Unsupported \.NET provider type 'pointer'/u,
+    () => dotnetTypeRefToProviderType(unsupportedRankedArray),
+    /Unsupported \.NET provider type 'array'/u,
   );
 });
 test(".NET named target refs do not derive C# special semantics from metadata names", () => {
@@ -448,20 +491,30 @@ test(".NET reflection provider records attribute facts as target data without so
 
   const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedAttributeTarget");
   assert.ok(unsupportedTarget);
-  const unsupportedAttribute = unsupportedTarget.unsupportedAttributes?.find((attribute) =>
-    /Type attribute value/u.test(attribute.reason)
+  const pointerAttribute = unsupportedTarget.attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.TypeOnlyAttribute..ctor(System.Type)")
   );
-  assert.ok(unsupportedAttribute);
-  assert.match(unsupportedAttribute.reason, /Type attribute value/u);
-  assert.match(unsupportedAttribute.reason, /System\.Int32\*/u);
+  assert.ok(pointerAttribute);
+  assert.deepEqual(pointerAttribute.arguments?.[0], {
+    kind: "constructor",
+    value: {
+      kind: "type",
+      type: {
+        kind: "pointer",
+        pointee: { kind: "source-primitive", name: "int32" },
+        mutability: "mut",
+      },
+    },
+  });
+  assert.equal(unsupportedTarget.unsupportedAttributes, undefined);
   const unsupportedBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", "ProviderAttributeFixtures.UnsupportedAttributeTarget");
-  const targetUnsupportedAttribute = unsupportedBinding.unsupportedAttributes?.find((attribute) =>
-    /Type attribute value/u.test(attribute.reason)
+  const targetPointerAttribute = unsupportedBinding.attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.TypeOnlyAttribute..ctor(System.Type)")
   );
-  assert.ok(targetUnsupportedAttribute);
-  assert.equal(targetUnsupportedAttribute.reason, unsupportedAttribute.reason);
+  assert.ok(targetPointerAttribute);
+  assert.deepEqual(targetPointerAttribute.arguments?.[0], pointerAttribute.arguments?.[0]);
 });
-test(".NET target bindings preserve provider-proven extension-method receiver passing", () => {
+test(".NET target bindings keep explicit static extension-container calls static", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {});
   assert.equal("exports" in module, true);
@@ -471,7 +524,7 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
   const rawAverage = enumerable.members.find((member) =>
     member.kind === "method" &&
     member.sourceName === "Average" &&
-    member.receiverPassing === "first-argument"
+    member.receiverPassing === undefined
   );
   assert.ok(rawAverage);
 
@@ -479,7 +532,7 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
   const average = binding.members.find((member) =>
     member.kind === "method" &&
     member.sourceName === "Average" &&
-    member.receiverPassing === "first-argument"
+    member.receiverPassing === undefined
   );
   assert.ok(average);
   assert.equal(average.static, true);
@@ -520,7 +573,7 @@ test(".NET provider source declarations keep extension-method signature identiti
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.MemoryExtensions");
   const targetMember = findByIdSuffix(binding.members, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.ok(targetMember);
-  assert.equal(targetMember.receiverPassing, "first-argument");
+  assert.equal(targetMember.receiverPassing, undefined);
 });
 test(".NET provider projects extension methods onto proven source receivers without changing target identity", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
@@ -532,12 +585,12 @@ test(".NET provider projects extension methods onto proven source receivers with
   const rawAsSpan = rawString.members.find((member) =>
     member.kind === "method" &&
     member.sourceName === "AsSpan" &&
-    member.sourceParameterOffset === 1
+    member.sourceReceiverParameterIndex === 0
   );
   assert.ok(rawAsSpan);
   assert.equal(rawAsSpan.static, true);
   assert.equal(rawAsSpan.sourceStatic, false);
-  assert.equal(rawAsSpan.receiverPassing, "first-argument");
+  assert.equal(rawAsSpan.receiverPassing, "target-parameter");
   assert.equal(rawAsSpan.targetDeclaringType.metadataName, "System.MemoryExtensions");
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module, {
@@ -560,9 +613,41 @@ test(".NET provider projects extension methods onto proven source receivers with
   const targetAsSpan = findByIdSuffix(binding.members, "System.MemoryExtensions.AsSpan(System.String)");
   assert.ok(targetAsSpan);
   assert.equal(targetAsSpan.static, true);
-  assert.equal(targetAsSpan.receiverPassing, "first-argument");
+  assert.equal(targetAsSpan.receiverPassing, "target-parameter");
   assert.equal(stripAssemblyQualifiers(targetAsSpan.declaringType.id), "System.MemoryExtensions");
   assert.deepEqual(targetAsSpan.parameters.map((parameter) => parameter.name), ["text"]);
+});
+test(".NET provider omits extension projections whose receiver-bound generic constraints are not source-expressible", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {
+    requestedExports: ["MemoryExtensions", "ReadOnlySpan"],
+  });
+  assert.equal("exports" in module, true);
+
+  const readOnlySpan = module.exports.find((declaration) =>
+    declaration.sourceName === "ReadOnlySpan");
+  const memoryExtensions = module.exports.find((declaration) =>
+    declaration.sourceName === "MemoryExtensions");
+  assert.ok(readOnlySpan);
+  assert.ok(memoryExtensions);
+
+  const projectedSplit = readOnlySpan.members.find((member) =>
+    member.sourceProjection === "extension-method" && member.sourceName === "Split");
+  const staticSplit = memoryExtensions.members.find((member) =>
+    member.sourceProjection === undefined && member.sourceName === "Split");
+  assert.ok(projectedSplit);
+  assert.ok(staticSplit);
+  assert.equal(
+    projectedSplit.signatures.some((signature) => signature.id.includes("Split``1")),
+    false,
+  );
+  assert.equal(
+    staticSplit.signatures.some((signature) => signature.id.includes("Split``1")),
+    true,
+  );
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(validateDotnetProviderDeclarationModelContract(declarationModel), undefined);
 });
 test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -588,7 +673,7 @@ test(".NET provider declaration model orders source-exact overloads before provi
     "source-exact string overload must appear before provider-ref ReadOnlySpan projection so TSTS source overload selection remains source-truthful",
   );
 });
-test(".NET provider models LINQ ExtensionMethods receiver metadata from target facts", () => {
+test(".NET provider keeps LINQ container methods as explicit static calls", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Linq.js", {});
   assert.equal("exports" in module, true);
@@ -607,7 +692,7 @@ test(".NET provider models LINQ ExtensionMethods receiver metadata from target f
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Linq.js", "System.Linq.Enumerable");
   const targetAverage = findByIdSuffix(binding.members, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)");
   assert.ok(targetAverage);
-  assert.equal(targetAverage.receiverPassing, "first-argument");
+  assert.equal(targetAverage.receiverPassing, undefined);
   assert.equal(targetAverage.parameters[0].passingMode, "by-value");
   assert.equal(targetAverage.returnType?.kind, "source-primitive");
   assert.equal(targetAverage.returnType?.kind === "source-primitive" ? targetAverage.returnType.name : undefined, "float64");
@@ -646,7 +731,10 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
         targetId: testTargetId("Example.MemoryExtensions.Overlaps"),
         metadataName: "Example.MemoryExtensions.Overlaps",
         static: true,
-        receiverPassing: "first-argument",
+        sourceStatic: false,
+        sourceProjection: "extension-method",
+        receiverPassing: "target-parameter",
+        sourceReceiverParameterIndex: 0,
         signatures: [
           {
             id: testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
@@ -673,12 +761,16 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   const sourceOverlaps = sourceMemoryExtensions.members[0];
   const sourceSignature = sourceOverlaps.signatures[0];
 
-  assert.equal(sourceSignature.id, testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"));
-  assert.equal(sourceSignature.parameters[2].passingMode, "byref-writeonly-must-init");
+  assert.match(sourceSignature.id, /#source-member#instance#overlaps#source-signature:/u);
+  assert.equal(sourceSignature.parameters[1].passingMode, "byref-writeonly-must-init");
 
   const targetBinding = dotnetExportToTargetBinding(overlaps);
   const targetOverlaps = targetBinding.members[0];
-  assert.equal(targetOverlaps.receiverPassing, "first-argument");
+  assert.equal(
+    targetOverlaps.id,
+    testTargetId("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)"),
+  );
+  assert.equal(targetOverlaps.receiverPassing, "target-parameter");
   assert.equal(targetOverlaps.parameters[2].passingMode, "byref-writeonly-must-init");
 });
 test(".NET target binding provider uses configured provider identity for diagnostics and virtual modules", () => {

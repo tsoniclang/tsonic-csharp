@@ -83,7 +83,7 @@ export function planObjectShapeForInStatement(
   const keyExpression: CsharpExpression = {
     kind: "ElementAccessExpression",
     receiver: { kind: "IdentifierName", name: keysName },
-    argument: { kind: "IdentifierName", name: indexName },
+    arguments: [{ kind: "IdentifierName", name: indexName }],
   };
   const bindingActivation = planForInBindingActivation(
     binding,

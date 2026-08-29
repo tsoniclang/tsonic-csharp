@@ -80,7 +80,7 @@ export function selectCsharpConversion(
   ) {
     return { kind: "cast", proof: "numeric" };
   }
-  const delegate = selectDelegateConversion(source, target);
+  const delegate = selectDelegateConversion(input, source, target);
   if (delegate !== undefined) {
     return delegate;
   }

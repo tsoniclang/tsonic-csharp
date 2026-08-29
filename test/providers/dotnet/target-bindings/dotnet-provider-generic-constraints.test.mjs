@@ -13,7 +13,7 @@ import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotne
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const constraintModuleSpecifier = "@tsonic/dotnet/ProviderConstraintFixtures.js";
 
-test(".NET provider keeps CLR generic constraints in target facts, not source virtual declarations", () => {
+test(".NET provider projects source-compatible constraints and keeps target-only constraints in target facts", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()] });
   const module = getCompleteDotnetModule(provider, constraintModuleSpecifier, {});
   assert.equal("exports" in module, true);
@@ -22,11 +22,26 @@ test(".NET provider keeps CLR generic constraints in target facts, not source vi
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = getSourceDeclaration(sourceModel, "ReferenceNewTarget");
 
-  assert.equal(sourceReferenceNewTarget.typeParameters?.[0]?.constraints, undefined);
+  assert.deepEqual(sourceReferenceNewTarget.typeParameters?.[0]?.constraints, [{
+    kind: "provider-ref",
+    moduleSpecifier: constraintModuleSpecifier,
+    exportName: "ITagged",
+  }]);
 
   const sourceCopy = getSourceMember(sourceReferenceNewTarget, "Copy");
   const sourceCopyTypeParameter = sourceCopy.signatures[0].typeParameters[0];
-  assert.equal(sourceCopyTypeParameter.constraints, undefined);
+  assert.deepEqual(sourceCopyTypeParameter.constraints, [
+    {
+      kind: "provider-ref",
+      moduleSpecifier: constraintModuleSpecifier,
+      exportName: "EntityBase",
+    },
+    {
+      kind: "provider-ref",
+      moduleSpecifier: constraintModuleSpecifier,
+      exportName: "ITagged",
+    },
+  ]);
 
   const binding = provider.findTargetBindingByTargetId(rawReferenceNewTarget.targetId);
   assert.ok(binding);

@@ -8,6 +8,7 @@ import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { JsonClosureState } from "../model.js";
 import {
   csharpObjectShapesEqual,
+  csharpObjectShapeAssignmentMembers,
   csharpObjectShapeProjectionMembers,
   isCsharpObjectShapeGeneratedMemberName,
   getCsharpJsArrayElementTargetType,
@@ -16,6 +17,7 @@ import {
   isCsharpClosedJsonRuntimeLeaf,
   isCsharpRecordDictionaryTargetType,
   isCsharpStringTargetType,
+  resolveCsharpJsonObjectShapeContract,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../../../../target-model/types/index.js";
@@ -108,7 +110,10 @@ export function validateProjectionShapes(
   projection: CsharpObjectShapeProjection,
 ): string | undefined {
   for (const [key, shape] of shapes) {
-    if (csharpObjectShapeProjectionMembers(shape, projection) === undefined) {
+    const members = projection.kind === "assign"
+      ? csharpObjectShapeAssignmentMembers(shape, projection)
+      : csharpObjectShapeProjectionMembers(shape, projection);
+    if (members === undefined) {
       return `Closed object projection '${key}' does not identify every exact own member once.`;
     }
     for (const member of shape.members) {
@@ -116,6 +121,11 @@ export function validateProjectionShapes(
         return `Closed object projection '${key}' conflicts with generated member '${member.targetName}'.`;
       }
     }
+  }
+  if (projection.kind === "assign" && projection.sourceShape.members.some((member) =>
+    isCsharpObjectShapeGeneratedMemberName(member.targetName)
+  )) {
+    return "Closed object assignment source conflicts with a generated member name.";
   }
   return undefined;
 }
@@ -230,10 +240,31 @@ export function collectJsonShape(
     return `Closed JSON object shape '${key}' is recursively self-referential.`;
   }
   state.visiting.add(key);
+  const contract = resolveCsharpJsonObjectShapeContract(shape);
+  if (contract.kind === "rejected") {
+    state.visiting.delete(key);
+    return contract.reason;
+  }
+  if (contract.contract.kind === "to-json") {
+    const failure = collectJsonType(
+      contract.contract.returnType,
+      undefined,
+      state,
+    );
+    state.visiting.delete(key);
+    if (failure !== undefined) {
+      return failure;
+    }
+    state.collected.set(key, shape);
+    return undefined;
+  }
   for (const member of shape.members) {
-    if (member.targetName === "__tsonicWriteJson") {
+    if (
+      member.targetName === "__tsonicWriteJson" ||
+      member.targetName === "__tsonicJsonValue"
+    ) {
       state.visiting.delete(key);
-      return `Closed JSON object shape '${key}' conflicts with the generated JSON writer member.`;
+      return `Closed JSON object shape '${key}' conflicts with a generated JSON contract member.`;
     }
     if (member.memberKind === "method") {
       continue;

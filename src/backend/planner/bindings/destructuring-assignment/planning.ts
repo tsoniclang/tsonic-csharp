@@ -312,7 +312,7 @@ function planArrayAssignmentProjection(
   return {
     kind: "ElementAccessExpression",
     receiver: sourceExpression,
-    argument: { kind: "LiteralExpression", value: index },
+    arguments: [{ kind: "LiteralExpression", value: index }],
   };
 }
 

@@ -1,6 +1,7 @@
 import type {
   CsharpTargetBindingFact,
   CsharpTargetMember,
+  TargetConstraint,
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
 import {
@@ -60,6 +61,30 @@ export function substituteCsharpTargetMember(
             substitutions,
           ),
         }),
+    ...(member.typeParameters === undefined
+      ? {}
+      : {
+          typeParameters: member.typeParameters.map((parameter) => ({
+            ...parameter,
+            ...(parameter.constraints === undefined
+              ? {}
+              : {
+                  constraints: parameter.constraints.map((constraint) =>
+                    substituteTargetConstraint(constraint, substitutions)),
+                }),
+          })),
+        }),
+    ...(member.csharpBinaryExecutionDriver === undefined
+      ? {}
+      : {
+          csharpBinaryExecutionDriver: {
+            ...member.csharpBinaryExecutionDriver,
+            declaringType: substituteTargetTypeParameters(
+              member.csharpBinaryExecutionDriver.declaringType,
+              substitutions,
+            ),
+          },
+        }),
     ...(member.csharpInvocation === undefined
       ? {}
       : member.csharpInvocation.kind === "static-factory-construction"
@@ -72,6 +97,33 @@ export function substituteCsharpTargetMember(
               ),
             },
           }
-        : { csharpInvocation: member.csharpInvocation }),
+        : member.csharpInvocation.kind === "source-module-construction"
+          ? {
+              csharpInvocation: {
+                ...member.csharpInvocation,
+                bootstrap: {
+                  ...member.csharpInvocation.bootstrap,
+                  declaringType: substituteTargetTypeParameters(
+                    member.csharpInvocation.bootstrap.declaringType,
+                    substitutions,
+                  ),
+                },
+              },
+            }
+          : { csharpInvocation: member.csharpInvocation }),
   };
+}
+
+export function substituteTargetConstraint(
+  constraint: TargetConstraint,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetConstraint {
+  return constraint.kind === "implements" &&
+      constraint.typeArguments !== undefined
+    ? {
+        ...constraint,
+        typeArguments: constraint.typeArguments.map((argument) =>
+          substituteTargetTypeParameters(argument, substitutions)),
+      }
+    : constraint;
 }

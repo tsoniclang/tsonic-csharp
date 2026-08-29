@@ -31,6 +31,15 @@ import {
   csharpExactJsRegExpNamedIndicesTargetType,
   csharpExactJsRegExpStringIteratorTargetType,
   csharpJsSetTargetType,
+  csharpJsWeakMapTargetType,
+  csharpJsWeakSetTargetType,
+  csharpJsArrayBufferTargetType,
+  csharpJsDataViewTargetType,
+  csharpJsTypedArrayTargetType,
+  csharpJsPromiseFulfilledResultTargetType,
+  csharpJsPromiseRejectedResultTargetType,
+  csharpJsIntlTargetType,
+  type CsharpJsTypedArrayName,
 } from "./surface-types.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
@@ -87,6 +96,14 @@ export function resolveSourceProfileType(
         ? undefined
         : csharpTaskTargetType(resultType);
     }
+    case "promise-fulfilled-result":
+      return typeArguments.length === 1
+        ? csharpJsPromiseFulfilledResultTargetType(typeArguments[0]!)
+        : undefined;
+    case "promise-rejected-result":
+      return typeArguments.length === 0
+        ? csharpJsPromiseRejectedResultTargetType()
+        : undefined;
     case "iterator-result": {
       const protocol = generatorResultProtocol(typeArguments);
       return protocol === undefined
@@ -190,6 +207,60 @@ export function resolveSourceProfileType(
     case "readonly-set":
       return typeArguments.length === 1
         ? csharpJsSetTargetType(typeArguments[0]!)
+        : undefined;
+    case "weak-map":
+      return typeArguments.length === 2
+        ? csharpJsWeakMapTargetType(typeArguments[0]!, typeArguments[1]!)
+        : undefined;
+    case "weak-set":
+      return typeArguments.length === 1
+        ? csharpJsWeakSetTargetType(typeArguments[0]!)
+        : undefined;
+    case "array-buffer":
+      return typeArguments.length === 0
+        ? csharpJsArrayBufferTargetType()
+        : undefined;
+    case "data-view":
+      return typeArguments.length === 0
+        ? csharpJsDataViewTargetType()
+        : undefined;
+    case "typed-array":
+      return typeArguments.length === 0
+        ? csharpJsTypedArrayTargetType(
+            identity.sourceName as CsharpJsTypedArrayName,
+          )
+        : undefined;
+    case "intl-date-time-format":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlDateTimeFormat")
+        : undefined;
+    case "intl-number-format":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlNumberFormat")
+        : undefined;
+    case "intl-collator":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlCollator")
+        : undefined;
+    case "intl-date-time-part":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlDateTimeFormatPart")
+        : undefined;
+    case "intl-number-part":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlNumberFormatPart")
+        : undefined;
+    case "intl-date-time-options":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlResolvedDateTimeFormatOptions")
+        : undefined;
+    case "intl-number-options":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlResolvedNumberFormatOptions")
+        : undefined;
+    case "intl-collator-options":
+      return typeArguments.length === 0
+        ? csharpJsIntlTargetType("IntlResolvedCollatorOptions")
         : undefined;
     case "iterable":
       return typeArguments.length === 1

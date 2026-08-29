@@ -156,10 +156,10 @@ function translateSelectedProperty(
         ? "ConditionalElementAccessExpression"
         : "ElementAccessExpression",
       receiver,
-      argument: {
+      arguments: [{
         kind: "LiteralExpression",
         value: input.program.source.ast.text(sourceName),
-      },
+      }],
     };
   }
   if (

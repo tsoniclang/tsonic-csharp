@@ -20,6 +20,7 @@ import {
   targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import type {
+  CsharpArgument,
   CsharpExpression,
   CsharpTypeNode,
 } from "../../target-ast/roslyn/index.js";
@@ -167,9 +168,12 @@ export function applyCsharpConversionSelection(
     case "delegate-adapter":
       return applyDelegateAdapter(
         node,
+        sourceFile,
+        input,
         diagnostics,
         sourceType,
         targetType,
+        selection,
         expression,
       );
     case "provider-argument-adapter":
@@ -424,9 +428,12 @@ function applyRuntimeUnionArmConversion(
 
 function applyDelegateAdapter(
   node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   sourceType: TargetTypeRef | undefined,
   targetType: TargetTypeRef | undefined,
+  selection: Extract<CsharpConversionSelection, { readonly kind: "delegate-adapter" }>,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
   const sourceSignature = getCsharpDelegateSignature(sourceType);
@@ -434,7 +441,8 @@ function applyDelegateAdapter(
   if (
     sourceSignature === undefined ||
     targetSignature === undefined ||
-    sourceSignature.parameters.length !== targetSignature.parameters.length
+    sourceSignature.parameters.length > targetSignature.parameters.length ||
+    selection.parameterConversions.length !== sourceSignature.parameters.length
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -442,24 +450,86 @@ function applyDelegateAdapter(
     ));
     return undefined;
   }
-  const parameters = targetSignature.parameters.map((_, index) => ({
-    kind: "Parameter" as const,
-    name: `__tsonic_arg${index}`,
-  }));
+  const parameters = targetSignature.parameters.map((parameterType, index) => {
+    const type = csharpTypeFromTargetTypeRef(parameterType);
+    return type === undefined
+      ? undefined
+      : {
+          kind: "Parameter" as const,
+          name: `__tsonic_arg${index}`,
+          type,
+        };
+  });
+  if (parameters.some((parameter) => parameter === undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "C# delegate adaptation requires renderable exact target parameter types.",
+    ));
+    return undefined;
+  }
+  const arguments_: CsharpArgument[] = [];
+  for (let index = 0; index < sourceSignature.parameters.length; index += 1) {
+    const parameter = parameters[index]!;
+    const converted = applyCsharpConversionSelection(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      targetSignature.parameters[index],
+      sourceSignature.parameters[index],
+      selection.parameterConversions[index]!,
+      { kind: "IdentifierName", name: parameter.name },
+    );
+    if (converted === undefined) {
+      return undefined;
+    }
+    arguments_.push({ kind: "Argument", expression: converted });
+  }
+  let callableExpression = expression;
+  if (expression.kind === "LambdaExpression") {
+    if (sourceType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# delegate adaptation requires an exact source delegate type for an authored lambda.",
+      ));
+      return undefined;
+    }
+    const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType);
+    if (sourceDelegateType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# delegate adaptation requires a renderable exact source delegate type for an authored lambda.",
+      ));
+      return undefined;
+    }
+    callableExpression = {
+      kind: "CastExpression",
+      type: sourceDelegateType,
+      expression,
+    };
+  }
+  const invocation: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: callableExpression,
+    arguments: arguments_,
+  };
+  const body = applyCsharpConversionSelection(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    sourceSignature.returnType,
+    targetSignature.returnType,
+    selection.returnConversion,
+    invocation,
+  );
+  if (body === undefined) {
+    return undefined;
+  }
   return {
     kind: "LambdaExpression",
-    parameters,
-    body: {
-      kind: "InvocationExpression",
-      callee: expression,
-      arguments: parameters.map((parameter) => ({
-        kind: "Argument" as const,
-        expression: {
-          kind: "IdentifierName" as const,
-          name: parameter.name,
-        },
-      })),
-    },
+    parameters: parameters as NonNullable<(typeof parameters)[number]>[],
+    body,
   };
 }
 

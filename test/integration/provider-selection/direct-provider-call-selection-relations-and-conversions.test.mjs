@@ -384,7 +384,7 @@ test("checked-source parameter acceptance is scoped to the exact provider relati
   const fixture = createCallFixture({
     sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
     targetParameters: [
-      targetParameter("callback", csharpObjectTargetType(), {
+      targetParameter("callback", csharpStringTargetType(), {
         csharpAcceptsCheckedSourceArgument: true,
       }),
     ],
@@ -399,6 +399,38 @@ test("checked-source parameter acceptance is scoped to the exact provider relati
     selected.call.targetMember.parameters[0].csharpAcceptsCheckedSourceArgument,
     true,
   );
+  assert.deepEqual(selected.call.argumentMappings, [{
+    kind: "checked-source",
+    effectiveArgumentIndex: 0,
+    targetType: csharpStringTargetType(),
+    proof: "selected-provider-signature",
+  }]);
+});
+
+test("checked-source acceptance never discards an available exact conversion", () => {
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("int32")],
+    targetParameters: [
+      targetParameter("value", csharpObjectTargetType(), {
+        csharpAcceptsCheckedSourceArgument: true,
+      }),
+    ],
+  });
+
+  const selected = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+
+  assert.equal(selected.kind, "resolved");
+  assert.deepEqual(selected.call.argumentMappings, [{
+    kind: "by-value",
+    effectiveArgumentIndex: 0,
+    sourceType: csharpSourcePrimitiveTargetType("int32"),
+    targetType: csharpObjectTargetType(),
+    conversion: { kind: "implicit", proof: "reference" },
+  }]);
 });
 
 test("optional source and target parameters may be omitted only when both contracts agree", () => {
@@ -464,6 +496,257 @@ test("optional omission fails closed when the target parameter remains required"
   assert.match(selected.reason, /does not supply every required parameter/u);
 });
 
+test("provider generic constraints accept only exactly proven target categories", () => {
+  const cases = [
+    {
+      name: "value type",
+      constraint: { kind: "value-type" },
+      accepted: csharpSourcePrimitiveTargetType("int32"),
+      rejected: csharpStringTargetType(),
+      diagnostic: /not a proven non-nullable C# value type/u,
+    },
+    {
+      name: "reference type",
+      constraint: { kind: "reference-type" },
+      accepted: csharpStringTargetType(),
+      rejected: csharpSourcePrimitiveTargetType("int32"),
+      diagnostic: /not a proven C# reference type/u,
+    },
+    {
+      name: "unmanaged",
+      constraint: { kind: "unmanaged" },
+      accepted: csharpSourcePrimitiveTargetType("int32"),
+      rejected: {
+        kind: "array",
+        element: csharpSourcePrimitiveTargetType("int32"),
+      },
+      diagnostic: /not a proven non-nullable unmanaged C# type/u,
+    },
+    {
+      name: "notnull",
+      constraint: {
+        kind: "target-specific",
+        target: "csharp",
+        name: "notnull",
+      },
+      accepted: csharpStringTargetType(),
+      rejected: csharpNullableReferenceTargetType(
+        csharpStringTargetType(),
+      ),
+      diagnostic: /nullable or has no exact C# nullability category/u,
+    },
+  ];
+
+  for (const row of cases) {
+    const accepted = createConstrainedMethodFixture(
+      row.constraint,
+      row.accepted,
+    );
+    assert.equal(
+      selectCsharpProviderCall(
+        accepted.host,
+        accepted.call,
+        accepted.sourceFile,
+      ).kind,
+      "resolved",
+      row.name,
+    );
+
+    const rejected = createConstrainedMethodFixture(
+      row.constraint,
+      row.rejected,
+    );
+    const selection = selectCsharpProviderCall(
+      rejected.host,
+      rejected.call,
+      rejected.sourceFile,
+    );
+    assert.equal(selection.kind, "missing", row.name);
+    assert.match(selection.reason, row.diagnostic, row.name);
+  }
+});
+
+test("provider constructor and interface constraints use exact project type facts", () => {
+  const concreteType = csharpTargetNamedType("Fixture.Concrete");
+  const abstractType = csharpTargetNamedType("Fixture.Abstract");
+  const contractType = csharpTargetNamedType("Fixture.IContract");
+  const implementingType = csharpTargetNamedType("Fixture.Implementation");
+  const definitions = new Map([
+    [
+      concreteType.id,
+      {
+        kind: "class",
+        abstract: false,
+        publicParameterlessConstructor: true,
+      },
+    ],
+    [
+      abstractType.id,
+      {
+        kind: "class",
+        abstract: true,
+        publicParameterlessConstructor: true,
+      },
+    ],
+    [
+      implementingType.id,
+      {
+        kind: "class",
+        abstract: false,
+        publicParameterlessConstructor: true,
+      },
+    ],
+  ]);
+  const directSupertypes = new Map([
+    [implementingType.id, [contractType]],
+  ]);
+
+  const constructible = createConstrainedMethodFixture(
+    { kind: "constructible" },
+    concreteType,
+    { projectTypeDefinitions: definitions },
+  );
+  assert.equal(
+    selectCsharpProviderCall(
+      constructible.host,
+      constructible.call,
+      constructible.sourceFile,
+    ).kind,
+    "resolved",
+  );
+  const abstract = createConstrainedMethodFixture(
+    { kind: "constructible" },
+    abstractType,
+    { projectTypeDefinitions: definitions },
+  );
+  const abstractSelection = selectCsharpProviderCall(
+    abstract.host,
+    abstract.call,
+    abstract.sourceFile,
+  );
+  assert.equal(abstractSelection.kind, "missing");
+  assert.match(
+    abstractSelection.reason,
+    /not a proven non-abstract type with a public parameterless constructor/u,
+  );
+
+  const implementing = createConstrainedMethodFixture(
+    {
+      kind: "implements",
+      contract: contractType.id,
+    },
+    implementingType,
+    {
+      projectTypeDefinitions: definitions,
+      projectDirectSupertypes: directSupertypes,
+    },
+  );
+  assert.equal(
+    selectCsharpProviderCall(
+      implementing.host,
+      implementing.call,
+      implementing.sourceFile,
+    ).kind,
+    "resolved",
+  );
+  const unrelated = createConstrainedMethodFixture(
+    {
+      kind: "implements",
+      contract: contractType.id,
+    },
+    concreteType,
+    {
+      projectTypeDefinitions: definitions,
+      projectDirectSupertypes: directSupertypes,
+    },
+  );
+  const unrelatedSelection = selectCsharpProviderCall(
+    unrelated.host,
+    unrelated.call,
+    unrelated.sourceFile,
+  );
+  assert.equal(unrelatedSelection.kind, "missing");
+  assert.match(
+    unrelatedSelection.reason,
+    /heritage graph does not contain the required contract/u,
+  );
+});
+
+test("static-interface dispatch validates the exact selected invocation type", () => {
+  const selectedType = {};
+  const contract = csharpTargetNamedType("Fixture.IStaticContract");
+  const implementation = csharpTargetNamedType("Fixture.StaticImplementation");
+  const member = providerMethod({
+    id: "Fixture.IStaticContract.Create()",
+    static: true,
+    declaringType: contract,
+    csharpInvocation: {
+      kind: "static-member",
+      operation: "call",
+      receiver: {
+        kind: "invocation-type-argument",
+        index: 0,
+      },
+    },
+  });
+  const fixture = createCallFixture({
+    declaration: providerDeclaration({
+      memberId: null,
+      memberStatic: null,
+      memberKey: null,
+    }),
+    member,
+    receiver: false,
+    methodTypeArguments: [{ selectedType }],
+    invocationTypeParameters: [{
+      sourceTypeParameterIndex: 0,
+      targetTypeParameterIndex: 0,
+    }],
+    selectedTypeParameterCount: 1,
+    additionalSemanticTypes: [[selectedType, implementation]],
+    projectTypeDefinitions: new Map([[
+      implementation.id,
+      {
+        kind: "class",
+        abstract: false,
+        publicParameterlessConstructor: true,
+      },
+    ]]),
+    projectDirectSupertypes: new Map([[
+      implementation.id,
+      [contract],
+    ]]),
+  });
+  const selection = selectCsharpProviderCall(
+    fixture.host,
+    fixture.call,
+    fixture.sourceFile,
+  );
+  assert.equal(selection.kind, "resolved");
+  assert.deepEqual(
+    selection.call.targetInvocationTypeArguments.map((argument) =>
+      argument.targetType),
+    [implementation],
+  );
+});
+
+function createConstrainedMethodFixture(
+  constraint,
+  targetType,
+  options = {},
+) {
+  const selectedType = {};
+  const member = providerMethod({
+    typeParameters: [{ name: "T", constraints: [constraint] }],
+  });
+  return createCallFixture({
+    member,
+    methodTypeArguments: [{ selectedType }],
+    additionalSemanticTypes: [[selectedType, targetType]],
+    ...options,
+  });
+}
+
 function createCallFixture(options = {}) {
   const declaration = options.declaration ?? providerDeclaration();
   const binding = options.binding ?? providerBinding();
@@ -514,6 +797,15 @@ function createCallFixture(options = {}) {
     ...(options.methodTypeParameters === undefined
       ? {}
       : { methodTypeParameters: options.methodTypeParameters }),
+    ...(options.invocationTypeParameters === undefined
+      ? {}
+      : { invocationTypeParameters: options.invocationTypeParameters }),
+    ...(options.selectedTypeParameterCount === undefined
+      ? {}
+      : {
+          selectedTypeParameterCount:
+            options.selectedTypeParameterCount,
+        }),
   });
   const relations = options.relations ?? [relation];
   const sourceArgumentTargets = options.sourceArgumentTargets ?? [];
@@ -573,6 +865,21 @@ function createCallFixture(options = {}) {
     ...(options.projectConstructors === undefined
       ? {}
       : { projectConstructors: options.projectConstructors }),
+    ...(options.projectTypeDefinitions === undefined
+      ? {}
+      : { projectTypeDefinitions: options.projectTypeDefinitions }),
+    ...(options.projectDirectSupertypes === undefined
+      ? {}
+      : { projectDirectSupertypes: options.projectDirectSupertypes }),
+    ...(options.effectiveTypeArguments === undefined
+      ? {}
+      : { effectiveTypeArguments: options.effectiveTypeArguments }),
+    ...(options.typeSymbols === undefined
+      ? {}
+      : { typeSymbols: options.typeSymbols }),
+    ...(options.symbolDeclarations === undefined
+      ? {}
+      : { symbolDeclarations: options.symbolDeclarations }),
   });
   return {
     ...direct,

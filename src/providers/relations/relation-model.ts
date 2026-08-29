@@ -132,6 +132,8 @@ export type CsharpProviderTargetRelation =
       readonly bindingTypeParameters: readonly CsharpProviderTypeParameterRelation[];
       readonly bindingTypeArgumentSource: CsharpProviderBindingTypeArgumentSource;
       readonly methodTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly invocationTypeParameters: readonly CsharpProviderTypeParameterRelation[];
+      readonly selectedTypeParameterCount: number;
     };
 
 export interface CsharpProviderTargetRejection {
@@ -438,6 +440,16 @@ export function assertCsharpProviderTargetRelationContract(
     relation.targetMember.typeParameters?.length ?? 0,
     "method",
   );
+  assertCompleteTypeParameterRelation(
+    relation.invocationTypeParameters,
+    relation.targetMember.csharpInvocation?.kind === "static-member" &&
+        relation.targetMember.csharpInvocation.receiver.kind ===
+          "invocation-type-argument"
+      ? 1
+      : 0,
+    "invocation",
+  );
+  assertSelectedTypeParameterRelation(relation);
   assertMethodTypeArgumentProjections(relation.targetMember);
   assertParameterRelations(relation);
 }
@@ -578,7 +590,7 @@ function assertReceiverRelation(
       if (
         sourceStatic !== false ||
         !targetStatic ||
-        relation.targetMember.receiverPassing !== "first-argument" ||
+        relation.targetMember.receiverPassing !== "target-parameter" ||
         receiver === undefined
       ) {
         throw new Error(
@@ -592,7 +604,7 @@ function assertReceiverRelation(
 function assertCompleteTypeParameterRelation(
   relations: readonly CsharpProviderTypeParameterRelation[],
   targetArity: number,
-  role: "binding" | "method",
+  role: "binding" | "method" | "invocation",
 ): void {
   if (relations.length !== targetArity) {
     throw new Error(
@@ -606,7 +618,6 @@ function assertCompleteTypeParameterRelation(
       !Number.isSafeInteger(relation.sourceTypeParameterIndex) ||
       !Number.isSafeInteger(relation.targetTypeParameterIndex) ||
       relation.sourceTypeParameterIndex < 0 ||
-      relation.sourceTypeParameterIndex >= relations.length ||
       relation.targetTypeParameterIndex < 0 ||
       relation.targetTypeParameterIndex >= targetArity ||
       sourceIndexes.has(relation.sourceTypeParameterIndex) ||
@@ -618,6 +629,47 @@ function assertCompleteTypeParameterRelation(
     }
     sourceIndexes.add(relation.sourceTypeParameterIndex);
     targetIndexes.add(relation.targetTypeParameterIndex);
+  }
+}
+
+function assertSelectedTypeParameterRelation(
+  relation: Extract<
+    CsharpProviderTargetRelation,
+    { readonly kind: "signature" }
+  >,
+): void {
+  if (
+    !Number.isSafeInteger(relation.selectedTypeParameterCount) ||
+    relation.selectedTypeParameterCount < 0
+  ) {
+    throw new Error(
+      "C# provider selected type-parameter count must be a non-negative safe integer.",
+    );
+  }
+  const selectedRelations = [
+    ...(relation.bindingTypeArgumentSource === "selected-operation-type-arguments"
+      ? relation.bindingTypeParameters
+      : []),
+    ...relation.methodTypeParameters,
+    ...relation.invocationTypeParameters,
+  ];
+  const indexes = new Set<number>();
+  for (const selected of selectedRelations) {
+    if (
+      selected.sourceTypeParameterIndex < 0 ||
+      selected.sourceTypeParameterIndex >= relation.selectedTypeParameterCount ||
+      indexes.has(selected.sourceTypeParameterIndex)
+    ) {
+      throw new Error(
+        "C# provider selected type-parameter roles overlap or contain an out-of-range source index.",
+      );
+    }
+    indexes.add(selected.sourceTypeParameterIndex);
+  }
+  if (indexes.size !== relation.selectedTypeParameterCount) {
+    throw new Error(
+      "C# provider selected type-parameter roles do not cover the exact selected source arity.",
+    );
   }
 }
 

@@ -385,6 +385,7 @@ export function csharpSourceProfileCall(
         targetType,
       })),
     ),
+    targetInvocationTypeArguments: Object.freeze([]),
     arguments: Object.freeze(arguments_),
   };
 }

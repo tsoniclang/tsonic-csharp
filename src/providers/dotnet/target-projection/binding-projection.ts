@@ -78,6 +78,13 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
     csharpType: declaredCsharpType,
+    ...(declaration.abstract === true ? { csharpAbstract: true as const } : {}),
+    ...(declaration.unmanagedTypeParameterIndexes === undefined
+      ? {}
+      : {
+          csharpUnmanagedTypeParameterIndexes:
+            declaration.unmanagedTypeParameterIndexes,
+        }),
     ...(baseType !== undefined ? { csharpBaseType: baseType } : {}),
     ...(declaration.attributes !== undefined && declaration.attributes.length > 0
       ? { attributes: declaration.attributes.map(dotnetAttributeToTargetAttribute) }

@@ -89,6 +89,16 @@ export function providerBinding(options = {}) {
     ...(options.csharpType === undefined ? {} : { csharpType: options.csharpType }),
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(options.members === undefined ? {} : { members: options.members }),
+    ...(options.implementedContracts === undefined
+      ? {}
+      : { implementedContracts: options.implementedContracts }),
+    ...(options.csharpAbstract === true ? { csharpAbstract: true } : {}),
+    ...(options.csharpUnmanagedTypeParameterIndexes === undefined
+      ? {}
+      : {
+          csharpUnmanagedTypeParameterIndexes:
+            options.csharpUnmanagedTypeParameterIndexes,
+        }),
     ...(options.conversionOperators === undefined
       ? {}
       : { conversionOperators: options.conversionOperators }),
@@ -118,6 +128,9 @@ export function providerMethod(options = {}) {
     ...(options.typeParameters === undefined
       ? {}
       : { typeParameters: options.typeParameters }),
+    ...(options.csharpInvocation === undefined
+      ? {}
+      : { csharpInvocation: options.csharpInvocation }),
   });
 }
 
@@ -372,6 +385,31 @@ export function signatureRelation(options) {
       sourceRest: parameter.paramsArray === true,
       targetParamsArray: parameter.paramsArray === true,
     }));
+  const bindingTypeArgumentSource = options.bindingTypeArgumentSource ??
+    (member.kind === "constructor"
+      ? "selected-operation-type-arguments"
+      : member.static === true
+        ? "callee"
+        : "receiver");
+  const bindingTypeParameters = options.bindingTypeParameters ??
+    (binding.typeParameters ?? []).map((_, index) => ({
+      sourceTypeParameterIndex: index,
+      targetTypeParameterIndex: index,
+    }));
+  const methodTypeParameters = options.methodTypeParameters ??
+    (member.typeParameters ?? []).map((_, index) => ({
+      sourceTypeParameterIndex: index,
+      targetTypeParameterIndex: index,
+    }));
+  const invocationTypeParameters = options.invocationTypeParameters ?? [];
+  const selectedTypeParameterCount = options.selectedTypeParameterCount ??
+    selectedSourceTypeParameterCount(
+      bindingTypeArgumentSource === "selected-operation-type-arguments"
+        ? bindingTypeParameters
+        : [],
+      methodTypeParameters,
+      invocationTypeParameters,
+    );
   return Object.freeze({
     kind: "signature",
     source: identity.identity,
@@ -382,23 +420,18 @@ export function signatureRelation(options) {
         ? { kind: "none" }
         : { kind: "instance" }),
     parameters: sourceParameters,
-    bindingTypeParameters: options.bindingTypeParameters ??
-      (binding.typeParameters ?? []).map((_, index) => ({
-        sourceTypeParameterIndex: index,
-        targetTypeParameterIndex: index,
-      })),
-    bindingTypeArgumentSource: options.bindingTypeArgumentSource ??
-      (member.kind === "constructor"
-        ? "selected-operation-type-arguments"
-        : member.static === true
-          ? "callee"
-          : "receiver"),
-    methodTypeParameters: options.methodTypeParameters ??
-      (member.typeParameters ?? []).map((_, index) => ({
-        sourceTypeParameterIndex: index,
-        targetTypeParameterIndex: index,
-      })),
+    bindingTypeParameters,
+    bindingTypeArgumentSource,
+    methodTypeParameters,
+    invocationTypeParameters,
+    selectedTypeParameterCount,
   });
+}
+
+function selectedSourceTypeParameterCount(...relations) {
+  const indexes = relations.flat().map((relation) =>
+    relation.sourceTypeParameterIndex);
+  return indexes.length === 0 ? 0 : Math.max(...indexes) + 1;
 }
 
 export function memberRelation(options) {
@@ -461,8 +494,13 @@ export function directProviderHost(options = {}) {
         },
       }),
       projectTypes: Object.freeze({
-        directSupertypes() {
-          return undefined;
+        catalog: Object.freeze({
+          definitionForTarget(target) {
+            return options.projectTypeDefinitions?.get(target.id);
+          },
+        }),
+        directSupertypes(type) {
+          return options.projectDirectSupertypes?.get(type.id);
         },
         implicitConstructorForSignature(declaration, signature) {
           return options.projectConstructors?.get(declaration)?.get(signature);
@@ -518,6 +556,17 @@ export function directProviderHost(options = {}) {
           declarations: Object.freeze({
             signatureDeclaration(signature) {
               return signatureDeclarations.get(signature);
+            },
+            typeSymbol(type) {
+              return options.typeSymbols?.get(type);
+            },
+            symbolDeclarations(symbol) {
+              return options.symbolDeclarations?.get(symbol) ?? [];
+            },
+          }),
+          types: Object.freeze({
+            effectiveTypeArguments(type) {
+              return options.effectiveTypeArguments?.get(type) ?? [];
             },
           }),
         });

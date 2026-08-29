@@ -18,6 +18,8 @@ import {
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
+  isCsharpValueTypeTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -65,6 +67,10 @@ export type CsharpTargetBinaryOperation =
   | {
       readonly kind: "nullish-test";
       readonly operand: "left" | "right";
+      readonly negated: boolean;
+    }
+  | {
+      readonly kind: "reference-identity";
       readonly negated: boolean;
     };
 
@@ -147,6 +153,12 @@ export function selectCsharpBinaryOperation(
     leftType,
     rightType,
   );
+  const referenceIdentity = selectStrictReferenceIdentity(
+    sourceOperator,
+    leftType,
+    rightType,
+    input,
+  );
   const targetOperator = targetBinaryOperator(sourceOperator);
   if (
     nullishTest === undefined &&
@@ -192,6 +204,7 @@ export function selectCsharpBinaryOperation(
     nullishResultType,
   );
   const incompatibility = nullishTest === undefined
+      && referenceIdentity === undefined
     ? validateBinaryTargetSemantics(
         sourceOperator,
         operationTypes.leftInputType,
@@ -203,7 +216,7 @@ export function selectCsharpBinaryOperation(
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperation: nullishTest ?? stringRelational ?? {
+        targetOperation: nullishTest ?? referenceIdentity ?? stringRelational ?? {
           kind: "operator",
           operator: targetOperator!,
         },
@@ -222,6 +235,49 @@ export function selectCsharpBinaryOperation(
           ),
       }
     : rejected(incompatibility);
+}
+
+function selectStrictReferenceIdentity(
+  operator: CsharpSourceOperator,
+  left: TargetTypeRef,
+  right: TargetTypeRef,
+  input: CsharpPolicyContext,
+): Extract<CsharpTargetBinaryOperation, { readonly kind: "reference-identity" }> |
+    undefined {
+  if (operator !== "===" && operator !== "!==") {
+    return undefined;
+  }
+  const leftIdentity = referenceIdentityCarrier(left, input);
+  const rightIdentity = referenceIdentityCarrier(right, input);
+  return leftIdentity !== undefined && rightIdentity !== undefined &&
+      targetTypeRefEquals(leftIdentity, rightIdentity)
+    ? { kind: "reference-identity", negated: operator === "!==" }
+    : undefined;
+}
+
+function referenceIdentityCarrier(
+  type: TargetTypeRef,
+  input: CsharpPolicyContext,
+): TargetTypeRef | undefined {
+  const providerKind = type.kind === "target-named"
+    ? input.providers.findTargetBindingByTargetId(type.id)?.kind
+    : undefined;
+  if (
+    isCsharpStringTargetType(type) ||
+    isCsharpValueTypeTargetType(type) ||
+    providerKind === "enum" ||
+    providerKind === "struct"
+  ) {
+    return undefined;
+  }
+  const nullableElement = getCsharpNullableElementTargetType(type);
+  const carrier = nullableElement !== undefined &&
+      !isCsharpValueTypeTargetType(nullableElement)
+    ? nullableElement
+    : type;
+  return carrier.kind === "target-named" || carrier.kind === "array"
+    ? carrier
+    : undefined;
 }
 
 export function selectCsharpDestructuringAssignmentOperation(
@@ -397,7 +453,12 @@ function nullishValueType(
     !isCsharpRuntimeNullTargetType(arm) &&
     !isCsharpRuntimeUndefinedTargetType(arm)
   );
-  return valueArms?.length === 1 ? valueArms[0] : undefined;
+  if (valueArms?.length === 1) {
+    return valueArms[0];
+  }
+  return type !== undefined && isCsharpReferenceCarrier(type)
+    ? type
+    : undefined;
 }
 
 function operatorRequiresNumericPromotion(
@@ -708,10 +769,18 @@ function isNullishCapable(type: TargetTypeRef): boolean {
   return getCsharpNullableElementTargetType(type) !== undefined ||
     isCsharpRuntimeNullTargetType(type) ||
     isCsharpRuntimeUndefinedTargetType(type) ||
+    isCsharpReferenceCarrier(type) ||
     (
       type.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpRuntimeUnionArms !== undefined
     );
+}
+
+function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
+  return type.kind === "array" ||
+    type.kind === "target-named" &&
+      !isCsharpValueTypeTargetType(type) &&
+      !isCsharpVoidTargetType(type);
 }
 
 function supportsIntrinsicEquality(

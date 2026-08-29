@@ -278,7 +278,7 @@ function renderObjectShapeDeclaration(
         }),
     members: [
       ...members,
-      ...(jsonSerializable ? [renderJsonSerializableObjectShapeMethod(fact)] : []),
+      ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(
         input,
         fact,

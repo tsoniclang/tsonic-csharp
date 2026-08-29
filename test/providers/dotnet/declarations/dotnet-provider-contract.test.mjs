@@ -356,7 +356,6 @@ test(".NET provider model contract rejects metadata-name fallback identities and
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].assembly.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].typeParameters[0].variance"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].reason"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds"), true);
 });
@@ -460,7 +459,7 @@ test(".NET provider model contract rejects unsupported discriminants and convers
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[1].conversionKind"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[1].kind"), true);
 });
-test(".NET provider model contract rejects supported rows with unsupported CLR source shapes", () => {
+test(".NET provider model contract accepts exact pointers and ranked arrays but rejects target unions", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
@@ -560,10 +559,10 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
   });
 
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].type"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].type"), false);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), false);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[2].signatures[0].parameters[0].type"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), false);
 });
 test(".NET provider declaration contract rejects provider refs missing public module identity", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({
@@ -824,12 +823,17 @@ test(".NET provider invariant scan closes reflected models, virtual declarations
   assert.equal(constrainedBinding.typeParameters[0].constraints.length >= constrained.typeParameters[0].constraints.length, true);
 
   const pointerSignatures = rawType(unsupportedModule, "PointerSignatures");
-  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerReturn") ?? false, false);
-  assert.ok(pointerSignatures.unsupportedMembers?.some((member) =>
-    member.memberKind === "method" &&
-    member.targetName === "PointerReturn" &&
-    /System\.Int32\*/u.test(member.reason)
-  ));
+  const pointerReturn = pointerSignatures.members?.find((member) =>
+    member.kind === "method" && member.targetName === "PointerReturn");
+  assert.ok(pointerReturn);
+  assert.equal(pointerReturn.signatures[0].returnType.kind, "pointer");
+  assert.equal(pointerReturn.signatures[0].returnType.pointee.kind, "source-primitive");
+  assert.equal(pointerReturn.signatures[0].returnType.pointee.name, "int32");
+  assert.equal(
+    pointerSignatures.unsupportedMembers?.some((member) =>
+      member.targetName === "PointerReturn") ?? false,
+    false,
+  );
 });
 test(".NET target binding provider reports unsupported requested exports with provider evidence", () => {
   const bindingProvider = createDotnetSourceDeclarationProvider({

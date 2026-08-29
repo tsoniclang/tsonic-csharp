@@ -20,6 +20,9 @@ import {
   directCsharpSourceYieldExpression,
 } from "../../target-model/syntax/yield-expression.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import {
+  resolveCsharpObjectShapeMemberBySourceContract,
+} from "../../target-model/types/index.js";
 import type { CsharpExpectedTypeClassifications } from "../expected-types/index.js";
 import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
@@ -372,10 +375,48 @@ export function analyzeCsharpConversions(
       if (subject === undefined) {
         continue;
       }
-      const subjectType = storage.type(subject) ??
-        evidence.nodeTargetType(subject);
-      const shape = objectShapes.resolveNode(subject) ??
-        objectShapes.resolveTarget(subjectType);
+      const subjectType = requirement.projection === "assign"
+        ? member.returnType
+        : storage.type(subject) ?? evidence.nodeTargetType(subject);
+      const shape = requirement.projection === "assign"
+        ? objectShapes.resolveTarget(subjectType) ?? objectShapes.resolveNode(subject)
+        : objectShapes.resolveNode(subject) ?? objectShapes.resolveTarget(subjectType);
+      if (requirement.projection === "assign") {
+        const assignmentSubject = classification.target.source.sourceArguments[
+          requirement.assignmentSource.index
+        ]?.expression;
+        const assignmentType = assignmentSubject === undefined
+          ? undefined
+          : storage.type(assignmentSubject) ??
+            evidence.nodeTargetType(assignmentSubject);
+        const assignmentShape = assignmentSubject === undefined
+          ? undefined
+          : objectShapes.resolveNode(assignmentSubject) ??
+            objectShapes.resolveTarget(assignmentType);
+        if (shape === undefined || assignmentShape === undefined) {
+          continue;
+        }
+        for (const sourceMember of assignmentShape.members) {
+          if (sourceMember.sourceKey.kind !== "property" ||
+            sourceMember.memberKind !== "property") {
+            continue;
+          }
+          const targetMember = resolveCsharpObjectShapeMemberBySourceContract(
+            shape,
+            sourceMember.sourceName,
+            "finalized-object-spread-member",
+          );
+          if (targetMember.kind === "resolved") {
+            classifyPair(
+              sourceMember.type,
+              targetMember.member.type,
+              "implicit",
+              assignmentSubject,
+            );
+          }
+        }
+        continue;
+      }
       const projectionValueType = objectProjectionValueType(
         requirement.projection,
         member.returnType,

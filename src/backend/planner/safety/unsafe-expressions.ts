@@ -76,6 +76,7 @@ function expressionContainsUnsafe(
       return mode === "context" && csharpTypeRequiresUnsafe(expression);
     case "ParenthesizedExpression":
     case "AwaitExpression":
+    case "CheckedExpression":
       return expressionContainsUnsafe(
         expression.expression,
         blockContainsUnsafe,
@@ -132,11 +133,11 @@ function expressionContainsUnsafe(
         expression.receiver,
         blockContainsUnsafe,
         mode,
-      ) || expressionContainsUnsafe(
-        expression.argument,
-        blockContainsUnsafe,
-        mode,
-      );
+      ) || expression.arguments.some((argument) => expressionContainsUnsafe(
+          argument,
+          blockContainsUnsafe,
+          mode,
+        ));
     case "BinaryExpression":
     case "AssignmentExpression":
       return expressionContainsUnsafe(

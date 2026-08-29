@@ -272,7 +272,9 @@ export function staticMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
+    "typeParameters" | "csharpArtifactRequirements" |
+      "csharpBinaryExecutionDriver" |
+      "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
   return Object.freeze({
@@ -317,7 +319,9 @@ export function receiverHelperMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpInvocation"
+    "typeParameters" | "csharpArtifactRequirements" |
+      "csharpBinaryExecutionDriver" |
+      "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
   return Object.freeze({
@@ -330,7 +334,7 @@ export function receiverHelperMethod(
       returnType,
       options,
     ),
-    receiverPassing: "first-argument",
+    receiverPassing: "target-parameter",
   });
 }
 

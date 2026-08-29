@@ -98,6 +98,10 @@ sealed partial class ReflectionProvider : IDisposable
         var requestedMetadataNames = request.MetadataNames.Count == 0
             ? null
             : request.MetadataNames.ToHashSet(StringComparer.Ordinal);
+        var staticAdapterIdentitiesByTargetId = allTypes.ToDictionary(
+            TargetId,
+            type => StaticSourceAdapterIdentities(type).ToArray(),
+            StringComparer.Ordinal);
         var requestedSlice = requestedExports is not null ||
             requestedTargetIds is not null ||
             requestedMetadataNames is not null;
@@ -117,7 +121,12 @@ sealed partial class ReflectionProvider : IDisposable
                 group.SourceName,
                 group.AllTypes,
                 RequestedTypes = group.AllTypes
-                    .Where(type => IncludesRequestedType(type, requestedExports, requestedTargetIds, requestedMetadataNames))
+                    .Where(type => IncludesRequestedType(
+                        type,
+                        staticAdapterIdentitiesByTargetId[TargetId(type)],
+                        requestedExports,
+                        requestedTargetIds,
+                        requestedMetadataNames))
                     .ToArray(),
             })
             .Where(group => group.RequestedTypes.Length > 0)
@@ -136,7 +145,10 @@ sealed partial class ReflectionProvider : IDisposable
             .Where(type => UnsupportedSourceExportReason(type) is null)
             .ToArray();
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
-        var completeSourceTargetIds = CompleteSourceTargetIds(allTypes, sourceExportableTargetIds);
+        var completeSourceTargetIds = CompleteSourceTargetIds(
+            allTypes,
+            sourceExportableTargetIds,
+            staticAdapterIdentitiesByTargetId);
         var closureTypes = SourceClosureTypes(allTypes, exportTypes, sourceExportableTargetIds, completeSourceTargetIds);
         var unsupportedExports = requestedSourceGroups
             .Where(group => group.AllTypes.Length > 1 && !IsProviderTypeFamilyGroup(group.SourceName, group.AllTypes))
@@ -156,15 +168,20 @@ sealed partial class ReflectionProvider : IDisposable
             .Cast<object>()
             .ToArray();
 
-        var exports = exportTypes
+        var sourceTypes = exportTypes
+            .Concat(closureTypes)
+            .DistinctBy(TargetId)
+            .ToArray();
+        var typeExports = sourceTypes
             .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
             .Where(export => export is not null)
             .Cast<object>()
-            .Concat(closureTypes
-                .Select(type => ToTypeExport(type, completeSourceTargetIds.Contains(TargetId(type))))
-                .Where(export => export is not null)
-                .Cast<object>())
             .ToArray();
+        var staticMemberExports = sourceTypes
+            .Where(type => completeSourceTargetIds.Contains(TargetId(type)))
+            .SelectMany(StaticSourceAdapterFunctions)
+            .ToArray();
+        var exports = typeExports.Concat(staticMemberExports).ToArray();
 
         return new
         {
@@ -192,6 +209,7 @@ sealed partial class ReflectionProvider : IDisposable
 
     bool IncludesRequestedType(
         Type type,
+        IReadOnlyCollection<StaticSourceAdapterIdentity> staticAdapterIdentities,
         ISet<string>? requestedExports,
         ISet<string>? requestedTargetIds,
         ISet<string>? requestedMetadataNames)
@@ -202,7 +220,10 @@ sealed partial class ReflectionProvider : IDisposable
         }
         return requestedExports?.Contains(ProviderSourceExportName(type)) == true ||
             requestedTargetIds?.Contains(TargetId(type)) == true ||
-            requestedMetadataNames?.Contains(MetadataName(type)) == true;
+            requestedMetadataNames?.Contains(MetadataName(type)) == true ||
+            staticAdapterIdentities.Any(identity =>
+                requestedExports?.Contains(identity.SourceName) == true ||
+                requestedTargetIds?.Contains(identity.TargetId) == true);
     }
 
     bool IsProviderTypeFamilyGroup(string sourceName, IReadOnlyCollection<Type> types)

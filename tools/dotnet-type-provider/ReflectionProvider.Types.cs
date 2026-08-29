@@ -16,6 +16,7 @@ sealed partial class ReflectionProvider
         var implementedContracts = ImplementedContracts(type);
         var unsupportedImplementedContracts = UnsupportedImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
+        var unmanagedTypeParameterIndexes = UnmanagedTypeParameterIndexes(type);
         var attributes = complete
             ? AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type))
             : new AttributeCollection([], []);
@@ -39,6 +40,8 @@ sealed partial class ReflectionProvider
             unsupportedImplementedContracts = unsupportedImplementedContracts.Length == 0 ? null : unsupportedImplementedContracts,
             sourceShape,
             throwable = IsAssignableToRuntimeType(type, typeof(Exception)) ? true : (bool?)null,
+            @abstract = type.IsClass && type.IsAbstract ? true : (bool?)null,
+            unmanagedTypeParameterIndexes,
             members = members.Length == 0 ? null : members,
             conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,

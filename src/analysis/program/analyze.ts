@@ -87,6 +87,12 @@ import {
 import {
   csharpTargetRepresentationContractId,
 } from "../../target-model/contracts/identities.js";
+import {
+  analyzeCsharpSourceModuleConstructions,
+} from "../source-modules/index.js";
+import {
+  composeCsharpBinaryExecutionDriver,
+} from "../../providers/model/provider-policy-contribution.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -205,6 +211,27 @@ export function analyzeCsharpTargetProgram(
       sourceNode: issue.node,
     })));
   }
+  const sourceModuleConstructions = analyzeCsharpSourceModuleConstructions({
+    source,
+    sourceFiles,
+    operations: analysis.operations,
+    outputType: configuration.outputType,
+  });
+  if (sourceModuleConstructions.issues.length > 0) {
+    return rejectedTargetStage(sourceModuleConstructions.issues.map((issue) => ({
+      code: issue.code,
+      category: "error" as const,
+      source: "tsonic-csharp",
+      message: issue.message,
+      sourceNode: issue.node,
+    })));
+  }
+  const operationBinaryExecutionDriver =
+    analysis.operations.binaryExecutionDriver();
+  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(
+    request.binaryExecutionDriver,
+    operationBinaryExecutionDriver,
+  );
   const program: CsharpTargetProgram = Object.freeze({
     host: Object.freeze({
       paths: Object.freeze({ ...input.paths }),
@@ -239,6 +266,10 @@ export function analyzeCsharpTargetProgram(
     conversions: analysis.conversions,
     expectedTypes: analysis.expectedTypes,
     storage: analysis.storage,
+    sourceModuleConstructions: sourceModuleConstructions.index,
+    ...(binaryExecutionDriver === undefined
+      ? {}
+      : { binaryExecutionDriver }),
   });
   return resolvedTargetStage(program);
 }

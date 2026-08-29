@@ -20,9 +20,11 @@ import type {
 } from "./reflection/provider.js";
 import {
   csharpProviderPolicyContributionKind,
+  composeCsharpBinaryExecutionDriver,
   validateCsharpProviderPolicyContribution,
 } from "../model/provider-policy-contribution.js";
 import type {
+  CsharpProviderBinaryExecutionDriver,
   CsharpProviderPolicyContribution,
 } from "../model/provider-policy-contribution.js";
 import {
@@ -45,6 +47,7 @@ export interface CsharpDotnetProviderContribution extends TargetCapabilityContri
 export interface CollectedCsharpCapabilityContributions {
   readonly dotnetProviders: readonly CsharpDotnetProviderContribution[];
   readonly providerPolicies: readonly CsharpProviderPolicyContribution[];
+  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }
 
 export interface CsharpCapabilityDotnetProvider {
@@ -58,6 +61,7 @@ export function collectCsharpCapabilityContributions(
 ): CollectedCsharpCapabilityContributions {
   const dotnetProviders: CsharpDotnetProviderContribution[] = [];
   const providerPolicies: CsharpProviderPolicyContribution[] = [];
+  const binaryExecutionDrivers: CsharpProviderBinaryExecutionDriver[] = [];
   for (const capability of capabilities) {
     for (const contribution of capability.contributions) {
       if (contribution.kind === csharpDotnetProviderContributionKind) {
@@ -67,11 +71,15 @@ export function collectCsharpCapabilityContributions(
           contribution,
         ));
       } else if (contribution.kind === csharpProviderPolicyContributionKind) {
-        providerPolicies.push(validateCsharpProviderPolicyContribution(
+        const policy = validateCsharpProviderPolicyContribution(
           capability.capabilityId,
           capability.moduleOwnership,
           contribution,
-        ));
+        );
+        providerPolicies.push(policy);
+        if (policy.binaryExecutionDriver !== undefined) {
+          binaryExecutionDrivers.push(policy.binaryExecutionDriver);
+        }
       } else {
         throw new Error(
           `C# target capability '${capability.capabilityId}' supplied unsupported target contribution kind '${contribution.kind}'.`,
@@ -79,9 +87,14 @@ export function collectCsharpCapabilityContributions(
       }
     }
   }
+  const binaryExecutionDriver =
+    composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   return Object.freeze({
     dotnetProviders: Object.freeze(dotnetProviders),
     providerPolicies: Object.freeze(providerPolicies),
+    ...(binaryExecutionDriver === undefined
+      ? {}
+      : { binaryExecutionDriver }),
   });
 }
 

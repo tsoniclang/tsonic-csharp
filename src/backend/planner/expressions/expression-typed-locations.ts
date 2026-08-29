@@ -116,7 +116,7 @@ export function tryPlanCsharpTypedLocationOperation(
     }
     case "location-load": {
       const location = planExpression(
-        operation.locationExpression,
+        operation.location.expression,
         sourceFile,
         input,
         diagnostics,
@@ -125,12 +125,16 @@ export function tryPlanCsharpTypedLocationOperation(
         handled: true,
         ...(location === undefined
           ? {}
-          : { expression: invokeMember(location, "Load", []) }),
+          : {
+              expression: operation.location.kind === "runtime-location"
+                ? invokeMember(location, "Load", [])
+                : location,
+            }),
       };
     }
     case "location-store": {
       const location = planExpression(
-        operation.locationExpression,
+        operation.location.expression,
         sourceFile,
         input,
         diagnostics,
@@ -148,7 +152,11 @@ export function tryPlanCsharpTypedLocationOperation(
         handled: true,
         ...(location === undefined || value === undefined
           ? {}
-          : { expression: invokeMember(location, "Store", [value]) }),
+          : {
+              expression: operation.location.kind === "runtime-location"
+                ? invokeMember(location, "Store", [value])
+                : assignment(location, value),
+            }),
       };
     }
     case "location-equal": {
@@ -344,9 +352,17 @@ function planReferenceElementLocation(
     ));
     return undefined;
   }
+  if (planned.arguments.length !== 1) {
+    diagnostics.push(typedLocationDiagnostic(
+      sourceNode,
+      "location-address",
+      "A managed reference-element location requires exactly one selected C# array index.",
+    ));
+    return undefined;
+  }
   return invokeMember(locationType, "CreateArrayElement", [
     planned.receiver,
-    planned.argument,
+    planned.arguments[0]!,
   ]);
 }
 

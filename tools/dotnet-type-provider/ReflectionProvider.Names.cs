@@ -76,6 +76,13 @@ sealed partial class ReflectionProvider
             type.GetGenericArguments().Any(argument => UsesDeclaringTypeParameter(argument, declaringType));
     }
 
+    static bool RequiresStaticSourceAdapter(Type declaringType)
+    {
+        return declaringType.IsInterface ||
+            declaringType.GetGenericArguments().Any(parameter =>
+                parameter.IsGenericParameter && parameter.DeclaringMethod is null);
+    }
+
     static Type UnwrapByRef(Type type)
     {
         return type.IsByRef ? type.GetElementType()! : type;

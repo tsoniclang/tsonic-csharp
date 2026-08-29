@@ -104,6 +104,8 @@ export interface DotnetTypeDeclaration {
   readonly sourceShape?: DotnetTypeRef;
   readonly targetType?: DotnetTypeRef;
   readonly throwable?: boolean;
+  readonly abstract?: true;
+  readonly unmanagedTypeParameterIndexes?: readonly number[];
 }
 
 export interface DotnetNamespaceDeclaration {
@@ -118,6 +120,9 @@ export interface DotnetFunctionDeclaration {
   readonly sourceName: string;
   readonly targetId: string;
   readonly metadataName: string;
+  readonly targetName: string;
+  readonly targetBindingId: string;
+  readonly targetDeclaringType: DotnetTypeRef;
   readonly signatures: readonly DotnetSignatureDeclaration[];
 }
 
@@ -146,13 +151,15 @@ export interface DotnetMemberDeclaration {
   readonly metadataName: string;
   readonly static?: boolean;
   readonly sourceStatic?: boolean;
-  readonly sourceProjection?: "extension-method";
-  readonly receiverPassing?: "instance" | "first-argument";
-  readonly sourceParameterOffset?: number;
+  readonly sourceProjection?: "extension-method" | "operator-adapter";
+  readonly receiverPassing?: "instance" | "target-parameter";
+  readonly sourceReceiverParameterIndex?: number;
   readonly targetDeclaringType?: DotnetTypeRef;
   readonly readable?: boolean;
   readonly writable?: boolean;
   readonly type?: DotnetTypeRef;
+  readonly sourceType?: DotnetTypeRef;
+  readonly returnPassing?: DotnetReturnPassingMode;
   readonly signatures?: readonly DotnetSignatureDeclaration[];
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
@@ -176,13 +183,24 @@ export interface DotnetSignatureDeclaration {
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
+  readonly sourceTypeParameters?: readonly DotnetTypeParameterDeclaration[];
+  readonly sourceTypeParameterRoles?: {
+    readonly binding: readonly number[];
+    readonly method: readonly number[];
+    readonly invocation: readonly number[];
+  };
   readonly parameters: readonly DotnetParameterDeclaration[];
   readonly returnType?: DotnetTypeRef;
   readonly targetReturnType?: DotnetTypeRef;
+  readonly returnPassing?: DotnetReturnPassingMode;
   readonly returnAttributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedReturnAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
   readonly targetInvocation?: DotnetTargetInvocation;
 }
+
+export type DotnetReturnPassingMode =
+  | "byref-readwrite"
+  | "byref-readonly";
 
 export type DotnetTargetInvocation =
   | {
@@ -192,6 +210,63 @@ export type DotnetTargetInvocation =
   | {
       readonly kind: "static-factory-construction";
       readonly factoryType: DotnetTypeRef;
+    }
+  | {
+      readonly kind: "native-indexer-get";
+      readonly indexParameterIndexes: readonly number[];
+    }
+  | {
+      readonly kind: "native-indexer-set";
+      readonly indexParameterIndexes: readonly number[];
+      readonly valueParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-event-add" | "native-event-remove";
+      readonly handlerParameterIndex: number;
+    }
+  | {
+      readonly kind: "native-operator";
+      readonly form: "prefix" | "binary";
+      readonly operator:
+        | "unary-plus"
+        | "unary-negation"
+        | "logical-not"
+        | "ones-complement"
+        | "addition"
+        | "subtraction"
+        | "multiplication"
+        | "division"
+        | "modulus"
+        | "bitwise-and"
+        | "bitwise-or"
+        | "exclusive-or"
+        | "left-shift"
+        | "right-shift"
+        | "unsigned-right-shift"
+        | "equality"
+        | "inequality"
+        | "less-than"
+        | "less-than-or-equal"
+        | "greater-than"
+        | "greater-than-or-equal";
+      readonly operandParameterIndexes: readonly number[];
+      readonly checked?: true;
+    }
+  | {
+      readonly kind: "static-member";
+      readonly operation:
+        | "call"
+        | "property-get"
+        | "property-set"
+        | "event-add"
+        | "event-remove";
+      readonly receiver:
+        | { readonly kind: "declaring-type" }
+        | {
+            readonly kind: "invocation-type-argument";
+            readonly index: number;
+          };
+      readonly valueParameterIndex?: number;
     };
 
 export interface DotnetConversionOperatorDeclaration {
@@ -313,7 +388,7 @@ export type DotnetTypeRef =
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }
-  | { readonly kind: "function"; readonly id: string; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
+  | { readonly kind: "function"; readonly id: string; readonly parameters: readonly DotnetParameterDeclaration[]; readonly returnType: DotnetTypeRef; readonly targetReturnType?: DotnetTypeRef; readonly returnPassing?: DotnetReturnPassingMode; readonly typeParameters?: readonly DotnetTypeParameterDeclaration[] }
   | { readonly kind: "pointer"; readonly pointee: DotnetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
   | { readonly kind: "function-pointer"; readonly args: readonly DotnetTypeRef[]; readonly result: DotnetTypeRef; readonly abi?: readonly string[] }
   | { readonly kind: "opaque"; readonly id: string; readonly displayName?: string; readonly sourceShape?: DotnetTypeRef };

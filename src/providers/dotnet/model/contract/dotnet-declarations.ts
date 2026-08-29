@@ -1,12 +1,11 @@
-import { dotnetConversionOperatorNameMatchesKind, hasMatchingUnsupportedMember, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
-import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds } from "./support.js";
+import { dotnetConversionOperatorNameMatchesKind, validateDotnetTargetIdentity, validateOptionalDotnetAssemblyReference, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
+import { requireNonEmptyString, requireSupportedDiscriminant, requireUnique, supportedDotnetConversionKinds, supportedDotnetConversionOperatorNames, supportedDotnetExportKinds, supportedDotnetMemberKinds, supportedDotnetTypeKinds, supportedReturnPassingModes } from "./support.js";
 import { validateDotnetConstraints, validateDotnetSignatureList, validateDotnetTypeParameters, validateUnsupportedConstraints, validateUnsupportedMembers } from "./dotnet-signatures.js";
-import { validateDotnetTypeRef, validateNoUnsupportedClrSourceTypeRef, validateOptionalDotnetTypeRef, validateOptionalNoUnsupportedClrSourceTypeRef } from "./dotnet-types.js";
+import { validateDotnetTypeRef, validateOptionalDotnetTypeRef } from "./dotnet-types.js";
 import type {
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetTypeDeclaration,
-  DotnetUnsupportedMemberDeclaration,
 } from "../index.js";
 import type { ContractCollector } from "./support.js";
 
@@ -51,6 +50,13 @@ function validateDotnetExportDeclaration(
     case "function":
       requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
       validateDotnetTargetIdentity(declaration.targetId, declaration.metadataName, `${path}.targetId`, `${path}.metadataName`, collector);
+      requireNonEmptyString(declaration.targetName, `${path}.targetName`, collector);
+      requireNonEmptyString(declaration.targetBindingId, `${path}.targetBindingId`, collector);
+      validateDotnetTypeRef(declaration.targetDeclaringType, `${path}.targetDeclaringType`, collector, {
+        allowLiteral: false,
+        allowProviderRef: false,
+        targetPosition: true,
+      });
       validateDotnetSignatureList(declaration.signatures, `${path}.signatures`, collector, { requireReturnType: true });
       return;
     case "value":
@@ -87,14 +93,35 @@ function validateDotnetTypeDeclaration(
   validateOptionalDotnetAssemblyReference(declaration.assembly, `${path}.assembly`, collector);
   validateOptionalDotnetRenderShape(declaration.renderShape, `${path}.renderShape`, collector);
   validateDotnetTypeParameters(declaration.typeParameters ?? [], `${path}.typeParameters`, collector);
+  if (declaration.abstract !== undefined && declaration.abstract !== true) {
+    collector.add(`${path}.abstract`, "A .NET abstract-type fact, when present, must be true.", declaration.abstract);
+  }
+  if (declaration.abstract === true && declaration.typeKind !== "class") {
+    collector.add(`${path}.abstract`, "Only CLR class declarations may carry the abstract-type fact.", declaration.abstract);
+  }
+  if (declaration.unmanagedTypeParameterIndexes !== undefined) {
+    const indexes = declaration.unmanagedTypeParameterIndexes;
+    if (
+      declaration.typeKind !== "struct" && declaration.typeKind !== "enum" ||
+      new Set(indexes).size !== indexes.length ||
+      indexes.some((index) =>
+        !Number.isSafeInteger(index) ||
+        index < 0 ||
+        index >= (declaration.typeParameters?.length ?? 0)
+      )
+    ) {
+      collector.add(
+        `${path}.unmanagedTypeParameterIndexes`,
+        "An unmanaged CLR type fact must identify a unique subset of its own generic parameters on a struct or enum.",
+        indexes,
+      );
+    }
+  }
   validateOptionalDotnetTypeRef(declaration.baseType, `${path}.baseType`, collector, { allowLiteral: false, allowProviderRef: true, targetPosition: true });
   validateDotnetConstraints(declaration.implementedContracts ?? [], `${path}.implementedContracts`, collector);
   validateUnsupportedConstraints(declaration.unsupportedImplementedContracts ?? [], `${path}.unsupportedImplementedContracts`, collector);
   const unsupportedMembers = declaration.unsupportedMembers ?? [];
-  validateDotnetMemberList(declaration.members ?? [], `${path}.members`, collector, {
-    sourceVisible: options.sourceVisible,
-    unsupportedMembers,
-  });
+  validateDotnetMemberList(declaration.members ?? [], `${path}.members`, collector);
   validateUnsupportedMembers(unsupportedMembers, `${path}.unsupportedMembers`, collector);
   for (const [index, operator] of (declaration.conversionOperators ?? []).entries()) {
     const operatorPath = `${path}.conversionOperators[${index}]`;
@@ -118,13 +145,8 @@ function validateDotnetTypeDeclaration(
     validateDotnetTargetIdentity(operator.id, operator.metadataName, `${operatorPath}.id`, `${operatorPath}.metadataName`, collector);
     validateDotnetTypeRef(operator.sourceType, `${operatorPath}.sourceType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     validateDotnetTypeRef(operator.targetType, `${operatorPath}.targetType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
-    validateNoUnsupportedClrSourceTypeRef(operator.sourceType, `${operatorPath}.sourceType`, collector, "Conversion operator source type");
-    validateNoUnsupportedClrSourceTypeRef(operator.targetType, `${operatorPath}.targetType`, collector, "Conversion operator target type");
   }
   validateOptionalDotnetTypeRef(declaration.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
-  if (options.sourceVisible) {
-    validateOptionalNoUnsupportedClrSourceTypeRef(declaration.sourceShape, `${path}.sourceShape`, collector, "Source-visible type sourceShape");
-  }
   validateOptionalDotnetTypeRef(declaration.targetType, `${path}.targetType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
   if (options.sourceVisible && typeKindValid && declaration.typeKind === "delegate" && declaration.sourceShape === undefined) {
     collector.add(`${path}.sourceShape`, "Source-visible delegate declarations must carry a source function shape or be moved to targetOnlyTypes/unsupportedExports.");
@@ -153,10 +175,6 @@ function validateDotnetMemberList(
   members: readonly DotnetMemberDeclaration[],
   path: string,
   collector: ContractCollector,
-  options: {
-    readonly sourceVisible: boolean;
-    readonly unsupportedMembers: readonly DotnetUnsupportedMemberDeclaration[];
-  },
 ): void {
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
@@ -172,8 +190,8 @@ function validateDotnetMemberList(
     requireNonEmptyString(member.sourceName, `${memberPath}.sourceName`, collector);
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     validateDotnetTargetIdentity(member.targetId, member.metadataName, `${memberPath}.targetId`, `${memberPath}.metadataName`, collector);
-    if (member.sourceParameterOffset !== undefined && (!Number.isSafeInteger(member.sourceParameterOffset) || member.sourceParameterOffset < 0)) {
-      collector.add(`${memberPath}.sourceParameterOffset`, "Source parameter offset must be a non-negative safe integer.", member.sourceParameterOffset);
+    if (member.sourceReceiverParameterIndex !== undefined && (!Number.isSafeInteger(member.sourceReceiverParameterIndex) || member.sourceReceiverParameterIndex < 0)) {
+      collector.add(`${memberPath}.sourceReceiverParameterIndex`, "Source receiver parameter index must be a non-negative safe integer.", member.sourceReceiverParameterIndex);
     }
     validateDotnetSourceProjection(member, memberPath, collector);
     validateOptionalDotnetTypeRef(member.targetDeclaringType, `${memberPath}.targetDeclaringType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
@@ -186,9 +204,6 @@ function validateDotnetMemberList(
         if ((member.signatures ?? []).length === 0) {
           collector.add(`${memberPath}.signatures`, `${member.kind} members must carry at least one supported signature.`);
         }
-        if (options.sourceVisible) {
-          validateSourceVisibleCallableMemberClrShapes(member, memberPath, collector);
-        }
         break;
       case "property":
       case "field":
@@ -197,16 +212,23 @@ function validateDotnetMemberList(
           collector.add(`${memberPath}.type`, `${member.kind} members must carry a closed target type.`);
         } else {
           validateDotnetTypeRef(member.type, `${memberPath}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
-          if (options.sourceVisible) {
-            validateNoUnsupportedClrSourceTypeRef(member.type, `${memberPath}.type`, collector, `Source-visible ${member.kind} member type`);
-          }
         }
-        if (options.sourceVisible && member.kind === "event" && !hasMatchingUnsupportedMember(options.unsupportedMembers, member, "event")) {
-          collector.add(
-            `${memberPath}.targetId`,
-            "Source-visible event members must carry matching unsupported source-event evidence until provider event semantics exist.",
-            member.targetId,
-          );
+        validateOptionalDotnetTypeRef(member.sourceType, `${memberPath}.sourceType`, collector, { allowLiteral: false, allowProviderRef: true });
+        if (member.returnPassing !== undefined) {
+          if (!supportedReturnPassingModes.has(member.returnPassing)) {
+            collector.add(`${memberPath}.returnPassing`, "Member returnPassing is not a supported .NET return ABI.", member.returnPassing);
+          }
+          if (
+            member.kind !== "property" ||
+            member.sourceType?.kind !== "provider-ref" ||
+            member.sourceType.moduleSpecifier !== "@tsonic/core/types.js" ||
+            member.sourceType.exportName !== "Pointer" ||
+            member.sourceType.typeArguments?.length !== 1
+          ) {
+            collector.add(`${memberPath}.sourceType`, "A by-reference property must expose the exact shared Pointer<T> source location contract.", member.sourceType);
+          }
+        } else if (member.sourceType !== undefined) {
+          collector.add(`${memberPath}.returnPassing`, "A distinct property source type requires an explicit return ABI.");
         }
         break;
     }
@@ -220,7 +242,8 @@ function validateDotnetSourceProjection(
 ): void {
   if (
     member.sourceProjection !== undefined &&
-    member.sourceProjection !== "extension-method"
+    member.sourceProjection !== "extension-method" &&
+    member.sourceProjection !== "operator-adapter"
   ) {
     collector.add(
       `${path}.sourceProjection`,
@@ -229,49 +252,36 @@ function validateDotnetSourceProjection(
     );
     return;
   }
-  const hasExtensionMethodShape = member.kind === "method" &&
+  const hasTargetParameterReceiverShape =
     member.static === true &&
     member.sourceStatic === false &&
-    member.receiverPassing === "first-argument" &&
-    member.sourceParameterOffset === 1;
+    member.receiverPassing === "target-parameter" &&
+    member.sourceReceiverParameterIndex !== undefined;
+  const hasExtensionMethodShape = member.kind === "method" &&
+    member.sourceReceiverParameterIndex === 0 &&
+    hasTargetParameterReceiverShape;
+  const hasOperatorAdapterShape = member.kind === "operator" &&
+    hasTargetParameterReceiverShape;
   if (member.sourceProjection === "extension-method" && !hasExtensionMethodShape) {
     collector.add(
       `${path}.sourceProjection`,
-      "Extension-method source projections require a static target method, an instance source member, first-argument receiver passing, and one omitted source parameter.",
+      "Extension-method source projections require a static target method, an instance source member, and exact target parameter zero as the source receiver.",
       member.sourceProjection,
     );
   }
-  if (hasExtensionMethodShape && member.sourceProjection !== "extension-method") {
+  if (member.sourceProjection === "operator-adapter" && !hasOperatorAdapterShape) {
+    collector.add(
+      `${path}.sourceProjection`,
+      "Operator source projections require a static target operator, an instance source member, and one exact target receiver parameter.",
+      member.sourceProjection,
+    );
+  }
+  if (hasExtensionMethodShape && member.sourceProjection !== "extension-method" ||
+      hasOperatorAdapterShape && member.sourceProjection !== "operator-adapter") {
     collector.add(
       `${path}.sourceProjection`,
       "Extension-method projection metadata must be explicit.",
       member.sourceProjection,
     );
-  }
-}
-
-function validateSourceVisibleCallableMemberClrShapes(
-  member: DotnetMemberDeclaration,
-  path: string,
-  collector: ContractCollector,
-): void {
-  for (const [signatureIndex, signature] of (member.signatures ?? []).entries()) {
-    const signaturePath = `${path}.signatures[${signatureIndex}]`;
-    for (const [parameterIndex, parameter] of signature.parameters.slice(member.sourceParameterOffset ?? 0).entries()) {
-      validateNoUnsupportedClrSourceTypeRef(
-        parameter.sourceType ?? parameter.type,
-        `${signaturePath}.parameters[${parameterIndex + (member.sourceParameterOffset ?? 0)}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
-        collector,
-        `Source-visible ${member.kind} parameter '${parameter.name}' type`,
-      );
-    }
-    if (signature.returnType !== undefined) {
-      validateNoUnsupportedClrSourceTypeRef(
-        signature.returnType,
-        `${signaturePath}.returnType`,
-        collector,
-        `Source-visible ${member.kind} return type`,
-      );
-    }
   }
 }

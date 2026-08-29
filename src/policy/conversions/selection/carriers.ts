@@ -124,6 +124,13 @@ export function selectNullableConversion(
       mode,
     );
     if (conversionIsImplicitlyApplicable(elementConversion)) {
+      if (
+        sourceElement === undefined &&
+        isCsharpNullableReferenceTargetType(target) &&
+        elementConversion.kind === "delegate-adapter"
+      ) {
+        return elementConversion;
+      }
       return { kind: "implicit", proof: "nullable" };
     }
     if (mode === "explicit" && csharpConversionIsApplicable(elementConversion, mode)) {
@@ -155,6 +162,10 @@ export function selectNullableConversion(
 }
 
 export function selectDelegateConversion(
+  input: Pick<
+    CsharpPolicyContext,
+    "projectTypes" | "providers" | "target"
+  >,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
@@ -163,29 +174,55 @@ export function selectDelegateConversion(
   if (sourceSignature === undefined || targetSignature === undefined) {
     return undefined;
   }
-  return delegateSignaturesEqual(sourceSignature, targetSignature)
-    ? { kind: "delegate-adapter" }
-    : {
-        kind: "rejected",
-        reason:
-          "C# delegate conversion requires exactly matching parameter and return representations.",
-      };
+  if (
+    sourceSignature.parameters.length > targetSignature.parameters.length ||
+    sourceSignature.returnPassing !== targetSignature.returnPassing ||
+    !numberListsEqual(
+      sourceSignature.optionalParameterIndexes ?? [],
+      targetSignature.optionalParameterIndexes ?? [],
+    ) ||
+    sourceSignature.restParameterIndex !== targetSignature.restParameterIndex
+  ) {
+    return rejectedDelegateConversion(source, target);
+  }
+  const parameterConversions = sourceSignature.parameters.map(
+    (sourceParameter, index) => selectCsharpConversion(
+      input,
+      targetSignature.parameters[index]!,
+      sourceParameter,
+      "implicit",
+    ),
+  );
+  const returnConversion = selectCsharpConversion(
+    input,
+    sourceSignature.returnType,
+    targetSignature.returnType,
+    "implicit",
+  );
+  if (
+    parameterConversions.some((conversion) =>
+      !csharpConversionIsApplicable(conversion, "implicit")
+    ) ||
+    !csharpConversionIsApplicable(returnConversion, "implicit")
+  ) {
+    return rejectedDelegateConversion(source, target);
+  }
+  return {
+    kind: "delegate-adapter",
+    parameterConversions: Object.freeze(parameterConversions),
+    returnConversion,
+  };
 }
 
-function delegateSignaturesEqual(
-  source: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
-  target: NonNullable<ReturnType<typeof getCsharpDelegateSignature>>,
-): boolean {
-  return source.parameters.length === target.parameters.length &&
-    source.parameters.every((parameter, index) =>
-      target.parameters[index] !== undefined &&
-      targetTypeRefEquals(parameter, target.parameters[index]!)) &&
-    targetTypeRefEquals(source.returnType, target.returnType) &&
-    numberListsEqual(
-      source.optionalParameterIndexes ?? [],
-      target.optionalParameterIndexes ?? [],
-    ) &&
-    source.restParameterIndex === target.restParameterIndex;
+function rejectedDelegateConversion(
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+): CsharpConversionSelection {
+  return {
+    kind: "rejected",
+    reason:
+      `C# delegate conversion requires matching call shape and exact implicit parameter/return adaptations; source '${targetTypeRefKey(source)}', target '${targetTypeRefKey(target)}'.`,
+  };
 }
 
 function numberListsEqual(

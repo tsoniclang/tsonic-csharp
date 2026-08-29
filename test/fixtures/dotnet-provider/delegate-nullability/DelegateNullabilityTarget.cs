@@ -37,6 +37,10 @@ public static class GenericCallbackHost
     public static void Nullable<T>(Func<T?, string> callback)
     {
     }
+
+    public static void NullableValueCallback(Action<int>? callback)
+    {
+    }
 }
 
 public static class ObjectInputHost

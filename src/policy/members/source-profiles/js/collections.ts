@@ -57,24 +57,31 @@ const mapSharedMethodRows = [
   { sourceName: "keys", targetName: "keys", parameterKind: "none", resultKind: "keys" },
   { sourceName: "values", targetName: "values", parameterKind: "none", resultKind: "values" },
   { sourceName: "entries", targetName: "entries", parameterKind: "none", resultKind: "entries" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
 ] as const;
 const mapMutableMethodRows = [
   { sourceName: "set", targetName: "set", parameterKind: "key-value", resultKind: "receiver" },
   { sourceName: "delete", targetName: "delete", parameterKind: "key", resultKind: "bool" },
   { sourceName: "clear", targetName: "clear", parameterKind: "none", resultKind: "void" },
-  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
 ] as const;
 const setSharedMethodRows = [
   { sourceName: "has", targetName: "has", parameterKind: "value", resultKind: "bool" },
   { sourceName: "keys", targetName: "keys", parameterKind: "none", resultKind: "values" },
   { sourceName: "values", targetName: "values", parameterKind: "none", resultKind: "values" },
   { sourceName: "entries", targetName: "entries", parameterKind: "none", resultKind: "entries" },
+  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
+  { sourceName: "union", targetName: "union", parameterKind: "set", resultKind: "receiver" },
+  { sourceName: "intersection", targetName: "intersection", parameterKind: "set", resultKind: "receiver" },
+  { sourceName: "difference", targetName: "difference", parameterKind: "set", resultKind: "receiver" },
+  { sourceName: "symmetricDifference", targetName: "symmetricDifference", parameterKind: "set", resultKind: "receiver" },
+  { sourceName: "isSubsetOf", targetName: "isSubsetOf", parameterKind: "set", resultKind: "bool" },
+  { sourceName: "isSupersetOf", targetName: "isSupersetOf", parameterKind: "set", resultKind: "bool" },
+  { sourceName: "isDisjointFrom", targetName: "isDisjointFrom", parameterKind: "set", resultKind: "bool" },
 ] as const;
 const setMutableMethodRows = [
   { sourceName: "add", targetName: "add", parameterKind: "value", resultKind: "receiver" },
   { sourceName: "delete", targetName: "delete", parameterKind: "value", resultKind: "bool" },
   { sourceName: "clear", targetName: "clear", parameterKind: "none", resultKind: "void" },
-  { sourceName: "forEach", targetName: "forEach", parameterKind: "callback", resultKind: "void" },
 ] as const;
 
 export const csharpJsCollectionCallPolicies:
@@ -300,6 +307,8 @@ function setDirectMember(
   }
   const parameters = row.parameterKind === "value"
     ? [targetParameter("value", shape.element)]
+    : row.parameterKind === "set"
+      ? [targetParameter("other", shape.receiver)]
     : row.parameterKind === "callback"
       ? [
           targetParameter(

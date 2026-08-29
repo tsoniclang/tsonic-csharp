@@ -33,6 +33,7 @@ interface CsharpSelectedTargetCallBase {
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
   readonly targetMethodTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
+  readonly targetInvocationTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
   readonly arguments: readonly CsharpSelectedCallArgument[];
 }
 
@@ -54,6 +55,12 @@ export type CsharpProviderArgumentMapping =
         "by-value"
       >;
       readonly proof: "storage-identity";
+    }
+  | {
+      readonly kind: "checked-source";
+      readonly effectiveArgumentIndex: number;
+      readonly targetType: TargetTypeRef;
+      readonly proof: "selected-provider-signature";
     };
 
 export type CsharpSelectedTargetCall =

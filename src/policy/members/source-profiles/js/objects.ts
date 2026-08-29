@@ -21,6 +21,7 @@ import {
   csharpTaskTargetType,
   csharpVoidTargetType,
   getCsharpTaskResultTargetType,
+  getCsharpDelegateSignature,
   isCsharpRecordDictionaryTargetType,
   isCsharpVoidTargetType,
   targetTypeRefEquals,
@@ -52,6 +53,17 @@ const objectType = csharpObjectTargetType();
 const objectRuntimeType = jsRuntimeTargetType("Object");
 const jsonRuntimeType = jsRuntimeTargetType("JSON");
 const jsonValueType = csharpTsValueTargetType();
+const jsonReplacerType = csharpTargetNamedType(
+  "Tsonic.CSharp.Js.JsonReplacer",
+  undefined,
+  csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsonReplacer"),
+  {
+    delegateSignature: {
+      parameters: [stringType, jsonValueType],
+      returnType: jsonValueType,
+    },
+  },
+);
 const promiseRuntimeType = jsRuntimeTargetType("PromiseRuntime");
 const noReceiver = { kind: "none" } as const;
 const firstParameterReceiver = {
@@ -161,12 +173,6 @@ export const csharpJsObjectCallPolicies:
       jsMemberIdentity("PromiseConstructor", "all"),
       (context) => promiseAllMember(context),
       noReceiver,
-    ),
-    ...["resolve", "reject"].map((name) =>
-      jsUnsupportedCallPolicy(
-        jsMemberIdentity("PromiseConstructor", name),
-        `Promise.${name} requires a closed Promise/Task carrier relation that has not yet been declared by the JS source profile.`,
-      )
     ),
     ...["then", "catch"].map((name) =>
       jsUnsupportedCallPolicy(
@@ -290,18 +296,73 @@ function objectAssignMember(
     context,
     context.source.sourceArguments[0],
   );
-  return targetType === undefined
+  const sourceType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[1],
+  );
+  const resultType = context.host.types.resolveType(
+    context.source.sourceResultType,
+    context.sourceFile,
+  );
+  if (
+    targetType !== undefined &&
+    sourceType !== undefined &&
+    context.source.sourceArguments.length === 2 &&
+    isCsharpRecordDictionaryTargetType(targetType) &&
+    targetTypeRefEquals(targetType, sourceType)
+  ) {
+    return staticMethod(
+      `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(targetType)}`,
+      "assign",
+      "assign",
+      objectRuntimeType,
+      [
+        targetParameter("target", targetType),
+        targetParameter("source", sourceType),
+      ],
+      targetType,
+    );
+  }
+  const targetShape = targetType === undefined
+    ? undefined
+    : context.host.objectShapes?.resolveNode(
+        context.source.sourceArguments[0]?.expression,
+        context.sourceFile,
+      ) ?? context.host.objectShapes?.resolveTarget(targetType);
+  const sourceShape = sourceType === undefined
+    ? undefined
+    : context.host.objectShapes?.resolveNode(
+        context.source.sourceArguments[1]?.expression,
+        context.sourceFile,
+      ) ?? context.host.objectShapes?.resolveTarget(sourceType);
+  return targetType === undefined ||
+      context.source.sourceArguments.length !== 2 ||
+      sourceType === undefined ||
+      resultType === undefined ||
+      targetShape === undefined ||
+      sourceShape === undefined
     ? undefined
     : staticMethod(
-        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(targetType)}`,
+        `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(resultType)}`,
         "assign",
         "assign",
         objectRuntimeType,
         [
-          targetParameter("target", targetType),
-          closedObjectParameter("source"),
+          targetParameter("target", resultType, {
+            csharpAcceptsCheckedSourceArgument: true,
+          }),
+          targetParameter("source", sourceType),
         ],
-        targetType,
+        resultType,
+        objectShapeProjectionOptions(
+          context,
+          context.source.sourceArguments[0],
+          resultType,
+          "assign",
+          0,
+          { kind: "argument", index: 0 },
+          { kind: "argument", index: 1 },
+        ),
       );
 }
 
@@ -351,7 +412,7 @@ function objectToStringMember(
           [closedObjectParameter("receiver")],
           stringType,
         ),
-        receiverPassing: "first-argument",
+        receiverPassing: "target-parameter",
       });
 }
 
@@ -362,6 +423,14 @@ function jsonStringifyMember(
     context,
     context.source.sourceArguments[0],
   );
+  const selectedReplacerType = resolveCsharpSelectedSourceValue(
+    context,
+    context.source.sourceArguments[1],
+  );
+  const replacerType = selectedReplacerType !== undefined &&
+      getCsharpDelegateSignature(selectedReplacerType) !== undefined
+    ? jsonReplacerType
+    : selectedReplacerType ?? objectType;
   return valueType === undefined
     ? undefined
     : staticMethod(
@@ -372,6 +441,16 @@ function jsonStringifyMember(
         [
           targetParameter("value", valueType, {
             csharpAcceptsClosedSourceArgument: true,
+          }),
+          targetParameter("replacer", replacerType, {
+            optional: true,
+            ...(replacerType === jsonReplacerType
+              ? { csharpAcceptsCheckedSourceArgument: true as const }
+              : {}),
+          }),
+          targetParameter("space", jsonValueType, {
+            optional: true,
+            csharpAcceptsCheckedSourceArgument: true,
           }),
         ],
         stringType,
@@ -396,6 +475,10 @@ function objectShapeProjectionOptions(
     kind: "argument",
     index: 0,
   },
+  assignmentSource?: {
+    readonly kind: "argument";
+    readonly index: number;
+  },
 ): {
   readonly csharpArtifactRequirements?: readonly CsharpCallArtifactRequirement[];
   readonly csharpInvocation?: CsharpTargetInvocation;
@@ -410,15 +493,28 @@ function objectShapeProjectionOptions(
     sourceValue.expression,
     context.sourceFile,
   ) ?? context.host.objectShapes?.resolveTarget(selectedTargetType);
-  return shape === undefined
-    ? {}
-    : {
-        csharpArtifactRequirements: [{
+  const requirement: CsharpCallArtifactRequirement | undefined = shape === undefined
+    ? undefined
+    : projection === "assign"
+      ? assignmentSource === undefined
+        ? undefined
+        : {
+            kind: "object-shape-projection",
+            source,
+            projection: "assign",
+            assignmentSource,
+            rootKind: "object-shape",
+          }
+      : {
           kind: "object-shape-projection",
           source,
           projection,
           rootKind: "object-shape",
-        }],
+        };
+  return requirement === undefined
+    ? {}
+    : {
+        csharpArtifactRequirements: [requirement],
         csharpInvocation: {
           kind: "object-shape-projection",
           targetParameterIndex,

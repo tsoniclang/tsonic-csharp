@@ -37,6 +37,20 @@ import {
   csharpJsStringElementPolicies,
   csharpJsStringPropertyPolicies,
 } from "./strings.js";
+import {
+  csharpJsWeakCollectionCallPolicies,
+} from "./weak-collections.js";
+import { csharpJsSymbolCallPolicies } from "./symbols.js";
+import {
+  csharpJsBinaryCallPolicies,
+  csharpJsBinaryElementPolicies,
+  csharpJsBinaryPropertyPolicies,
+} from "./binary.js";
+import { csharpJsPromiseCallPolicies } from "./promises.js";
+import {
+  csharpJsIntlCallPolicies,
+  csharpJsIntlPropertyPolicies,
+} from "./intl.js";
 
 export const csharpJsSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
@@ -48,6 +62,11 @@ export const csharpJsSourceProfileCallPolicies:
     ...csharpJsNumberCallPolicies,
     ...csharpJsObjectCallPolicies,
     ...csharpJsStringCallPolicies,
+    ...csharpJsWeakCollectionCallPolicies,
+    ...csharpJsSymbolCallPolicies,
+    ...csharpJsBinaryCallPolicies,
+    ...csharpJsPromiseCallPolicies,
+    ...csharpJsIntlCallPolicies,
   ]);
 
 export const csharpJsSourceProfilePropertyPolicies:
@@ -58,6 +77,8 @@ export const csharpJsSourceProfilePropertyPolicies:
     ...csharpJsGlobalPropertyPolicies,
     ...csharpJsNumberPropertyPolicies,
     ...csharpJsStringPropertyPolicies,
+    ...csharpJsBinaryPropertyPolicies,
+    ...csharpJsIntlPropertyPolicies,
   ]);
 
 export const csharpJsSourceProfileElementPolicies:
@@ -66,4 +87,5 @@ export const csharpJsSourceProfileElementPolicies:
     ...csharpJsCollectionElementPolicies,
     ...csharpJsRegExpElementPolicies,
     ...csharpJsStringElementPolicies,
+    ...csharpJsBinaryElementPolicies,
   ]);

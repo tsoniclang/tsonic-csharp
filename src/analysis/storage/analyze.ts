@@ -4,6 +4,7 @@ import {
 } from "../../policy/conversions/index.js";
 import {
   getCsharpDelegateSignature,
+  getCsharpNullableElementTargetType,
   csharpNullableReferenceTargetType,
   csharpNullableTargetType,
   csharpTargetStorageIdentityEquals,
@@ -221,12 +222,22 @@ export function analyzeCsharpStorage(
           effectiveAuthored !== undefined &&
           !targetTypeRefEquals(effectiveAuthored, targetType)
         ) {
-          issues.push(issue(
-            parameter,
-            "CSHARP_LAMBDA_PARAMETER_TYPE_CONFLICT",
-            `The authored lambda parameter representation '${targetTypeRefKey(effectiveAuthored)}' conflicts with its exact selected C# delegate parameter representation '${targetTypeRefKey(targetType)}'.`,
-          ));
-          continue;
+          const adaptation = conversions.select(
+            targetType,
+            effectiveAuthored,
+            "implicit",
+          );
+          if (
+            adaptation === undefined ||
+            !csharpConversionIsApplicable(adaptation, "implicit")
+          ) {
+            issues.push(issue(
+              parameter,
+              "CSHARP_LAMBDA_PARAMETER_TYPE_CONFLICT",
+              `The authored lambda parameter representation '${targetTypeRefKey(effectiveAuthored)}' cannot accept its exact selected C# delegate parameter representation '${targetTypeRefKey(targetType)}' through one closed implicit conversion.`,
+            ));
+            continue;
+          }
         }
         requireTargetType(parameter, parameter, targetType);
       }
@@ -284,6 +295,10 @@ export function analyzeCsharpStorage(
       return;
     }
     const sourceType = evidence.nodeTargetType(expression);
+    const requiredStorageType = sourceType !== undefined &&
+        getCsharpNullableElementTargetType(sourceType) === undefined
+      ? getCsharpNullableElementTargetType(expectedType) ?? expectedType
+      : expectedType;
     const conversion = conversions.selectExpression(
       expression,
       sourceType,
@@ -294,7 +309,7 @@ export function analyzeCsharpStorage(
       const priorRequirement = previous?.requiredType(expression);
       if (
         priorRequirement !== undefined &&
-        targetTypeRefEquals(priorRequirement, expectedType)
+        targetTypeRefEquals(priorRequirement, requiredStorageType)
       ) {
         const declaration = policy.navigation.referenceFor(expression)
           ?.declaration;
@@ -304,7 +319,7 @@ export function analyzeCsharpStorage(
         ) {
           const variable = policy.ast.as.AsVariableDeclaration(declaration);
           if (variable?.Type === undefined && variable?.Initializer !== undefined) {
-            requireTargetType(expression, declaration, expectedType);
+            requireTargetType(expression, declaration, requiredStorageType);
           }
         }
       }
@@ -326,7 +341,7 @@ export function analyzeCsharpStorage(
     const initializerConversion = conversions.selectExpression(
       variable.Initializer,
       initializerType,
-      expectedType,
+      requiredStorageType,
       "implicit",
     );
     if (
@@ -335,7 +350,7 @@ export function analyzeCsharpStorage(
     ) {
       return;
     }
-    requireTargetType(expression, declaration, expectedType);
+    requireTargetType(expression, declaration, requiredStorageType);
   }
 
   function recordOperationRequirements(node: Node): void {

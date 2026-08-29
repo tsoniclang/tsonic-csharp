@@ -15,11 +15,12 @@ export function dotnetSignatureToProviderSignature(
   memberTargetName?: string,
   signatureId: string = signature.sourceId,
   options: {
-    readonly sourceParameterOffset?: number;
+    readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
   } = {},
 ): ProviderSignatureDeclaration | undefined {
-  const sourceParameters = signature.parameters.slice(options.sourceParameterOffset ?? 0);
+  const sourceParameters = signature.parameters.filter((_, index) =>
+    index !== options.sourceReceiverParameterIndex);
   const parameters = sourceParameters.map((parameter, index) =>
     dotnetParameterToProviderParameter(parameter, `${signatureId}.parameters[${index}]`));
   const returnType = signature.returnType === undefined
@@ -33,9 +34,9 @@ export function dotnetSignatureToProviderSignature(
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
     parameters: parameters as ProviderParameterDeclaration[],
     ...(returnType !== undefined ? { returnType } : {}),
-    ...(signature.typeParameters !== undefined
+    ...((signature.sourceTypeParameters ?? signature.typeParameters) !== undefined
       ? {
-        typeParameters: signature.typeParameters.map((parameter, index) =>
+        typeParameters: (signature.sourceTypeParameters ?? signature.typeParameters)!.map((parameter, index) =>
           dotnetTypeParameterToProviderTypeParameter(parameter, `${signatureId}.typeParameters[${index}]`)),
       }
       : {}),
@@ -47,7 +48,7 @@ export function dotnetProviderSignatureIdsForMember(
   providerMemberId: string,
   memberTargetName?: string,
   options: {
-    readonly sourceParameterOffset?: number;
+    readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
   } = {},
 ): ReadonlyMap<string, string> {
@@ -62,7 +63,7 @@ export function dotnetProviderSignatureIdsForMember(
     shapeCounts.set(shapeKey, (shapeCounts.get(shapeKey) ?? 0) + 1);
   }
   const changesSourceOperationRole =
-    (member.sourceParameterOffset ?? 0) !== 0 ||
+    member.sourceReceiverParameterIndex !== undefined ||
     (
       member.sourceStatic !== undefined &&
       member.sourceStatic !== (member.static === true)
@@ -88,7 +89,7 @@ export function dotnetProviderSignatureSelectionKey(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
   options: {
-    readonly sourceParameterOffset?: number;
+    readonly sourceReceiverParameterIndex?: number;
     readonly parentTypeParameterNames?: readonly string[];
   } = {},
 ): string | undefined {

@@ -41,6 +41,7 @@ import {
   selectCsharpNativePointerOperation,
   selectCsharpResourceManagement,
   selectCsharpSourceFlowCall,
+  selectCsharpNativeRefReturn,
   selectCsharpTypedLocationOperation,
   selectCsharpUnaryOperation,
   sourceOperatorFromKindName,
@@ -64,6 +65,9 @@ import type {
   CsharpUnaryClassification,
   CsharpTargetOperationClassifications,
 } from "./model.js";
+import {
+  composeCsharpBinaryExecutionDriver,
+} from "../../providers/model/provider-policy-contribution.js";
 import type {
   CsharpSourceEvidenceIndex,
 } from "../source-evidence/index.js";
@@ -104,6 +108,9 @@ const nativePointerKey = createTargetClassificationKey<ReturnType<typeof selectC
 const typedLocationKey = createTargetClassificationKey<ReturnType<typeof selectCsharpTypedLocationOperation>>(
   "csharp.operation.typed-location",
 );
+const nativeRefReturnKey = createTargetClassificationKey<ReturnType<typeof selectCsharpNativeRefReturn>>(
+  "csharp.operation.native-ref-return",
+);
 const jsConditionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsValueCondition>>(
   "csharp.operation.js-condition",
 );
@@ -142,11 +149,23 @@ export function analyzeCsharpTargetOperations(
   evidence: CsharpSourceEvidenceIndex,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
+  const binaryExecutionDrivers:
+    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   for (const sourceFile of policy.sourceFiles) {
-    visit(sourceFile, sourceFile, policy, evidence, builder);
+    visit(
+      sourceFile,
+      sourceFile,
+      policy,
+      evidence,
+      builder,
+      binaryExecutionDrivers,
+    );
   }
   const facts = builder.seal();
+  const selectedBinaryExecutionDriver =
+    composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     resultType: (node) => operationResultType(facts, node),
     call: (node) => facts.get(node, callKey),
     construction: (node) => facts.get(node, constructionKey),
@@ -158,6 +177,7 @@ export function analyzeCsharpTargetOperations(
     resource: (node) => facts.get(node, resourceKey),
     nativePointer: (node) => facts.get(node, nativePointerKey),
     typedLocation: (node) => facts.get(node, typedLocationKey),
+    nativeRefReturn: (node) => facts.get(node, nativeRefReturnKey),
     jsCondition: (node) => facts.get(node, jsConditionKey),
     jsTypeof: (node) => facts.get(node, jsTypeofKey),
     typeofRuntimeKind: (node) => facts.get(node, typeofRuntimeKindKey),
@@ -179,6 +199,8 @@ function visit(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   builder: ReturnType<typeof createTargetClassificationBuilder>,
+  binaryExecutionDrivers:
+    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
 ): void {
   const { ast } = policy;
   setClassification(
@@ -210,6 +232,18 @@ function visit(
       node,
       providerValueKey,
       selectCsharpProviderValue(policy, node),
+    );
+  }
+  if (
+    ast.is.IsCallExpression(node) ||
+    ast.is.IsPropertyAccessExpression(node) ||
+    ast.is.IsElementAccessExpression(node)
+  ) {
+    setClassification(
+      builder,
+      node,
+      nativeRefReturnKey,
+      selectCsharpNativeRefReturn(policy, node, sourceFile),
     );
   }
   if (ast.is.IsRegularExpressionLiteral(node)) {
@@ -291,6 +325,10 @@ function visit(
     const target = jsValue.kind === "not-js-value"
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
+    if (target?.kind === "resolved") {
+      const driver = target.call.targetMember.csharpBinaryExecutionDriver;
+      if (driver !== undefined) binaryExecutionDrivers.push(driver);
+    }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
@@ -345,6 +383,10 @@ function visit(
     const target = jsValue.kind === "not-js-value"
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
+    if (target?.kind === "resolved") {
+      const driver = target.call.targetMember.csharpBinaryExecutionDriver;
+      if (driver !== undefined) binaryExecutionDrivers.push(driver);
+    }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
@@ -584,6 +626,7 @@ function visit(
           policy,
           evidence,
           builder,
+          binaryExecutionDrivers,
         );
       }
     },

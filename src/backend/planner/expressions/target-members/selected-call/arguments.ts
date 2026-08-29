@@ -200,6 +200,66 @@ export function translateCallArgument(
       ? undefined
       : { kind: "Argument", expression: adapted };
   }
+  if (
+    selectedMapping?.kind === "by-value" &&
+    selectedMapping.conversion.kind === "delegate-adapter"
+  ) {
+    if (
+      delegateAdapterIsDirectlyTargetTypable(
+        expression,
+        selectedMapping,
+        input,
+      )
+    ) {
+      return planCallArgument(
+        expression,
+        sourceFile,
+        input,
+        diagnostics,
+        expectedType,
+        undefined,
+        targetType,
+        parameter.passingMode,
+        parameter,
+      );
+    }
+    const sourceExpectedType = csharpTypeFromTargetTypeRef(
+      selectedMapping.sourceType,
+    );
+    if (sourceExpectedType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        expression,
+        "Exact provider delegate adaptation requires a renderable source callable carrier.",
+      ));
+      return undefined;
+    }
+    const sourceArgument = planCallArgument(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      sourceExpectedType,
+      undefined,
+      selectedMapping.sourceType,
+      "by-value",
+    );
+    if (sourceArgument === undefined) {
+      return undefined;
+    }
+    const adapted = applyCsharpConversionSelection(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      selectedMapping.sourceType,
+      selectedMapping.targetType,
+      selectedMapping.conversion,
+      sourceArgument.expression,
+    );
+    return adapted === undefined
+      ? undefined
+      : { kind: "Argument", expression: adapted };
+  }
   return planCallArgument(
     expression,
     sourceFile,
@@ -211,6 +271,26 @@ export function translateCallArgument(
     parameter.passingMode,
     parameter,
   );
+}
+
+function delegateAdapterIsDirectlyTargetTypable(
+  expression: Node,
+  mapping: Extract<CsharpProviderArgumentMapping, { readonly kind: "by-value" }>,
+  input: CsharpPlanningContext,
+): boolean {
+  const sourceSignature = getCsharpDelegateSignature(mapping.sourceType);
+  const targetSignature = getCsharpDelegateSignature(mapping.targetType);
+  return (
+    input.program.source.ast.is.IsArrowFunction(expression) ||
+    input.program.source.ast.is.IsFunctionExpression(expression)
+  ) &&
+    sourceSignature !== undefined &&
+    targetSignature !== undefined &&
+    sourceSignature.parameters.length === targetSignature.parameters.length &&
+    mapping.conversion.kind === "delegate-adapter" &&
+    mapping.conversion.parameterConversions.every((conversion) =>
+      conversion.kind === "identity") &&
+    mapping.conversion.returnConversion.kind === "identity";
 }
 
 function translateEcmascriptArgumentVectorCallback(

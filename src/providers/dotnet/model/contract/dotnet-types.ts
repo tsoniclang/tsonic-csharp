@@ -1,4 +1,4 @@
-import { dotnetTypeRefFieldsByKind, requireNonEmptyString, requireSupportedDiscriminant, supportedDotnetTypeRefKinds } from "./support.js";
+import { dotnetTypeRefFieldsByKind, requireNonEmptyString, requireSupportedDiscriminant, supportedDotnetTypeRefKinds, supportedReturnPassingModes } from "./support.js";
 import { validateDotnetParameters, validateDotnetTypeParameters } from "./dotnet-signatures.js";
 import { validateDotnetRawProviderRef } from "./provider-declarations.js";
 import { validateDotnetTargetIdentity, validateOptionalDotnetRenderShape } from "./dotnet-identities.js";
@@ -15,96 +15,6 @@ export function validateOptionalDotnetTypeRef(
     validateDotnetTypeRef(type, path, collector, options);
   }
 }
-export function validateOptionalNoUnsupportedClrSourceTypeRef(
-  type: DotnetTypeRef | undefined,
-  path: string,
-  collector: ContractCollector,
-  context: string,
-): void {
-  if (type !== undefined) {
-    validateNoUnsupportedClrSourceTypeRef(type, path, collector, context);
-  }
-}
-export function validateNoUnsupportedClrSourceTypeRef(
-  type: DotnetTypeRef,
-  path: string,
-  collector: ContractCollector,
-  context: string,
-): void {
-  switch (type.kind) {
-    case "pointer":
-      collector.add(path, `${context} uses an unsupported CLR pointer type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
-      validateNoUnsupportedClrSourceTypeRef(type.pointee, `${path}.pointee`, collector, context);
-      return;
-    case "function-pointer":
-      collector.add(path, `${context} uses an unsupported CLR function-pointer type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
-      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.args, `${path}.args`, collector, context);
-      validateNoUnsupportedClrSourceTypeRef(type.result, `${path}.result`, collector, context);
-      return;
-    case "array":
-      if (type.rank !== undefined && type.rank !== 1) {
-        collector.add(path, `${context} uses an unsupported ranked CLR array type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
-      }
-      validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
-      return;
-    case "nullable":
-    case "nullable-reference":
-      validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
-      return;
-    case "tuple":
-      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.elements, `${path}.elements`, collector, context);
-      return;
-    case "union":
-      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.types, `${path}.types`, collector, context);
-      return;
-    case "function":
-      for (const [index, parameter] of type.parameters.entries()) {
-        validateNoUnsupportedClrSourceTypeRef(
-          parameter.sourceType ?? parameter.type,
-          `${path}.parameters[${index}].${parameter.sourceType === undefined ? "type" : "sourceType"}`,
-          collector,
-          context,
-        );
-      }
-      validateNoUnsupportedClrSourceTypeRef(type.returnType, `${path}.returnType`, collector, context);
-      return;
-    case "named":
-      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.typeArguments ?? [], `${path}.typeArguments`, collector, context);
-      validateOptionalNoUnsupportedClrSourceTypeRef(type.sourceShape, `${path}.sourceShape`, collector, context);
-      return;
-    case "provider-ref":
-      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.typeArguments ?? [], `${path}.typeArguments`, collector, context);
-      return;
-    case "opaque":
-      validateOptionalNoUnsupportedClrSourceTypeRef(type.sourceShape, `${path}.sourceShape`, collector, context);
-      return;
-    case "void":
-    case "any":
-    case "unknown":
-    case "object":
-    case "string":
-    case "literal":
-    case "undefined":
-    case "boolean":
-    case "number":
-    case "bigint":
-    case "source-primitive":
-    case "type-parameter":
-      return;
-  }
-}
-
-function validateDotnetTypeRefsForUnsupportedClrSourceShapes(
-  types: readonly DotnetTypeRef[],
-  path: string,
-  collector: ContractCollector,
-  context: string,
-): void {
-  for (const [index, type] of types.entries()) {
-    validateNoUnsupportedClrSourceTypeRef(type, `${path}[${index}]`, collector, context);
-  }
-}
-
 export function validateDotnetTypeRef(
   type: DotnetTypeRef,
   path: string,
@@ -187,7 +97,48 @@ export function validateDotnetTypeRef(
       requireNonEmptyString(type.id, `${path}.id`, collector);
       validateDotnetTypeParameters(type.typeParameters ?? [], `${path}.typeParameters`, collector);
       validateDotnetParameters(type.parameters, `${path}.parameters`, collector);
-      validateDotnetTypeRef(type.returnType, `${path}.returnType`, collector, options);
+      validateDotnetTypeRef(type.returnType, `${path}.returnType`, collector, {
+        ...options,
+        allowProviderRef: type.targetReturnType !== undefined,
+        targetPosition: type.targetReturnType === undefined && options.targetPosition,
+      });
+      validateOptionalDotnetTypeRef(type.targetReturnType, `${path}.targetReturnType`, collector, {
+        allowLiteral: false,
+        allowProviderRef: false,
+        targetPosition: true,
+      });
+      if (type.returnPassing !== undefined) {
+        if (!supportedReturnPassingModes.has(type.returnPassing)) {
+          collector.add(
+            `${path}.returnPassing`,
+            "Function returnPassing is not a supported .NET delegate return ABI.",
+            type.returnPassing,
+          );
+        }
+        if (type.targetReturnType === undefined) {
+          collector.add(
+            `${path}.targetReturnType`,
+            "A by-reference delegate source location requires an explicit target pointee return type.",
+          );
+        }
+        if (
+          type.returnType.kind !== "provider-ref" ||
+          type.returnType.moduleSpecifier !== "@tsonic/core/types.js" ||
+          type.returnType.exportName !== "Pointer" ||
+          type.returnType.typeArguments?.length !== 1
+        ) {
+          collector.add(
+            `${path}.returnType`,
+            "A .NET by-reference delegate must expose the exact shared Pointer<T> source location contract.",
+            type.returnType,
+          );
+        }
+      } else if (type.targetReturnType !== undefined) {
+        collector.add(
+          `${path}.returnPassing`,
+          "A distinct delegate target return type requires an explicit return ABI.",
+        );
+      }
       return;
     case "pointer":
       validateDotnetTypeRef(type.pointee, `${path}.pointee`, collector, options);

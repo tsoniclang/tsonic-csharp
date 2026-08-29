@@ -11,7 +11,10 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { accepted, rejected } from "../result.js";
 import {
   csharpObjectShapeMemberContractKey,
+  resolveCsharpObjectShapeAssignmentSourceOrder,
+  resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapePropertyOrder,
+  targetTypeRefEquals,
 } from "../../../../../target-model/types/index.js";
 import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
@@ -192,11 +195,18 @@ export function requireObjectShapeProjection(
   projectionKind: CsharpObjectShapeProjectionKind,
   resultType: TargetTypeRef,
   rootKind: "value" | "object-shape",
+  assignmentSource?: {
+    readonly node: Node;
+    readonly type: TargetTypeRef;
+  },
 ): CsharpObjectShapeProjectionRequestResult {
-  const preferredShape = node === undefined
-    ? host.objectShapes.resolveTarget(type)
-    : host.objectShapes.resolveNode(node, sourceFile) ??
-      host.objectShapes.resolveTarget(type);
+  const preferredShape = projectionKind === "assign"
+    ? host.objectShapes.resolveTarget(type) ??
+      (node === undefined ? undefined : host.objectShapes.resolveNode(node, sourceFile))
+    : node === undefined
+      ? host.objectShapes.resolveTarget(type)
+      : host.objectShapes.resolveNode(node, sourceFile) ??
+        host.objectShapes.resolveTarget(type);
   if (preferredShape === undefined) {
     return rootKind === "object-shape"
       ? rejected(
@@ -209,32 +219,108 @@ export function requireObjectShapeProjection(
       `Selected '${projectionKind}' operation requires one exact generated structural object carrier; an open nominal source type cannot prove its runtime own-property set.`,
     );
   }
-  const propertyOrder = resolveCsharpObjectShapePropertyOrder(
-    preferredShape,
-    node,
-    projectionKind,
-    host.ast,
-  );
+  const assignmentShape = projectionKind === "assign" && assignmentSource !== undefined
+    ? host.objectShapes.resolveNode(assignmentSource.node, sourceFile) ??
+      host.objectShapes.resolveTarget(assignmentSource.type)
+    : undefined;
+  if (projectionKind === "assign" && assignmentShape === undefined) {
+    return rejected(
+      "Selected 'assign' operation requires one exact generated structural source carrier.",
+    );
+  }
+  if (assignmentShape !== undefined && isSourceDeclaredNominalShape(assignmentShape)) {
+    return rejected(
+      "Selected 'assign' operation requires one exact generated structural source carrier; an open nominal source type cannot prove its runtime own-property set.",
+    );
+  }
+  if (projectionKind === "assign" && !targetTypeRefEquals(resultType, preferredShape.targetType)) {
+    return rejected(
+      "Selected 'assign' operation must preserve the exact target object-handle carrier.",
+    );
+  }
+  const propertyOrder = projectionKind === "assign"
+    ? resolveCsharpObjectShapeAssignmentSourceOrder(assignmentShape!)
+    : resolveCsharpObjectShapePropertyOrder(
+        preferredShape,
+        node,
+        projectionKind,
+        host.ast,
+      );
   if (propertyOrder.kind === "rejected") {
     return propertyOrder;
   }
-  const prepared = prepareObjectShapeBatch([{
-    fact: preferredShape,
-    materialization: isSourceDeclaredNominalShape(preferredShape)
-      ? "source"
-      : "synthetic",
-  }]);
+  const assignments = projectionKind === "assign"
+    ? propertyOrder.propertyOrder.map((sourceName) => {
+        const sourceMember = resolveCsharpObjectShapeMemberBySourceContract(
+          assignmentShape!,
+          sourceName,
+          "finalized-object-spread-member",
+        );
+        const targetMember = resolveCsharpObjectShapeMemberBySourceContract(
+          preferredShape,
+          sourceName,
+          "finalized-object-spread-member",
+        );
+        return sourceMember.kind === "resolved" &&
+            sourceMember.member.memberKind === "property" &&
+            sourceMember.member.optional !== true &&
+            sourceMember.member.accessor === undefined &&
+            targetMember.kind === "resolved" &&
+            targetMember.member.memberKind === "property" &&
+            targetMember.member.optional !== true &&
+            targetMember.member.readonly !== true &&
+            targetMember.member.accessor === undefined
+          ? Object.freeze({
+              sourceName: sourceMember.member.sourceName,
+              targetName: targetMember.member.sourceName,
+            })
+          : undefined;
+      })
+    : undefined;
+  if (assignments?.some((assignment) => assignment === undefined)) {
+    return rejected(
+      "Selected 'assign' operation requires every exact source data property to resolve to one writable required target data property.",
+    );
+  }
+  const prepared = prepareObjectShapeBatch([
+    {
+      fact: preferredShape,
+      materialization: "synthetic",
+    },
+    ...(assignmentShape === undefined ||
+        targetTypeRefEquals(assignmentShape.targetType, preferredShape.targetType)
+      ? []
+      : [{ fact: assignmentShape, materialization: "synthetic" as const }]),
+  ]);
   if (prepared.kind === "rejected") {
     return prepared;
+  }
+  if (assignmentShape !== undefined &&
+    !targetTypeRefEquals(assignmentShape.targetType, preferredShape.targetType)) {
+    const ownerKey = objectShapeArtifactKey(preferredShape);
+    const dependencies = prepared.batch.dependencies.get(ownerKey) ?? new Set<string>();
+    dependencies.add(objectShapeArtifactKey(assignmentShape));
+    prepared.batch.dependencies.set(ownerKey, dependencies);
   }
   const projectedShapes = new Map([
     [objectShapeArtifactKey(preferredShape), preferredShape],
   ]);
-  const projection = Object.freeze({
-    kind: projectionKind,
-    resultType,
-    propertyOrder: propertyOrder.propertyOrder,
-  });
+  const projection: CsharpObjectShapeProjection = projectionKind === "assign"
+    ? Object.freeze({
+        kind: "assign",
+        resultType,
+        sourceShape: assignmentShape!,
+        propertyOrder: propertyOrder.propertyOrder,
+        assignments: Object.freeze(assignments as readonly {
+          readonly sourceName: string;
+          readonly targetName: string;
+        }[]),
+      })
+    : Object.freeze({
+        kind: projectionKind,
+        resultType,
+        propertyOrder: propertyOrder.propertyOrder,
+      });
   const projectionFailure = validateProjectionShapes(
     projectedShapes,
     projection,

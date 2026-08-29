@@ -18,6 +18,7 @@ import {
   csharpNeverTargetType,
   csharpVoidTargetType,
 } from "../../../target-model/types/scalar-types.js";
+import { csharpJsSymbolTargetType } from "./surface-types.js";
 import {
   readCsharpSourceDefaultValue,
   readCsharpSourceFixedArrayType,
@@ -139,6 +140,9 @@ export function resolveTypeWithState(
   }
   if (queries.types.isBigIntLike(type)) {
     return csharpBigIntegerTargetType();
+  }
+  if (host.target.surfaces?.includes("js") === true && queries.types.isSymbolLike(type)) {
+    return csharpJsSymbolTargetType();
   }
   if (queries.types.isVoidLike(type)) {
     return csharpVoidTargetType();

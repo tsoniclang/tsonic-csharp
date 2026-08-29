@@ -2,7 +2,7 @@ import { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, c
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
-test(".NET provider unsupported diagnostics preserve attribute and default-value omission facts", () => {
+test(".NET provider preserves exact pointer attribute and unsupported default-value facts", () => {
   const provider = createDotnetReflectionTypeDataProvider({
     disablePersistentCache: true,
     references: [
@@ -15,16 +15,28 @@ test(".NET provider unsupported diagnostics preserve attribute and default-value
   assert.equal("exports" in attributeModule, true, JSON.stringify(attributeModule));
   assert.equal(validateDotnetModuleModelContract(attributeModule), undefined);
   const unsupportedAttributeTarget = rawType(attributeModule, "UnsupportedAttributeTarget");
-  const unsupportedAttribute = unsupportedAttributeTarget.unsupportedAttributes?.find((attribute) =>
-    /Type attribute value 'System\.Int32\*' cannot be represented/u.test(attribute.reason)
+  const pointerAttribute = unsupportedAttributeTarget.attributes?.find((attribute) =>
+    idHasShape(attribute.constructorId, "ProviderAttributeFixtures.TypeOnlyAttribute..ctor(System.Type)")
   );
-  assert.ok(unsupportedAttribute);
-  assert.equal(unsupportedAttribute.target, "type");
+  assert.ok(pointerAttribute);
+  assert.equal(pointerAttribute.target, "type");
+  assert.deepEqual(pointerAttribute.arguments?.[0], {
+    kind: "constructor",
+    value: {
+      kind: "type",
+      type: {
+        kind: "pointer",
+        pointee: { kind: "source-primitive", name: "int32" },
+        mutability: "mut",
+      },
+    },
+  });
+  assert.equal(unsupportedAttributeTarget.unsupportedAttributes, undefined);
   const attributeBinding = provider.findTargetBindingByTargetId(unsupportedAttributeTarget.targetId);
   assert.ok(attributeBinding);
-  assert.ok(attributeBinding.unsupportedAttributes?.some((attribute) =>
-    attribute.id === unsupportedAttribute.id &&
-    attribute.reason === unsupportedAttribute.reason
+  assert.ok(attributeBinding.attributes?.some((attribute) =>
+    attribute.id === pointerAttribute.id &&
+    attribute.target === pointerAttribute.target
   ));
 
   const defaultModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});

@@ -26,11 +26,15 @@ export {
   getCsharpNullableElementTargetType,
 } from "../target-model/types/nullable.js";
 export { csharpJsDateTargetType } from "../policy/types/resolution/surface-types.js";
+export { csharpJsArrayTargetType } from "../policy/types/resolution/surface-types.js";
+export { csharpTsValueTargetType } from "../target-model/types/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
   csharpProviderPolicyContributionKind,
 } from "../providers/model/provider-policy-contribution.js";
 export type { CsharpProviderPolicyContribution } from "../providers/model/provider-policy-contribution.js";
+export type { CsharpProviderBinaryExecutionDriver } from "../providers/model/provider-policy-contribution.js";
+export { csharpJsEventLoopBinaryExecutionDriver } from "../target-model/project/binary-execution-drivers.js";
 export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,
