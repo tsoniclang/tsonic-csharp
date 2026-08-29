@@ -252,7 +252,13 @@ test(".NET reflection provider never synthesizes source aliases for invalid CLR 
     "Equals",
     "GetHashCode",
     "ToString",
+    "operatorEquals",
+    "operatorNotEquals",
   ]);
+  assert.equal(
+    declaration.members?.some((member) => member.name.startsWith("op_")) ?? false,
+    false,
+  );
 });
 
 test(".NET provider type families normalize positional type-parameter identity across CLR arities", () => {

@@ -356,7 +356,6 @@ test(".NET provider model contract rejects metadata-name fallback identities and
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].assembly.name"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].typeParameters[0].variance"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].targetId"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].reason"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds"), true);
 });
@@ -460,7 +459,7 @@ test(".NET provider model contract rejects unsupported discriminants and convers
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[1].conversionKind"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[1].kind"), true);
 });
-test(".NET provider model contract rejects supported rows with unsupported CLR source shapes", () => {
+test(".NET provider model contract accepts exact pointers and ranked arrays but rejects target unions", () => {
   const diagnostic = validateDotnetModuleModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
     namespaceName: "ProviderContractFixtures",
@@ -560,10 +559,10 @@ test(".NET provider model contract rejects supported rows with unsupported CLR s
   });
 
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].type"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].type"), false);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), false);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[2].signatures[0].parameters[0].type"), true);
-  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), false);
 });
 test(".NET provider declaration contract rejects provider refs missing public module identity", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({

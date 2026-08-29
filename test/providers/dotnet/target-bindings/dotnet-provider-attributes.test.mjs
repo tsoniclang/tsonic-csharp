@@ -74,26 +74,33 @@ test(".NET target binding facts preserve reflected attributes without exposing a
   assert.equal(providerType.members.some((member) => member.name === "sampleAttribute" || member.name === "typeOnlyAttribute"), false);
 });
 
-test(".NET reflection provider records unsupported attribute values instead of dropping them", () => {
+test(".NET reflection provider preserves pointer type attribute values exactly", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
   const module = getCompleteDotnetModule(provider, attributeModuleSpecifier, {});
   assert.equal("exports" in module, true);
 
   const unsupportedTarget = getDeclaration(module, "ProviderAttributeFixtures.UnsupportedAttributeTarget");
-  const unsupported = unsupportedTarget.unsupportedAttributes.find((attribute) =>
+  const pointerAttribute = unsupportedTarget.attributes.find((attribute) =>
     idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.TypeOnlyAttribute..ctor(System.Type)")
   );
-  assert.ok(unsupported);
-  assert.equal(unsupported.target, "type");
-  assert.match(unsupported.reason, /Type attribute value 'System\.Int32\*' cannot be represented/);
-  assert.equal(
-    unsupportedTarget.attributes?.some((attribute) => idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.TypeOnlyAttribute..ctor(System.Type)")) ?? false,
-    false,
-  );
+  assert.ok(pointerAttribute);
+  assert.equal(pointerAttribute.target, "type");
+  assert.deepEqual(pointerAttribute.arguments?.[0], {
+    kind: "constructor",
+    value: {
+      kind: "type",
+      type: {
+        kind: "pointer",
+        pointee: { kind: "source-primitive", name: "int32" },
+        mutability: "mut",
+      },
+    },
+  });
+  assert.equal(unsupportedTarget.unsupportedAttributes, undefined);
 
   const binding = provider.findTargetBindingByTargetId(unsupportedTarget.targetId);
   assert.ok(binding);
-  assert.ok(binding.unsupportedAttributes.some((attribute) => attribute.id === unsupported.id));
+  assert.ok(binding.attributes.some((attribute) => attribute.id === pointerAttribute.id));
 });
 
 test(".NET reflection provider proves attribute type bases, constructors, defaults, and allowed targets", () => {

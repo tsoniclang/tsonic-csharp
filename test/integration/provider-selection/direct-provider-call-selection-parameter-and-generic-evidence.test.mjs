@@ -360,7 +360,7 @@ test("receiver evidence closes generic provider bindings before member substitut
   assert.deepEqual(selected.call.targetMember.returnType, stringType);
 });
 
-test("first-argument receiver relations do not consume the first explicit argument", () => {
+test("target-parameter receiver relations do not consume the first explicit argument", () => {
   const receiverType = {
     kind: "target-named",
     id: "Fixture.Box`1",
@@ -369,7 +369,7 @@ test("first-argument receiver relations do not consume the first explicit argume
   const method = providerMethod({
     id: "Fixture.Extensions.Use``1(Box<T>,System.Int32)",
     static: true,
-    receiverPassing: "first-argument",
+    receiverPassing: "target-parameter",
     parameters: [
       targetParameter("receiver", receiverType),
       targetParameter("count", csharpSourcePrimitiveTargetType("int32")),

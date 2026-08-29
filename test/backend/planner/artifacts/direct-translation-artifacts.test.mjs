@@ -112,7 +112,7 @@ test("direct C# executable translation emits one exact generated entrypoint", ()
 {
     public static class TsonicEntrypoint
     {
-        public static void Main()
+        public static void Main(string[] args)
         {
             Index.__tsonic_module_init();
         }
@@ -237,7 +237,7 @@ namespace Tsonic.Generated
 {
     public static class TsonicEntrypoint
     {
-        public static async System.Threading.Tasks.Task Main()
+        public static async System.Threading.Tasks.Task Main(string[] args)
         {
             await Index.__tsonic_module_init();
         }

@@ -218,8 +218,8 @@ test("enum source declarations omit extension-method projections", () => {
     static: true,
     sourceStatic: false,
     sourceProjection: "extension-method",
-    receiverPassing: "first-argument",
-    sourceParameterOffset: 1,
+    receiverPassing: "target-parameter",
+    sourceReceiverParameterIndex: 0,
     signatures: [{
       id: "Example.StatusExtensions.Describe(Example.Status)",
       sourceId: "Example.StatusExtensions.Describe(Example.Status)",
@@ -282,8 +282,8 @@ test("concrete method call shapes precede extensions while distinct extension ov
       static: true,
       sourceStatic: false,
       sourceProjection: "extension-method",
-      receiverPassing: "first-argument",
-      sourceParameterOffset: 1,
+      receiverPassing: "target-parameter",
+      sourceReceiverParameterIndex: 0,
       signatures: [
         {
           id: "Example.WidgetExtensions.Read(Example.Widget)",

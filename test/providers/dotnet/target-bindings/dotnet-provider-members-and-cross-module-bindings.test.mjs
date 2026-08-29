@@ -139,7 +139,7 @@ test(".NET reflection provider proves collection constructor array-literal eleme
   assert.deepEqual(parameterType.csharpArrayLiteralElementType, { kind: "type-parameter", name: "T" });
   assert.deepEqual(parameterType.csharpImplicitArrayInputElementType, { kind: "type-parameter", name: "T" });
 });
-test(".NET reflection provider preserves exact constructor facts and unsupported constructor evidence", () => {
+test(".NET reflection provider preserves exact constructor facts including pointer parameters", () => {
   const reference = buildConstructorFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", {});
@@ -255,15 +255,24 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
 
   const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedConstructorTarget");
   assert.ok(unsupportedTarget);
-  const unsupportedConstructor = unsupportedMembersByMetadataName(unsupportedTarget)
-    .get("ProviderConstructorFixtures.UnsupportedConstructorTarget..ctor(System.Int32*)");
-  assert.ok(unsupportedConstructor);
-  assert.match(unsupportedConstructor.reason, /parameter 'pointer'/u);
-  assert.match(unsupportedConstructor.reason, /System\.Int32\*/u);
+  const pointerConstructor = constructorSignature(
+    unsupportedTarget,
+    "ProviderConstructorFixtures.UnsupportedConstructorTarget..ctor(System.Int32*)",
+  );
+  assert.deepEqual(pointerConstructor.parameters[0].type, {
+    kind: "pointer",
+    pointee: { kind: "source-primitive", name: "int32" },
+    mutability: "mut",
+  });
+  assert.equal(unsupportedTarget.unsupportedMembers, undefined);
 
   const unsupportedBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", "ProviderConstructorFixtures.UnsupportedConstructorTarget");
-  assert.equal(unsupportedBinding.members?.some((member) => member.kind === "constructor") ?? false, false);
-  assert.deepEqual(unsupportedBinding.unsupportedMembers, unsupportedTarget.unsupportedMembers);
+  const targetPointerConstructor = findByIdSuffix(
+    unsupportedBinding.members,
+    "ProviderConstructorFixtures.UnsupportedConstructorTarget..ctor(System.Int32*)",
+  );
+  assert.ok(targetPointerConstructor);
+  assert.deepEqual(targetPointerConstructor.parameters[0].type, pointerConstructor.parameters[0].type);
 });
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
   const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" });
@@ -298,7 +307,7 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   const dateTime = getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.DateTime");
   assert.ok(dateTime.members.some((member) =>
     member.kind === "operator" &&
-    member.sourceName === "op_Addition" &&
+    member.sourceName === "operatorAdd" &&
     member.targetName === "op_Addition"
   ));
 
@@ -313,48 +322,51 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
     declaration.metadataName === "System.Environment.SpecialFolder"
   ));
 });
-test(".NET reflection provider records events as target facts and omits source declarations", () => {
+test(".NET reflection provider exposes exact event subscription operations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Diagnostics.js", {});
   assert.equal("exports" in module, true);
 
   const rawProcess = module.exports.find((declaration) => declaration.sourceName === "Process");
   assert.ok(rawProcess);
-  const rawExited = rawProcess.members?.find((member) =>
-    member.kind === "event" &&
-    member.sourceName === "Exited" &&
-    member.targetName === "Exited"
-  );
-  assert.ok(rawExited);
-  assert.equal(rawExited.metadataName, "System.Diagnostics.Process.Exited");
-  assert.equal(rawExited.type.kind, "named");
-  assert.equal(rawExited.type.metadataName, "System.EventHandler");
-  assert.equal(rawExited.type.sourceShape?.kind, "function");
-  const unsupportedExited = rawProcess.unsupportedMembers?.find((member) =>
-    member.kind === "unsupported-member" &&
-    member.memberKind === "event" &&
-    member.metadataName === "System.Diagnostics.Process.Exited"
-  );
-  assert.ok(unsupportedExited);
-  assert.match(unsupportedExited.reason, /add\/remove subscription semantics/);
+  const rawAddExited = rawProcess.members?.find((member) => member.sourceName === "addExited");
+  const rawRemoveExited = rawProcess.members?.find((member) => member.sourceName === "removeExited");
+  assert.ok(rawAddExited);
+  assert.ok(rawRemoveExited);
+  assert.equal(rawAddExited.targetName, "Exited");
+  assert.equal(rawAddExited.signatures[0].parameters[0].type.sourceShape?.kind, "function");
+  assert.deepEqual(rawAddExited.signatures[0].targetInvocation, {
+    kind: "native-event-add",
+    handlerParameterIndex: 0,
+  });
+  assert.deepEqual(rawRemoveExited.signatures[0].targetInvocation, {
+    kind: "native-event-remove",
+    handlerParameterIndex: 0,
+  });
+  assert.equal(rawProcess.unsupportedMembers, undefined);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const process = declarationModel.exports.find((declaration) => declaration.name === "Process");
   assert.ok(process);
-  assert.equal(process.members?.some((member) => member.name === "Exited"), false);
+  assert.equal(process.members?.some((member) => member.name === "addExited"), true);
+  assert.equal(process.members?.some((member) => member.name === "removeExited"), true);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Diagnostics.js", "System.Diagnostics.Process");
-  const targetExited = binding.members?.find((member) =>
-    member.kind === "event" &&
-    member.sourceName === "Exited" &&
-    member.targetName === "Exited"
-  );
-  assert.ok(targetExited);
-  assert.deepEqual(targetExited.parameters, []);
-  assert.equal(targetExited.returnType.kind, "target-named");
-  assert.equal(idEndsWith(targetExited.returnType.id, "System.EventHandler"), true);
+  const targetAddExited = binding.members?.find((member) => member.sourceName === "addExited");
+  const targetRemoveExited = binding.members?.find((member) => member.sourceName === "removeExited");
+  assert.ok(targetAddExited);
+  assert.ok(targetRemoveExited);
+  assert.equal(idEndsWith(targetAddExited.parameters[0].type.id, "System.EventHandler"), true);
+  assert.deepEqual(targetAddExited.csharpInvocation, {
+    kind: "native-event-add",
+    handlerParameterIndex: 0,
+  });
+  assert.deepEqual(targetRemoveExited.csharpInvocation, {
+    kind: "native-event-remove",
+    handlerParameterIndex: 0,
+  });
 });
-test(".NET reflection provider records unsupported source events without dropping target facts", () => {
+test(".NET reflection provider exposes pointer-delegate event subscription operations", () => {
   const reference = buildUnsupportedEventFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/ProviderEventFixtures.js", {});
@@ -362,38 +374,38 @@ test(".NET reflection provider records unsupported source events without droppin
 
   const rawEventSource = module.exports.find((declaration) => declaration.sourceName === "EventSource");
   assert.ok(rawEventSource);
-  const rawPointerEvent = rawEventSource.members?.find((member) =>
-    member.kind === "event" &&
-    member.sourceName === "PointerEvent" &&
-    member.targetName === "PointerEvent"
+  const rawAddPointerEvent = rawEventSource.members?.find((member) =>
+    member.sourceName === "addPointerEvent"
   );
-  assert.ok(rawPointerEvent);
-  assert.equal(rawPointerEvent.type.kind, "nullable-reference");
-  assert.equal(rawPointerEvent.type.elementType.metadataName, "ProviderEventFixtures.PointerEventHandler");
-  assert.equal(rawPointerEvent.type.elementType.sourceShape, undefined);
-
-  const unsupportedPointerEvent = rawEventSource.unsupportedMembers?.find((member) =>
-    member.kind === "unsupported-member" &&
-    member.memberKind === "event" &&
-    member.metadataName === "ProviderEventFixtures.EventSource.PointerEvent"
+  const rawRemovePointerEvent = rawEventSource.members?.find((member) =>
+    member.sourceName === "removePointerEvent"
   );
-  assert.ok(unsupportedPointerEvent);
-  assert.match(unsupportedPointerEvent.reason, /add\/remove subscription semantics/);
+  assert.ok(rawAddPointerEvent);
+  assert.ok(rawRemovePointerEvent);
+  assert.equal(
+    rawAddPointerEvent.signatures[0].parameters[0].type.elementType.sourceShape.parameters[0].type.kind,
+    "pointer",
+  );
+  assert.equal(rawEventSource.unsupportedMembers, undefined);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const eventSource = declarationModel.exports.find((declaration) => declaration.name === "EventSource");
   assert.ok(eventSource);
-  assert.equal(eventSource.members?.some((member) => member.name === "PointerEvent"), false);
+  assert.equal(eventSource.members?.some((member) => member.name === "addPointerEvent"), true);
+  assert.equal(eventSource.members?.some((member) => member.name === "removePointerEvent"), true);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderEventFixtures.js", "ProviderEventFixtures.EventSource");
-  const targetPointerEvent = binding.members?.find((member) =>
-    member.kind === "event" &&
-    member.sourceName === "PointerEvent" &&
-    member.targetName === "PointerEvent"
+  const targetAddPointerEvent = binding.members?.find((member) =>
+    member.sourceName === "addPointerEvent"
   );
-  assert.ok(targetPointerEvent);
-  assert.equal(targetPointerEvent.returnType.kind, "target-named");
-  assert.equal(idEndsWith(targetPointerEvent.returnType.id, "ProviderEventFixtures.PointerEventHandler"), true);
+  const targetRemovePointerEvent = binding.members?.find((member) =>
+    member.sourceName === "removePointerEvent"
+  );
+  assert.ok(targetAddPointerEvent);
+  assert.ok(targetRemovePointerEvent);
+  assert.equal(targetAddPointerEvent.parameters[0].type.csharpDelegateSignature.parameters[0].kind, "pointer");
+  assert.equal(targetAddPointerEvent.csharpInvocation.kind, "native-event-add");
+  assert.equal(targetRemovePointerEvent.csharpInvocation.kind, "native-event-remove");
 });
 test(".NET reflection provider exposes readable source properties with readonly facts", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -716,7 +728,7 @@ test(".NET provider source declarations preserve cross-module inherited overload
   assert.equal(typeof typeInfo.heritage?.[0]?.type.localName, "string");
   assertProviderDeclarationRefsFullyQualified(declarationModel);
 });
-test(".NET provider keeps target generic constraints out of source virtual declarations", () => {
+test(".NET provider projects source-compatible generic constraints into virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const buffersModule = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.Buffers.js", {});
   assert.equal("exports" in buffersModule, true);
@@ -728,5 +740,10 @@ test(".NET provider keeps target generic constraints out of source virtual decla
   const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
   const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
   assert.ok(sequenceReader);
-  assert.equal(sequenceReader.typeParameters?.[0]?.constraints, undefined);
+  assert.deepEqual(sequenceReader.typeParameters?.[0]?.constraints, [{
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    exportName: "IEquatable",
+    typeArguments: [{ kind: "type-parameter", name: "T" }],
+  }]);
 });

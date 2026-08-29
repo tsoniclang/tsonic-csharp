@@ -19,11 +19,11 @@ test("strict equality preserves reference identity for one project class", () =>
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
-  assert.match(source, /return left == right;/);
+  assert.match(source, /return object\.ReferenceEquals\(left, right\);/);
   assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
 
-test("strict equality does not assume provider classes use CLR reference equality", () => {
+test("strict equality preserves reference identity for exact provider classes", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       import { Uri } from "@tsonic/dotnet/System.js";
@@ -35,9 +35,8 @@ test("strict equality does not assume provider classes use CLR reference equalit
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.equal(compiled.artifacts.has("src/Index.cs"), false);
-  assert.match(
-    compiled.targetDiagnostics.map((diagnostic) => diagnostic.message).join("\n"),
-    /requires an exact provider operator relation/u,
-  );
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs") ?? "";
+  assert.match(source, /return object\.ReferenceEquals\(left, right\);/);
+  assert.doesNotMatch(source, /dynamic|System\.Reflection|__unsupported/);
 });
