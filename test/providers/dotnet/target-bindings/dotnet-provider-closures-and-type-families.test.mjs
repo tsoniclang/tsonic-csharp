@@ -210,7 +210,6 @@ test(".NET reflection provider returns requested export declaration closures ins
     "SByte",
     "Single",
     "Span",
-    "SpanSplitEnumerator",
     "Span_Enumerator",
     "String",
     "StringComparison",
