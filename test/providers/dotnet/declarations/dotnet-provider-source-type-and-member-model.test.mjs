@@ -617,6 +617,38 @@ test(".NET provider projects extension methods onto proven source receivers with
   assert.equal(stripAssemblyQualifiers(targetAsSpan.declaringType.id), "System.MemoryExtensions");
   assert.deepEqual(targetAsSpan.parameters.map((parameter) => parameter.name), ["text"]);
 });
+test(".NET provider omits extension projections whose receiver-bound generic constraints are not source-expressible", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {
+    requestedExports: ["MemoryExtensions", "ReadOnlySpan"],
+  });
+  assert.equal("exports" in module, true);
+
+  const readOnlySpan = module.exports.find((declaration) =>
+    declaration.sourceName === "ReadOnlySpan");
+  const memoryExtensions = module.exports.find((declaration) =>
+    declaration.sourceName === "MemoryExtensions");
+  assert.ok(readOnlySpan);
+  assert.ok(memoryExtensions);
+
+  const projectedSplit = readOnlySpan.members.find((member) =>
+    member.sourceProjection === "extension-method" && member.sourceName === "Split");
+  const staticSplit = memoryExtensions.members.find((member) =>
+    member.sourceProjection === undefined && member.sourceName === "Split");
+  assert.ok(projectedSplit);
+  assert.ok(staticSplit);
+  assert.equal(
+    projectedSplit.signatures.some((signature) => signature.id.includes("Split``1")),
+    false,
+  );
+  assert.equal(
+    staticSplit.signatures.some((signature) => signature.id.includes("Split``1")),
+    true,
+  );
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(validateDotnetProviderDeclarationModelContract(declarationModel), undefined);
+});
 test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.IO.js", {});

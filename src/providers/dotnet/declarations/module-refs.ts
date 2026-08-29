@@ -5,6 +5,7 @@ import type {
   ProviderParameterDeclaration,
   ProviderSignatureDeclaration,
   ProviderTypeExpression,
+  ProviderTypeParameterDeclaration,
 } from "@tsonic/tsts";
 import type { DotnetDeclarationContext } from "./context.js";
 
@@ -26,6 +27,10 @@ export function qualifyProviderExportModuleRefs(
   return {
     ...declaration,
     ...(declaration.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(declaration.type, context) }),
+    ...(declaration.typeParameters === undefined ? {} : {
+      typeParameters: declaration.typeParameters.map((parameter) =>
+        qualifyProviderTypeParameterModuleRefs(parameter, context)),
+    }),
     ...(declaration.heritage === undefined ? {} : { heritage: declaration.heritage.map((heritage) => ({ ...heritage, type: qualifyProviderTypeModuleRefs(heritage.type, context) })) }),
     ...(declaration.signatures === undefined ? {} : { signatures: declaration.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, context)) }),
     ...(declaration.members === undefined ? {} : { members: declaration.members.map((member) => qualifyProviderMemberModuleRefs(member, context)) }),
@@ -38,6 +43,10 @@ function qualifyProviderSignatureModuleRefs(
 ): ProviderSignatureDeclaration {
   return {
     ...signature,
+    ...(signature.typeParameters === undefined ? {} : {
+      typeParameters: signature.typeParameters.map((parameter) =>
+        qualifyProviderTypeParameterModuleRefs(parameter, context)),
+    }),
     parameters: signature.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, context)),
     ...(signature.returnType === undefined ? {} : { returnType: qualifyProviderTypeModuleRefs(signature.returnType, context) }),
   };
@@ -50,6 +59,25 @@ function qualifyProviderParameterModuleRefs(
   return {
     ...parameter,
     type: qualifyProviderTypeModuleRefs(parameter.type, context),
+    ...(parameter.defaultType === undefined ? {} : {
+      defaultType: qualifyProviderTypeModuleRefs(parameter.defaultType, context),
+    }),
+  };
+}
+
+function qualifyProviderTypeParameterModuleRefs(
+  parameter: ProviderTypeParameterDeclaration,
+  context: DotnetDeclarationContext,
+): ProviderTypeParameterDeclaration {
+  return {
+    ...parameter,
+    ...(parameter.constraints === undefined ? {} : {
+      constraints: parameter.constraints.map((constraint) =>
+        qualifyProviderTypeModuleRefs(constraint, context)),
+    }),
+    ...(parameter.defaultType === undefined ? {} : {
+      defaultType: qualifyProviderTypeModuleRefs(parameter.defaultType, context),
+    }),
   };
 }
 
@@ -84,6 +112,10 @@ function qualifyProviderTypeModuleRefs(
     case "function":
       return {
         ...type,
+        ...(type.typeParameters === undefined ? {} : {
+          typeParameters: type.typeParameters.map((parameter) =>
+            qualifyProviderTypeParameterModuleRefs(parameter, context)),
+        }),
         parameters: type.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, context)),
         returnType: qualifyProviderTypeModuleRefs(type.returnType, context),
       };
@@ -152,6 +184,9 @@ function collectProviderImportsFromExport(
   importsByModule: Map<string, Map<string, CollectedProviderImport>>,
 ): void {
   collectProviderImportsFromType(declaration.type, currentModuleSpecifier, importsByModule);
+  for (const typeParameter of declaration.typeParameters ?? []) {
+    collectProviderImportsFromTypeParameter(typeParameter, currentModuleSpecifier, importsByModule);
+  }
   for (const heritage of declaration.heritage ?? []) {
     collectProviderImportsFromType(
       heritage.type,
@@ -181,10 +216,18 @@ function collectProviderImportsFromSignature(
   }
   collectProviderImportsFromType(signature.returnType, currentModuleSpecifier, importsByModule);
   for (const typeParameter of signature.typeParameters ?? []) {
-    collectProviderImportsFromType(typeParameter.defaultType, currentModuleSpecifier, importsByModule);
-    for (const constraint of typeParameter.constraints ?? []) {
-      collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
-    }
+    collectProviderImportsFromTypeParameter(typeParameter, currentModuleSpecifier, importsByModule);
+  }
+}
+
+function collectProviderImportsFromTypeParameter(
+  typeParameter: ProviderTypeParameterDeclaration,
+  currentModuleSpecifier: string,
+  importsByModule: Map<string, Map<string, CollectedProviderImport>>,
+): void {
+  collectProviderImportsFromType(typeParameter.defaultType, currentModuleSpecifier, importsByModule);
+  for (const constraint of typeParameter.constraints ?? []) {
+    collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
   }
 }
 
@@ -237,10 +280,7 @@ function collectProviderImportsFromType(
       }
       collectProviderImportsFromType(type.returnType, currentModuleSpecifier, importsByModule);
       for (const typeParameter of type.typeParameters ?? []) {
-        collectProviderImportsFromType(typeParameter.defaultType, currentModuleSpecifier, importsByModule);
-        for (const constraint of typeParameter.constraints ?? []) {
-          collectProviderImportsFromType(constraint, currentModuleSpecifier, importsByModule);
-        }
+        collectProviderImportsFromTypeParameter(typeParameter, currentModuleSpecifier, importsByModule);
       }
       return;
     case "any":

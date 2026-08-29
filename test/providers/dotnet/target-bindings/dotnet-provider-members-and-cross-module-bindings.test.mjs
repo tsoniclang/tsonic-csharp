@@ -86,7 +86,6 @@ test(".NET target binding provider expands requested slices for same-module prov
   );
   assert.deepEqual(missingSameModuleRefs, []);
   assert.equal(exportNames.has("Range"), true);
-  assert.equal(exportNames.has("SpanSplitEnumerator"), true);
   assert.equal(exportNames.has("TryWriteInterpolatedStringHandler"), true);
   assert.equal(exportNames.has("MemoryExtensions"), false);
 });
@@ -636,6 +635,7 @@ test(".NET target binding provider fully qualifies every TSTS provider-ref in re
   const bindingProvider = createDotnetSourceDeclarationProvider({ provider });
   const requests = [
     ["@tsonic/dotnet/System.js", ["CLSCompliantAttribute"]],
+    ["@tsonic/dotnet/System.js", ["MemoryExtensions", "ReadOnlySpan"]],
     ["@tsonic/dotnet/System.IO.js", ["BinaryReader", "MemoryStream"]],
     ["@tsonic/dotnet/System.Threading.Tasks.js", ["TaskCanceledException"]],
   ];
@@ -653,6 +653,7 @@ test(".NET target binding provider fully qualifies every TSTS provider-ref in re
     );
     assert.equal("exports" in model, true, JSON.stringify(model));
     assertProviderDeclarationRefsFullyQualified(model);
+    assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
   }
 });
 test(".NET target binding provider qualifies CLSCompliantAttribute base provider-ref for TSTS", () => {
@@ -740,10 +741,12 @@ test(".NET provider projects source-compatible generic constraints into virtual 
   const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
   const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
   assert.ok(sequenceReader);
-  assert.deepEqual(sequenceReader.typeParameters?.[0]?.constraints, [{
+  const constraint = sequenceReader.typeParameters?.[0]?.constraints?.[0];
+  assert.match(constraint?.localName, /^__TsonicDotnet_IEquatable_[a-z0-9]+$/u);
+  assert.deepEqual(omitLocalName(constraint), {
     kind: "provider-ref",
     moduleSpecifier: "@tsonic/dotnet/System.js",
     exportName: "IEquatable",
     typeArguments: [{ kind: "type-parameter", name: "T" }],
-  }]);
+  });
 });

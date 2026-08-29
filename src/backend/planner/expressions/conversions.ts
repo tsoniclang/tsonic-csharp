@@ -485,9 +485,32 @@ function applyDelegateAdapter(
     }
     arguments_.push({ kind: "Argument", expression: converted });
   }
+  let callableExpression = expression;
+  if (expression.kind === "LambdaExpression") {
+    if (sourceType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# delegate adaptation requires an exact source delegate type for an authored lambda.",
+      ));
+      return undefined;
+    }
+    const sourceDelegateType = csharpTypeFromTargetTypeRef(sourceType);
+    if (sourceDelegateType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        node,
+        "C# delegate adaptation requires a renderable exact source delegate type for an authored lambda.",
+      ));
+      return undefined;
+    }
+    callableExpression = {
+      kind: "CastExpression",
+      type: sourceDelegateType,
+      expression,
+    };
+  }
   const invocation: CsharpExpression = {
     kind: "InvocationExpression",
-    callee: expression,
+    callee: callableExpression,
     arguments: arguments_,
   };
   const body = applyCsharpConversionSelection(

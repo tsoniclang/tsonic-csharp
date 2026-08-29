@@ -1163,6 +1163,9 @@ sealed partial class ReflectionProvider
             .Where(method => IsExtensionMethod(method))
             .Where(method => !method.IsSpecialName)
             .Where(method => ExtensionReceiverApplies(receiverType, method))
+            .Where(method => GenericParameterContext
+                .ForExtensionProjection(method, receiverType)
+                .CanProjectOmittedMethodParameters())
             .Where(method => UnsupportedMethodReason(method.DeclaringType!, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
     }

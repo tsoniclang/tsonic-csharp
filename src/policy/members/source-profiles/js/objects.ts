@@ -307,14 +307,12 @@ function objectAssignMember(
   if (
     targetType !== undefined &&
     sourceType !== undefined &&
-    resultType !== undefined &&
     context.source.sourceArguments.length === 2 &&
     isCsharpRecordDictionaryTargetType(targetType) &&
-    targetTypeRefEquals(targetType, sourceType) &&
-    targetTypeRefEquals(targetType, resultType)
+    targetTypeRefEquals(targetType, sourceType)
   ) {
     return staticMethod(
-      `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(resultType)}`,
+      `Tsonic.CSharp.Js.Object.assign:${targetTypeIdentity(targetType)}`,
       "assign",
       "assign",
       objectRuntimeType,
@@ -322,7 +320,7 @@ function objectAssignMember(
         targetParameter("target", targetType),
         targetParameter("source", sourceType),
       ],
-      resultType,
+      targetType,
     );
   }
   const targetShape = targetType === undefined
