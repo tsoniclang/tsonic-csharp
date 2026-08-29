@@ -33,8 +33,8 @@ export {
   csharpProviderPolicyContributionKind,
 } from "../providers/model/provider-policy-contribution.js";
 export type { CsharpProviderPolicyContribution } from "../providers/model/provider-policy-contribution.js";
-export type { CsharpProviderBinaryEpilogue } from "../providers/model/provider-policy-contribution.js";
-export { csharpJsEventLoopBinaryEpilogue } from "../target-model/project/binary-epilogues.js";
+export type { CsharpProviderBinaryExecutionDriver } from "../providers/model/provider-policy-contribution.js";
+export { csharpJsEventLoopBinaryExecutionDriver } from "../target-model/project/binary-execution-drivers.js";
 export {
   assertCsharpProviderPolicyIsNonContradictory,
   createCsharpProviderRejectionCatalog,

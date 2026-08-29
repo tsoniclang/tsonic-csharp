@@ -31,8 +31,8 @@ import {
   csharpJsArgumentVectorCallbackParameter,
 } from "./replacement-callback.js";
 import {
-  csharpJsEventLoopBinaryEpilogue,
-} from "../../../../target-model/project/binary-epilogues.js";
+  csharpJsEventLoopBinaryExecutionDriver,
+} from "../../../../target-model/project/binary-execution-drivers.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
@@ -379,7 +379,10 @@ function timerSchedulingMember(
           closedObjectParameter("arguments", { paramsArray: true }),
         ],
         doubleType,
-        { csharpBinaryEpilogues: [csharpJsEventLoopBinaryEpilogue] },
+        {
+          csharpBinaryExecutionDriver:
+            csharpJsEventLoopBinaryExecutionDriver,
+        },
       );
 }
 

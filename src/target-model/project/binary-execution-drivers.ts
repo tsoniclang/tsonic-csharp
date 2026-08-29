@@ -2,13 +2,14 @@ import {
   csharpTargetNamedType,
 } from "../types/factories.js";
 import type {
-  CsharpTargetBinaryEpilogue,
+  CsharpTargetBinaryExecutionDriver,
 } from "../types/model.js";
 import {
   csharpQualifiedTypeRenderShape,
 } from "../types/render-shapes.js";
 
-export const csharpJsEventLoopBinaryEpilogue: CsharpTargetBinaryEpilogue =
+export const csharpJsEventLoopBinaryExecutionDriver:
+  CsharpTargetBinaryExecutionDriver =
   Object.freeze({
     id: "tsonic.csharp.js.event-loop-v1",
     declaringType: Object.freeze(csharpTargetNamedType(
@@ -16,5 +17,6 @@ export const csharpJsEventLoopBinaryEpilogue: CsharpTargetBinaryEpilogue =
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JsEventLoop"),
     )),
-    methodName: "Run",
+    runMethodName: "Run",
+    runWithEntrypointMethodName: "Run",
   });

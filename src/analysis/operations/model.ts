@@ -29,7 +29,7 @@ import type {
   CsharpTypeofRuntimeKind,
   resolveCsharpRuntimeUnionObjectShapeProperty,
   TargetTypeRef,
-  CsharpTargetBinaryEpilogue,
+  CsharpTargetBinaryExecutionDriver,
 } from "../../policy/types/index.js";
 
 export interface CsharpMethodTypeArgumentProjectionClassification {
@@ -125,7 +125,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
-  binaryEpilogues(): readonly CsharpTargetBinaryEpilogue[];
+  binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   resultType(node: Node): TargetTypeRef | undefined;
   call(node: Node): CsharpCallClassification | undefined;
   construction(node: Node): CsharpConstructionClassification | undefined;

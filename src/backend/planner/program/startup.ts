@@ -12,6 +12,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-type-rendering.js";
 import { readNamespace } from "../project/project-artifacts.js";
 import { targetPolicyDiagnostic } from "../diagnostics.js";
 import type {
+  CsharpExpression,
   CsharpStatement,
 } from "../../target-ast/roslyn/index.js";
 
@@ -48,11 +49,12 @@ export function planCsharpStartupSourceFile(
     }
     return planCsharpLibraryModuleInitializer(input, entrypointPlannedSource);
   }
-  const binaryEpilogueStatements = planCsharpBinaryEpilogues(
+  const driverDiagnosticCount = diagnostics.length;
+  const binaryExecutionDriver = planCsharpBinaryExecutionDriver(
     input,
     diagnostics,
   );
-  if (binaryEpilogueStatements === undefined) return undefined;
+  if (diagnostics.length !== driverDiagnosticCount) return undefined;
   const workerEntryByKey = new Map<string, {
     readonly sourceFile: import("@tsonic/tsts").SourceFile;
     readonly identity: string;
@@ -84,12 +86,15 @@ export function planCsharpStartupSourceFile(
   const workerEntries = [...workerEntryByKey.values()];
   if (diagnostics.length > 0) return undefined;
   const asyncEntrypoint =
-    entrypointPlannedSource?.asyncModuleInitializer === true ||
-    workerEntries.some((entry) =>
-      entry.planned?.asyncModuleInitializer === true);
+    binaryExecutionDriver === undefined &&
+    (
+      entrypointPlannedSource?.asyncModuleInitializer === true ||
+      workerEntries.some((entry) =>
+        entry.planned?.asyncModuleInitializer === true)
+    );
   const workerDispatch = planCsharpWorkerDispatch(
     workerEntries,
-    binaryEpilogueStatements,
+    binaryExecutionDriver,
     diagnostics,
   );
   if (workerDispatch === undefined) return undefined;
@@ -132,35 +137,15 @@ export function planCsharpStartupSourceFile(
                 ...workerDispatch,
                 ...plannedSources
                 .filter((source) => source === entrypointPlannedSource && source.hasModuleInitializer)
-                .map((source): CsharpStatement => ({
-                  kind: "ExpressionStatement",
-                  expression: asyncEntrypoint
-                    ? {
-                        kind: "AwaitExpression",
-                        expression: {
-                          kind: "InvocationExpression",
-                          callee: {
-                            kind: "SimpleMemberAccessExpression",
-                            receiver: {
-                              kind: "IdentifierName",
-                              name: source.moduleClassName,
-                            },
-                            name: csharpModuleInitMethodName,
-                          },
-                          arguments: [],
-                        },
-                      }
-                    : {
-                    kind: "InvocationExpression",
-                    callee: {
-                      kind: "SimpleMemberAccessExpression",
-                      receiver: { kind: "IdentifierName", name: source.moduleClassName },
-                      name: csharpModuleInitMethodName,
-                    },
-                    arguments: [],
-                  },
-                })),
-                ...binaryEpilogueStatements,
+                .map((source) =>
+                  planCsharpModuleInitializationStatement(
+                    source,
+                    binaryExecutionDriver,
+                  )),
+                ...planStandaloneBinaryExecutionDriver(
+                  entrypointPlannedSource,
+                  binaryExecutionDriver,
+                ),
               ],
             },
           }],
@@ -177,7 +162,7 @@ function planCsharpWorkerDispatch(
     readonly planned: PlannedCsharpSourceFile;
     readonly bootstrap: import("../../../analysis/source-modules/model.js").CsharpSourceModuleBootstrap;
   }[],
-  binaryEpilogueStatements: readonly CsharpStatement[],
+  binaryExecutionDriver: PlannedCsharpBinaryExecutionDriver | undefined,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpStatement[] | undefined {
   if (entries.length === 0) return Object.freeze([]);
@@ -248,17 +233,15 @@ function planCsharpWorkerDispatch(
             },
             statements: [
               ...(entry.planned.hasModuleInitializer
-                ? [{
-                    kind: "ExpressionStatement" as const,
-                    expression: entry.planned.asyncModuleInitializer
-                      ? {
-                          kind: "AwaitExpression" as const,
-                          expression: moduleInitializerCall(entry.planned),
-                        }
-                      : moduleInitializerCall(entry.planned),
-                  }]
+                ? [planCsharpModuleInitializationStatement(
+                    entry.planned,
+                    binaryExecutionDriver,
+                  )]
                 : []),
-              ...binaryEpilogueStatements,
+              ...planStandaloneBinaryExecutionDriver(
+                entry.planned,
+                binaryExecutionDriver,
+              ),
               {
               kind: "ReturnStatement" as const,
               },
@@ -293,59 +276,119 @@ function planCsharpWorkerDispatch(
   }
   return diagnostics.length === 0 ? Object.freeze(statements) : undefined;
 
-  function moduleInitializerCall(
-    source: PlannedCsharpSourceFile,
-  ): import("../../target-ast/roslyn/index.js").CsharpExpression {
-    return {
+}
+
+interface PlannedCsharpBinaryExecutionDriver {
+  readonly id: string;
+  readonly declaringType: NonNullable<
+    ReturnType<typeof csharpTypeFromTargetTypeRef>
+  >;
+  readonly runMethodName: string;
+  readonly runWithEntrypointMethodName: string;
+}
+
+function planCsharpBinaryExecutionDriver(
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): PlannedCsharpBinaryExecutionDriver | undefined {
+  const driver = input.program.binaryExecutionDriver;
+  if (driver === undefined) return undefined;
+  const declaringType = csharpTypeFromTargetTypeRef(driver.declaringType);
+  if (declaringType === undefined) {
+    diagnostics.push({
+      code: "CSHARP_BINARY_EXECUTION_DRIVER_TYPE_UNRENDERABLE",
+      category: "error",
+      source: "tsonic-csharp",
+      message:
+        `Provider binary execution driver '${driver.id}' has no renderable C# declaring type.`,
+      evidence: Object.freeze([
+        `provider.binaryExecutionDriver=${driver.id}`,
+        `provider.runMethod=${driver.runMethodName}`,
+        `provider.runWithEntrypointMethod=${driver.runWithEntrypointMethodName}`,
+      ]),
+    });
+    return undefined;
+  }
+  return Object.freeze({
+    id: driver.id,
+    declaringType,
+    runMethodName: driver.runMethodName,
+    runWithEntrypointMethodName: driver.runWithEntrypointMethodName,
+  });
+}
+
+function planCsharpModuleInitializationStatement(
+  source: PlannedCsharpSourceFile,
+  driver: PlannedCsharpBinaryExecutionDriver | undefined,
+): CsharpStatement {
+  const initialization = moduleInitializerCall(source);
+  if (source.asyncModuleInitializer && driver !== undefined) {
+    return binaryExecutionDriverStatement(driver, initialization);
+  }
+  return {
+    kind: "ExpressionStatement",
+    expression: source.asyncModuleInitializer
+      ? {
+          kind: "AwaitExpression",
+          expression: initialization,
+        }
+      : initialization,
+  };
+}
+
+function planStandaloneBinaryExecutionDriver(
+  source: PlannedCsharpSourceFile | undefined,
+  driver: PlannedCsharpBinaryExecutionDriver | undefined,
+): readonly CsharpStatement[] {
+  if (
+    driver === undefined ||
+    (
+      source?.hasModuleInitializer === true &&
+      source.asyncModuleInitializer
+    )
+  ) {
+    return [];
+  }
+  return [binaryExecutionDriverStatement(driver)];
+}
+
+function binaryExecutionDriverStatement(
+  driver: PlannedCsharpBinaryExecutionDriver,
+  entryTask?: CsharpExpression,
+): CsharpStatement {
+  return {
+    kind: "ExpressionStatement",
+    expression: {
       kind: "InvocationExpression",
       callee: {
         kind: "SimpleMemberAccessExpression",
-        receiver: {
-          kind: "IdentifierName",
-          name: source.moduleClassName,
-        },
-        name: csharpModuleInitMethodName,
+        receiver: driver.declaringType,
+        name: entryTask === undefined
+          ? driver.runMethodName
+          : driver.runWithEntrypointMethodName,
       },
-      arguments: [],
-    };
-  }
+      arguments: entryTask === undefined
+        ? []
+        : [{ kind: "Argument", expression: entryTask }],
+    },
+  };
 }
 
-function planCsharpBinaryEpilogues(
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-): readonly CsharpStatement[] | undefined {
-  const statements: CsharpStatement[] = [];
-  for (const epilogue of input.program.binaryEpilogues) {
-    const declaringType = csharpTypeFromTargetTypeRef(epilogue.declaringType);
-    if (declaringType === undefined) {
-      diagnostics.push({
-        code: "CSHARP_BINARY_EPILOGUE_TYPE_UNRENDERABLE",
-        category: "error",
-        source: "tsonic-csharp",
-        message:
-          `Provider binary epilogue '${epilogue.id}' has no renderable C# declaring type.`,
-        evidence: Object.freeze([
-          `provider.binaryEpilogue=${epilogue.id}`,
-          `provider.method=${epilogue.methodName}`,
-        ]),
-      });
-      continue;
-    }
-    statements.push({
-      kind: "ExpressionStatement",
-      expression: {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: declaringType,
-          name: epilogue.methodName,
-        },
-        arguments: [],
+function moduleInitializerCall(
+  source: PlannedCsharpSourceFile,
+): CsharpExpression {
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: {
+        kind: "IdentifierName",
+        name: source.moduleClassName,
       },
-    });
-  }
-  return diagnostics.length === 0 ? Object.freeze(statements) : undefined;
+      name: csharpModuleInitMethodName,
+    },
+    arguments: [],
+  };
 }
 
 function planCsharpLibraryModuleInitializer(

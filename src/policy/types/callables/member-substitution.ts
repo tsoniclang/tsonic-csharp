@@ -74,16 +74,16 @@ export function substituteCsharpTargetMember(
                 }),
           })),
         }),
-    ...(member.csharpBinaryEpilogues === undefined
+    ...(member.csharpBinaryExecutionDriver === undefined
       ? {}
       : {
-          csharpBinaryEpilogues: member.csharpBinaryEpilogues.map((epilogue) => ({
-            ...epilogue,
+          csharpBinaryExecutionDriver: {
+            ...member.csharpBinaryExecutionDriver,
             declaringType: substituteTargetTypeParameters(
-              epilogue.declaringType,
+              member.csharpBinaryExecutionDriver.declaringType,
               substitutions,
             ),
-          })),
+          },
         }),
     ...(member.csharpInvocation === undefined
       ? {}

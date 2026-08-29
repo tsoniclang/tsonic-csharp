@@ -66,7 +66,7 @@ import type {
   CsharpTargetOperationClassifications,
 } from "./model.js";
 import {
-  composeCsharpBinaryEpilogues,
+  composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
 import type {
   CsharpSourceEvidenceIndex,
@@ -149,15 +149,23 @@ export function analyzeCsharpTargetOperations(
   evidence: CsharpSourceEvidenceIndex,
 ): CsharpTargetOperationClassifications {
   const builder = createTargetClassificationBuilder();
-  const binaryEpilogues:
-    import("../../target-model/types/model.js").CsharpTargetBinaryEpilogue[] = [];
+  const binaryExecutionDrivers:
+    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[] = [];
   for (const sourceFile of policy.sourceFiles) {
-    visit(sourceFile, sourceFile, policy, evidence, builder, binaryEpilogues);
+    visit(
+      sourceFile,
+      sourceFile,
+      policy,
+      evidence,
+      builder,
+      binaryExecutionDrivers,
+    );
   }
   const facts = builder.seal();
-  const selectedBinaryEpilogues = composeCsharpBinaryEpilogues(binaryEpilogues);
+  const selectedBinaryExecutionDriver =
+    composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
-    binaryEpilogues: () => selectedBinaryEpilogues,
+    binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     resultType: (node) => operationResultType(facts, node),
     call: (node) => facts.get(node, callKey),
     construction: (node) => facts.get(node, constructionKey),
@@ -191,7 +199,8 @@ function visit(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   builder: ReturnType<typeof createTargetClassificationBuilder>,
-  binaryEpilogues: import("../../target-model/types/model.js").CsharpTargetBinaryEpilogue[],
+  binaryExecutionDrivers:
+    import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
 ): void {
   const { ast } = policy;
   setClassification(
@@ -317,7 +326,8 @@ function visit(
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
     if (target?.kind === "resolved") {
-      binaryEpilogues.push(...(target.call.targetMember.csharpBinaryEpilogues ?? []));
+      const driver = target.call.targetMember.csharpBinaryExecutionDriver;
+      if (driver !== undefined) binaryExecutionDrivers.push(driver);
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
@@ -374,7 +384,8 @@ function visit(
       ? selectCsharpTargetCall(policy, node, sourceFile)
       : undefined;
     if (target?.kind === "resolved") {
-      binaryEpilogues.push(...(target.call.targetMember.csharpBinaryEpilogues ?? []));
+      const driver = target.call.targetMember.csharpBinaryExecutionDriver;
+      if (driver !== undefined) binaryExecutionDrivers.push(driver);
     }
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
@@ -615,7 +626,7 @@ function visit(
           policy,
           evidence,
           builder,
-          binaryEpilogues,
+          binaryExecutionDrivers,
         );
       }
     },

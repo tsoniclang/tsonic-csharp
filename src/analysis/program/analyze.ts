@@ -91,7 +91,7 @@ import {
   analyzeCsharpSourceModuleConstructions,
 } from "../source-modules/index.js";
 import {
-  composeCsharpBinaryEpilogues,
+  composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
 
 interface CsharpRepresentationContract {
@@ -226,6 +226,12 @@ export function analyzeCsharpTargetProgram(
       sourceNode: issue.node,
     })));
   }
+  const operationBinaryExecutionDriver =
+    analysis.operations.binaryExecutionDriver();
+  const binaryExecutionDriver = composeCsharpBinaryExecutionDriver(
+    request.binaryExecutionDriver,
+    operationBinaryExecutionDriver,
+  );
   const program: CsharpTargetProgram = Object.freeze({
     host: Object.freeze({
       paths: Object.freeze({ ...input.paths }),
@@ -261,10 +267,9 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes,
     storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index,
-    binaryEpilogues: composeCsharpBinaryEpilogues(
-      request.binaryEpilogues,
-      analysis.operations.binaryEpilogues(),
-    ),
+    ...(binaryExecutionDriver === undefined
+      ? {}
+      : { binaryExecutionDriver }),
   });
   return resolvedTargetStage(program);
 }

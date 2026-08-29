@@ -246,6 +246,35 @@ namespace Tsonic.Generated
 `);
 });
 
+test("direct C# executable translation drives timer-backed top-level await through the selected event loop", () => {
+  const compiled = cleanCompile({
+    surface: "js",
+    targetOptions: { outputType: "Exe" },
+    sourceText: [
+      "function waitForTimer(): Promise<void> {",
+      "  return new Promise<void>((resolve) => {",
+      "    setTimeout(() => resolve(), 0);",
+      "  });",
+      "}",
+      "await waitForTimer();",
+      "export const done = true;",
+      "",
+    ].join("\n"),
+  });
+
+  assert.equal(compiled.artifacts.get("generated/TsonicEntrypoint.cs"), `namespace Tsonic.Generated
+{
+    public static class TsonicEntrypoint
+    {
+        public static void Main()
+        {
+            Tsonic.CSharp.Js.JsEventLoop.Run(Index.__tsonic_module_init());
+        }
+    }
+}
+`);
+});
+
 test("direct C# library translation rejects asynchronous module initialization without publishing artifacts", () => {
   const compiled = compileCsharpSource({
     surface: "js",

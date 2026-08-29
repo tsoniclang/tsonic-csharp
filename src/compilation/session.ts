@@ -35,9 +35,6 @@ import {
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
 import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
-import {
-  composeCsharpBinaryEpilogues,
-} from "../providers/model/provider-policy-contribution.js";
 
 type CsharpCompilationSessionState =
   | "created"
@@ -58,9 +55,8 @@ export function createCsharpCompilationSession(
   const capabilityContributions = collectCsharpCapabilityContributions(
     context.capabilities,
   );
-  const binaryEpilogues = composeCsharpBinaryEpilogues(
-    capabilityContributions.binaryEpilogues,
-  );
+  const binaryExecutionDriver =
+    capabilityContributions.binaryExecutionDriver;
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
     targetFramework: configuration.targetFramework,
@@ -127,7 +123,9 @@ export function createCsharpCompilationSession(
         input,
         configuration,
         providers: relationResolver,
-        binaryEpilogues,
+        ...(binaryExecutionDriver === undefined
+          ? {}
+          : { binaryExecutionDriver }),
       }));
     },
     close(): void {

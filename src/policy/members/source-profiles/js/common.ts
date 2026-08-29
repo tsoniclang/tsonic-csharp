@@ -272,7 +272,8 @@ export function staticMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpBinaryEpilogues" |
+    "typeParameters" | "csharpArtifactRequirements" |
+      "csharpBinaryExecutionDriver" |
       "csharpInvocation"
   > = {},
 ): CsharpTargetMember {
@@ -318,7 +319,8 @@ export function receiverHelperMethod(
   returnType: TargetTypeRef,
   options: Pick<
     CsharpTargetMember,
-    "typeParameters" | "csharpArtifactRequirements" | "csharpBinaryEpilogues" |
+    "typeParameters" | "csharpArtifactRequirements" |
+      "csharpBinaryExecutionDriver" |
       "csharpInvocation"
   > = {},
 ): CsharpTargetMember {

@@ -4,7 +4,7 @@ import type {
   CsharpProviderTargetRelation,
 } from "../relations/index.js";
 import type {
-  CsharpTargetBinaryEpilogue,
+  CsharpTargetBinaryExecutionDriver,
 } from "../../target-model/types/model.js";
 import {
   freezeContributionValue,
@@ -25,31 +25,36 @@ export interface CsharpProviderPolicyContribution
   readonly providerVersion: string;
   readonly relations: readonly CsharpProviderTargetRelation[];
   readonly rejections: readonly CsharpProviderTargetRejection[];
-  readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
+  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }
 
-export type CsharpProviderBinaryEpilogue = CsharpTargetBinaryEpilogue;
+export type CsharpProviderBinaryExecutionDriver =
+  CsharpTargetBinaryExecutionDriver;
 
-export function composeCsharpBinaryEpilogues(
-  ...groups: readonly (readonly CsharpProviderBinaryEpilogue[])[]
-): readonly CsharpProviderBinaryEpilogue[] {
-  const byId = new Map<string, CsharpProviderBinaryEpilogue>();
-  for (const epilogue of groups.flat()) {
-    const existing = byId.get(epilogue.id);
+export function composeCsharpBinaryExecutionDriver(
+  ...drivers: readonly (CsharpProviderBinaryExecutionDriver | undefined)[]
+): CsharpProviderBinaryExecutionDriver | undefined {
+  const byId = new Map<string, CsharpProviderBinaryExecutionDriver>();
+  for (const driver of drivers) {
+    if (driver === undefined) continue;
+    const existing = byId.get(driver.id);
     if (existing === undefined) {
-      byId.set(epilogue.id, epilogue);
+      byId.set(driver.id, driver);
       continue;
     }
-    if (canonicalProviderValue(existing) !== canonicalProviderValue(epilogue)) {
+    if (canonicalProviderValue(existing) !== canonicalProviderValue(driver)) {
       throw new Error(
-        `C# target capabilities supplied contradictory binary epilogues for identity '${epilogue.id}'.`,
+        `C# target capabilities supplied contradictory binary execution drivers for identity '${driver.id}'.`,
       );
     }
   }
-  return Object.freeze(
-    [...byId.values()].sort((left, right) =>
-      left.id.localeCompare(right.id, "en")),
-  );
+  if (byId.size > 1) {
+    throw new Error(
+      `C# target capabilities supplied multiple binary execution drivers: ${[...byId.keys()].sort().join(", ")}.`,
+    );
+  }
+  const driver = byId.values().next().value;
+  return driver === undefined ? undefined : Object.freeze(driver);
 }
 
 export function csharpProviderPolicyContribution(
@@ -57,7 +62,7 @@ export function csharpProviderPolicyContribution(
   providerVersion: string,
   relations: readonly CsharpProviderTargetRelation[],
   rejections: readonly CsharpProviderTargetRejection[],
-  binaryEpilogues: readonly CsharpProviderBinaryEpilogue[],
+  binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver,
 ): CsharpProviderPolicyContribution {
   return freezeContributionValue({
     kind: csharpProviderPolicyContributionKind,
@@ -65,7 +70,9 @@ export function csharpProviderPolicyContribution(
     providerVersion,
     relations,
     rejections,
-    binaryEpilogues,
+    ...(binaryExecutionDriver === undefined
+      ? {}
+      : { binaryExecutionDriver }),
   });
 }
 
@@ -82,13 +89,12 @@ export function validateCsharpProviderPolicyContribution(
       "providerVersion",
       "relations",
       "rejections",
-      "binaryEpilogues",
+      "binaryExecutionDriver",
     ]) ||
     !nonEmptyContributionString(contribution.providerId) ||
     !nonEmptyContributionString(contribution.providerVersion) ||
     !Array.isArray(contribution.relations) ||
-    !Array.isArray(contribution.rejections) ||
-    !Array.isArray(contribution.binaryEpilogues)
+    !Array.isArray(contribution.rejections)
   ) {
     throw new Error(
       `C# target capability '${capabilityId}' supplied an invalid '${csharpProviderPolicyContributionKind}' contribution.`,
@@ -114,20 +120,23 @@ export function validateCsharpProviderPolicyContribution(
       rejection,
     );
   }
-  for (const epilogue of snapshot.binaryEpilogues) {
+  const driver = snapshot.binaryExecutionDriver;
+  if (driver !== undefined) {
     if (
-      !isContributionRecord(epilogue) ||
-      !hasExactContributionFields(epilogue, [
+      !isContributionRecord(driver) ||
+      !hasExactContributionFields(driver, [
         "id",
         "declaringType",
-        "methodName",
+        "runMethodName",
+        "runWithEntrypointMethodName",
       ]) ||
-      !nonEmptyContributionString(epilogue.id) ||
-      !nonEmptyContributionString(epilogue.methodName) ||
-      !isContributionRecord(epilogue.declaringType)
+      !nonEmptyContributionString(driver.id) ||
+      !nonEmptyContributionString(driver.runMethodName) ||
+      !nonEmptyContributionString(driver.runWithEntrypointMethodName) ||
+      !isContributionRecord(driver.declaringType)
     ) {
       throw new Error(
-        `C# target capability '${capabilityId}' supplied an invalid binary epilogue.`,
+        `C# target capability '${capabilityId}' supplied an invalid binary execution driver.`,
       );
     }
   }

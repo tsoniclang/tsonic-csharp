@@ -11,7 +11,7 @@ import type {
   CsharpProviderRelationResolver,
 } from "../../providers/model/relation-resolver.js";
 import type {
-  CsharpProviderBinaryEpilogue,
+  CsharpProviderBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
 import type {
   CsharpAttributeApplicationFactIndex,
@@ -57,7 +57,7 @@ export interface CsharpTargetAnalysisRequest {
   readonly input: TargetCompileInput;
   readonly configuration: CsharpTargetConfiguration;
   readonly providers: CsharpProviderRelationResolver;
-  readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
+  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }
 
 export interface CsharpPlanningHost {
@@ -84,5 +84,5 @@ export interface CsharpTargetProgram {
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly sourceModuleConstructions: CsharpSourceModuleConstructionIndex;
-  readonly binaryEpilogues: readonly CsharpProviderBinaryEpilogue[];
+  readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }
