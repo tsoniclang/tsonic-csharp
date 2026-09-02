@@ -31,13 +31,23 @@ test("canonical C# source-module reference lists every public source alias", () 
     ...[...modules.matchAll(/sourcePrimitive\("([^"]+)"/gu)].map((match) => match[1]),
     ...[...modules.matchAll(/exportName:\s*"([^"]+)"/gu)].map((match) => match[1]),
     ...extractObjectStringValues(safety, "csharpSafetyProviderNames"),
-    ...[...rankedArrays.matchAll(/exportName:\s*"([^"]+)"/gu)].map((match) => match[1]),
     "ptr",
   ]);
   for (const name of names) {
     if (name.startsWith("__")) continue;
     assert.ok(reference.includes("`" + name), name);
   }
+
+  const descriptorRange = rankedArrays.match(
+    /Array\.from\(\{ length: (\d+) \}, \(_, index\) => \{\s*const rank = index \+ (\d+);/u,
+  );
+  assert.ok(descriptorRange?.[1] !== undefined && descriptorRange[2] !== undefined);
+  const firstRank = Number(descriptorRange[2]);
+  const lastRank = firstRank + Number(descriptorRange[1]) - 1;
+  assert.ok(reference.includes(
+    "`array" + firstRank + "<T>` … `array" + lastRank + "<T>`",
+  ));
+  assert.match(reference, new RegExp(`ranks ${firstRank} through ${lastRank}`, "u"));
 });
 
 function extractFrozenStringList(source, name) {
