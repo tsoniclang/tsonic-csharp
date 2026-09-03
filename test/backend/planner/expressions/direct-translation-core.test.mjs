@@ -11,9 +11,7 @@ test("direct C# translation preserves authored primitive aliases and array carri
     export const values: int[] = [1, ...tail];
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -57,9 +55,7 @@ test("direct C# translation consumes the exact shared FixedArray contract", () =
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -85,9 +81,7 @@ test("direct C# translation lowers optional and rest parameters from checked sou
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -108,9 +102,7 @@ test("direct C# translation retains optional-chain result nullability", () => {
     }
   `, { surface: "js" });
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -138,9 +130,7 @@ test("direct C# translation closes source-owned generic properties from selected
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -173,9 +163,7 @@ test("direct C# translation derives for-of target elements from the exact iterab
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -234,9 +222,7 @@ test("direct C# translation selects exact provider overloads and source-core att
 
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -334,9 +320,7 @@ test("direct C# translation selects the explicit JS array carrier for array synt
     }
   `, { surface: "js" });
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -358,9 +342,7 @@ test("direct C# translation constructs one exact runtime-union arm per branch", 
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -386,23 +368,21 @@ test("direct C# translation closes structural aliases, literals, and destructure
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_604130bdb2a5604b36e295a92627d2dfc3f1ff59688e40481420b810bd497878 make(int age)
+        public static ObjectShape_604130bdb2a5 make(int age)
         {
-            return new __TsonicShape_604130bdb2a5604b36e295a92627d2dfc3f1ff59688e40481420b810bd497878
+            return new ObjectShape_604130bdb2a5
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(__TsonicShape_604130bdb2a5604b36e295a92627d2dfc3f1ff59688e40481420b810bd497878 user)
+        public static int total(ObjectShape_604130bdb2a5 user)
         {
-            __TsonicShape_604130bdb2a5604b36e295a92627d2dfc3f1ff59688e40481420b810bd497878 __tsonic_destructure0 = user;
+            ObjectShape_604130bdb2a5 __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -411,11 +391,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_604130bdb2a5604b36e295a92627d2dfc3f1ff59688e40481420b810bd497878
+    public class ObjectShape_604130bdb2a5
     {
         public required int age;
         public required string name;
@@ -437,9 +415,7 @@ test("direct C# translation preserves explicit source-owned construction argumen
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -471,9 +447,7 @@ test("direct C# translation lowers homogeneous variadic tuples as array carriers
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -499,15 +473,13 @@ test("direct JS translation retains an object literal's exact selected value sha
     }
   `, { surface: "js" });
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Array.join(new __TsonicShape_92778747e4be317b561ee8d7813a688bbc05f5920efee69ddfe31fb84b585693
+            return Tsonic.CSharp.Js.Array.join(new ObjectShape_92778747e4be
             {
                 text = text,
             }.__tsonicObjectKeys_48e9fd789833(), ",");
@@ -517,11 +489,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_92778747e4be317b561ee8d7813a688bbc05f5920efee69ddfe31fb84b585693
+    public class ObjectShape_92778747e4be
     {
         public required string text;
         public Tsonic.CSharp.Js.JSArray<string> __tsonicObjectKeys_48e9fd789833()
@@ -622,15 +592,13 @@ test("direct C# translation retains a project interface as object-literal contex
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
         public static User make(int age)
         {
-            return new __TsonicShape_8b36ca7a0e80088fa093afc463a8cc8a0434af8f98c0f4496d34b0acdd614350
+            return new UserShape_8b36ca7a0e80
             {
                 name = "Ada",
                 age = age,
@@ -646,11 +614,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_8b36ca7a0e80088fa093afc463a8cc8a0434af8f98c0f4496d34b0acdd614350 : User
+    public class UserShape_8b36ca7a0e80 : User
     {
         public required int age
         {
@@ -689,9 +655,7 @@ test("direct C# dynamic translation closes every supported any operation", () =>
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {

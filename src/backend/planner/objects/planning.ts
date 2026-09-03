@@ -21,6 +21,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../../target-model/types/index.js";
 import {
+  csharpStructuralObjectShapeIdentity,
   isCsharpJsValueObjectShapeTargetType,
 } from "../../../target-model/types/index.js";
 import {
@@ -198,7 +199,7 @@ export function planCsharpObjectShapeSourceFile(
   }
   const unit: CsharpCompilationUnit = {
     kind: "CompilationUnit",
-    usings: [{ kind: "UsingDirective", namespace: "System" }],
+    usings: [],
     members: [{
       kind: "NamespaceDeclaration",
       name: readNamespace(input),
@@ -263,9 +264,13 @@ function renderObjectShapeDeclaration(
     });
     return undefined;
   }
+  const objectShapeIdentity = csharpStructuralObjectShapeIdentity(
+    fact.targetType,
+  );
   return {
     kind: "ClassDeclaration",
     name: targetType.name,
+    ...(objectShapeIdentity === undefined ? {} : { objectShapeIdentity }),
     modifiers: ["public"],
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(interfaces.length === 0 && !jsonSerializable

@@ -11,6 +11,13 @@ import {
   printCsharpType,
 } from "../../../dist/print/source/index.js";
 import {
+  finalizeCsharpCompilationUnit,
+} from "../../../dist/backend/planner/program/compilation-unit.js";
+import {
+  applyCsharpObjectShapeDisplayNames,
+  selectCsharpObjectShapeDisplayNames,
+} from "../../../dist/backend/target-ast/normalization/object-shape-names.js";
+import {
   csharpDelegateTargetType,
   csharpPropertySourceMemberKey,
   csharpTargetTypeFromBinding,
@@ -63,6 +70,237 @@ test("printer preserves exact 64-bit integer literal digits", () => {
     }),
     /integer literal digits must be canonical unsigned decimal text/u,
   );
+});
+
+test("compilation-unit normalization selects exact readable multiline strings", () => {
+  const value = 'first """ line\n  ${value} 😀\n';
+  const finalized = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Strings",
+      modifiers: ["public", "static"],
+      members: [{
+        kind: "MethodDeclaration",
+        name: "read",
+        modifiers: ["public", "static"],
+        returnType: { kind: "PredefinedType", name: "string" },
+        parameters: [],
+        body: {
+          kind: "Block",
+          statements: [{
+            kind: "ReturnStatement",
+            expression: { kind: "LiteralExpression", value },
+          }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  const source = printCsharpCompilationUnit(finalized.unit);
+  assert.match(source, /return """"\n        first """ line\n          \$\{value\} 😀\n\n        """";/u);
+  assert.doesNotMatch(source, /\\n/u);
+
+  const escaped = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Strings",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "windows",
+        modifiers: ["public"],
+        type: { kind: "PredefinedType", name: "string" },
+        initializer: { kind: "LiteralExpression", value: "left\r\nright" },
+      }],
+    }],
+  }, "csharp14");
+  assert.match(
+    printCsharpCompilationUnit(escaped.unit),
+    /"left\\r\\nright"/u,
+  );
+
+  const shortNewline = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "ShortNewline",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "value",
+        modifiers: ["public"],
+        type: { kind: "PredefinedType", name: "string" },
+        initializer: { kind: "LiteralExpression", value: "\n" },
+      }],
+    }],
+  }, "csharp14");
+  assert.match(
+    printCsharpCompilationUnit(shortNewline.unit),
+    /"\\n"/u,
+  );
+});
+
+test("compilation-unit normalization retains only exact required using directives", () => {
+  const qualifiedOnly = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [{ kind: "UsingDirective", namespace: "System" }],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "QualifiedOnly",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "value",
+        modifiers: ["public"],
+        type: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "String",
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.equal(qualifiedOnly.unit.usings.length, 0);
+
+  const required = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Delegates",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "callback",
+        modifiers: ["public"],
+        type: {
+          kind: "IdentifierName",
+          name: "Func",
+          requiredUsingNamespace: "System",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.deepEqual(required.unit.usings, [{
+    kind: "UsingDirective",
+    namespace: "System",
+  }]);
+
+  const collision = finalizeCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "ClassDeclaration",
+      name: "Func",
+      modifiers: ["public"],
+      members: [],
+    }, {
+      kind: "ClassDeclaration",
+      name: "Delegates",
+      modifiers: ["public"],
+      members: [{
+        kind: "FieldDeclaration",
+        name: "callback",
+        modifiers: ["public"],
+        type: {
+          kind: "IdentifierName",
+          name: "Func",
+          requiredUsingNamespace: "System",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+      }],
+    }],
+  }, "csharp14");
+  assert.deepEqual(collision.unit.usings, []);
+  assert.match(
+    printCsharpCompilationUnit(collision.unit),
+    /global::System\.Func<int> callback/u,
+  );
+  assert.doesNotMatch(
+    printCsharpCompilationUnit(collision.unit),
+    /extern alias global/u,
+  );
+});
+
+test("object-shape display names are readable, unique, and build-order invariant", () => {
+  const candidates = [{
+    canonicalName: "__TsonicShape_first",
+    identity: "aaaaaaaaaaaa1fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "Todo-Input",
+  }, {
+    canonicalName: "__TsonicShape_second",
+    identity: "aaaaaaaaaaaa2fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "Todo-Input",
+  }, {
+    canonicalName: "__TsonicShape_reserved",
+    identity: "bbbbbbbbbbbb3fffffffffffffffffffffffffffffffffffffffffffffffffff",
+    preferredStem: "User",
+  }];
+  const reserved = new Set(["UserShape_bbbbbbbbbbbb"]);
+  const forward = selectCsharpObjectShapeDisplayNames(candidates, reserved);
+  const reverse = selectCsharpObjectShapeDisplayNames(
+    [...candidates].reverse(),
+    reserved,
+  );
+  assert.deepEqual([...forward], [...reverse]);
+  assert.equal(
+    forward.get("__TsonicShape_first"),
+    "Todo_InputShape_aaaaaaaaaaaa1",
+  );
+  assert.equal(
+    forward.get("__TsonicShape_second"),
+    "Todo_InputShape_aaaaaaaaaaaa2",
+  );
+  assert.equal(
+    forward.get("__TsonicShape_reserved"),
+    "UserShape_bbbbbbbbbbbb3",
+  );
+
+  const canonicalName = "__TsonicShape_first";
+  const [normalized] = applyCsharpObjectShapeDisplayNames([{
+    kind: "CompilationUnit",
+    usings: [],
+    members: [{
+      kind: "NamespaceDeclaration",
+      name: "Generated",
+      members: [{
+        kind: "ClassDeclaration",
+        name: canonicalName,
+        objectShapeIdentity: candidates[0].identity,
+        modifiers: ["public"],
+        members: [{
+          kind: "FieldDeclaration",
+          name: "next",
+          modifiers: ["public"],
+          type: {
+            kind: "IdentifierName",
+            name: canonicalName,
+            objectShapeIdentity: candidates[0].identity,
+          },
+        }],
+      }, {
+        kind: "ClassDeclaration",
+        name: canonicalName,
+        modifiers: ["public"],
+        members: [{
+          kind: "FieldDeclaration",
+          name: "unchanged",
+          modifiers: ["public"],
+          type: { kind: "IdentifierName", name: canonicalName },
+        }],
+      }],
+    }],
+  }], [candidates[0]]);
+  const normalizedSource = printCsharpCompilationUnit(normalized);
+  assert.match(normalizedSource, /class Todo_InputShape_aaaaaaaaaaaa/u);
+  assert.match(normalizedSource, /Todo_InputShape_aaaaaaaaaaaa next/u);
+  assert.match(normalizedSource, /class __TsonicShape_first/u);
+  assert.match(normalizedSource, /__TsonicShape_first unchanged/u);
 });
 
 test("printer renders explicit unsafe statement and expression nodes", () => {

@@ -12,7 +12,12 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
     case "InvalidType":
       return right.kind === "InvalidType" && left.reason === right.reason;
     case "IdentifierName": {
-      if (right.kind !== "IdentifierName" || left.name !== right.name) {
+      if (
+        right.kind !== "IdentifierName" ||
+        left.name !== right.name ||
+        left.requiredUsingNamespace !== right.requiredUsingNamespace ||
+        left.objectShapeIdentity !== right.objectShapeIdentity
+      ) {
         return false;
       }
       const leftArgs = left.typeArguments ?? [];

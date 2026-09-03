@@ -1,15 +1,37 @@
 export function indentLines(lines: readonly string[]): string[] {
-  return lines.map((line) => line.length === 0 ? line : `    ${line}`);
+  return lines.flatMap((line) =>
+    line.split("\n").map((part) => part.length === 0 ? part : `    ${part}`));
 }
 
-export function printLiteral(value: string | number | boolean | null): string {
+export function printLiteral(
+  value: string | number | boolean | null,
+  stringStyle?: "raw",
+): string {
   if (value === null) {
     return "null";
   }
   if (typeof value === "string") {
+    if (stringStyle === "raw") {
+      return printRawStringLiteral(value);
+    }
     return `"${escapeCsharpStringText(value, false)}"`;
   }
   return String(value);
+}
+
+function printRawStringLiteral(value: string): string {
+  let longestQuoteRun = 0;
+  let quoteRun = 0;
+  for (const character of value) {
+    if (character === '"') {
+      quoteRun += 1;
+      longestQuoteRun = Math.max(longestQuoteRun, quoteRun);
+    } else {
+      quoteRun = 0;
+    }
+  }
+  const delimiter = '"'.repeat(Math.max(3, longestQuoteRun + 1));
+  return `${delimiter}\n${value}\n${delimiter}`;
 }
 
 export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | undefined): string {

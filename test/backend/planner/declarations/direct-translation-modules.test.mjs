@@ -45,9 +45,7 @@ test("direct C# translation qualifies same-module values only across generated t
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -90,4 +88,54 @@ namespace Tsonic.Generated
     }
 }
 `);
+});
+
+test("effect-free module closures omit module-initialization scaffolding", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { read } from "./pure.js";
+      export function main(): number { return read(); }
+    `,
+    files: {
+      "pure.ts": `
+        export let pending: number;
+        export function read(): number { return pending; }
+      `,
+    },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  for (const source of compiled.artifacts.values()) {
+    assert.doesNotMatch(source, /__tsonic_module_init/u);
+  }
+  assert.equal(compiled.artifacts.has("generated/TsonicModuleInitializer.cs"), false);
+});
+
+test("transitive runtime effects retain exactly the required initializer chain", () => {
+  const compiled = compileCsharpSource({
+    sourceText: `
+      import { read } from "./bridge.js";
+      export function main(): number { return read(); }
+    `,
+    files: {
+      "bridge.ts": `
+        import { value } from "./state.js";
+        export function read(): number { return value; }
+      `,
+      "state.ts": "export const value: number = 42;\n",
+    },
+  });
+
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const entry = compiled.artifacts.get("src/Index.cs");
+  const bridge = compiled.artifacts.get("src/Bridge.cs");
+  const state = compiled.artifacts.get("src/State.cs");
+  assert.match(entry, /Bridge\.__tsonic_module_init\(\);/u);
+  assert.match(bridge, /State\.__tsonic_module_init\(\);/u);
+  assert.match(state, /value = 42;/u);
+  assert.match(state, /public static void __tsonic_module_init\(\)/u);
 });

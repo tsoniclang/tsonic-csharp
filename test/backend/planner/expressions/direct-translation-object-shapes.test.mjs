@@ -43,15 +43,13 @@ test("direct C# translation derives mapped utility shapes from exact project mem
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207 clone(__TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207 input)
+        public static ObjectShape_3b2e57fabdb0 clone(ObjectShape_3b2e57fabdb0 input)
         {
-            return new __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207
+            return new ObjectShape_3b2e57fabdb0
             {
                 id = input.id,
                 label = input.label,
@@ -62,11 +60,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_3b2e57fabdb0f0a3acc2f25f7ac86604067e3368f8887901f20875420e82a207
+    public class ObjectShape_3b2e57fabdb0
     {
         public required double id;
         public required string label;
@@ -96,20 +92,18 @@ test("direct C# translation coalesces duplicate structural union carriers withou
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static double score(__TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 result)
+        public static double score(ObjectShape_baf0d8f7d255 result)
         {
             if (result.kind == "found")
             {
-                __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 found = result;
+                ObjectShape_baf0d8f7d255 found = result;
                 return found.value + 1;
             }
-            __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9 missing = result;
+            ObjectShape_baf0d8f7d255 missing = result;
             return missing.value - 1;
         }
     }
@@ -117,11 +111,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_baf0d8f7d25503d2f9a080efe81a94fa7e22e7f609b09107f7d77511fea1b3b9
+    public class ObjectShape_baf0d8f7d255
     {
         public required string kind;
         public required double value;
@@ -144,17 +136,15 @@ test("structural object-shape identity is independent of source member order", (
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 left(__TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 value)
+        public static ObjectShape_d9a1071fa28f left(ObjectShape_d9a1071fa28f value)
         {
             return value;
         }
-        public static __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 right(__TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8 value)
+        public static ObjectShape_d9a1071fa28f right(ObjectShape_d9a1071fa28f value)
         {
             return value;
         }
@@ -163,11 +153,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_d9a1071fa28f8328e78a6b33bb8e0c48be8ef7b7fff4044a1240691cab6edca8
+    public class ObjectShape_d9a1071fa28f
     {
         public required double alpha;
         public required string zeta;
@@ -203,7 +191,7 @@ test("object-literal method receiver requirements replan every implementation of
   assert.equal((source.match(/__tsonic_shape_method_\w+ =/gu) ?? []).length, 2);
   assert.match(
     shapes,
-    /public required Func<__TsonicShape_[a-f0-9]{64}, double> __tsonic_shape_method_/u,
+    /public required Func<ObjectShape_[a-f0-9]{12,64}, double> __tsonic_shape_method_/u,
   );
   assert.match(shapes, /return __tsonic_shape_method_\w+\(this\);/u);
 });

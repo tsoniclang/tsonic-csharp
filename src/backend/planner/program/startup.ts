@@ -1,9 +1,11 @@
 import type { CsharpPlanningContext } from "../context.js";
-import type { CsharpModuleInitializationPlan } from "./module-initialization.js";
+import type {
+  CsharpModuleInitializationIndex,
+} from "../../../analysis/module-initialization/index.js";
 import type { CsharpOutputSourceFile } from "../../artifact-model/output.js";
 import type { PlannedCsharpSourceFile } from "./source-file.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import { csharpModuleInitMethodName } from "./module-initialization.js";
+import { csharpModuleInitMethodName } from "./module-initialization-names.js";
 import {
   predefined,
   qualifiedCsharpType,
@@ -19,7 +21,7 @@ import type {
 export function planCsharpStartupSourceFile(
   input: CsharpPlanningContext,
   plannedSources: readonly PlannedCsharpSourceFile[],
-  moduleInitialization: CsharpModuleInitializationPlan,
+  moduleInitialization: CsharpModuleInitializationIndex,
   diagnostics: TargetDiagnostic[],
 ): CsharpOutputSourceFile | undefined {
   const plannedSourcesByFileName = new Map(plannedSources.map((source) => [source.fileName, source]));

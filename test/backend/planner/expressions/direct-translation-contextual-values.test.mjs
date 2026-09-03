@@ -25,9 +25,7 @@ test("direct C# translation separates flow-selected values from nullable storage
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -37,7 +35,7 @@ namespace Tsonic.Generated
             {
                 return null;
             }
-            return new __TsonicShape_057cd9bd1e63a8137d2c4ed3efae9ad246edaa7eb9b3afb5df7cd1273410af99
+            return new TodoCreateInputShape_057cd9bd1e63
             {
                 title = title,
                 id = id.Value,
@@ -65,11 +63,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_057cd9bd1e63a8137d2c4ed3efae9ad246edaa7eb9b3afb5df7cd1273410af99 : TodoCreateInput
+    public class TodoCreateInputShape_057cd9bd1e63 : TodoCreateInput
     {
         public required int id
         {
@@ -103,17 +99,15 @@ test("direct C# translation preserves authored primitive aliases through structu
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf nextId
+        public static ObjectShape_af5744e677bb nextId
         {
             get;
             private set;
-        } = default(__TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf)!;
+        } = default(ObjectShape_af5744e677bb)!;
         public static int takeNext()
         {
             int id = nextId.value;
@@ -123,7 +117,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            nextId = new __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf
+            nextId = new ObjectShape_af5744e677bb
             {
                 value = 1,
             };
@@ -138,11 +132,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_af5744e677bb436387abd4cc44f2af1447e8e6e8b8e234936f81f940e51c2bbf
+    public class ObjectShape_af5744e677bb
     {
         public required int value;
     }
@@ -201,15 +193,13 @@ test("direct C# translation specializes generic object-shape members from exact 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
         public static Box<double> create()
         {
-            return new __TsonicShape_e10a2a56263f655b709a07df1215b5682ed40965604a8df8baaecf7e0023c2bd
+            return new BoxShape_e10a2a56263f
             {
                 value = 1,
                 label = "one",
@@ -225,11 +215,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_e10a2a56263f655b709a07df1215b5682ed40965604a8df8baaecf7e0023c2bd : Box<double>
+    public class BoxShape_e10a2a56263f : Box<double>
     {
         public required string label
         {
@@ -265,9 +253,7 @@ test("direct C# translation retains imported interface context for expression-bo
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Dto.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Dto.cs"), `namespace Tsonic.Generated
 {
     public interface ItemDto
     {
@@ -290,7 +276,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            makeItem = (int id, string title) => (new __TsonicShape_bdeebe94cfb6cdba43ee8942a2e9a35c50c7324dccdb3679838753c2aee9e636
+            makeItem = (int id, string title) => (new ItemDtoShape_bdeebe94cfb6
             {
                 id = id,
                 title = title,
@@ -306,11 +292,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_bdeebe94cfb6cdba43ee8942a2e9a35c50c7324dccdb3679838753c2aee9e636 : ItemDto
+    public class ItemDtoShape_bdeebe94cfb6 : ItemDto
     {
         public required int id
         {
@@ -434,9 +418,7 @@ test("direct C# translation instantiates inherited generic member types from exa
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -485,9 +467,7 @@ test("direct C# translation uses checker-declared mutable storage instead of lit
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -586,9 +566,7 @@ test("direct C# translation preserves the exact JS array receiver element carrie
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -616,9 +594,7 @@ test("direct C# translation preserves the expected primitive carrier across null
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -648,9 +624,7 @@ test("direct C# translation derives generic JS array factories from exact source
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -682,9 +656,7 @@ test("direct C# translation preserves explicit void discard intent", () => {
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
