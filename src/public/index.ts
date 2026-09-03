@@ -1,7 +1,9 @@
 import { createCsharpTargetPack } from "../descriptor/csharp-target-pack.js";
+import { createCsharpStarterProject } from "../descriptor/csharp-starter-project.js";
 import { csharpTargetId } from "../target-model/identities/source.js";
 
 export { createCsharpTargetPack } from "../descriptor/csharp-target-pack.js";
+export { createCsharpStarterProject } from "../descriptor/csharp-starter-project.js";
 export { csharpTargetId } from "../target-model/identities/source.js";
 export type {
   CsharpLanguageDialect,
@@ -16,5 +18,6 @@ export function createTsonicPlugin() {
     id: "@tsonic/target-csharp",
     targetId: csharpTargetId,
     createTargetPack: createCsharpTargetPack,
+    createStarterProject: createCsharpStarterProject,
   };
 }
