@@ -52,6 +52,9 @@ import type {
 import type {
   CsharpSourceModuleConstructionIndex,
 } from "../source-modules/index.js";
+import type {
+  CsharpModuleInitializationIndex,
+} from "../module-initialization/index.js";
 
 export interface CsharpTargetAnalysisRequest {
   readonly input: TargetCompileInput;
@@ -84,5 +87,6 @@ export interface CsharpTargetProgram {
   readonly expectedTypes: CsharpExpectedTypeClassifications;
   readonly storage: CsharpStorageClassifications;
   readonly sourceModuleConstructions: CsharpSourceModuleConstructionIndex;
+  readonly moduleInitialization: CsharpModuleInitializationIndex;
   readonly binaryExecutionDriver?: CsharpProviderBinaryExecutionDriver;
 }

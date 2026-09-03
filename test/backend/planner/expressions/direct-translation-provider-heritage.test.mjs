@@ -13,9 +13,7 @@ test("implicit project constructors forward exact provider constructor relations
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {

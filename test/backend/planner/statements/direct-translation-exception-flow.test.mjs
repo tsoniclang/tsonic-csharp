@@ -50,9 +50,7 @@ test("canonical C# omits a catch binding whose only source use lowers to an exac
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs") ?? "";
-  assert.equal(source, `using System;
-
-namespace Tsonic.Generated
+  assert.equal(source, `namespace Tsonic.Generated
 {
     public static class Index
     {

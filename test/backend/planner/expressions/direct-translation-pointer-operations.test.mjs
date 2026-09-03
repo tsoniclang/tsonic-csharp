@@ -27,9 +27,7 @@ test("typed locations preserve aliases, parameters, returns, and fresh allocatio
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -75,9 +73,7 @@ test("typed locations retain generic pointees and conditional identity", () => {
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -118,9 +114,7 @@ test("typed-location equality preserves exact carrier identity and undefined", (
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -582,9 +576,7 @@ test("same-spelled local pointer functions remain ordinary source calls", () => 
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {

@@ -4,7 +4,7 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
-test("direct C# translation assigns deterministic source identities and module initialization dependencies", () => {
+test("direct C# translation omits initialization for type-only module dependencies", () => {
   const compiled = cleanCompile({
     sourceText: `
       import { User } from "./models/user.js";
@@ -24,24 +24,9 @@ test("direct C# translation assigns deterministic source identities and module i
     "TsonicGenerated.csproj",
     "src/models/Models_user.cs",
     "src/Index.cs",
-    "generated/TsonicModuleInitializer.cs",
   ]);
-  assert.equal(compiled.artifacts.get("src/models/Models_user.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/models/Models_user.cs"), `namespace Tsonic.Generated
 {
-    public static class Models_user
-    {
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
-    }
     public class User
     {
         public User(string publicName)
@@ -52,9 +37,7 @@ namespace Tsonic.Generated
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -62,32 +45,10 @@ namespace Tsonic.Generated
         {
             return user.name;
         }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            Models_user.__tsonic_module_init();
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("generated/TsonicModuleInitializer.cs"), `namespace Tsonic.Generated
-{
-    internal static class TsonicModuleInitializer
-    {
-        [System.Runtime.CompilerServices.ModuleInitializerAttribute]
-        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Usage", "CA2255")]
-        internal static void Initialize()
-        {
-            Index.__tsonic_module_init();
-        }
-    }
-}
-`);
+  assert.equal(compiled.artifacts.has("generated/TsonicModuleInitializer.cs"), false);
 });
 
 test("direct C# library translation omits assembly initialization when the module graph has no runtime initialization", () => {
@@ -133,9 +94,7 @@ test("direct C# module bindings remain internally mutable and externally read-on
     `,
   });
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -184,9 +143,7 @@ test("direct C# translation awaits async module dependencies and project-owned c
     },
   });
 
-  assert.equal(compiled.artifacts.get("src/Worker.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Worker.cs"), `namespace Tsonic.Generated
 {
     public static class Worker
     {
@@ -209,9 +166,7 @@ namespace Tsonic.Generated
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {

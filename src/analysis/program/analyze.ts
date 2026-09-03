@@ -93,6 +93,9 @@ import {
 import {
   composeCsharpBinaryExecutionDriver,
 } from "../../providers/model/provider-policy-contribution.js";
+import {
+  analyzeCsharpModuleInitialization,
+} from "../module-initialization/index.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -232,6 +235,32 @@ export function analyzeCsharpTargetProgram(
     request.binaryExecutionDriver,
     operationBinaryExecutionDriver,
   );
+  const attributeApplications = createCsharpAttributeApplicationFactIndex({
+    ast: source.ast,
+    sourceFiles: source.navigation.sourceFiles,
+    sourceFacts: source.sourceFacts,
+  });
+  const safetyApplications = createCsharpSafetyApplicationFactIndex({
+    ast: source.ast,
+    sourceFiles: source.navigation.sourceFiles,
+    sourceFacts: source.sourceFacts,
+    navigation: source.navigation,
+  });
+  const moduleInitialization = analyzeCsharpModuleInitialization({
+    source,
+    sourceFiles,
+    projectRoot: input.paths.projectRoot,
+    entryPoint: input.project.entryPoint,
+    attributeApplications,
+    safetyApplications,
+  });
+  if (moduleInitialization.issues.length > 0) {
+    return rejectedTargetStage(moduleInitialization.issues.map((issue) => ({
+      ...issue,
+      category: "error" as const,
+      source: "tsonic-csharp",
+    })));
+  }
   const program: CsharpTargetProgram = Object.freeze({
     host: Object.freeze({
       paths: Object.freeze({ ...input.paths }),
@@ -242,17 +271,8 @@ export function analyzeCsharpTargetProgram(
     source: targetSourceSyntaxProgram(source),
     sourceNavigation: snapshotTargetPlanningSourceNavigation(source),
     sourceFiles,
-    attributeApplications: createCsharpAttributeApplicationFactIndex({
-      ast: source.ast,
-      sourceFiles: source.navigation.sourceFiles,
-      sourceFacts: source.sourceFacts,
-    }),
-    safetyApplications: createCsharpSafetyApplicationFactIndex({
-      ast: source.ast,
-      sourceFiles: source.navigation.sourceFiles,
-      sourceFacts: source.sourceFacts,
-      navigation: source.navigation,
-    }),
+    attributeApplications,
+    safetyApplications,
     projectTypes: sealCsharpProjectTypeClassifications(
       analysis.typeSystem.projectTypes,
       source.ast,
@@ -267,6 +287,7 @@ export function analyzeCsharpTargetProgram(
     expectedTypes: analysis.expectedTypes,
     storage: analysis.storage,
     sourceModuleConstructions: sourceModuleConstructions.index,
+    moduleInitialization: moduleInitialization.index,
     ...(binaryExecutionDriver === undefined
       ? {}
       : { binaryExecutionDriver }),

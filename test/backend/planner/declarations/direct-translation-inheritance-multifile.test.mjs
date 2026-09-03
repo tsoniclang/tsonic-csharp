@@ -21,22 +21,8 @@ test("direct C# translation preserves exact project heritage across source modul
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Models.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Models.cs"), `namespace Tsonic.Generated
 {
-    public static class Models
-    {
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
-    }
     public class Base<T>
     {
     }
@@ -54,9 +40,7 @@ namespace Tsonic.Generated
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -66,16 +50,6 @@ namespace Tsonic.Generated
         public static void run()
         {
             consume(new Derived());
-        }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            Models.__tsonic_module_init();
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
         }
     }
 }
@@ -99,9 +73,7 @@ test("source callable contracts close imported generic calls independent of call
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/ZLibrary.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/ZLibrary.cs"), `namespace Tsonic.Generated
 {
     public static class ZLibrary
     {
@@ -109,37 +81,16 @@ namespace Tsonic.Generated
         {
             return value;
         }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
-        }
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
         public static int run(int value)
         {
             return ZLibrary.identity<int>(value);
-        }
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            ZLibrary.__tsonic_module_init();
-            return null;
-        }
-        public static void __tsonic_module_init()
-        {
-            _ = __tsonic_module_initialization.Value;
         }
     }
 }

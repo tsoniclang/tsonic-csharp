@@ -11,6 +11,7 @@ import type {
 import {
   csharpRenderShapeForTargetNamedType,
   csharpSourcePrimitiveCsharpPredefinedName,
+  csharpStructuralObjectShapeIdentity,
   isCsharpNullableReferenceTargetType,
 } from "../../../target-model/types/index.js";
 
@@ -133,15 +134,31 @@ function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly k
     case "nullable":
       return typeArguments.length === 1 ? { kind: "NullableType", inner: typeArguments[0]! } : undefined;
     case "named":
-      return csharpNamedTypeFromRenderShape(shape, typeArguments as readonly CsharpTypeNode[]);
+      return csharpNamedTypeFromRenderShape(
+        shape,
+        typeArguments as readonly CsharpTypeNode[],
+        csharpStructuralObjectShapeIdentity(type),
+      );
   }
 }
 
 function csharpNamedTypeFromRenderShape(
   shape: Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>,
   typeArguments: readonly CsharpTypeNode[],
+  objectShapeIdentity: string | undefined,
 ): CsharpTypeNode | undefined {
   const namespaceParts = (shape.namespace ?? []).map(sanitizeIdentifier);
+  const usingNamespaceParts = shape.usingNamespace?.map(sanitizeIdentifier);
+  if (
+    shape.usingNamespace !== undefined &&
+    (
+      shape.usingNamespace.length === 0 ||
+      namespaceParts.length > 0 ||
+      shape.externAlias !== undefined
+    )
+  ) {
+    return undefined;
+  }
   const segments = [
     { name: shape.name, genericArity: shape.genericArity },
     ...(shape.nested ?? []),
@@ -169,6 +186,12 @@ function csharpNamedTypeFromRenderShape(
         kind: "IdentifierName",
         name,
         ...(segmentTypeArguments.length > 0 ? { typeArguments: segmentTypeArguments } : {}),
+        ...(usingNamespaceParts === undefined
+          ? {}
+          : { requiredUsingNamespace: usingNamespaceParts.join(".") }),
+        ...(objectShapeIdentity === undefined
+          ? {}
+          : { objectShapeIdentity }),
       };
       continue;
     }

@@ -3,6 +3,17 @@ import type {
   CsharpObjectShapeMemberFact,
   TargetTypeRef,
 } from "./model.js";
+
+export const csharpStructuralObjectShapeIdPrefix = "tsonic.shape:";
+
+export function csharpStructuralObjectShapeIdentity(
+  type: TargetTypeRef,
+): string | undefined {
+  return type.kind === "target-named" &&
+      type.id.startsWith(csharpStructuralObjectShapeIdPrefix)
+    ? type.id.slice(csharpStructuralObjectShapeIdPrefix.length)
+    : undefined;
+}
 import {
   targetTypeRefKey,
 } from "./equality.js";

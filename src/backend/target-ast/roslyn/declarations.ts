@@ -33,6 +33,7 @@ export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclara
 export interface CsharpClassDeclaration {
   readonly kind: "ClassDeclaration";
   readonly name: string;
+  readonly objectShapeIdentity?: string;
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];

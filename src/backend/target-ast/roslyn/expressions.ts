@@ -3,7 +3,11 @@ import type { CsharpTypeNode } from "./types.js";
 
 export type CsharpExpression =
   | CsharpTypeNode
-  | { readonly kind: "LiteralExpression"; readonly value: string | number | boolean | null }
+  | {
+      readonly kind: "LiteralExpression";
+      readonly value: string | number | boolean | null;
+      readonly stringStyle?: "raw";
+    }
   | { readonly kind: "NumericLiteralExpression"; readonly value: number; readonly suffix?: "F" | "D" | "M" }
   | { readonly kind: "IntegerLiteralExpression"; readonly digits: string; readonly suffix: "L" | "UL" }
   | { readonly kind: "CharacterLiteralExpression"; readonly value: string }

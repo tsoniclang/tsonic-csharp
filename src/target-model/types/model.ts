@@ -117,6 +117,7 @@ export type CsharpTargetTypeRenderShape =
       readonly name: string;
       readonly genericArity?: number;
       readonly nested?: readonly CsharpTargetNestedTypeRenderShape[];
+      readonly usingNamespace?: readonly string[];
     }
   | { readonly kind: "nullable" };
 

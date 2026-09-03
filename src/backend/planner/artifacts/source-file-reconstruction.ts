@@ -17,8 +17,8 @@ import type {
   CsharpPlanningContext,
 } from "../context.js";
 import type {
-  CsharpModuleInitializationPlan,
-} from "../program/module-initialization.js";
+  CsharpModuleInitializationIndex,
+} from "../../../analysis/module-initialization/index.js";
 import {
   planSourceFile,
 } from "../program/source-file.js";
@@ -34,7 +34,7 @@ const maximumReconstructionsPerSourceFile = 32;
 
 export function reconstructCsharpSourceFiles(
   input: CsharpPlanningContext,
-  moduleInitialization: CsharpModuleInitializationPlan,
+  moduleInitialization: CsharpModuleInitializationIndex,
   diagnostics: TargetDiagnostic[],
 ): readonly PlannedCsharpSourceFile[] | undefined {
   const sourceFilesByOwner = new Map<string, SourceFile>();

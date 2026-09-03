@@ -34,7 +34,11 @@ export function csharpDelegateTargetType(
   const id = kind === "System.Action"
     ? parameters.length === 0 ? "System.Action" : `System.Action\`${parameters.length}`
     : `System.Func\`${parameters.length + 1}`;
-  const targetType = csharpTargetNamedType(id, typeArguments, { kind: "named", name: kind === "System.Action" ? "Action" : "Func" });
+  const targetType = csharpTargetNamedType(id, typeArguments, {
+    kind: "named",
+    name: kind === "System.Action" ? "Action" : "Func",
+    usingNamespace: ["System"],
+  });
   return {
     kind: "target-named",
     id: targetType.id,

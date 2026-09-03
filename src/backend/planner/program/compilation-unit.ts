@@ -10,6 +10,12 @@ import {
 import {
   compilationUnitRequiresUnsafe,
 } from "../safety/unsafe-requires.js";
+import {
+  applyReadableCsharpStringLiterals,
+} from "../../target-ast/normalization/readable-string-literals.js";
+import {
+  applyRequiredCsharpUsings,
+} from "../../target-ast/normalization/required-usings.js";
 
 export interface FinalizedCsharpCompilationUnit {
   readonly unit: CsharpCompilationUnit;
@@ -24,16 +30,19 @@ export function finalizeCsharpCompilationUnit(
     unit,
     dialect,
   );
-  const requiresUnsafe = compilationUnitRequiresUnsafe(
-    contextualizedUnit,
+  const normalizedUnit = applyRequiredCsharpUsings(
+    applyReadableCsharpStringLiterals(contextualizedUnit),
   );
-  const aliases = collectExternAliases(contextualizedUnit);
+  const requiresUnsafe = compilationUnitRequiresUnsafe(
+    normalizedUnit,
+  );
+  const aliases = collectExternAliases(normalizedUnit);
   return {
     requiresUnsafe,
     unit: aliases.length === 0
-      ? contextualizedUnit
+      ? normalizedUnit
       : {
-          ...contextualizedUnit,
+          ...normalizedUnit,
           externAliases: aliases,
         },
   };
@@ -64,7 +73,8 @@ function visitCsharpAstValue(
   const record = value as Readonly<Record<string, unknown>>;
   if (
     record.kind === "AliasQualifiedName" &&
-    typeof record.alias === "string"
+    typeof record.alias === "string" &&
+    record.alias !== "global"
   ) {
     aliases.add(record.alias);
   }

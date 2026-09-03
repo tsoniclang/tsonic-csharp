@@ -44,8 +44,10 @@ import {
 import { planTopLevelVariableStatement } from "./top-level-variables.js";
 import {
   csharpModuleInitMethodName,
-} from "./module-initialization.js";
-import type { CsharpModuleInitializationPlan } from "./module-initialization.js";
+} from "./module-initialization-names.js";
+import type {
+  CsharpModuleInitializationIndex,
+} from "../../../analysis/module-initialization/index.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
@@ -84,15 +86,16 @@ export function planSourceFile(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  moduleInitialization: CsharpModuleInitializationPlan,
+  moduleInitialization: CsharpModuleInitializationIndex,
 ): PlannedCsharpSourceFile | undefined {
   const fileName = SourceFile_FileName(input.program.source.ast, sourceFile);
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
   const moduleClassName = sourceFileClassName(input, fileName);
-  const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input) ||
-    moduleInitialization.requiresInitializer(sourceFile);
+  const hasModuleInitializer = moduleInitialization.requiresInitializer(
+    sourceFile,
+  );
   const asyncModuleInitializer = hasModuleInitializer &&
     moduleInitialization.isAsync(sourceFile);
   const members: CsharpTypeMember[] = [];
@@ -306,7 +309,7 @@ export function planSourceFile(
   }
   const unit: CsharpCompilationUnit = {
     kind: "CompilationUnit",
-    usings: [{ kind: "UsingDirective", namespace: "System" }],
+    usings: [],
     members: [{
       kind: "NamespaceDeclaration",
       name: readNamespace(input),
@@ -377,29 +380,6 @@ function createModuleInitializerCall(
       ? { kind: "AwaitExpression", expression: invocation }
       : invocation,
   };
-}
-
-function hasRuntimeTopLevel(sourceFile: SourceFile, input: CsharpPlanningContext): boolean {
-  for (const statement of sourceFile.Statements?.Nodes ?? []) {
-    if (statement === undefined || isErasedAttributeExpressionStatement(statement, input)) {
-      continue;
-    }
-    switch (input.program.source.ast.kindName(statement)) {
-      case KindImportDeclaration:
-      case KindTypeAliasDeclaration:
-      case KindExportDeclaration:
-      case KindInterfaceDeclaration:
-      case KindEnumDeclaration:
-      case KindFunctionDeclaration:
-      case KindClassDeclaration:
-        continue;
-      case KindVariableStatement:
-        return true;
-      default:
-        return true;
-    }
-  }
-  return false;
 }
 
 function planExportAssignment(

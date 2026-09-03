@@ -41,9 +41,7 @@ test("selected nullable target outputs reconstruct exact source storage", () => 
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   assert.deepEqual(sourceArtifacts(compiled), {
-    "src/Index.cs": `using System;
-
-namespace Tsonic.Generated
+    "src/Index.cs": `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -110,9 +108,7 @@ test("public storage changes reconstruct transitive module callers to a fixed po
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   assert.deepEqual(sourceArtifacts(compiled), {
-    "src/State.cs": `using System;
-
-namespace Tsonic.Generated
+    "src/State.cs": `namespace Tsonic.Generated
 {
     public static class State
     {
@@ -145,9 +141,7 @@ namespace Tsonic.Generated
     }
 }
 `,
-    "src/Reader.cs": `using System;
-
-namespace Tsonic.Generated
+    "src/Reader.cs": `namespace Tsonic.Generated
 {
     public static class Reader
     {
@@ -168,9 +162,7 @@ namespace Tsonic.Generated
     }
 }
 `,
-    "src/Index.cs": `using System;
-
-namespace Tsonic.Generated
+    "src/Index.cs": `namespace Tsonic.Generated
 {
     public static class Index
     {

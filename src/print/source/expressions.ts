@@ -32,7 +32,7 @@ export function printCsharpExpression(
   }
   switch (expression.kind) {
     case "LiteralExpression":
-      return printLiteral(expression.value);
+      return printLiteral(expression.value, expression.stringStyle);
     case "NumericLiteralExpression":
       return printNumericLiteral(expression.value, expression.suffix);
     case "IntegerLiteralExpression":

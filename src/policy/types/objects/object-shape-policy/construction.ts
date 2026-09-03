@@ -3,6 +3,7 @@ import {
   canonicalCsharpObjectShapeMembers,
   csharpObjectShapeMemberContractKey,
   csharpObjectShapeMemberContractParts,
+  csharpStructuralObjectShapeIdPrefix,
 } from "../../../../target-model/types/object-shape-identity.js";
 import { canUseCsharpJsValueObjectShapeCarrier } from "../../../../target-model/types/js-value-object-shapes.js";
 import { createHash } from "node:crypto";
@@ -40,7 +41,7 @@ export function createStructuralObjectShapeTarget(
     );
   const jsValueType = csharpTsValueTargetType();
   return csharpTargetNamedType(
-    `tsonic.shape:${identity}`,
+    `${csharpStructuralObjectShapeIdPrefix}${identity}`,
     typeParameters.length === 0 ? undefined : typeParameters,
     jsValueCarrier && jsValueType.kind === "target-named"
       ? jsValueType.csharpRender

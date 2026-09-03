@@ -27,9 +27,7 @@ test("provider-owned CLR enums retain intrinsic C# equality and bitwise operatio
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -94,16 +92,14 @@ test("provider-selected JSON deserialization uses an exact constructible project
   assert.ok(source);
   assert.ok(shapes);
   const selectedCarrier = source.match(
-    /JsonSerializer\.Deserialize<(__TsonicShape_[0-9a-f]{64})>\(json\)/,
+    /JsonSerializer\.Deserialize<(InputShape_[0-9a-f]{12,64})>\(json\)/,
   )?.[1];
   assert.ok(selectedCarrier);
   assert.equal(source.includes("JsonSerializer.Deserialize<Input>(json)"), false);
   assert.equal(source.includes("Input? value ="), true);
   assert.equal(
     shapes,
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
     public class ${selectedCarrier} : Input
     {
@@ -165,7 +161,7 @@ test("provider arguments retain an object literal's contextual project interface
   assert.ok(source);
   assert.ok(shapes);
   const selectedCarrier = source.match(
-    /JsonSerializer\.Serialize<ErrorResponse>\(new (__TsonicShape_[0-9a-f]{64})/,
+    /JsonSerializer\.Serialize<ErrorResponse>\(new (ErrorResponseShape_[0-9a-f]{12,64})/,
   )?.[1];
   assert.ok(selectedCarrier);
   assert.match(shapes, new RegExp(`public class ${selectedCarrier} : ErrorResponse`, "u"));
@@ -205,9 +201,7 @@ test("JS structural views retain one closed value carrier through assertions, fl
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
   assert.ok(source);
-  assert.equal(source, `using System;
-
-namespace Tsonic.Generated
+  assert.equal(source, `namespace Tsonic.Generated
 {
     public static class Index
     {

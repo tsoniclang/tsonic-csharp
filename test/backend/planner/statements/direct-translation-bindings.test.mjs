@@ -29,9 +29,7 @@ test("direct C# binding translation preserves tuple ordinals, defaults, rests, o
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -44,7 +42,7 @@ namespace Tsonic.Generated
             int count = __tsonic_destructure1.Item2;
             User __tsonic_destructure2 = user;
             int age = __tsonic_destructure2.age ?? 0;
-            __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd identity = new __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd
+            ObjectShape_0b8e655cafa6 identity = new ObjectShape_0b8e655cafa6
             {
                 name = __tsonic_destructure2.name,
                 active = __tsonic_destructure2.active,
@@ -67,11 +65,9 @@ namespace Tsonic.Generated
 `);
   assert.equal(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    `using System;
-
-namespace Tsonic.Generated
+    `namespace Tsonic.Generated
 {
-    public class __TsonicShape_0b8e655cafa6d30ed04535d84576d7bdb3228b65144fdaebbb8493930709b6bd
+    public class ObjectShape_0b8e655cafa6
     {
         public required bool active;
         public required string name;

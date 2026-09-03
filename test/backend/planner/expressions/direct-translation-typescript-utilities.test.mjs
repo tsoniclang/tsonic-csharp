@@ -29,7 +29,7 @@ test("the complete pinned TypeScript utility family lowers from resolved source 
   assert.match(source, /return "quiet"/u);
   assert.match(source, /return "Hello"/u);
   assert.match(source, /return "world"/u);
-  assert.match(shapes, /class __TsonicShape_/u);
+  assert.match(shapes, /class ObjectShape_[a-f0-9]{12,64}/u);
 });
 
 const utilitySource = `
