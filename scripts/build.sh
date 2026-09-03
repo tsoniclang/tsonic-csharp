@@ -2,7 +2,16 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TSONIC_ROOT="$(cd "$REPO_ROOT/../tsonic" && pwd -P)"
+configured_tsonic_root="${TSONIC_ROOT:-$REPO_ROOT/../tsonic}"
+if [[ "$configured_tsonic_root" != /* ]]; then
+  configured_tsonic_root="$REPO_ROOT/$configured_tsonic_root"
+fi
+if [[ ! -d "$configured_tsonic_root" ]]; then
+  echo "FAIL: TSONIC_ROOT is not a directory: $configured_tsonic_root" >&2
+  exit 2
+fi
+TSONIC_ROOT="$(cd "$configured_tsonic_root" && pwd -P)"
+export TSONIC_ROOT
 SCRIPT_PATH="$REPO_ROOT/scripts/build.sh"
 
 if [[ "${TSONIC_BUILD_LOCK_HELD:-0}" != "1" ]]; then

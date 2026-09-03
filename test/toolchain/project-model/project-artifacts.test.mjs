@@ -294,6 +294,7 @@ function fakeInput(options = {}, runtimeReferences = []) {
     projectRoot: fixtureProjectRoot,
     outputRoot: join(fixtureProjectRoot, "out"),
     targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+    cacheRoot: join(fixtureProjectRoot, ".tsonic/cache"),
   };
   const configuration = createCsharpTargetConfiguration(
     target,
@@ -332,6 +333,7 @@ function fakeCompositionContext(selectedSurfaceIds) {
       projectRoot: fixtureProjectRoot,
       outputRoot: join(fixtureProjectRoot, "out"),
       targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+      cacheRoot: join(fixtureProjectRoot, ".tsonic/cache"),
     },
   };
 }

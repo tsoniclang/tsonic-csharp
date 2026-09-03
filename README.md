@@ -10,6 +10,20 @@ Canonical product documentation lives in the Tsonic repository:
 - [C# reference](https://github.com/tsoniclang/tsonic/tree/main/docs/reference/targets/csharp)
 - [Target-pack architecture](https://github.com/tsoniclang/tsonic/blob/main/docs/architecture/target-pack-contract.md)
 
+## Use in a project
+
+Install Node.js 22.18 or newer and the .NET 10 SDK, then install the CLI and
+target in the project that contains `tsonic.json`:
+
+```sh
+npm install --save-dev @tsonic/cli@^0.1.0 @tsonic/target-csharp@^0.1.0
+npx --no-install tsonic targets --project tsonic.json
+npx --no-install tsonic build --project tsonic.json
+```
+
+The [first C# project guide](https://github.com/tsoniclang/tsonic/blob/main/docs/manual/get-started.md#build-a-c-application)
+contains a complete source file, project configuration, native build, and run.
+
 ## Package entry points
 
 | Export | Purpose |
@@ -18,7 +32,7 @@ Canonical product documentation lives in the Tsonic repository:
 | `@tsonic/target-csharp/provider` | Generic C# provider-authoring contract |
 | `@tsonic/target-csharp/provider/dotnet` | .NET provider-authoring helpers |
 
-## Development
+## Develop this target pack
 
 The sibling Tsonic packages and runtime repositories must be available through
 the workspace dependencies.

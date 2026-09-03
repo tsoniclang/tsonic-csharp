@@ -67,6 +67,7 @@ function sessionContext(target) {
       projectRoot: process.cwd(),
       outputRoot: `${process.cwd()}/out`,
       targetOutputRoot: `${process.cwd()}/out/csharp`,
+      cacheRoot: `${process.cwd()}/.temp/compilation-session-cache`,
     },
     selectedSurfaceIds: [],
     capabilities: [],

@@ -281,6 +281,7 @@ test(".NET target binding provider receives requested export slices from TSTS na
       projectRoot: "/src",
       outputRoot: "/src/out",
       targetOutputRoot: "/src/out/csharp",
+      cacheRoot: "/src/.tsonic/cache",
     },
     selectedSurfaceIds: [],
     capabilities: [],

@@ -73,6 +73,14 @@ test("C# product imports conform to the declared architecture", () => {
 
 test("C# package exposes only approved audience entrypoints", async () => {
   const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, "package.json"), "utf8"));
+  assert.deepEqual(manifest.files, [
+    "dist",
+    "!dist/**/*.tsbuildinfo",
+    "tools/dotnet-type-provider/*.cs",
+    "tools/dotnet-type-provider/*.csproj",
+    "README.md",
+    "LICENSE",
+  ]);
   assert.deepEqual(
     Object.keys(manifest.exports).sort(),
     [".", "./package.json", "./provider", "./provider/dotnet"],

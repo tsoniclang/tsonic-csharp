@@ -359,6 +359,7 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
       projectRoot: "/src",
       outputRoot: "/src/out",
       targetOutputRoot: "/src/out/csharp",
+      cacheRoot: "/src/.tsonic/cache",
     },
     selectedSurfaceIds: [],
     capabilities: [],

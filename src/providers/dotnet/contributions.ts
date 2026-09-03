@@ -56,6 +56,11 @@ export interface CsharpCapabilityDotnetProvider {
   readonly targetFramework?: string;
 }
 
+interface CsharpDotnetProviderStorage {
+  readonly toolBuildRoot: string;
+  readonly cacheRoot: string;
+}
+
 export function collectCsharpCapabilityContributions(
   capabilities: readonly SelectedTargetCapabilityContributions[],
 ): CollectedCsharpCapabilityContributions {
@@ -100,6 +105,7 @@ export function collectCsharpCapabilityContributions(
 
 export function createCapabilityDotnetProviders(
   contributions: CollectedCsharpCapabilityContributions,
+  storage: CsharpDotnetProviderStorage,
 ): readonly CsharpCapabilityDotnetProvider[] {
   const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();
@@ -121,6 +127,8 @@ export function createCapabilityDotnetProviders(
         referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
         assemblySourcePackages: contribution.assemblySourcePackages,
         targetFramework: contribution.targetFramework,
+        toolBuildRoot: storage.toolBuildRoot,
+        cacheRoot: storage.cacheRoot,
       }),
       moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
       ...(contribution.targetFramework === undefined

@@ -46,6 +46,7 @@ function createCheckedCsharpSource(options) {
     projectRoot,
     outputRoot: "/output",
     targetOutputRoot: "/output/csharp",
+    cacheRoot: `${projectRoot}/.tsonic/cache`,
   };
   const sessionContext = {
     project,
