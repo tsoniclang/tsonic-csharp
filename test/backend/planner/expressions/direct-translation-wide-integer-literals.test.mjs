@@ -26,6 +26,7 @@ test("direct C# translation lowers exact wide source literals without broad BigI
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /^using System;$/mu);
   assert.match(source, /signed = 1L;/u);
   assert.match(source, /negative = -2L;/u);
   assert.match(source, /minimum = long\.MinValue;/u);
