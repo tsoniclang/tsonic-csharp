@@ -7,11 +7,14 @@ import {
 } from "@tsonic/tsts";
 
 import {
-  createDotnetReflectionTypeDataProvider,
   createDotnetProviderTelemetry,
   createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+  dotnetReflectionProviderStorage,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   csharpSourceProfileContributions,
   csharpSourceProfileOwnerId,
@@ -424,7 +427,9 @@ test("persistent reflection cache isolates identity headers from exact completed
     ".temp/provider-cache/dotnet-reflection-lazy-materialization",
     `${Date.now()}-${process.pid}`,
   );
-  const populate = createDotnetReflectionTypeDataProvider({ cacheRoot });
+  const populate = createDotnetReflectionTypeDataProvider({
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
+  });
   const initialHeader = requireModule(populate.getModule(systemCollectionsGenericModule, {
     requestedExports: ["List"],
     materialization: incremental([]),
@@ -442,7 +447,10 @@ test("persistent reflection cache isolates identity headers from exact completed
   assert.equal(requireType(initialComplete, "List").members?.some((member) => member.sourceName === "Add"), true);
 
   const telemetry = createDotnetProviderTelemetry();
-  const replay = createDotnetReflectionTypeDataProvider({ cacheRoot, telemetry });
+  const replay = createDotnetReflectionTypeDataProvider({
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
+    telemetry,
+  });
   const cachedComplete = requireModule(replay.getModule(systemCollectionsGenericModule, {
     requestedExports: ["List"],
     materialization: completion,

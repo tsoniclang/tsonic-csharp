@@ -7,7 +7,6 @@ import {
   augmentDotnetModuleWithNativeArray,
   completeDotnetProviderContext,
   createDotnetProviderTelemetry,
-  createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
@@ -18,6 +17,9 @@ import {
   dotnetTypeRefToTargetTypeRef,
   validateDotnetProviderDeclarationModelContract,
 } from "../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../helpers/dotnet-reflection-provider.mjs";
 import {
   dotnetExportToTargetBinding,
   tryDotnetTypeRefToProviderType,

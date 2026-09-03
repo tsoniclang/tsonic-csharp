@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { isAbsolute } from "node:path";
 import type {
   ExtensionDiagnostic,
   ProviderDeclarationMaterialization,
@@ -73,8 +74,6 @@ import {
   dotnetProviderDiagnosticToExtensionDiagnostic,
 } from "../diagnostics.js";
 import {
-  defaultProviderCacheRoot,
-  defaultToolBuildRoot,
   defaultToolProjectPath,
 } from "./paths.js";
 import {
@@ -105,7 +104,13 @@ import {
   createDotnetReferenceSnapshot,
 } from "./reference-snapshot.js";
 
+export interface DotnetReflectionProviderStorage {
+  readonly toolBuildRoot: string;
+  readonly cacheRoot: string;
+}
+
 export interface DotnetReflectionTypeDataProviderOptions {
+  readonly storage: DotnetReflectionProviderStorage;
   readonly providerIdentity?: DotnetProviderIdentity;
   readonly moduleSpecifierPolicy?: DotnetModuleSpecifierPolicy;
   readonly assemblySourcePackages?: readonly DotnetAssemblySourcePackage[];
@@ -113,8 +118,6 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
   readonly targetFramework?: string;
-  readonly toolBuildRoot?: string;
-  readonly cacheRoot?: string;
   readonly disablePersistentCache?: boolean;
   readonly providerBroker?: DotnetReflectionProviderBroker;
   readonly telemetry?: DotnetProviderTelemetry;
@@ -138,8 +141,9 @@ export interface DotnetProviderTargetRelationRequest {
 }
 
 export function createDotnetReflectionTypeDataProvider(
-  options: DotnetReflectionTypeDataProviderOptions = {},
+  options: DotnetReflectionTypeDataProviderOptions,
 ): DotnetReflectionTypeDataProvider {
+  const storage = validateProviderStorage(options?.storage);
   const providerIdentity = options.providerIdentity ?? dotnetReflectionProviderIdentity;
   const moduleSpecifierPolicy = options.moduleSpecifierPolicy ?? dotnetModuleSpecifierPolicy;
   const assemblySourcePackages = normalizeDotnetAssemblySourcePackages(options.assemblySourcePackages);
@@ -159,16 +163,15 @@ export function createDotnetReflectionTypeDataProvider(
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
   const telemetry = options.telemetry ?? dotnetProviderGlobalTelemetry;
   telemetry.providerInstance();
-  const toolBuildRoot = options.toolBuildRoot ?? defaultToolBuildRoot();
   const toolRunner = createDotnetProviderToolRunner({
     toolProjectPath,
-    toolBuildRoot,
+    toolBuildRoot: storage.toolBuildRoot,
     telemetry,
   });
   const providerBroker = options.providerBroker;
   const persistentCache = options.disablePersistentCache === true
     ? undefined
-    : createDotnetProviderCache(options.cacheRoot ?? defaultProviderCacheRoot(), telemetry);
+    : createDotnetProviderCache(storage.cacheRoot, telemetry);
   const referenceSnapshot = createDotnetReferenceSnapshot({
     referenceDirectory: options.referenceDirectory,
     references: options.references ?? [],
@@ -579,6 +582,35 @@ export function createDotnetReflectionTypeDataProvider(
   ): value is DotnetProviderDiagnostic {
     return "code" in value && "message" in value;
   }
+}
+
+function validateProviderStorage(
+  storage: DotnetReflectionProviderStorage | undefined,
+): DotnetReflectionProviderStorage {
+  if (storage === undefined) {
+    throw new Error(
+      ".NET reflection provider requires explicit caller-owned storage.",
+    );
+  }
+  return Object.freeze({
+    toolBuildRoot: requireAbsoluteStoragePath(
+      "storage.toolBuildRoot",
+      storage.toolBuildRoot,
+    ),
+    cacheRoot: requireAbsoluteStoragePath(
+      "storage.cacheRoot",
+      storage.cacheRoot,
+    ),
+  });
+}
+
+function requireAbsoluteStoragePath(name: string, value: string): string {
+  if (typeof value !== "string" || !isAbsolute(value)) {
+    throw new Error(
+      `.NET reflection provider ${name} must be an absolute path.`,
+    );
+  }
+  return value;
 }
 
 function targetRelationProjectionKey(

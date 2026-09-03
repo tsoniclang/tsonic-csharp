@@ -71,7 +71,7 @@ export function createCsharpCompilationSession(
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
     targetFramework: configuration.targetFramework,
-    ...providerStorage,
+    storage: providerStorage,
   });
   const capabilityProviders = createCapabilityDotnetProviders(
     capabilityContributions,

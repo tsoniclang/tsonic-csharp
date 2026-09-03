@@ -127,8 +127,7 @@ export function createCapabilityDotnetProviders(
         referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
         assemblySourcePackages: contribution.assemblySourcePackages,
         targetFramework: contribution.targetFramework,
-        toolBuildRoot: storage.toolBuildRoot,
-        cacheRoot: storage.cacheRoot,
+        storage,
       }),
       moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
       ...(contribution.targetFramework === undefined

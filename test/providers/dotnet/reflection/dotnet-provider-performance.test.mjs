@@ -11,12 +11,14 @@ import {
   completeDotnetProviderMaterialization,
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
-  createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   dotnetProviderTelemetryCounters,
   emptyIncrementalDotnetProviderMaterialization,
   formatDotnetProviderTelemetrySnapshot,
 } from "../../../../dist/providers/dotnet/index.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   completeProviderDeclarationRequest,
   getCompleteDotnetModule,

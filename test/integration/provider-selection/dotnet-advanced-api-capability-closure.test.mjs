@@ -5,9 +5,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   createDotnetModuleSpecifierPolicy,
-  createDotnetReflectionTypeDataProvider,
   csharpDotnetProviderContributionKind,
 } from "../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../helpers/dotnet-reflection-provider.mjs";
 import {
   assertCsharpCompilationSucceeded,
   compileCsharpSource,

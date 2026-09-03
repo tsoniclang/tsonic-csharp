@@ -35,4 +35,20 @@ test("C# target entrypoints expose one API per audience", async () => {
   assert.equal(typeof dotnet.createDotnetReflectionTypeDataProvider, "function");
   assert.equal(typeof dotnet.createDotnetSourceDeclarationProvider, "function");
   assert.equal("createCsharpTargetPack" in dotnet, false);
+  assert.throws(
+    () => dotnet.createDotnetReflectionTypeDataProvider(),
+    /requires explicit caller-owned storage/u,
+  );
+  assert.throws(
+    () => dotnet.createDotnetReflectionTypeDataProvider({
+      storage: { toolBuildRoot: "relative/tool", cacheRoot: "relative/cache" },
+    }),
+    /storage\.toolBuildRoot must be an absolute path/u,
+  );
+  assert.throws(
+    () => dotnet.createDotnetReflectionTypeDataProvider({
+      storage: { toolBuildRoot: process.cwd(), cacheRoot: "relative/cache" },
+    }),
+    /storage\.cacheRoot must be an absolute path/u,
+  );
 });

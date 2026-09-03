@@ -32,6 +32,11 @@ contains a complete source file, project configuration, native build, and run.
 | `@tsonic/target-csharp/provider` | Generic C# provider-authoring contract |
 | `@tsonic/target-csharp/provider/dotnet` | .NET provider-authoring helpers |
 
+Provider authors calling `createDotnetReflectionTypeDataProvider` directly
+must supply absolute, caller-owned `storage.toolBuildRoot` and
+`storage.cacheRoot` paths. Normal Tsonic projects receive project-owned cache
+paths from the compiler and do not configure these values.
+
 ## Develop this target pack
 
 The sibling Tsonic packages and runtime repositories must be available through

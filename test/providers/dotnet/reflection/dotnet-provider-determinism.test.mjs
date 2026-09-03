@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionTypeDataProvider,
-} from "../../../../dist/providers/dotnet/reflection/provider.js";
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   createDotnetReferenceSnapshot,
 } from "../../../../dist/providers/dotnet/reflection/reference-snapshot.js";
