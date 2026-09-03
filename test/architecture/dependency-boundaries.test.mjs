@@ -87,7 +87,12 @@ test("C# package exposes only approved audience entrypoints", async () => {
   );
   assert.deepEqual(
     Object.keys(await awaitRuntimeExports("dist/index.js")).sort(),
-    ["createCsharpTargetPack", "createTsonicPlugin", "csharpTargetId"],
+    [
+      "createCsharpStarterProject",
+      "createCsharpTargetPack",
+      "createTsonicPlugin",
+      "csharpTargetId",
+    ],
   );
   const findings = evaluatePublicExportInventory({
     manifest,
