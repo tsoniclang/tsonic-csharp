@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   createDotnetReflectionTypeDataProvider,
-} from "../../../../dist/providers/dotnet/index.js";
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   checkCsharpSource,
   compileCsharpSource,

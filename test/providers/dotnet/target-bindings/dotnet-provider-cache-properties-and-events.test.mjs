@@ -2,12 +2,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, completeProviderDeclarationRequest, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture, repoRoot, testAssemblyId, testTargetId, namedDotnetTypeRef, methodMember, dotnetTestTypeMetadataName, sourcePrimitiveTestMetadataName, getDotnetDeclaration, getDotnetTargetId, getDotnetBinding, requireDotnetMember, requireProviderDeclarationMember, idEndsWith, findByIdSuffix, stripAssemblyQualifiers, collectProviderRefs, assertProviderDeclarationRefsFullyQualified, unsupportedMembersByMetadataName, constructorSignature, methodSignature, parameterFacts, stripTargetPayload, typeFact, omitLocalName, buildAttributeFixture, buildConstructorFixture, buildUnsupportedEventFixture, buildUnsupportedMemberFixture, buildConstraintFixture, buildConversionFixture, buildSignatureIdentityFixture } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import {
+  dotnetReflectionProviderStorage,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 
 test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
   const cacheRoot = join(repoRoot, ".temp/provider-cache/dotnet-reflection-test-slices", `${Date.now()}-${process.pid}`);
   const populateTelemetry = createDotnetProviderTelemetry();
   const populateProvider = createDotnetReflectionTypeDataProvider({
-    cacheRoot,
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
     telemetry: populateTelemetry,
   });
   const populated = getCompleteDotnetModule(populateProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
@@ -15,7 +18,7 @@ test(".NET reflection provider reloads requested export slices from persistent c
 
   const cachedTelemetry = createDotnetProviderTelemetry();
   const cachedProvider = createDotnetReflectionTypeDataProvider({
-    cacheRoot,
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
     telemetry: cachedTelemetry,
   });
   const cached = getCompleteDotnetModule(cachedProvider, "@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });

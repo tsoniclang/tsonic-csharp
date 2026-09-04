@@ -17,9 +17,12 @@ import {
 
 import {
   createDotnetProviderTelemetry,
-  createDotnetReflectionTypeDataProvider,
   validateDotnetModuleModelContract,
 } from "../../../../dist/providers/dotnet/index.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+  dotnetReflectionProviderStorage,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -33,7 +36,9 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
   const request = {
     requestedExports: ["Convert"],
   };
-  const firstProvider = createDotnetReflectionTypeDataProvider({ cacheRoot });
+  const firstProvider = createDotnetReflectionTypeDataProvider({
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
+  });
   const first = getCompleteDotnetModule(firstProvider,
     "@tsonic/dotnet/System.js",
     request,
@@ -63,7 +68,7 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
 
   const telemetry = createDotnetProviderTelemetry();
   const recoveredProvider = createDotnetReflectionTypeDataProvider({
-    cacheRoot,
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
     telemetry,
   });
   const recovered = getCompleteDotnetModule(recoveredProvider,
@@ -96,7 +101,10 @@ test(".NET reflection continues from authoritative tooling when persistent cache
   mkdirSync(fixtureRoot, { recursive: true });
   writeFileSync(cacheRoot, "occupied");
   const telemetry = createDotnetProviderTelemetry();
-  const provider = createDotnetReflectionTypeDataProvider({ cacheRoot, telemetry });
+  const provider = createDotnetReflectionTypeDataProvider({
+    storage: dotnetReflectionProviderStorage({ cacheRoot }),
+    telemetry,
+  });
 
   const module = getCompleteDotnetModule(
     provider,

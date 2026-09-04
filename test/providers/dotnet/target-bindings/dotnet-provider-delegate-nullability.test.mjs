@@ -3,10 +3,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToTargetTypeRef,
 } from "../../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import { buildDotnetFixture } from "../../../helpers/dotnet-fixtures.mjs";
 import { getCompleteDotnetModule, repoRoot } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 

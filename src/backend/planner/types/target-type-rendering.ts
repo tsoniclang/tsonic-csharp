@@ -10,7 +10,7 @@ import type {
 } from "../../../target-model/types/index.js";
 import {
   csharpRenderShapeForTargetNamedType,
-  csharpSourcePrimitiveCsharpPredefinedName,
+  csharpSourcePrimitiveCsharpRender,
   csharpStructuralObjectShapeIdentity,
   isCsharpNullableReferenceTargetType,
 } from "../../../target-model/types/index.js";
@@ -113,10 +113,14 @@ function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {
 }
 
 export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
-  return {
-    kind: "PredefinedType",
-    name: csharpSourcePrimitiveCsharpPredefinedName(kind),
-  };
+  const render = csharpSourcePrimitiveCsharpRender(kind);
+  return render.kind === "predefined"
+    ? { kind: "PredefinedType", name: render.name }
+    : {
+        kind: "IdentifierName",
+        name: render.name,
+        requiredUsingNamespace: render.usingNamespace,
+      };
 }
 
 function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTypeNode | undefined {

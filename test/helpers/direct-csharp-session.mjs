@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
@@ -23,6 +24,9 @@ import {
 
 function createCheckedCsharpSource(options) {
   const projectRoot = options.projectRoot ?? "/project";
+  const cacheRoot = options.cacheRoot ?? fileURLToPath(
+    new URL("../../.temp/direct-csharp-session-cache/", import.meta.url),
+  );
   const targetPack = createCsharpTargetPack();
   const target = {
     id: "csharp",
@@ -46,6 +50,7 @@ function createCheckedCsharpSource(options) {
     projectRoot,
     outputRoot: "/output",
     targetOutputRoot: "/output/csharp",
+    cacheRoot,
   };
   const sessionContext = {
     project,

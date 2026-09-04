@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
   validateDotnetProviderDeclarationModelContract,
 } from "../../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/dotnet/model/index.js";
 import { dotnetMembersToProviderMembers } from "../../../../dist/providers/dotnet/declarations/members.js";
 import { completeProviderDeclarationRequest } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";

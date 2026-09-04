@@ -5,13 +5,15 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   dotnetModuleToProviderDeclarationModel,
   dotnetNativeArrayTypeId,
   validateDotnetModuleModelContract,
   validateDotnetProviderDeclarationModelContract,
 } from "../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../helpers/dotnet-reflection-provider.mjs";
 import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
 export { assert, mkdirSync, writeFileSync, dirname, join, test, fileURLToPath, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetModuleToProviderDeclarationModel, dotnetNativeArrayTypeId, validateDotnetModuleModelContract, validateDotnetProviderDeclarationModelContract, buildDotnetFixture };
 

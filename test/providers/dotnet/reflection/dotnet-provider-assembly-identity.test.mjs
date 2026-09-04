@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import {
   completeDotnetProviderContext,
   createDotnetModuleSpecifierPolicy,
-  createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProvider,
   parseDotnetModuleSpecifier,
 } from "../../../../dist/public/provider-dotnet.js";
+import {
+  createDotnetReflectionTypeDataProvider,
+} from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   csharpApplyExternAliasToTargetBinding,
 } from "../../../../dist/public/provider.js";

@@ -9,6 +9,7 @@ import type {
   TargetCompileResult,
   TargetRuntimeContributions,
 } from "@tsonic/target-api/artifacts";
+import { resolve } from "node:path";
 import {
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProviderSet,
@@ -57,12 +58,24 @@ export function createCsharpCompilationSession(
   );
   const binaryExecutionDriver =
     capabilityContributions.binaryExecutionDriver;
+  const providerStorage = Object.freeze({
+    toolBuildRoot: resolve(
+      context.paths.cacheRoot,
+      "csharp/dotnet-type-provider-tool",
+    ),
+    cacheRoot: resolve(
+      context.paths.cacheRoot,
+      "csharp/dotnet-reflection",
+    ),
+  });
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
     targetFramework: configuration.targetFramework,
+    storage: providerStorage,
   });
   const capabilityProviders = createCapabilityDotnetProviders(
     capabilityContributions,
+    providerStorage,
   );
   const providers = Object.freeze([
     builtInProvider,

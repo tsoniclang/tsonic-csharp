@@ -55,6 +55,7 @@ export {
 export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
+  DotnetReflectionProviderStorage,
 } from "./reflection/provider.js";
 export type {
   DotnetReflectionProviderBroker,

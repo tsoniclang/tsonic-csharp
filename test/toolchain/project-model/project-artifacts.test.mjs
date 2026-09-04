@@ -19,6 +19,7 @@ import {
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);
 const fixtureProjectRoot = join(repoRoot, ".temp", "project-artifacts-installed-runtime");
+mkdirSync(fixtureProjectRoot, { recursive: true });
 
 test("project artifact emits explicit target-owned .NET references", () => {
   const project = planCsharpProjectFile(fakeInput({
@@ -294,6 +295,7 @@ function fakeInput(options = {}, runtimeReferences = []) {
     projectRoot: fixtureProjectRoot,
     outputRoot: join(fixtureProjectRoot, "out"),
     targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+    cacheRoot: join(fixtureProjectRoot, ".tsonic/cache"),
   };
   const configuration = createCsharpTargetConfiguration(
     target,
@@ -332,6 +334,7 @@ function fakeCompositionContext(selectedSurfaceIds) {
       projectRoot: fixtureProjectRoot,
       outputRoot: join(fixtureProjectRoot, "out"),
       targetOutputRoot: join(fixtureProjectRoot, "out/csharp"),
+      cacheRoot: join(fixtureProjectRoot, ".tsonic/cache"),
     },
   };
 }

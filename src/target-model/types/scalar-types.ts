@@ -13,33 +13,41 @@ import {
 } from "./factories.js";
 
 export interface CsharpSourcePrimitiveMetadata {
-  readonly csharpPredefinedName: string;
+  readonly csharpRender:
+    | { readonly kind: "predefined"; readonly name: string }
+    | {
+        readonly kind: "named";
+        readonly name: string;
+        readonly usingNamespace: string;
+      };
   readonly dotnetMetadataName: string;
 }
 
 const csharpSourcePrimitiveMetadata = {
-  bool: { csharpPredefinedName: "bool", dotnetMetadataName: "System.Boolean" },
-  char: { csharpPredefinedName: "char", dotnetMetadataName: "System.Char" },
-  int8: { csharpPredefinedName: "sbyte", dotnetMetadataName: "System.SByte" },
-  uint8: { csharpPredefinedName: "byte", dotnetMetadataName: "System.Byte" },
-  int16: { csharpPredefinedName: "short", dotnetMetadataName: "System.Int16" },
-  uint16: { csharpPredefinedName: "ushort", dotnetMetadataName: "System.UInt16" },
-  int32: { csharpPredefinedName: "int", dotnetMetadataName: "System.Int32" },
-  uint32: { csharpPredefinedName: "uint", dotnetMetadataName: "System.UInt32" },
-  int64: { csharpPredefinedName: "long", dotnetMetadataName: "System.Int64" },
-  uint64: { csharpPredefinedName: "ulong", dotnetMetadataName: "System.UInt64" },
-  "native-int": { csharpPredefinedName: "nint", dotnetMetadataName: "System.IntPtr" },
-  "native-uint": { csharpPredefinedName: "nuint", dotnetMetadataName: "System.UIntPtr" },
-  float16: { csharpPredefinedName: "Half", dotnetMetadataName: "System.Half" },
-  float32: { csharpPredefinedName: "float", dotnetMetadataName: "System.Single" },
-  float64: { csharpPredefinedName: "double", dotnetMetadataName: "System.Double" },
-  decimal: { csharpPredefinedName: "decimal", dotnetMetadataName: "System.Decimal" },
-  int128: { csharpPredefinedName: "Int128", dotnetMetadataName: "System.Int128" },
-  uint128: { csharpPredefinedName: "UInt128", dotnetMetadataName: "System.UInt128" },
+  bool: { csharpRender: { kind: "predefined", name: "bool" }, dotnetMetadataName: "System.Boolean" },
+  char: { csharpRender: { kind: "predefined", name: "char" }, dotnetMetadataName: "System.Char" },
+  int8: { csharpRender: { kind: "predefined", name: "sbyte" }, dotnetMetadataName: "System.SByte" },
+  uint8: { csharpRender: { kind: "predefined", name: "byte" }, dotnetMetadataName: "System.Byte" },
+  int16: { csharpRender: { kind: "predefined", name: "short" }, dotnetMetadataName: "System.Int16" },
+  uint16: { csharpRender: { kind: "predefined", name: "ushort" }, dotnetMetadataName: "System.UInt16" },
+  int32: { csharpRender: { kind: "predefined", name: "int" }, dotnetMetadataName: "System.Int32" },
+  uint32: { csharpRender: { kind: "predefined", name: "uint" }, dotnetMetadataName: "System.UInt32" },
+  int64: { csharpRender: { kind: "predefined", name: "long" }, dotnetMetadataName: "System.Int64" },
+  uint64: { csharpRender: { kind: "predefined", name: "ulong" }, dotnetMetadataName: "System.UInt64" },
+  "native-int": { csharpRender: { kind: "predefined", name: "nint" }, dotnetMetadataName: "System.IntPtr" },
+  "native-uint": { csharpRender: { kind: "predefined", name: "nuint" }, dotnetMetadataName: "System.UIntPtr" },
+  float16: { csharpRender: { kind: "named", name: "Half", usingNamespace: "System" }, dotnetMetadataName: "System.Half" },
+  float32: { csharpRender: { kind: "predefined", name: "float" }, dotnetMetadataName: "System.Single" },
+  float64: { csharpRender: { kind: "predefined", name: "double" }, dotnetMetadataName: "System.Double" },
+  decimal: { csharpRender: { kind: "predefined", name: "decimal" }, dotnetMetadataName: "System.Decimal" },
+  int128: { csharpRender: { kind: "named", name: "Int128", usingNamespace: "System" }, dotnetMetadataName: "System.Int128" },
+  uint128: { csharpRender: { kind: "named", name: "UInt128", usingNamespace: "System" }, dotnetMetadataName: "System.UInt128" },
 } satisfies Record<SourcePrimitiveKind, CsharpSourcePrimitiveMetadata>;
 
-export function csharpSourcePrimitiveCsharpPredefinedName(kind: SourcePrimitiveKind): string {
-  return csharpSourcePrimitiveMetadata[kind].csharpPredefinedName;
+export function csharpSourcePrimitiveCsharpRender(
+  kind: SourcePrimitiveKind,
+): CsharpSourcePrimitiveMetadata["csharpRender"] {
+  return csharpSourcePrimitiveMetadata[kind].csharpRender;
 }
 
 export function csharpSourcePrimitiveDotnetMetadataName(kind: SourcePrimitiveKind): string {
