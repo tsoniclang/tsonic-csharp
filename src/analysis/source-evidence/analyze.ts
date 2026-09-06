@@ -54,7 +54,9 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands } from "@tsonic/source-core/facts";
+import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import { selectCsharpPointerReturnContract } from "../../policy/operations/pointers/return-carrier.js";
+import type { CsharpPointerReturnContract } from "../../policy/operations/pointers/return-carrier.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -84,6 +86,8 @@ export function analyzeCsharpSourceEvidence(
     Cached<ResolvedSourceWellKnownSymbolInfo>
   >();
   const inferredReturns = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const sourcePointerReturns = createTsonicPointerReturnQueries(source);
+  const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
   const arguments_ = new WeakMap<
     Node,
     import("./model.js").CsharpSourceArgumentClassification
@@ -386,12 +390,10 @@ export function analyzeCsharpSourceEvidence(
             }),
       );
     }
-    inferredReturns.set(
-      node,
-      recordTargetType(
-        inferCallableReturnType(node, sourceFile, source, types),
-      ) ?? missing,
-    );
+    const inferredReturn = inferCallableReturnType(node, sourceFile, source, types);
+    const pointerReturn = selectCsharpPointerReturnContract(node, source, types, sourcePointerReturns);
+    if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
+    inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
       const name = source.ast.name(node);
       if (name !== undefined) {
@@ -473,6 +475,9 @@ export function analyzeCsharpSourceEvidence(
     },
     inferredCallableReturnType(node) {
       return cachedValue(inferredReturns.get(node));
+    },
+    pointerReturn(node) {
+      return pointerReturns.get(node);
     },
     argument(node) {
       return arguments_.get(node);

@@ -196,7 +196,7 @@ export function planReturnStatement(
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
   const expression = statement.Expression === undefined
-    ? undefined
+    ? state.currentUndefinedReturn ? { kind: "LiteralExpression" as const, value: null } : undefined
     : expectedReturnExpressionType === undefined
       ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
       : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state, expectedReturnExpressionTargetType);

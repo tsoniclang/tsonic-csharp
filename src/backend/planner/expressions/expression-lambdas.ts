@@ -294,17 +294,24 @@ export function planLambdaBlockBody(
   const previousReturnExpressionType = lambdaState.currentReturnExpressionType;
   const previousReturnExpressionTypeSubject = lambdaState.currentReturnExpressionTypeSubject;
   const previousReturnExpressionTargetType = lambdaState.currentReturnExpressionTargetType;
+  const previousUndefinedReturn = lambdaState.currentUndefinedReturn;
+  const returnContract = input.program.declarations.returnContract(lambdaNode);
+  lambdaState.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
   if (returnContext !== undefined) {
     lambdaState.currentReturnExpressionType = returnContext.returnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = returnContext.returnExpressionTypeSubject;
     lambdaState.currentReturnExpressionTargetType = returnContext.returnExpressionTargetType;
   }
   try {
-    return { kind: "Block", statements: planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState) };
+    const statements = planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState);
+    return { kind: "Block", statements: [...statements,
+      ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
+        ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : [])] };
   } finally {
     lambdaState.currentReturnExpressionType = previousReturnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = previousReturnExpressionTypeSubject;
     lambdaState.currentReturnExpressionTargetType = previousReturnExpressionTargetType;
+    lambdaState.currentUndefinedReturn = previousUndefinedReturn;
   }
 }
 

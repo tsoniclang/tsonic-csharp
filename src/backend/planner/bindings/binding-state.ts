@@ -39,6 +39,7 @@ export interface DestructuringPlannerState {
   currentReturnExpressionType?: CsharpTypeNode;
   currentReturnExpressionTypeSubject?: Node;
   currentReturnExpressionTargetType?: TargetTypeRef;
+  currentUndefinedReturn?: boolean;
   generator?: CsharpGeneratorPlannerContext;
   resourceScope?: CsharpResourceScopePlannerContext;
 }

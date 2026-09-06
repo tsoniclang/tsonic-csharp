@@ -66,6 +66,7 @@ function classifyReturnContract(
   const authoredReturnType = authoredReturnNode === undefined
     ? undefined
     : evidence.nodeTargetType(authoredReturnNode);
+  const pointer = evidence.pointerReturn(declaration);
   if (authoredReturnNode !== undefined) {
     return authoredReturnType === undefined
       ? {
@@ -73,7 +74,8 @@ function classifyReturnContract(
           reason:
             "The authored source callable return type has no closed C# representation.",
         }
-      : { kind: "resolved", type: authoredReturnType };
+      : { kind: "resolved", type: authoredReturnType,
+          ...(pointer === undefined ? {} : { undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined }) };
   }
   if (baseline === undefined) {
     return {
@@ -99,12 +101,14 @@ function classifyReturnContract(
       observed.push(type);
     }
   });
-  return reconcileInferredReturnTargetContract(
+  const contract = reconcileInferredReturnTargetContract(
     policy,
     baseline,
     observed,
     incomplete,
   );
+  return contract.kind !== "resolved" || pointer === undefined ? contract
+    : Object.freeze({ ...contract, undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined });
 }
 
 export function reconcileInferredReturnTargetContract(

@@ -93,6 +93,7 @@ export interface CsharpSourceEvidenceIndex {
   yieldTargetType(node: Node): TargetTypeRef | undefined;
   wellKnownSymbol(node: Node): ResolvedSourceWellKnownSymbolInfo | undefined;
   inferredCallableReturnType(node: Node): TargetTypeRef | undefined;
+  pointerReturn(node: Node): import("../../policy/operations/pointers/return-carrier.js").CsharpPointerReturnContract | undefined;
   argument(node: Node): CsharpSourceArgumentClassification | undefined;
   defaultValue(node: Node): CsharpSourceDefaultValue | undefined;
   sourceField(
