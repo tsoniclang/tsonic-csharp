@@ -244,6 +244,17 @@ export function allocateSyntheticParameter(state: DestructuringPlannerState): st
   return allocateSyntheticName(state, "__tsonic_param", "nextParameterIndex");
 }
 
+export function redirectCsharpParameterStorage(
+  name: Node, input: CsharpPlanningContext, state: DestructuringPlannerState,
+): { readonly parameterName: string; readonly storageName: string } | undefined {
+  const key = localBindingKey(name, input);
+  const parameterName = key === undefined ? undefined : state.localBindingNames.get(key);
+  if (key === undefined || parameterName === undefined) return undefined;
+  const storageName = allocateSyntheticName(state, "__tsonic_nativeParameter", "nextTempIndex");
+  state.localBindingNames.set(key, storageName);
+  return { parameterName, storageName };
+}
+
 export function declareCsharpTypedLocationIdentityName(
   declaration: Node,
   state: DestructuringPlannerState,
