@@ -291,7 +291,19 @@ export function analyzeCsharpExpectedTypes(
     recordIntrinsicArrayLiteralElements(node);
 
     const call = operations.call(node);
-    if (call?.target?.kind === "resolved") {
+    const typedLocation = operations.typedLocation(node);
+    if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
+      typedLocation.kind !== "rejected") {
+      if (typedLocation.kind === "location-allocate") {
+        record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
+      } else if (typedLocation.kind === "location-store") {
+        record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
+      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project") {
+        for (const argument of typedLocation.arguments) {
+          record(argument.expression, argument.type, "required");
+        }
+      }
+    } else if (call?.target?.kind === "resolved") {
       recordSelectedCallReceiver(call.target, "required");
       recordSelectedCallArguments(
         call.target.source.sourceArguments,
@@ -364,13 +376,6 @@ export function analyzeCsharpExpectedTypes(
         element.keyType,
         "required",
       );
-    }
-
-    const typedLocation = operations.typedLocation(node);
-    if (typedLocation?.kind === "location-allocate") {
-      record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
-    } else if (typedLocation?.kind === "location-store") {
-      record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
     }
 
     const nativePointer = operations.nativePointer(node);

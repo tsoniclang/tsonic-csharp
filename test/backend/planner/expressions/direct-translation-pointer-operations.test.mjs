@@ -465,61 +465,87 @@ test("typed-location element identity fails closed for indexers without canonica
   );
 });
 
-test("each selected typed-location operation without a C# contract fails at the target boundary", () => {
+test("selected hash, binding, and projection operations consume exact C# contracts", () => {
   const cases = [
     {
-      targetOperation: "location-hash",
       sourceOperation: "hash-pointer",
+      emitted: /Location<int>\.Hash\(pointer\)/u,
       sourceText: `
         import { hashPointer } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
-        export function reject(pointer: Pointer<int32>): int32 {
+        export function hash(pointer: Pointer<int32>): number {
           return hashPointer(pointer);
         }
       `,
     },
     {
-      targetOperation: "location-bind",
       sourceOperation: "bind-pointer",
+      emitted: /Location<int>\.Bind\(/u,
       sourceText: `
         import { bindPointer } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
-        export function reject(value: int32): Pointer<int32> {
+        class Identity { value: int32 = 0; }
+        export function bind(value: int32): Pointer<int32> {
           let storage = value;
-          return bindPointer<int32>({}, () => storage, next => { storage = next; });
+          return bindPointer<int32>(new Identity(), () => storage, next => { storage = next; });
         }
       `,
     },
     {
-      targetOperation: "location-project",
       sourceOperation: "project-pointer",
+      emitted: /Location<int>\.Project<int>\(/u,
       sourceText: `
         import { projectPointer } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
-        export function reject(pointer: Pointer<int32>): Pointer<int32> | undefined {
+        export function project(pointer: Pointer<int32>): Pointer<int32> {
           return projectPointer<int32, int32>(pointer, value => value, value => value);
         }
       `,
     },
   ];
 
-  for (const { sourceText, sourceOperation, targetOperation } of cases) {
+  for (const { sourceText, sourceOperation, emitted } of cases) {
     const compiled = compileCsharpSource({ sourceText });
 
     assert.equal(compiled.sourceDiagnosticsText, "", sourceOperation);
     assert.deepEqual(compiled.extensionDiagnostics, [], sourceOperation);
-    assert.deepEqual(
-      compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })),
-      [{
-        code: "CSHARP_UNSUPPORTED_AST",
-        message: `C# '${targetOperation}' lowering requires one exact finalized typed-location operation. The selected '${sourceOperation}' operation has no accepted C# target contract.`,
-      }],
-      sourceOperation,
-    );
+    assert.deepEqual(compiled.targetDiagnostics, [], sourceOperation);
+    assert.match(compiled.artifacts.get("src/Index.cs"), emitted);
   }
+});
+
+test("optional pointer projection retains missingness and evaluates exact callbacks", () => {
+  const compiled = cleanCompile(`
+    import { projectPointer, hashPointer } from "@tsonic/core/lang.js";
+    import type { int32, Pointer } from "@tsonic/core/types.js";
+    export function project(pointer: Pointer<int32> | undefined): Pointer<int32> | undefined {
+      return projectPointer<int32, int32>(pointer, value => value + 1, value => value - 1);
+    }
+    export function hash(pointer: Pointer<int32> | undefined): number { return hashPointer(pointer); }
+  `);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /ProjectOptional<int>\(pointer,/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(pointer\)/u);
+});
+
+test("reachability barriers consume selected aliases, not same-spelled local calls", () => {
+  const compiled = cleanCompile(`
+    import { keepAlive as retain } from "@tsonic/core/lang.js";
+    import * as core from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+    export class System { value: int32 = 0; }
+    function keepAlive(value: int32): int32 { return value + 1; }
+    export function run(value: int32): int32 {
+      retain(value);
+      core.keepAlive(value);
+      return keepAlive(value);
+    }
+  `);
+  const output = compiled.artifacts.get("src/Index.cs");
+  assert.equal(occurrences(output, "global::System.GC.KeepAlive(value)"), 2);
+  assert.match(output, /return keepAlive\(value\);/u);
 });
 
 test("address-of rejects each readonly or non-storage occurrence independently", () => {

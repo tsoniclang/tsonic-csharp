@@ -29,6 +29,18 @@ export function translateCsharpCallExpression(
   }
   const sourceCall = classification.source;
   const sourceFlow = classification.sourceFlow;
+  if (sourceFlow.kind === "keep-alive") {
+    const value = planExpression(sourceFlow.valueExpression, sourceFile, input, diagnostics);
+    return value === undefined ? undefined : {
+      kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: {
+        kind: "AliasQualifiedName", alias: "global", name: {
+          kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "GC",
+        },
+      }, name: "KeepAlive" },
+      arguments: [{ kind: "Argument", expression: value }],
+    };
+  }
   if (sourceFlow.kind === "rejected") {
     diagnostics.push(targetPolicyDiagnostic(
       node,

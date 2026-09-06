@@ -17,7 +17,11 @@ import {
 import {
   csharpRuntimeLocationPointee,
   csharpRuntimeLocationTargetType,
+  csharpDelegateTargetType,
+  csharpNullableReferenceTargetType,
   getCsharpDelegateSignature,
+  isCsharpNullableReferenceTargetType,
+  isCsharpValueTypeTargetType,
   isCsharpRuntimeUndefinedTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -96,6 +100,25 @@ export type CsharpResolvedTypedLocationOperation =
       readonly locationType: TargetTypeRef;
       readonly leftExpression: Node;
       readonly rightExpression: Node;
+    }
+  | {
+      readonly kind: "location-hash";
+      readonly call: Node;
+      readonly pointeeType: TargetTypeRef;
+      readonly locationType: TargetTypeRef;
+      readonly locationExpression: Node;
+    }
+  | {
+      readonly kind: "location-bind" | "location-project";
+      readonly call: Node;
+      readonly pointeeType: TargetTypeRef;
+      readonly locationType: TargetTypeRef;
+      readonly method: "Bind" | "Project" | "ProjectOptional";
+      readonly typeArguments: readonly TargetTypeRef[];
+      readonly arguments: readonly {
+        readonly expression: Node;
+        readonly type: TargetTypeRef;
+      }[];
     };
 
 export type CsharpTypedLocationOperand =
@@ -122,16 +145,6 @@ export function selectCsharpTypedLocationOperation(
   if (source === undefined) {
     return { kind: "not-typed-location" };
   }
-  if (
-    source.kind === "location-hash" ||
-    source.kind === "location-bind" ||
-    source.kind === "location-project"
-  ) {
-    return rejected(
-      source.kind,
-      `The selected '${source.sourceOperation}' operation has no accepted C# target contract.`,
-    );
-  }
   const nativeLocation = source.kind === "location-load" ||
       source.kind === "location-store"
     ? selectCsharpNativeRefReturn(input, source.locationExpression, sourceFile)
@@ -154,6 +167,59 @@ export function selectCsharpTypedLocationOperation(
   }
   const locationType = csharpRuntimeLocationTargetType(pointeeType);
   switch (source.kind) {
+    case "location-hash": {
+      const operand = input.types.resolveSelectedValue(
+        source.locationExpression, source.locationType, sourceFile,
+      );
+      return isCsharpTypedLocationEqualityOperand(operand, pointeeType)
+        ? { kind: source.kind, call: source.call, pointeeType, locationType,
+            locationExpression: source.locationExpression }
+        : rejected(source.kind, "Pointer hashing requires an exact location carrier or undefined.");
+    }
+    case "location-bind": {
+      const identity = input.types.resolveSelectedValue(
+        source.identityExpression, source.identityType, sourceFile,
+      );
+      if (identity === undefined || isCsharpValueTypeTargetType(identity)) {
+        return rejected(source.kind, "Pointer binding requires stable reference identity, not a boxed value.");
+      }
+      return {
+        kind: source.kind, call: source.call, pointeeType, locationType,
+        method: "Bind", typeArguments: [],
+        arguments: [
+          { expression: source.identityExpression, type: identity },
+          { expression: source.readExpression, type: csharpDelegateTargetType("System.Func", [], pointeeType) },
+          { expression: source.writeExpression, type: csharpDelegateTargetType("System.Action", [pointeeType]) },
+        ],
+      };
+    }
+    case "location-project": {
+      const sourceLocation = input.types.resolveSelectedValue(
+        source.locationExpression, source.locationType, sourceFile,
+      );
+      const operandPointee = csharpRuntimeLocationPointee(sourceLocation);
+      const sourcePointee = source.explicitSourcePointeeTypeNode === undefined
+        ? operandPointee
+        : input.types.resolveSelectedType(source.explicitSourcePointeeTypeNode, source.sourcePointeeType, sourceFile);
+      if (sourceLocation === undefined || sourcePointee === undefined ||
+        !isCsharpTypedLocationEqualityOperand(sourceLocation, sourcePointee)) {
+        return rejected(source.kind, "Pointer projection requires the exact source location carrier.");
+      }
+      const optional = isCsharpNullableReferenceTargetType(sourceLocation) ||
+        isCsharpRuntimeUndefinedTargetType(sourceLocation);
+      return {
+        kind: source.kind, call: source.call, pointeeType, locationType,
+        method: optional ? "ProjectOptional" : "Project",
+        typeArguments: [sourcePointee],
+        arguments: [
+          { expression: source.locationExpression, type: optional
+            ? csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(sourcePointee))
+            : sourceLocation },
+          { expression: source.fromSourceExpression, type: csharpDelegateTargetType("System.Func", [sourcePointee], pointeeType) },
+          { expression: source.toSourceExpression, type: csharpDelegateTargetType("System.Func", [pointeeType], sourcePointee) },
+        ],
+      };
+    }
     case "location-address": {
       const storageType = input.types.resolveSelectedValue(
         source.storageExpression,

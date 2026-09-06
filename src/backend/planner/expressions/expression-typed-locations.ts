@@ -75,6 +75,28 @@ export function tryPlanCsharpTypedLocationOperation(
     return { handled: true };
   }
   switch (operation.kind) {
+    case "location-hash": {
+      const pointer = planExpression(operation.locationExpression, sourceFile, input, diagnostics);
+      return { handled: true, ...(pointer === undefined ? {} : {
+        expression: invokeMember(locationType, "Hash", [pointer]),
+      }) };
+    }
+    case "location-bind":
+    case "location-project": {
+      const args = operation.arguments.map(argument => {
+        const type = csharpTypeFromTargetTypeRef(argument.type);
+        return type === undefined ? undefined : planExpressionWithExpectedType(
+          argument.expression, sourceFile, input, diagnostics,
+          type, undefined, argument.type,
+        );
+      });
+      const typeArguments = operation.typeArguments.map(csharpTypeFromTargetTypeRef);
+      return { handled: true, ...(args.some(value => value === undefined) ||
+        typeArguments.some(value => value === undefined) ? {} : {
+          expression: invokeMember(locationType, operation.method,
+            args as CsharpExpression[], typeArguments as CsharpTypeNode[]),
+        }) };
+    }
     case "location-address": {
       const plannerState = state ??
         createDestructuringPlannerState(sourceFile, input.program.source.ast);

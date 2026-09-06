@@ -13,6 +13,7 @@ const neutralFactReaders = new Map([
   ["defaultValueFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["fieldFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["flowStateFactKey", ["src/policy/operations/flow/source-flow.ts"]],
+  ["tsonicKeepAliveFactKey", ["src/policy/operations/flow/source-flow.ts"]],
   ["functionPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["pointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["pointerOperationFactKey", ["src/policy/operations/typed-locations/source-typed-locations.ts"]],

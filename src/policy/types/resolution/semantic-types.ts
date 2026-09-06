@@ -8,6 +8,7 @@ import {
   csharpRuntimeLocationTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
+  isCsharpRuntimeUndefinedTargetType,
   csharpTsValueTargetType,
 } from "../../../target-model/types/runtime-carriers.js";
 import {
@@ -28,6 +29,8 @@ import {
 } from "./source-markers.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
+import { readCsharpSourceKeepAlive } from "../../operations/flow/source-flow.js";
+import { csharpNullableReferenceTargetType, isCsharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
 import { maximumTypeResolutionDepth } from "./model.js";
 import { nextState } from "./state.js";
 import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
@@ -162,6 +165,9 @@ export function resolveDirectSourceFacts(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    if (readCsharpSourceKeepAlive(host.sourceFacts, subject) !== undefined) {
+      return csharpVoidTargetType();
+    }
     if (readCsharpSourceJsStringMarker(host.sourceFacts, subject)) {
       return csharpJsStringTargetType();
     }
@@ -236,6 +242,7 @@ export function resolveDirectSourceFacts(
         switch (pointerOperation.kind) {
           case "location-address":
           case "location-allocate":
+          case "location-bind":
             return csharpRuntimeLocationTargetType(pointee);
           case "location-load":
             return pointee;
@@ -244,9 +251,19 @@ export function resolveDirectSourceFacts(
           case "location-equal":
             return csharpSourcePrimitiveTargetType("bool");
           case "location-hash":
-          case "location-bind":
-          case "location-project":
-            return undefined;
+            return csharpSourcePrimitiveTargetType("float64");
+          case "location-project": {
+            const sourceLocation = resolveSelectedValueWithState(
+              pointerOperation.locationExpression,
+              pointerOperation.locationType,
+              sourceFile,
+              nextState(state),
+            );
+            const location = csharpRuntimeLocationTargetType(pointee);
+            return isCsharpNullableReferenceTargetType(sourceLocation) || isCsharpRuntimeUndefinedTargetType(sourceLocation)
+              ? csharpNullableReferenceTargetType(location)
+              : location;
+          }
         }
       }
     }
