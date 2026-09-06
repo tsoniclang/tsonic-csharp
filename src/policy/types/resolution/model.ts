@@ -7,6 +7,8 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
+import type { TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type {
   SourceFileSemantics,
   SourceProgramNavigation,
@@ -35,6 +37,7 @@ export interface CsharpTypePolicyBaseHost {
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly navigation: SourceProgramNavigation;
+  readonly pointerReturns: TsonicPointerReturnQueries;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
@@ -79,6 +82,7 @@ export type CsharpScopedTypePolicyResult =
     };
 
 export interface CsharpTypePolicy {
+  resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveReadStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;

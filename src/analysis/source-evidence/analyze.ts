@@ -54,9 +54,8 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
-import { selectCsharpPointerReturnContract } from "../../policy/operations/pointers/return-carrier.js";
-import type { CsharpPointerReturnContract } from "../../policy/operations/pointers/return-carrier.js";
+import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands } from "@tsonic/source-core/facts";
+import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -86,7 +85,6 @@ export function analyzeCsharpSourceEvidence(
     Cached<ResolvedSourceWellKnownSymbolInfo>
   >();
   const inferredReturns = new WeakMap<Node, Cached<TargetTypeRef>>();
-  const sourcePointerReturns = createTsonicPointerReturnQueries(source);
   const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
   const arguments_ = new WeakMap<
     Node,
@@ -391,7 +389,7 @@ export function analyzeCsharpSourceEvidence(
       );
     }
     const inferredReturn = inferCallableReturnType(node, sourceFile, source, types);
-    const pointerReturn = selectCsharpPointerReturnContract(node, source, types, sourcePointerReturns);
+    const pointerReturn = types.resolvePointerReturn(node);
     if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
     inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
     if (source.ast.is.IsTypeParameterDeclaration(node)) {

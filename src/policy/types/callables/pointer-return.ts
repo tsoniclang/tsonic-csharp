@@ -1,7 +1,7 @@
 import type { Node } from "@tsonic/tsts";
-import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import type { TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
-import type { CsharpTypePolicy } from "../../types/index.js";
+import type { CsharpTypeResolutionScope } from "../resolution/engine.js";
+import type { CsharpTypeResolutionState } from "../resolution/model.js";
+import { nextState } from "../resolution/state.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import {
@@ -15,20 +15,21 @@ export interface CsharpPointerReturnContract {
   readonly fallthroughUndefined: boolean;
 }
 
-export function selectCsharpPointerReturnContract(
+export function resolveCsharpPointerReturnContract(
+  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState }: CsharpTypeResolutionScope,
   declaration: Node,
-  source: TargetSourceProgram,
-  types: CsharpTypePolicy,
-  returns: TsonicPointerReturnQueries,
+  state: CsharpTypeResolutionState,
 ): CsharpPointerReturnContract | undefined {
-  const evidence = returns.resolve(declaration);
+  const evidence = host.pointerReturns.resolve(declaration);
   if (evidence === undefined) {
     return undefined;
   }
-  const pointees = evidence.pointees.map((value) => types.resolveSelectedType(
+  const pointees = evidence.pointees.map((value) => resolveAuthoredAndSelectedSourceType(
     value.typeNode,
+    host.ast.getSourceFile(value.typeNode ?? value.subject)!,
     value.type,
-    source.ast.getSourceFile(value.subject)!,
+    host.ast.getSourceFile(value.subject)!,
+    nextState(state),
   ));
   const first = pointees[0];
   if (first === undefined || pointees.some((type) =>
@@ -36,7 +37,7 @@ export function selectCsharpPointerReturnContract(
     return undefined;
   }
   const nullish = evidence.nullishTypes.map((type) =>
-    types.resolveType(type, source.ast.getSourceFile(declaration)!));
+    resolveTypeWithState(type, host.ast.getSourceFile(declaration)!, nextState(state)));
   if (nullish.some((type) => type === undefined)) {
     return undefined;
   }

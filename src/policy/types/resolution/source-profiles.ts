@@ -431,11 +431,17 @@ export function resolveSignatureParameterEvidence(
 
 
 export function resolveSourceTypeComponentEvidence(
-  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState, resolvePointerReturn }: CsharpTypeResolutionScope,
   component: SourceTypeComponentEvidence,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const pointer = component.declaration === undefined
+    ? undefined
+    : resolvePointerReturn(component.declaration, state);
+  if (pointer !== undefined) {
+    return pointer.type;
+  }
   const authoredSourceFile = component.authoredTypeNode === undefined
     ? queries.sourceFile
     : host.ast.getSourceFile(component.authoredTypeNode) ??

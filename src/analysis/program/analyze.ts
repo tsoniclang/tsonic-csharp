@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import { createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -132,6 +133,7 @@ export function analyzeCsharpTargetProgram(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     providers,
+    pointerReturns: createTsonicPointerReturnQueries(source),
     target: input.target,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,

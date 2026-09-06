@@ -11,6 +11,8 @@ import type {
   SourceTypeComponentEvidence,
 } from "@tsonic/target-api/source";
 import type { CsharpSourceCallableContract } from "../callables/source-callable-contract.js";
+import { resolveCsharpPointerReturnContract } from "../callables/pointer-return.js";
+import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { ResolvedSourceCallInfo, CsharpRecursiveTypeResolver, CsharpTypePolicyHost, CsharpScopedTypePolicyResult, CsharpTypePolicy, CsharpTypeResolutionState } from "./model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
@@ -112,6 +114,10 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionScope {
+  resolvePointerReturn(
+    declaration: Node,
+    state: CsharpTypeResolutionState,
+  ): CsharpPointerReturnContract | undefined;
   readonly host: CsharpTypePolicyHost;
   readonly activeNodes: WeakSet<Node>;
   readonly policy: CsharpTypePolicy;
@@ -524,6 +530,8 @@ export function createCsharpTypeResolutionServices(
       resolveSelectedTypeImplementation(scope, ...args),
     resolveSelectedResult: (...args: DropScope<Parameters<typeof resolveSelectedResultImplementation>>) =>
       resolveSelectedResultImplementation(scope, ...args),
+    resolvePointerReturn: (declaration: Node, state: CsharpTypeResolutionState) =>
+      resolveCsharpPointerReturnContract(scope, declaration, state),
     resolveTypedLocationOperationPointee: (...args: DropScope<Parameters<typeof resolveTypedLocationOperationPointeeImplementation>>) =>
       resolveTypedLocationOperationPointeeImplementation(scope, ...args),
     resolveTypedLocationOperationPointeeWithState: (...args: DropScope<Parameters<typeof resolveTypedLocationOperationPointeeWithStateImplementation>>) =>
@@ -668,6 +676,7 @@ export function createCsharpTypeResolutionServices(
     resolveSelectedValue: methods.resolveSelectedValue,
     resolveSelectedType: methods.resolveSelectedType,
     resolveSelectedResult: methods.resolveSelectedResult,
+    resolvePointerReturn: (declaration: Node) => methods.resolvePointerReturn(declaration, { depth: 0 }),
     resolveTypedLocationOperationPointee: methods.resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments: methods.resolveSourceCallTypeArguments,
     resolveSourceCallParameter: methods.resolveSourceCallParameter,
