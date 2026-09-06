@@ -7,6 +7,31 @@ import { spawnSync } from "node:child_process";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability, nativeLocationProofSource } from "../../../helpers/memory-abi.mjs";
 
+for (const [name, sourceText] of [
+  ["self", `export function make(): Pointer<typeof make> { return allocatePointer<typeof make>(make); }`],
+  ["mutual", `function first(): Pointer<typeof second> { return allocatePointer<typeof second>(second); }
+    export function second(): Pointer<typeof first> { return allocatePointer<typeof first>(first); }`],
+]) {
+  test(`recursive pointer return carrier rejects ${name} without unbounded classification`, { timeout: 30_000 }, () => {
+    const source = `import { allocatePointer } from "@tsonic/core/lang.js";
+      import type { Pointer } from "@tsonic/core/types.js";
+      ${sourceText}`;
+    const helper = new URL("../../../helpers/direct-csharp-session.mjs", import.meta.url).href;
+    const script = `import assert from "node:assert/strict";
+      import { compileCsharpSource } from ${JSON.stringify(helper)};
+      const compiled = compileCsharpSource({ sourceText: ${JSON.stringify(source)} });
+      assert.equal(compiled.sourceDiagnosticsText, "");
+      assert.deepEqual(compiled.extensionDiagnostics, []);
+      assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST"));
+      assert.equal(compiled.artifacts.size, 0);`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
+      encoding: "utf8", timeout: 20_000, maxBuffer: 1_048_576,
+      env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=512" },
+    });
+    assert.equal(result.status, 0, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`);
+  });
+}
+
 test("native locations retain original local storage, allocation aliases and lifetime owners", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: nativeLocationProofSource, capabilities: [memoryAbiCapability("csharp")] });
   assert.equal(compiled.sourceDiagnosticsText, "");

@@ -485,6 +485,7 @@ export function createCsharpTypeResolutionServices(
 ): CsharpTypeResolutionServices {
   let scope!: CsharpTypeResolutionScope;
   const queryCache = createCsharpTypeResolutionQueryCache();
+  const activeTypes = new WeakSet<Type>();
   const methods = {
     resolveNode: (
       node: Node | undefined,
@@ -634,8 +635,21 @@ export function createCsharpTypeResolutionServices(
       sourceValueDeclarationImplementation(scope, ...args),
     sourceValueDeclarationSyntax: (...args: DropScope<Parameters<typeof sourceValueDeclarationSyntaxImplementation>>) =>
       sourceValueDeclarationSyntaxImplementation(scope, ...args),
-    resolveTypeWithState: (...args: DropScope<Parameters<typeof resolveTypeWithStateImplementation>>) =>
-      resolveTypeWithStateImplementation(scope, ...args),
+    resolveTypeWithState: (
+      type: Type | undefined,
+      sourceFile: SourceFile,
+      state: CsharpTypeResolutionState,
+    ) => {
+      if (type === undefined || activeTypes.has(type)) {
+        return undefined;
+      }
+      activeTypes.add(type);
+      try {
+        return resolveTypeWithStateImplementation(scope, type, sourceFile, state);
+      } finally {
+        activeTypes.delete(type);
+      }
+    },
     resolveDirectSourceFacts: (...args: DropScope<Parameters<typeof resolveDirectSourceFactsImplementation>>) =>
       resolveDirectSourceFactsImplementation(scope, ...args),
     resolveProviderType: (...args: DropScope<Parameters<typeof resolveProviderTypeImplementation>>) =>
