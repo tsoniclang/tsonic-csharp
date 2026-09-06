@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypedLocationOperationKind,
@@ -98,6 +99,15 @@ export function tryPlanCsharpTypedLocationOperation(
         }) };
     }
     case "location-address": {
+      if (operation.storage.kind === "direct-storage" && operation.storage.identity.kind === "local-storage" &&
+        input.program.storage.nativeBacking(operation.storage.identity.declaration) !== undefined) {
+        const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+        if (value?.kind === "SimpleMemberAccessExpression" && value.name === "Value") {
+          return { handled: true, expression: value.receiver };
+        }
+        diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native local backing did not produce its sealed location access."));
+        return { handled: true };
+      }
       const plannerState = state ??
         createDestructuringPlannerState(sourceFile, input.program.source.ast);
       return {
@@ -123,6 +133,9 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.pointeeType,
       );
+      const backing = input.program.storage.nativeBacking(node);
+      if (backing !== undefined) return { handled: true, expression: initial === undefined
+        ? undefined : planCsharpNativeMemoryCall("Allocate", initial, backing) };
       return {
         handled: true,
         ...(initial === undefined

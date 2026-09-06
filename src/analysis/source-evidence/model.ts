@@ -72,6 +72,7 @@ export interface CsharpValueRefinementClassification {
 
 export interface CsharpSourceEvidenceIndex {
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
+  readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
   isCompileTimeMetadata(node: Node): boolean;
   readonly targetTypes: readonly TargetTypeRef[];
   nodeTargetType(node: Node): TargetTypeRef | undefined;

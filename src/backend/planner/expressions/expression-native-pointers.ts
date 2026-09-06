@@ -21,6 +21,7 @@ import {
 } from "../types/target-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { planCsharpNativeMemoryCall } from "./native-memory.js";
 
 export type CsharpNativePointerOperationPlan =
   | { readonly handled: false }
@@ -48,6 +49,17 @@ export function tryPlanCsharpNativePointerOperation(
       `C# native-pointer '${selection.operation}' is not mapped: ${selection.reason}`,
     ));
     return { handled: true };
+  }
+  if (selection.kind === "raw-location") {
+    if (selection.method === "Reinterpret" && (state?.explicitUnsafeContextDepth ?? 0) === 0) {
+      diagnostics.push(nativePointerDiagnostic("CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
+        "Raw memory reinterpretation requires an explicit unsafeContext() source region."));
+      return { handled: true };
+    }
+    const type = csharpTypeFromTargetTypeRef(selection.inputType);
+    const value = type === undefined ? undefined : planExpressionWithExpectedType(
+      selection.expression, sourceFile, input, diagnostics, type, undefined, selection.inputType, state);
+    return { handled: true, expression: value === undefined ? undefined : planCsharpNativeMemoryCall(selection.method, value, selection.layout) };
   }
   if (selection.kind === "raw-address") {
     const arguments_: CsharpExpression[] = [];

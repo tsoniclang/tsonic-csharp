@@ -54,7 +54,7 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex } from "@tsonic/source-core/facts";
+import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands } from "@tsonic/source-core/facts";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -64,6 +64,7 @@ export function analyzeCsharpSourceEvidence(
   policy: CsharpPolicyContext,
 ): CsharpSourceEvidenceIndex {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
+  const pointerBacking = createTsonicPointerBackingDemands(source);
   const compileTimeMetadata = new WeakSet<Node>();
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
@@ -177,6 +178,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    pointerBacking.record(node);
     const declaration = memoryMetadata.declaration(node);
     if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
       compileTimeMetadata.add(node);
@@ -412,7 +414,10 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
-    memoryMetadataIssues: Object.freeze(memoryMetadataIssues),
+    pointerBackingDemands: pointerBacking.entries(),
+    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
+      node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
+    }))]),
     isCompileTimeMetadata: node => compileTimeMetadata.has(node),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType(node) {

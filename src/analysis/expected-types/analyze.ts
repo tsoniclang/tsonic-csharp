@@ -297,7 +297,9 @@ export function analyzeCsharpExpectedTypes(
     if (nativePointer?.kind === "layout-query") {
       return;
     }
-    if (nativePointer?.kind === "raw-address") {
+    if (nativePointer?.kind === "raw-location") {
+      record(nativePointer.expression, nativePointer.inputType, "required");
+    } else if (nativePointer?.kind === "raw-address") {
       for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required");
     } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
       typedLocation.kind !== "rejected") {

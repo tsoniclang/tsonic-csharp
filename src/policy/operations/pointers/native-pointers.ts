@@ -21,8 +21,9 @@ import { getCsharpNullableElementTargetType } from "../../../target-model/types/
 import { selectCsharpRawAddress } from "./raw-addresses.js";
 import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "./raw-addresses.js";
 import { selectCsharpLayoutObservation } from "./layout-observations.js";
+import { selectCsharpRawLocation, type CsharpRawLocationSelection } from "./native-memory.js";
 
-export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "equal-raw-pointer" | "hash-raw-pointer" | "layout-query" | CsharpSourceRawAddressOperation["operation"];
+export type CsharpNativePointerOperationKind = "load" | "store" | "offset" | "equal-raw-pointer" | "hash-raw-pointer" | "layout-query" | "raw-location" | CsharpSourceRawAddressOperation["operation"];
 
 export type CsharpNativePointerOperationSelection =
   | { readonly kind: "not-native-pointer" }
@@ -34,6 +35,7 @@ export type CsharpNativePointerOperationSelection =
   | CsharpResolvedNativePointerOperation;
 
 export type CsharpResolvedNativePointerOperation =
+  | Extract<CsharpRawLocationSelection, { readonly kind: "raw-location" }>
   | { readonly kind: "layout-query"; readonly value: number }
   | Extract<CsharpRawAddressSelection, { readonly kind: "raw-address" }>
   | {
@@ -67,6 +69,8 @@ export function selectCsharpNativePointerOperation(
   node: Node,
   sourceFile: SourceFile,
 ): CsharpNativePointerOperationSelection {
+  const rawLocation = selectCsharpRawLocation(input, node, sourceFile);
+  if (rawLocation !== undefined) return rawLocation;
   const layout = selectCsharpLayoutObservation(input.sourceFacts, node);
   if (layout !== undefined) return layout;
   const address = selectCsharpRawAddress(input, node, sourceFile);

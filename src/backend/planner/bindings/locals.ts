@@ -24,6 +24,8 @@ import {
   getCsharpTypeFromSemanticType,
 } from "../types/csharp-semantic-types.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
+import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
 import { planVariableBindingStatements } from "./index.js";
 import {
@@ -156,6 +158,13 @@ export function planLocalDeclaration(
           type,
           nullForgiving: true,
         };
+  }
+  const nativeBacking = input.program.storage.nativeBacking(declarationNode);
+  if (nativeBacking !== undefined && initializer !== undefined) {
+    const nativeType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(nativeBacking.pointeeType));
+    if (nativeType !== undefined) return { kind: "VariableDeclarator", name, type: nativeType,
+      initializer: planCsharpNativeMemoryCall("Allocate", initializer, nativeBacking) };
+    diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The sealed native local backing has no renderable location type."));
   }
   return {
     kind: "VariableDeclarator",

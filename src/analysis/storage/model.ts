@@ -8,6 +8,8 @@ export interface CsharpStorageIssue {
 }
 
 export interface CsharpStorageClassifications {
+  readonly nativeBackings: readonly { readonly subject: Node; readonly layout: import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout }[];
+  nativeBacking(subject: Node): import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout | undefined;
   readonly issues: readonly CsharpStorageIssue[];
   readonly contracts: readonly CsharpStorageContractClassification[];
   type(node: Node): TargetTypeRef | undefined;

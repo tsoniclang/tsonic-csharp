@@ -42,6 +42,7 @@ import { readCsharpSourceUnsafeContext } from "../../operations/safety/explicit.
 import { relateTypeArguments } from "./generic-arguments.js";
 import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../operations/pointers/raw-addresses.js";
 import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
+import { readCsharpRawLocation } from "../../operations/pointers/native-memory.js";
 import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
 
 export function resolveTypeWithState(
@@ -163,12 +164,21 @@ export function resolveTypeWithState(
 
 
 export function resolveDirectSourceFacts(
-  { host, resolveNodeWithState, resolveSelectedValueWithState, resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolveTypeWithState, resolveSelectedValueWithState, resolveTypedLocationOperationPointeeWithState }: CsharpTypeResolutionScope,
   subjects: readonly ExtensionFactSubject[],
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    const rawLocation = readCsharpRawLocation(host.ast, host.sourceFacts, subject);
+    if (rawLocation?.kind === "resolved") {
+      if (rawLocation.operation.operation === "to-raw") return csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
+      const typeNode = rawLocation.operation.explicitPointeeTypeNode ?? rawLocation.layout.explicitTypeNode;
+      const pointee = typeNode === undefined
+        ? resolveTypeWithState(rawLocation.operation.pointeeType, sourceFile, nextState(state))
+        : resolveNodeWithState(typeNode, sourceFile, nextState(state));
+      if (pointee !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(pointee));
+    }
     if (selectCsharpLayoutObservation(host.sourceFacts, subject)?.kind === "layout-query") {
       return csharpSourcePrimitiveTargetType("native-uint");
     }

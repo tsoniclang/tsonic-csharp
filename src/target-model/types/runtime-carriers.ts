@@ -72,6 +72,11 @@ export function csharpRuntimeRawPointerTargetType(): CsharpTargetNamedTypeRef {
   );
 }
 
+export function csharpRuntimeNativeLocationTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeLocation", undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLocation"));
+}
+
 export function csharpRuntimeLocationPointee(
   type: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
