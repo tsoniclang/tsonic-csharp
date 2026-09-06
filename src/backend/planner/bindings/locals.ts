@@ -179,6 +179,7 @@ export function planLocalDeclarationStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
+  if (input.program.sourceEvidence.isCompileTimeMetadata(declarationNode)) return [];
   const variable = AsVariableDeclaration(input.program.source.ast, declarationNode)!;
   const declarationKind = input.program.source.ast.variableDeclarationKind(declarationNode);
   if (declarationKind === "using" || declarationKind === "await using") {

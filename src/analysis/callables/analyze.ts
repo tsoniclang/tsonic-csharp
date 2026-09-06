@@ -62,6 +62,7 @@ export function analyzeCsharpCallableContracts(
   });
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     if (isCsharpSourceCallableArtifactDeclaration(policy.ast, node)) {
       const contract = sourceCallableContract(
         policy,

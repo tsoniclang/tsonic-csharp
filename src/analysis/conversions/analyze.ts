@@ -125,6 +125,7 @@ export function analyzeCsharpConversions(
     expectedTypes: CsharpExpectedTypeClassifications,
     storage: CsharpStorageClassifications,
   ): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
     const sourceType = sourceTypes[0];
     const effectiveSourceType = storage.type(node) ?? sourceType;

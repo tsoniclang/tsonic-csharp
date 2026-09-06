@@ -140,6 +140,7 @@ export function analyzeCsharpObjectShapes(
   return Object.freeze(classifications);
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     const shape = policy.objectShapes.resolveNode(node, sourceFile);
     if (shape !== undefined) {
       reserveClassification();

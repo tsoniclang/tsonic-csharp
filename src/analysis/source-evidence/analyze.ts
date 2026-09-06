@@ -54,6 +54,7 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
+import { createTsonicMemoryMetadataIndex } from "@tsonic/source-core/facts";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -62,6 +63,9 @@ export function analyzeCsharpSourceEvidence(
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
 ): CsharpSourceEvidenceIndex {
+  const memoryMetadata = createTsonicMemoryMetadataIndex(source);
+  const compileTimeMetadata = new WeakSet<Node>();
+  const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -173,6 +177,14 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    const declaration = memoryMetadata.declaration(node);
+    if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
+      compileTimeMetadata.add(node);
+      for (const issue of declaration?.issues ?? []) memoryMetadataIssues.push(Object.freeze({
+        node: issue.node, code: "CSHARP_MEMORY_METADATA_RUNTIME_ESCAPE", message: issue.reason,
+      }));
+      return;
+    }
     if (
       node === sourceFile ||
       source.ast.is.IsImportDeclaration(node) ||
@@ -400,6 +412,8 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
+    memoryMetadataIssues: Object.freeze(memoryMetadataIssues),
+    isCompileTimeMetadata: node => compileTimeMetadata.has(node),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType(node) {
       return cachedValue(nodeTargetTypes.get(node));

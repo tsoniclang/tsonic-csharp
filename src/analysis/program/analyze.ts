@@ -200,6 +200,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const analysisIssues = [
+    ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,
@@ -247,6 +248,7 @@ export function analyzeCsharpTargetProgram(
     navigation: source.navigation,
   });
   const moduleInitialization = analyzeCsharpModuleInitialization({
+    sourceEvidence: analysis.sourceEvidence,
     source,
     sourceFiles,
     projectRoot: input.paths.projectRoot,

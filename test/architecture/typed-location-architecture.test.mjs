@@ -16,6 +16,8 @@ const neutralFactReaders = new Map([
   ["tsonicKeepAliveFactKey", ["src/policy/operations/flow/source-flow.ts"]],
   ["functionPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["pointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
+  ["rawPointerFactKey", ["src/policy/types/resolution/source-markers.ts"]],
+  ["rawPointerOperationFactKey", ["src/policy/operations/pointers/source-raw-pointers.ts"]],
   ["pointerOperationFactKey", ["src/policy/operations/typed-locations/source-typed-locations.ts"]],
   ["structFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["tsonicNativePointerOperationFactKey", ["src/policy/operations/pointers/source-native-pointers.ts"]],

@@ -19,6 +19,8 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
+import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export type CsharpNativePointerOperationPlan =
   | { readonly handled: false }
@@ -46,6 +48,42 @@ export function tryPlanCsharpNativePointerOperation(
       `C# native-pointer '${selection.operation}' is not mapped: ${selection.reason}`,
     ));
     return { handled: true };
+  }
+  if (selection.kind === "raw-address") {
+    const arguments_: CsharpExpression[] = [];
+    for (const argument of selection.arguments) {
+      const sourceType = csharpTypeFromTargetTypeRef(argument.sourceType);
+      const parameterType = csharpTypeFromTargetTypeRef(argument.parameterType);
+      const expression = sourceType === undefined ? undefined : planExpressionWithExpectedType(
+        argument.expression, sourceFile, input, diagnostics, sourceType, undefined, argument.sourceType, state);
+      if (expression === undefined || parameterType === undefined) return { handled: true };
+      arguments_.push(targetTypeRefEquals(argument.sourceType, argument.parameterType)
+        ? expression : { kind: "CastExpression", type: parameterType,
+          expression: { kind: "ParenthesizedExpression", expression } });
+    }
+    const rawType = csharpTypeFromTargetTypeRef(csharpRuntimeRawPointerTargetType());
+    const resultType = csharpTypeFromTargetTypeRef(selection.resultType);
+    if (rawType === undefined || resultType === undefined) return { handled: true };
+    arguments_.push({ kind: "NumericLiteralExpression", value: selection.width });
+    const invocation: CsharpExpression = { kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: rawType, name: selection.method },
+      arguments: arguments_.map(expression => ({ kind: "Argument", expression })) };
+    return { handled: true, expression: selection.method === "Address"
+      ? { kind: "CastExpression", type: resultType, expression: invocation } : invocation };
+  }
+  if (selection.kind === "layout-query") {
+    return { handled: true, expression: { kind: "NumericLiteralExpression", value: selection.value } };
+  }
+  if (selection.kind === "raw-identity") {
+    const receiver = csharpTypeFromTargetTypeRef(selection.carrier);
+    const arguments_ = selection.arguments.map(argument => planExpression(argument, sourceFile, input, diagnostics, state));
+    return { handled: true, ...(receiver === undefined || arguments_.some(argument => argument === undefined) ? {} : {
+      expression: {
+        kind: "InvocationExpression" as const,
+        callee: { kind: "SimpleMemberAccessExpression" as const, receiver, name: selection.method },
+        arguments: (arguments_ as CsharpExpression[]).map(expression => ({ kind: "Argument" as const, expression })),
+      },
+    }) };
   }
   if ((state?.explicitUnsafeContextDepth ?? 0) === 0) {
     diagnostics.push(nativePointerDiagnostic(

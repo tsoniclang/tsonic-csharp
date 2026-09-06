@@ -40,6 +40,7 @@ export function analyzeCsharpDeclarations(
   });
 
   function visit(node: Node): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     if (isCallableDeclaration(policy, node)) {
       returnContracts.set(
         node,

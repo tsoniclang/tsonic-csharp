@@ -277,6 +277,7 @@ export function analyzeCsharpExpectedTypes(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);
@@ -292,7 +293,13 @@ export function analyzeCsharpExpectedTypes(
 
     const call = operations.call(node);
     const typedLocation = operations.typedLocation(node);
-    if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
+    const nativePointer = operations.nativePointer(node);
+    if (nativePointer?.kind === "layout-query") {
+      return;
+    }
+    if (nativePointer?.kind === "raw-address") {
+      for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required");
+    } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
       typedLocation.kind !== "rejected") {
       if (typedLocation.kind === "location-allocate") {
         record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
@@ -378,7 +385,6 @@ export function analyzeCsharpExpectedTypes(
       );
     }
 
-    const nativePointer = operations.nativePointer(node);
     if (nativePointer?.kind === "store") {
       record(nativePointer.valueExpression, nativePointer.pointeeType, "required");
     } else if (nativePointer?.kind === "offset") {

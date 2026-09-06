@@ -71,6 +71,8 @@ export interface CsharpValueRefinementClassification {
 }
 
 export interface CsharpSourceEvidenceIndex {
+  readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
+  isCompileTimeMetadata(node: Node): boolean;
   readonly targetTypes: readonly TargetTypeRef[];
   nodeTargetType(node: Node): TargetTypeRef | undefined;
   storageTargetType(node: Node): TargetTypeRef | undefined;

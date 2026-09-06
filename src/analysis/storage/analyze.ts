@@ -151,6 +151,7 @@ export function analyzeCsharpStorage(
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     nodes.push(node);
     for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
       recordPromotedRepresentation(node, expectedType);

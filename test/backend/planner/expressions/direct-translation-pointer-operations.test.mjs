@@ -4,6 +4,24 @@ import {
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
+test("raw pointer identity preserves optional address carriers through parameters and returns", () => {
+  const compiled = cleanCompile(`
+    import { equalRawPointer as same, hashRawPointer } from "@tsonic/core/lang.js";
+    import type { RawPointer } from "@tsonic/core/types.js";
+    type Address = RawPointer;
+    function pass(value: Address | undefined): Address | undefined { return value; }
+    export function check(left: Address | undefined, right: Address | undefined): boolean {
+      return same(pass(left), pass(right)) && hashRawPointer(left) === hashRawPointer(right);
+    }
+    export function missing(): boolean { return check(undefined, undefined); }
+  `);
+  const output = compiled.artifacts.get("src/Index.cs");
+  assert.match(output, /Tsonic\.CSharp\.Runtime\.RawPointer\? pass/u);
+  assert.match(output, /RawPointer\.Same\(pass\(left\), pass\(right\)\)/u);
+  assert.match(output, /RawPointer\.Hash\(left\)/u);
+  assert.doesNotMatch(output, /\bunsafe\b/u);
+});
+
 test("typed locations preserve aliases, parameters, returns, and fresh allocation", () => {
   const compiled = cleanCompile(`
     import { addressOf, allocatePointer, loadPointer, storePointer } from "@tsonic/core/lang.js";

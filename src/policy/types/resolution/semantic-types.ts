@@ -6,6 +6,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import {
   csharpAnyTargetType,
   csharpRuntimeLocationTargetType,
+  csharpRuntimeRawPointerTargetType,
   csharpRuntimeNullTargetType,
   csharpRuntimeUndefinedTargetType,
   isCsharpRuntimeUndefinedTargetType,
@@ -26,6 +27,7 @@ import {
   readCsharpSourceFunctionPointerType,
   readCsharpSourceJsStringMarker,
   readCsharpSourcePointerType,
+  isCsharpSourceRawPointer,
 } from "./source-markers.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
@@ -38,6 +40,8 @@ import { readCsharpSourceNativePointerOperation } from "../../operations/pointer
 import { readCsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import { readCsharpSourceUnsafeContext } from "../../operations/safety/explicit.js";
 import { relateTypeArguments } from "./generic-arguments.js";
+import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../operations/pointers/raw-addresses.js";
+import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
 import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
 
 export function resolveTypeWithState(
@@ -165,6 +169,11 @@ export function resolveDirectSourceFacts(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    if (selectCsharpLayoutObservation(host.sourceFacts, subject)?.kind === "layout-query") {
+      return csharpSourcePrimitiveTargetType("native-uint");
+    }
+    const rawAddress = readCsharpSourceRawAddress(host.sourceFacts, subject);
+    if (rawAddress !== undefined) return csharpRawAddressResultType(rawAddress);
     if (readCsharpSourceKeepAlive(host.sourceFacts, subject) !== undefined) {
       return csharpVoidTargetType();
     }
@@ -217,6 +226,7 @@ export function resolveDirectSourceFacts(
         return type;
       }
     }
+    if (isCsharpSourceRawPointer(host.sourceFacts, subject)) return csharpRuntimeRawPointerTargetType();
     const pointer = readCsharpSourcePointerType(host.sourceFacts, subject);
     if (pointer !== undefined) {
       const pointee = resolveNodeWithState(
