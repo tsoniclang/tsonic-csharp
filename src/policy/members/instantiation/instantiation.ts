@@ -37,6 +37,9 @@ import {
   selectCsharpProviderArgumentConversion,
 } from "../../conversions/index.js";
 import { csharpSourceArgumentPassingMode } from "../selection/argument-selection.js";
+import { selectCsharpProviderPointerResult } from "../../operations/pointers/provider-result.js";
+import { inferCsharpTargetTypeParameterBindings } from "../../types/callables/substitution.js";
+import { csharpRuntimeLocationTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
   mergeCsharpTypeParameterSubstitutions,
   resolveCsharpTargetBindingArguments,
@@ -115,10 +118,11 @@ export function instantiateCsharpProviderCall(
     };
   }
   const methodArguments = resolveMethodTypeArguments(
-    host.types,
+    host,
     relation,
     source,
     sourceFile,
+    bindingArguments.map(argument => argument.targetType),
   );
   if (methodArguments === undefined) {
     return {
@@ -188,6 +192,24 @@ export function instantiateCsharpProviderCall(
       kind: "rejected",
       reason: argumentValidation.reason,
     };
+  }
+  const pointerResult = selectCsharpProviderPointerResult(host, source, sourceFile, parameter => {
+    const method = parameter.scope === "signature";
+    if (method && source.sourceSelectedMethodTypeArguments?.[parameter.index]?.typeParameterName !== parameter.parameter.name) {
+      return undefined;
+    }
+    const mapping = (method ? relation.methodTypeParameters : relation.bindingTypeParameters)
+      .find(value => value.sourceTypeParameterIndex === parameter.index);
+    return mapping === undefined ? undefined :
+      (method ? methodArguments : bindingArguments)[mapping.targetTypeParameterIndex]?.targetType;
+  });
+  if (pointerResult?.kind === "invalid") return { kind: "rejected", reason: pointerResult.reason };
+  const resultCarrier = targetMember.returnType === undefined ? undefined :
+    targetMember.csharpReturnPassing === undefined ? targetMember.returnType :
+      csharpRuntimeLocationTargetType(targetMember.returnType);
+  if (pointerResult !== undefined && (resultCarrier === undefined ||
+      !targetTypeRefEquals(pointerResult.carrier, resultCarrier))) {
+    return { kind: "rejected", reason: "The provider result conflicts with the canonical source pointer carrier." };
   }
   return {
     kind: "resolved",
@@ -387,20 +409,53 @@ function validateProviderCallRelation(
 }
 
 function resolveMethodTypeArguments(
-  types: CsharpTypePolicy,
+  host: CsharpProviderCallInstantiationHost,
   relation: CsharpProviderSignatureRelation,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
+  bindingArguments: readonly TargetTypeRef[],
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   const sourceArguments = source.sourceSelectedMethodTypeArguments ?? [];
   const targetArity = relation.targetMember.typeParameters?.length ?? 0;
+  const bindingSubstitutions = csharpTargetBindingSubstitutions(relation.targetBinding, bindingArguments);
+  if (bindingSubstitutions === undefined) return undefined;
+  const member = substituteCsharpTargetMember(relation.targetMember, bindingSubstitutions);
+  const inferredNames = new Set(relation.methodTypeParameters.flatMap(mapping => {
+    const selected = sourceArguments[mapping.sourceTypeParameterIndex];
+    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
+    return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined ? [parameter.name] : [];
+  }));
+  const inferred = new Map<string, TargetTypeRef>();
+  if (inferredNames.size !== 0) {
+    for (const binding of source.sourceArgumentBindings) {
+      const mapping = relation.parameters.find(value => value.sourceParameterIndex === binding.sourceParameterIndex);
+      const parameter = mapping === undefined ? undefined : member.parameters[mapping.targetParameterIndex];
+      const argument = source.sourceArguments[binding.sourceArgumentIndex];
+      if (parameter === undefined || argument === undefined) return undefined;
+      const actual = host.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
+      if (actual === undefined) continue;
+      const candidates = inferCsharpTargetTypeParameterBindings(
+        csharpTargetParameterValueType(parameter, binding.sourceForm), actual, inferredNames);
+      for (const [name, carrier] of candidates ?? []) {
+        const previous = inferred.get(name);
+        if (previous !== undefined && !targetTypeRefEquals(previous, carrier)) return undefined;
+        inferred.set(name, carrier);
+      }
+    }
+  }
+  const refinements = new Map(relation.methodTypeParameters.flatMap(mapping => {
+    const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
+    const carrier = parameter === undefined ? undefined : inferred.get(parameter.name);
+    return carrier === undefined ? [] : [[mapping.sourceTypeParameterIndex, carrier] as const];
+  }));
   return resolveSelectedTypeArguments(
-    types,
+    host.types,
     sourceArguments,
     relation.methodTypeParameters,
     targetArity,
     relation.selectedTypeParameterCount,
     sourceFile,
+    refinements,
   );
 }
 
@@ -438,6 +493,7 @@ function resolveSelectedTypeArguments(
   targetArity: number,
   sourceArity: number,
   sourceFile: SourceFile,
+  refinements: ReadonlyMap<number, TargetTypeRef> = new Map(),
 ): readonly CsharpSelectedTargetMethodTypeArgument[] | undefined {
   if (
     sourceArguments.length !== sourceArity ||
@@ -457,7 +513,7 @@ function resolveSelectedTypeArguments(
     ) {
       return undefined;
     }
-    const targetArgument = types.resolveSelectedType(
+    const targetArgument = refinements.get(typeParameterRelation.sourceTypeParameterIndex) ?? types.resolveSelectedType(
       sourceArgument.explicitTypeNode,
       sourceArgument.selectedType,
       sourceFile,

@@ -533,6 +533,9 @@ export function directProviderHost(options = {}) {
         resolveValue(node, type) {
           return nodeTypes.get(node) ?? semanticTypes.get(type);
         },
+        resolveSelectedValue(node, type) {
+          return nodeTypes.get(node) ?? semanticTypes.get(type);
+        },
         resolveSelectedType(authoredTypeNode, selectedType) {
           return nodeTypes.get(authoredTypeNode) ??
             semanticTypes.get(selectedType);
@@ -545,6 +548,9 @@ export function directProviderHost(options = {}) {
           operations: Object.freeze({
             call(node) {
               return callEvidenceByNode.get(node);
+            },
+            callResult(source) {
+              return options.callResults?.get(source);
             },
             propertyAccess(node) {
               return propertyEvidenceByNode.get(node);
