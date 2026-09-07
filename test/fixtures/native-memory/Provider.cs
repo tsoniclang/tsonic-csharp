@@ -39,6 +39,7 @@ public static class Provider
     public static Location<uint> Location(uint value) => NativeLocation.Reinterpret<uint>(Acquire(value), NativeLayout.Scalar<uint>(4, 4, 64, true))!;
     public static Location<Value> Relay<Value>(Location<Value> pointer) => pointer;
     public static Value Identity<Value>(Value value) => value;
+    public static Value Choose<Value>(Value first, Value second, Value third) => first;
 
     public static void Collect()
     {

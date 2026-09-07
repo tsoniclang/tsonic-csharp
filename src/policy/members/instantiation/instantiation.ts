@@ -34,6 +34,7 @@ import {
 import {
   csharpConversionIsApplicable,
   compareCsharpImplicitConversionTargets,
+  selectCsharpCommonImplicitTarget,
   selectCsharpProviderArgumentConversion,
 } from "../../conversions/index.js";
 import { csharpSourceArgumentPassingMode } from "../selection/argument-selection.js";
@@ -425,7 +426,7 @@ function resolveMethodTypeArguments(
     const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
     return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined ? [parameter.name] : [];
   }));
-  const inferred = new Map<string, TargetTypeRef>();
+  const bounds = new Map<string, TargetTypeRef[]>();
   if (inferredNames.size !== 0) {
     for (const binding of source.sourceArgumentBindings) {
       const mapping = relation.parameters.find(value => value.sourceParameterIndex === binding.sourceParameterIndex);
@@ -437,11 +438,17 @@ function resolveMethodTypeArguments(
       const candidates = inferCsharpTargetTypeParameterBindings(
         csharpTargetParameterValueType(parameter, binding.sourceForm), actual, inferredNames);
       for (const [name, carrier] of candidates ?? []) {
-        const previous = inferred.get(name);
-        if (previous !== undefined && !targetTypeRefEquals(previous, carrier)) return undefined;
-        inferred.set(name, carrier);
+        const previous = bounds.get(name);
+        if (previous === undefined) bounds.set(name, [carrier]);
+        else previous.push(carrier);
       }
     }
+  }
+  const inferred = new Map<string, TargetTypeRef>();
+  for (const [name, candidates] of bounds) {
+    const common = selectCsharpCommonImplicitTarget(host, candidates);
+    if (common.kind === "rejected") return undefined;
+    inferred.set(name, common.target);
   }
   const refinements = new Map(relation.methodTypeParameters.flatMap(mapping => {
     const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];

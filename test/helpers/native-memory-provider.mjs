@@ -25,8 +25,17 @@ export function run(): boolean {
 }
 export function released(): boolean { native.collect(); return native.liveLeases() === 0; }
 export function ordinaryLocation(): boolean {
+  if (!ordinaryBounds()) return false;
   const pointer = native.identity(native.location(71));
   return loadPointer(native.relay<uint32>(pointer)) === 71;
+}
+export function ordinaryBounds(): boolean {
+  const value: uint32 = 4;
+  return native.choose(3, value, 3.5) === 3 &&
+    native.choose(value, 3.5, 3) === 4 &&
+    native.choose(value, value, value) === 4 &&
+    native.choose<uint32>(value, value, value) === 4 &&
+    native.choose<number>(value, value, value) === 4;
 }
 export function main(): void {
   if (!run() || !released() || !ordinaryLocation() || !released()) throw new Error("native inferred pointer lease");
@@ -59,6 +68,9 @@ export function nativeMemoryProvider({ missingRelation = false, wrongCarrier = f
     ["identity", "Identity", [{ name: "value", type: { kind: "type-parameter", name: "Value" } }],
       { kind: "type-parameter", name: "Value" }, { kind: "type-parameter", name: "Value" },
       [{ name: "Value" }], [{ kind: "type-parameter", name: "Value" }]],
+    ["choose", "Choose", ["first", "second", "third"].map(name => ({ name, type: { kind: "type-parameter", name: "Value" } })),
+      { kind: "type-parameter", name: "Value" }, { kind: "type-parameter", name: "Value" },
+      [{ name: "Value" }], [0, 1, 2].map(() => ({ kind: "type-parameter", name: "Value" }))],
   ];
   const exports = definitions.map(([name, , parameters, returnType, , typeParameters]) => ({
     id: `source.export.${name}`, name, kind: "function",
