@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability, nativeLocationProofSource } from "../../../helpers/memory-abi.mjs";
+import { nativeRecordProofSource, nativeFieldProofSource } from "../../../helpers/native-record-proof.mjs";
 
 for (const [name, sourceText] of [
   ["self", `export function make(): Pointer<typeof make> { return allocatePointer<typeof make>(make); }`],
@@ -32,17 +33,20 @@ for (const [name, sourceText] of [
   });
 }
 
-test("native locations retain original local storage, allocation aliases and lifetime owners", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ sourceText: nativeLocationProofSource, capabilities: [memoryAbiCapability("csharp")] });
+for (const [name, sourceText] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
+  ["object field", nativeFieldProofSource]]) {
+test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText, capabilities: [memoryAbiCapability("csharp")] });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const output = compiled.artifacts.get("src/Index.cs");
-  assert.match(output, /NativeLocation.Allocate<uint>/u);
+  assert.match(output, name === "scalar" ? /NativeLocation.Allocate<uint>/u
+    : name === "object field" ? /valueLocation/u : /ReadAt<uint>/u);
   assert.match(output, /NativeLocation.Reinterpret<uint>/u);
-  assert.match(output, /value.Value/u);
+  if (name === "scalar") assert.match(output, /value.Value/u);
   const repository = fileURLToPath(new URL("../../../../", import.meta.url));
-  const root = join(repository, ".temp/native-location-aliases");
+  const root = join(repository, `.temp/native-location-aliases-${name.replaceAll(" ", "-")}`);
   mkdirSync(root, { recursive: true });
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
@@ -61,8 +65,24 @@ test("native locations retain original local storage, allocation aliases and lif
     assert.equal(result.status, 0, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`);
   }
 });
+}
 
 for (const [name, source, diagnostic] of [
+  ["managed byref from native object field", `import { UInt32 } from "@tsonic/dotnet/System.js";
+    import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
+    export function expose(): boolean {
+      const cell: { value: uint32 } = { value: 1 };
+      toRawPointer(addressOf(cell.value), word);
+      return UInt32.TryParse("2", writeOnlyRef(cell.value));
+    }`, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN"],
+  ["conflicting object field layouts", `import { addressOf } from "@tsonic/core/lang.js";
+    const packed = memoryLayout<uint32>(abi, 4, 1, 4);
+    export function expose(): void {
+      const cell: { value: uint32 } = { value: 1 };
+      const alias = cell;
+      toRawPointer(addressOf(cell.value), word);
+      toRawPointer(addressOf(alias.value), packed);
+    }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
   ["managed byref from native local backing", `import { UInt32 } from "@tsonic/dotnet/System.js";
     import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
     export function expose(): boolean {
@@ -77,6 +97,14 @@ for (const [name, source, diagnostic] of [
   ["incompatible scalar size", `const wrong = memoryLayout<uint32>(abi, 8, 4, 8); export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, wrong); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
   ["unsafe context", `export function expose(raw: RawPointer | undefined): Pointer<uint32> | undefined { return reinterpretRawPointer(raw, word); }`, "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED"],
   ["invalid bit patterns", `const invalid = memoryLayout<boolean>(abi, 1, 1, 1); export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, invalid); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+  ["ordinary reference record", `import { memoryField } from "@tsonic/core/lang.js";
+    interface Record { count: uint32 }
+    const record = memoryLayout<Record>(abi, 4, 4, 4, memoryField((value: Record) => value.count, 0, 4, word));
+    export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+  ["incomplete value record", `import { memoryField, struct, field } from "@tsonic/core/lang.js";
+    const Record = struct({ first: field<uint32>(), second: field<uint32>() });
+    const record = memoryLayout<typeof Record>(abi, 8, 4, 8, memoryField((value: typeof Record) => value.first, 0, 4, word));
+    export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
 ]) {
   test(`native memory rejects ${name} without publishing artifacts`, () => {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `

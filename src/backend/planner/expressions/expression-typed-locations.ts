@@ -99,6 +99,21 @@ export function tryPlanCsharpTypedLocationOperation(
         }) };
     }
     case "location-address": {
+      if (operation.storage.kind === "reference-property-storage") {
+        const source = input.program.operations.property(operation.storage.expression)?.sourceOwned;
+        const shape = source?.objectShape;
+        const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
+        const backing = shape === undefined || member === undefined ? undefined
+          : input.program.storage.nativeField(shape.targetType, member.targetName);
+        if (backing !== undefined) {
+          const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+          if (value?.kind === "SimpleMemberAccessExpression") {
+            return { handled: true, expression: { kind: "SimpleMemberAccessExpression", receiver: value.receiver, name: backing.storageName } };
+          }
+          diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native field backing did not produce its sealed field access."));
+          return { handled: true };
+        }
+      }
       if (operation.storage.kind === "direct-storage" && operation.storage.identity.kind === "local-storage" &&
         input.program.storage.nativeBacking(operation.storage.identity.declaration) !== undefined) {
         const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);

@@ -3,16 +3,20 @@ import type { CsharpPolicyContext } from "../../policy/context.js";
 import { selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type { CsharpStorageIssue } from "./model.js";
+import type { CsharpNativeObjectField, CsharpStorageIssue } from "./model.js";
 
 export function analyzeCsharpNativeBacking(
   policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
 ) {
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
+  const fields = new Map<string, CsharpNativeObjectField>();
+  const fieldKey = (owner: TargetTypeRef, name: string): string => JSON.stringify([targetTypeRefKey(owner), name]);
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_NATIVE_BACKING_NOT_PROVEN", message }));
@@ -24,7 +28,7 @@ export function analyzeCsharpNativeBacking(
       reject(origin.call, "The native backing descriptor and origin require exact source files.");
       continue;
     }
-    const selected = selectCsharpNativeMemoryLayout(policy.types, layout, layoutFile);
+    const selected = selectCsharpNativeMemoryLayout(policy, layout, layoutFile);
     if (selected === undefined) {
       reject(origin.call, "Physical backing requires an exact closed all-bit-pattern native layout.");
       continue;
@@ -45,6 +49,32 @@ export function analyzeCsharpNativeBacking(
     let subject = origin.call;
     if (operation.kind === "location-address") {
       const storage = operation.storage;
+      if (storage.kind === "reference-property-storage") {
+        const source = operations.property(storage.expression)?.sourceOwned;
+        const shape = source?.objectShape;
+        const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
+        if (shape === undefined || csharpStructuralObjectShapeIdentity(shape.targetType) === undefined ||
+          member === undefined || member.memberKind !== "property" || member.readonly || member.optional ||
+          member.accessor !== undefined || !targetTypeRefEquals(member.type, selected.pointeeType)) {
+          reject(origin.call, "Native field backing requires one complete compiler-owned mutable data field.");
+          continue;
+        }
+        const key = fieldKey(shape.targetType, member.targetName);
+        const previous = fields.get(key);
+        if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous.layout, selected)) {
+          reject(origin.call, "One exact object field has incompatible native layout requirements.");
+          continue;
+        }
+        if (previous === undefined) {
+          const used = new Set([...shape.members.map(field => field.targetName),
+            ...[...fields.values()].filter(field => targetTypeRefEquals(field.owner, shape.targetType)).map(field => field.storageName)]);
+          const base = `${member.targetName}Location`;
+          let storageName = base;
+          for (let suffix = 2; used.has(storageName); suffix += 1) storageName = `${base}_${suffix}`;
+          fields.set(key, Object.freeze({ owner: shape.targetType, memberName: member.targetName, storageName, layout: selected }));
+        }
+        continue;
+      }
       if (storage.kind !== "direct-storage" || storage.identity.kind !== "local-storage" ||
         (!policy.ast.is.IsVariableDeclaration(storage.identity.declaration) && !policy.ast.is.IsParameterDeclaration(storage.identity.declaration)) ||
         !policy.ast.is.IsIdentifier(storage.expression)) {
@@ -77,6 +107,8 @@ export function analyzeCsharpNativeBacking(
     } else backings.set(subject, selected);
   }
   return Object.freeze({ issues: Object.freeze(issues),
+    fields: Object.freeze([...fields.values()]),
+    field: (owner: TargetTypeRef, name: string) => fields.get(fieldKey(owner, name)),
     entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),
     get: (subject: Node) => backings.get(subject) });
 }

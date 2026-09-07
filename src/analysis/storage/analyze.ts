@@ -124,6 +124,8 @@ export function analyzeCsharpStorage(
   }
 
   const classifications: CsharpStorageClassifications = {
+    nativeFields: nativeBacking.fields,
+    nativeField: nativeBacking.field,
     nativeBackings: nativeBacking.entries,
     nativeBacking: nativeBacking.get,
     issues: Object.freeze(issues),
@@ -157,11 +159,16 @@ export function analyzeCsharpStorage(
 
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node)) return;
-    if (nativeBacking.entries.length > 0) {
+    if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0) {
       const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
       if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
         const declaration = policy.navigation.referenceFor(passing.argument.storageExpression)?.declaration;
-        if (declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
+        const property = operations.property(passing.argument.storageExpression)?.sourceOwned;
+        const shape = property?.objectShape;
+        const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
+        const field = shape === undefined || member === undefined ? undefined
+          : nativeBacking.field(shape.targetType, member.targetName);
+        if (field !== undefined || declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
           issues.push(issue(node, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN",
             "A physically backed location cannot be passed as a managed byref without an exact native reference contract."));
         }
@@ -558,6 +565,13 @@ export function csharpStorageClassificationsEqual(
   right: CsharpStorageClassifications,
 ): boolean {
   return left.issues.length === right.issues.length &&
+    left.nativeFields.length === right.nativeFields.length &&
+    left.nativeFields.every((entry, index) => {
+      const other = right.nativeFields[index];
+      return other !== undefined && targetTypeRefEquals(entry.owner, other.owner) &&
+        entry.memberName === other.memberName && entry.storageName === other.storageName &&
+        csharpNativeMemoryLayoutsEqual(entry.layout, other.layout);
+    }) &&
     left.nativeBackings.length === right.nativeBackings.length &&
     left.nativeBackings.every((entry, index) => {
       const other = right.nativeBackings[index];

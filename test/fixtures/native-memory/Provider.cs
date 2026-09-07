@@ -6,10 +6,25 @@ using Tsonic.CSharp.Runtime;
 
 namespace NativeMemoryProof;
 
+public struct Header
+{
+    public byte TagByte;
+    public uint Units;
+}
+
+public struct Envelope
+{
+    public byte Lead;
+    public Header Record;
+}
+
 public static class Provider
 {
     private static WeakReference<Region>? _last;
     private static int _live;
+
+    public static Envelope CreateEnvelope(byte prefix, byte tag, uint count) =>
+        new() { Lead = prefix, Record = new Header { TagByte = tag, Units = count } };
 
     public static unsafe RawPointer Acquire(uint value)
     {
@@ -21,7 +36,7 @@ public static class Provider
     public static uint ReadOriginal() => Last().Values[0];
     public static uint ReadSecond() => Last().Values[1];
     public static uint LiveLeases() => checked((uint)Volatile.Read(ref _live));
-    public static Location<uint> Location(uint value) => NativeLocation.Reinterpret<uint>(Acquire(value), 4, 4, 64, true)!;
+    public static Location<uint> Location(uint value) => NativeLocation.Reinterpret<uint>(Acquire(value), NativeLayout.Scalar<uint>(4, 4, 64, true))!;
     public static Location<Value> Relay<Value>(Location<Value> pointer) => pointer;
     public static Value Identity<Value>(Value value) => value;
 
