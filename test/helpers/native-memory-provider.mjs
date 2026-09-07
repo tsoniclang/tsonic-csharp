@@ -12,7 +12,7 @@ import { csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType } fr
 export const nativeProviderInferredProofSource = `
 import * as native from "test:memory";
 import { abi } from "test:abi";
-import type { uint32 } from "@tsonic/core/types.js";
+import type { uint32, int32 } from "@tsonic/core/types.js";
 import { memoryLayout, reinterpretRawPointer, loadPointer, storePointer, unsafeContext } from "@tsonic/core/lang.js";
 const word = memoryLayout<uint32>(abi, 4, 4, 4);
 export function run(): boolean {
@@ -31,11 +31,18 @@ export function ordinaryLocation(): boolean {
 }
 export function ordinaryBounds(): boolean {
   const value: uint32 = 4;
+  const optional: int32 = 4;
   return native.choose(3, value, 3.5) === 3 &&
     native.choose(value, 3.5, 3) === 4 &&
     native.choose(value, value, value) === 4 &&
     native.choose<uint32>(value, value, value) === 4 &&
-    native.choose<number>(value, value, value) === 4;
+    native.choose<number>(value, value, value) === 4 &&
+    nullableBounds(optional) && nullableBounds(undefined);
+}
+function nullableBounds(value: int32 | undefined): boolean {
+  const result = native.choose(3, value, 3);
+  if (result === undefined) return false;
+  return result === 3;
 }
 export function main(): void {
   if (!run() || !released() || !ordinaryLocation() || !released()) throw new Error("native inferred pointer lease");

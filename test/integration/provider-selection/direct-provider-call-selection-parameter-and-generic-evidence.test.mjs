@@ -312,8 +312,10 @@ test("inferred provider method bounds use one order-independent implicit target"
     [[uint32, int32, int64], int64],
     [[int64, int32, uint32], int64],
     [[int32, int32], int32],
+    [[float64, csharpNullableValueTargetType(int32)], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
+    [[csharpNullableValueTargetType(int32), float64], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
   ];
-  for (const [sourceArgumentTargets, expected] of cases) {
+  for (const [sourceArgumentTargets, expected, selectedTarget = float64] of cases) {
     const selectedType = {};
     const parameterType = { kind: "type-parameter", name: "T" };
     const method = providerMethod({
@@ -326,7 +328,7 @@ test("inferred provider method bounds use one order-independent implicit target"
       targetParameters: method.parameters,
       sourceArgumentTargets,
       methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
-      additionalSemanticTypes: [[selectedType, float64]],
+      additionalSemanticTypes: [[selectedType, selectedTarget]],
     });
     const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
     assert.equal(selected.kind, "resolved", JSON.stringify(selected));

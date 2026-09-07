@@ -421,11 +421,13 @@ function resolveMethodTypeArguments(
   const bindingSubstitutions = csharpTargetBindingSubstitutions(relation.targetBinding, bindingArguments);
   if (bindingSubstitutions === undefined) return undefined;
   const member = substituteCsharpTargetMember(relation.targetMember, bindingSubstitutions);
-  const inferredNames = new Set(relation.methodTypeParameters.flatMap(mapping => {
+  const inferredSourceArguments = new Map(relation.methodTypeParameters.flatMap(mapping => {
     const selected = sourceArguments[mapping.sourceTypeParameterIndex];
     const parameter = member.typeParameters?.[mapping.targetTypeParameterIndex];
-    return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined ? [parameter.name] : [];
+    return selected !== undefined && selected.explicitTypeNode === undefined && parameter !== undefined
+      ? [[parameter.name, selected] as const] : [];
   }));
+  const inferredNames = new Set(inferredSourceArguments.keys());
   const bounds = new Map<string, TargetTypeRef[]>();
   if (inferredNames.size !== 0) {
     for (const binding of source.sourceArgumentBindings) {
@@ -446,7 +448,10 @@ function resolveMethodTypeArguments(
   }
   const inferred = new Map<string, TargetTypeRef>();
   for (const [name, candidates] of bounds) {
-    const common = selectCsharpCommonImplicitTarget(host, candidates);
+    const selected = inferredSourceArguments.get(name)!;
+    const selectedTarget = host.types.resolveSelectedType(undefined, selected.selectedType, sourceFile);
+    const common = selectCsharpCommonImplicitTarget(host, candidates,
+      selectedTarget === undefined ? candidates : [...candidates, selectedTarget]);
     if (common.kind === "rejected") return undefined;
     inferred.set(name, common.target);
   }
