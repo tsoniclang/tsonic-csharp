@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { planCsharpNativeMemoryCall } from "./native-memory.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypedLocationOperationKind,
@@ -75,7 +76,61 @@ export function tryPlanCsharpTypedLocationOperation(
     return { handled: true };
   }
   switch (operation.kind) {
+    case "location-hash": {
+      const pointer = planExpression(operation.locationExpression, sourceFile, input, diagnostics);
+      return { handled: true, ...(pointer === undefined ? {} : {
+        expression: invokeMember(locationType, "Hash", [pointer]),
+      }) };
+    }
+    case "location-bind":
+    case "location-project": {
+      const args = operation.arguments.map(argument => {
+        const type = csharpTypeFromTargetTypeRef(argument.type);
+        return type === undefined ? undefined : planExpressionWithExpectedType(
+          argument.expression, sourceFile, input, diagnostics,
+          type, undefined, argument.type,
+        );
+      });
+      const typeArguments = operation.typeArguments.map(csharpTypeFromTargetTypeRef);
+      return { handled: true, ...(args.some(value => value === undefined) ||
+        typeArguments.some(value => value === undefined) ? {} : {
+          expression: invokeMember(locationType, operation.method,
+            args as CsharpExpression[], typeArguments as CsharpTypeNode[]),
+        }) };
+    }
     case "location-address": {
+      if (input.program.storage.nativeArray(operation.storage.expression)?.kind === "element") {
+        const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+        if (value?.kind === "ElementAccessExpression" && value.arguments.length === 1) {
+          return { handled: true, expression: invokeMember(value.receiver, "LocationAt", value.arguments) };
+        }
+        diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native array backing did not produce its sealed element access."));
+        return { handled: true };
+      }
+      if (operation.storage.kind === "reference-property-storage") {
+        const source = input.program.operations.property(operation.storage.expression)?.sourceOwned;
+        const shape = source?.objectShape;
+        const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
+        const backing = shape === undefined || member === undefined ? undefined
+          : input.program.storage.nativeField(shape.targetType, member.targetName);
+        if (backing !== undefined) {
+          const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+          if (value?.kind === "SimpleMemberAccessExpression") {
+            return { handled: true, expression: { kind: "SimpleMemberAccessExpression", receiver: value.receiver, name: backing.storageName } };
+          }
+          diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native field backing did not produce its sealed field access."));
+          return { handled: true };
+        }
+      }
+      if (operation.storage.kind === "direct-storage" && operation.storage.identity.kind === "local-storage" &&
+        input.program.storage.nativeBacking(operation.storage.identity.declaration) !== undefined) {
+        const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+        if (value?.kind === "SimpleMemberAccessExpression" && value.name === "Value") {
+          return { handled: true, expression: value.receiver };
+        }
+        diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native local backing did not produce its sealed location access."));
+        return { handled: true };
+      }
       const plannerState = state ??
         createDestructuringPlannerState(sourceFile, input.program.source.ast);
       return {
@@ -101,6 +156,9 @@ export function tryPlanCsharpTypedLocationOperation(
         undefined,
         operation.pointeeType,
       );
+      const backing = input.program.storage.nativeBacking(node);
+      if (backing !== undefined) return { handled: true, expression: initial === undefined
+        ? undefined : planCsharpNativeMemoryCall("Allocate", initial, backing) };
       return {
         handled: true,
         ...(initial === undefined

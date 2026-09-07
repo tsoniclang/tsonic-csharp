@@ -71,6 +71,10 @@ export interface CsharpValueRefinementClassification {
 }
 
 export interface CsharpSourceEvidenceIndex {
+  closedArrayStorage(node: Node): import("@tsonic/source-core/facts").TsonicClosedArrayStorage;
+  readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
+  readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
+  isCompileTimeMetadata(node: Node): boolean;
   readonly targetTypes: readonly TargetTypeRef[];
   nodeTargetType(node: Node): TargetTypeRef | undefined;
   storageTargetType(node: Node): TargetTypeRef | undefined;
@@ -90,6 +94,7 @@ export interface CsharpSourceEvidenceIndex {
   yieldTargetType(node: Node): TargetTypeRef | undefined;
   wellKnownSymbol(node: Node): ResolvedSourceWellKnownSymbolInfo | undefined;
   inferredCallableReturnType(node: Node): TargetTypeRef | undefined;
+  pointerReturn(node: Node): import("../../policy/types/callables/pointer-return.js").CsharpPointerReturnContract | undefined;
   argument(node: Node): CsharpSourceArgumentClassification | undefined;
   defaultValue(node: Node): CsharpSourceDefaultValue | undefined;
   sourceField(

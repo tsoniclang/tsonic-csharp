@@ -196,7 +196,7 @@ export function planReturnStatement(
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
   const expression = statement.Expression === undefined
-    ? undefined
+    ? state.currentUndefinedReturn ? { kind: "LiteralExpression" as const, value: null } : undefined
     : expectedReturnExpressionType === undefined
       ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
       : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state, expectedReturnExpressionTargetType);
@@ -346,6 +346,7 @@ export function planExpressionStatement(
     return [];
   }
   const expression = AsExpressionStatement(input.program.source.ast, node)!.Expression;
+  if (expression !== undefined && input.program.sourceEvidence.isCompileTimeMetadata(expression)) return [];
   const directYield = state === undefined || expression === undefined
     ? undefined
     : directCsharpSourceYieldExpression(input.program.source.ast, expression);

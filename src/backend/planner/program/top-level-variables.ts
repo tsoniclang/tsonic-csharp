@@ -54,6 +54,7 @@ export function planTopLevelVariableStatement(
   }
   const reassignable = declarationKind === "let" || declarationKind === "var";
   for (const declaration of declarations) {
+    if (input.program.sourceEvidence.isCompileTimeMetadata(declaration)) continue;
     const valueType = input.program.sourceEvidence.sourceStruct(declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));

@@ -277,6 +277,7 @@ export function analyzeCsharpExpectedTypes(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
     recordInitializer(node);
     recordReturnExpression(node);
     recordExpressionBodyReturn(node);
@@ -291,7 +292,27 @@ export function analyzeCsharpExpectedTypes(
     recordIntrinsicArrayLiteralElements(node);
 
     const call = operations.call(node);
-    if (call?.target?.kind === "resolved") {
+    const typedLocation = operations.typedLocation(node);
+    const nativePointer = operations.nativePointer(node);
+    if (nativePointer?.kind === "layout-query") {
+      return;
+    }
+    if (nativePointer?.kind === "raw-location") {
+      record(nativePointer.expression, nativePointer.inputType, "required");
+    } else if (nativePointer?.kind === "raw-address") {
+      for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required");
+    } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
+      typedLocation.kind !== "rejected") {
+      if (typedLocation.kind === "location-allocate") {
+        record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
+      } else if (typedLocation.kind === "location-store") {
+        record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
+      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project") {
+        for (const argument of typedLocation.arguments) {
+          record(argument.expression, argument.type, "required");
+        }
+      }
+    } else if (call?.target?.kind === "resolved") {
       recordSelectedCallReceiver(call.target, "required");
       recordSelectedCallArguments(
         call.target.source.sourceArguments,
@@ -366,14 +387,6 @@ export function analyzeCsharpExpectedTypes(
       );
     }
 
-    const typedLocation = operations.typedLocation(node);
-    if (typedLocation?.kind === "location-allocate") {
-      record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
-    } else if (typedLocation?.kind === "location-store") {
-      record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
-    }
-
-    const nativePointer = operations.nativePointer(node);
     if (nativePointer?.kind === "store") {
       record(nativePointer.valueExpression, nativePointer.pointeeType, "required");
     } else if (nativePointer?.kind === "offset") {

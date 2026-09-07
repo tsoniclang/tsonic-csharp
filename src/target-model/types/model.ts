@@ -458,6 +458,7 @@ export interface CsharpTargetConversionOperatorFact {
 }
 
 export interface CsharpTargetBindingFact extends Omit<TargetBindingFact, "members" | "typeParameters"> {
+  readonly csharpNativeMemoryFieldIds?: readonly string[];
   readonly csharpType?: TargetTypeRef;
   readonly csharpBaseType?: TargetTypeRef;
   readonly csharpRender?: CsharpTargetTypeRenderShape;

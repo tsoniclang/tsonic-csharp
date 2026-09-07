@@ -54,6 +54,8 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
+import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
+import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -62,6 +64,11 @@ export function analyzeCsharpSourceEvidence(
   types: CsharpTypePolicy,
   policy: CsharpPolicyContext,
 ): CsharpSourceEvidenceIndex {
+  const memoryMetadata = createTsonicMemoryMetadataIndex(source);
+  const pointerBacking = createTsonicPointerBackingDemands(source);
+  const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
+  const compileTimeMetadata = new WeakSet<Node>();
+  const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -79,6 +86,7 @@ export function analyzeCsharpSourceEvidence(
     Cached<ResolvedSourceWellKnownSymbolInfo>
   >();
   const inferredReturns = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const pointerReturns = new WeakMap<Node, CsharpPointerReturnContract>();
   const arguments_ = new WeakMap<
     Node,
     import("./model.js").CsharpSourceArgumentClassification
@@ -173,6 +181,15 @@ export function analyzeCsharpSourceEvidence(
   }
 
   function visit(node: Node, sourceFile: SourceFile): void {
+    pointerBacking.record(node);
+    const declaration = memoryMetadata.declaration(node);
+    if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
+      compileTimeMetadata.add(node);
+      for (const issue of declaration?.issues ?? []) memoryMetadataIssues.push(Object.freeze({
+        node: issue.node, code: "CSHARP_MEMORY_METADATA_RUNTIME_ESCAPE", message: issue.reason,
+      }));
+      return;
+    }
     if (
       node === sourceFile ||
       source.ast.is.IsImportDeclaration(node) ||
@@ -372,12 +389,10 @@ export function analyzeCsharpSourceEvidence(
             }),
       );
     }
-    inferredReturns.set(
-      node,
-      recordTargetType(
-        inferCallableReturnType(node, sourceFile, source, types),
-      ) ?? missing,
-    );
+    const inferredReturn = inferCallableReturnType(node, sourceFile, source, types);
+    const pointerReturn = types.resolvePointerReturn(node);
+    if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
+    inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
       const name = source.ast.name(node);
       if (name !== undefined) {
@@ -400,6 +415,12 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
+    closedArrayStorage: arrayStorage.resolve,
+    pointerBackingDemands: pointerBacking.entries(),
+    memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
+      node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
+    }))]),
+    isCompileTimeMetadata: node => compileTimeMetadata.has(node),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType(node) {
       return cachedValue(nodeTargetTypes.get(node));
@@ -454,6 +475,9 @@ export function analyzeCsharpSourceEvidence(
     },
     inferredCallableReturnType(node) {
       return cachedValue(inferredReturns.get(node));
+    },
+    pointerReturn(node) {
+      return pointerReturns.get(node);
     },
     argument(node) {
       return arguments_.get(node);

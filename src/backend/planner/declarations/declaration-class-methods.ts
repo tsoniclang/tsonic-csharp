@@ -109,6 +109,8 @@ export function planMethodDeclaration(
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
     state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
+  const returnContract = input.program.declarations.returnContract(node);
+  state.currentUndefinedReturn = returnContract?.kind === "resolved" && returnContract.undefinedReturn === true;
   const bodyStatements = planBlockStatements(
     declaration.Body,
     sourceFile,
@@ -116,7 +118,6 @@ export function planMethodDeclaration(
     diagnostics,
     state,
   );
-  const returnContract = input.program.declarations.returnContract(node);
   if (returnContract?.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -143,6 +144,8 @@ export function planMethodDeclaration(
       statements: [
         ...parameters.prelude,
         ...bodyStatements,
+        ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
+          ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : []),
       ],
     },
   };

@@ -64,6 +64,29 @@ export function csharpRuntimeLocationTargetType(
   );
 }
 
+export function csharpRuntimeRawPointerTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "Tsonic.CSharp.Runtime.RawPointer",
+    undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RawPointer"),
+  );
+}
+
+export function csharpRuntimeNativeLocationTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeLocation", undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLocation"));
+}
+
+export function csharpRuntimeNativeLayoutTargetType(pointee?: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(pointee === undefined ? "Tsonic.CSharp.Runtime.NativeLayout" : "Tsonic.CSharp.Runtime.NativeLayout`1",
+    pointee === undefined ? undefined : [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLayout"));
+}
+
+export function csharpRuntimeNativeArrayTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeArray`1", [pointee],
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeArray"));
+}
+
 export function csharpRuntimeLocationPointee(
   type: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {

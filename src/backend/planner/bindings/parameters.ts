@@ -29,7 +29,7 @@ import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import {
-  planCsharpTypedLocationIdentityDeclaration,
+  planCsharpParameterStorageDeclaration,
 } from "./typed-location-identities.js";
 
 export interface PlannedParameterList {
@@ -77,10 +77,11 @@ export function planParametersWithPrelude(
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
-      const locationIdentity = planCsharpTypedLocationIdentityDeclaration(
+      const locationIdentity = planCsharpParameterStorageDeclaration(
         parameterNode!,
         input,
         state,
+        diagnostics,
       );
       if (locationIdentity !== undefined) {
         prelude.push(locationIdentity);

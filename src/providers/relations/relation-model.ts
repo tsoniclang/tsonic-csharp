@@ -360,6 +360,13 @@ export function assertCsharpProviderTargetRelationContract(
   relation: CsharpProviderTargetRelation,
 ): void {
   assertCsharpProviderSourceIdentityContract(relation.source);
+  const nativeFields = relation.targetBinding.csharpNativeMemoryFieldIds;
+  if (nativeFields !== undefined && (relation.targetBinding.kind !== "struct" ||
+    !Array.isArray(nativeFields) || new Set(nativeFields).size !== nativeFields.length ||
+    nativeFields.some(id => typeof id !== "string" || id.length === 0 ||
+      !(relation.targetBinding.members ?? []).some(member => member.id === id && member.kind === "field" && !member.static && !member.readonly)))) {
+    throw new Error("C# provider binding has an invalid complete native value field contract.");
+  }
   if (
     relation.source.kind !== relation.kind ||
     relation.targetBinding.target !== "csharp" ||

@@ -7,6 +7,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpRuntimeLocationPointee, csharpTsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpTargetParameterValueType } from "../../../target-model/types/member-facts.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
 
 export function resolveNode(
@@ -254,6 +255,7 @@ export function resolveTypedLocationOperationPointeeWithState(
       );
     case "location-load":
     case "location-store":
+    case "location-hash":
       return csharpRuntimeLocationPointee(resolveSelectedValueWithState(
         operation.locationExpression,
         operation.locationType,
@@ -272,10 +274,20 @@ export function resolveTypedLocationOperationPointeeWithState(
         sourceFile,
         nextState(state),
       ));
-    case "location-hash":
     case "location-bind":
+      return getCsharpDelegateSignature(resolveSelectedValueWithState(
+        operation.readExpression,
+        operation.readType,
+        sourceFile,
+        nextState(state),
+      ))?.returnType;
     case "location-project":
-      return undefined;
+      return getCsharpDelegateSignature(resolveSelectedValueWithState(
+        operation.fromSourceExpression,
+        operation.fromSourceType,
+        sourceFile,
+        nextState(state),
+      ))?.returnType;
   }
 }
 

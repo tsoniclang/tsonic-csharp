@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import { createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -132,6 +133,7 @@ export function analyzeCsharpTargetProgram(
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
     providers,
+    pointerReturns: createTsonicPointerReturnQueries(source),
     target: input.target,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,
@@ -200,6 +202,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const analysisIssues = [
+    ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,
@@ -247,6 +250,7 @@ export function analyzeCsharpTargetProgram(
     navigation: source.navigation,
   });
   const moduleInitialization = analyzeCsharpModuleInitialization({
+    sourceEvidence: analysis.sourceEvidence,
     source,
     sourceFiles,
     projectRoot: input.paths.projectRoot,

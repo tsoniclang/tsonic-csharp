@@ -202,6 +202,7 @@ function visit(
   binaryExecutionDrivers:
     import("../../target-model/types/model.js").CsharpTargetBinaryExecutionDriver[],
 ): void {
+  if (evidence.isCompileTimeMetadata(node)) return;
   const { ast } = policy;
   setClassification(
     builder,

@@ -1,4 +1,7 @@
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
+import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
+import { planCsharpNativeMemoryCall } from "../../expressions/native-memory.js";
+import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpClassDeclaration,
@@ -37,6 +40,7 @@ export function renderObjectShapeMembers(
   receiverBoundMethodKeys: ReadonlySet<string>,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  storage: CsharpStorageClassifications,
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
     const type = csharpTypeFromTargetTypeRef(member.type);
@@ -65,6 +69,23 @@ export function renderObjectShapeMembers(
         diagnostics,
         diagnosticSubject,
       );
+    }
+    const backing = storage.nativeField(fact.targetType, member.targetName);
+    if (backing !== undefined) {
+      const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type));
+      const initializer = planCsharpNativeMemoryCall("Allocate", { kind: "DefaultExpression", type }, backing.layout);
+      if (locationType === undefined || initializer === undefined) return [undefined];
+      const location: CsharpExpression = { kind: "IdentifierName", name: backing.storageName };
+      const access = (name: string, args: readonly CsharpExpression[]): CsharpExpression => ({ kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: location, name },
+        arguments: args.map(expression => ({ kind: "Argument", expression })) });
+      return [{ kind: "FieldDeclaration" as const, name: backing.storageName, type: locationType,
+        modifiers: ["internal", "readonly"] as const, initializer },
+      { kind: "PropertyDeclaration" as const, name: member.targetName, type,
+        modifiers: ["public", "required"] as const,
+        getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: access("Load", []) }] },
+        setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const,
+          expression: access("Store", [{ kind: "IdentifierName", name: "value" }]) }] } }];
     }
     if (implementsInterface) {
       return [{

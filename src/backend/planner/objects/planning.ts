@@ -250,6 +250,7 @@ function renderObjectShapeDeclaration(
     new Set(receiverBoundMethodKeys),
     undefined,
     undefined,
+    input.program.storage,
   );
   if (
     interfaces === undefined ||

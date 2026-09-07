@@ -51,8 +51,29 @@ export type CsharpSourceTypedLocationOperation =
       readonly rightType: Type;
     }
   | CsharpSourceTypedLocationOperationBase & {
-      readonly kind: "location-hash" | "location-bind" | "location-project";
-      readonly sourceOperation: "hash-pointer" | "bind-pointer" | "project-pointer";
+      readonly kind: "location-hash";
+      readonly locationExpression: Node;
+      readonly locationType: Type;
+    }
+  | CsharpSourceTypedLocationOperationBase & {
+      readonly kind: "location-bind";
+      readonly identityExpression: Node;
+      readonly identityType: Type;
+      readonly readExpression: Node;
+      readonly readType: Type;
+      readonly writeExpression: Node;
+      readonly writeType: Type;
+    }
+  | CsharpSourceTypedLocationOperationBase & {
+      readonly kind: "location-project";
+      readonly sourcePointeeType: Type;
+      readonly explicitSourcePointeeTypeNode?: Node;
+      readonly locationExpression: Node;
+      readonly locationType: Type;
+      readonly fromSourceExpression: Node;
+      readonly fromSourceType: Type;
+      readonly toSourceExpression: Node;
+      readonly toSourceType: Type;
     };
 
 export function readCsharpSourceTypedLocationOperation(
@@ -123,19 +144,34 @@ export function readCsharpSourceTypedLocationOperation(
       return Object.freeze({
         ...base,
         kind: "location-hash",
-        sourceOperation: operation.operation,
+        locationExpression: operation.pointerExpression,
+        locationType: operation.pointerType,
       });
     case "bind-pointer":
       return Object.freeze({
         ...base,
         kind: "location-bind",
-        sourceOperation: operation.operation,
+        identityExpression: operation.identityExpression,
+        identityType: operation.identityType,
+        readExpression: operation.readExpression,
+        readType: operation.readType,
+        writeExpression: operation.writeExpression,
+        writeType: operation.writeType,
       });
     case "project-pointer":
       return Object.freeze({
         ...base,
         kind: "location-project",
-        sourceOperation: operation.operation,
+        sourcePointeeType: operation.sourcePointeeType,
+        ...(operation.explicitSourcePointeeTypeNode === undefined
+          ? {}
+          : { explicitSourcePointeeTypeNode: operation.explicitSourcePointeeTypeNode }),
+        locationExpression: operation.pointerExpression,
+        locationType: operation.pointerType,
+        fromSourceExpression: operation.fromSourceExpression,
+        fromSourceType: operation.fromSourceType,
+        toSourceExpression: operation.toSourceExpression,
+        toSourceType: operation.toSourceType,
       });
   }
 }

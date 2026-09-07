@@ -83,7 +83,10 @@ export function planIdentifierExpression(
     name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
-  return planFlowReadUseSiteProjection(identifier, expression, sourceFile, input, diagnostics);
+  const declaration = declarationReference?.declaration;
+  const value: CsharpExpression = declaration !== undefined && input.program.storage.nativeBacking(declaration) !== undefined
+    ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
+  return planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics);
 }
 
 function planProviderValueReference(

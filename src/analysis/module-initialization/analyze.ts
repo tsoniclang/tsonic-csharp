@@ -29,6 +29,7 @@ import type {
 } from "./model.js";
 
 interface CsharpModuleInitializationAnalysisInput {
+  readonly sourceEvidence: import("../source-evidence/model.js").CsharpSourceEvidenceIndex;
   readonly source: TargetSourceProgram;
   readonly sourceFiles: readonly SourceFile[];
   readonly projectRoot: string;
@@ -134,6 +135,7 @@ function isErasedCompileTimeStatement(
   if (expression === undefined) {
     return false;
   }
+  if (input.sourceEvidence.isCompileTimeMetadata(expression)) return true;
   if (input.attributeApplications.forSubject(expression) !== undefined) {
     return true;
   }
@@ -156,6 +158,7 @@ function variableStatementHasInitializer(
   return input.source.ast.children(declarationList).some((node) =>
     node !== undefined &&
     input.source.ast.is.IsVariableDeclaration(node) &&
+    !input.sourceEvidence.isCompileTimeMetadata(node) &&
     AsVariableDeclaration(input.source.ast, node)?.Initializer !== undefined);
 }
 

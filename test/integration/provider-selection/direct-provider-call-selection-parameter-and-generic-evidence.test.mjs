@@ -300,6 +300,65 @@ test("selected method type arguments close generic target methods directly", () 
   assert.deepEqual(selected.call.targetMember.returnType, int32);
 });
 
+test("inferred provider method bounds use one order-independent implicit target", () => {
+  const int32 = csharpSourcePrimitiveTargetType("int32");
+  const uint32 = csharpSourcePrimitiveTargetType("uint32");
+  const int64 = csharpSourcePrimitiveTargetType("int64");
+  const float64 = csharpSourcePrimitiveTargetType("float64");
+  const cases = [
+    [[int32, float64], float64],
+    [[float64, int32], float64],
+    [[int32, uint32, int64], int64],
+    [[uint32, int32, int64], int64],
+    [[int64, int32, uint32], int64],
+    [[int32, int32], int32],
+    [[float64, csharpNullableValueTargetType(int32)], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
+    [[csharpNullableValueTargetType(int32), float64], csharpNullableValueTargetType(float64), csharpNullableValueTargetType(float64)],
+  ];
+  for (const [sourceArgumentTargets, expected, selectedTarget = float64] of cases) {
+    const selectedType = {};
+    const parameterType = { kind: "type-parameter", name: "T" };
+    const method = providerMethod({
+      parameters: sourceArgumentTargets.map((_, index) => targetParameter(`value${index}`, parameterType)),
+      returnType: parameterType,
+      typeParameters: [{ name: "T" }],
+    });
+    const fixture = createCallFixture({
+      member: method,
+      targetParameters: method.parameters,
+      sourceArgumentTargets,
+      methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
+      additionalSemanticTypes: [[selectedType, selectedTarget]],
+    });
+    const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+    assert.equal(selected.kind, "resolved", JSON.stringify(selected));
+    assert.deepEqual(selected.call.targetMethodTypeArguments[0].targetType, expected);
+    assert.deepEqual(selected.call.targetMember.returnType, expected);
+  }
+});
+
+test("inferred provider method bounds cannot widen invariant native carriers", () => {
+  const selectedType = {};
+  const parameterType = { kind: "type-parameter", name: "T" };
+  const invariant = type => csharpTargetNamedType("Fixture.Invariant", [type]);
+  const method = providerMethod({
+    parameters: [targetParameter("first", invariant(parameterType)), targetParameter("second", invariant(parameterType))],
+    returnType: parameterType,
+    typeParameters: [{ name: "T" }],
+  });
+  const float64 = csharpSourcePrimitiveTargetType("float64");
+  const fixture = createCallFixture({
+    member: method,
+    targetParameters: method.parameters,
+    sourceArgumentTargets: [invariant(csharpSourcePrimitiveTargetType("int32")), invariant(float64)],
+    methodTypeArguments: [{ typeParameterName: "T", typeParameter: {}, selectedType }],
+    additionalSemanticTypes: [[selectedType, float64]],
+  });
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  assert.equal(selected.kind, "missing");
+  assert.match(selected.reason, /cannot satisfy exact target parameter/u);
+});
+
 test("generic method closure fails when selected type-argument evidence is absent", () => {
   const method = providerMethod({
     id: "Fixture.Target.Identity``1(T)",

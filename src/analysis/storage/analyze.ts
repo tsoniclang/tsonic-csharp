@@ -1,4 +1,6 @@
 import type { Node } from "@tsonic/tsts";
+import { analyzeCsharpNativeBacking } from "./native-backing.js";
+import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import {
   csharpConversionIsApplicable,
 } from "../../policy/conversions/index.js";
@@ -55,7 +57,8 @@ export function analyzeCsharpStorage(
   previous?: CsharpStorageClassifications,
 ): CsharpStorageClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
-  const issues: CsharpStorageIssue[] = [];
+  const nativeBacking = analyzeCsharpNativeBacking(policy, evidence, operations);
+  const issues: CsharpStorageIssue[] = [...nativeBacking.issues];
   const nodes: Node[] = [];
 
   for (const sourceFile of policy.sourceFiles) {
@@ -121,6 +124,12 @@ export function analyzeCsharpStorage(
   }
 
   const classifications: CsharpStorageClassifications = {
+    nativeArrays: nativeBacking.arrays,
+    nativeArray: nativeBacking.array,
+    nativeFields: nativeBacking.fields,
+    nativeField: nativeBacking.field,
+    nativeBackings: nativeBacking.entries,
+    nativeBacking: nativeBacking.get,
     issues: Object.freeze(issues),
     contracts: Object.freeze([...contracts.values()].flatMap((contract) => {
       const type = resolvedTypes.get(contract.declaration);
@@ -145,12 +154,28 @@ export function analyzeCsharpStorage(
       return requiredTypes.get(node);
     },
     requiresTypedLocationIdentity(declaration) {
-      return contracts.get(declaration)?.typedLocationIdentity === true;
+      return nativeBacking.get(declaration) === undefined && nativeBacking.array(declaration) === undefined && contracts.get(declaration)?.typedLocationIdentity === true;
     },
   };
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
+    if (evidence.isCompileTimeMetadata(node)) return;
+    if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0 || nativeBacking.arrays.length > 0) {
+      const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
+      if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
+        const declaration = policy.navigation.referenceFor(passing.argument.storageExpression)?.declaration;
+        const property = operations.property(passing.argument.storageExpression)?.sourceOwned;
+        const shape = property?.objectShape;
+        const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
+        const field = shape === undefined || member === undefined ? undefined
+          : nativeBacking.field(shape.targetType, member.targetName);
+        if (nativeBacking.array(passing.argument.storageExpression) !== undefined || field !== undefined || declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
+          issues.push(issue(node, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN",
+            "A physically backed location cannot be passed as a managed byref without an exact native reference contract."));
+        }
+      }
+    }
     nodes.push(node);
     for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
       recordPromotedRepresentation(node, expectedType);
@@ -542,6 +567,23 @@ export function csharpStorageClassificationsEqual(
   right: CsharpStorageClassifications,
 ): boolean {
   return left.issues.length === right.issues.length &&
+    left.nativeArrays.length === right.nativeArrays.length && left.nativeArrays.every((entry, index) => {
+      const other = right.nativeArrays[index];
+      return other !== undefined && entry.subject === other.subject && entry.storage.kind === other.storage.kind &&
+        entry.storage.stride === other.storage.stride && csharpNativeMemoryLayoutsEqual(entry.storage.layout, other.storage.layout);
+    }) &&
+    left.nativeFields.length === right.nativeFields.length &&
+    left.nativeFields.every((entry, index) => {
+      const other = right.nativeFields[index];
+      return other !== undefined && targetTypeRefEquals(entry.owner, other.owner) &&
+        entry.memberName === other.memberName && entry.storageName === other.storageName &&
+        csharpNativeMemoryLayoutsEqual(entry.layout, other.layout);
+    }) &&
+    left.nativeBackings.length === right.nativeBackings.length &&
+    left.nativeBackings.every((entry, index) => {
+      const other = right.nativeBackings[index];
+      return other !== undefined && entry.subject === other.subject && csharpNativeMemoryLayoutsEqual(entry.layout, other.layout);
+    }) &&
     left.contracts.length === right.contracts.length &&
     left.issues.every((candidate, index) => {
       const other = right.issues[index];
