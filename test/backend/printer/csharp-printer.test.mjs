@@ -24,6 +24,8 @@ import {
   targetTypeRefEquals,
 } from "../../../dist/policy/types/index.js";
 
+const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
+
 test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" }, rank: 2 }), "int[,]");
@@ -627,6 +629,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       new Set(),
       undefined,
       undefined,
+      unbackedObjectStorage,
     ),
     undefined,
   );
@@ -644,6 +647,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
     new Set(),
     undefined,
     undefined,
+    unbackedObjectStorage,
   );
   assert.ok(members);
   assert.equal(members.length, 2);
@@ -674,6 +678,7 @@ test("object shape methods require explicit delegate signature metadata", () => 
       new Set(),
       diagnostics,
       { Kind: "KindTypeLiteral" },
+      unbackedObjectStorage,
     ),
     undefined,
   );
@@ -710,6 +715,7 @@ test("object shape declarations enforce required members while leaving optional 
     new Set(),
     undefined,
     undefined,
+    unbackedObjectStorage,
   );
   assert.deepEqual(Object.fromEntries(fields?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
@@ -721,6 +727,7 @@ test("object shape declarations enforce required members while leaving optional 
     new Set(),
     undefined,
     undefined,
+    unbackedObjectStorage,
   );
   assert.deepEqual(Object.fromEntries(properties?.map((member) => [member.name, member.modifiers]) ?? []), {
     optionalValue: ["public"],
