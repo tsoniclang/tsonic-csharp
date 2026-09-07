@@ -124,6 +124,8 @@ export function analyzeCsharpStorage(
   }
 
   const classifications: CsharpStorageClassifications = {
+    nativeArrays: nativeBacking.arrays,
+    nativeArray: nativeBacking.array,
     nativeFields: nativeBacking.fields,
     nativeField: nativeBacking.field,
     nativeBackings: nativeBacking.entries,
@@ -152,14 +154,14 @@ export function analyzeCsharpStorage(
       return requiredTypes.get(node);
     },
     requiresTypedLocationIdentity(declaration) {
-      return nativeBacking.get(declaration) === undefined && contracts.get(declaration)?.typedLocationIdentity === true;
+      return nativeBacking.get(declaration) === undefined && nativeBacking.array(declaration) === undefined && contracts.get(declaration)?.typedLocationIdentity === true;
     },
   };
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node)) return;
-    if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0) {
+    if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0 || nativeBacking.arrays.length > 0) {
       const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
       if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
         const declaration = policy.navigation.referenceFor(passing.argument.storageExpression)?.declaration;
@@ -168,7 +170,7 @@ export function analyzeCsharpStorage(
         const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
         const field = shape === undefined || member === undefined ? undefined
           : nativeBacking.field(shape.targetType, member.targetName);
-        if (field !== undefined || declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
+        if (nativeBacking.array(passing.argument.storageExpression) !== undefined || field !== undefined || declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
           issues.push(issue(node, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN",
             "A physically backed location cannot be passed as a managed byref without an exact native reference contract."));
         }
@@ -565,6 +567,11 @@ export function csharpStorageClassificationsEqual(
   right: CsharpStorageClassifications,
 ): boolean {
   return left.issues.length === right.issues.length &&
+    left.nativeArrays.length === right.nativeArrays.length && left.nativeArrays.every((entry, index) => {
+      const other = right.nativeArrays[index];
+      return other !== undefined && entry.subject === other.subject && entry.storage.kind === other.storage.kind &&
+        entry.storage.stride === other.storage.stride && csharpNativeMemoryLayoutsEqual(entry.storage.layout, other.storage.layout);
+    }) &&
     left.nativeFields.length === right.nativeFields.length &&
     left.nativeFields.every((entry, index) => {
       const other = right.nativeFields[index];

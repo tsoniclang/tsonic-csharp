@@ -1,7 +1,7 @@
 import type { CsharpExpression, CsharpStatement } from "../../target-ast/roslyn/index.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
-import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeNativeLayoutTargetType, csharpRuntimeNativeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/runtime-carriers.js";
 
 export function planCsharpNativeMemoryCall(
   method: "Allocate" | "ToRaw" | "Reinterpret", value: CsharpExpression, layout: CsharpNativeMemoryLayout,
@@ -15,6 +15,13 @@ export function planCsharpNativeMemoryCall(
     receiver: owner,
     name: method, typeArguments: [pointee],
   }, arguments: [value, codec].map(expression => ({ kind: "Argument", expression })) };
+}
+
+export function planCsharpNativeArray(initial: CsharpExpression, layout: CsharpNativeMemoryLayout, stride: number): CsharpExpression | undefined {
+  const type = csharpTypeFromTargetTypeRef(csharpRuntimeNativeArrayTargetType(layout.pointeeType));
+  const codec = planCsharpNativeLayout(layout);
+  return type === undefined || codec === undefined ? undefined : { kind: "ObjectCreationExpression", type,
+    arguments: [initial, codec, numeric(stride)].map(expression => ({ kind: "Argument", expression })) };
 }
 
 function planCsharpNativeLayout(layout: CsharpNativeMemoryLayout): CsharpExpression | undefined {

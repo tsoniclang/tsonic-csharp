@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability, nativeLocationProofSource } from "../../../helpers/memory-abi.mjs";
-import { nativeRecordProofSource, nativeFieldProofSource } from "../../../helpers/native-record-proof.mjs";
+import { nativeRecordProofSource, nativeFieldProofSource, nativeArrayProofSource } from "../../../helpers/native-record-proof.mjs";
 
 for (const [name, sourceText] of [
   ["self", `export function make(): Pointer<typeof make> { return allocatePointer<typeof make>(make); }`],
@@ -34,7 +34,7 @@ for (const [name, sourceText] of [
 }
 
 for (const [name, sourceText] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
-  ["object field", nativeFieldProofSource]]) {
+  ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource]]) {
 test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText, capabilities: [memoryAbiCapability("csharp")] });
   assert.equal(compiled.sourceDiagnosticsText, "");
@@ -42,7 +42,7 @@ test(`native ${name} locations retain storage and replacement semantics`, { time
   assert.deepEqual(compiled.targetDiagnostics, []);
   const output = compiled.artifacts.get("src/Index.cs");
   assert.match(output, name === "scalar" ? /NativeLocation.Allocate<uint>/u
-    : name === "object field" ? /valueLocation/u : /ReadAt<uint>/u);
+    : name === "object field" ? /valueLocation/u : name === "array element" ? /NativeArray<uint>/u : /ReadAt<uint>/u);
   assert.match(output, /NativeLocation.Reinterpret<uint>/u);
   if (name === "scalar") assert.match(output, /value.Value/u);
   const repository = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -68,6 +68,35 @@ test(`native ${name} locations retain storage and replacement semantics`, { time
 }
 
 for (const [name, source, diagnostic] of [
+  ["managed byref from native array element", `import { UInt32 } from "@tsonic/dotnet/System.js";
+    import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
+    export function expose(): boolean {
+      const values: uint32[] = [1];
+      toRawPointer(addressOf(values[0]), word);
+      return UInt32.TryParse("2", writeOnlyRef(values[0]));
+    }`, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN"],
+  ["conflicting array layouts", `import { addressOf } from "@tsonic/core/lang.js";
+    const packed = memoryLayout<uint32>(abi, 4, 1, 4);
+    export function expose(): void {
+      const values: uint32[] = [1, 2];
+      const alias = values;
+      toRawPointer(addressOf(values[0]), word);
+      toRawPointer(addressOf(alias[0]), packed);
+    }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
+  ["escaping array storage", `import { addressOf } from "@tsonic/core/lang.js";
+    declare function escape(values: uint32[]): void;
+    export function expose(): void {
+      const values: uint32[] = [1];
+      toRawPointer(addressOf(values[0]), word);
+      escape(values);
+    }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
+  ["captured array storage", `import { addressOf } from "@tsonic/core/lang.js";
+    export function expose(): void {
+      const values: uint32[] = [1];
+      toRawPointer(addressOf(values[0]), word);
+      const read = () => values[0];
+      read();
+    }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
   ["managed byref from native object field", `import { UInt32 } from "@tsonic/dotnet/System.js";
     import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
     export function expose(): boolean {

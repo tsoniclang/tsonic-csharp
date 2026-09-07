@@ -82,6 +82,11 @@ export function csharpRuntimeNativeLayoutTargetType(pointee?: TargetTypeRef): Cs
     pointee === undefined ? undefined : [pointee], csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeLayout"));
 }
 
+export function csharpRuntimeNativeArrayTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.NativeArray`1", [pointee],
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "NativeArray"));
+}
+
 export function csharpRuntimeLocationPointee(
   type: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {

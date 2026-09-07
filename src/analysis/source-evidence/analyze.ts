@@ -54,7 +54,7 @@ import {
 } from "../../policy/types/index.js";
 
 const missing = Symbol("csharp.source-evidence.missing");
-import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands } from "@tsonic/source-core/facts";
+import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
 type Cached<Value> = Value | typeof missing;
 
@@ -66,6 +66,7 @@ export function analyzeCsharpSourceEvidence(
 ): CsharpSourceEvidenceIndex {
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
+  const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const compileTimeMetadata = new WeakSet<Node>();
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
@@ -414,6 +415,7 @@ export function analyzeCsharpSourceEvidence(
   }
 
   const index: CsharpSourceEvidenceIndex = {
+    closedArrayStorage: arrayStorage.resolve,
     pointerBackingDemands: pointerBacking.entries(),
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,

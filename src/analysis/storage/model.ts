@@ -15,7 +15,15 @@ export interface CsharpStorageIssue {
   readonly message: string;
 }
 
+export interface CsharpNativeArrayStorage {
+  readonly kind: "binding" | "reference" | "literal" | "element";
+  readonly layout: CsharpNativeMemoryLayout;
+  readonly stride: number;
+}
+
 export interface CsharpStorageClassifications {
+  readonly nativeArrays: readonly { readonly subject: Node; readonly storage: CsharpNativeArrayStorage }[];
+  nativeArray(subject: Node): CsharpNativeArrayStorage | undefined;
   readonly nativeFields: readonly CsharpNativeObjectField[];
   nativeField(owner: TargetTypeRef, memberName: string): CsharpNativeObjectField | undefined;
   readonly nativeBackings: readonly { readonly subject: Node; readonly layout: import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout }[];

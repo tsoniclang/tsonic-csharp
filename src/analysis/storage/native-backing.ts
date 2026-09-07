@@ -8,7 +8,7 @@ import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/ob
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type { CsharpNativeObjectField, CsharpStorageIssue } from "./model.js";
+import type { CsharpNativeObjectField, CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
 
 export function analyzeCsharpNativeBacking(
   policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
@@ -16,6 +16,7 @@ export function analyzeCsharpNativeBacking(
 ) {
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
   const fields = new Map<string, CsharpNativeObjectField>();
+  const arrays = new Map<Node, CsharpNativeArrayStorage>();
   const fieldKey = (owner: TargetTypeRef, name: string): string => JSON.stringify([targetTypeRefKey(owner), name]);
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
@@ -49,6 +50,29 @@ export function analyzeCsharpNativeBacking(
     let subject = origin.call;
     if (operation.kind === "location-address") {
       const storage = operation.storage;
+      if (storage.kind === "reference-element-storage") {
+        const component = evidence.closedArrayStorage(storage.expression);
+        if (component.kind !== "closed") { reject(origin.call, component.reason); continue; }
+        const subjects: [Node, CsharpNativeArrayStorage["kind"]][] = [
+          ...component.declarations.map(node => [node, "binding"] as [Node, "binding"]),
+          ...component.references.map(node => [node, "reference"] as [Node, "reference"]),
+          ...component.literals.map(node => [node, "literal"] as [Node, "literal"]),
+          ...component.elements.map(element => [element.expression, "element"] as [Node, "element"]),
+        ];
+        const valid = component.declarations.every(node => {
+          const carrier = evidence.storageTargetType(node);
+          return carrier?.kind === "array" && targetTypeRefEquals(carrier.element, selected.pointeeType);
+        }) && component.elements.every(element => {
+          const target = operations.element(element.expression);
+          return target?.receiverType?.kind === "array" && targetTypeRefEquals(target.receiverType.element, selected.pointeeType);
+        }) && subjects.every(([node]) => {
+          const previous = arrays.get(node);
+          return previous === undefined || previous.stride === layout.stride && csharpNativeMemoryLayoutsEqual(previous.layout, selected);
+        });
+        if (!valid) { reject(origin.call, "Native array aliases require one exact element carrier, stride and layout."); continue; }
+        for (const [subject, kind] of subjects) arrays.set(subject, Object.freeze({ kind, layout: selected, stride: layout.stride }));
+        continue;
+      }
       if (storage.kind === "reference-property-storage") {
         const source = operations.property(storage.expression)?.sourceOwned;
         const shape = source?.objectShape;
@@ -107,6 +131,8 @@ export function analyzeCsharpNativeBacking(
     } else backings.set(subject, selected);
   }
   return Object.freeze({ issues: Object.freeze(issues),
+    arrays: Object.freeze([...arrays].map(([subject, storage]) => Object.freeze({ subject, storage }))),
+    array: (node: Node) => arrays.get(node),
     fields: Object.freeze([...fields.values()]),
     field: (owner: TargetTypeRef, name: string) => fields.get(fieldKey(owner, name)),
     entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),

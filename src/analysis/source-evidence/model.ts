@@ -71,6 +71,7 @@ export interface CsharpValueRefinementClassification {
 }
 
 export interface CsharpSourceEvidenceIndex {
+  closedArrayStorage(node: Node): import("@tsonic/source-core/facts").TsonicClosedArrayStorage;
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
   isCompileTimeMetadata(node: Node): boolean;

@@ -1,5 +1,6 @@
 import type {
   CsharpPlanningContext } from "../../context.js";
+import { planCsharpNativeArray } from "../native-memory.js";
 import {
   AsArrayLiteralExpression,
   AsSpreadElement,
@@ -54,11 +55,13 @@ export function planArrayLiteralExpression(
   if (elements === undefined) {
     return undefined;
   }
-  return {
+  const array: CsharpExpression = {
     kind: "ArrayCreationExpression",
     elementType,
     elements,
   };
+  const native = input.program.storage.nativeArray(node);
+  return native === undefined ? array : planCsharpNativeArray(array, native.layout, native.stride);
 }
 
 export function plannedArrayElements(

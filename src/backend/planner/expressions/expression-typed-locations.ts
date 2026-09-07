@@ -99,6 +99,14 @@ export function tryPlanCsharpTypedLocationOperation(
         }) };
     }
     case "location-address": {
+      if (input.program.storage.nativeArray(operation.storage.expression)?.kind === "element") {
+        const value = planExpression(operation.storage.expression, sourceFile, input, diagnostics);
+        if (value?.kind === "ElementAccessExpression" && value.arguments.length === 1) {
+          return { handled: true, expression: invokeMember(value.receiver, "LocationAt", value.arguments) };
+        }
+        diagnostics.push(typedLocationDiagnostic(node, operation.kind, "Native array backing did not produce its sealed element access."));
+        return { handled: true };
+      }
       if (operation.storage.kind === "reference-property-storage") {
         const source = input.program.operations.property(operation.storage.expression)?.sourceOwned;
         const shape = source?.objectShape;
