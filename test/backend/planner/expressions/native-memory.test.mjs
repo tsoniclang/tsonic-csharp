@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability, nativeLocationProofSource } from "../../../helpers/memory-abi.mjs";
 import { nativeRecordProofSource, nativeFieldProofSource, nativeArrayProofSource } from "../../../helpers/native-record-proof.mjs";
 
@@ -19,10 +19,9 @@ for (const [name, sourceText] of [
       ${sourceText}`;
     const helper = new URL("../../../helpers/direct-csharp-session.mjs", import.meta.url).href;
     const script = `import assert from "node:assert/strict";
-      import { compileCsharpSource } from ${JSON.stringify(helper)};
+      import { assertCsharpCheckingSucceeded, compileCsharpSource } from ${JSON.stringify(helper)};
       const compiled = compileCsharpSource({ sourceText: ${JSON.stringify(source)} });
-      assert.equal(compiled.sourceDiagnosticsText, "");
-      assert.deepEqual(compiled.extensionDiagnostics, []);
+      assertCsharpCheckingSucceeded(compiled);
       assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.code === "CSHARP_UNSUPPORTED_AST"));
       assert.equal(compiled.artifacts.size, 0);`;
     const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
@@ -37,9 +36,7 @@ for (const [name, sourceText] of [["scalar", nativeLocationProofSource], ["neste
   ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource]]) {
 test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText, capabilities: [memoryAbiCapability("csharp")] });
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.targetDiagnostics, []);
+  assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
   assert.match(output, name === "scalar" ? /NativeLocation.Allocate<uint>/u
     : name === "object field" ? /valueLocation/u : name === "array element" ? /NativeArray<uint>/u : /ReadAt<uint>/u);
@@ -143,8 +140,7 @@ import type { Pointer, RawPointer, uint32 } from "@tsonic/core/types.js";
 const word = memoryLayout<uint32>(abi, 4, 4, 4);
 ${source}
 ` });
-    assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.extensionDiagnostics, []);
+    assertCsharpCheckingSucceeded(compiled);
     assert.ok(compiled.targetDiagnostics.some(item => item.code === diagnostic), JSON.stringify(compiled.targetDiagnostics, null, 2));
     assert.equal(compiled.artifacts.size, 0);
   });
