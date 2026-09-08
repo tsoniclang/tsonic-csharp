@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { nativeMemoryProvider, nativeProviderProofSource, nativeProviderInferredProofSource } from "../../helpers/native-memory-provider.mjs";
 import { nativeRecordProvider, nativeProviderRecordProofSource } from "../../helpers/native-record-proof.mjs";
@@ -17,9 +17,7 @@ function compile(options = {}, sourceText = nativeProviderProofSource, records =
 
 function verifyProviderSource(sourceText, records = false) {
   const compiled = compile({}, sourceText, records);
-  assert.equal(compiled.sourceDiagnosticsText, "");
-  assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.targetDiagnostics, []);
+  assertCsharpCompilationSucceeded(compiled);
   const repository = fileURLToPath(new URL("../../../", import.meta.url));
   const scratch = join(repository, ".temp");
   mkdirSync(scratch, { recursive: true });
@@ -63,8 +61,7 @@ test("selected native provider records preserve packed nested fields and value c
 for (const options of [{ missingField: true }, { wrongField: true }, { missingContract: true }]) {
   test(`native record rejects ${Object.keys(options)[0]} before publishing artifacts`, () => {
     const compiled = compile(options, nativeProviderRecordProofSource, true);
-    assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.extensionDiagnostics, []);
+    assertCsharpCheckingSucceeded(compiled);
     assert.ok(compiled.targetDiagnostics.some(diagnostic =>
       diagnostic.code === "CSHARP_NATIVE_BACKING_NOT_PROVEN" || diagnostic.message.includes("native value representation")),
     JSON.stringify(compiled.targetDiagnostics));
@@ -81,8 +78,7 @@ for (const [name, sourceText] of [["helpers and containers", nativeProviderProof
 for (const options of [{ missingRelation: true }, { wrongCarrier: true }, { wrongPointee: true }, { wrongGenericPointee: true }, { wrongByRefPointee: true }]) {
   test(`native provider rejects ${Object.keys(options)[0]} before publishing artifacts`, () => {
     const compiled = compile(options);
-    assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.deepEqual(compiled.extensionDiagnostics, []);
+    assertCsharpCheckingSucceeded(compiled);
     assert.ok(compiled.targetDiagnostics.some(diagnostic => options.missingRelation
       ? diagnostic.code === "CSHARP_UNSUPPORTED_AST" && diagnostic.message.includes("no C# target relation")
       : diagnostic.code === "CSHARP_TARGET_CALL_NOT_CLOSED" && diagnostic.message.includes("canonical source pointer carrier")),
