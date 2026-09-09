@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../../context.js";
 import {
   AsSpreadAssignment,
   HasSourceKind,
@@ -11,27 +11,27 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
-} from "../../target-ast/roslyn/index.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberBySourceKey,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+} from "../../diagnostics.js";
 import {
   objectShapeStorageMemberName,
-} from "../objects/index.js";
+} from "../index.js";
 import type {
   ExpressionPlanner,
-} from "./expression-planner-types.js";
+} from "../../expressions/expression-planner-types.js";
 import {
   getExpectedObjectShapeFact,
   objectShapeMemberTypesMatch,
-} from "./expression-object-literal-support.js";
+} from "./support.js";
 
 export function planObjectShapeSpreadAssignments(
   spreadNode: Node,

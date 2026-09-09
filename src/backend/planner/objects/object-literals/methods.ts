@@ -1,7 +1,7 @@
 import {
   createCsharpThisBindingPlanningContext,
-} from "../context.js";
-import type { CsharpPlanningContext } from "../context.js";
+} from "../../context.js";
+import type { CsharpPlanningContext } from "../../context.js";
 import { AsMethodDeclaration } from "@tsonic/target-api/source";
 import type {
   Node,
@@ -12,34 +12,34 @@ import { type TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-} from "../../target-ast/roslyn/index.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+} from "../../diagnostics.js";
 import {
   objectShapeStorageMemberName,
   objectShapeMethodStorageTargetType,
-} from "../objects/index.js";
+} from "../index.js";
 import {
   csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+} from "../../types/target-types.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
-} from "../bindings/index.js";
+} from "../../bindings/index.js";
 import {
   isAsyncExpression,
   csharpDelegateSignatureFromTargetTypeRef,
   lambdaTargetContextFromTargetRef,
   planLambdaBlockBody,
   planLambdaParameters,
-} from "./expression-lambdas.js";
+} from "../../expressions/expression-lambdas.js";
 import {
   findObjectShapeMemberForProperty,
-} from "./expression-object-literal-support.js";
+} from "./support.js";
 
 export function planObjectShapeMethodMemberAssignment(
   methodNode: Node,

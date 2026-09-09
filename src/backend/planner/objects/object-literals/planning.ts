@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../../context.js";
 import {
   AsObjectLiteralExpression,
   KindMethodDeclaration,
@@ -11,33 +11,33 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../../target-model/types/index.js";
 import {
   isCsharpJsValueTargetType,
   isCsharpJsValueObjectShapeTargetType,
   projectCsharpJsValueObjectLiteralShape,
   validateCsharpJsValueObjectShapeCarrier,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
-import type { CsharpObjectShapeFact } from "../../../target-model/types/index.js";
-import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { csharpConstructibleTypeFromObjectShapeFact } from "../objects/index.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
+import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
+import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
 import {
   translateCsharpJsValueInvocation,
-} from "./js-value-operations.js";
+} from "../../expressions/js-value-operations.js";
 import type {
   ExpectedExpressionPlanner,
   ExpressionPlanner,
-} from "./expression-planner-types.js";
+} from "../../expressions/expression-planner-types.js";
 import {
   planExplicitObjectShapeLiteralMember,
   planObjectShapeLiteralAssignment,
-} from "./expression-object-literal-assignments.js";
+} from "./assignments.js";
 import {
   getExpectedObjectShapeFact,
   mergeObjectInitializerAssignments,
-} from "./expression-object-literal-support.js";
+} from "./support.js";
 
 export function planObjectLiteralExpressionWithExpectedType(
   node: Node,
