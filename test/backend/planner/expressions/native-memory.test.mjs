@@ -32,16 +32,47 @@ for (const [name, sourceText] of [
   });
 }
 
-for (const [name, sourceText] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
-  ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource]]) {
+const crossFileSource = (typeArguments) => `
+  import { abi } from "test:abi";
+  import { remote } from "./layout.js";
+  import type { uint32 } from "@tsonic/core/types.js";
+  import { memoryLayout, addressOf, toRawPointer, reinterpretRawPointer, loadPointer,
+    storePointer, equalPointer, equalRawPointer, unsafeContext } from "@tsonic/core/lang.js";
+  const local = memoryLayout<uint32>(abi, 4, 4, 4);
+  export function run(): boolean {
+    unsafeContext();
+    let value: uint32 = 7;
+    const pointer = addressOf(value);
+    const first = toRawPointer(pointer, local);
+    const second = toRawPointer(pointer, remote);
+    const left = reinterpretRawPointer(first, local);
+    const right = reinterpretRawPointer${typeArguments}(second, remote);
+    if (left === undefined || right === undefined) return false;
+    storePointer(left, 9);
+    if (value !== 9 || loadPointer(right) !== 9) return false;
+    value = 17;
+    return loadPointer(right) === 17 && equalPointer(pointer, left) && equalRawPointer(first, second);
+  }
+`;
+const crossFileLayout = `
+  import { abi } from "test:abi";
+  import type { uint32 } from "@tsonic/core/types.js";
+  import { memoryLayout } from "@tsonic/core/lang.js";
+  export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
+`;
+
+for (const [name, sourceText, files] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
+  ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource],
+  ["cross-file inferred scalar", crossFileSource(""), { "layout.ts": crossFileLayout }],
+  ["cross-file explicit scalar", crossFileSource("<uint32>"), { "layout.ts": crossFileLayout }]]) {
 test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ sourceText, capabilities: [memoryAbiCapability("csharp")] });
+  const compiled = compileCsharpSource({ sourceText, files, capabilities: [memoryAbiCapability("csharp")] });
   assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
-  assert.match(output, name === "scalar" ? /NativeLocation.Allocate<uint>/u
+  assert.match(output, name.endsWith("scalar") ? /NativeLocation.Allocate<uint>/u
     : name === "object field" ? /valueLocation/u : name === "array element" ? /NativeArray<uint>/u : /ReadAt<uint>/u);
   assert.match(output, /NativeLocation.Reinterpret<uint>/u);
-  if (name === "scalar") assert.match(output, /value.Value/u);
+  if (name.endsWith("scalar")) assert.match(output, /value.Value/u);
   const repository = fileURLToPath(new URL("../../../../", import.meta.url));
   const root = join(repository, `.temp/native-location-aliases-${name.replaceAll(" ", "-")}`);
   mkdirSync(root, { recursive: true });
