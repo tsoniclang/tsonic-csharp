@@ -33,32 +33,32 @@ for (const [name, sourceText] of [
 }
 
 const crossFileSource = (typeArguments) => `
-import { abi } from "test:abi";
-import { remote } from "./layout.js";
-import type { uint32 } from "@tsonic/core/types.js";
-import { memoryLayout, addressOf, toRawPointer, reinterpretRawPointer, loadPointer,
-  storePointer, equalPointer, equalRawPointer, unsafeContext } from "@tsonic/core/lang.js";
-const local = memoryLayout<uint32>(abi, 4, 4, 4);
-export function run(): boolean {
-  unsafeContext();
-  let value: uint32 = 7;
-  const pointer = addressOf(value);
-  const first = toRawPointer(pointer, local);
-  const second = toRawPointer(pointer, remote);
-  const left = reinterpretRawPointer(first, local);
-  const right = reinterpretRawPointer${typeArguments}(second, remote);
-  if (left === undefined || right === undefined) return false;
-  storePointer(left, 9);
-  if (value !== 9 || loadPointer(right) !== 9) return false;
-  value = 17;
-  return loadPointer(right) === 17 && equalPointer(pointer, left) && equalRawPointer(first, second);
-}
+  import { abi } from "test:abi";
+  import { remote } from "./layout.js";
+  import type { uint32 } from "@tsonic/core/types.js";
+  import { memoryLayout, addressOf, toRawPointer, reinterpretRawPointer, loadPointer,
+    storePointer, equalPointer, equalRawPointer, unsafeContext } from "@tsonic/core/lang.js";
+  const local = memoryLayout<uint32>(abi, 4, 4, 4);
+  export function run(): boolean {
+    unsafeContext();
+    let value: uint32 = 7;
+    const pointer = addressOf(value);
+    const first = toRawPointer(pointer, local);
+    const second = toRawPointer(pointer, remote);
+    const left = reinterpretRawPointer(first, local);
+    const right = reinterpretRawPointer${typeArguments}(second, remote);
+    if (left === undefined || right === undefined) return false;
+    storePointer(left, 9);
+    if (value !== 9 || loadPointer(right) !== 9) return false;
+    value = 17;
+    return loadPointer(right) === 17 && equalPointer(pointer, left) && equalRawPointer(first, second);
+  }
 `;
 const crossFileLayout = `
-import { abi } from "test:abi";
-import type { uint32 } from "@tsonic/core/types.js";
-import { memoryLayout } from "@tsonic/core/lang.js";
-export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
+  import { abi } from "test:abi";
+  import type { uint32 } from "@tsonic/core/types.js";
+  import { memoryLayout } from "@tsonic/core/lang.js";
+  export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
 `;
 
 for (const [name, sourceText, files] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
