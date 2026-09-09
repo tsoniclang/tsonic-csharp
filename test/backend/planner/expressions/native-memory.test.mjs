@@ -32,7 +32,7 @@ for (const [name, sourceText] of [
   });
 }
 
-const crossFileSource = `
+const crossFileSource = (typeArguments) => `
 import { abi } from "test:abi";
 import { remote } from "./layout.js";
 import type { uint32 } from "@tsonic/core/types.js";
@@ -46,7 +46,7 @@ export function run(): boolean {
   const first = toRawPointer(pointer, local);
   const second = toRawPointer(pointer, remote);
   const left = reinterpretRawPointer(first, local);
-  const right = reinterpretRawPointer(second, remote);
+  const right = reinterpretRawPointer${typeArguments}(second, remote);
   if (left === undefined || right === undefined) return false;
   storePointer(left, 9);
   if (value !== 9 || loadPointer(right) !== 9) return false;
@@ -63,7 +63,8 @@ export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
 
 for (const [name, sourceText, files] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
   ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource],
-  ["cross-file scalar", crossFileSource, { "layout.ts": crossFileLayout }]]) {
+  ["cross-file inferred scalar", crossFileSource(""), { "layout.ts": crossFileLayout }],
+  ["cross-file explicit scalar", crossFileSource("<uint32>"), { "layout.ts": crossFileLayout }]]) {
 test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText, files, capabilities: [memoryAbiCapability("csharp")] });
   assertCsharpCompilationSucceeded(compiled);

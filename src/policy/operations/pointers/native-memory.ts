@@ -123,8 +123,8 @@ export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node, 
     if (!isCsharpRuntimeUndefinedTargetType(raw) && !targetTypeRefEquals(raw, csharpRuntimeRawPointerTargetType())) {
       return reject("Reinterpretation requires the exact raw address carrier.");
     }
-    const pointee = input.types.resolveSelectedType(operation.explicitPointeeTypeNode ?? selected.layout.explicitTypeNode,
-      operation.pointeeType, file);
+    const pointee = operation.explicitPointeeTypeNode === undefined ? layout.pointeeType
+      : input.types.resolveSelectedType(operation.explicitPointeeTypeNode, operation.pointeeType, file);
     if (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType)) {
       return reject("Reinterpretation and its selected layout have different exact C# pointee types.");
     }
