@@ -19,6 +19,7 @@ import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -682,6 +683,7 @@ export function createCsharpTypeResolutionServices(
       projectSourceDeclarationTargetTypeImplementation(scope, ...args),
   };
   const policy: CsharpTypePolicy = Object.freeze({
+    selectFixedArray: createCsharpFixedArrayTypeQuery(host),
     resolveNode: methods.resolveNode,
     resolveStorage: methods.resolveStorage,
     resolveReadStorage: methods.resolveReadStorage,

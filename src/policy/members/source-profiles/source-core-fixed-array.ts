@@ -7,6 +7,7 @@ import {
   resolveCsharpProviderDeclarationEvidence,
 } from "../providers/evidence.js";
 import {
+  csharpFixedArrayRepresentationRejection,
   csharpSourcePrimitiveTargetType,
   isCsharpArrayIndexTargetType,
   targetTypeRefKey,
@@ -47,6 +48,8 @@ export function selectCsharpSourceCoreFixedArrayProperty(
   ) {
     return undefined;
   }
+  const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
+  if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
   const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
   if (receiver === undefined || source.accessMode !== "read") {
     return rejectedFixedArrayOperation(
@@ -93,6 +96,8 @@ export function selectCsharpSourceCoreFixedArrayElement(
   ) {
     return undefined;
   }
+  const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
+  if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
   const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
   const indexType = host.types.resolveNode(
     source.argument.expression,
@@ -130,6 +135,16 @@ export function selectCsharpSourceCoreFixedArrayElement(
     receiver: instanceReceiver,
     invocation: { kind: "indexer" },
   };
+}
+
+function fixedArrayReceiverRejection(
+  host: CsharpProviderCallSelectionHost,
+  receiver: ResolvedSourcePropertyAccessInfo["receiver"],
+  sourceFile: SourceFile,
+): string | undefined {
+  const selected = host.types.selectFixedArray(receiver.type, sourceFile);
+  if (selected === undefined) return undefined;
+  return selected.kind === "invalid" ? selected.reason : csharpFixedArrayRepresentationRejection(selected.fact);
 }
 
 function resolveFixedArrayReceiver(

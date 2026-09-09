@@ -1,7 +1,7 @@
 # Agent Notes (Tsonic C#)
 
-The workspace policy in `../AGENTS.md` applies. This file contains only C#-
-target deltas.
+Read and follow `../tsonic/docs/architecture/workspace-agent-policy.md` before
+any work. This file contains only C#-target deltas.
 
 ## C# Target Ownership
 

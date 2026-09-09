@@ -7,11 +7,15 @@ import {
   sourceMarkerFactKey,
   structFactKey,
 } from "@tsonic/tsts";
-import { tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
+import { selectTsonicFixedArrayFromSource, tsonicFixedArrayFactKey } from "@tsonic/source-core/facts";
+import type { TsonicFixedArrayFact, TsonicFixedArraySelection } from "@tsonic/source-core/facts";
+import type { CsharpTypePolicyBaseHost } from "./model.js";
 import type {
   ExtensionFactSubject,
   Node,
   ReadonlySourceFactResolver,
+  SourceFile,
+  Type,
 } from "@tsonic/tsts";
 
 export interface CsharpSourceDefaultValue {
@@ -44,10 +48,8 @@ export interface CsharpSourceFunctionPointerType {
   readonly abi: readonly string[];
 }
 
-export interface CsharpSourceFixedArrayType {
+export interface CsharpSourceFixedArrayType extends TsonicFixedArrayFact {
   readonly kind: "csharp-fixed-array";
-  readonly sourceElementType: Node;
-  readonly length: number;
 }
 
 export function readCsharpSourceJsStringMarker(
@@ -151,9 +153,35 @@ export function readCsharpSourceFixedArrayType(
     ? undefined
     : Object.freeze({
         kind: "csharp-fixed-array",
-        sourceElementType: fact.elementType,
-        length: fact.length,
+        ...fact,
       });
+}
+
+export function csharpFixedArrayRepresentationRejection(fact: TsonicFixedArrayFact): string | undefined {
+  if (fact.lengthRuntimeBase === "bigint") {
+    return `C# does not support FixedArray values with bigint extent ${fact.length}n or bigint .length; the implemented T[] carrier exposes signed 32-bit Length.`;
+  }
+  if (fact.length > 2_147_483_647n) {
+    return `C# FixedArray extent ${fact.length} exceeds the implemented signed 32-bit T[].Length range (0..2147483647).`;
+  }
+  return undefined;
+}
+
+export function createCsharpFixedArrayTypeQuery(
+  host: Pick<CsharpTypePolicyBaseHost, "sourceFacts" | "semantics">,
+): (type: Type, sourceFile: SourceFile) => TsonicFixedArraySelection | undefined {
+  const selections = new WeakMap<Type, WeakMap<SourceFile, TsonicFixedArraySelection | null>>();
+  return (type, sourceFile) => {
+    if (host.sourceFacts === undefined) return undefined;
+    let byFile = selections.get(type);
+    const cached = byFile?.get(sourceFile);
+    if (cached !== undefined) return cached ?? undefined;
+    const selected = selectTsonicFixedArrayFromSource(type, host.semantics(sourceFile), host.sourceFacts);
+    byFile ??= new WeakMap();
+    byFile.set(sourceFile, selected ?? null);
+    selections.set(type, byFile);
+    return selected;
+  };
 }
 
 function csharpSourceField(
