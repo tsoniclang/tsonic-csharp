@@ -76,8 +76,11 @@ test("C# package exposes only approved audience entrypoints", async () => {
   assert.deepEqual(manifest.files, [
     "dist",
     "!dist/**/*.tsbuildinfo",
-    "tools/dotnet-type-provider/*.cs",
-    "tools/dotnet-type-provider/*.csproj",
+    "tools/dotnet-type-provider/**/*.cs",
+    "tools/dotnet-type-provider/**/*.csproj",
+    "!tools/dotnet-type-provider/**/bin/**",
+    "!tools/dotnet-type-provider/**/obj/**",
+    "!tools/dotnet-type-provider/**/.temp/**",
     "README.md",
     "LICENSE",
   ]);

@@ -7,7 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import type { TsonicFixedArraySelection, TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type {
   SourceFileSemantics,
@@ -82,6 +82,7 @@ export type CsharpScopedTypePolicyResult =
     };
 
 export interface CsharpTypePolicy {
+  selectFixedArray(type: Type, sourceFile: SourceFile): TsonicFixedArraySelection | undefined;
   resolvePointerReturn(declaration: Node): CsharpPointerReturnContract | undefined;
   resolveNode(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;
   resolveStorage(node: Node | undefined, sourceFile?: SourceFile): TargetTypeRef | undefined;

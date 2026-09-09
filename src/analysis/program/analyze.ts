@@ -203,6 +203,7 @@ export function analyzeCsharpTargetProgram(
   }
   const analysisIssues = [
     ...analysis.sourceEvidence.memoryMetadataIssues,
+    ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.expectedTypes.issues,
     ...analysis.conversions.issues,

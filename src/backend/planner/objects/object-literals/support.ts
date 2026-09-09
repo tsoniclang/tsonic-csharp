@@ -1,4 +1,4 @@
-import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpPlanningContext } from "../../context.js";
 import {
   ObjectLiteralProperty_SourceName,
 } from "@tsonic/target-api/source";
@@ -9,27 +9,27 @@ import type {
 import {
   targetTypeRefEquals,
   type TargetTypeRef,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpObjectInitializerAssignment,
-} from "../../target-ast/roslyn/index.js";
+} from "../../../target-ast/roslyn/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapeMemberBySourceKey,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import {
   unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+} from "../../diagnostics.js";
 import {
   getCsharpObjectShapeFactForNode,
   getCsharpObjectShapeFactForTargetType,
-} from "../objects/fact-queries.js";
+} from "../fact-queries.js";
 
 export function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,

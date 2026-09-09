@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/context.js";
-import { selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
+import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
@@ -31,7 +31,8 @@ export function analyzeCsharpNativeBacking(
     }
     const selected = selectCsharpNativeMemoryLayout(policy, layout, layoutFile);
     if (selected === undefined) {
-      reject(origin.call, "Physical backing requires an exact closed all-bit-pattern native layout.");
+      reject(origin.call, csharpNativeArrayMemoryLayoutRejection(layout) ??
+        "Physical backing requires an exact closed all-bit-pattern native layout.");
       continue;
     }
     if (origin.operation === "reinterpret") {

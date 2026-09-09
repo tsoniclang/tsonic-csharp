@@ -22,6 +22,7 @@ import {
 } from "../../../target-model/types/scalar-types.js";
 import { csharpJsSymbolTargetType } from "./surface-types.js";
 import {
+  csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,
   readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
@@ -46,7 +47,7 @@ import { readCsharpRawLocation } from "../../operations/pointers/native-memory.j
 import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
 
 export function resolveTypeWithState(
-  { host, resolveCallableType, resolveDirectSourceFacts, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType }: CsharpTypeResolutionScope,
+  { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType }: CsharpTypeResolutionScope,
   type: Type | undefined,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -59,6 +60,14 @@ export function resolveTypeWithState(
   const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
   if (direct !== undefined) {
     return direct;
+  }
+  const fixedArray = policy.selectFixedArray(type, sourceFile);
+  if (fixedArray !== undefined) {
+    if (fixedArray.kind === "invalid" || csharpFixedArrayRepresentationRejection(fixedArray.fact) !== undefined) return undefined;
+    const element = fixedArray.fact.elementType === undefined
+      ? resolveTypeWithState(fixedArray.fact.elementSourceType, sourceFile, nextState(state))
+      : resolveNodeWithState(fixedArray.fact.elementType, host.ast.getSourceFile(fixedArray.fact.elementType) ?? sourceFile, nextState(state));
+    return element === undefined ? undefined : { kind: "array", element };
   }
   const substitutionBase = queries.types.substitutionBaseType(type);
   if (substitutionBase !== undefined) {
@@ -213,11 +222,10 @@ export function resolveDirectSourceFacts(
       subject,
     );
     if (fixedArray !== undefined) {
-      const element = resolveNodeWithState(
-        fixedArray.sourceElementType,
-        sourceFile,
-        nextState(state),
-      );
+      if (csharpFixedArrayRepresentationRejection(fixedArray) !== undefined) return undefined;
+      const element = fixedArray.elementType === undefined
+        ? resolveTypeWithState(fixedArray.elementSourceType, sourceFile, nextState(state))
+        : resolveNodeWithState(fixedArray.elementType, host.ast.getSourceFile(fixedArray.elementType) ?? sourceFile, nextState(state));
       if (element !== undefined) {
         return { kind: "array", element };
       }

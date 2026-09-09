@@ -5,41 +5,41 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   createCsharpThisBindingPlanningContext,
-} from "../context.js";
+} from "../../context.js";
 import type {
   CsharpPlanningContext,
-} from "../context.js";
+} from "../../context.js";
 import {
   csharpDelegateTargetType,
   targetTypeRefEquals,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpObjectShapeFact,
-} from "../../../target-model/types/index.js";
+} from "../../../../target-model/types/index.js";
 import type {
   CsharpExpression,
   CsharpObjectInitializerAssignment,
-} from "../../target-ast/roslyn/index.js";
+} from "../../../target-ast/roslyn/index.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
-} from "../bindings/index.js";
+} from "../../bindings/index.js";
 import {
   unsupportedNodeDiagnostic,
-} from "../diagnostics.js";
+} from "../../diagnostics.js";
 import {
   lambdaTargetContextFromTargetRef,
   planLambdaBlockBody,
   planLambdaParameters,
-} from "./expression-lambdas.js";
+} from "../../expressions/expression-lambdas.js";
 import {
   findObjectShapeMember,
   getObjectLiteralPropertySourceName,
-} from "./expression-object-literal-support.js";
+} from "./support.js";
 import {
   objectShapeAccessorGetterStorageMemberName,
   objectShapeAccessorSetterStorageMemberName,
-} from "../objects/index.js";
+} from "../index.js";
 import {
   AsGetAccessorDeclaration,
   AsParameterDeclaration,
@@ -49,7 +49,7 @@ import {
 } from "@tsonic/target-api/source";
 import {
   csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+} from "../../types/target-types.js";
 
 export function planObjectShapeAccessorMemberAssignment(
   accessorNode: Node,

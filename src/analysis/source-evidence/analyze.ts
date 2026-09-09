@@ -1,4 +1,5 @@
 import type {
+  ExtensionFactSubject,
   Node,
   ResolvedSourceGeneratorInfo,
   ResolvedSourceWellKnownSymbolInfo,
@@ -48,8 +49,10 @@ import {
   selectCsharpSourceArgument,
 } from "../../policy/members/index.js";
 import {
+  csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,
   readCsharpSourceField,
+  readCsharpSourceFixedArrayType,
   readCsharpSourceStruct,
 } from "../../policy/types/index.js";
 
@@ -69,6 +72,8 @@ export function analyzeCsharpSourceEvidence(
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
   const compileTimeMetadata = new WeakSet<Node>();
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
+  const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
+  const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
@@ -180,7 +185,7 @@ export function analyzeCsharpSourceEvidence(
     visit(sourceFile, sourceFile);
   }
 
-  function visit(node: Node, sourceFile: SourceFile): void {
+  function visit(node: Node, sourceFile: SourceFile, typeOnly = false): void {
     pointerBacking.record(node);
     const declaration = memoryMetadata.declaration(node);
     if (declaration !== undefined || memoryMetadata.isCompileTimeExpression(node)) {
@@ -198,12 +203,17 @@ export function analyzeCsharpSourceEvidence(
     ) {
       source.ast.forEachChild(node, (child) => {
         if (child !== undefined) {
-          visit(child, sourceFile);
+          visit(child, sourceFile, typeOnly || source.ast.is.IsImportDeclaration(node) || source.ast.is.IsImportClause(node));
         }
       });
       return;
     }
     const semantics = source.semantics.forFile(sourceFile);
+    typeOnly ||= source.ast.is.IsTypeAliasDeclaration(node) || source.ast.is.IsInterfaceDeclaration(node) || source.ast.is.IsExportDeclaration(node);
+    if (!typeOnly) {
+      const authoredType = source.ast.is.IsTypeReferenceNode(node) ? node : source.ast.typeNode(node);
+      recordFixedArrayIssues(node, [node, ...(authoredType === undefined ? [] : semantics.facts.authoredTypeSubjects(authoredType))]);
+    }
     arguments_.set(
       node,
       freezeSourceArgumentClassification(
@@ -246,9 +256,11 @@ export function analyzeCsharpSourceEvidence(
     const expressionType = semantics.types.expressionType(node);
     expressionTypes.set(node, expressionType ?? missing);
     if (expressionType !== undefined) {
+      if (!typeOnly) recordSelectedFixedArrayIssues(node, expressionType, sourceFile);
       classifyType(expressionType, sourceFile);
     }
     const contextualType = semantics.types.contextualType(node);
+    if (!typeOnly && contextualType !== undefined) recordSelectedFixedArrayIssues(node, contextualType, sourceFile);
     contextualTypes.set(node, contextualType ?? missing);
     contextualTargetTypes.set(
       node,
@@ -409,9 +421,38 @@ export function analyzeCsharpSourceEvidence(
     }
     source.ast.forEachChild(node, (child) => {
       if (child !== undefined) {
-        visit(child, sourceFile);
+        visit(child, sourceFile, typeOnly);
       }
     });
+  }
+
+  function recordFixedArrayIssues(node: Node, subjects: readonly ExtensionFactSubject[]): void {
+    for (const subject of subjects) {
+      const fact = readCsharpSourceFixedArrayType(source.sourceFacts, subject);
+      if (fact === undefined || rejectedFixedArrayTypes.has(fact.sourceType)) continue;
+      const message = csharpFixedArrayRepresentationRejection(fact);
+      if (message === undefined) continue;
+      rejectedFixedArrayTypes.add(fact.sourceType);
+      fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));
+    }
+  }
+
+  function recordSelectedFixedArrayIssues(node: Node, type: Type, sourceFile: SourceFile): void {
+    let current: Type | undefined = type;
+    const visited = new Set<Type>();
+    while (current !== undefined && !visited.has(current)) {
+      visited.add(current);
+      const selected = types.selectFixedArray(current, sourceFile);
+      if (selected === undefined) return;
+      const message = selected.kind === "invalid"
+        ? `C# FixedArray has no exact closed value representation: ${selected.reason}`
+        : csharpFixedArrayRepresentationRejection(selected.fact);
+      if (message !== undefined && !rejectedFixedArrayTypes.has(current)) {
+        rejectedFixedArrayTypes.add(current);
+        fixedArrayIssues.push(Object.freeze({ node, code: "CSHARP_FIXED_ARRAY_REPRESENTATION_UNSUPPORTED", message }));
+      }
+      current = selected.kind === "selected" ? selected.fact.elementSourceType : undefined;
+    }
   }
 
   const index: CsharpSourceEvidenceIndex = {
@@ -420,6 +461,7 @@ export function analyzeCsharpSourceEvidence(
     memoryMetadataIssues: Object.freeze([...memoryMetadataIssues, ...pointerBacking.issues().map(issue => ({
       node: issue.node, code: "CSHARP_POINTER_BACKING_NOT_PROVEN", message: issue.reason,
     }))]),
+    fixedArrayIssues: Object.freeze(fixedArrayIssues),
     isCompileTimeMetadata: node => compileTimeMetadata.has(node),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType(node) {

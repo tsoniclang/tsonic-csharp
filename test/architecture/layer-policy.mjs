@@ -11,6 +11,7 @@ import {
 
 function isCsharpProviderModel(path) {
   return path.startsWith("src/providers/model/") ||
+    path === "src/providers/packages/model.ts" ||
     path === "src/providers/relations/index.ts" ||
     path === "src/providers/relations/relation-model.ts";
 }

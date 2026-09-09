@@ -61,3 +61,9 @@ export type {
 export { substituteTargetTypeParameters } from "../policy/types/callables/substitution.js";
 export { csharpApplyExternAliasToTargetBinding } from "../policy/types/project/extern-aliases.js";
 export { csharpProviderVersion } from "../target-model/identities/source.js";
+export { createCsharpProviderPackage } from "../providers/packages/package.js";
+export type {
+  CsharpProviderModuleDefinition,
+  CsharpProviderModuleSpecifier,
+  CsharpProviderPackageDefinition,
+} from "../providers/packages/model.js";

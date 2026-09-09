@@ -41,7 +41,7 @@ import {
   planArrowFunctionExpression,
   planFunctionExpression,
 } from "./expression-lambdas.js";
-import { planObjectLiteralExpressionWithExpectedType } from "./expression-object-literals.js";
+import { planObjectLiteralExpressionWithExpectedType } from "../objects/object-literals/planning.js";
 import {
   tryPlanRecordDictionaryLiteralWithExpectedType,
 } from "./expression-dictionary-literals.js";

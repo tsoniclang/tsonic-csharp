@@ -20,6 +20,7 @@ export function selectCsharpNativeMemoryLayout(
   input: CsharpPolicyContext, layout: TsonicMemoryLayoutFact, sourceFile: SourceFile,
   selected = new Map<TsonicMemoryLayoutFact, CsharpNativeMemoryLayout | undefined>(),
 ): CsharpNativeMemoryLayout | undefined {
+  if (layout.kind === "array") return undefined;
   if (selected.size === 0 && countTsonicMemoryLayoutValues(layout, 131_072) === undefined) return undefined;
   if (selected.has(layout)) return selected.get(layout);
   selected.set(layout, undefined);
@@ -96,6 +97,21 @@ export function selectCsharpNativeMemoryLayout(
   return result;
 }
 
+export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutFact): string | undefined {
+  const pending = [root];
+  const visited = new Set<TsonicMemoryLayoutFact>();
+  while (pending.length !== 0) {
+    const layout = pending.pop()!;
+    if (visited.has(layout)) continue;
+    visited.add(layout);
+    if (layout.kind === "array") {
+      return "C# does not support inline fixed-array native memory layouts, including arrays nested in records; ordinary T[] carriers do not provide inline storage.";
+    }
+    for (const field of layout.fields) pending.push(field.fieldLayout);
+  }
+  return undefined;
+}
+
 export type CsharpRawLocationSelection =
   | { readonly kind: "rejected"; readonly operation: "raw-location"; readonly reason: string }
   | { readonly kind: "raw-location"; readonly method: "ToRaw" | "Reinterpret";
@@ -107,7 +123,8 @@ export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node, 
   const reject = (reason: string): CsharpRawLocationSelection => ({ kind: "rejected", operation: "raw-location", reason });
   if (selected.kind === "rejected") return reject(selected.reason);
   const layout = selectCsharpNativeMemoryLayout(input, selected.layout, file);
-  if (layout === undefined) return reject("The selected layout has no closed all-bit-pattern C# native value representation.");
+  if (layout === undefined) return reject(csharpNativeArrayMemoryLayoutRejection(selected.layout) ??
+    "The selected layout has no closed all-bit-pattern C# native value representation.");
   const operation = selected.operation;
   const inputType = input.types.resolveSelectedValue(selected.expression,
     operation.operation === "to-raw" ? operation.pointerType : operation.rawType, file);
