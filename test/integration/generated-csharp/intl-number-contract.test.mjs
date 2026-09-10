@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 
 test("Intl exact integer, optional precision and grouping contracts execute in C#", { timeout: 300_000 }, () => {
@@ -79,6 +79,8 @@ test("NumberFormat does not invent an overload for an unsupported source carrier
       return new Intl.NumberFormat("en").format(value);
     }
   ` });
-  assert.ok(compiled.result.diagnostics.some(diagnostic => diagnostic.category === "error"));
+  assertCsharpCheckingSucceeded(compiled);
+  assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), ["CSHARP_UNSUPPORTED_AST"]);
+  assert.equal(compiled.targetDiagnostics[0].message, "No exact C# implicit conversion relates 'source:decimal' to 'source:float64'.");
   assert.equal(compiled.artifacts.size, 0);
 });
