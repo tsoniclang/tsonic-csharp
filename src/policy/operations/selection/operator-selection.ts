@@ -796,14 +796,14 @@ function supportsIntrinsicEquality(
   ) {
     return true;
   }
-  if (isCsharpStringTargetType(left) || isCsharpStringTargetType(right)) {
-    return isCsharpStringTargetType(left) && isCsharpStringTargetType(right);
-  }
   if (
     runtimeUnionSupportsArmEquality(left, right) ||
     runtimeUnionSupportsArmEquality(right, left)
   ) {
     return true;
+  }
+  if (isCsharpStringTargetType(left) || isCsharpStringTargetType(right)) {
+    return isCsharpStringTargetType(left) && isCsharpStringTargetType(right);
   }
   return (
     left.kind === "source-primitive" &&

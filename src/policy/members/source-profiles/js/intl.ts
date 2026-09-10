@@ -3,6 +3,7 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
+  csharpBigIntegerTargetType,
   csharpJsDateTargetType,
   csharpJsIntlTargetType,
   csharpNullableTargetType,
@@ -11,6 +12,8 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpTsValueTargetType,
+  csharpRuntimeUnionTargetType,
+  targetTypeRefEquals,
   type CsharpJsIntlCarrierName,
 } from "../../../types/index.js";
 import type {
@@ -28,6 +31,7 @@ import {
   jsRuntimeTargetType,
   targetParameter,
   targetProperty,
+  staticMethod,
 } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -56,6 +60,21 @@ const constructors = [
 
 export const csharpJsIntlCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
+    jsCallPolicy(
+      jsMemberIdentity("BigInt", "toLocaleString"),
+      (context) => {
+        const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+        return !isIntlIntegerCarrier(receiver) ? undefined : staticMethod(
+          "Tsonic.CSharp.Js.Intl.formatInteger",
+          "toLocaleString", "formatInteger", intlRuntimeType,
+          [targetParameter("value", receiver),
+            targetParameter("locales", valueType, { optional: true, csharpAcceptsClosedSourceArgument: true }),
+            targetParameter("options", valueType, { optional: true, csharpAcceptsClosedSourceArgument: true })],
+          stringType,
+        );
+      },
+      { kind: "target-parameter", targetParameterIndex: 0 },
+    ),
     ...constructors.map((entry) =>
       jsCallPolicy(
         jsConstructIdentity(entry.source),
@@ -78,12 +97,16 @@ export const csharpJsIntlCallPolicies:
     ...["format", "formatToParts"].map((name) =>
       jsCallPolicy(
         jsMemberIdentity("IntlNumberFormat", name),
-        (context) => directIntlMember(
-          context,
-          "IntlNumberFormat",
-          name,
-          [targetParameter("value", doubleType)],
-        ),
+        (context) => {
+          const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+          if (argument === undefined) return undefined;
+          const integer = isIntlIntegerCarrier(argument);
+          return directIntlMember(
+            context, "IntlNumberFormat", name,
+            [targetParameter("value", integer ? argument : doubleType)],
+            integer ? `${name}Integer` : name,
+          );
+        },
         instanceReceiver,
       )
     ),
@@ -141,9 +164,14 @@ export const csharpJsIntlPropertyPolicies:
       ["IntlResolvedNumberFormatOptions", "numberingSystem", stringType],
       ["IntlResolvedNumberFormatOptions", "style", stringType],
       ["IntlResolvedNumberFormatOptions", "minimumIntegerDigits", doubleType],
-      ["IntlResolvedNumberFormatOptions", "minimumFractionDigits", doubleType],
-      ["IntlResolvedNumberFormatOptions", "maximumFractionDigits", doubleType],
-      ["IntlResolvedNumberFormatOptions", "useGrouping", boolType],
+      ["IntlResolvedNumberFormatOptions", "minimumFractionDigits", csharpNullableTargetType(doubleType)],
+      ["IntlResolvedNumberFormatOptions", "maximumFractionDigits", csharpNullableTargetType(doubleType)],
+      ["IntlResolvedNumberFormatOptions", "minimumSignificantDigits", csharpNullableTargetType(doubleType)],
+      ["IntlResolvedNumberFormatOptions", "maximumSignificantDigits", csharpNullableTargetType(doubleType)],
+      ["IntlResolvedNumberFormatOptions", "useGrouping", csharpRuntimeUnionTargetType([boolType, stringType])],
+      ...["currency", "currencyDisplay", "currencySign", "unit", "unitDisplay", "compactDisplay"].map(name => ["IntlResolvedNumberFormatOptions", name, csharpNullableTargetType(stringType)]),
+      ...["notation", "signDisplay", "roundingPriority", "roundingMode", "trailingZeroDisplay"].map(name => ["IntlResolvedNumberFormatOptions", name, stringType]),
+      ["IntlResolvedNumberFormatOptions", "roundingIncrement", doubleType],
       ["IntlResolvedCollatorOptions", "locale", stringType],
       ["IntlResolvedCollatorOptions", "usage", stringType],
       ["IntlResolvedCollatorOptions", "sensitivity", stringType],
@@ -194,6 +222,15 @@ function intlConstructor(name: CsharpJsIntlCarrierName): CsharpTargetMember {
   });
 }
 
+function isIntlIntegerCarrier(type: TargetTypeRef | undefined): type is TargetTypeRef {
+  return type !== undefined && (
+    targetTypeRefEquals(type, csharpBigIntegerTargetType()) ||
+    type.kind === "source-primitive" &&
+      (type.name === "int64" || type.name === "uint64" ||
+        type.name === "int128" || type.name === "uint128")
+  );
+}
+
 function intlConstructorCarrier(name: CsharpJsIntlCarrierName): TargetTypeRef {
   const carrierName = `${name}Constructor`;
   return csharpTargetNamedType(
@@ -224,6 +261,7 @@ function directIntlMember(
   owner: "IntlDateTimeFormat" | "IntlNumberFormat" | "IntlCollator",
   name: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
+  targetName: string = name,
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
@@ -236,9 +274,9 @@ function directIntlMember(
   return receiver?.kind !== "target-named" || result === undefined
     ? undefined
     : instanceMethod(
-        `Tsonic.CSharp.Js.${owner}.${name}`,
+        `Tsonic.CSharp.Js.${owner}.${targetName}`,
         name,
-        name,
+        targetName,
         receiver,
         parameters,
         result,

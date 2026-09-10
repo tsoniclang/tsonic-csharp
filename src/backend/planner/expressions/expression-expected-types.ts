@@ -62,6 +62,7 @@ import {
   csharpConversionIsApplicable,
 } from "../../../analysis/conversions/index.js";
 import {
+  applyCsharpConversionSelection,
   readCsharpConversionClassification,
 } from "./conversions.js";
 import type {
@@ -245,13 +246,22 @@ export function planExpressionWithExpectedTypeCore(
       csharpConversionIsApplicable(conversion, "implicit")
     ) {
       return expectedRepresentation(
-        planArrayLiteralExpressionWithCarrier(
+        applyCsharpConversionSelection(
           node,
           sourceFile,
           input,
           diagnostics,
           sourceCarrier,
-          planners,
+          effectiveExpectedTargetType,
+          conversion,
+          planArrayLiteralExpressionWithCarrier(
+            node,
+            sourceFile,
+            input,
+            diagnostics,
+            sourceCarrier,
+            planners,
+          ),
         ),
       );
     }
