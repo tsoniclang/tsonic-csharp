@@ -26,6 +26,14 @@ import {
 
 const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
 
+test("printer preserves ordered collection elements and native spreads", () => {
+  assert.equal(printCsharpExpression({ kind: "CollectionExpression", elements: [
+    { kind: "ExpressionElement", expression: { kind: "LiteralExpression", value: 1 } },
+    { kind: "SpreadElement", expression: { kind: "IdentifierName", name: "items" } },
+    { kind: "ExpressionElement", expression: { kind: "LiteralExpression", value: 2 } },
+  ] }), "[1, .. items, 2]");
+});
+
 test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" }, rank: 2 }), "int[,]");

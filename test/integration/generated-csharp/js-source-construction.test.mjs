@@ -33,6 +33,43 @@ function execute(compiled, name) {
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
 
+test("numeric sequence arguments retain holes, widths and source evaluation order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+import type { uint8 } from "@tsonic/core/types.js";
+function check(value: boolean): void { if (!value) throw new Error("sequence contract"); }
+export function run(): boolean {
+  const bytes: uint8[] = [65, 66];
+  const empty: number[] = [];
+  check(String.fromCharCode(...bytes, ...empty, ...[67, 68]) === "ABCD");
+  check(String.fromCharCode(...empty) === "");
+  check(String.fromCharCode(...[]) === "");
+  const tuple: [uint8, number] = [65, 66];
+  check(String.fromCharCode(...tuple) === "AB");
+  let tupleReads = 0;
+  const readTuple = (): [uint8, number] => { tupleReads += 1; return tuple; };
+  check(String.fromCharCode(...readTuple(), ...[], 67) === "ABC" && tupleReads === 1);
+  check(String.fromCodePoint(...[128512]) === "😀");
+  check(Math.max(2, ...[3, 8], ...empty, 4) === 8);
+  check(Math.min(...[3, 8], 2) === 2 && Math.hypot(...[3, 4]) === 5);
+  const holes = new Array<number>(2);
+  holes[0] = 65;
+  check(String.fromCharCode(...holes) === "A\\0" && Number.isNaN(Math.max(...holes)));
+  const mutable: number[] = [66];
+  let evaluations = 0;
+  const next = (): number => { evaluations += 1; mutable[0] = 88; return 67; };
+  check(String.fromCharCode(65, ...mutable, next(), ...mutable) === "ABCX");
+  check(evaluations === 1 && mutable[0] === 88);
+  let caught = 0;
+  try { String.fromCodePoint(...[1.5], next()); } catch { caught += 1; }
+  check(caught === 1 && evaluations === 2);
+  const fail = (): number => { throw new Error("stop"); };
+  try { String.fromCharCode(...bytes, fail(), next()); } catch { caught += 1; }
+  check(caught === 2 && evaluations === 2);
+  return true;
+}
+` }), "numeric-rest-sequences");
+});
+
 test("character constructors preserve numeric coercion and exact runtime rejection", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 import type { uint8 } from "@tsonic/core/types.js";

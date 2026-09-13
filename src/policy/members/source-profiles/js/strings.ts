@@ -309,7 +309,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
             sourceName,
             sourceName,
             stringHelperType,
-            [targetParameter("codes", doubleType, { paramsArray: true })],
+            [targetParameter("codes", { kind: "array", element: doubleType }, { paramsArray: true, csharpSequenceHolePolicy: "number-nan" })],
             stringType,
           ),
         noReceiver,

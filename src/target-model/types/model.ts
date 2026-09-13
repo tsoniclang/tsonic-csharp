@@ -262,6 +262,7 @@ export interface CsharpTargetUnsupportedDefaultValueFact {
 }
 
 export interface CsharpTargetParameter extends TargetParameter {
+  readonly csharpSequenceHolePolicy?: "number-nan";
   readonly defaultValue?: unknown;
   readonly unsupportedDefaultValue?: CsharpTargetUnsupportedDefaultValueFact;
   readonly attributes?: readonly CsharpTargetAttributeFact[];

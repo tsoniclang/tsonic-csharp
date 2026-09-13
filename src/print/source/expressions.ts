@@ -98,6 +98,8 @@ export function printCsharpExpression(
         ? `new[] ${initializer}`
         : `new ${context.printType(expression.elementType)}[] ${initializer}`;
     }
+    case "CollectionExpression":
+      return `[${expression.elements.map(element => `${element.kind === "SpreadElement" ? ".. " : ""}${context.printExpression(element.expression)}`).join(", ")}]`;
     case "TupleExpression":
       return `(${expression.elements.map(context.printExpression).join(", ")})`;
     case "DefaultExpression":
@@ -151,6 +153,7 @@ function postfixOperandRequiresParentheses(
     case "ElementAccessExpression":
     case "ConditionalElementAccessExpression":
     case "ArrayCreationExpression":
+    case "CollectionExpression":
     case "TupleExpression":
     case "DefaultExpression":
       return false;

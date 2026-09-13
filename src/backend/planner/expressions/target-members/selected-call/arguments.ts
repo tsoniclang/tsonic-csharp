@@ -7,6 +7,7 @@ import {
 } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
+import { planCsharpNumericRestSequence } from "./numeric-rest-sequences.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type {
   CsharpSelectedCallArgument,
@@ -15,7 +16,7 @@ import type {
   ResolvedSourceCallInfo,
 } from "../../../../../analysis/operations/index.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpArgument } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { CsharpTargetParameter } from "../../../../../target-model/types/index.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -35,6 +36,7 @@ export function translateSelectedTargetArguments(
     readonly parameterIndex: number;
     readonly effectiveArgumentIndex: number;
     readonly argument: CsharpArgument;
+    readonly sequence?: boolean;
   }[] = [];
   if (selection.receiver.kind === "target-parameter") {
     const receiver = source.sourceReceiver?.expression;
@@ -67,6 +69,10 @@ export function translateSelectedTargetArguments(
       argument,
     });
   }
+  const plannedSequences = new Set<number>();
+  const sequenceArguments = new Map(selection.sequenceArguments?.map(sequence =>
+    [sequence.sourceArgumentIndex, sequence]));
+  if (sequenceArguments.size !== (selection.sequenceArguments?.length ?? 0)) return undefined;
   for (const argumentSelection of selection.arguments) {
     const sourceArgument = source.sourceArguments[
       argumentSelection.sourceArgumentIndex
@@ -77,6 +83,18 @@ export function translateSelectedTargetArguments(
         `Selected target argument ${argumentSelection.effectiveArgumentIndex} has no exact checker-owned source expression.`,
       ));
       return undefined;
+    }
+    const sequence = sequenceArguments.get(argumentSelection.sourceArgumentIndex);
+    if (sequence !== undefined) {
+      if (plannedSequences.has(sequence.sourceArgumentIndex)) continue;
+      const operand = input.program.source.ast.as.AsSpreadElement(sourceArgument)?.Expression;
+      if (operand !== sequence.expression || sequence.targetParameterIndex !== argumentSelection.targetParameterIndex) return undefined;
+      const expression = planCsharpNumericRestSequence(sequence, sourceFile, input, diagnostics, planExpression);
+      if (expression === undefined) return undefined;
+      plannedSequences.add(sequence.sourceArgumentIndex);
+      planned.push({ parameterIndex: sequence.targetParameterIndex, effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,
+        argument: { kind: "Argument", expression }, sequence: true });
+      continue;
     }
     const argument = translateCallArgument(
       sourceArgument,
@@ -98,7 +116,7 @@ export function translateSelectedTargetArguments(
     }
     planned.push({
       parameterIndex: argumentSelection.targetParameterIndex,
-      effectiveArgumentIndex: argumentSelection.effectiveArgumentIndex,
+      effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,
       argument,
     });
   }
@@ -115,7 +133,29 @@ export function translateSelectedTargetArguments(
     ));
     return undefined;
   }
-  return planned.map((entry) => entry.argument);
+  if (plannedSequences.size === 0) return planned.map(entry => entry.argument);
+  const arguments_: CsharpArgument[] = [];
+  for (let index = 0; index < planned.length;) {
+    const entry = planned[index]!;
+    const group = [entry];
+    index += 1;
+    while (index < planned.length && planned[index]!.parameterIndex === entry.parameterIndex) {
+      group.push(planned[index]!);
+      index += 1;
+    }
+    if (!group.some(candidate => candidate.sequence === true)) {
+      arguments_.push(...group.map(candidate => candidate.argument));
+      continue;
+    }
+    const expression: CsharpExpression = group.length === 1 ? entry.argument.expression : {
+      kind: "CollectionExpression", elements: group.map(candidate => ({
+        kind: candidate.sequence === true ? "SpreadElement" : "ExpressionElement",
+        expression: candidate.argument.expression,
+      })),
+    };
+    arguments_.push({ kind: "Argument", expression });
+  }
+  return arguments_;
 }
 
 export function translateCallArgument(
