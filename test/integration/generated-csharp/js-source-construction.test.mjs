@@ -33,6 +33,24 @@ function execute(compiled, name) {
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
 
+test("qualified source builtins retain static operations and local shadows", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+function local(globalThis: { String: { fromCharCode: (value: number) => number } }): number {
+  return globalThis.String.fromCharCode(7);
+}
+export function run(): boolean {
+  const codes = [65, 66];
+  const frozen = globalThis.Object.freeze({});
+  return globalThis.String.fromCharCode(...codes) === "AB" &&
+    (globalThis).String.fromCharCode(65) === "A" &&
+    (globalThis.String).fromCodePoint(128512) === "😀" &&
+    globalThis["String"].fromCharCode(...codes) === "AB" &&
+    globalThis.Math.max(...[3, 7]) === 7 && globalThis.Object.isFrozen(frozen) &&
+    local({ String: { fromCharCode: value => value + 1 } }) === 8;
+}
+` }), "qualified-source-builtins");
+});
+
 test("numeric sequence arguments retain holes, widths and source evaluation order", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 import type { uint8 } from "@tsonic/core/types.js";
