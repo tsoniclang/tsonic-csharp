@@ -33,6 +33,54 @@ function execute(compiled, name) {
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
 
+test("mapped native strings retain byte results and Unicode callback order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+import type { uint8 } from "@tsonic/core/types.js";
+export function run(): boolean {
+  const bytes = Array.from("Aÿ", (part: string): uint8 => part.charCodeAt(0) as uint8);
+  const parts = Array.from("a😀z", (part: string): string => part);
+  const indices = Array.from("a😀z", (part: string, index: number): number => index);
+  const fractions = Array.from("ab", function (part: string, index: number): number {
+    index += 0.5;
+    return index;
+  });
+  const captures = Array.from("ab", (part: string, index: number): (() => number) => {
+    const __tsonic_param1 = 0.5;
+    index += __tsonic_param1;
+    return () => { index += 0.5; return index; };
+  });
+  const first = captures[0];
+  const second = captures[1];
+  let count = 0;
+  const zero = Array.from("abc", (): number => { count += 1; return count; });
+  const empty = Array.from("", (): number => { count += 1; return count; });
+  let visited = "";
+  let failed = false;
+  try {
+    Array.from("a😀z", (part: string, index: number): string => {
+      visited += part;
+      if (index === 1) throw new Error("stop");
+      return part;
+    });
+  } catch { failed = true; }
+  return bytes.length === 2 && bytes[0] === 65 && bytes[1] === 255 &&
+    parts.length === 3 && parts.join("") === "a😀z" &&
+    indices[0] === 0 && indices[2] === 2 && count === 3 &&
+    zero[0] === 1 && zero[2] === 3 && empty.length === 0 && failed && visited === "a😀" &&
+    fractions[0] === 0.5 && fractions[1] === 1.5 && first() === 1 && first() === 1.5 && second() === 2;
+}
+` }), "mapped-source-strings");
+});
+
+test("lambda parameter adaptation rejects an unproved implicit narrowing", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+import type { uint8 } from "@tsonic/core/types.js";
+export function run(): uint8[] { return Array.from("abc", (part: string, index: uint8): uint8 => index); }
+` });
+  assert(compiled.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_LAMBDA_PARAMETER_TYPE_CONFLICT"));
+  assert.equal(compiled.result.artifacts.length, 0);
+});
+
 test("unrelated class unions preserve cross-file method dispatch and object aliasing", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: {
     "backing.ts": `

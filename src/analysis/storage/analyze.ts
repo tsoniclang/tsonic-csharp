@@ -41,6 +41,7 @@ import type {
 interface MutableStorageContract {
   readonly declaration: Node;
   targetType?: TargetTypeRef;
+  lambdaParameterType?: TargetTypeRef;
   nullableWrittenType?: TargetTypeRef;
   typedLocationIdentity: boolean;
 }
@@ -140,6 +141,9 @@ export function analyzeCsharpStorage(
             ...(contract.targetType === undefined
               ? {}
               : { targetType: contract.targetType }),
+            ...(contract.lambdaParameterType === undefined
+              ? {}
+              : { lambdaParameterType: contract.lambdaParameterType }),
             ...(contract.nullableWrittenType === undefined
               ? {}
               : { nullableWrittenType: contract.nullableWrittenType }),
@@ -152,6 +156,9 @@ export function analyzeCsharpStorage(
     },
     requiredType(node) {
       return requiredTypes.get(node);
+    },
+    lambdaParameterType(node) {
+      return contracts.get(node)?.lambdaParameterType;
     },
     requiresTypedLocationIdentity(declaration) {
       return nativeBacking.get(declaration) === undefined && nativeBacking.array(declaration) === undefined && contracts.get(declaration)?.typedLocationIdentity === true;
@@ -264,7 +271,9 @@ export function analyzeCsharpStorage(
             continue;
           }
         }
-        requireTargetType(parameter, parameter, targetType);
+        requireTargetType(parameter, parameter, effectiveAuthored ?? targetType);
+        const contract = contracts.get(parameter);
+        if (contract !== undefined) contract.lambdaParameterType = targetType;
       }
     }
   }
@@ -597,6 +606,7 @@ export function csharpStorageClassificationsEqual(
       return other !== undefined &&
         candidate.declaration === other.declaration &&
         optionalTargetTypeEquals(candidate.targetType, other.targetType) &&
+        optionalTargetTypeEquals(candidate.lambdaParameterType, other.lambdaParameterType) &&
         optionalTargetTypeEquals(
           candidate.nullableWrittenType,
           other.nullableWrittenType,

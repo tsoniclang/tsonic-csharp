@@ -32,12 +32,14 @@ export interface CsharpStorageClassifications {
   readonly contracts: readonly CsharpStorageContractClassification[];
   type(node: Node): TargetTypeRef | undefined;
   requiredType(node: Node): TargetTypeRef | undefined;
+  lambdaParameterType(node: Node): TargetTypeRef | undefined;
   requiresTypedLocationIdentity(declaration: Node): boolean;
 }
 
 export interface CsharpStorageContractClassification {
   readonly declaration: Node;
   readonly targetType?: TargetTypeRef;
+  readonly lambdaParameterType?: TargetTypeRef;
   readonly nullableWrittenType?: TargetTypeRef;
   readonly type: TargetTypeRef;
   readonly typedLocationIdentity: boolean;
