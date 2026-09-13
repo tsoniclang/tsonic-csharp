@@ -1,6 +1,7 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
+import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import type {
   SourceCallableTypeEvidence,
   SourceFileSemantics,
@@ -299,7 +300,7 @@ export function generatorResultProtocol(
 
 
 export function resolveUnionType(
-  { resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -315,8 +316,9 @@ export function resolveUnionType(
   if (resolved.some((member) => member === undefined)) {
     return undefined;
   }
-  return combineCsharpTargetUnionMembers(
-    resolved as readonly TargetTypeRef[],
+  return retainCsharpUnionObjectShapes(
+    combineCsharpTargetUnionMembers(resolved as readonly TargetTypeRef[]),
+    host.structuralTypes.resolveTarget,
   );
 }
 

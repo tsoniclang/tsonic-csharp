@@ -572,7 +572,7 @@ export function analyzeCsharpExpectedTypes(
         }
         return;
       }
-      const expectedShape = objectShapes.resolveTarget(targetType);
+      const expectedShape = objectShapes.resolveObjectLiteralUnionShape(expression, targetType) ?? objectShapes.resolveTarget(targetType);
       const resolution = objectShapes.resolveObjectLiteralTargetShape(
         expectedShape,
         expression,

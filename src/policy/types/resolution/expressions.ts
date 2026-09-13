@@ -240,6 +240,7 @@ export function resolvePropertyAccessTargetType(
     ),
     selectedSourceType,
     queries.sourceFile,
+    queries.types.typeOfSymbol(selection.source.selectedSymbol),
   );
   const selectedSymbolType = selectedSourceType === undefined ||
       selection.source.selectedSymbol === undefined

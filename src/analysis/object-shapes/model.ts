@@ -6,6 +6,7 @@ import type {
 } from "../../policy/types/index.js";
 
 export interface CsharpObjectShapeClassifications {
+  resolveObjectLiteralUnionShape(node: Node, type: TargetTypeRef): CsharpObjectShapeFact | undefined;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,

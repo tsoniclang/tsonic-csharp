@@ -10,7 +10,9 @@ import {
   csharpObjectShapesEqual,
   isCsharpJsValueTargetType,
   targetTypeRefKey,
+  getCsharpRuntimeUnionArms,
 } from "../../policy/types/index.js";
+import { selectCsharpObjectLiteralUnionShape } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
 
@@ -84,7 +86,21 @@ export function analyzeCsharpObjectShapes(
     Node,
     ReadonlyMap<string, CsharpObjectLiteralTargetShapeResolution>
   >();
+  const literalUnionShapes = new WeakMap<Node, ReadonlyMap<string, CsharpObjectShapeFact>>();
+  const unionTypes = evidence.targetTypes.filter(type => getCsharpRuntimeUnionArms(type) !== undefined);
   for (const [literal, sourceFile] of objectLiterals) {
+    const unionShapes = new Map<string, CsharpObjectShapeFact>();
+    const elements = policy.ast.properties(literal).map(element => element === undefined
+      ? undefined : policy.semantics(sourceFile).operations.objectLiteralElement(element));
+    for (const type of unionTypes) {
+      reserveClassification();
+      const shape = selectCsharpObjectLiteralUnionShape(type, elements, policy.objectShapes.resolveTarget);
+      if (shape !== undefined) {
+        unionShapes.set(targetTypeRefKey(type), shape);
+        rememberShape(shape);
+      }
+    }
+    literalUnionShapes.set(literal, unionShapes);
     const results = new Map<string, CsharpObjectLiteralTargetShapeResolution>();
     const contextualShape = policy.objectShapes.resolveType(
       evidence.contextualType(literal),
@@ -122,6 +138,9 @@ export function analyzeCsharpObjectShapes(
   }
 
   const classifications: CsharpObjectShapeClassifications = {
+    resolveObjectLiteralUnionShape(node, type) {
+      return literalUnionShapes.get(node)?.get(targetTypeRefKey(type));
+    },
     resolveNode(node: Node | undefined) {
       return node === undefined ? undefined : byNode.get(node);
     },

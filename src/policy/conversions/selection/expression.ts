@@ -154,6 +154,11 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
 ): CsharpConversionSelection {
+  if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
+  const nullableElement = getCsharpNullableElementTargetType(storageType);
+  if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
+    return selectCsharpConversion(input, storageType, selectedReadType, "explicit");
+  }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(storageType);
   if (runtimeUnionArms !== undefined) {
     const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>

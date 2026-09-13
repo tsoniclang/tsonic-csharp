@@ -10,7 +10,9 @@ import type {
 import {
   csharpNullableReferenceTargetType,
   isCsharpNullableReferenceTargetType,
+  getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
@@ -137,6 +139,24 @@ export function inferCsharpTargetTypeParameterBindings(
       }
       return targetTypeRefEquals(existing, right);
     }
+    const leftElement = getCsharpNullableElementTargetType(left);
+    if (leftElement !== undefined) {
+      return match(leftElement, getCsharpNullableElementTargetType(right) ?? right);
+    }
+    const patternArms = getCsharpRuntimeUnionArms(left);
+    if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {
+      const candidates = patternArms.flatMap(arm => {
+        const selected = inferCsharpTargetTypeParameterBindings(arm, right, parameterNames);
+        return selected === undefined ? [] : [selected];
+      });
+      if (candidates.length !== 1) return false;
+      for (const [name, type] of candidates[0]!) {
+        const existing = bindings.get(name);
+        if (existing !== undefined && !targetTypeRefEquals(existing, type)) return false;
+        bindings.set(name, type);
+      }
+      return true;
+    }
     if (left.kind !== right.kind) {
       return false;
     }
@@ -209,7 +229,7 @@ function stringListsEqual(
     leftValues.every((value, index) => value === rightValues[index]);
 }
 
-function substituteObjectShapeFactTargetTypeParameters(
+export function substituteObjectShapeFactTargetTypeParameters(
   objectShape: CsharpObjectShapeFact | undefined,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): CsharpObjectShapeFact | undefined {
@@ -217,6 +237,7 @@ function substituteObjectShapeFactTargetTypeParameters(
     ? undefined
     : {
         ...objectShape,
+        declarationTemplate: objectShape.declarationTemplate ?? objectShape,
         targetType: substituteTargetTypeParameters(objectShape.targetType, substitutions),
         members: objectShape.members.map((member) => ({
           ...member,

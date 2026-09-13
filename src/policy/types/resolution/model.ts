@@ -19,6 +19,7 @@ import type { CsharpSourceCallableContract } from "../callables/source-callable-
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -51,6 +52,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
+    resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
     resolveNode(
       node: Node,
       sourceFile: SourceFile,
@@ -67,6 +69,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       selectedSubjects: readonly ExtensionFactSubject[],
       selectedType: Type | undefined,
       sourceFile: SourceFile,
+      declaredMemberType: Type | undefined,
     ): TargetTypeRef | undefined;
   };
 }

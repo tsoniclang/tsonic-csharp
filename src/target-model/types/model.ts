@@ -35,6 +35,7 @@ export interface CsharpObjectShapeMemberFact {
 
 export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
+  readonly declarationTemplate?: CsharpObjectShapeFact;
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;

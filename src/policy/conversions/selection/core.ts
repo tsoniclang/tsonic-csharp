@@ -51,6 +51,10 @@ export function selectCsharpConversion(
         "Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation.",
     };
   }
+  const nullable = selectNullableConversion(input, source, target, mode);
+  if (nullable !== undefined) {
+    return nullable;
+  }
   const runtimeUnion = selectRuntimeUnionConversion(source, target, mode);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
@@ -58,10 +62,6 @@ export function selectCsharpConversion(
   const tuple = selectTupleConversion(input, source, target, mode);
   if (tuple !== undefined) {
     return tuple;
-  }
-  const nullable = selectNullableConversion(input, source, target, mode);
-  if (nullable !== undefined) {
-    return nullable;
   }
   const collectionInterface = selectCollectionInterfaceConversion(
     source,

@@ -14,6 +14,7 @@ import { resolveKeywordType } from "./source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 
 export function resolveNodeWithState(
   { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -106,8 +107,9 @@ export function resolveNodeWithState(
     );
     return members.some((member) => member === undefined)
       ? undefined
-      : combineCsharpTargetUnionMembers(
-          members as readonly TargetTypeRef[],
+      : retainCsharpUnionObjectShapes(
+          combineCsharpTargetUnionMembers(members as readonly TargetTypeRef[]),
+          host.structuralTypes.resolveTarget,
         );
   }
   if (host.ast.is.IsNamedTupleMember(node)) {

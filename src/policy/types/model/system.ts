@@ -81,6 +81,12 @@ export function createCsharpTypeSystem(
         );
       },
       structuralTypes: {
+        resolveTarget(type) {
+          if (objectShapes === undefined) {
+            throw new Error("C# structural type resolution ran before the type system was fully initialized.");
+          }
+          return objectShapes.resolveTarget(type);
+        },
         resolveNode(
           node: Node,
           sourceFile: SourceFile,
@@ -122,6 +128,7 @@ export function createCsharpTypeSystem(
           selectedSubjects: readonly ExtensionFactSubject[],
           selectedType: Type | undefined,
           sourceFile: SourceFile,
+          declaredMemberType: Type | undefined,
         ) {
           if (objectShapes === undefined || receiverType === undefined) {
             return undefined;
@@ -134,6 +141,11 @@ export function createCsharpTypeSystem(
             shape,
             selectedSubjects,
           );
+          if (selected.kind === "resolved" && selectedType === undefined) return selected.member.type;
+          if (selected.kind === "resolved" && selectedType !== undefined && declaredMemberType !== undefined &&
+            host.semantics(sourceFile).types.relationship(declaredMemberType, selectedType) === "identical") {
+            return selected.member.type;
+          }
           return selected.kind === "resolved"
             ? resolveCsharpObjectShapeMemberReadTargetType(
                 selected.member,

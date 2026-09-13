@@ -172,7 +172,7 @@ export function materializeObjectShapeDeclarations(
       existing !== undefined &&
       !objectShapeDeclarationMatches(
         existing,
-        artifact.fact,
+        artifact.fact.declarationTemplate ?? artifact.fact,
         artifact.capabilities.includes("json-serialization"),
         artifact.projections,
         new Set(artifact.receiverBoundMethodKeys),
@@ -228,12 +228,13 @@ export function planCsharpObjectShapeSourceFile(
 
 function renderObjectShapeDeclaration(
   input: CsharpPlanningContext,
-  fact: CsharpObjectShapeFact,
+  instance: CsharpObjectShapeFact,
   capabilities: readonly import("../../../target-model/types/index.js").CsharpObjectShapeCapability[],
   projections: readonly import("../../../target-model/types/index.js").CsharpObjectShapeProjection[],
   receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration | undefined {
+  const fact = instance.declarationTemplate ?? instance;
   const jsonSerializable = capabilities.includes("json-serialization");
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
   if (targetType === undefined || targetType.kind !== "IdentifierName") {
