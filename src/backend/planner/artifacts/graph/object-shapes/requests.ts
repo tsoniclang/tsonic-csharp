@@ -15,6 +15,7 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapePropertyOrder,
   targetTypeRefEquals,
+  isCsharpEmptyObjectTargetType,
 } from "../../../../../target-model/types/index.js";
 import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
@@ -24,6 +25,11 @@ export function registerObjectShape(
   fact: CsharpObjectShapeFact,
   requestedMaterialization: "source" | "synthetic",
 ): CsharpArtifactRequestResult {
+  if (isCsharpEmptyObjectTargetType(fact.targetType)) {
+    return fact.members.length === 0 && (fact.implements?.length ?? 0) === 0
+      ? accepted
+      : rejected("An empty-object carrier cannot contain members or implemented contracts.");
+  }
   const materialization = isSourceDeclaredNominalShape(fact)
     ? "source"
     : requestedMaterialization;

@@ -5,6 +5,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import {
   csharpAnyTargetType,
+  csharpEmptyObjectTargetType,
   csharpRuntimeLocationTargetType,
   csharpRuntimeRawPointerTargetType,
   csharpRuntimeNullTargetType,
@@ -163,6 +164,12 @@ export function resolveTypeWithState(
   }
   if (queries.types.isVoidLike(type)) {
     return csharpVoidTargetType();
+  }
+  if (host.target.surfaces?.includes("js") === true &&
+    !queries.types.couldContainTypeVariables(type) && queries.types.propertyInfos(type).length === 0 &&
+    queries.types.callSignatures(type).length === 0 && queries.types.constructSignatures(type).length === 0 &&
+    queries.types.indexInfos(type).length === 0) {
+    return csharpEmptyObjectTargetType();
   }
   return host.structuralTypes.resolveType(
     type,

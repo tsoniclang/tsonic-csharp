@@ -6,6 +6,7 @@ import {
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  isCsharpRuntimeUnionTargetType,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -136,20 +137,22 @@ export const csharpJsNumberCallPolicies:
     numberLocaleStringPolicy(),
     jsCallPolicy(
       jsCallIdentity("NumberConstructor"),
-      () =>
-        staticMethod(
+      (context) => {
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        return staticMethod(
           "Tsonic.CSharp.Js.Globals.Number",
           "constructor",
           "Number",
           globalsType,
           [
-            targetParameter("value", csharpObjectTargetType(), {
+            targetParameter("value", isCsharpRuntimeUnionTargetType(argument) ? argument : csharpObjectTargetType(), {
               optional: true,
-              csharpAcceptsClosedSourceArgument: true,
+              ...(isCsharpRuntimeUnionTargetType(argument) ? {} : { csharpAcceptsClosedSourceArgument: true }),
             }),
           ],
           numberType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsUnsupportedCallPolicy(

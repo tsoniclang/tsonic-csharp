@@ -340,7 +340,9 @@ interface ReadonlyArray<T> extends Iterable<T> {
 }
 
 interface ArrayConstructor {
+  new <T>(arrayLength: number): T[];
   new <T>(...items: T[]): T[];
+  <T>(arrayLength: number): T[];
   <T>(...items: T[]): T[];
   isArray(value: unknown): value is unknown[];
   from<T>(arrayLike: ArrayLike<T> | Iterable<T>): T[];
@@ -348,6 +350,11 @@ interface ArrayConstructor {
   of<T>(...items: T[]): T[];
 }
 declare var Array: ArrayConstructor;
+
+interface BigIntConstructor {
+  (value: bigint | boolean | number | string): bigint;
+}
+declare var BigInt: BigIntConstructor;
 
 interface Map<K, V> extends ReadonlyMap<K, V> {
   readonly size: number;

@@ -10,6 +10,7 @@ import type {
   TargetTypeRef,
 } from "../../types/index.js";
 import {
+  csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
@@ -662,6 +663,9 @@ function validateUnaryTargetSemantics(
   operand: TargetTypeRef,
   input: CsharpPolicyContext,
 ): string | undefined {
+  if (operator === "-" && targetTypeRefEquals(operand, csharpBigIntegerTargetType())) {
+    return undefined;
+  }
   if (isCsharpJsValueTargetType(operand)) {
     return `Source unary operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
   }
@@ -788,6 +792,10 @@ function supportsIntrinsicEquality(
   right: TargetTypeRef,
   input: CsharpPolicyContext,
 ): boolean {
+  if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) &&
+    targetTypeRefEquals(right, csharpBigIntegerTargetType())) {
+    return true;
+  }
   if (
     isCsharpRuntimeNullTargetType(left) ||
     isCsharpRuntimeUndefinedTargetType(left) ||

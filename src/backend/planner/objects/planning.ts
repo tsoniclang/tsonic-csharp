@@ -51,6 +51,8 @@ export {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
 
+import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
+
 export function registerSourceObjectShape(
   input: CsharpPlanningContext,
   fact: CsharpObjectShapeFact,
@@ -85,6 +87,11 @@ export function csharpTypeFromObjectShapeFact(
   }
   if (isCsharpJsValueObjectShapeTargetType(fact.targetType)) {
     return targetType;
+  }
+  if (isCsharpEmptyObjectTargetType(fact.targetType)) {
+    if (fact.members.length === 0 && (fact.implements?.length ?? 0) === 0) return targetType;
+    reportObjectShapeFailure(diagnostics, diagnosticSubject, "An empty-object carrier cannot contain members or implemented contracts.");
+    return undefined;
   }
   if (fact.constructible === true || isSourceDeclaredNominalShape(fact)) {
     const result = input.artifacts.registerObjectShape(fact, "source");

@@ -665,7 +665,7 @@ export function createCsharpObjectShapePolicy(
         ? [contextualProjectType]
         : undefined;
       return {
-        targetType: createStructuralObjectShapeTarget(members, implemented),
+        targetType: createStructuralObjectShapeTarget(members, implemented, host.target.surfaces?.includes("js") === true),
         members,
         ...(implemented === undefined ? {} : { implements: implemented }),
       };

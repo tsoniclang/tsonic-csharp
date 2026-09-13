@@ -649,7 +649,7 @@ function arrayConstructionMember(
       targetName: "JSArray",
       kind: "constructor",
       declaringType: resultType,
-      parameters: [targetParameter("length", intType)],
+      parameters: [targetParameter("length", doubleType)],
       returnType: resultType,
     });
   }
@@ -691,7 +691,7 @@ function arrayCallMember(
     numericLength ? "withLength" : "of",
     arrayStaticsType,
     numericLength
-      ? [targetParameter("length", intType)]
+      ? [targetParameter("length", doubleType)]
       : [targetParameter("items", element, { paramsArray: true })],
     resultType,
     { typeParameters: [{ name: "T" }] },

@@ -23,6 +23,16 @@ export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
   return csharpTsValueTargetType();
 }
 
+export function csharpEmptyObjectTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Js.EmptyObject", undefined,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "EmptyObject"));
+}
+
+export function isCsharpEmptyObjectTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "Tsonic.CSharp.Js.EmptyObject" &&
+    (type.typeArguments?.length ?? 0) === 0;
+}
+
 export function csharpTsValueTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
     "Tsonic.CSharp.Runtime.TsValue",

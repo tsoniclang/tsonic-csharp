@@ -51,6 +51,7 @@ import {
   csharpJsIntlCallPolicies,
   csharpJsIntlPropertyPolicies,
 } from "./intl.js";
+import { csharpJsBigIntCallPolicies } from "./bigints.js";
 
 export const csharpJsSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
@@ -67,6 +68,7 @@ export const csharpJsSourceProfileCallPolicies:
     ...csharpJsBinaryCallPolicies,
     ...csharpJsPromiseCallPolicies,
     ...csharpJsIntlCallPolicies,
+    ...csharpJsBigIntCallPolicies,
   ]);
 
 export const csharpJsSourceProfilePropertyPolicies:
