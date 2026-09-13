@@ -1,3 +1,4 @@
+import { classifyCsharpUnionCall } from "./union-calls.js";
 import {
   createTargetClassificationBuilder,
   createTargetClassificationKey,
@@ -334,6 +335,7 @@ function visit(
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
     setClassification(builder, node, callKey, Object.freeze({
+      unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
       sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,

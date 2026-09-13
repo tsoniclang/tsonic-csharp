@@ -2,6 +2,8 @@ import { applyCalleeTypeArguments, isProjectSourceDeclaration, sourceCalleeRequi
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
+import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
+import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -37,6 +39,33 @@ export function translateSourceOwnedCall(
       "The exact selected source callee is external to the project and has no C# target relation.",
     ));
     return undefined;
+  }
+  if (classification.unionCall.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, classification.unionCall.reason));
+    return undefined;
+  }
+  if (classification.unionCall.kind === "resolved") {
+    const union = classification.unionCall;
+    const receiver = planExpression(union.receiver, sourceFile, input, diagnostics);
+    const arguments_ = translateSourceOwnedArguments(node, source, classification, sourceFile, input, diagnostics, planExpression, planCallArgument);
+    if (receiver === undefined || arguments_ === undefined) return undefined;
+    const resultType = csharpTypeFromTargetTypeRef(union.resultType);
+    if (resultType === undefined) return undefined;
+    return {
+      kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver, name: "Match",
+        ...(isCsharpVoidTargetType(union.resultType) ? {} : { typeArguments: [resultType] }) },
+      arguments: union.methods.map((method, index) => {
+        const name = `__tsonic_union_arm${index + 1}`;
+        return { kind: "Argument", expression: {
+          kind: "LambdaExpression",
+          parameters: [{ kind: "Parameter", name }],
+          body: { kind: "InvocationExpression", callee: {
+            kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: method.targetName,
+          }, arguments: arguments_ },
+        } };
+      }),
+    };
   }
   let callee = planExpression(
     source.sourceCallee.expression,

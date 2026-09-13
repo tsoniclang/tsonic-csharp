@@ -57,6 +57,7 @@ export interface CsharpSourceCallArgumentClassification {
 
 export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
+  readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
   readonly source?: ResolvedSourceCallInfo;
   readonly sourceFlow: CsharpSourceFlowCallSelection;
   readonly jsValue: CsharpJsValueOperationSelection;

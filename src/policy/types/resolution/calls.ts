@@ -410,11 +410,16 @@ export function sourceCallSelectedDeclaration(
 
 
 export function resolveSourceCallReceiverTargetType(
-  { host, resolveSelectedReceiverTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  if (host.ast.is.IsNewExpression(source.call) &&
+    host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
+    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)) {
+    return resolveSourceOwnedConstructionResult(source, host.semantics(selectedSourceFile), nextState(state));
+  }
   return host.ast.is.IsNewExpression(source.call)
     ? resolveTypeWithState(
         source.sourceResultType,

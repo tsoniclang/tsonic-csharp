@@ -33,6 +33,117 @@ function execute(compiled, name) {
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
 
+test("unrelated class unions preserve cross-file method dispatch and object aliasing", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: {
+    "backing.ts": `
+      export class TextBacking {
+        value: string;
+        constructor(value: string) { this.value = value; }
+        read(): string { return this.value; }
+        change(value: string): void { this.value = value; }
+      }
+      export class OtherBacking {
+        value: string;
+        extra: boolean = true;
+        constructor(value: string) { this.value = value; }
+        read(): string { return this.value; }
+        change(value: string): void { this.value = value; }
+      }
+      export class Wrapper {
+        backing: TextBacking | OtherBacking;
+        constructor(backing: TextBacking | OtherBacking) { this.backing = backing; }
+        read(): string { return this.backing.read(); }
+        change(value: string): void { this.backing.change(value); }
+      }
+      export function retain(backing: OtherBacking | TextBacking): TextBacking | OtherBacking { return backing; }
+    `,
+  }, sourceText: `
+    import { TextBacking, OtherBacking, Wrapper, retain } from "./backing.js";
+    export function run(): boolean {
+      const first = new TextBacking("first");
+      const second = new OtherBacking("second");
+      const left = new Wrapper(retain(first));
+      const right = new Wrapper(retain(second));
+      const initial = left.read() === "first" && right.read() === "second";
+      left.change("changed");
+      return initial && left.read() === "changed" && first.read() === "changed" && second.read() === "second";
+    }
+  ` }), "inferred-class-union");
+});
+
+
+test("generic class unions retain optional pointer results, exceptions and call evaluation order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({
+    surface: "js",
+    files: { "backing.ts": `
+import type { Pointer, uint8 } from "@tsonic/core/types.js";
+import { loadPointer } from "@tsonic/core/lang.js";
+export class OptionalBacking {
+  value: Pointer<uint8>;
+  constructor(value: Pointer<uint8>) { this.value = value; }
+  read(absent: boolean): Pointer<uint8> | undefined {
+    if (absent) return undefined;
+    return this.value;
+  }
+}
+export class RequiredBacking {
+  value: Pointer<uint8>;
+  extra: boolean = true;
+  constructor(value: Pointer<uint8>) { this.value = value; }
+  read(fail: boolean): Pointer<uint8> {
+    if (fail) throw new Error("selected branch");
+    return this.value;
+  }
+}
+export class GenericBacking<T> {
+  value: T;
+  constructor(value: T) { this.value = value; }
+  read(fail: boolean): T {
+    if (fail) throw new Error("generic branch");
+    return this.value;
+  }
+}
+export type Backing = RequiredBacking | GenericBacking<Pointer<uint8>> | OptionalBacking;
+export function read(backing: Backing, fail: boolean): uint8 {
+  const pointer = backing.read(fail);
+  if (pointer === undefined) return 0;
+  return loadPointer(pointer);
+}
+export class Calls {
+  order: string = "";
+  source(value: Backing): Backing { this.order += "receiver"; return value; }
+  argument(): boolean { this.order += "argument"; return false; }
+}
+export function evaluate(calls: Calls, value: Backing): uint8 {
+  const pointer = calls.source(value).read(calls.argument());
+  if (pointer === undefined) return 0;
+  return loadPointer(pointer);
+}
+` },
+    sourceText: `
+import type { Pointer, uint8 } from "@tsonic/core/types.js";
+import { allocatePointer, storePointer } from "@tsonic/core/lang.js";
+import { OptionalBacking, RequiredBacking, GenericBacking, Calls, evaluate, read } from "./backing.js";
+
+export function run(): boolean {
+  const byte: uint8 = 29;
+  const pointer = allocatePointer<uint8>(byte);
+  const first = new OptionalBacking(pointer);
+  const second = new RequiredBacking(pointer);
+  const third = new GenericBacking<Pointer<uint8>>(pointer);
+  const initial = read(first, false) === 29 && read(second, false) === 29 && read(third, false) === 29 && read(first, true) === 0;
+  storePointer(pointer, 31);
+  const retained = read(first, false) === 31 && read(second, false) === 31 && read(third, false) === 31;
+  let caught = false;
+  try { read(second, true); } catch { caught = true; }
+  const calls = new Calls();
+  const ordered = evaluate(calls, third) === 31 && calls.order === "receiverargument";
+  return initial && retained && caught && ordered;
+}
+`,
+  }), "generic-class-union");
+});
+
 test("BigInt construction preserves native integer widths and closed numeric unions", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: {
     "values.ts": `
