@@ -19,6 +19,7 @@ import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy
 import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
 import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPackageGraph } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
 import { nativeV8FlagsSource } from "../../../../tsonic/test/fixtures/native-v8-flags.mjs";
+import { nativeV8HeapSource } from "../../../../tsonic/test/fixtures/native-v8-heap.mjs";
 import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bound-memory-records.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
@@ -65,6 +66,12 @@ for (const valueRepresentation of [false, true]) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`native V8 heap observations fail only on invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, capabilities: [nodejsCapability()],
+      sourceText: nativeV8HeapSource }), `native-v8-heap-${surface ?? "native"}`, false, false, [
+        join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj"),
+      ]);
+  });
   test(`native V8 flags fail only on explicit invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, capabilities: [nodejsCapability()],
       sourceText: nativeV8FlagsSource }), `native-v8-flags-${surface ?? "native"}`, false, false, [
