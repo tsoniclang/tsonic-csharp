@@ -53,13 +53,25 @@ export function planSelectedCsharpBinaryOperation(
       input,
       diagnostics,
     );
-    return operand === undefined
-      ? undefined
-      : {
-          kind: "NullPatternExpression",
-          expression: operand,
-          negated: selection.targetOperation.negated,
-        };
+    if (operand === undefined) return undefined;
+    const otherNode = selection.targetOperation.operand === "left" ? selection.right : selection.left;
+    const other = planExpression(otherNode, sourceFile, input, diagnostics);
+    if (other === undefined) return undefined;
+    let tested = operand;
+    if (other.kind !== "LiteralExpression") {
+      const testedType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
+        ? selection.leftType : selection.rightType);
+      const otherType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
+        ? selection.rightType : selection.leftType);
+      if (testedType === undefined || otherType === undefined) return undefined;
+      const testedValue: CsharpExpression = { kind: "CastExpression", type: testedType, expression: operand };
+      const otherValue: CsharpExpression = { kind: "CastExpression", type: otherType, expression: other };
+      tested = { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "TupleExpression", elements: selection.targetOperation.operand === "left"
+          ? [testedValue, otherValue] : [otherValue, testedValue] },
+        name: selection.targetOperation.operand === "left" ? "Item1" : "Item2" };
+    }
+    return { kind: "NullPatternExpression", expression: tested, negated: selection.targetOperation.negated };
   }
   if (selection.targetOperation.kind === "string-ordinal-relational") {
     const operatorToken = csharpBinaryOperatorTokenFromText(

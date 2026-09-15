@@ -4,8 +4,11 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
-  csharpTsValueTargetType,
+  csharpTaskTargetType,
+  isCsharpNeverTargetType,
+  isCsharpVoidTargetType,
 } from "../../../target-model/types/index.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -21,9 +24,7 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
-import {
-  translateCsharpJsValueInvocation,
-} from "./js-value-operations.js";
+import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
 
 export function planVoidExpression(
   node: Node,
@@ -31,6 +32,7 @@ export function planVoidExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   if (!input.program.source.ast.is.IsVoidExpression(node)) {
     return undefined;
@@ -48,36 +50,51 @@ export function planVoidExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, jsValueOperation.reason));
     return undefined;
   }
-  if (jsValueOperation.kind === "resolved") {
-    const expression = operand === undefined
-      ? undefined
-      : planExpression(operand, sourceFile, input, diagnostics);
-    return expression === undefined
-      ? undefined
-      : translateCsharpJsValueInvocation(
-          jsValueOperation,
-          undefined,
-          [expression],
-        );
-  }
-  const receiver = csharpTypeFromTargetTypeRef(csharpTsValueTargetType());
-  if (operand === undefined || receiver === undefined) {
+  const operandType = operand === undefined ? undefined : input.types.classifications.resolveNode(operand, sourceFile);
+  const target = expectedTargetType ?? input.types.classifications.resolveNode(node, sourceFile);
+  const resultType = target === undefined ? undefined : csharpTypeFromTargetTypeRef(target);
+  if (operand === undefined || operandType === undefined || target === undefined || resultType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
-      "C# void translation requires an exact operand and closed TsValue carrier.",
+      "C# void translation requires exact sealed operand and result carriers.",
     ));
     return undefined;
   }
+  const result = planCsharpSourceUndefinedValue(node, target, sourceFile, input, diagnostics);
+  if (result.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "The selected C# void result cannot represent undefined."));
+    return undefined;
+  }
   const expression = planExpression(operand, sourceFile, input, diagnostics);
-  return expression === undefined
-    ? undefined
-    : {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver,
-          name: "ApplyDynamicVoid",
-        },
-        arguments: [{ kind: "Argument", expression }],
-      };
+  if (expression === undefined) return undefined;
+  if (expression.kind === "LiteralExpression" || expression.kind === "NumericLiteralExpression" ||
+    expression.kind === "IntegerLiteralExpression" || expression.kind === "CharacterLiteralExpression") {
+    return result.expression;
+  }
+  if (!isCsharpVoidTargetType(operandType) && !isCsharpNeverTargetType(operandType)) {
+    return {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "TupleExpression", elements: [expression,
+        { kind: "CastExpression", type: resultType, expression: result.expression }] },
+      name: "Item2",
+    };
+  }
+  let statement: CsharpExpression = expression;
+  while (statement.kind === "ParenthesizedExpression") statement = statement.expression;
+  const asynchronous = statement.kind === "AwaitExpression";
+  const returnType = asynchronous ? csharpTypeFromTargetTypeRef(csharpTaskTargetType(target)) : resultType;
+  if (returnType === undefined) return undefined;
+  const invocation: CsharpExpression = {
+    kind: "InvocationExpression",
+    callee: { kind: "ParenthesizedExpression", expression: { kind: "CastExpression",
+      type: { kind: "QualifiedName", left: { kind: "IdentifierName", name: "System" }, name: "Func",
+        typeArguments: [returnType] },
+      expression: { kind: "LambdaExpression", async: asynchronous, parameters: [],
+        body: { kind: "Block", statements: [
+          { kind: "ExpressionStatement", expression: statement },
+          { kind: "ReturnStatement", expression: result.expression },
+        ] } } } },
+    arguments: [],
+  };
+  return asynchronous ? { kind: "AwaitExpression", expression: invocation } : invocation;
 }

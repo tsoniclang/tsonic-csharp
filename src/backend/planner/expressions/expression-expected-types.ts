@@ -71,6 +71,7 @@ import type {
 import {
   planCsharpExactLiteralConversion,
 } from "./literal-conversions.js";
+import { planVoidExpression } from "./expression-void.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -98,6 +99,13 @@ export function planExpressionWithExpectedTypeCore(
   const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, effectiveExpectedTargetType, expectedTypeSubject);
   if (expectedRuntimeNullishLiteral !== undefined) {
     return expectedRepresentation(expectedRuntimeNullishLiteral);
+  }
+  if (input.program.source.ast.is.IsVoidExpression(node)) {
+    return expectedRepresentation(planVoidExpression(
+      node, sourceFile, input, diagnostics,
+      (operand, file, context, errors) => planners.planExpression(operand, file, context, errors, state),
+      effectiveExpectedTargetType,
+    ));
   }
   const expectedTypeLiteral = planCsharpExactLiteralConversion(
     input,

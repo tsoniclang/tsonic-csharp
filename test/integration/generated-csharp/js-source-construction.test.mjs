@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 
-function execute(compiled, name) {
+function execute(compiled, name, asynchronous = false) {
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
   mkdirSync(scratch, { recursive: true });
@@ -18,7 +18,7 @@ function execute(compiled, name) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, text);
   }
-  writeFileSync(join(root, "Program.cs"), 'if (!Tsonic.Generated.Index.run()) throw new System.Exception("source construction contract");');
+  writeFileSync(join(root, "Program.cs"), `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
     join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj"),
@@ -32,6 +32,32 @@ function execute(compiled, name) {
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
 }
+
+test("void results retain unit calls, nullable conversion and equality effects", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+let visits = 0;
+function value(): number { visits += 1; return visits; }
+function unit(): void { visits += 1; }
+function optional(value: number | undefined): boolean { return value === undefined; }
+function compare(value: number | undefined): boolean { return value === void unit(); }
+export function run(): boolean {
+  return String(void value()) === "undefined" && String(void unit()) === "undefined" &&
+    optional(void value()) && optional(void unit()) && compare(undefined) && visits === 5;
+}
+` }), "void-source-values");
+});
+
+test("void awaited unit and value operands preserve completion order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+let visits = 0;
+async function value(): Promise<number> { visits += 1; return visits; }
+async function unit(): Promise<void> { visits += 1; }
+function optional(value: number | undefined): boolean { return value === undefined; }
+export async function run(): Promise<boolean> {
+  return optional(void await value()) && optional(void (await unit())) && visits === 2;
+}
+` }), "void-awaited-values", true);
+});
 
 test("qualified source builtins retain static operations and local shadows", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
@@ -360,6 +386,33 @@ test("same-spelled local functions and object members remain ordinary source", {
   ` });
   execute(compiled, "construction-shadows");
   assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /BigIntOps|EmptyObject\.Freeze/u);
+});
+
+test("stored Error throws preserve identity across parameters, return values and rethrows", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+    function fail(error: Error): void { throw error; }
+    function create(): Error { return new Error("returned"); }
+    export function run(): boolean {
+      const original = new Error("stored");
+      const before = original.stack;
+      let caught = 0;
+      let cleaned = 0;
+      try { throw original; } catch (error) {
+        if (error instanceof Error && error === original && error.message === "stored") caught += 1;
+      }
+      try { fail(original); } catch (error) { if (error === original) caught += 1; }
+      try { throw create(); } catch (error) {
+        if (error instanceof Error && error.message === "returned") caught += 1;
+      }
+      try {
+        try { fail(original); } catch (error) { throw error; }
+        finally { cleaned += 1; }
+      } catch (error) { if (error === original) caught += 1; }
+      const subtype = new RangeError("bounds");
+      try { fail(subtype); } catch (error) { if (error === subtype) caught += 1; }
+      return caught === 5 && cleaned === 1 && original.stack === before;
+    }
+  ` }), "stored-error-transport");
 });
 
 test("nonempty writable shapes cannot silently use the empty frozen carrier", () => {
