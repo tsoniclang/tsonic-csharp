@@ -9,15 +9,15 @@ import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-l
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
-import { closedGenericDispatchProofFiles, closedGenericDispatchPackageFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
+import { closedGenericDispatchProofFiles, closedGenericDispatchPackageFiles, closedGenericDispatchPackageGraph } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fixed-array-memory.mjs";
 import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
 import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
-import { sourcePackageCallbackErrorFiles } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
-import { falliblePointerFiles, falliblePointerPackageFiles } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
+import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
+import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPackageGraph } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -51,6 +51,7 @@ for (const [name, files] of [["files", falliblePointerFiles], ["packages", falli
   for (const surface of [undefined, "js"]) {
     test(`fallible pointer callbacks preserve aliases and errors across ${name}, ${surface ?? "native"}`, { timeout: 300_000 }, () => {
       execute(compileCsharpSource({ surface, sourceText: files["index.ts"],
+        sourcePackages: name === "packages" ? falliblePointerPackageGraph : undefined,
         files: Object.fromEntries(Object.entries(files).filter(([path]) => path !== "index.ts")),
       }), `fallible-locations-${name}-${surface ?? "native"}`);
     });
@@ -59,6 +60,7 @@ for (const [name, files] of [["files", falliblePointerFiles], ["packages", falli
 
 test("retained cross-package callbacks preserve the original thrown object", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: sourcePackageCallbackErrorFiles["index.ts"],
+    sourcePackages: sourcePackageCallbackErrorGraph,
     files: Object.fromEntries(Object.entries(sourcePackageCallbackErrorFiles).filter(([path]) => path !== "index.ts")),
   }), "package-callback-errors");
 });
@@ -110,6 +112,7 @@ for (const surface of [undefined, "js"]) {
   });
   test(`installed source-package generic dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: closedGenericDispatchPackageFiles["index.ts"],
+      sourcePackages: closedGenericDispatchPackageGraph,
       files: Object.fromEntries(Object.entries(closedGenericDispatchPackageFiles).filter(([path]) => path !== "index.ts")) }),
     `package-generic-dispatch-${surface ?? "native"}`);
   });

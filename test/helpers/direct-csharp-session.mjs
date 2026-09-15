@@ -85,7 +85,7 @@ function createCheckedCsharpSource(options) {
     [`${projectRoot}/index.ts`, options.sourceText],
     ...normalizeAdditionalFiles(options.files, projectRoot),
   ]);
-  const sourcePackages = collectTargetSourcePackageGraph(
+  const sourcePackages = options.sourcePackages ?? collectTargetSourcePackageGraph(
     projectRoot,
     projectRoot,
     projectFiles,
