@@ -19,9 +19,8 @@ import {
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
-  jsEnabled = false,
 ): TargetTypeRef {
-  if (jsEnabled && members.length === 0 && (implemented?.length ?? 0) === 0) {
+  if (members.length === 0 && (implemented?.length ?? 0) === 0) {
     return csharpEmptyObjectTargetType();
   }
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);

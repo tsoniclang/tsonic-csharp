@@ -206,6 +206,7 @@ export function csharpConversionIsApplicable(
   mode: CsharpConversionMode,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
     selection.kind === "provider-argument-adapter" ||

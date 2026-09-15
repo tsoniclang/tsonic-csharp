@@ -11,6 +11,7 @@ import { csharpConversionIsApplicable } from "./expression.js";
 import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "../source-primitives.js";
+import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
@@ -19,7 +20,7 @@ export function selectCsharpConversion(
   input: Pick<
     CsharpPolicyContext,
     "projectTypes" | "providers" | "target"
-  >,
+  > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
@@ -34,6 +35,8 @@ export function selectCsharpConversion(
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
   }
+  const emptyRecord = selectCsharpEmptyRecordConversion(input, source, target);
+  if (emptyRecord !== undefined) return emptyRecord;
   const jsValueConversion = selectJsValueConversion(
     source,
     target,
@@ -167,6 +170,7 @@ export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter";
 }

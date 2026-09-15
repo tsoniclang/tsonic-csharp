@@ -103,7 +103,7 @@ export const csharpJsObjectCallPolicies:
         const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
         if (argument === undefined || !isCsharpEmptyObjectTargetType(argument)) return undefined;
         const carrier = csharpEmptyObjectTargetType();
-        return staticMethod(`Tsonic.CSharp.Js.EmptyObject.${name}`, name,
+        return staticMethod(`Tsonic.CSharp.Runtime.EmptyObject.${name}`, name,
           name === "freeze" ? "Freeze" : "IsFrozen", carrier,
           [targetParameter("value", carrier)], name === "freeze" ? carrier : boolType);
       }, noReceiver)),

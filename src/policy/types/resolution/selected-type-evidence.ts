@@ -6,6 +6,15 @@ import {
   targetTypeRefEquals,
   targetTypeRefIsClosed,
 } from "../../../target-model/types/equality.js";
+import { isCsharpEmptyObjectTargetType, isCsharpJsValueTargetType } from "../../../target-model/types/runtime-carriers.js";
+
+export function retainCsharpBroadValueCarrier(
+  authored: TargetTypeRef | undefined,
+  selected: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  return isCsharpJsValueTargetType(authored) && selected !== undefined && isCsharpEmptyObjectTargetType(selected)
+    ? authored : undefined;
+}
 
 export function reconcileCsharpSelectedTargetType(
   authored: TargetTypeRef | undefined,
@@ -15,6 +24,8 @@ export function reconcileCsharpSelectedTargetType(
   if (authored === undefined || selected === undefined) {
     return authored ?? selected;
   }
+  const retained = retainCsharpBroadValueCarrier(authored, selected);
+  if (retained !== undefined) return retained;
   if (
     targetTypeRefEquals(authored, selected) ||
     sourceRelationship === "identical"

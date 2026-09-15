@@ -5,6 +5,7 @@ export type CsharpConversionMode = "implicit" | "explicit";
 
 export type CsharpConversionSelection =
   | { readonly kind: "identity" }
+  | { readonly kind: "empty-record"; readonly source: TargetTypeRef; readonly target: TargetTypeRef }
   | {
       readonly kind: "implicit";
       readonly proof:

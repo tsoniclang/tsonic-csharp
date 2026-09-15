@@ -21,6 +21,7 @@ import {
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -478,11 +479,12 @@ export function resolveSourceValueDeclaration(
     nextState(state),
   );
   if (syntax.initializer === undefined) {
-    return resolveTypeWithState(
+    const selected = resolveTypeWithState(
       selectedType ?? queries.types.expressionType(node),
       queries.sourceFile,
       nextState(state),
-    ) ?? declaredTarget;
+    );
+    return retainCsharpBroadValueCarrier(declaredTarget, selected) ?? selected ?? declaredTarget;
   }
   const selectedInitializerTarget = resolveDirectSourceFacts(
     [syntax.initializer],

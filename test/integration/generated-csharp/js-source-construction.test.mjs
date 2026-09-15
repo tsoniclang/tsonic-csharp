@@ -21,6 +21,8 @@ import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPacka
 import { nativeV8FlagsSource } from "../../../../tsonic/test/fixtures/native-v8-flags.mjs";
 import { nativeV8HeapSource } from "../../../../tsonic/test/fixtures/native-v8-heap.mjs";
 import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bound-memory-records.mjs";
+import { emptyMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/empty-memory-records.mjs";
+import { broadValueNarrowingSource } from "../../../../tsonic/test/fixtures/broad-value-narrowing.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
@@ -66,6 +68,16 @@ for (const valueRepresentation of [false, true]) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`non-nullish unknown retains its value and identity in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: broadValueNarrowingSource }), `broad-value-narrowing-${surface ?? "native"}`);
+  });
+  test(`empty memory records preserve zero-field bindings in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const files = emptyMemoryRecordProofFiles(surface === "js");
+    execute(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
+      sourceText: files["index.ts"],
+      files: { "schema.ts": files["schema.ts"] },
+    }), `empty-memory-record-${surface ?? "native"}`);
+  });
   test(`native V8 heap observations fail only on invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, capabilities: [nodejsCapability()],
       sourceText: nativeV8HeapSource }), `native-v8-heap-${surface ?? "native"}`, false, false, [

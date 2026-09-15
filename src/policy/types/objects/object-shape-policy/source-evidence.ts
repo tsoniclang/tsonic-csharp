@@ -149,7 +149,9 @@ export function typeHasProjectOwnedShapeDeclaration(
   )) {
     return false;
   }
-  if (node !== undefined && host.ast.is.IsObjectLiteralExpression(node)) {
+  if (node !== undefined &&
+    (host.ast.is.IsObjectLiteralExpression(node) || host.ast.is.IsTypeLiteralNode(node)) &&
+    host.navigation.isProjectDeclaration(node)) {
     return true;
   }
   if (

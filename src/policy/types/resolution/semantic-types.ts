@@ -25,6 +25,7 @@ import { csharpJsSymbolTargetType } from "./surface-types.js";
 import {
   csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,
+  readCsharpSourceField,
   readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
   readCsharpSourceJsStringMarker,
@@ -166,8 +167,7 @@ export function resolveTypeWithState(
   if (queries.types.isVoidLike(type)) {
     return csharpVoidTargetType();
   }
-  if (host.target.surfaces?.includes("js") === true &&
-    !queries.types.couldContainTypeVariables(type) && queries.types.propertyInfos(type).length === 0 &&
+  if (!queries.types.isSymbolLike(type) && !queries.types.couldContainTypeVariables(type) && queries.types.propertyInfos(type).length === 0 &&
     queries.types.callSignatures(type).length === 0 && queries.types.constructSignatures(type).length === 0 &&
     queries.types.indexInfos(type).length === 0) {
     return csharpEmptyObjectTargetType();
@@ -200,7 +200,8 @@ export function resolveDirectSourceFacts(
     if (binding !== undefined && host.sourceFacts !== undefined) {
       const selected = selectTsonicMemoryFieldBinding(host.ast, host.sourceFacts, binding.call);
       if (selected?.kind !== "resolved") return undefined;
-      const typeNode = selected.operation.field.fieldLayout.explicitTypeNode;
+      const typeNode = host.ast.typeNode(selected.operation.field.selectedDeclaration) ??
+        readCsharpSourceField(host.sourceFacts, [selected.operation.field.selectedDeclaration])?.sourceType;
       const pointee = typeNode === undefined
         ? resolveTypeWithState(selected.operation.pointeeType, sourceFile, nextState(state))
         : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));

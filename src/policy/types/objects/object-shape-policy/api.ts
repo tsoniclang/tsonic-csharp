@@ -5,6 +5,7 @@ import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresU
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../resolution/source-markers.js";
 import {
   selectSourceObjectLiteralAccessors,
+  Node_Initializer,
   sourcePropertyTypeEvidenceNodes,
   sourceTransformedTypeFactEvidenceNodes,
 } from "@tsonic/target-api/source";
@@ -19,6 +20,7 @@ import type {
 } from "../../../../target-model/types/model.js";
 import type {
   Node,
+  ExtensionFactSubject,
   SourceFile,
   Type,
   TypePropertyInfo,
@@ -560,6 +562,13 @@ export function createCsharpObjectShapePolicy(
       }
       const selectedType = queries.types.expressionType(node) ?? queries.types.authoredType(node);
       const selectedMembers = selectedType === undefined ? undefined : deriveMembers(selectedType, queries, state);
+      const initializer = host.ast.is.IsCallExpression(node) ? node : Node_Initializer(host.ast, node);
+      const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
+        ? undefined : host.ast.arguments(initializer)[0];
+      const shapeType = shapeNode === undefined ? undefined : queries.types.expressionType(shapeNode);
+      const correspondence = selectedType === undefined || shapeType === undefined
+        ? undefined : queries.types.structuralMembers(shapeType, selectedType);
+      if (correspondence?.kind !== "available") return undefined;
       const members = fact.fields.map((field) => {
         const type = host.typeResolver.resolveNode(
           field.sourceType,
@@ -567,11 +576,16 @@ export function createCsharpObjectShapePolicy(
           nextState(state),
         );
         const sourceType = queries.types.authoredType(field.sourceType);
+        const sourceMembers = correspondence.members.filter(member => member.kind === "present" &&
+          readCsharpSourceField(host.sourceFacts, [member.source.property.symbol,
+            ...member.source.declarations])?.sourceType === field.sourceType);
+        const destination = sourceMembers.length === 1 ? sourceMembers[0]!.destination : undefined;
+        const subjects: readonly ExtensionFactSubject[] = destination === undefined
+          ? [] : [destination.property.symbol, ...destination.declarations];
         const selected = selectedMembers?.filter(member =>
-          readCsharpSourceField(host.sourceFacts, member.sourceSubjects ?? [])?.sourceType === field.sourceType
-        );
+          member.sourceSubjects?.some(subject => subjects.includes(subject)) === true);
         const selectedMember = selected?.length === 1 ? selected[0] : undefined;
-        return type === undefined
+        return type === undefined || selectedMember === undefined
           ? undefined
           : {
               sourceKey: csharpPropertySourceMemberKey(field.sourceName),
@@ -639,9 +653,6 @@ export function createCsharpObjectShapePolicy(
       if (providerShape !== undefined) {
         return providerShape;
       }
-      if (!typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
-        return undefined;
-      }
       const contextualProjectType = targetType !== undefined &&
           isProjectSourceTargetType(targetType)
         ? targetType
@@ -654,6 +665,9 @@ export function createCsharpObjectShapePolicy(
         const shape = definition?.kind === "struct"
           ? resolveStructShape(definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
         return shape !== undefined && targetTypeRefEquals(shape.targetType, contextualProjectType) ? shape : undefined;
+      }
+      if (!typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
+        return undefined;
       }
       if (
         contextualProjectType !== undefined &&
@@ -708,7 +722,7 @@ export function createCsharpObjectShapePolicy(
         ? [contextualProjectType]
         : undefined;
       return {
-        targetType: createStructuralObjectShapeTarget(members, implemented, host.target.surfaces?.includes("js") === true),
+        targetType: createStructuralObjectShapeTarget(members, implemented),
         members,
         ...(implemented === undefined ? {} : { implements: implemented }),
       };

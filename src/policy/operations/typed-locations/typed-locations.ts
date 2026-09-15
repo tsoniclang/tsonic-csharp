@@ -175,10 +175,11 @@ export function selectCsharpTypedLocationOperation(
         arguments_[2] !== source.writeExpression) {
         return rejected(source.kind, "Pointer views require the exact checked base, read and write arguments.");
       }
-      const sourcePointee = input.types.resolveType(source.sourcePointeeType, sourceFile);
       const sourceLocation = input.types.resolveSelectedValue(
         source.locationExpression, source.locationType, sourceFile,
       );
+      const sourcePointee = csharpRuntimeLocationPointee(sourceLocation) ??
+        input.types.resolveType(source.sourcePointeeType, sourceFile);
       if (sourcePointee === undefined || sourceLocation === undefined ||
         !isCsharpTypedLocationEqualityOperand(sourceLocation, sourcePointee) ||
         (!source.optional && (isCsharpNullableReferenceTargetType(sourceLocation) ||

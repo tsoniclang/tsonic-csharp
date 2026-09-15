@@ -46,6 +46,7 @@ import {
 import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
+import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -108,6 +109,8 @@ export function applyCsharpConversionSelection(
   switch (selection.kind) {
     case "identity":
       return expression;
+    case "empty-record":
+      return planCsharpEmptyRecordConversion(selection, sourceType, targetType, expression);
     case "implicit":
       if (selection.proof === "literal") {
         const literal = planCsharpExactLiteralConversion(input, node, targetType);

@@ -2,9 +2,10 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import { selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 import type { CsharpPolicyContext } from "../context.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpRuntimeLocationTargetType } from "../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationTargetType, isCsharpEmptyObjectTargetType } from "../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/object-shape-members.js";
+import { readCsharpSourceField } from "../types/resolution/source-markers.js";
 
 export type CsharpMemoryBindingSelection =
   | { readonly kind: "rejected"; readonly reason: string }
@@ -24,7 +25,9 @@ export function selectCsharpMemoryBinding(
   if (record?.kind === "rejected") return reject(record.reason);
   if (field?.kind === "resolved") {
     const operation = field.operation;
-    const pointee = input.types.resolveSelectedType(operation.field.fieldLayout.explicitTypeNode, operation.pointeeType, file);
+    const typeNode = input.ast.typeNode(operation.field.selectedDeclaration) ??
+      readCsharpSourceField(input.sourceFacts, [operation.field.selectedDeclaration])?.sourceType;
+    const pointee = input.types.resolveSelectedType(typeNode, operation.pointeeType, file);
     if (pointee === undefined) return reject("The bound field has no exact C# value carrier.");
     const type = csharpRuntimeLocationTargetType(pointee);
     const selectedPointer = input.types.resolveNode(operation.pointerExpression, file);
@@ -36,7 +39,9 @@ export function selectCsharpMemoryBinding(
   if (record?.kind !== "resolved") return reject("The record binding has no finalized operation.");
   const operation = record.operation;
   const type = input.types.resolveSelectedType(operation.layout.explicitTypeNode, operation.sourceType, file);
-  const shape = input.objectShapes.resolveType(operation.sourceType, file, operation.layout.explicitTypeNode);
+  const shape = type !== undefined && isCsharpEmptyObjectTargetType(type) && operation.fields.length === 0
+    ? Object.freeze({ targetType: type, members: Object.freeze([]) })
+    : input.objectShapes.resolveType(operation.sourceType, file, operation.layout.explicitTypeNode);
   if (type === undefined || shape === undefined || shape.members.length !== operation.fields.length ||
     !targetTypeRefEquals(type, shape.targetType)) return reject("The bound record requires one exact complete C# structural carrier.");
   const used = new Set<CsharpObjectShapeMemberFact>();
