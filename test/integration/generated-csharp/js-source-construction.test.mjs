@@ -23,6 +23,7 @@ import { nativeV8HeapSource } from "../../../../tsonic/test/fixtures/native-v8-h
 import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bound-memory-records.mjs";
 import { emptyMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/empty-memory-records.mjs";
 import { broadValueNarrowingSource } from "../../../../tsonic/test/fixtures/broad-value-narrowing.mjs";
+import { logicalAccessAssignmentSource } from "../../../../tsonic/test/fixtures/logical-access-assignment.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
@@ -68,6 +69,9 @@ for (const valueRepresentation of [false, true]) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`logical accessor assignments preserve both lanes and short-circuit effects in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: logicalAccessAssignmentSource }), `logical-access-${surface ?? "native"}`);
+  });
   test(`non-nullish unknown retains its value and identity in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: broadValueNarrowingSource }), `broad-value-narrowing-${surface ?? "native"}`);
   });
