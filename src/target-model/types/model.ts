@@ -31,6 +31,7 @@ export interface CsharpObjectShapeMemberFact {
     readonly getter: true;
     readonly setter: boolean;
   };
+  readonly bound?: true;
 }
 
 export interface CsharpObjectShapeFact {

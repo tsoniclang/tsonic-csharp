@@ -46,6 +46,7 @@ import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../op
 import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
 import { readCsharpRawLocation } from "../../operations/pointers/native-memory.js";
 import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
+import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
 export function resolveTypeWithState(
   { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType }: CsharpTypeResolutionScope,
@@ -186,6 +187,25 @@ export function resolveDirectSourceFacts(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    const record = host.sourceFacts?.getFact(subject, tsonicMemoryRecordBindingFactKey);
+    if (record !== undefined && host.sourceFacts !== undefined) {
+      const selected = selectTsonicMemoryRecordBinding(host.ast, host.sourceFacts, record.call);
+      if (selected?.kind !== "resolved") return undefined;
+      const typeNode = selected.operation.layout.explicitTypeNode;
+      return typeNode === undefined
+        ? resolveTypeWithState(selected.operation.sourceType, sourceFile, nextState(state))
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
+    }
+    const binding = host.sourceFacts?.getFact(subject, tsonicMemoryFieldBindingFactKey);
+    if (binding !== undefined && host.sourceFacts !== undefined) {
+      const selected = selectTsonicMemoryFieldBinding(host.ast, host.sourceFacts, binding.call);
+      if (selected?.kind !== "resolved") return undefined;
+      const typeNode = selected.operation.field.fieldLayout.explicitTypeNode;
+      const pointee = typeNode === undefined
+        ? resolveTypeWithState(selected.operation.pointeeType, sourceFile, nextState(state))
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
+      return pointee === undefined ? undefined : csharpRuntimeLocationTargetType(pointee);
+    }
     const rawLocation = readCsharpRawLocation(host.ast, host.sourceFacts, subject);
     if (rawLocation?.kind === "resolved") {
       if (rawLocation.operation.operation === "to-raw") return csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());

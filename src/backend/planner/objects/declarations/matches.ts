@@ -16,6 +16,8 @@ import {
   objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
+  objectShapeBoundStorageMemberName,
+  objectShapeBoundStorageTargetType,
 } from "../object-shape-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -57,6 +59,17 @@ export function objectShapeDeclarationMatches(
     return false;
   }
   for (const member of fact.members) {
+    if (member.bound === true) {
+      const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member));
+      const valueType = csharpTypeFromTargetTypeRef(member.type);
+      if (storageType === undefined || valueType === undefined || !declaration.members.some(candidate =>
+        candidate.kind === "FieldDeclaration" && candidate.name === objectShapeBoundStorageMemberName(fact, member) &&
+        sameCsharpType(candidate.type, storageType)) || !declaration.members.some(candidate =>
+        candidate.kind === "PropertyDeclaration" && candidate.name === member.targetName &&
+        sameCsharpType(candidate.type, valueType) && candidate.getter !== undefined &&
+        (member.readonly === true ? candidate.setter === undefined : candidate.setter !== undefined))) return false;
+      continue;
+    }
     if (member.memberKind === "method") {
       const storageName = objectShapeStorageMemberName(fact, member);
       const storageTargetType = objectShapeMethodStorageTargetType(
@@ -129,7 +142,9 @@ export function objectShapeDeclarationMatches(
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
       return fact.members.some((candidate) =>
-        candidate.memberKind === "method"
+        candidate.bound === true
+          ? candidate.targetName === member.name || objectShapeBoundStorageMemberName(fact, candidate) === member.name
+          : candidate.memberKind === "method"
           ? objectShapeStorageMemberName(fact, candidate) === member.name
           : candidate.accessor === undefined
             ? candidate.targetName === member.name

@@ -21,6 +21,8 @@ import {
   objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
+  objectShapeBoundStorageMemberName,
+  objectShapeBoundStorageTargetType,
 } from "../object-shape-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -70,6 +72,7 @@ export function renderObjectShapeMembers(
         diagnosticSubject,
       );
     }
+    if (member.bound === true) return renderBoundRecordMember(fact, member, type);
     const backing = storage.nativeField(fact.targetType, member.targetName);
     if (backing !== undefined) {
       const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type));
@@ -111,6 +114,22 @@ export function renderObjectShapeMembers(
   return members.some((member) => member === undefined)
     ? undefined
     : members as CsharpClassDeclaration["members"];
+}
+
+export function renderBoundRecordMember(
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], type: CsharpTypeNode,
+): readonly (CsharpTypeMember | undefined)[] {
+  const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member));
+  if (storageType === undefined || member.bound !== true) return [undefined];
+  const storageName = objectShapeBoundStorageMemberName(shape, member);
+  const access: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: storageName }, name: "Value" };
+  return [{ kind: "FieldDeclaration", name: storageName, type: storageType, modifiers: ["public"] },
+    { kind: "PropertyDeclaration", name: member.targetName, type, modifiers: ["public"],
+      getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: access }] },
+      ...(member.readonly ? {} : { setter: { kind: "Block" as const, statements: [{ kind: "ExpressionStatement" as const, expression: {
+        kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" }, left: access, right: { kind: "IdentifierName", name: "value" },
+      } as CsharpExpression }] } }),
+    }];
 }
 
 function renderObjectShapeAccessorMember(

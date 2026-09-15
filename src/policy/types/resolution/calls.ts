@@ -44,7 +44,8 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     );
   }
-  const authoredSemanticType = authoredQueries?.types.authoredType(
+  const selectedQueries = host.semantics(selectedSourceFile);
+  const authoredSemanticType = selectedQueries.types.authoredType(
     authoredTypeNode,
   );
   if (authoredSemanticType === undefined) {
@@ -55,13 +56,13 @@ export function resolveAuthoredAndSelectedSourceType(
     );
   }
   const unionRefinement = selectCsharpAuthoredUnionRefinement(
-    authored, authoredSemanticType, selectedType, authoredQueries,
+    authored, authoredSemanticType, selectedType, selectedQueries,
     type => resolveTypeWithState(type, selectedSourceFile, nextState(state)),
   );
   if (unionRefinement.kind !== "not-applicable") {
     return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;
   }
-  const authoredSelection = authoredQueries.types.authoredSelection(
+  const authoredSelection = selectedQueries.types.authoredSelection(
     authoredTypeNode,
     selectedType,
   );
@@ -103,7 +104,7 @@ export function resolveAuthoredAndSelectedSourceType(
       selectedSourceFile,
       nextState(state),
     ),
-    authoredQueries.types.relationship(authoredSemanticType, selectedType),
+    selectedQueries.types.relationship(authoredSemanticType, selectedType),
   );
 }
 

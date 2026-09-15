@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { AsVariableDeclaration } from "@tsonic/target-api/source";
 import type {
   CsharpPolicyContext,
 } from "../../context.js";
@@ -261,14 +262,19 @@ function selectWritableReceiverStorage(
   active: WeakSet<Node>,
 ): CsharpTypedLocationStorageSelection {
   const storage = input.semantics(sourceFile).operations.storage(receiver);
-  if (storage === undefined || !storage.writable) {
+  const variable = storage?.declaration === undefined
+    ? undefined
+    : AsVariableDeclaration(input.ast, storage.declaration);
+  const ownsMutableFields = storage !== undefined &&
+    input.ast.is.IsIdentifier(storage.storageExpression) &&
+    variable?.Initializer !== undefined;
+  if (storage === undefined || (!storage.writable && !ownsMutableFields)) {
     return storageRejected(
       "A value-type storage receiver has no exact writable owner location.",
     );
   }
-  const selectedStorageType = input.types.resolveSelectedValue(
+  const selectedStorageType = input.types.resolveReadStorage(
     storage.storageExpression,
-    storage.type,
     sourceFile,
   );
   if (

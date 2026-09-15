@@ -20,6 +20,7 @@ export function csharpObjectShapesEqual(
         member.targetName === other.targetName &&
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&
+        member.bound === other.bound &&
         member.accessor?.getter === other.accessor?.getter &&
         member.accessor?.setter === other.accessor?.setter &&
         targetTypeRefEquals(member.type, other.type);

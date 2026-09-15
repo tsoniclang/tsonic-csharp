@@ -8,7 +8,7 @@ import type {
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
 import type { JsArrayDensityQueries } from "@tsonic/js-source-profile";
-import type { TsonicFixedArraySelection, TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import type { TsonicFixedArraySelection, TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type {
   SourceFileSemantics,
@@ -41,6 +41,7 @@ export interface CsharpTypePolicyBaseHost {
   readonly navigation: SourceProgramNavigation;
   readonly arrayDensity: JsArrayDensityQueries;
   readonly pointerReturns: TsonicPointerReturnQueries;
+  readonly memoryBindings: TsonicMemoryBindingIndex;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
   semantics(sourceFile: SourceFile): SourceFileSemantics;

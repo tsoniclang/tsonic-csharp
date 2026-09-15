@@ -251,9 +251,8 @@ export function selectCsharpTypedLocationOperation(
       };
     }
     case "location-address": {
-      const storageType = input.types.resolveSelectedValue(
+      const storageType = input.types.resolveReadStorage(
         source.storageExpression,
-        source.storageType,
         sourceFile,
       );
       if (

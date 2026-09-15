@@ -2,7 +2,7 @@ import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, obje
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
 import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIncludesNullish, typeIsExcludedFromObjectShape } from "./source-evidence.js";
-import { readCsharpSourceStruct } from "../../resolution/source-markers.js";
+import { readCsharpSourceField, readCsharpSourceStruct } from "../../resolution/source-markers.js";
 import {
   selectSourceObjectLiteralAccessors,
   sourcePropertyTypeEvidenceNodes,
@@ -551,14 +551,15 @@ export function createCsharpObjectShapePolicy(
       if (fact === undefined) {
         continue;
       }
-      const targetType = host.typeResolver.resolveNode(
-        node,
-        queries.sourceFile,
-        nextState(state),
-      );
+      const definition = host.projectTypeCatalog.definitionForDeclaration(node);
+      const targetType = definition?.kind === "struct"
+        ? host.projectTypeCatalog.targetTypeForDeclaration(node, [])
+        : host.typeResolver.resolveNode(node, queries.sourceFile, nextState(state));
       if (targetType === undefined) {
         return undefined;
       }
+      const selectedType = queries.types.expressionType(node) ?? queries.types.authoredType(node);
+      const selectedMembers = selectedType === undefined ? undefined : deriveMembers(selectedType, queries, state);
       const members = fact.fields.map((field) => {
         const type = host.typeResolver.resolveNode(
           field.sourceType,
@@ -566,12 +567,18 @@ export function createCsharpObjectShapePolicy(
           nextState(state),
         );
         const sourceType = queries.types.authoredType(field.sourceType);
+        const selected = selectedMembers?.filter(member =>
+          readCsharpSourceField(host.sourceFacts, member.sourceSubjects ?? [])?.sourceType === field.sourceType
+        );
+        const selectedMember = selected?.length === 1 ? selected[0] : undefined;
         return type === undefined
           ? undefined
           : {
               sourceKey: csharpPropertySourceMemberKey(field.sourceName),
               sourceName: field.sourceName,
-              sourceSubjects: [field.sourceType],
+              sourceSubjects: [field.sourceType, ...(selectedMember?.sourceSubjects ?? [])],
+              ...(selectedMember?.sourceDeclarations === undefined ? {} : { sourceDeclarations: selectedMember.sourceDeclarations }),
+              ...(selectedMember?.bound === true ? { bound: true as const } : {}),
               ...(sourceType === undefined
                 ? {}
                 : { sourceTypes: [sourceType] }),
@@ -610,12 +617,13 @@ export function createCsharpObjectShapePolicy(
     }
     activeTypes.add(type);
     try {
-      const selectedType = selectedTarget ??
-        host.typeResolver.resolveType(
+      const selectedType = selectedTarget ?? (authoredTypeRoot === undefined
+        ? host.typeResolver.resolveType(
           type,
           queries.sourceFile,
           nextState(state),
-        );
+        )
+        : host.typeResolver.resolveSelectedType(authoredTypeRoot, type, queries.sourceFile, nextState(state)));
       const targetType = selectedType === undefined
         ? undefined
         : getCsharpNullableElementTargetType(selectedType) ?? selectedType;
@@ -641,6 +649,12 @@ export function createCsharpObjectShapePolicy(
       const objectLiteral = node !== undefined &&
         host.ast.is.IsObjectLiteralExpression(node);
       const declaredKind = contextualProjectType?.csharpSourceDeclarationKind;
+      if (declaredKind === "struct" && contextualProjectType !== undefined) {
+        const definition = host.projectTypeCatalog.definitionForTarget(contextualProjectType);
+        const shape = definition?.kind === "struct"
+          ? resolveStructShape(definition.declaration, host.semantics(definition.sourceFile), nextState(state)) : undefined;
+        return shape !== undefined && targetTypeRefEquals(shape.targetType, contextualProjectType) ? shape : undefined;
+      }
       if (
         contextualProjectType !== undefined &&
         declaredKind === "class" &&
@@ -821,6 +835,8 @@ export function createCsharpObjectShapePolicy(
       return undefined;
     }
     const optional = property.optional || typeIncludesNullish(sourceType, queries);
+    const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
+    if (bound && (optional || method || getters.length !== 0 || setters.length !== 0)) return undefined;
     return {
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),
@@ -836,6 +852,7 @@ export function createCsharpObjectShapePolicy(
       type: optional ? csharpNullableTargetType(memberType) : memberType,
       ...(optional ? { optional: true } : {}),
       ...(property.readonly ? { readonly: true } : {}),
+      ...(bound ? { bound: true as const } : {}),
       ...(getters.length === 0
         ? {}
         : {

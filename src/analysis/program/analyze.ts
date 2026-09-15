@@ -1,7 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
-import { createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -118,6 +118,7 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const arrayDensity = createJsArrayDensityQuery(source, {
     closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
@@ -148,6 +149,7 @@ export function analyzeCsharpTargetProgram(
     arrayDensity,
     providers,
     pointerReturns: createTsonicPointerReturnQueries(source),
+    memoryBindings,
     target: input.target,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,
@@ -218,6 +220,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const analysisIssues = [
+    ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,

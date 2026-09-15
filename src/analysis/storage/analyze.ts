@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import { analyzeCsharpNativeBacking } from "./native-backing.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import {
@@ -167,7 +168,7 @@ export function analyzeCsharpStorage(
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
-    if (evidence.isCompileTimeMetadata(node)) return;
+    if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
     if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0 || nativeBacking.arrays.length > 0) {
       const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
       if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
@@ -388,6 +389,10 @@ export function analyzeCsharpStorage(
   }
 
   function recordOperationRequirements(node: Node): void {
+    const projectedWrite = operations.property(node)?.sourceOwned?.projectedWrite;
+    if (projectedWrite?.kind === "resolved") {
+      recordTypedLocationStorageIdentities(projectedWrite.storage);
+    }
     const typedLocation = operations.typedLocation(node);
     if (typedLocation?.kind === "location-address") {
       recordTypedLocationStorageIdentities(typedLocation.storage);

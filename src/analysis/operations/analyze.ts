@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import {
   createTargetClassificationBuilder,
   createTargetClassificationKey,
@@ -82,6 +83,7 @@ import {
 const callKey = createTargetClassificationKey<CsharpCallClassification>(
   "csharp.operation.call",
 );
+const memoryBindingKey = createTargetClassificationKey<ReturnType<typeof selectCsharpMemoryBinding>>("csharp.operation.memory-binding");
 const constructionKey = createTargetClassificationKey<CsharpConstructionClassification>(
   "csharp.operation.construction",
 );
@@ -166,6 +168,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    memoryBinding: node => facts.get(node, memoryBindingKey),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     resultType: (node) => operationResultType(facts, node),
     call: (node) => facts.get(node, callKey),
@@ -257,6 +260,7 @@ function visit(
     );
   }
   if (ast.is.IsCallExpression(node)) {
+    setClassification(builder, node, memoryBindingKey, selectCsharpMemoryBinding(policy, node, sourceFile));
     setClassification(
       builder,
       node,
@@ -684,6 +688,8 @@ function operationResultType(
   facts: ReturnType<ReturnType<typeof createTargetClassificationBuilder>["seal"]>,
   node: Node,
 ): import("../../target-model/types/model.js").TargetTypeRef | undefined {
+  const binding = facts.get(node, memoryBindingKey);
+  if (binding !== undefined && binding.kind !== "rejected") return binding.type;
   const call = facts.get(node, callKey);
   if (call?.selectedResultType !== undefined) {
     return call.selectedResultType;

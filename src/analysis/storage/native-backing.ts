@@ -79,7 +79,7 @@ export function analyzeCsharpNativeBacking(
         const shape = source?.objectShape;
         const member = source?.shapeMember?.kind === "resolved" ? source.shapeMember.member : undefined;
         if (shape === undefined || csharpStructuralObjectShapeIdentity(shape.targetType) === undefined ||
-          member === undefined || member.memberKind !== "property" || member.readonly || member.optional ||
+          member === undefined || member.bound === true || member.memberKind !== "property" || member.readonly || member.optional ||
           member.accessor !== undefined || !targetTypeRefEquals(member.type, selected.pointeeType)) {
           reject(origin.call, "Native field backing requires one complete compiler-owned mutable data field.");
           continue;

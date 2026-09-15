@@ -27,6 +27,7 @@ export function csharpObjectShapeMemberContractParts(
     member.targetName,
     member.memberKind,
     member.optional === true ? "optional" : "required",
+    member.bound === true ? "bound-location" : "value",
     member.accessor === undefined
       ? "mutable"
       : member.accessor.setter

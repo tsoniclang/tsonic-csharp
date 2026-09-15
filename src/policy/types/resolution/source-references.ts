@@ -44,6 +44,21 @@ export function resolveTypeReferenceNode(
   if (direct !== undefined) {
     return direct;
   }
+  const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
+    resolveNodeWithState(argument, queries.sourceFile, nextState(state))
+  );
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  const projectType = resolveProjectSourceType(
+    typeName,
+    queries.sourceFile,
+    state,
+    typeArguments as readonly TargetTypeRef[],
+  );
+  if (projectType !== undefined) {
+    return projectType;
+  }
   const standardTransformation = semanticType === undefined
     ? undefined
     : queries.types.standardTransformation(node, semanticType);
@@ -59,12 +74,6 @@ export function resolveTypeReferenceNode(
       node,
       semanticType,
     );
-  }
-  const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
-    resolveNodeWithState(argument, queries.sourceFile, nextState(state))
-  );
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
   }
   const providerType = resolveProviderType(
     subjects,
@@ -105,15 +114,6 @@ export function resolveTypeReferenceNode(
   }
   if (sourceAlias.kind === "rejected") {
     return undefined;
-  }
-  const projectType = resolveProjectSourceType(
-    typeName,
-    queries.sourceFile,
-    state,
-    typeArguments as readonly TargetTypeRef[],
-  );
-  if (projectType !== undefined) {
-    return projectType;
   }
   const transformedTarget = sourceAlias.kind === "checker-transformed-alias" &&
       semanticType !== undefined
@@ -377,7 +377,7 @@ export function resolveCompositionalSourceTypeAlias(
   }
   const resolved = target === undefined
     ? undefined
-    : sourceTypeSyntaxIsCompositional(host.ast, target)
+    : sourceTypeSyntaxIsCompositional(host.ast, target) || host.ast.is.IsTypeQueryNode(target)
       ? resolveNodeWithState(
           target,
           reference.sourceFile,

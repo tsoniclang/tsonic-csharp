@@ -74,6 +74,11 @@ export function csharpRuntimeLocationTargetType(
   );
 }
 
+export function csharpRuntimeRecordFieldTargetType(pointee: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Runtime.RecordField`1", [pointee],
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "RecordField"), { valueType: true });
+}
+
 export function csharpRuntimeRawPointerTargetType(): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
     "Tsonic.CSharp.Runtime.RawPointer",

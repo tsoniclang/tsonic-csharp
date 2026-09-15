@@ -19,6 +19,7 @@ import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy
 import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
 import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPackageGraph } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
 import { nativeV8FlagsSource } from "../../../../tsonic/test/fixtures/native-v8-flags.mjs";
+import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bound-memory-records.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
@@ -48,6 +49,19 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false, addi
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+for (const valueRepresentation of [false, true]) {
+  for (const surface of [undefined, "js"]) {
+    const label = `${valueRepresentation ? "value" : "reference"}-${surface ?? "native"}`;
+    test(`bound records retain live field locations, ownership and errors in ${label}`, { timeout: 300_000 }, () => {
+      const files = boundMemoryRecordProofFiles(valueRepresentation);
+      execute(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
+        sourceText: files["index.ts"],
+        files: Object.fromEntries(Object.entries(files).filter(([path]) => path !== "index.ts")),
+      }), `bound-records-${label}`);
+    });
+  }
 }
 
 for (const surface of [undefined, "js"]) {

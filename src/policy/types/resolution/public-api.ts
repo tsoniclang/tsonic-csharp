@@ -224,7 +224,7 @@ export function resolveTypedLocationOperationPointee(
 
 
 export function resolveTypedLocationOperationPointeeWithState(
-  { resolveAuthoredAndSelectedSourceType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  { resolveAuthoredAndSelectedSourceType, resolveReadStorage, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   operation: CsharpSourceTypedLocationOperation,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -240,11 +240,9 @@ export function resolveTypedLocationOperationPointeeWithState(
   }
   switch (operation.kind) {
     case "location-address":
-      return resolveSelectedValueWithState(
+      return resolveReadStorage(
         operation.storageExpression,
-        operation.storageType,
         sourceFile,
-        nextState(state),
       );
     case "location-allocate":
       return resolveSelectedValueWithState(
