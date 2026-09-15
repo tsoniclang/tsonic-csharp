@@ -17,6 +17,7 @@ import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/ge
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
 import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
 import { sourcePackageCallbackErrorFiles } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
+import { falliblePointerFiles, falliblePointerPackageFiles } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -44,6 +45,16 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+for (const [name, files] of [["files", falliblePointerFiles], ["packages", falliblePointerPackageFiles]]) {
+  for (const surface of [undefined, "js"]) {
+    test(`fallible pointer callbacks preserve aliases and errors across ${name}, ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+      execute(compileCsharpSource({ surface, sourceText: files["index.ts"],
+        files: Object.fromEntries(Object.entries(files).filter(([path]) => path !== "index.ts")),
+      }), `fallible-locations-${name}-${surface ?? "native"}`);
+    });
+  }
 }
 
 test("retained cross-package callbacks preserve the original thrown object", { timeout: 300_000 }, () => {
