@@ -48,6 +48,22 @@ test("number-domain scalar boxing preserves complete values and evaluation order
     "number-boxing"), numberBoxingOutput);
 });
 
+test("inferred pointer loads preserve concrete conditional aliases and native widths", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+import type { Pointer, uint32 } from "@tsonic/core/types.js";
+import { allocatePointer, loadPointer } from "@tsonic/core/lang.js";
+type Selected<T> = T extends string ? string : T;
+class Box<T> { value: T; constructor(value: T) { this.value = value; } }
+function read(pointer: Pointer<Box<Selected<uint32>>>): Selected<uint32> {
+  return loadPointer(pointer).value;
+}
+export function run(): boolean {
+  const maximum: uint32 = 4294967295;
+  return read(allocatePointer(new Box<uint32>(maximum))) === maximum;
+}
+` }), "inferred-pointer-alias");
+});
+
 for (const surface of [undefined, "js"]) {
   test(`installed source-package generic dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: closedGenericDispatchPackageFiles["index.ts"],
