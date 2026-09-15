@@ -2,7 +2,7 @@ import type { AstReader, ExtensionFactSubject, Node, ReadonlySourceFactResolver,
 import { countTsonicMemoryLayoutValues, selectTsonicRawLocationOperation } from "@tsonic/source-core/facts";
 import type { TsonicMemoryLayoutFact, TsonicRawLocationSelection } from "@tsonic/source-core/facts";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { readCsharpSourceStruct } from "../../types/resolution/source-markers.js";
+import { csharpFixedArrayRepresentationRejection, readCsharpSourceStruct } from "../../types/resolution/source-markers.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../types/callables/member-substitution.js";
 import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
@@ -20,12 +20,27 @@ export function selectCsharpNativeMemoryLayout(
   input: CsharpPolicyContext, layout: TsonicMemoryLayoutFact, sourceFile: SourceFile,
   selected = new Map<TsonicMemoryLayoutFact, CsharpNativeMemoryLayout | undefined>(),
 ): CsharpNativeMemoryLayout | undefined {
-  if (layout.kind === "array") return undefined;
   if (selected.size === 0 && countTsonicMemoryLayoutValues(layout, 131_072) === undefined) return undefined;
   if (selected.has(layout)) return selected.get(layout);
   selected.set(layout, undefined);
   const pointeeType = input.types.resolveSelectedType(layout.explicitTypeNode, layout.sourceType, sourceFile);
   if (pointeeType === undefined) return undefined;
+  if (layout.kind === "array") {
+    if (csharpFixedArrayRepresentationRejection(layout.fixedArray) !== undefined ||
+      pointeeType.kind !== "array" || (pointeeType.rank ?? 1) !== 1) return undefined;
+    const element = selectCsharpNativeMemoryLayout(input, layout.elementLayout,
+      input.ast.getSourceFile(layout.elementLayout.call) ?? sourceFile, selected);
+    if (element === undefined || !targetTypeRefEquals(pointeeType.element, element.pointeeType) ||
+      element.width !== layout.dataLayout.addressWidth || element.littleEndian !== (layout.dataLayout.byteOrder === "little")) return undefined;
+    const result: CsharpNativeMemoryLayout = Object.freeze({
+      kind: "array", pointeeType, length: layout.fixedArray.length.toString(),
+      stride: layout.elementLayout.stride, element,
+      size: layout.byteSize, alignment: layout.byteAlignment,
+      width: layout.dataLayout.addressWidth, littleEndian: layout.dataLayout.byteOrder === "little",
+    });
+    selected.set(layout, result);
+    return result;
+  }
   const sizes: Readonly<Partial<Record<string, number>>> = {
     int8: 1, uint8: 1, int16: 2, uint16: 2, int32: 4, uint32: 4,
     int64: 8, uint64: 8, int128: 16, uint128: 16, float16: 2, float32: 4, float64: 8,
@@ -105,7 +120,10 @@ export function csharpNativeArrayMemoryLayoutRejection(root: TsonicMemoryLayoutF
     if (visited.has(layout)) continue;
     visited.add(layout);
     if (layout.kind === "array") {
-      return "C# does not support inline fixed-array native memory layouts, including arrays nested in records; ordinary T[] carriers do not provide inline storage.";
+      const reason = csharpFixedArrayRepresentationRejection(layout.fixedArray);
+      if (reason !== undefined) return reason;
+      pending.push(layout.elementLayout);
+      continue;
     }
     for (const field of layout.fields) pending.push(field.fieldLayout);
   }

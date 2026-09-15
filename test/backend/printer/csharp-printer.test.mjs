@@ -40,6 +40,15 @@ test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" }, rank: 3 }), "int[,,]");
 });
 
+test("array allocations place the allocated dimension before nested element ranks", () => {
+  const scalar = { kind: "PredefinedType", name: "uint" };
+  const array = { kind: "ArrayType", elementType: scalar };
+  const size = { kind: "NumericLiteralExpression", value: 2 };
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: array, size, elements: [] }), "new uint[2][]");
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: array, elements: [] }), "new uint[][] { }");
+  assert.equal(printCsharpExpression({ kind: "ArrayCreationExpression", elementType: { ...array, rank: 2 }, size, elements: [] }), "new uint[2][,]");
+});
+
 test("printer renders pointer and function-pointer type nodes", () => {
   assert.equal(printCsharpType({ kind: "PointerType", pointee: { kind: "PredefinedType", name: "int" } }), "int*");
   assert.equal(
