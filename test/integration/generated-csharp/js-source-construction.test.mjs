@@ -9,6 +9,7 @@ import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-l
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
+import { closedGenericDispatchProofFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -38,6 +39,11 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`shared cross-file generic virtual dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: closedGenericDispatchProofFiles["index.ts"],
+      files: { "dispatch.ts": closedGenericDispatchProofFiles["dispatch.ts"] } }),
+    `closed-generic-dispatch-${surface ?? "native"}`);
+  });
   test(`shared value record native layout preserves copies and aliases in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
       sourceText: valueRecordMemoryProofFiles["index.ts"], files: { "layout.ts": valueRecordMemoryProofFiles["layout.ts"] } }),
