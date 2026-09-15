@@ -12,6 +12,7 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { closedGenericDispatchProofFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fixed-array-memory.mjs";
 import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
+import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -38,7 +39,13 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
+  return native.stdout;
 }
+
+test("number-domain scalar boxing preserves complete values and evaluation order", { timeout: 300_000 }, () => {
+  assert.equal(execute(compileCsharpSource({ surface: "js", sourceText: numberBoxingProof }),
+    "number-boxing"), numberBoxingOutput);
+});
 
 for (const surface of [undefined, "js"]) {
   test(`caught builtin Errors retain identity and stack in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
