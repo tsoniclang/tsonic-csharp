@@ -83,6 +83,7 @@ export function tryPlanCsharpTypedLocationOperation(
       }) };
     }
     case "location-bind":
+    case "location-view":
     case "location-project": {
       const args = operation.arguments.map(argument => {
         const type = csharpTypeFromTargetTypeRef(argument.type);

@@ -61,6 +61,7 @@ export type CsharpTypedLocationOperationKind =
   | "location-equal"
   | "location-hash"
   | "location-bind"
+  | "location-view"
   | "location-project";
 
 export type CsharpResolvedTypedLocationOperation =
@@ -109,11 +110,11 @@ export type CsharpResolvedTypedLocationOperation =
       readonly locationExpression: Node;
     }
   | {
-      readonly kind: "location-bind" | "location-project";
+      readonly kind: "location-bind" | "location-project" | "location-view";
       readonly call: Node;
       readonly pointeeType: TargetTypeRef;
       readonly locationType: TargetTypeRef;
-      readonly method: "Bind" | "Project" | "ProjectOptional";
+      readonly method: "Bind" | "Project" | "ProjectOptional" | "View" | "ViewOptional";
       readonly typeArguments: readonly TargetTypeRef[];
       readonly arguments: readonly {
         readonly expression: Node;
@@ -167,6 +168,35 @@ export function selectCsharpTypedLocationOperation(
   }
   const locationType = csharpRuntimeLocationTargetType(pointeeType);
   switch (source.kind) {
+    case "location-view": {
+      const arguments_ = input.ast.arguments(node);
+      if (source.call !== node || arguments_.length !== 3 ||
+        arguments_[0] !== source.locationExpression || arguments_[1] !== source.readExpression ||
+        arguments_[2] !== source.writeExpression) {
+        return rejected(source.kind, "Pointer views require the exact checked base, read and write arguments.");
+      }
+      const sourcePointee = input.types.resolveType(source.sourcePointeeType, sourceFile);
+      const sourceLocation = input.types.resolveSelectedValue(
+        source.locationExpression, source.locationType, sourceFile,
+      );
+      if (sourcePointee === undefined || sourceLocation === undefined ||
+        !isCsharpTypedLocationEqualityOperand(sourceLocation, sourcePointee) ||
+        (!source.optional && (isCsharpNullableReferenceTargetType(sourceLocation) ||
+          isCsharpRuntimeUndefinedTargetType(sourceLocation)))) {
+        return rejected(source.kind, "Pointer views require the exact source location carrier.");
+      }
+      const parameter = csharpRuntimeLocationTargetType(sourcePointee);
+      return {
+        kind: source.kind, call: source.call, pointeeType, locationType,
+        method: source.optional ? "ViewOptional" : "View", typeArguments: [sourcePointee],
+        arguments: [
+          { expression: source.locationExpression, type: source.optional
+            ? csharpNullableReferenceTargetType(parameter) : parameter },
+          { expression: source.readExpression, type: csharpDelegateTargetType("System.Func", [], pointeeType) },
+          { expression: source.writeExpression, type: csharpDelegateTargetType("System.Action", [pointeeType]) },
+        ],
+      };
+    }
     case "location-hash": {
       const operand = input.types.resolveSelectedValue(
         source.locationExpression, source.locationType, sourceFile,

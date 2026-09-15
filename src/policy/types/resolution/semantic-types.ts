@@ -287,6 +287,10 @@ export function resolveDirectSourceFacts(
             return csharpSourcePrimitiveTargetType("bool");
           case "location-hash":
             return csharpSourcePrimitiveTargetType("float64");
+          case "location-view": {
+            const location = csharpRuntimeLocationTargetType(pointee);
+            return pointerOperation.optional ? csharpNullableReferenceTargetType(location) : location;
+          }
           case "location-project": {
             const sourceLocation = resolveSelectedValueWithState(
               pointerOperation.locationExpression,

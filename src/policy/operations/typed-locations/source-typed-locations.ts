@@ -1,6 +1,7 @@
 import {
   pointerOperationFactKey,
 } from "@tsonic/tsts";
+import { tsonicPointerViewFactKey } from "@tsonic/source-core/facts";
 import type {
   ExtensionFactSubject,
   Node,
@@ -65,6 +66,17 @@ export type CsharpSourceTypedLocationOperation =
       readonly writeType: Type;
     }
   | CsharpSourceTypedLocationOperationBase & {
+      readonly kind: "location-view";
+      readonly sourcePointeeType: Type;
+      readonly locationExpression: Node;
+      readonly locationType: Type;
+      readonly readExpression: Node;
+      readonly readType: Type;
+      readonly writeExpression: Node;
+      readonly writeType: Type;
+      readonly optional: boolean;
+    }
+  | CsharpSourceTypedLocationOperationBase & {
       readonly kind: "location-project";
       readonly sourcePointeeType: Type;
       readonly explicitSourcePointeeTypeNode?: Node;
@@ -80,6 +92,11 @@ export function readCsharpSourceTypedLocationOperation(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,
 ): CsharpSourceTypedLocationOperation | undefined {
+  const view = sourceFacts?.getFact(subject, tsonicPointerViewFactKey);
+  if (view !== undefined) return Object.freeze({
+    ...view, kind: "location-view", locationExpression: view.pointerExpression,
+    locationType: view.pointerType,
+  });
   const operation = sourceFacts?.getFact(subject, pointerOperationFactKey);
   if (operation === undefined) {
     return undefined;

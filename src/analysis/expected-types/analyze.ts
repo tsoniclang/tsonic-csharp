@@ -307,7 +307,8 @@ export function analyzeCsharpExpectedTypes(
         record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
       } else if (typedLocation.kind === "location-store") {
         record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
-      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project") {
+      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project" ||
+        typedLocation.kind === "location-view") {
         for (const argument of typedLocation.arguments) {
           record(argument.expression, argument.type, "required");
         }

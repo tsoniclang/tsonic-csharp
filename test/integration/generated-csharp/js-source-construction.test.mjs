@@ -14,6 +14,7 @@ import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fix
 import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
+import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -65,6 +66,10 @@ export function run(): boolean {
 });
 
 for (const surface of [undefined, "js"]) {
+  test(`read-free pointer views retain aliases and optional ownership in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: pointerViewFiles["index.ts"],
+      files: { "view.ts": pointerViewFiles["view.ts"] } }), `pointer-views-${surface ?? "native"}`);
+  });
   test(`installed source-package generic dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: closedGenericDispatchPackageFiles["index.ts"],
       files: Object.fromEntries(Object.entries(closedGenericDispatchPackageFiles).filter(([path]) => path !== "index.ts")) }),

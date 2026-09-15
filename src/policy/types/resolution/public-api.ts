@@ -275,6 +275,7 @@ export function resolveTypedLocationOperationPointeeWithState(
         nextState(state),
       ));
     case "location-bind":
+    case "location-view":
       return getCsharpDelegateSignature(resolveSelectedValueWithState(
         operation.readExpression,
         operation.readType,
