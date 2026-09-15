@@ -16,6 +16,7 @@ import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/f
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
 import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
+import { sourcePackageCallbackErrorFiles } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -44,6 +45,12 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
 }
+
+test("retained cross-package callbacks preserve the original thrown object", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: sourcePackageCallbackErrorFiles["index.ts"],
+    files: Object.fromEntries(Object.entries(sourcePackageCallbackErrorFiles).filter(([path]) => path !== "index.ts")),
+  }), "package-callback-errors");
+});
 
 test("Array.from preserves dense copies and materializes sparse undefined entries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
