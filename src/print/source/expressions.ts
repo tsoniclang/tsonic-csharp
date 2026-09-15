@@ -218,6 +218,8 @@ function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): strin
 
 function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
   switch (token.kind) {
+    case "QuestionQuestionEqualsToken":
+      return "??=";
     case "EqualsToken":
       return "=";
     case "PlusEqualsToken":

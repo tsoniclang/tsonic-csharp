@@ -63,6 +63,7 @@ export type CsharpBinaryOperatorToken =
 
 export type CsharpAssignmentOperatorToken =
   | { readonly kind: "EqualsToken" }
+  | { readonly kind: "QuestionQuestionEqualsToken" }
   | { readonly kind: "PlusEqualsToken" }
   | { readonly kind: "MinusEqualsToken" }
   | { readonly kind: "AsteriskEqualsToken" }

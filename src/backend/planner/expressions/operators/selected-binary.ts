@@ -50,7 +50,7 @@ export function planSelectedCsharpBinaryOperation(
     const operand = planExpression(
       operandNode,
       sourceFile,
-      input,
+      { ...input, storageExpression: operandNode },
       diagnostics,
     );
     if (operand === undefined) return undefined;
@@ -141,10 +141,16 @@ export function planSelectedCsharpBinaryOperation(
     targetOperator,
   );
   if (assignmentToken !== undefined) {
+    let storageExpression = selection.left;
+    while (input.program.source.ast.is.IsParenthesizedExpression(storageExpression)) {
+      const inner = input.program.source.ast.as.AsParenthesizedExpression(storageExpression)?.Expression;
+      if (inner === undefined) return undefined;
+      storageExpression = inner;
+    }
     const left = planExpression(
       selection.left,
       sourceFile,
-      input,
+      { ...input, storageExpression },
       diagnostics,
     );
     const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType);

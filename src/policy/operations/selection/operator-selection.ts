@@ -128,15 +128,13 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
-  const leftType = resolveBinaryOperandType(
-    input,
-    left,
-    targetTypeFor,
-  );
+  let leftType = sourceOperator === "??="
+    ? input.types.resolveReadStorage(left)
+    : resolveBinaryOperandType(input, left, targetTypeFor);
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType)
-    : undefined;
-  const rightType = resolveBinaryOperandType(
+    : sourceOperator === "??=" ? nullishValueType(leftType) : undefined;
+  let rightType = resolveBinaryOperandType(
     input,
     right,
     targetTypeFor,
@@ -147,6 +145,16 @@ export function selectCsharpBinaryOperation(
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (isEquality(sourceOperator) &&
+    (isCsharpRuntimeNullTargetType(leftType) || isCsharpRuntimeUndefinedTargetType(leftType)) &&
+    (isCsharpRuntimeNullTargetType(rightType) || isCsharpRuntimeUndefinedTargetType(rightType))) {
+    const leftStorage = input.types.resolveReadStorage(left);
+    const rightStorage = input.types.resolveReadStorage(right);
+    const leftNullable = getCsharpNullableElementTargetType(leftStorage) !== undefined;
+    const rightNullable = getCsharpNullableElementTargetType(rightStorage) !== undefined;
+    if (leftNullable && !rightNullable) leftType = leftStorage!;
+    if (rightNullable && !leftNullable) rightType = rightStorage!;
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
   const stringRelational = selectStringRelational(
@@ -188,10 +196,10 @@ export function selectCsharpBinaryOperation(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
   }
-  const nullishResultType = sourceOperator === "??"
+  const nullishResultType = sourceOperator === "??" || sourceOperator === "??="
     ? selectNullishResultType(leftType, rightType)
     : undefined;
-  if (sourceOperator === "??" && nullishResultType === undefined) {
+  if ((sourceOperator === "??" || sourceOperator === "??=") && nullishResultType === undefined) {
     return rejected(
       "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
     );
@@ -325,6 +333,9 @@ function selectBinaryOperationTypes(
   CsharpResolvedBinaryOperation,
   "leftInputType" | "rightInputType" | "resultType"
 > {
+  if (operator === "??=" && nullishResultType !== undefined) {
+    return { leftInputType: leftType, rightInputType: rightType, resultType: nullishResultType };
+  }
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
@@ -621,7 +632,12 @@ function validateBinaryTargetSemantics(
       ? undefined
       : `C# logical operator '${operator}' requires exact bool operands.`;
   }
-  if (operator === "??" || operator === "??=") {
+  if (operator === "??=") {
+    return getCsharpNullableElementTargetType(left) !== undefined || isCsharpReferenceCarrier(left)
+      ? undefined
+      : "C# nullish assignment requires exact native nullable or reference storage.";
+  }
+  if (operator === "??") {
     return isNullishCapable(left)
       ? undefined
       : `C# nullish operator '${operator}' requires a nullable or runtime-union left operand.`;
@@ -711,6 +727,7 @@ function targetBinaryOperator(
     case "&&":
     case "||":
     case "??":
+    case "??=":
     case "&":
     case "|":
     case "^":

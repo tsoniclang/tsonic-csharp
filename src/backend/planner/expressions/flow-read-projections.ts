@@ -34,6 +34,7 @@ export function planFlowReadUseSiteProjection(
     readonly selectedType?: TargetTypeRef;
   } = {},
 ): CsharpExpression | undefined {
+  if (input.storageExpression === node) return baseExpression;
   const storageType = options.storageType ??
     input.types.classifications.resolveReadStorage(node, sourceFile);
   const selectedType = options.selectedType ??
