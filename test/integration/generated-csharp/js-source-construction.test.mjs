@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
+import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 
 function execute(compiled, name, asynchronous = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -31,6 +32,13 @@ function execute(compiled, name, asynchronous = false) {
     encoding: "utf8", timeout: 240_000, maxBuffer: 4_194_304,
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
+}
+
+for (const surface of [undefined, "js"]) {
+  test(`shared value-struct storage and location contract executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: valueStructProofFiles["index.ts"],
+      files: { "records.ts": valueStructProofFiles["records.ts"] } }), `value-struct-${surface ?? "native"}`);
+  });
 }
 
 test("void results retain unit calls, nullable conversion and equality effects", { timeout: 300_000 }, () => {
