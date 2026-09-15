@@ -29,6 +29,7 @@ import type {
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { selectCsharpArrayCopy } from "./array-copy.js";
 import {
   instanceMethod,
   jsCallIdentity,
@@ -596,12 +597,16 @@ function arrayFromMember(
   if (shape === undefined) {
     return undefined;
   }
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
+  const copy = isJsArray ? selectCsharpArrayCopy(context) : undefined;
+  if (isJsArray && copy === undefined) return undefined;
   const parameters: CsharpTargetParameter[] = [
     targetParameter(
       "arrayLike",
-      sourceIsString(context)
+      copy?.sourceType ?? (sourceIsString(context)
         ? stringType
-        : csharpEnumerableTargetType(shape.sourceElement),
+        : csharpEnumerableTargetType(shape.sourceElement)),
     ),
   ];
   if (context.source.sourceSelectedSignatureParameters.length === 2) {
@@ -615,9 +620,9 @@ function arrayFromMember(
     ));
   }
   return staticMethod(
-    "Tsonic.CSharp.Js.JSArrayStatics.from",
+    `Tsonic.CSharp.Js.JSArrayStatics.${copy?.method ?? "from"}`,
     "from",
-    "from",
+    copy?.method ?? "from",
     arrayStaticsType,
     parameters,
     shape.resultType,
@@ -837,6 +842,11 @@ function arrayFromTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
   const shape = arrayFromShape(context);
+  const copy = selectCsharpArrayCopy(context);
+  if (copy !== undefined && shape !== undefined) {
+    return context.source.sourceSelectedSignatureParameters.length === 1
+      ? copy.typeArguments : [...copy.typeArguments, shape.resultElement];
+  }
   return shape === undefined
     ? undefined
     : sourceIsString(context)
@@ -851,6 +861,13 @@ function arrayFromTypeArguments(
 function arrayFromTypeParameterNames(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly string[] {
+  const copy = selectCsharpArrayCopy(context);
+  if (copy !== undefined) {
+    return [
+      ...copy.typeArguments.map((_, index) => `TSource${index}`),
+      ...(context.source.sourceSelectedSignatureParameters.length === 1 ? [] : ["TResult"]),
+    ];
+  }
   return sourceIsString(context)
     ? context.source.sourceSelectedSignatureParameters.length === 1
       ? []

@@ -97,6 +97,9 @@ import {
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
+import { createJsArrayDensityQuery } from "@tsonic/js-source-profile";
+import type { JsArrayDensityQueries } from "@tsonic/js-source-profile";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/members/source-profiles/source-profile-identity.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -116,6 +119,16 @@ export function analyzeCsharpTargetProgram(
   }
   const source = input.source;
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const arrayDensity = createJsArrayDensityQuery(source, {
+    closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
+    memberIdentity(declaration) {
+      const identity = csharpSourceProfileDeclarationIdentity(
+        source.ast, source.semantics.forNode(declaration), source.sourceFacts, declaration,
+      );
+      return identity?.owner === "js" && identity.declaringName !== undefined && identity.name !== undefined
+        ? { ownerName: identity.declaringName, memberName: identity.name } : undefined;
+    },
+  });
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -132,6 +145,7 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
+    arrayDensity,
     providers,
     pointerReturns: createTsonicPointerReturnQueries(source),
     target: input.target,
@@ -150,6 +164,7 @@ export function analyzeCsharpTargetProgram(
         sourceIdentities,
         names,
         typeHost,
+        arrayDensity,
         previous,
       );
       return {
@@ -187,6 +202,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
     names,
     typeHost,
+    arrayDensity,
     stable,
   );
   if (!representationContractsEqual(stable, analysis)) {
@@ -307,6 +323,7 @@ function analyzeIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
   typeHost: Parameters<typeof createCsharpTypeSystem>[0],
+  arrayDensity: JsArrayDensityQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
@@ -332,6 +349,7 @@ function analyzeIteration(
     providers,
     sourceIdentities,
     typeSystem,
+    arrayDensity,
   });
   const sourceEvidence = analyzeCsharpSourceEvidence(
     input.source,

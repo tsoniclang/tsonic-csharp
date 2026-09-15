@@ -15,6 +15,7 @@ import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-e
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
+import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -42,6 +43,25 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+test("Array.from preserves dense copies and materializes sparse undefined entries", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
+});
+
+for (const [label, source] of [
+  ["a scalar hole", "const values: number[] = new Array<number>(2);"],
+  ["a null-only payload with a hole", "const values: (number | null)[] = new Array<number | null>(2);"],
+  ["length expansion", "const values = [1]; values.length = 3;"],
+  ["deletion through an alias", "const values = [1]; const alias = values; delete alias[0];"],
+]) {
+  test(`Array.from rejects ${label} without a representable undefined element`, () => {
+    const result = compileCsharpSource({ surface: "js", sourceText: `
+export function copy(): number { ${source} return Array.from(values).length; }
+` });
+    assert.equal(result.result.artifacts.length, 0);
+    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED"));
+  });
 }
 
 test("number-domain scalar boxing preserves complete values and evaluation order", { timeout: 300_000 }, () => {
