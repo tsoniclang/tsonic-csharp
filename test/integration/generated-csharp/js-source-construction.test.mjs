@@ -7,8 +7,10 @@ import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
+import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
+import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 
-function execute(compiled, name, asynchronous = false) {
+function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
   mkdirSync(scratch, { recursive: true });
@@ -26,6 +28,7 @@ function execute(compiled, name, asynchronous = false) {
   ];
   writeFileSync(join(root, "Proof.csproj"), `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+<AllowUnsafeBlocks>${allowUnsafe}</AllowUnsafeBlocks>
 <Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 </PropertyGroup><ItemGroup>${references.map(path => `<ProjectReference Include="${path}" />`).join("")}</ItemGroup></Project>`);
   const native = spawnSync("dotnet", ["run", "--project", join(root, "Proof.csproj"), "-c", "Release", "--verbosity", "quiet"], {
@@ -35,6 +38,11 @@ function execute(compiled, name, asynchronous = false) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`shared value record native layout preserves copies and aliases in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
+      sourceText: valueRecordMemoryProofFiles["index.ts"], files: { "layout.ts": valueRecordMemoryProofFiles["layout.ts"] } }),
+    `value-record-memory-${surface ?? "native"}`, false, true);
+  });
   test(`shared value-struct storage and location contract executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: valueStructProofFiles["index.ts"],
       files: { "records.ts": valueStructProofFiles["records.ts"] } }), `value-struct-${surface ?? "native"}`);
