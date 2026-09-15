@@ -11,6 +11,7 @@ import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/va
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { closedGenericDispatchProofFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fixed-array-memory.mjs";
+import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -40,6 +41,10 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
 }
 
 for (const surface of [undefined, "js"]) {
+  test(`caught builtin Errors retain identity and stack in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: caughtErrorProofFiles["index.ts"],
+      files: { "failures.ts": caughtErrorProofFiles["failures.ts"] } }), `caught-errors-${surface ?? "native"}`);
+  });
   test(`shared fixed-array native layout preserves strides and snapshots in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, capabilities: [memoryAbiCapability("csharp")],
       sourceText: fixedArrayMemoryProofFiles["index.ts"], files: { "layout.ts": fixedArrayMemoryProofFiles["layout.ts"] } }),
