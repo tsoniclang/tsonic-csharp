@@ -9,10 +9,11 @@ import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-l
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
-import { closedGenericDispatchProofFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
+import { closedGenericDispatchProofFiles, closedGenericDispatchPackageFiles } from "../../../../tsonic/test/fixtures/closed-generic-dispatch.mjs";
 import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fixed-array-memory.mjs";
 import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
+import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   assertCsharpCompilationSucceeded(compiled);
@@ -48,6 +49,15 @@ test("number-domain scalar boxing preserves complete values and evaluation order
 });
 
 for (const surface of [undefined, "js"]) {
+  test(`installed source-package generic dispatch executes in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: closedGenericDispatchPackageFiles["index.ts"],
+      files: Object.fromEntries(Object.entries(closedGenericDispatchPackageFiles).filter(([path]) => path !== "index.ts")) }),
+    `package-generic-dispatch-${surface ?? "native"}`);
+  });
+  test(`implicit generic base constructors retain owner and initializer effects in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: genericBaseConstructorFiles["index.ts"],
+      files: { "base.ts": genericBaseConstructorFiles["base.ts"] } }), `generic-base-${surface ?? "native"}`);
+  });
   test(`caught builtin Errors retain identity and stack in ${surface ?? "native"} source`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ surface, sourceText: caughtErrorProofFiles["index.ts"],
       files: { "failures.ts": caughtErrorProofFiles["failures.ts"] } }), `caught-errors-${surface ?? "native"}`);
