@@ -18,8 +18,10 @@ import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views
 import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
 import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
 import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPackageGraph } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
+import { nativeV8FlagsSource } from "../../../../tsonic/test/fixtures/native-v8-flags.mjs";
+import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
-function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
+function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
   mkdirSync(scratch, { recursive: true });
@@ -34,6 +36,7 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
     join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj"),
+    ...additionalReferences,
   ];
   writeFileSync(join(root, "Proof.csproj"), `<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>
 <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
@@ -45,6 +48,15 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false) {
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+for (const surface of [undefined, "js"]) {
+  test(`native V8 flags fail only on explicit invocation in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, capabilities: [nodejsCapability()],
+      sourceText: nativeV8FlagsSource }), `native-v8-flags-${surface ?? "native"}`, false, false, [
+        join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj"),
+      ]);
+  });
 }
 
 for (const [name, files] of [["files", falliblePointerFiles], ["packages", falliblePointerPackageFiles]]) {
