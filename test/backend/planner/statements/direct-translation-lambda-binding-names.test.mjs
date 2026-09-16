@@ -10,7 +10,8 @@ test("expression-bodied call arguments retain their exact renamed lambda binding
     surface: "js",
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
-      export function map(values: int[], language: int): int[] {
+      export function map(language: int): int[] {
+        const values: int[] = [1, 2];
         return Array.from(values, (language): int => language + 1);
       }
     `,
@@ -23,11 +24,28 @@ test("expression-bodied call arguments retain their exact renamed lambda binding
 {
     public static class Index
     {
-        public static Tsonic.CSharp.Js.JSArray<int> map(Tsonic.CSharp.Js.JSArray<int> values, int language)
+        public static Tsonic.CSharp.Js.JSArray<int> map(int language)
         {
-            return Tsonic.CSharp.Js.JSArrayStatics.from<int, int>(values, (int language_1, int _) => language_1 + 1);
+            Tsonic.CSharp.Js.JSArray<int> values = new Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2 });
+            return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int, int>(values, (int language_1, int _) => language_1 + 1);
         }
     }
 }
 `);
+});
+
+test("an open integer array is not silently widened or copied through zero-valued holes", () => {
+  const compiled = compileCsharpSource({
+    surface: "js",
+    sourceText: `
+      import type { int } from "@tsonic/csharp/types.js";
+      export function map(values: int[], language: int): int[] {
+        return Array.from(values, (language): int => language + 1);
+      }
+    `,
+  });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.category === "error"));
+  assert.equal(compiled.artifacts.size, 0);
 });
