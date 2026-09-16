@@ -522,6 +522,9 @@ export function resolveSourceValueDeclaration(
   if (initializerTarget === undefined) {
     return declaredTarget;
   }
+  if (node === declaration) {
+    return initializerTarget;
+  }
   const declaredType = declarationQueries.types.expressionType(
     syntax.initializer,
   );

@@ -26,7 +26,7 @@ export function planCsharpMutableMethod(
     { kind: "FieldDeclaration", name: write.storageName, type: nullableCsharpType(type), modifiers: ["private"] },
     { kind: "PropertyDeclaration", name: method.name, type, modifiers: ["public"],
       getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: {
-        kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" },
+        kind: "AssignmentExpression", operatorToken: { kind: "QuestionQuestionEqualsToken" },
         left: { kind: "IdentifierName", name: write.storageName },
         right: { kind: "IdentifierName", name: write.implementationName },
       } }] },

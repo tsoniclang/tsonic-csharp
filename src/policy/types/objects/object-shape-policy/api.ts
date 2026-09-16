@@ -117,7 +117,7 @@ export type CsharpProjectConstructibleTypeProjection =
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
-  const { deriveMembers, instantiateMemberEvidence, resolvePropertyType } = createCsharpObjectShapeMemberResolver(host);
+  const { deriveMembers, instantiateMemberEvidence, resolvePropertyType, retainLiteralMemberEvidence } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -318,7 +318,7 @@ export function createCsharpObjectShapePolicy(
     if (accessors.kind === "none" && implemented === expectedShape.implements) {
       return { kind: "resolved", shape: expectedShape };
     }
-    const members = [...expectedShape.members];
+    const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
     if (accessors.kind === "resolved") {
       for (const accessor of accessors.members) {
         const selectedSubjects = [
@@ -729,7 +729,8 @@ export function createCsharpObjectShapePolicy(
         : undefined;
       const symbol = queries.declarations.typeSymbol(type);
       const structuralContract = !objectLiteral && !members.some(member => member.bound === true) && symbol !== undefined &&
-        queries.declarations.symbolDeclarations(symbol).some(declaration => host.ast.is.IsTypeLiteralNode(declaration));
+        queries.declarations.symbolDeclarations(symbol).some(declaration =>
+          host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration));
       return {
         targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, structuralContract),
         sourceType: type,

@@ -12,6 +12,34 @@ import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
+  function retainLiteralMemberEvidence(
+    members: readonly CsharpObjectShapeMemberFact[],
+    objectLiteral: Node,
+    queries: SourceFileSemantics,
+  ): readonly CsharpObjectShapeMemberFact[] {
+    const selected = host.ast.properties(objectLiteral).flatMap(element => {
+      const evidence = element === undefined ? undefined : queries.operations.objectLiteralElement(element);
+      return evidence === undefined || evidence.objectLiteral !== objectLiteral || evidence.element !== element
+        ? [] : [evidence];
+    });
+    return members.map(member => {
+      const elements = selected.filter(evidence => member.sourceSubjects?.some(subject =>
+        subject === evidence.sourceSelectedSymbol || evidence.sourceSelectedDeclarations.some(declaration => declaration === subject)) === true);
+      if (elements.length === 0) return member;
+      return { ...member,
+        sourceSubjects: Object.freeze([...new Set([
+          ...(member.sourceSubjects ?? []),
+          ...elements.flatMap(evidence => evidence.sourceElementSymbol === undefined
+            ? [evidence.element] : [evidence.element, evidence.sourceElementSymbol]),
+        ])]),
+        sourceDeclarations: Object.freeze([...new Set([
+          ...(member.sourceDeclarations ?? []),
+          ...elements.map(evidence => evidence.element),
+        ])]),
+      };
+    });
+  }
+
   function deriveMembers(
     ownerType: Type,
     queries: SourceFileSemantics,
@@ -192,5 +220,5 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       : undefined;
   }
 
-  return { deriveMembers, instantiateMemberEvidence, resolvePropertyType };
+  return { deriveMembers, instantiateMemberEvidence, resolvePropertyType, retainLiteralMemberEvidence };
 }

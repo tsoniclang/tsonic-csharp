@@ -47,7 +47,7 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_95fcda96bb5b clone(ObjectShape_e6a7fc267655 input)
+        public static ObjectShape_95fcda96bb5b clone(ObjectShape_acf3e14e8eee input)
         {
             return new ObjectShape_a7d9e2e4b81d
             {
@@ -80,7 +80,7 @@ test("direct C# translation derives mapped utility shapes from exact project mem
             set;
         }
     }
-    public interface ObjectShape_e6a7fc267655
+    public interface ObjectShape_acf3e14e8eee
     {
         double id { get; }
         string label { get; }

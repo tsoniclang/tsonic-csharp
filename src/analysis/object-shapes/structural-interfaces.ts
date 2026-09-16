@@ -25,7 +25,8 @@ export function selectCsharpStructuralInterface(
     return read.kind === "resolved" && write.kind === "resolved" &&
       read.member.targetName === write.member.targetName && read.member.memberKind === write.member.memberKind &&
       targetTypeRefEquals(read.member.type, write.member.type) &&
-      (write.member.readonly === true || read.member.accessor === undefined || read.member.accessor.setter === true);
+      (write.member.readonly === true || read.member.readonly !== true &&
+        (read.member.accessor === undefined || read.member.accessor.setter === true));
   });
 }
 

@@ -6,7 +6,7 @@ import type { CsharpStorageClassifications } from "../../../../analysis/storage/
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 
-export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
@@ -38,5 +38,14 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
       }
     }
   }
-  return result;
+  const inheritedNames = new Set<string>();
+  for (const parent of inherited) {
+    const members = renderCsharpStructuralInterfaceMembers(parent, storage, methodValues, []);
+    if (members === undefined) return undefined;
+    for (const member of members) {
+      if (member.kind !== "IndexerDeclaration") inheritedNames.add(member.name);
+    }
+  }
+  return result.map(member => member.kind !== "IndexerDeclaration" && inheritedNames.has(member.name)
+    ? { ...member, modifiers: ["new"] } : member);
 }

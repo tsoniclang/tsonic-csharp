@@ -185,15 +185,70 @@ export function run(): boolean {
 });
 
 test("writable methods select before arguments and retain previously selected functions", { timeout: 300_000 }, () => {
-  execute(compileCsharpSource({ surface: "js", sourceText: `
-class Counter { value(step: number): number { return step + 1; } }
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+export class Counter { value(step: number): number { return step + 1; } }
 function replace(counter: Counter): number { counter.value = (step: number): number => step + 10; return 2; }
 export function run(): boolean {
   const counter = new Counter();
   const before = counter.value;
   const selected = counter.value(replace(counter));
   return selected === 3 && counter.value(2) === 12 && before(2) === 3;
-}` }), "writable-methods");
+}` });
+  compiled.artifacts.set("generated/TsonicEntrypoint.cs", `
+if (!Tsonic.Generated.Index.run()) throw new System.Exception("method evaluation order");
+var counter = new Tsonic.Generated.Counter();
+var selected = counter.value;
+if (!object.ReferenceEquals(selected, counter.value)) throw new System.Exception("method identity");
+for (var warmup = 0; warmup < 10000; warmup++) System.GC.KeepAlive(counter.value);
+var before = System.GC.GetAllocatedBytesForCurrentThread();
+for (var index = 0; index < 10000; index++) System.GC.KeepAlive(counter.value);
+if (System.GC.GetAllocatedBytesForCurrentThread() != before) throw new System.Exception("method read allocated");
+counter.value = step => step + 10;
+if (selected(2) != 3 || counter.value(2) != 12) throw new System.Exception("method replacement");
+`);
+  execute(compiled, "writable-methods");
+});
+
+for (const surface of [undefined, "js"]) {
+  test(`inline structural construction retains own keys (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: `
+function keys(value: { count: number; label: string }): string {
+  let result = "";
+  for (const key in value) result += key + ",";
+  return result;
+}
+export function run(): boolean {
+  const count = 1;
+  return keys({ label: "first", count }) === "label,count,";
+}` }), `inline-enumeration-${surface ?? "native"}`);
+  });
+  test(`mapped readonly arguments preserve identity and independent copies (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: `
+type Item = { count: number; label: string };
+function read(value: Readonly<Item>): number { return value.count; }
+function clone(value: Readonly<Item>): Item { return { ...value }; }
+export function run(): boolean {
+  const item: Item = { count: 1, label: "first" };
+  const view: Readonly<Item> = item;
+  const copy = clone(view);
+  item.count = 7;
+  copy.count = 9;
+  return read(view) === 7 && copy.count === 9 && item.count === 7;
+}` }), `mapped-readonly-${surface ?? "native"}`);
+  });
+}
+
+test("constant initializer storage remains native without read-time numeric casts", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+const total = 1;
+function selected(): number { const value = 2; return value; }
+export function run(): boolean { return total === 1 && selected() === 2; }
+` });
+  execute(compiled, "constant-native-storage");
+  const output = [...compiled.artifacts.values()].join("\n");
+  assert.match(output, /int value = 2;/);
+  assert.match(output, /static int total\b/);
+  assert.doesNotMatch(output, /\(int\)(?:value|total)/);
 });
 
 test("JavaScript error subclasses preserve constructor, call and base identity", { timeout: 300_000 }, () => {

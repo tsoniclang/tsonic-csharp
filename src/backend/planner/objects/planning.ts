@@ -269,7 +269,11 @@ function renderObjectShapeDeclaration(
       input.artifacts.objectShapeArtifacts().some(artifact =>
         targetTypeRefEquals(artifact.fact.targetType, base) &&
         artifact.capabilities.includes("enumerable-keys")));
-    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage, capabilities.includes("method-values"));
+    const inherited = (fact.implements ?? []).flatMap(type => {
+      const shape = input.types.objectShapes.resolveTarget(type);
+      return shape === undefined ? [] : [shape];
+    });
+    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage, capabilities.includes("method-values"), inherited);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
