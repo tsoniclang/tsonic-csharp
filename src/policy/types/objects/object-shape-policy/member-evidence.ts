@@ -146,9 +146,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (memberType === undefined) {
       return undefined;
     }
-    const optional = property.optional || typeIncludesNullish(sourceType, queries);
+    const optional = property.optional;
     const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
-    if (bound && (optional || method || getters.length !== 0 || setters.length !== 0)) return undefined;
+    if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
     return {
       sourceKey,
       sourceName: csharpSourceMemberDisplayName(sourceKey),

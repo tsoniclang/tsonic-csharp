@@ -64,6 +64,7 @@ export type CsharpTargetBinaryOperation =
       readonly location: "direct" | "reference-receiver" | "unsupported";
     }
   | { readonly kind: "array-index-presence" }
+  | { readonly kind: "nullish-equality"; readonly value: boolean }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -568,6 +569,10 @@ function selectNullishTest(
     isCsharpRuntimeUndefinedTargetType(left);
   const rightNullish = isCsharpRuntimeNullTargetType(right) ||
     isCsharpRuntimeUndefinedTargetType(right);
+  if (leftNullish && rightNullish) {
+    const equal = operator === "==" || operator === "!=" || targetTypeRefEquals(left, right);
+    return { kind: "nullish-equality", value: operator === "!==" || operator === "!=" ? !equal : equal };
+  }
   if (leftNullish === rightNullish) {
     return undefined;
   }

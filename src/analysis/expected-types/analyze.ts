@@ -847,6 +847,8 @@ function csharpBinaryTargetOperationsEqual(
         left.assignment === right.assignment && left.location === right.location;
     case "array-index-presence":
       return right.kind === "array-index-presence";
+    case "nullish-equality":
+      return right.kind === "nullish-equality" && left.value === right.value;
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
     case "string-ordinal-relational":

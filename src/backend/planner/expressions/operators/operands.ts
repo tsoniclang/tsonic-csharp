@@ -25,6 +25,10 @@ import type {
   TargetTypeRef,
 } from "../../../../target-model/types/index.js";
 import { planVoidExpression } from "../expression-void.js";
+import {
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
+} from "../../../../target-model/types/runtime-carriers.js";
 
 export function planBinaryOperand(
   operand: Node,
@@ -41,7 +45,7 @@ export function planBinaryOperand(
     (operatorToken.kind === "EqualsEqualsToken" || operatorToken.kind === "ExclamationEqualsToken")) {
     return planVoidExpression(operand, sourceFile, input, diagnostics, planExpression, expectedTargetType);
   }
-  if (isNullishEqualityOperand(operand, operatorToken, sourceFile, input)) {
+  if (isNullishEqualityOperand(operand, operatorToken, sourceFile, input, expectedTargetType)) {
     return { kind: "LiteralExpression", value: null };
   }
   return expectedType === undefined
@@ -62,8 +66,12 @@ function isNullishEqualityOperand(
   operatorToken: CsharpBinaryOperatorToken,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
+  expectedTargetType: TargetTypeRef,
 ): boolean {
   if (operatorToken.kind !== "EqualsEqualsToken" && operatorToken.kind !== "ExclamationEqualsToken") {
+    return false;
+  }
+  if (isCsharpRuntimeNullTargetType(expectedTargetType) || isCsharpRuntimeUndefinedTargetType(expectedTargetType)) {
     return false;
   }
   const kind = SourceKind(input.program.source.ast, operand);

@@ -58,6 +58,23 @@ export function planSelectedCsharpBinaryOperation(
       "HasIndex", [left, right],
     );
   }
+  if (selection.targetOperation.kind === "nullish-equality") {
+    const operands = [
+      { node: selection.left, type: selection.leftInputType },
+      { node: selection.right, type: selection.rightInputType },
+    ].map(({ node: operand, type }) => planBinaryOperand(
+      operand, { kind: "EqualsEqualsToken" }, sourceFile, input, diagnostics,
+      planExpression, planExpressionWithExpectedType, csharpTypeFromTargetTypeRef(type), type,
+    ));
+    const [left, right] = operands;
+    if (left === undefined || right === undefined) return undefined;
+    return {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "TupleExpression", elements: [left, right,
+        { kind: "LiteralExpression", value: selection.targetOperation.value }] },
+      name: "Item3",
+    };
+  }
   if (selection.targetOperation.kind === "nullish-test") {
     const operandNode = selection.targetOperation.operand === "left"
       ? selection.left

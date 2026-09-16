@@ -39,6 +39,8 @@ import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class
 import { referenceDefaultSource } from "../../../../tsonic/test/fixtures/reference-defaults.mjs";
 import { structuralEnumerationSource } from "../../../../tsonic/test/fixtures/structural-enumeration.mjs";
 import { nativeNodeSpawnSource } from "../../../../tsonic/test/fixtures/native-node-spawn.mjs";
+import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nullish-member-storage.mjs";
+import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 
 test("Node spawn preserves binary views, option aliases, child environment and failures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeSpawnSource(process.execPath) });
@@ -48,6 +50,18 @@ test("Node spawn preserves binary views, option aliases, child environment and f
 });
 
 for (const surface of [undefined, "js"]) {
+  if (surface === "js") test("contextual class arguments preserve branch identity", { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: contextualClassArgumentsSource }),
+      `contextual-class-arguments-${surface ?? "native"}`);
+  });
+  test(`required nullish members retain exact storage (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: nullishMemberStorageSource });
+    execute(compiled, `nullish-member-storage-${surface ?? "native"}`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.match(output, /this\.value = Tsonic\.CSharp\.Runtime\.Null\.value;/);
+    assert.match(output, /this\.missing = Tsonic\.CSharp\.Runtime\.Undefined\.value;/);
+    assert.doesNotMatch(output, /ApplyDynamicBinaryBoolean/);
+  });
   test(`structural enumeration retains actual keys without reading getters (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: structuralEnumerationSource });
     execute(compiled, `structural-enumeration-${surface ?? "native"}`);
