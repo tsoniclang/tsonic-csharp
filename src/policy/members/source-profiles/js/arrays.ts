@@ -325,7 +325,7 @@ export const csharpJsArrayElementPolicies:
             : targetIndexer(
                 `Tsonic.CSharp.Js.JSArray.indexer:${declaringName}`,
                 receiverType,
-                intType,
+                getCsharpJsArrayElementTargetType(receiverType) === undefined ? intType : doubleType,
                 resultType,
                 readonly,
               );

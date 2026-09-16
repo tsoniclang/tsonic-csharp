@@ -35,6 +35,7 @@ import {
 import {
   planSelectedCsharpBinaryOperation,
 } from "./selected-binary.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 
 export function tryPlanBinaryExpressionWithExpectedType(
   node: Node,
@@ -46,6 +47,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
   expectedTargetType: TargetTypeRef | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
@@ -75,6 +77,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
           diagnostics,
           planExpression,
           planExpressionWithExpectedType,
+          state,
         )
       : undefined;
   }

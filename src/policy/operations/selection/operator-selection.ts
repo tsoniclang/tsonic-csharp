@@ -1,4 +1,5 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
+import { Node_Expression } from "@tsonic/target-api/source";
 import type {
   Node,
   SourceFile,
@@ -11,6 +12,7 @@ import type {
 } from "../../types/index.js";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpBigIntegerTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpIntegralTargetType,
@@ -55,6 +57,12 @@ export interface CsharpResolvedBinaryOperation {
 }
 
 export type CsharpTargetBinaryOperation =
+  | {
+      readonly kind: "bigint-call";
+      readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
+      readonly assignment: boolean;
+      readonly location: "direct" | "reference-receiver" | "unsupported";
+    }
   | { readonly kind: "array-index-presence" }
   | {
       readonly kind: "operator";
@@ -144,6 +152,36 @@ export function selectCsharpBinaryOperation(
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
+    targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
+    const method = bigintRuntimeMethods[sourceOperator];
+    if (method !== undefined) {
+      let location = left;
+      while (input.ast.is.IsParenthesizedExpression(location)) {
+        const nested = input.ast.as.AsParenthesizedExpression(location)?.Expression;
+        if (nested === undefined) return rejected("BigInt assignment has incomplete location syntax.");
+        location = nested;
+      }
+      const receiver = input.ast.is.IsElementAccessExpression(location) || input.ast.is.IsPropertyAccessExpression(location)
+        ? Node_Expression(input.ast, location) : undefined;
+      const receiverType = receiver === undefined ? undefined : targetTypeFor(receiver);
+      const selectedDeclaration = input.ast.is.IsPropertyAccessExpression(location)
+        ? input.semanticsFor(location).operations.propertyAccess(location)?.selectedDeclaration
+        : input.ast.is.IsElementAccessExpression(location)
+          ? input.semanticsFor(location).operations.elementAccess(location)?.selectedDeclaration
+          : undefined;
+      const direct = input.ast.is.IsIdentifier(location) ||
+        selectedDeclaration !== undefined && input.ast.hasModifierKind(selectedDeclaration, "static");
+      return {
+        kind: "resolved", sourceOperator,
+        targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
+          location: direct ? "direct" : receiverType !== undefined && referenceIdentityCarrier(receiverType, input) !== undefined
+            ? "reference-receiver" : "unsupported" },
+        left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
+        resultType: leftType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(leftType, expectedResultType),
+      };
+    }
   }
   if (sourceOperator === "in" && rightType.kind === "target-named" &&
     rightType.id === csharpJsArrayCarrierId &&
@@ -491,6 +529,7 @@ function operatorRequiresNumericPromotion(
   left: TargetTypeRef,
   right: TargetTypeRef,
 ): boolean {
+  if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) && targetTypeRefEquals(right, csharpBigIntegerTargetType())) return false;
   if (
     isCsharpAssignmentOperator(operator) ||
     operator === "&&" ||
@@ -507,6 +546,11 @@ function operatorRequiresNumericPromotion(
   return isSourceNumericPrimitive(left) && isSourceNumericPrimitive(right) &&
     (isEquality(operator) || isRelational(operator) || isBitwise(operator) || isArithmetic(operator));
 }
+
+const bigintRuntimeMethods: Readonly<Partial<Record<CsharpSourceOperator, "LeftShift" | "RightShift" | "Divide" | "Remainder">>> = {
+  "<<": "LeftShift", "<<=": "LeftShift", ">>": "RightShift", ">>=": "RightShift",
+  "/": "Divide", "/=": "Divide", "%": "Remainder", "%=": "Remainder",
+};
 
 function isSourceNumericPrimitive(type: TargetTypeRef): boolean {
   return type.kind === "source-primitive" && type.name !== "bool";

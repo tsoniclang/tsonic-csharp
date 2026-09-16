@@ -12,6 +12,8 @@ export function validateBinaryTargetSemantics(
   if (operator === "=") {
     return undefined;
   }
+  if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) && targetTypeRefEquals(right, csharpBigIntegerTargetType()) &&
+    (isEquality(operator) || isRelational(operator) || isArithmetic(operator) || isBitwise(operator))) return undefined;
   if (isCsharpJsValueTargetType(left) || isCsharpJsValueTargetType(right)) {
     return `Source operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
   }
@@ -84,7 +86,7 @@ export function validateUnaryTargetSemantics(
   operand: TargetTypeRef,
   input: CsharpPolicyContext,
 ): string | undefined {
-  if (operator === "-" && targetTypeRefEquals(operand, csharpBigIntegerTargetType())) {
+  if ((operator === "-" || operator === "~" || operator === "++" || operator === "--") && targetTypeRefEquals(operand, csharpBigIntegerTargetType())) {
     return undefined;
   }
   if (isCsharpJsValueTargetType(operand)) {

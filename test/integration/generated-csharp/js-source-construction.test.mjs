@@ -33,6 +33,23 @@ import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-obj
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 import { structuralMethodRestSource, receiverBoundMethodRestSource } from "../../../../tsonic/test/fixtures/structural-method-rest.mjs";
 import { compoundIndexedWriteSource } from "../../../../tsonic/test/fixtures/compound-indexed-write.mjs";
+import { bigintOperatorSource } from "../../../../tsonic/test/fixtures/bigint-operators.mjs";
+import { jsNumericPropertySource } from "../../../../tsonic/test/fixtures/js-numeric-properties.mjs";
+import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class-reads.mjs";
+
+for (const surface of [undefined, "js"]) {
+  test(`class flow reads preserve declaration storage and selected members (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: flowClassReadSource }), `flow-class-reads-${surface ?? "native"}`);
+  });
+}
+
+test("BigInt operators retain exact counts, source errors and compound evaluation order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: bigintOperatorSource }), "bigint-operators");
+});
+
+test("JS numeric array properties retain keys, aliases, presence and length", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: jsNumericPropertySource }), "js-numeric-properties");
+});
 
 test("JS indexed compound writes preserve evaluation order and exact result carriers", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: compoundIndexedWriteSource }), "compound-indexed-write");

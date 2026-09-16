@@ -34,6 +34,8 @@ import {
   literalNumber,
 } from "../csharp-expression-builders.js";
 import { isCsharpRuntimeUndefinedTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { planCsharpBigIntCall } from "./bigint-call.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -43,7 +45,11 @@ export function planSelectedCsharpBinaryOperation(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (selection.targetOperation.kind === "bigint-call") {
+    return planCsharpBigIntCall(node, selection, sourceFile, input, diagnostics, planExpression, state);
+  }
   if (selection.targetOperation.kind === "array-index-presence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics);
     const right = planExpression(selection.right, sourceFile, input, diagnostics);

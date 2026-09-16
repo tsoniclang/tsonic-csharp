@@ -9,6 +9,7 @@ import { csharpTargetParameterValueType } from "../../../target-model/types/memb
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
+import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -140,6 +141,16 @@ export function resolveSelectedValueWithState(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node);
   if (scopedTarget !== undefined) {
+    const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
+      .declarations.declaredValueType(declaration);
+    const queries = host.semantics(sourceFile);
+    if (declaredType !== undefined && queries.types.refinement(declaredType, selectedType).kind === "unrelated") {
+      return reconcileCsharpSelectedTargetType(
+        scopedTarget,
+        resolveTypeWithState(selectedType, sourceFile, nextState(state)),
+        queries.types.relationship(declaredType, selectedType),
+      );
+    }
     return scopedTarget;
   }
   if (host.ast.is.IsPropertyAccessExpression(node)) {

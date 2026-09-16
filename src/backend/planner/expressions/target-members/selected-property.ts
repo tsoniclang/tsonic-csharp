@@ -36,6 +36,7 @@ import {
   planFlowReadUseSiteProjection,
 } from "../flow-read-projections.js";
 import { applyCsharpConversionSelection } from "../conversions.js";
+import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -293,8 +294,18 @@ function translateSourceOwnedProperty(
       ? undefined
       : input.program.source.ast.text(syntaxName);
   const nameNode = input.program.source.ast.name(declaration) ?? syntaxName;
+  const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
+    shapeMember.member.memberKind === "method" && !selection.source.callCallee;
+  if (methodValue) {
+    const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
+      sourceFile, "method-values", "object-shape");
+    if (required.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, required.reason));
+      return undefined;
+    }
+  }
   const name = shapeMember?.kind === "resolved"
-    ? shapeMember.member.targetName
+    ? methodValue ? objectShapeStorageMemberName(objectShape, shapeMember.member) : shapeMember.member.targetName
     : nameNode === undefined
       ? undefined
       : input.names.resolve(nameNode, declaration);

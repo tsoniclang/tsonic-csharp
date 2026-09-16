@@ -21,7 +21,7 @@ import {
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import { retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
+import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 
 export function resolveTypeReferenceNode(
@@ -538,6 +538,13 @@ export function resolveSourceValueDeclaration(
   if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;
+  }
+  if (refinement.kind === "unrelated") {
+    return reconcileCsharpSelectedTargetType(
+      initializerTarget,
+      resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
+      declarationQueries.types.relationship(declaredType, selectedValueType),
+    );
   }
   if (
     refinement.kind === "members" &&

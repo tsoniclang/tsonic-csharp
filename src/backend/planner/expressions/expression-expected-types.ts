@@ -212,6 +212,7 @@ export function planExpressionWithExpectedTypeCore(
       effectiveExpectedTargetType,
       planners.planExpression,
       planners.planExpressionWithExpectedType,
+      state,
     );
     if (binaryExpression !== undefined) {
       return expectedRepresentation(binaryExpression);
