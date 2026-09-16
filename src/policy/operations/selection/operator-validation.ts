@@ -167,6 +167,14 @@ function supportsIntrinsicEquality(
   right: TargetTypeRef,
   input: CsharpPolicyContext,
 ): boolean {
+  const leftElement = getCsharpNullableElementTargetType(left);
+  const rightElement = getCsharpNullableElementTargetType(right);
+  if (leftElement !== undefined && rightElement === undefined) {
+    return supportsIntrinsicEquality(leftElement, right, input);
+  }
+  if (rightElement !== undefined && leftElement === undefined) {
+    return supportsIntrinsicEquality(left, rightElement, input);
+  }
   if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(right, csharpBigIntegerTargetType())) {
     return true;
