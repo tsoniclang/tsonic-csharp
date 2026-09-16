@@ -174,6 +174,25 @@ export function applyCsharpConversionSelection(
         },
         arguments: [],
       };
+    case "runtime-union-reference": {
+      const arms = getCsharpRuntimeUnionArms(sourceType);
+      if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
+        !arms.every((arm, index) => {
+          const selected = selection.arms[index];
+          return selected !== undefined && targetTypeRefEquals(arm, selected);
+        }) ||
+        !targetTypeRefEquals(targetType, selection.target)) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "Runtime-union reference projection conflicts with its exact selected arms and destination."));
+        return undefined;
+      }
+      const type = renderRequiredTargetType(node, getCsharpNullableElementTargetType(targetType) ?? targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
+        arguments: [],
+      };
+    }
     case "cast": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       return type === undefined

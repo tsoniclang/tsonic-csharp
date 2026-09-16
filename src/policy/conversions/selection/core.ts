@@ -66,7 +66,7 @@ export function selectCsharpConversion(
   if (nullable !== undefined) {
     return nullable;
   }
-  const runtimeUnion = selectRuntimeUnionConversion(source, target, mode);
+  const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
   }

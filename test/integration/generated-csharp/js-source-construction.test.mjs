@@ -41,6 +41,7 @@ import { structuralEnumerationSource } from "../../../../tsonic/test/fixtures/st
 import { nativeNodeSpawnSource } from "../../../../tsonic/test/fixtures/native-node-spawn.mjs";
 import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nullish-member-storage.mjs";
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
+import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 
 test("Node spawn preserves binary views, option aliases, child environment and failures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeSpawnSource(process.execPath) });
@@ -50,6 +51,15 @@ test("Node spawn preserves binary views, option aliases, child environment and f
 });
 
 for (const surface of [undefined, "js"]) {
+  for (const [name, sourceText] of [["generic", classUnionUpcastSource], ["anonymous", anonymousClassUnionUpcastSource]]) {
+    test(`class union upcasts preserve ${name} base identity (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+      const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText });
+      execute(compiled, `class-union-upcasts-${surface ?? "native"}`);
+      const output = [...compiled.artifacts.values()].join("\n");
+      assert.match(output, /\.AsReference</);
+      assert.doesNotMatch(output, /\.Match</);
+    });
+  }
   if (surface === "js") test("contextual class arguments preserve branch identity", { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: contextualClassArgumentsSource }),
       `contextual-class-arguments-${surface ?? "native"}`);

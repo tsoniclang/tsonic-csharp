@@ -207,6 +207,7 @@ export function csharpConversionIsApplicable(
 ): boolean {
   return selection.kind === "identity" ||
     selection.kind === "array-like-union" ||
+    selection.kind === "runtime-union-reference" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
