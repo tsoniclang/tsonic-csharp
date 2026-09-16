@@ -2,6 +2,7 @@ import { selectedPolicyDiagnostic, targetPolicyDiagnostic, unsupportedNodeDiagno
 import { translateCsharpJsValueArgumentFactory, translateCsharpJsValueInvocation, translateCsharpJsValueFactory } from "../../js-value-operations.js";
 import { translateSelectedTargetCall } from "./target.js";
 import { translateSourceOwnedCall } from "./source.js";
+import { planCsharpOptionalReceiverChain } from "./optional-chain.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -10,6 +11,25 @@ import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function translateCsharpCallExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+): CsharpExpression | undefined {
+  const optional = planCsharpOptionalReceiverChain(
+    node, sourceFile, input, diagnostics, planExpression, planCallArgument,
+    (call, expressions, arguments_) => translateCsharpCallExpressionCore(
+      call, sourceFile, input, diagnostics, expressions, arguments_,
+    ),
+  );
+  return optional.handled ? optional.expression : translateCsharpCallExpressionCore(
+    node, sourceFile, input, diagnostics, planExpression, planCallArgument,
+  );
+}
+
+function translateCsharpCallExpressionCore(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,

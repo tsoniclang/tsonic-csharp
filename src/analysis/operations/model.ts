@@ -58,6 +58,13 @@ export interface CsharpSourceCallArgumentClassification {
 
 export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
+  readonly optionalReceiver?: {
+    readonly expression: Node;
+    readonly type: TargetTypeRef;
+    readonly guard: boolean;
+    readonly parameterType?: TargetTypeRef;
+    readonly conversion?: CsharpConversionSelection;
+  };
   readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
   readonly source?: ResolvedSourceCallInfo;
   readonly sourceFlow: CsharpSourceFlowCallSelection;

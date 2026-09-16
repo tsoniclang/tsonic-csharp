@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import {
   createTargetClassificationBuilder,
@@ -338,7 +339,9 @@ function visit(
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
+    const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
     setClassification(builder, node, callKey, Object.freeze({
+      ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
       sourceFlow: selectCsharpSourceFlowCall(policy, node),
