@@ -20,6 +20,7 @@ export type CsharpSourceNameResolution =
   | { readonly kind: "rejected"; readonly reason: string };
 
 export interface CsharpSourceNameResolver {
+  temporaryName(preferred: string): string;
   resolve(
     nameNode: Node | undefined,
     selectedDeclaration?: Node,
@@ -40,6 +41,7 @@ export function createCsharpSourceNameResolver(
   const privateDeclarations = new WeakMap<Node, Node>();
   const privateNameNodes = new WeakSet<Node>();
   const resolutions = new WeakMap<Node, CsharpSourceNameResolution>();
+  const sourceNames = new Set<string>();
 
   const allocatePrivateName = (declaration: Node): string | undefined => {
     const existing = privateNames.get(declaration);
@@ -54,6 +56,7 @@ export function createCsharpSourceNameResolver(
       createHash("sha256").update(identity).digest("hex")
     }`;
     privateNames.set(declaration, name);
+    sourceNames.add(name);
     return name;
   };
 
@@ -91,12 +94,20 @@ export function createCsharpSourceNameResolver(
     );
   }
 
-  return Object.freeze({ resolve });
+  return Object.freeze({
+    resolve,
+    temporaryName(preferred: string): string {
+      let name = preferred;
+      while (sourceNames.has(name)) name = `_${name}`;
+      return name;
+    },
+  });
 
   function visitNames(node: Node): void {
     if (host.ast.is.IsIdentifier(node)) {
       const sourceName = host.ast.text(node);
       const name = tryCsharpIdentifier(sourceName);
+      if (name !== undefined) sourceNames.add(name);
       resolutions.set(
         node,
         name === undefined

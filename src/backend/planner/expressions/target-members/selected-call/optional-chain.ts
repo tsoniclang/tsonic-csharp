@@ -55,7 +55,7 @@ export function planCsharpOptionalReceiverChain(
     const selected = entry.classification.optionalReceiver!;
     const type = csharpTypeFromTargetTypeRef(selected.type);
     if (type === undefined) return undefined;
-    const name = `__tsonic_optionalReceiver_${Math.max(0, input.program.source.ast.pos(entry.node))}_${Math.max(0, input.program.source.ast.end(entry.node))}`;
+    const name = input.names.temporaryName(`__tsonic_optionalReceiver_${Math.max(0, input.program.source.ast.pos(entry.node))}_${Math.max(0, input.program.source.ast.end(entry.node))}`);
     const present: CsharpExpression = selected.guard ? { kind: "IdentifierName", name } : value;
     const expressions: ExpressionPlanner = (subject, file, context, errors, state) => {
       if (subject === selected.expression) return present;
