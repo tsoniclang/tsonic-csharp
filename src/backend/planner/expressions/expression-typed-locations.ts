@@ -78,7 +78,17 @@ export function tryPlanCsharpTypedLocationOperation(
   }
   switch (operation.kind) {
     case "location-hash": {
-      const pointer = planExpression(operation.locationExpression, sourceFile, input, diagnostics);
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      if (parameterType === undefined) return { handled: true };
+      const pointer = planExpressionWithExpectedType(
+        operation.locationExpression,
+        sourceFile,
+        input,
+        diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
+      );
       return { handled: true, ...(pointer === undefined ? {} : {
         expression: invokeMember(locationType, "Hash", [pointer]),
       }) };

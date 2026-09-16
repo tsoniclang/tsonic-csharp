@@ -108,6 +108,7 @@ export type CsharpResolvedTypedLocationOperation =
       readonly call: Node;
       readonly pointeeType: TargetTypeRef;
       readonly locationType: TargetTypeRef;
+      readonly parameterType: TargetTypeRef;
       readonly locationExpression: Node;
     }
   | {
@@ -205,6 +206,7 @@ export function selectCsharpTypedLocationOperation(
       );
       return isCsharpTypedLocationEqualityOperand(operand, pointeeType)
         ? { kind: source.kind, call: source.call, pointeeType, locationType,
+            parameterType: csharpNullableReferenceTargetType(locationType),
             locationExpression: source.locationExpression }
         : rejected(source.kind, "Pointer hashing requires an exact location carrier or undefined.");
     }

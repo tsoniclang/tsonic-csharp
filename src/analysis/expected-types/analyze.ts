@@ -312,6 +312,8 @@ export function analyzeCsharpExpectedTypes(
       } else if (typedLocation.kind === "location-equal") {
         record(typedLocation.leftExpression, typedLocation.parameterType, "required");
         record(typedLocation.rightExpression, typedLocation.parameterType, "required");
+      } else if (typedLocation.kind === "location-hash") {
+        record(typedLocation.locationExpression, typedLocation.parameterType, "required");
       } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project" ||
         typedLocation.kind === "location-view") {
         for (const argument of typedLocation.arguments) {
