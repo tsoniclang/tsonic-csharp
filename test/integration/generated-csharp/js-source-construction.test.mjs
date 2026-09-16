@@ -48,6 +48,18 @@ test("optional indexed arguments retain absence and single evaluation", { timeou
   execute(compileCsharpSource({ surface: "js", sourceText: optionalIndexedArgumentsSource }), "optional-indexed-arguments");
 });
 
+test("optional static calls do not invent a missing receiver region", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+interface Box { value: string; }
+export function normalize(box: Box | undefined): string | undefined {
+  return box?.value.trim()?.toLowerCase();
+}` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.ok(compiled.result.diagnostics.some(diagnostic =>
+    diagnostic.code === "CSHARP_UNSUPPORTED_AST" &&
+    diagnostic.message.includes("originating receiver guard")));
+});
+
 test("Node spawn preserves binary views, option aliases, child environment and failures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeSpawnSource(process.execPath) });
   execute(compiled, "native-node-spawn", false, false, [

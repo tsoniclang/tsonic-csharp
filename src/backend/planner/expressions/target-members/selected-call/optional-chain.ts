@@ -38,6 +38,11 @@ export function planCsharpOptionalReceiverChain(
       entry.classification.target.call.receiver.kind === "target-parameter")) {
     return { handled: false };
   }
+  if (chain[chain.length - 1]?.classification.optionalReceiver?.guard !== true) {
+    diagnostics.push(unsupportedNodeDiagnostic(node,
+      "Static optional-call lowering requires the originating receiver guard in its exact selected call chain."));
+    return { handled: true };
+  }
   const result = chain[0]?.classification.selectedResultType;
   const resultType = result === undefined ? undefined : csharpTypeFromTargetTypeRef(result);
   const receiver = planExpression(current, sourceFile, input, diagnostics);
