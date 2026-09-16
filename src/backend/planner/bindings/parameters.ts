@@ -63,6 +63,22 @@ export function planParametersWithPrelude(
     if (HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
       const type = getParameterType(parameterNode, typeSubject, questionToken, sourceFile, input, diagnostics);
+      const referenceDefault = input.program.declarations.referenceDefault(parameterNode!);
+      if (referenceDefault !== undefined && parameter.Initializer !== undefined) {
+        const sourceName = declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Parameter name", "arg");
+        const incomingName = allocateSyntheticParameter(state);
+        const initializer = planExpressionWithExpectedType(parameter.Initializer, sourceFile, input, diagnostics, type, typeSubject, state);
+        parameters.push({ name: incomingName, type: nullableCsharpType(type),
+          attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
+          defaultValue: { kind: "LiteralExpression", value: null } });
+        if (initializer !== undefined) prelude.push({ kind: "LocalDeclarationStatement", name: sourceName, type,
+          initializer: { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" },
+            left: { kind: "IdentifierName", name: incomingName }, right: initializer } });
+        const locationIdentity = planCsharpParameterStorageDeclaration(parameterNode!, input, state, diagnostics);
+        if (locationIdentity !== undefined) prelude.push(locationIdentity);
+        hasDefaultParameter = true;
+        continue;
+      }
       const defaultValue = planParameterDefaultValue(parameter.Initializer, questionToken, sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;

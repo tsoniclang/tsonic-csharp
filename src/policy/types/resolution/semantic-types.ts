@@ -211,9 +211,18 @@ export function resolveDirectSourceFacts(
     if (rawLocation?.kind === "resolved") {
       if (rawLocation.operation.operation === "to-raw") return csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
       const typeNode = rawLocation.operation.explicitPointeeTypeNode ?? rawLocation.layout.explicitTypeNode;
+      if (typeNode === undefined && rawLocation.layout.kind === "array") {
+        const elementNode = rawLocation.layout.fixedArray.elementType;
+        const layoutFile = host.ast.getSourceFile(rawLocation.layout.call) ?? sourceFile;
+        const element = elementNode === undefined
+          ? resolveTypeWithState(rawLocation.layout.fixedArray.elementSourceType, layoutFile, nextState(state))
+          : resolveNodeWithState(elementNode, host.ast.getSourceFile(elementNode) ?? layoutFile, nextState(state));
+        if (element !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType({ kind: "array", element }));
+        return undefined;
+      }
       const pointee = typeNode === undefined
         ? resolveTypeWithState(rawLocation.operation.pointeeType, sourceFile, nextState(state))
-        : resolveNodeWithState(typeNode, sourceFile, nextState(state));
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
       if (pointee !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(pointee));
     }
     if (selectCsharpLayoutObservation(host.sourceFacts, subject)?.kind === "layout-query") {

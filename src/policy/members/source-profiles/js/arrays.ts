@@ -30,6 +30,8 @@ import type {
 } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { selectCsharpArrayCopy } from "./array-copy.js";
+import { csharpArrayLikeElement } from "../../../../target-model/types/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
 import {
   instanceMethod,
   jsCallIdentity,
@@ -599,8 +601,10 @@ function arrayFromMember(
   }
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
-  const copy = isJsArray ? selectCsharpArrayCopy(context) : undefined;
-  if (isJsArray && copy === undefined) return undefined;
+  const isArrayUnion = getCsharpRuntimeUnionArms(argument) !== undefined;
+  const copy = isJsArray || isArrayUnion ? selectCsharpArrayCopy(context) : undefined;
+  if ((isJsArray || isArrayUnion) && copy === undefined) return undefined;
+  if (copy?.method === "CopyDense" && context.source.sourceSelectedSignatureParameters.length !== 1) return undefined;
   const parameters: CsharpTargetParameter[] = [
     targetParameter(
       "arrayLike",
@@ -620,10 +624,10 @@ function arrayFromMember(
     ));
   }
   return staticMethod(
-    `Tsonic.CSharp.Js.JSArrayStatics.${copy?.method ?? "from"}`,
+    `Tsonic.CSharp.Js.${copy?.method === "CopyDense" ? "ArrayLike" : "JSArrayStatics"}.${copy?.method ?? "from"}`,
     "from",
     copy?.method ?? "from",
-    arrayStaticsType,
+    copy?.method === "CopyDense" ? jsRuntimeTargetType("ArrayLike") : arrayStaticsType,
     parameters,
     shape.resultType,
     {
@@ -816,7 +820,7 @@ function arrayFromShape(
   );
   const sourceElement = sourceIsString(context)
     ? stringType
-    : getCsharpCollectionElementTargetType(sourceArgument);
+    : getCsharpCollectionElementTargetType(sourceArgument) ?? csharpArrayLikeElement(sourceArgument);
   if (sourceElement === undefined) {
     return undefined;
   }

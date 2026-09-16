@@ -30,6 +30,7 @@ import {
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";
+import { csharpJsArrayCarrierId } from "../../types/resolution/surface-types.js";
 import {
   sourcePrimitiveImplicitlyConverts,
 } from "../../conversions/source-primitives.js";
@@ -57,6 +58,7 @@ export interface CsharpResolvedBinaryOperation {
 }
 
 export type CsharpTargetBinaryOperation =
+  | { readonly kind: "array-index-presence" }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -145,6 +147,18 @@ export function selectCsharpBinaryOperation(
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (sourceOperator === "in" && rightType.kind === "target-named" &&
+    rightType.id === csharpJsArrayCarrierId &&
+    (isCsharpIntegralTargetType(leftType) ||
+      targetTypeRefEquals(leftType, csharpSourcePrimitiveTargetType("float64")))) {
+    const resultType = csharpSourcePrimitiveTargetType("bool");
+    return {
+      kind: "resolved", sourceOperator, targetOperation: { kind: "array-index-presence" },
+      left, right, leftType, rightType,
+      leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
+      resultType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType),
+    };
   }
   if (isEquality(sourceOperator) &&
     (isCsharpRuntimeNullTargetType(leftType) || isCsharpRuntimeUndefinedTargetType(leftType)) &&
@@ -259,7 +273,9 @@ function selectStrictReferenceIdentity(
   const leftIdentity = referenceIdentityCarrier(left, input);
   const rightIdentity = referenceIdentityCarrier(right, input);
   return leftIdentity !== undefined && rightIdentity !== undefined &&
-      targetTypeRefEquals(leftIdentity, rightIdentity)
+      (targetTypeRefEquals(leftIdentity, rightIdentity) ||
+        input.objectShapes.resolveTarget(leftIdentity) !== undefined &&
+        input.objectShapes.resolveTarget(rightIdentity) !== undefined)
     ? { kind: "reference-identity", negated: operator === "!==" }
     : undefined;
 }

@@ -33,6 +33,7 @@ import {
   callStatic,
   literalNumber,
 } from "../csharp-expression-builders.js";
+import { isCsharpRuntimeUndefinedTargetType } from "../../../../target-model/types/runtime-carriers.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -43,6 +44,14 @@ export function planSelectedCsharpBinaryOperation(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
+  if (selection.targetOperation.kind === "array-index-presence") {
+    const left = planExpression(selection.left, sourceFile, input, diagnostics);
+    const right = planExpression(selection.right, sourceFile, input, diagnostics);
+    return left === undefined || right === undefined ? undefined : callStatic(
+      { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Js", name: "ArrayLike" },
+      "HasIndex", [left, right],
+    );
+  }
   if (selection.targetOperation.kind === "nullish-test") {
     const operandNode = selection.targetOperation.operand === "left"
       ? selection.left
@@ -58,7 +67,10 @@ export function planSelectedCsharpBinaryOperation(
     const other = planExpression(otherNode, sourceFile, input, diagnostics);
     if (other === undefined) return undefined;
     let tested = operand;
-    if (other.kind !== "LiteralExpression") {
+    const intrinsicUndefined = input.program.source.ast.is.IsIdentifier(otherNode) &&
+      input.program.sourceNavigation.referenceFor(otherNode) === undefined &&
+      isCsharpRuntimeUndefinedTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
+    if (other.kind !== "LiteralExpression" && !intrinsicUndefined) {
       const testedType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
         ? selection.leftType : selection.rightType);
       const otherType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"

@@ -25,6 +25,9 @@ import { emptyMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/em
 import { broadValueNarrowingSource } from "../../../../tsonic/test/fixtures/broad-value-narrowing.mjs";
 import { logicalAccessAssignmentSource } from "../../../../tsonic/test/fixtures/logical-access-assignment.mjs";
 import { mixedWidthRecordSource } from "../../../../tsonic/test/fixtures/mixed-width-records.mjs";
+import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-array-unions.mjs";
+import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
+import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-objects.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
@@ -38,7 +41,9 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false, addi
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, text);
   }
-  writeFileSync(join(root, "Program.cs"), `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
+  if (!compiled.artifacts.has("generated/TsonicEntrypoint.cs")) {
+    writeFileSync(join(root, "Program.cs"), `if (!(${asynchronous ? "await " : ""}Tsonic.Generated.Index.run())) throw new System.Exception("source construction contract");`);
+  }
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
     join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj"),
@@ -56,6 +61,84 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false, addi
   return native.stdout;
 }
 
+test("numeric array presence preserves holes, boundary keys and evaluation order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+let order = "";
+const values = new Array<number>(2);
+values[1] = 0;
+function index(): number { order += "i"; return 1; }
+function array(): number[] { order += "a"; return values; }
+export function run(): boolean {
+  const present = index() in array();
+  return present && order === "ia" && !(0 in values) && !(-0 in values) &&
+    !(-1 in values) && !(0.5 in values) && !(2 in values) && !(Number.POSITIVE_INFINITY in values) && !(Number.NaN in values);
+}` }), "numeric-array-presence");
+});
+
+for (const [name, source] of Object.entries(frozenObjectSources)) {
+  test(`frozen reference objects preserve ${name}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface: "js", sourceText: `${source}\nexport function run(): boolean { main(); return true; }` }), `frozen-${name}`);
+  });
+}
+
+test("reference defaults evaluate in the callee only for omitted and undefined arguments", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+let calls = 0;
+const token = {value: 4};
+function make(): {value: number} { calls += 1; return token; }
+class Holder { value: {value: number}; constructor(value = make()) { this.value = value; } }
+export function run(): boolean {
+  const first = new Holder();
+  const second = new Holder(undefined);
+  const other = {value: 8};
+  const third = new Holder(other);
+  return calls === 2 && first.value === token && second.value === token && third.value === other;
+}` }), "reference-defaults");
+});
+
+test("generic literal arguments preserve exact carrier inference regardless of argument order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ sourceText: `
+import { allocatePointer, loadPointer, storePointer } from "@tsonic/core/lang.js";
+import type { Pointer, uint32 } from "@tsonic/core/types.js";
+function first<T>(value: T, location: Pointer<T>): T { storePointer(location, value); return loadPointer(location); }
+function last<T>(location: Pointer<T>, value: T): T { return first(value, location); }
+export function run(): boolean {
+  const location = allocatePointer<number>(1);
+  const wide = allocatePointer<uint32>(0);
+  return first(9, location) === 9 && last(location, 12) === 12 && first(4294967295, wide) === 4294967295;
+}` }), "generic-literal-inference");
+});
+
+test("writable methods select before arguments and retain previously selected functions", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+class Counter { value(step: number): number { return step + 1; } }
+function replace(counter: Counter): number { counter.value = (step: number): number => step + 10; return 2; }
+export function run(): boolean {
+  const counter = new Counter();
+  const before = counter.value;
+  const selected = counter.value(replace(counter));
+  return selected === 3 && counter.value(2) === 12 && before(2) === 3;
+}` }), "writable-methods");
+});
+
+test("JavaScript error subclasses preserve constructor, call and base identity", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+export function run(): boolean {
+  const first = new TypeError("first");
+  const second = RangeError("second");
+  const third = new URIError("third");
+  return first instanceof Error && first instanceof TypeError && !(first instanceof RangeError) &&
+    second instanceof Error && second instanceof RangeError && third instanceof URIError && first.message === "first";
+}` }), "error-subclasses");
+});
+
+test("a local same-spelled error constructor remains source-owned", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+class TypeError { value = 9; }
+export function run(): boolean { const value = new TypeError(); return value.value === 9; }
+` }), "shadowed-error-subclass");
+});
+
 for (const valueRepresentation of [false, true]) {
   for (const surface of [undefined, "js"]) {
     const label = `${valueRepresentation ? "value" : "reference"}-${surface ?? "native"}`;
@@ -67,6 +150,51 @@ for (const valueRepresentation of [false, true]) {
       }), `bound-records-${label}`);
     });
   }
+}
+
+test("typed and ordinary numeric array unions preserve reads, width and copy independence", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+    sourceText: `${numberArrayUnionFiles["index.ts"]}\nif (!run()) throw new Error("number array union contract");`,
+    files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
+  }), "number-array-unions");
+});
+
+for (const surface of [undefined, "js"]) {
+  test(`type-only brands erase without removing ordinary class fields in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+class Box {
+  declare private readonly then?: never;
+  declare private readonly anotherBrand: void;
+  value: number = 3;
+  read(): number { return this.value; }
+}
+export function run(): boolean {
+  const first = new Box();
+  const second = first;
+  second.value = 9;
+  return first.read() === 9;
+}` });
+    execute(compiled, `type-only-brands-${surface ?? "native"}`);
+    assert.doesNotMatch([...compiled.artifacts.values()].join("\n"), /\b(?:then|anotherBrand)\b/u);
+  });
+  test(`recursive generic and mutually recursive union records execute in ${surface ?? "native"}`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: recursiveSourceUnionFiles["index.ts"],
+      files: Object.fromEntries(Object.entries(recursiveSourceUnionFiles).filter(([path]) => path !== "index.ts")),
+    }), `recursive-union-records-${surface ?? "native"}`);
+  });
+}
+
+for (const sparse of ["new Array<number>(3)", "[1, 2]"]) {
+  test(`numeric array union copying requires density for ${sparse}`, () => {
+    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+      files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
+      sourceText: `import { copy } from "./arrays.js";
+        const values = ${sparse}; delete values[0]; copy(values);`,
+    });
+    assert.equal(compiled.sourceDiagnosticsText, "");
+    assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.message.includes("ArrayConstructor.from")));
+    assert.equal(compiled.artifacts.size, 0);
+  });
 }
 
 for (const surface of [undefined, "js"]) {
@@ -133,13 +261,28 @@ for (const [label, source] of [
 export function copy(): number { ${source} return Array.from(values).length; }
 ` });
     assert.equal(result.result.artifacts.length, 0);
-    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.code === "CSHARP_JS_SOURCE_PROFILE_CALL_NOT_CLOSED"));
+    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101001" &&
+      diagnostic.message.includes("js.ArrayConstructor.from.member")));
   });
 }
 
 test("number-domain scalar boxing preserves complete values and evaluation order", { timeout: 300_000 }, () => {
   assert.equal(execute(compileCsharpSource({ surface: "js", sourceText: numberBoxingProof }),
     "number-boxing"), numberBoxingOutput);
+});
+
+test("broad values distinguish null, undefined and source reference identity", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+class Item { value = 3; }
+function absent(value: unknown): boolean { return value === undefined && value !== null; }
+function nil(value: unknown): boolean { return value === null && value !== undefined; }
+function same(left: unknown, right: unknown): boolean { return left === right; }
+export function run(): boolean {
+  const value = new Item();
+  const empty = {};
+  return absent(undefined) && !absent(null) && nil(null) && !nil(undefined) &&
+    same(value, value) && !same(value, new Item()) && same(empty, empty) && !same(empty, {});
+}` }), "broad-reference-nullish");
 });
 
 test("inferred pointer loads preserve concrete conditional aliases and native widths", { timeout: 300_000 }, () => {
@@ -580,9 +723,8 @@ test("stored Error throws preserve identity across parameters, return values and
   ` }), "stored-error-transport");
 });
 
-test("nonempty writable shapes cannot silently use the empty frozen carrier", () => {
+test("open objects cannot silently use a closed frozen carrier", () => {
   for (const sourceText of [
-    `export function example(): number { const value = { count: 1 }; Object.freeze(value); value.count = 2; return value.count; }`,
     `function freeze(value: object): object { return Object.freeze(value); } export function example(): object { return freeze({ count: 1 }); }`,
   ]) {
     const compiled = compileCsharpSource({ surface: "js", sourceText });

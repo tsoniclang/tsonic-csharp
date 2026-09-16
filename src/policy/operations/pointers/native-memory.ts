@@ -23,7 +23,12 @@ export function selectCsharpNativeMemoryLayout(
   if (selected.size === 0 && countTsonicMemoryLayoutValues(layout, 131_072) === undefined) return undefined;
   if (selected.has(layout)) return selected.get(layout);
   selected.set(layout, undefined);
-  const pointeeType = input.types.resolveSelectedType(layout.explicitTypeNode, layout.sourceType, sourceFile);
+  sourceFile = input.ast.getSourceFile(layout.call) ?? sourceFile;
+  const arrayElement = layout.kind === "array" ? input.types.resolveSelectedType(
+    layout.fixedArray.elementType, layout.fixedArray.elementSourceType, sourceFile) : undefined;
+  const pointeeType: TargetTypeRef | undefined = layout.kind === "array"
+    ? arrayElement === undefined ? undefined : { kind: "array", element: arrayElement }
+    : input.types.resolveSelectedType(layout.explicitTypeNode, layout.sourceType, sourceFile);
   if (pointeeType === undefined) return undefined;
   if (layout.kind === "array") {
     if (csharpFixedArrayRepresentationRejection(layout.fixedArray) !== undefined ||

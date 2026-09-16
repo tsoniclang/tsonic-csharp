@@ -50,6 +50,7 @@ function preferredObjectShapeStem(
     if (type.kind !== "target-named") {
       continue;
     }
+    if (csharpStructuralObjectShapeIdentity(type) !== undefined) continue;
     const render = csharpRenderShapeForTargetNamedType(type);
     if (render?.kind !== "named") {
       continue;

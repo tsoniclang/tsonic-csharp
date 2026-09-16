@@ -3,7 +3,6 @@ import type {
 } from "../context.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
-  CsharpClassDeclaration,
   CsharpCompilationUnit,
   CsharpTypeDeclaration,
   CsharpTypeNode,
@@ -19,6 +18,7 @@ import {
 } from "../types/target-types.js";
 import type {
   CsharpObjectShapeFact,
+  CsharpTargetNamedTypeRef,
 } from "../../../target-model/types/index.js";
 import {
   csharpStructuralObjectShapeIdentity,
@@ -52,6 +52,9 @@ export {
 } from "./object-shape-storage.js";
 
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
+import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
+import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
 
 export function registerSourceObjectShape(
   input: CsharpPlanningContext,
@@ -151,7 +154,7 @@ export function materializeObjectShapeDeclarations(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeDeclaration[] {
-  const declarations = new Map<string, CsharpClassDeclaration>();
+  const declarations = new Map<string, CsharpTypeDeclaration>();
   for (const artifact of input.artifacts.objectShapeArtifacts()) {
     if (artifact.materialization !== "synthetic") {
       continue;
@@ -170,13 +173,15 @@ export function materializeObjectShapeDeclarations(
     const existing = declarations.get(declaration.name);
     if (
       existing !== undefined &&
-      !objectShapeDeclarationMatches(
+      (existing.kind !== declaration.kind || (existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         existing,
         artifact.fact.declarationTemplate ?? artifact.fact,
         artifact.capabilities.includes("json-serialization"),
         artifact.projections,
         new Set(artifact.receiverBoundMethodKeys),
-      )
+        artifact.capabilities.includes("js-freeze"),
+        artifact.capabilities.includes("reference-identity"),
+      )) || existing.kind === "InterfaceDeclaration" && JSON.stringify(existing) !== JSON.stringify(declaration))
     ) {
       diagnostics.push({
         code: "CSHARP_OBJECT_SHAPE_ARTIFACT_CONFLICT",
@@ -233,9 +238,10 @@ function renderObjectShapeDeclaration(
   projections: readonly import("../../../target-model/types/index.js").CsharpObjectShapeProjection[],
   receiverBoundMethodKeys: readonly string[],
   diagnostics: TargetDiagnostic[],
-): CsharpClassDeclaration | undefined {
+): CsharpTypeDeclaration | undefined {
   const fact = instance.declarationTemplate ?? instance;
   const jsonSerializable = capabilities.includes("json-serialization");
+  const referenceIdentity = capabilities.includes("reference-identity");
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
   if (targetType === undefined || targetType.kind !== "IdentifierName") {
     diagnostics.push({
@@ -252,6 +258,18 @@ function renderObjectShapeDeclaration(
     undefined,
     undefined,
   );
+  if ((fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
+    const contractMembers = renderCsharpStructuralInterfaceMembers(fact);
+    if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
+      diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
+        message: "A structural reference contract requires exact renderable member signatures." });
+      return undefined;
+    }
+    return { kind: "InterfaceDeclaration", name: targetType.name,
+      objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
+      interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : [])], members: contractMembers };
+  }
   const members = renderObjectShapeMembers(
     fact,
     (interfaces?.length ?? 0) > 0,
@@ -282,16 +300,17 @@ function renderObjectShapeDeclaration(
     ...(objectShapeIdentity === undefined ? {} : { objectShapeIdentity }),
     modifiers: ["public"],
     ...(typeParameters.length === 0 ? {} : { typeParameters }),
-    ...(interfaces.length === 0 && !jsonSerializable
+    ...(interfaces.length === 0 && !jsonSerializable && !referenceIdentity
       ? {}
       : {
           interfaces: [
             ...interfaces,
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+            ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
           ],
         }),
     members: [
-      ...members,
+      ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(
         input,

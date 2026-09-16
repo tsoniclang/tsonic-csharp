@@ -109,6 +109,7 @@ function sourceCallableContract(
     const parameter = sourceParameterContract(
       policy,
       evidence,
+      declarations,
       names,
       parameterNode,
       index,
@@ -147,6 +148,7 @@ function sourceCallableContract(
 function sourceParameterContract(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
   parameterNode: Node | undefined,
   parameterIndex: number,
@@ -166,7 +168,7 @@ function sourceParameterContract(
     return undefined;
   }
   const questionToken = policy.ast.questionToken(parameterNode);
-  const targetType: TargetTypeRef = questionToken === undefined
+  const targetType: TargetTypeRef = questionToken === undefined && declarations.referenceDefault(parameterNode) === undefined
     ? selectedType
     : csharpNullableTargetType(selectedType);
   const resolvedName = HasSourceKind(

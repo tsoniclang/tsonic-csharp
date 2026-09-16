@@ -9,6 +9,7 @@ import {
   csharpTargetId,
 } from "../../../target-model/identities/source.js";
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
+import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 
 export type CsharpSourceProfileTypeKind =
   | "boolean"
@@ -93,7 +94,7 @@ const sourceProfileTypePolicies = Object.freeze([
   sourceProfileTypePolicy("js", "Boolean", "boolean"),
   sourceProfileTypePolicy("js", "Number", "number"),
   sourceProfileTypePolicy("js", "String", "string"),
-  sourceProfileTypePolicy("js", "Error", "error"),
+  ...csharpSourceErrorNames.map(name => sourceProfileTypePolicy("js", name, "error")),
   sourceProfileTypePolicy("js", "Array", "array"),
   sourceProfileTypePolicy("js", "ReadonlyArray", "readonly-array"),
   sourceProfileTypePolicy("js", "Promise", "promise"),

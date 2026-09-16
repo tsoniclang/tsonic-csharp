@@ -13,6 +13,7 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
+  csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
@@ -109,6 +110,21 @@ export function applyCsharpConversionSelection(
   switch (selection.kind) {
     case "identity":
       return expression;
+    case "array-like-union": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      if (type === undefined) return undefined;
+      return {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Match", typeArguments: [type] },
+        arguments: selection.arms.map((_, index) => {
+          const name = `__tsonic_array_arm${index + 1}`;
+          return { kind: "Argument", expression: {
+            kind: "LambdaExpression", parameters: [{ kind: "Parameter", name }],
+            body: { kind: "IdentifierName", name },
+          } };
+        }),
+      };
+    }
     case "empty-record":
       return planCsharpEmptyRecordConversion(selection, sourceType, targetType, expression);
     case "implicit":
@@ -208,6 +224,15 @@ export function applyCsharpConversionSelection(
         sourceType,
         expression,
       );
+    case "undefined-object-box": {
+      const undefinedType = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
+      return undefinedType === undefined ? undefined : {
+        kind: "BinaryExpression",
+        left: { kind: "CastExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } }, expression },
+        operatorToken: { kind: "QuestionQuestionToken" },
+        right: { kind: "SimpleMemberAccessExpression", receiver: undefinedType, name: "value" },
+      };
+    }
     case "js-value-cast":
       return invokeStaticGeneric(
         selection.runtimeUnionArms === undefined

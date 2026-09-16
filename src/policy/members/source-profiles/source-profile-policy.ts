@@ -61,6 +61,7 @@ export interface CsharpSourceProfilePropertyPolicyContext {
 
 export type CsharpTargetPropertyInvocation =
   | { readonly kind: "member" }
+  | { readonly kind: "array-like"; readonly projection: import("../../conversions/selection/model.js").CsharpArrayLikeUnionProjection }
   | { readonly kind: "source-name-indexer" };
 
 export interface CsharpSourceProfileElementPolicyContext {
@@ -213,7 +214,7 @@ function sourceProfilePropertyIdentityMatches(
   );
 }
 
-function sourceProfilePropertyIdentities(
+export function sourceProfilePropertyIdentities(
   host: CsharpProviderCallSelectionHost,
   source: ResolvedSourcePropertyAccessInfo,
   sourceFile: SourceFile,
@@ -232,9 +233,11 @@ function sourceProfilePropertyIdentities(
     return [];
   }
   const semantics = host.semantics(sourceFile);
-  const declarations = semantics.declarations.symbolDeclarations(
-    source.selectedSymbol,
-  );
+  const declarations = [...new Set([
+    ...semantics.declarations.symbolDeclarations(source.selectedSymbol),
+    ...semantics.declarations.rootSymbols(source.selectedSymbol).flatMap(symbol =>
+      semantics.declarations.symbolDeclarations(symbol)),
+  ])];
   const identities = declarations.map((declaration) =>
     csharpSourceProfileDeclarationIdentity(
       host.ast,

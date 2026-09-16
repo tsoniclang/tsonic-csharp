@@ -38,6 +38,7 @@ import { sourceFileClassName } from "../artifacts/source-paths.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
+import { csharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 
 export function planIdentifierExpression(
   identifier: Node,
@@ -50,7 +51,8 @@ export function planIdentifierExpression(
   const sourceReference = input.program.sourceNavigation.referenceFor(identifier);
   const declarationReference = input.program.sourceNavigation.sourceReferenceFor(identifier);
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
-    return { kind: "LiteralExpression", value: null };
+    const type = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
+    return type === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver: type, name: "value" };
   }
   const providerDiagnosticsStart = diagnostics.length;
   const providerValue = planProviderValueReference(

@@ -24,12 +24,14 @@ export function selectCsharpAuthoredUnionRefinement(
   selectedType: Type,
   queries: SourceFileSemantics,
   resolveType: (type: Type) => TargetTypeRef | undefined,
+  resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
 ): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
   const base = getCsharpNullableElementTargetType(authored) ?? authored;
   const arms = getCsharpRuntimeUnionArms(base);
-  const shapes = (base as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
-  if (arms === undefined || shapes === undefined) return { kind: "not-applicable" };
+  if (arms === undefined) return { kind: "not-applicable" };
+  const shapes = arms.map(resolveShape);
+  if (shapes.every(shape => shape === undefined)) return { kind: "not-applicable" };
   const refinement = queries.types.refinement(declaredType, selectedType);
   if (refinement.kind === "exact") return { kind: "resolved", type: authored };
   if (refinement.kind !== "members") return { kind: "not-applicable" };

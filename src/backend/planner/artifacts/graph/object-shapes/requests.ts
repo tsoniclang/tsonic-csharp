@@ -21,10 +21,11 @@ import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity
 import { objectShapeProjectionKey } from "../../contracts.js";
 
 export function registerObjectShape(
-  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
+  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, host, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
   requestedMaterialization: "source" | "synthetic",
 ): CsharpArtifactRequestResult {
+  fact = host.objectShapes.resolveTarget(fact.targetType) ?? fact;
   if (isCsharpEmptyObjectTargetType(fact.targetType)) {
     return fact.members.length === 0 && (fact.implements?.length ?? 0) === 0
       ? accepted
@@ -274,7 +275,6 @@ export function requireObjectShapeProjection(
             targetMember.kind === "resolved" &&
             targetMember.member.memberKind === "property" &&
             targetMember.member.optional !== true &&
-            targetMember.member.readonly !== true &&
             targetMember.member.accessor === undefined
           ? Object.freeze({
               sourceName: sourceMember.member.sourceName,

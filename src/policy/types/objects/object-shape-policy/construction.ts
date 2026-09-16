@@ -19,6 +19,7 @@ import {
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
+  contract = false,
 ): TargetTypeRef {
   if (members.length === 0 && (implemented?.length ?? 0) === 0) {
     return csharpEmptyObjectTargetType();
@@ -28,8 +29,11 @@ export function createStructuralObjectShapeTarget(
     implemented ?? [],
   );
   const key = JSON.stringify({
-    members: canonicalMembers.map(csharpObjectShapeMemberContractParts),
+    members: canonicalMembers.map(member => contract
+      ? [csharpObjectShapeMemberContractParts(member), member.readonly === true]
+      : csharpObjectShapeMemberContractParts(member)),
     implements: canonicalImplemented.map(targetTypeRefKey),
+    ...(contract ? { contract: true } : {}),
   });
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
@@ -38,7 +42,7 @@ export function createStructuralObjectShapeTarget(
     canonicalImplemented,
   );
   const jsValueCarrier =
-    canUseCsharpJsValueObjectShapeCarrier(
+    !contract && canUseCsharpJsValueObjectShapeCarrier(
       canonicalMembers,
       canonicalImplemented,
     );
@@ -56,7 +60,7 @@ export function createStructuralObjectShapeTarget(
           jsValueCarrier: true,
           jsObjectShape: true,
         }
-      : {},
+      : contract ? { structuralContract: true } : {},
   );
 }
 

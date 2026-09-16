@@ -3,10 +3,10 @@ import type {
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   TargetTypeRef,
-} from "../../../target-model/types/model.js";
+} from "./model.js";
 import {
   targetTypeRefKey,
-} from "../../../target-model/types/equality.js";
+} from "./equality.js";
 
 export function csharpTargetTypeComponents(
   type: TargetTypeRef,
@@ -46,6 +46,7 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpArrayLiteralConstructionType);
     addDefined(components, target.csharpImplicitArrayInputElementType);
     addDefined(components, target.csharpEnumerableElementType);
+    addDefined(components, target.csharpArrayLikeElementType);
     addDefined(components, target.csharpReadOnlyIndexableElementType);
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);

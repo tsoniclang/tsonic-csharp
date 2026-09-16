@@ -225,7 +225,9 @@ export function translateSourceOwnedArguments(
     const declaration = input.program.source.ast.as.AsParameterDeclaration(
       parameter.parameterDeclaration,
     );
-    if (declaration?.Initializer !== undefined) {
+    if (declaration?.Initializer !== undefined &&
+      (parameter.parameterDeclaration === undefined ||
+        input.program.declarations.referenceDefault(parameter.parameterDeclaration) === undefined)) {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
         `Omitted source-owned delegate parameter ${parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`,

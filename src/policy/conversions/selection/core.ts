@@ -12,6 +12,8 @@ import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDel
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "../source-primitives.js";
 import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
+import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
@@ -34,6 +36,12 @@ export function selectCsharpConversion(
   }
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
+  }
+  const arrayElement = csharpArrayLikeElement(source);
+  if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
+    const arms = getCsharpRuntimeUnionArms(source);
+    return arms === undefined ? { kind: "implicit", proof: "collection-interface" }
+      : { kind: "array-like-union", arms };
   }
   const emptyRecord = selectCsharpEmptyRecordConversion(input, source, target);
   if (emptyRecord !== undefined) return emptyRecord;

@@ -511,6 +511,8 @@ function visit(
       sourceOperator,
       sourceFile,
     );
+    const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
+      ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
     setClassification(
       builder,
       node,
@@ -536,6 +538,7 @@ function visit(
         ...(propertyWrite === undefined ? {} : { propertyWrite }),
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
+        ...(instanceType === undefined ? {} : { instanceType }),
       }),
     );
   } else if (
@@ -638,6 +641,15 @@ function visit(
       }
     },
   );
+}
+
+function resolveInstanceType(policy: CsharpPolicyContext, expression: Node, sourceFile: SourceFile): import("../../target-model/types/model.js").TargetTypeRef | undefined {
+  const semantics = policy.semantics(sourceFile);
+  const type = semantics.types.expressionType(expression);
+  const signatures = type === undefined ? [] : semantics.types.constructSignatures(type);
+  if (signatures.length !== 1) return undefined;
+  const instance = semantics.types.returnType(signatures[0]!);
+  return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
 }
 
 function classifyTypeofComparison(

@@ -290,6 +290,19 @@ function translateSelectedElement(
     }
     return undefined;
   }
+  if (selection.invocation.kind === "array-like") {
+    const projection = selection.invocation.projection;
+    const projected = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+      projection.source, projection.target, projection.conversion, receiver);
+    const owner = selection.targetMember.declaringType === undefined ? undefined
+      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);
+    if (projected === undefined || owner === undefined) return undefined;
+    return {
+      kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: owner, name: selection.targetMember.targetName },
+      arguments: [{ kind: "Argument", expression: projected }, argument],
+    };
+  }
   if (selection.invocation.kind === "method") {
     if (selection.source.accessMode !== "read") {
       diagnostics.push(unsupportedNodeDiagnostic(

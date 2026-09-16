@@ -500,6 +500,12 @@ export function analyzeCsharpExpectedTypes(
     targetType: TargetTypeRef,
     strength: ExpectedTypeStrength,
   ): void {
+    if (policy.ast.isConstAssertion(expression)) {
+      const assertion = policy.ast.is.IsAsExpression(expression)
+        ? policy.ast.as.AsAsExpression(expression) : policy.ast.as.AsTypeAssertion(expression);
+      record(assertion?.Expression, targetType, strength);
+      return;
+    }
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
       record(
         policy.ast.as.AsParenthesizedExpression(expression)?.Expression,
@@ -829,6 +835,8 @@ function csharpBinaryTargetOperationsEqual(
     return false;
   }
   switch (left.kind) {
+    case "array-index-presence":
+      return right.kind === "array-index-presence";
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
     case "string-ordinal-relational":

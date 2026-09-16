@@ -40,7 +40,7 @@ import {
 } from "../objects/binding-projection-policy.js";
 import {
   csharpTargetTypeComponents,
-} from "./target-type-components.js";
+} from "../../../target-model/types/components.js";
 import type {
   TargetTypeRef,
 } from "../../../target-model/types/model.js";
@@ -81,6 +81,14 @@ export function createCsharpTypeSystem(
         );
       },
       structuralTypes: {
+        resolveReference(type) {
+          if (objectShapes === undefined) throw new Error("C# structural references requested before type-system initialization.");
+          return objectShapes.resolveReference(type);
+        },
+        resolveUnion(type, sourceFile, state) {
+          if (objectShapes === undefined) throw new Error("C# structural definitions requested before type-system initialization.");
+          return objectShapes.resolveUnion(type, sourceFile, state);
+        },
         resolveTarget(type) {
           if (objectShapes === undefined) {
             throw new Error("C# structural type resolution ran before the type system was fully initialized.");

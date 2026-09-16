@@ -210,6 +210,7 @@ export function resolvePropertyAccessTargetType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   mode: "selected" | "storage",
+  selectedType?: Type,
 ): TargetTypeRef | undefined {
   const selection = selectCsharpTargetProperty(
     { ...host, projectTypes: host.projectTypes(), types: policy },
@@ -231,7 +232,7 @@ export function resolvePropertyAccessTargetType(
     state,
   );
   const selectedSourceType = mode === "selected"
-    ? selection.source.sourceReadType ?? selection.source.sourceWriteType
+    ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,

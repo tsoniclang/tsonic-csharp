@@ -8,6 +8,7 @@ import {
   Node_Initializer,
   sourcePropertyTypeEvidenceNodes,
   sourceTransformedTypeFactEvidenceNodes,
+  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type {
@@ -50,6 +51,7 @@ import {
 } from "../../../../target-model/types/source-member-keys.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
+import { createCsharpStructuralUnionDefinitions, type CsharpStructuralUnionResolution } from "./union-definitions.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
@@ -87,6 +89,8 @@ export interface CsharpObjectShapePolicy {
 }
 
 export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
+  resolveReference(type: Type): TargetTypeRef | undefined;
+  resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;
   resolveNodeWithState(
     node: Node | undefined,
     sourceFile: SourceFile | undefined,
@@ -122,6 +126,8 @@ export function createCsharpObjectShapePolicy(
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
   const targetShapes = new Map<string, CsharpObjectShapeFact>();
   const genericShapes = new Map<string, CsharpObjectShapeFact>();
+  const unionDefinitions = createCsharpStructuralUnionDefinitions(host, (type, file, state) =>
+    resolveTypeWithState(type, file, undefined, state));
 
   function resolveNode(
     node: Node | undefined,
@@ -170,6 +176,10 @@ export function createCsharpObjectShapePolicy(
       );
       const selectedShape = resolveTarget(selectedTarget);
       const source = selectedObjectShapeSource(node, queries, host, state);
+      if (selectedShape !== undefined && source.type !== undefined && !host.ast.is.IsObjectLiteralExpression(node)) {
+        const members = instantiateMemberEvidence(selectedShape.members, source.type, queries);
+        if (members !== undefined) return remember(node, { ...selectedShape, sourceType: source.type, members });
+      }
       const declaration = host.navigation.declarationFor(node);
       const authoredTypeRoot = declaration === undefined
         ? undefined
@@ -304,8 +314,8 @@ export function createCsharpObjectShapePolicy(
           };
     }
     const implemented = expectedShape.targetType.kind === "target-named" &&
-        (expectedShape.targetType as CsharpTargetNamedTypeRef)
-            .csharpSourceDeclarationKind === "interface"
+        ((expectedShape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface" ||
+          (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
     if (accessors.kind === "none" && implemented === expectedShape.implements) {
@@ -669,22 +679,22 @@ export function createCsharpObjectShapePolicy(
       if (!typeHasProjectOwnedShapeDeclaration(type, node, queries, host)) {
         return undefined;
       }
-      if (
-        contextualProjectType !== undefined &&
-        declaredKind === "class" &&
-        !objectLiteral
-      ) {
-        return undefined;
-      }
       if (declaredKind === "enum") {
         return undefined;
       }
-      const members = deriveMembers(
-        type,
-        queries,
-        nextState(state),
-        authoredTypeRoot,
-      );
+      if (declaredKind === "class" && contextualProjectType !== undefined &&
+        queries.types.constructSignatures(type).length > 0) {
+        const definition = host.projectTypeCatalog.definitionForTarget(contextualProjectType);
+        const instance = definition === undefined ? undefined
+          : queries.declarations.declaredType(definition.declaration);
+        if (instance === undefined || instance === type) return undefined;
+        return resolveSemanticShape(instance, undefined, queries, nextState(state), contextualProjectType);
+      }
+      const declaredShape = contextualProjectType !== undefined && declaredKind === "class"
+        ? resolveProjectDeclarationShape(contextualProjectType, state) : undefined;
+      const members = declaredShape === undefined
+        ? deriveMembers(type, queries, nextState(state), authoredTypeRoot)
+        : instantiateMemberEvidence(declaredShape.members, type, queries);
       if (members === undefined) {
         return undefined;
       }
@@ -692,17 +702,16 @@ export function createCsharpObjectShapePolicy(
         contextualProjectType !== undefined &&
         declaredKind === "class"
       ) {
-        return objectLiteral
-          ? {
+        return {
               targetType: contextualProjectType,
+              sourceType: type,
               members,
               constructible: projectClassIsObjectInitializable(
                 type,
                 queries,
                 host,
               ),
-            }
-          : undefined;
+            };
       }
       if (
         contextualProjectType !== undefined &&
@@ -721,9 +730,13 @@ export function createCsharpObjectShapePolicy(
           declaredKind === "interface"
         ? [contextualProjectType]
         : undefined;
+      const symbol = queries.declarations.typeSymbol(type);
+      const structuralContract = !objectLiteral && !members.some(member => member.bound === true) && symbol !== undefined &&
+        queries.declarations.symbolDeclarations(symbol).some(declaration => host.ast.is.IsTypeLiteralNode(declaration));
       return {
-        targetType: createStructuralObjectShapeTarget(members, implemented),
-        members,
+        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, structuralContract),
+        sourceType: type,
+        members: unionDefinitions.substituteMembers(type, members),
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
     } finally {
@@ -735,10 +748,17 @@ export function createCsharpObjectShapePolicy(
     targetType: CsharpTargetNamedTypeRef,
     state: CsharpTypeResolutionState,
   ): CsharpObjectShapeFact | undefined {
+    return resolveProjectDeclarationShape(targetType, state);
+  }
+
+  function resolveProjectDeclarationShape(
+    targetType: CsharpTargetNamedTypeRef,
+    state: CsharpTypeResolutionState,
+  ): CsharpObjectShapeFact | undefined {
     const definition = host.projectTypeCatalog.definitionForTarget(targetType);
     const typeArguments = targetType.typeArguments ?? [];
     if (
-      definition?.kind !== "interface" ||
+      (definition?.kind !== "interface" && definition?.kind !== "class") ||
       typeArguments.length !== definition.typeParameterNames.length
     ) {
       return undefined;
@@ -780,12 +800,34 @@ export function createCsharpObjectShapePolicy(
     state: CsharpTypeResolutionState,
     authoredTypeRoot?: Node,
   ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const members = queries.types.propertyInfos(ownerType).map((property) =>
+    const members = queries.types.propertyInfos(ownerType).filter(property => {
+      const declarations = queries.declarations.symbolDeclarations(property.symbol);
+      return declarations.length === 0 || !declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration));
+    }).map((property) =>
       deriveMember(property, queries, state, authoredTypeRoot)
     );
     return members.some((member) => member === undefined)
       ? undefined
       : members as readonly CsharpObjectShapeMemberFact[];
+  }
+
+  function instantiateMemberEvidence(
+    members: readonly CsharpObjectShapeMemberFact[],
+    type: Type,
+    queries: SourceFileSemantics,
+  ): readonly CsharpObjectShapeMemberFact[] | undefined {
+    const properties = queries.types.propertyInfos(type);
+    const instantiated = members.map(member => {
+      const matching = properties.filter(property => {
+        const subjects = [property.symbol, ...property.rootSymbols,
+          ...queries.declarations.symbolDeclarations(property.symbol),
+          ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))];
+        return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true;
+      });
+      return matching.length === 1 ? { ...member, sourceTypes: Object.freeze([matching[0]!.type]) } : undefined;
+    });
+    return instantiated.some(member => member === undefined) ? undefined
+      : instantiated as readonly CsharpObjectShapeMemberFact[];
   }
 
   function deriveMember(
@@ -944,6 +986,8 @@ export function createCsharpObjectShapePolicy(
   }
 
   return Object.freeze({
+    resolveReference: unionDefinitions.reference,
+    resolveUnion: unionDefinitions.resolve,
     resolveNode,
     resolveNodeWithState,
     resolveTarget,

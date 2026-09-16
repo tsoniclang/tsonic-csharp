@@ -22,6 +22,7 @@ import {
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
+import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -362,6 +363,16 @@ export function resolveCompositionalSourceTypeAlias(
   if (target === undefined || parameters.length !== typeArguments.length) {
     return { kind: "rejected" };
   }
+  if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
+    const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
+    const structural = definitionType === undefined ? { kind: "not-applicable" as const }
+      : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, state);
+    if (structural.kind === "rejected") return structural;
+    if (structural.kind === "resolved") {
+      const bindings = new Map(parameters.map((parameter, index) => [host.ast.text(host.ast.name(parameter)), typeArguments[index]!]));
+      return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, bindings) };
+    }
+  }
   const substitutions = new Map<string, TargetTypeRef>();
   for (let index = 0; index < parameters.length; index += 1) {
     const parameter = parameters[index];
@@ -522,6 +533,9 @@ export function resolveSourceValueDeclaration(
     declaredType,
     selectedValueType,
   );
+  const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
+    declarationQueries, type => resolveTypeWithState(type, sourceFile, nextState(state)), host.structuralTypes.resolveTarget);
+  if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;
   }

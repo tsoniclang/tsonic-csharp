@@ -24,7 +24,7 @@ import type {
 } from "../context.js";
 import {
   applyCsharpConversionSelection,
-  readCsharpConversionClassification,
+  readCsharpExpressionConversionClassification,
 } from "./conversions.js";
 
 export type CsharpSourceUndefinedValuePlan =
@@ -52,7 +52,7 @@ export function planCsharpSourceUndefinedValue(
   if (sourceRender === undefined) {
     return { kind: "not-representable" };
   }
-  const selection = readCsharpConversionClassification(
+  const selection = readCsharpExpressionConversionClassification(
     node,
     input,
     diagnostics,

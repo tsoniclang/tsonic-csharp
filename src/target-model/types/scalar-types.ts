@@ -11,6 +11,7 @@ import {
 import {
   csharpTargetNamedType,
 } from "./factories.js";
+import type { CsharpSourceErrorName } from "../identities/source-errors.js";
 
 export interface CsharpSourcePrimitiveMetadata {
   readonly csharpRender:
@@ -149,12 +150,12 @@ export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
   });
 }
 
-export function csharpRuntimeErrorTargetType(): CsharpTargetNamedTypeRef {
+export function csharpRuntimeErrorTargetType(name: CsharpSourceErrorName = "Error"): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType(
-    "Tsonic.CSharp.Runtime.Error",
+    `Tsonic.CSharp.Runtime.${name}`,
     undefined,
-    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Error"),
-    { throwable: true },
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", name),
+    { throwable: true, baseType: name === "Error" ? csharpExceptionTargetType() : csharpRuntimeErrorTargetType() },
   );
 }
 

@@ -98,6 +98,10 @@ export function resolveNodeWithState(
     return resolveTupleTypeNode(node, queries, state);
   }
   if (host.ast.is.IsUnionTypeNode(node)) {
+    const selected = queries.types.authoredType(node);
+    const structural = selected === undefined ? { kind: "not-applicable" as const }
+      : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
+    if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
     const members = host.ast.children(node).map((member) =>
       resolveNodeWithState(
         member,

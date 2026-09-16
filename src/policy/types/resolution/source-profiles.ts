@@ -50,6 +50,7 @@ import { csharpNullableTargetType } from "../../../target-model/types/nullable.j
 import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
+import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { nextState } from "./state.js";
 
 export function resolveSourceProfileType(
@@ -75,7 +76,8 @@ export function resolveSourceProfileType(
         : undefined;
     case "error":
       return typeArguments.length === 0
-        ? csharpRuntimeErrorTargetType()
+        ? csharpSourceErrorNames.includes(identity.sourceName as typeof csharpSourceErrorNames[number])
+          ? csharpRuntimeErrorTargetType(identity.sourceName as typeof csharpSourceErrorNames[number]) : undefined
         : undefined;
     case "array":
     case "readonly-array": {
@@ -305,6 +307,8 @@ export function resolveUnionType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const structural = host.structuralTypes.resolveUnion(type, queries.sourceFile, state);
+  if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
   const rawSourceMembers = queries.types.unionOrIntersectionTypes(type);
   const sourceMembers = definedValues(rawSourceMembers);
   if (sourceMembers.length !== rawSourceMembers.length) {

@@ -8,9 +8,11 @@ import {
 } from "../../../types/index.js";
 import type { TargetTypeRef } from "../../../types/index.js";
 import { isUndefinedType } from "../../../types/resolution/source-evidence.js";
+import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../target-model/types/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
 
 export interface CsharpArrayCopySelection {
-  readonly method: "fromDense" | "fromOptionalValue" | "fromOptionalReference" | "fromUndefined";
+  readonly method: "fromDense" | "fromOptionalValue" | "fromOptionalReference" | "fromUndefined" | "CopyDense";
   readonly sourceType: TargetTypeRef;
   readonly typeArguments: readonly TargetTypeRef[];
 }
@@ -20,6 +22,11 @@ export function selectCsharpArrayCopy(
 ): CsharpArrayCopySelection | undefined {
   const argument = context.source.sourceArguments[0];
   const sourceType = resolveCsharpSelectedSourceValue(context, argument);
+  if (getCsharpRuntimeUnionArms(sourceType) !== undefined) {
+    const element = csharpArrayLikeElement(sourceType);
+    return argument !== undefined && element !== undefined && context.host.arrayDensity.array(argument.expression)
+      ? { method: "CopyDense", sourceType: csharpArrayLikeTargetType(element), typeArguments: [element] } : undefined;
+  }
   const element = getCsharpJsArrayElementTargetType(sourceType);
   if (argument === undefined || sourceType === undefined || element === undefined) return undefined;
   if (context.host.arrayDensity.array(argument.expression)) {

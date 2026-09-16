@@ -1,6 +1,6 @@
 export * from "../../target-model/types/index.js";
 export * from "./callables/member-substitution.js";
-export * from "./model/target-type-components.js";
+export * from "../../target-model/types/components.js";
 export * from "./storage/bindings.js";
 export * from "./callables/substitution.js";
 export * from "./objects/runtime-union-object-shapes.js";

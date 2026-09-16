@@ -233,7 +233,6 @@ function renderProjectionExpression(
       }
       if (members.some((member) =>
         member.memberKind !== "property" ||
-        member.readonly === true ||
         member.accessor?.setter === false
       )) {
         return rejected("Object.assign requires exact writable data properties on the target carrier.");

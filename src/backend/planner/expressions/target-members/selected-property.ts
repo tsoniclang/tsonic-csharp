@@ -35,6 +35,7 @@ import {
 import {
   planFlowReadUseSiteProjection,
 } from "../flow-read-projections.js";
+import { applyCsharpConversionSelection } from "../conversions.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -192,11 +193,16 @@ function translateSelectedProperty(
   if (receiver === undefined) {
     return undefined;
   }
+  const projection = selection.invocation.kind === "array-like" ? selection.invocation.projection : undefined;
+  const selectedReceiver = projection === undefined ? receiver : applyCsharpConversionSelection(
+    node, sourceFile, input, diagnostics, projection.source, projection.target, projection.conversion, receiver,
+  );
+  if (selectedReceiver === undefined) return undefined;
   return {
     kind: selection.source.optionalChain
       ? "ConditionalAccessExpression"
       : "SimpleMemberAccessExpression",
-    receiver,
+    receiver: selectedReceiver,
     name: member.targetName,
   };
 }

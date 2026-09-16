@@ -11,6 +11,11 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
+import { qualifiedCsharpType } from "../../types/csharp-type-primitives.js";
+
+export function csharpReferenceIdentityInterfaceType(): CsharpTypeNode {
+  return qualifiedCsharpType("Tsonic.CSharp.Runtime", "ITsClosedValueCarrier");
+}
 
 export function renderObjectShapeInterfaces(
   fact: CsharpObjectShapeFact,

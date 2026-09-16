@@ -13,6 +13,8 @@ import type {
 import {
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
+  isCsharpEmptyObjectTargetType,
+  isCsharpValueTypeTargetType,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
@@ -39,6 +41,19 @@ export function planCsharpJsValueBox(
 ): CsharpExpression | undefined {
   if (sourceType !== undefined && isCsharpJsValueTargetType(sourceType)) {
     return expression;
+  }
+  const shape = input.types.objectShapes.resolveTarget(sourceType);
+  if (shape !== undefined && !isCsharpValueTypeTargetType(shape.targetType) && !isCsharpEmptyObjectTargetType(shape.targetType)) {
+    const file = input.program.source.ast.getSourceFile(node);
+    if (file === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A closed reference-value conversion requires its checked source file."));
+      return undefined;
+    }
+    const required = input.artifacts.requireObjectShapeCapability(node, shape.targetType, file, "reference-identity", "object-shape");
+    if (required.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, required.reason));
+      return undefined;
+    }
   }
   let sourceExpression = expression;
   const literal = planCsharpExactLiteralConversion(input, node, sourceType);

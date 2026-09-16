@@ -10,6 +10,7 @@ import { jsStandardSourceProfileDeclarations } from "@tsonic/js-source-profile";
 import {
   csharpTargetId,
 } from "../../target-model/identities/source.js";
+import { csharpSourceErrorNames } from "../../target-model/identities/source-errors.js";
 
 export const csharpSourceProfileOwnerId = csharpTargetId;
 export const csharpJsSourceProfileOwnerId = "js";
@@ -162,6 +163,15 @@ interface ReadonlyArray<T> extends Iterable<T> {
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
 ${jsStandardSourceProfileDeclarations}
+
+${csharpSourceErrorNames.filter(name => name !== "Error").map(name => `
+interface ${name} extends Error {}
+interface ${name}Constructor {
+  new (message?: string): ${name};
+  (message?: string): ${name};
+}
+declare var ${name}: ${name}Constructor;
+`).join("\n")}
 
 interface TemplateStringsArray extends ReadonlyArray<string> {
   readonly raw: readonly string[];

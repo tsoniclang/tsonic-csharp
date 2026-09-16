@@ -109,7 +109,10 @@ export function tryPlanTypeTestExpression(
     return undefined;
   }
   const planned = planExpression(left, sourceFile, input, diagnostics);
-  const targetType = expressionToCsharpType(right, sourceFile, input, diagnostics);
+  const instanceType = input.program.operations.binary(node)?.instanceType;
+  const targetType = instanceType === undefined
+    ? expressionToCsharpType(right, sourceFile, input, diagnostics)
+    : csharpTypeFromTargetTypeRef(instanceType);
   if (planned === undefined || targetType === undefined) {
     return undefined;
   }
@@ -130,7 +133,11 @@ export function tryPlanTypeTestExpression(
   }
   return {
     kind: "IsPatternExpression",
-    expression: planned,
+    expression: {
+      kind: "CastExpression",
+      type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } },
+      expression: planned,
+    },
     type: targetType,
   };
 }

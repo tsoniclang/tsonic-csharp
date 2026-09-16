@@ -16,6 +16,7 @@ export function csharpTargetNamedType(
     readonly arrayLiteralConstructionType?: TargetTypeRef;
     readonly implicitArrayInputElementType?: TargetTypeRef;
     readonly enumerableElementType?: TargetTypeRef;
+    readonly arrayLikeElementType?: TargetTypeRef;
     readonly readOnlyIndexableElementType?: TargetTypeRef;
     readonly denseMutableElementType?: TargetTypeRef;
     readonly indexableLengthMemberName?: string;
@@ -27,6 +28,7 @@ export function csharpTargetNamedType(
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
     readonly baseType?: TargetTypeRef;
+    readonly structuralContract?: true;
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
@@ -45,6 +47,7 @@ export function csharpTargetNamedType(
     ...(metadata.arrayLiteralConstructionType !== undefined ? { csharpArrayLiteralConstructionType: metadata.arrayLiteralConstructionType } : {}),
     ...(metadata.implicitArrayInputElementType !== undefined ? { csharpImplicitArrayInputElementType: metadata.implicitArrayInputElementType } : {}),
     ...(metadata.enumerableElementType !== undefined ? { csharpEnumerableElementType: metadata.enumerableElementType } : {}),
+    ...(metadata.arrayLikeElementType !== undefined ? { csharpArrayLikeElementType: metadata.arrayLikeElementType } : {}),
     ...(metadata.readOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: metadata.readOnlyIndexableElementType } : {}),
     ...(metadata.denseMutableElementType !== undefined ? { csharpDenseMutableElementType: metadata.denseMutableElementType } : {}),
     ...(metadata.indexableLengthMemberName !== undefined
@@ -62,6 +65,7 @@ export function csharpTargetNamedType(
     ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
     ...(metadata.baseType !== undefined ? { csharpBaseType: metadata.baseType } : {}),
+    ...(metadata.structuralContract === true ? { csharpStructuralContract: true as const } : {}),
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),

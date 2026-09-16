@@ -128,7 +128,7 @@ export function resolveSelectedValue(
 
 
 export function resolveSelectedValueWithState(
-  { host, resolveNodeWithState, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
   node: Node,
   selectedType: Type,
   sourceFile: SourceFile,
@@ -141,6 +141,9 @@ export function resolveSelectedValueWithState(
   ) ?? host.representations.scopedTargetType(node);
   if (scopedTarget !== undefined) {
     return scopedTarget;
+  }
+  if (host.ast.is.IsPropertyAccessExpression(node)) {
+    return resolvePropertyAccessTargetType(node, host.semantics(sourceFile), nextState(state), "selected", selectedType);
   }
   if (declaration !== undefined) {
     const declared = resolveSourceValueDeclaration(

@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
@@ -122,6 +123,12 @@ export function analyzeCsharpTargetProgram(
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
   const arrayDensity = createJsArrayDensityQuery(source, {
     closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
+    intrinsicallyDense(expression) {
+      const semantics = source.semantics.forNode(expression);
+      const type = semantics.types.expressionType(expression);
+      const identity = type === undefined ? undefined : classifyCsharpSourceProfileType(type, semantics, source.ast);
+      return identity?.ownerId === "js" && identity.kind === "typed-array";
+    },
     memberIdentity(declaration) {
       const identity = csharpSourceProfileDeclarationIdentity(
         source.ast, source.semantics.forNode(declaration), source.sourceFacts, declaration,
@@ -404,7 +411,7 @@ function analyzeIteration(
     sourceEvidence,
     operations,
     declarations,
-    objectShapes,
+    objectShapes: objectShapes.seal(),
     callables,
     expectedTypes,
     conversions,

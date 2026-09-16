@@ -13,6 +13,8 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
+import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -58,6 +60,7 @@ export function resolveAuthoredAndSelectedSourceType(
   const unionRefinement = selectCsharpAuthoredUnionRefinement(
     authored, authoredSemanticType, selectedType, selectedQueries,
     type => resolveTypeWithState(type, selectedSourceFile, nextState(state)),
+    host.structuralTypes.resolveTarget,
   );
   if (unionRefinement.kind !== "not-applicable") {
     return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;
@@ -324,7 +327,16 @@ export function inferSourceCallTargetTypeArguments(
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
   const { host, resolveSelectedValueWithState } = scope;
   const inferred = new Map<string, TargetTypeRef>();
-  for (const binding of source.sourceArgumentBindings) {
+  const isNumericLiteral = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
+    const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
+    return expression !== undefined && (csharpNumericLiteralValue(host.ast, expression) !== undefined ||
+      csharpBigIntLiteralValue(host.ast, expression) !== undefined);
+  };
+  const bindings = [
+    ...source.sourceArgumentBindings.filter(binding => !isNumericLiteral(binding)),
+    ...source.sourceArgumentBindings.filter(isNumericLiteral),
+  ];
+  for (const binding of bindings) {
     const parameter = callable.parameters[binding.sourceParameterIndex]
       ?.targetParameter;
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
@@ -344,6 +356,8 @@ export function inferSourceCallTargetTypeArguments(
       parameter,
       binding.sourceForm,
     );
+    if (isNumericLiteral(binding) && csharpLiteralIsRepresentableAs(host, argument.expression,
+      substituteTargetTypeParameters(pattern, inferred))) continue;
     const candidates = host.ast.is.IsObjectLiteralExpression(argument.expression)
       ? inferSourceObjectTypeArguments(scope, argument.expression, pattern, sourceFile, parameterNames, state)
       : inferCsharpTargetTypeParameterBindings(pattern, actual, parameterNames);

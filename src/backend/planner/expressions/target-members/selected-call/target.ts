@@ -25,7 +25,8 @@ export function translateSelectedTargetCall(
 ): CsharpExpression | undefined {
   if (
     selection.targetMember.kind !== "method" &&
-    selection.targetMember.kind !== "operator"
+    selection.targetMember.kind !== "operator" &&
+    selection.targetMember.kind !== "constructor"
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -56,6 +57,15 @@ export function translateSelectedTargetCall(
   );
   if (arguments_ === undefined) {
     return undefined;
+  }
+  if (selection.targetMember.kind === "constructor") {
+    const type = selection.targetMember.declaringType === undefined ? undefined
+      : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);
+    if (type === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected constructor call has no exact declaring type."));
+      return undefined;
+    }
+    return { kind: "ObjectCreationExpression", type, arguments: arguments_ };
   }
   if (selection.targetMember.csharpInvocation?.kind === "array-creation") {
     return translateArrayCreationCall(

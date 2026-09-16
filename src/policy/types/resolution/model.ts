@@ -55,6 +55,8 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
+    resolveReference(type: Type): TargetTypeRef | undefined;
+    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../objects/object-shape-policy/union-definitions.js").CsharpStructuralUnionResolution;
     resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
     resolveNode(
       node: Node,

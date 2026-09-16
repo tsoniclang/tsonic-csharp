@@ -42,6 +42,7 @@ export function substituteTargetTypeParameters(
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
       const implicitArrayInputElementType = (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType;
       const enumerableElementType = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
+      const arrayLikeElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLikeElementType;
       const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
       const baseType = (type as CsharpTargetNamedTypeRef).csharpBaseType;
@@ -64,6 +65,9 @@ export function substituteTargetTypeParameters(
         ...(enumerableElementType === undefined
           ? {}
           : { csharpEnumerableElementType: substituteTargetTypeParameters(enumerableElementType, substitutions) }),
+        ...(arrayLikeElementType === undefined
+          ? {}
+          : { csharpArrayLikeElementType: substituteTargetTypeParameters(arrayLikeElementType, substitutions) }),
         ...(readOnlyIndexableElementType === undefined
           ? {}
           : { csharpReadOnlyIndexableElementType: substituteTargetTypeParameters(readOnlyIndexableElementType, substitutions) }),
