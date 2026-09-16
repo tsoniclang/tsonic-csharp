@@ -62,10 +62,12 @@ export function planSelectedCsharpBinaryOperation(
     const operands = [
       { node: selection.left, type: selection.leftInputType },
       { node: selection.right, type: selection.rightInputType },
-    ].map(({ node: operand, type }) => planBinaryOperand(
-      operand, { kind: "EqualsEqualsToken" }, sourceFile, input, diagnostics,
-      planExpression, planExpressionWithExpectedType, csharpTypeFromTargetTypeRef(type), type,
-    ));
+    ].map(({ node: operand, type }) => {
+      const syntaxType = csharpTypeFromTargetTypeRef(type);
+      return syntaxType === undefined ? undefined : planExpressionWithExpectedType(
+        operand, sourceFile, input, diagnostics, syntaxType, undefined, type,
+      );
+    });
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
     return {
