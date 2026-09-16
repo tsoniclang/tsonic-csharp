@@ -37,7 +37,7 @@ test("object-shape reads retain exact authored member carriers through utility p
   );
   assert.match(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    /public required int x;/u,
+    /public interface ObjectShape_[a-f0-9]{12}\s*\{[^}]*int x \{ get; set; \}/u,
   );
   assert.match(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),

@@ -66,6 +66,12 @@ export function createCsharpTypeSystem(
       ...host,
       representations,
       projectTypeCatalog,
+      get objectShapes() {
+        if (objectShapes === undefined) {
+          throw new Error("C# object-shape selection ran before the type system was fully initialized.");
+        }
+        return objectShapes;
+      },
       projectTypes() {
         if (projectTypes === undefined) {
           throw new Error(

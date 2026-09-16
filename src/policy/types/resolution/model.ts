@@ -21,6 +21,7 @@ import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
 import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -52,6 +53,7 @@ export interface CsharpTypePolicyBaseHost {
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
+  readonly objectShapes: CsharpObjectShapePolicy;
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
