@@ -1,6 +1,6 @@
 import type { CsharpArtifactGraphScope } from "../engine.js";
-import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../../target-model/types/index.js";
-import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../../target-model/types/index.js";
+import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../../target-model/types/index.js";
+import { isCsharpValueTypeTargetType, resolveCsharpObjectShapePropertyOrder, targetTypeRefEquals, targetTypeRefKey } from "../../../../../target-model/types/index.js";
 import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 
 export function collectCsharpReferenceClosure(
@@ -8,7 +8,7 @@ export function collectCsharpReferenceClosure(
   type: TargetTypeRef,
   preferred: CsharpObjectShapeFact | undefined,
   pending: ReadonlyMap<string, CsharpObjectShapeFact>,
-  capability: "js-freeze" | "reference-identity" | "method-values",
+  capability: "js-freeze" | "reference-identity" | "method-values" | "enumerable-keys",
 ): { readonly kind: "accepted"; readonly shapes: ReadonlyMap<string, CsharpObjectShapeFact> }
   | { readonly kind: "rejected"; readonly reason: string } {
   const root = preferred ?? scope.host.objectShapes.resolveTarget(type);
@@ -31,6 +31,10 @@ export function collectCsharpReferenceClosure(
     if (shapes.has(key)) continue;
     if (capability === "method-values" && isSourceDeclaredNominalShape(shape)) {
       return { kind: "rejected", reason: "Copying method values requires exact own callable storage, not a nominal prototype method." };
+    }
+    if (capability === "enumerable-keys" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) {
+      const order = resolveCsharpObjectShapePropertyOrder(shape, undefined, "keys", scope.host.ast);
+      if (order.kind === "rejected") return order;
     }
     if (isCsharpValueTypeTargetType(shape.targetType) || capability === "js-freeze" && shape.members.some(member => member.bound === true)) {
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage or an unprotected bound write route.` };

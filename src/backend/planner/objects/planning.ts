@@ -23,6 +23,7 @@ import type {
 import {
   csharpStructuralObjectShapeIdentity,
   isCsharpJsValueObjectShapeTargetType,
+  targetTypeRefEquals,
 } from "../../../target-model/types/index.js";
 import {
   objectShapeDeclarationMatches,
@@ -56,6 +57,7 @@ import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
 import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
 import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
+import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 
 export function registerSourceObjectShape(
   input: CsharpPlanningContext,
@@ -184,6 +186,7 @@ export function materializeObjectShapeDeclarations(
         artifact.capabilities.includes("reference-identity"),
         declaration.kind === "ClassDeclaration" ? declaration.members.filter(member =>
           member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) : [],
+        declaration.kind === "ClassDeclaration" ? declaration.members.filter(isCsharpEnumerableKeysMember) : [],
       )) || existing.kind === "InterfaceDeclaration" && JSON.stringify(existing) !== JSON.stringify(declaration))
     ) {
       diagnostics.push({
@@ -262,6 +265,10 @@ function renderObjectShapeDeclaration(
     undefined,
   );
   if ((fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
+    const inheritedEnumerableKeys = (fact.implements ?? []).some(base =>
+      input.artifacts.objectShapeArtifacts().some(artifact =>
+        targetTypeRefEquals(artifact.fact.targetType, base) &&
+        artifact.capabilities.includes("enumerable-keys")));
     const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage, capabilities.includes("method-values"));
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
@@ -271,7 +278,8 @@ function renderObjectShapeDeclaration(
     return { kind: "InterfaceDeclaration", name: targetType.name,
       objectShapeIdentity: csharpStructuralObjectShapeIdentity(fact.targetType), modifiers: ["public"], typeParameters,
       interfaces: [...interfaces, ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
-        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : [])], members: contractMembers };
+        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : [])],
+      members: [...contractMembers, ...(capabilities.includes("enumerable-keys") && !inheritedEnumerableKeys ? [csharpEnumerableKeysContract()] : [])] };
   }
   const members = renderObjectShapeMembers(
     fact,
@@ -282,10 +290,11 @@ function renderObjectShapeDeclaration(
     input.program.storage,
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
+  const enumerableKeys = capabilities.includes("enumerable-keys") ? renderCsharpEnumerableKeys(fact, input) : [];
   if (
     interfaces === undefined ||
     typeParameters === undefined ||
-    members === undefined || methodValues === undefined
+    members === undefined || methodValues === undefined || enumerableKeys === undefined
   ) {
     diagnostics.push({
       code: "CSHARP_OBJECT_SHAPE_RENDERING_REJECTED",
@@ -315,6 +324,7 @@ function renderObjectShapeDeclaration(
         }),
     members: [
       ...methodValues,
+      ...enumerableKeys,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(

@@ -90,6 +90,7 @@ export function collectCapabilityClosure(
     case "js-freeze":
     case "reference-identity":
     case "method-values":
+    case "enumerable-keys":
       return collectCsharpReferenceClosure(scope, type, preferredShape, pendingShapes, capability);
   }
 }

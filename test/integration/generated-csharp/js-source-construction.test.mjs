@@ -37,8 +37,17 @@ import { bigintOperatorSource } from "../../../../tsonic/test/fixtures/bigint-op
 import { jsNumericPropertySource } from "../../../../tsonic/test/fixtures/js-numeric-properties.mjs";
 import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class-reads.mjs";
 import { referenceDefaultSource } from "../../../../tsonic/test/fixtures/reference-defaults.mjs";
+import { structuralEnumerationSource } from "../../../../tsonic/test/fixtures/structural-enumeration.mjs";
 
 for (const surface of [undefined, "js"]) {
+  test(`structural enumeration retains actual keys without reading getters (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: structuralEnumerationSource });
+    execute(compiled, `structural-enumeration-${surface ?? "native"}`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.match(output, /ReadOnlySpan<string>/);
+    assert.match(output, /private static readonly string\[\] __tsonicObjectEnumerableKeyStorage/);
+    assert.doesNotMatch(output, /GetProperties|GetFields|System\.Reflection/);
+  });
   test(`reference defaults remain lazy for methods and delegates (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: referenceDefaultSource }), `reference-defaults-${surface ?? "native"}`);
   });

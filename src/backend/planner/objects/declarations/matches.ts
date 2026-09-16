@@ -38,6 +38,7 @@ import {
   csharpObjectShapeProjectionMethodName,
 } from "../../../../target-model/types/index.js";
 import { csharpFrozenStorageName } from "../frozen-data-properties.js";
+import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
@@ -48,7 +49,9 @@ export function objectShapeDeclarationMatches(
   frozen = false,
   referenceIdentity = false,
   methodValueContracts: readonly CsharpTypeMember[] = [],
+  enumerableKeys: readonly CsharpTypeMember[] = [],
 ): boolean {
+  if (JSON.stringify(declaration.members.filter(isCsharpEnumerableKeysMember)) !== JSON.stringify(enumerableKeys)) return false;
   const actualContracts = declaration.members.filter(member =>
     member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined);
   if (JSON.stringify(actualContracts) !== JSON.stringify(methodValueContracts)) return false;
@@ -140,6 +143,7 @@ export function objectShapeDeclarationMatches(
     return false;
   }
   return declaration.members.every((member) => {
+    if (isCsharpEnumerableKeysMember(member)) return enumerableKeys.some(expected => JSON.stringify(expected) === JSON.stringify(member));
     if (member.kind === "MethodDeclaration") {
       if (jsonSerializable && member.name === csharpJsonValueWriterMethodName) {
         return true;

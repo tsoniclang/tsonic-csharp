@@ -287,6 +287,7 @@ export type CsharpObjectShapeCapability =
   | "json-serialization"
   | "reference-identity"
   | "method-values"
+  | "enumerable-keys"
   | "js-freeze";
 
 export type CsharpObjectShapeProjectionKind =
