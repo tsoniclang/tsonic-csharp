@@ -52,6 +52,7 @@ import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
 import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { nextState } from "./state.js";
+import { csharpReferenceDefaultNeedsNullableParameter } from "../../../target-model/types/reference-default.js";
 
 export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
@@ -429,7 +430,9 @@ export function resolveSignatureParameterEvidence(
   );
   const nullable = use === "parameter-list"
     ? parameter.parameterKind === "optional"
-    : parameter.omissionKind === "undefined";
+    : parameter.omissionKind === "undefined" ||
+      parameter.omissionKind === "initializer" && resolved !== undefined &&
+      csharpReferenceDefaultNeedsNullableParameter(resolved);
   return resolved === undefined || !nullable
     ? resolved
     : csharpNullableTargetType(resolved);

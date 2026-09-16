@@ -29,6 +29,6 @@ export interface CsharpProviderPackageDefinition {
   moduleDiagnostic(kind: "unowned" | "missing", moduleSpecifier: string): ExtensionDiagnostic;
   readonly resolutionEvidence?: readonly ExtensionEvidence[];
   readonly declarationEvidence?: readonly ExtensionEvidence[];
-  readonly policy: CsharpProviderPolicyContribution;
+  createPolicy(selectedSurfaceIds: readonly string[]): CsharpProviderPolicyContribution;
   readonly runtime: TargetRuntimeContributions;
 }

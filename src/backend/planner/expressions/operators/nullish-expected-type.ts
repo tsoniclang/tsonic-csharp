@@ -52,8 +52,11 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
+  const baseline = input.program.operations.binary(node)?.target;
+  if (baseline?.kind === "resolved" && baseline.sourceOperator !== "??" &&
+    !binaryOperationUsesExpectedNumericType(baseline.sourceOperator)) return undefined;
   const selection = expectedTargetType === undefined
-    ? input.program.operations.binary(node)?.target
+    ? baseline
     : input.program.expectedTypes.binaryExpected(node, expectedTargetType);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(

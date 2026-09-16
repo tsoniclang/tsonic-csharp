@@ -76,7 +76,7 @@ function fixtureExtension(includeForeign = false) {
     ],
     virtualDeclarationFileName: (specifier) => `tsts-provider://measurements/${encodeURIComponent(specifier)}.d.ts`,
     moduleDiagnostic: (kind, specifier) => ({ extensionId: identity.id, extensionCode: kind, numericCode: 9380001, category: "error", message: specifier }),
-    policy: csharpProviderPolicyContribution(identity.id, identity.version, [], []),
+    createPolicy: () => csharpProviderPolicyContribution(identity.id, identity.version, [], []),
     runtime: {},
   });
   return packageExtension(plugin);
@@ -100,7 +100,7 @@ function foreignExtension() {
     moduleSpecifiers: [{ moduleSpecifier: "outside/package", canonicalModuleSpecifier: "outside/package" }],
     virtualDeclarationFileName: (specifier) => `tsts-provider://outside/${encodeURIComponent(specifier)}.d.ts`,
     moduleDiagnostic: (kind, specifier) => ({ extensionId: identity.id, extensionCode: kind, numericCode: 9380002, category: "error", message: specifier }),
-    policy: csharpProviderPolicyContribution(identity.id, identity.version, [], []), runtime: {},
+    createPolicy: () => csharpProviderPolicyContribution(identity.id, identity.version, [], []), runtime: {},
   }));
 }
 

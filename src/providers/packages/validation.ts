@@ -6,6 +6,7 @@ import {
   csharpProviderPolicyContributionKind,
   validateCsharpProviderPolicyContribution,
 } from "../model/provider-policy-contribution.js";
+import type { CsharpProviderPolicyContribution } from "../model/provider-policy-contribution.js";
 import type { CsharpProviderPackageDefinition } from "./model.js";
 
 export function snapshotCsharpProviderPackage(
@@ -54,31 +55,41 @@ export function snapshotCsharpProviderPackage(
   }
   if (
     typeof definition.virtualDeclarationFileName !== "function" ||
-    typeof definition.moduleDiagnostic !== "function"
+    typeof definition.moduleDiagnostic !== "function" ||
+    typeof definition.createPolicy !== "function"
   ) {
-    fail("virtual declaration filename and module diagnostic callbacks are required.");
+    fail("virtual declaration filename, module diagnostic and policy callbacks are required.");
   }
   const providerIdentity = freezeContributionValue(definition.providerIdentity);
-  if (
-    definition.policy.kind !== csharpProviderPolicyContributionKind ||
-    definition.policy.providerId !== providerIdentity.id ||
-    definition.policy.providerVersion !== providerIdentity.version
-  ) {
-    fail("policy contribution must match the source provider identity and version.");
-  }
-  const policy = validateCsharpProviderPolicyContribution(
-    definition.id,
-    moduleSpecifiers.map((entry) => ({ specifierPrefix: entry.moduleSpecifier })),
-    definition.policy,
-  );
-  for (const entries of [policy.relations, policy.rejections]) {
-    for (const { source } of entries) {
-      const canonicalSpecifier = canonicalBySpecifier.get(source.moduleSpecifier);
-      const module = canonicalSpecifier === undefined ? undefined : modulesBySpecifier.get(canonicalSpecifier);
-      if (module?.providerModuleId !== source.providerModuleId) {
-        fail(`policy source '${source.moduleSpecifier}' does not match a registered provider module identity.`);
+  const createPolicy = definition.createPolicy;
+  const packageId = definition.id;
+  const policies = new Map<string, CsharpProviderPolicyContribution>();
+  function selectedPolicy(selectedSurfaceIds: readonly string[]): CsharpProviderPolicyContribution {
+    const surfaces = Object.freeze([...selectedSurfaceIds]);
+    const key = JSON.stringify(surfaces);
+    const existing = policies.get(key);
+    if (existing !== undefined) return existing;
+    const contribution = createPolicy(surfaces);
+    if (contribution.kind !== csharpProviderPolicyContributionKind ||
+      contribution.providerId !== providerIdentity.id || contribution.providerVersion !== providerIdentity.version) {
+      fail("policy contribution must match the source provider identity and version.");
+    }
+    const policy = validateCsharpProviderPolicyContribution(
+      packageId,
+      moduleSpecifiers.map(entry => ({ specifierPrefix: entry.moduleSpecifier })),
+      contribution,
+    );
+    for (const entries of [policy.relations, policy.rejections]) {
+      for (const { source } of entries) {
+        const canonicalSpecifier = canonicalBySpecifier.get(source.moduleSpecifier);
+        const module = canonicalSpecifier === undefined ? undefined : modulesBySpecifier.get(canonicalSpecifier);
+        if (module?.providerModuleId !== source.providerModuleId) {
+          fail(`policy source '${source.moduleSpecifier}' does not match a registered provider module identity.`);
+        }
       }
     }
+    policies.set(key, policy);
+    return policy;
   }
   return Object.freeze({
     id: definition.id,
@@ -94,7 +105,7 @@ export function snapshotCsharpProviderPackage(
     ...(definition.declarationEvidence === undefined
       ? {}
       : { declarationEvidence: freezeContributionValue(definition.declarationEvidence) }),
-    policy,
+    createPolicy: selectedPolicy,
     runtime: freezeContributionValue(definition.runtime),
   });
 }

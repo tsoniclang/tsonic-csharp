@@ -8,6 +8,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
+import { planExpressionWithExpectedType } from "./index.js";
 
 export function planLambdaParameterStorage(
   nodes: readonly (Node | undefined)[],
@@ -34,6 +35,21 @@ export function planLambdaParameterStorage(
     if (type === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "The sealed lambda parameter storage type has no C# syntax representation."));
       return undefined;
+    }
+    const referenceDefault = input.program.declarations.referenceDefault(node);
+    const sourceParameter = input.program.source.ast.as.AsParameterDeclaration(node);
+    if (referenceDefault !== undefined && sourceParameter?.Initializer !== undefined) {
+      const name = allocateSyntheticParameter(state);
+      const initializer = planExpressionWithExpectedType(
+        sourceParameter.Initializer, sourceFile, input, diagnostics,
+        type, sourceParameter.Type, state,
+      );
+      if (initializer === undefined) return undefined;
+      nativeParameters[index] = { ...parameter, name };
+      prelude.push({ kind: "LocalDeclarationStatement", name: parameter.name, type,
+        initializer: { kind: "BinaryExpression", operatorToken: { kind: "QuestionQuestionToken" },
+          left: { kind: "IdentifierName", name }, right: initializer } });
+      continue;
     }
     const selection = readCsharpConversionClassification(node, input, diagnostics, nativeType, valueType, "implicit");
     if (selection === undefined) return undefined;

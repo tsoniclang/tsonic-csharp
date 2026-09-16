@@ -840,6 +840,9 @@ function csharpBinaryTargetOperationsEqual(
     return false;
   }
   switch (left.kind) {
+    case "bigint-call":
+      return right.kind === "bigint-call" && left.method === right.method &&
+        left.assignment === right.assignment && left.location === right.location;
     case "array-index-presence":
       return right.kind === "array-index-presence";
     case "operator":

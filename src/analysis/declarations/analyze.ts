@@ -15,10 +15,10 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
-  isCsharpValueTypeTargetType,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
-import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
+import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type {
@@ -75,10 +75,7 @@ export function analyzeCsharpDeclarations(
       const selected = parameter === undefined ? undefined
         : evidence.nodeTargetType(parameter.Type ?? parameter.name!);
       if (parameter?.Initializer !== undefined && selected !== undefined &&
-        (selected.kind === "array" || selected.kind === "target-named") &&
-        !isCsharpValueTypeTargetType(selected) &&
-        getCsharpNullableElementTargetType(selected) === undefined &&
-        !(selected.kind === "target-named" && (selected as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true)) {
+        csharpReferenceDefaultNeedsNullableParameter(selected)) {
         referenceDefaults.set(node, selected);
       }
     }

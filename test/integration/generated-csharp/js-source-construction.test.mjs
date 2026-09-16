@@ -38,6 +38,14 @@ import { jsNumericPropertySource } from "../../../../tsonic/test/fixtures/js-num
 import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class-reads.mjs";
 import { referenceDefaultSource } from "../../../../tsonic/test/fixtures/reference-defaults.mjs";
 import { structuralEnumerationSource } from "../../../../tsonic/test/fixtures/structural-enumeration.mjs";
+import { nativeNodeSpawnSource } from "../../../../tsonic/test/fixtures/native-node-spawn.mjs";
+
+test("Node spawn preserves binary views, option aliases, child environment and failures", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeSpawnSource(process.execPath) });
+  execute(compiled, "native-node-spawn", false, false, [
+    join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj"),
+  ]);
+});
 
 for (const surface of [undefined, "js"]) {
   test(`structural enumeration retains actual keys without reading getters (${surface ?? "native"})`, { timeout: 300_000 }, () => {
