@@ -1,14 +1,12 @@
-import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName, objectShapeMemberTargetNameForKey } from "./construction.js";
-import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
+import { createCsharpObjectShapeMemberResolver } from "./member-evidence.js";
+import { createStructuralObjectShapeTarget, mergeCsharpObjectShapeSubjects, objectShapeMemberTargetName } from "./construction.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../../target-model/types/object-shape-equality.js";
-import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIncludesNullish, typeIsExcludedFromObjectShape } from "./source-evidence.js";
+import { isProjectSourceTargetType, projectClassIsObjectInitializable, requiresUnresolvedStructuralProjection, selectedObjectShapeSource, sourceSubjects, typeHasProjectOwnedShapeDeclaration, typeIsExcludedFromObjectShape } from "./source-evidence.js";
 import { readCsharpSourceField, readCsharpSourceStruct } from "../../resolution/source-markers.js";
 import {
   selectSourceObjectLiteralAccessors,
   Node_Initializer,
-  sourcePropertyTypeEvidenceNodes,
-  sourceTransformedTypeFactEvidenceNodes,
-  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type {
@@ -24,7 +22,6 @@ import type {
   ExtensionFactSubject,
   SourceFile,
   Type,
-  TypePropertyInfo,
 } from "@tsonic/tsts";
 import type {
   CsharpRecursiveTypeResolver,
@@ -46,10 +43,8 @@ import {
 } from "../../../../target-model/types/runtime-carriers.js";
 import {
   csharpPropertySourceMemberKey,
-  csharpSourceMemberDisplayName,
   csharpSourceMemberKeysEqual,
 } from "../../../../target-model/types/source-member-keys.js";
-import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions, type CsharpStructuralUnionResolution } from "./union-definitions.js";
 
@@ -59,6 +54,7 @@ export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
 }
 
 export interface CsharpObjectShapePolicy {
+  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact;
   resolveNode(
     node: Node | undefined,
     sourceFile?: SourceFile,
@@ -121,6 +117,7 @@ export type CsharpProjectConstructibleTypeProjection =
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,
 ): CsharpRecursiveObjectShapePolicy {
+  const { deriveMembers, instantiateMemberEvidence, resolvePropertyType } = createCsharpObjectShapeMemberResolver(host);
   const activeNodes = new WeakSet<object>();
   const activeTypes = new WeakSet<object>();
   const nodeShapes = new WeakMap<object, CsharpObjectShapeFact>();
@@ -794,132 +791,6 @@ export function createCsharpObjectShapePolicy(
     };
   }
 
-  function deriveMembers(
-    ownerType: Type,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
-  ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const members = queries.types.propertyInfos(ownerType).filter(property => {
-      const declarations = queries.declarations.symbolDeclarations(property.symbol);
-      return declarations.length === 0 || !declarations.every(declaration => sourceClassFieldIsTypeOnly(host.ast, declaration));
-    }).map((property) =>
-      deriveMember(property, queries, state, authoredTypeRoot)
-    );
-    return members.some((member) => member === undefined)
-      ? undefined
-      : members as readonly CsharpObjectShapeMemberFact[];
-  }
-
-  function instantiateMemberEvidence(
-    members: readonly CsharpObjectShapeMemberFact[],
-    type: Type,
-    queries: SourceFileSemantics,
-  ): readonly CsharpObjectShapeMemberFact[] | undefined {
-    const properties = queries.types.propertyInfos(type);
-    const instantiated = members.map(member => {
-      const matching = properties.filter(property => {
-        const subjects = [property.symbol, ...property.rootSymbols,
-          ...queries.declarations.symbolDeclarations(property.symbol),
-          ...property.rootSymbols.flatMap(symbol => queries.declarations.symbolDeclarations(symbol))];
-        return member.sourceSubjects?.some(subject => subjects.some(candidate => candidate === subject)) === true;
-      });
-      return matching.length === 1 ? { ...member, sourceTypes: Object.freeze([matching[0]!.type]) } : undefined;
-    });
-    return instantiated.some(member => member === undefined) ? undefined
-      : instantiated as readonly CsharpObjectShapeMemberFact[];
-  }
-
-  function deriveMember(
-    property: TypePropertyInfo,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
-  ): CsharpObjectShapeMemberFact | undefined {
-    const sourcePropertyName = property.name;
-    if (sourcePropertyName.length === 0) {
-      return undefined;
-    }
-    const declarations = [...new Set([
-      ...queries.declarations.symbolDeclarations(property.symbol),
-      ...property.rootSymbols.flatMap((symbol) =>
-        queries.declarations.symbolDeclarations(symbol)
-      ),
-    ])]
-      .filter((declaration): declaration is Node => declaration !== undefined);
-    const sourceType = property.type;
-    const sourceKey = resolveObjectShapeSourceMemberKey(
-      declarations,
-      sourcePropertyName,
-      host.ast,
-      queries,
-    );
-    const targetName = sourceKey === undefined
-      ? undefined
-      : objectShapeMemberTargetNameForKey(sourceKey);
-    if (sourceKey === undefined || targetName === undefined) {
-      return undefined;
-    }
-    const method = declarations.some((declaration) =>
-      host.ast.is.IsMethodDeclaration(declaration) ||
-      host.ast.is.IsMethodSignatureDeclaration(declaration)
-    );
-    const getters = declarations.filter((declaration) =>
-      host.ast.is.IsGetAccessorDeclaration(declaration)
-    );
-    const setters = declarations.filter((declaration) =>
-      host.ast.is.IsSetAccessorDeclaration(declaration)
-    );
-    if (getters.length > 1 || setters.length > 1 ||
-      (getters.length === 0 && setters.length > 0)) {
-      return undefined;
-    }
-    const memberType = method
-      ? host.typeResolver.resolveType(
-          sourceType,
-          queries.sourceFile,
-          nextState(state),
-        )
-      : resolvePropertyType(
-          property,
-          sourceType,
-          queries,
-          state,
-          authoredTypeRoot,
-        );
-    if (memberType === undefined) {
-      return undefined;
-    }
-    const optional = property.optional || typeIncludesNullish(sourceType, queries);
-    const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
-    if (bound && (optional || method || getters.length !== 0 || setters.length !== 0)) return undefined;
-    return {
-      sourceKey,
-      sourceName: csharpSourceMemberDisplayName(sourceKey),
-      sourceSubjects: declarations.length === 0
-        ? [property.symbol]
-        : [property.symbol, ...declarations],
-      ...(declarations.length === 0
-        ? {}
-        : { sourceDeclarations: Object.freeze([...declarations]) }),
-      sourceTypes: [sourceType],
-      targetName,
-      memberKind: method ? "method" : "property",
-      type: optional ? csharpNullableTargetType(memberType) : memberType,
-      ...(optional ? { optional: true } : {}),
-      ...(property.readonly ? { readonly: true } : {}),
-      ...(bound ? { bound: true as const } : {}),
-      ...(getters.length === 0
-        ? {}
-        : {
-            accessor: {
-              getter: true as const,
-              setter: setters.length === 1,
-            },
-          }),
-    };
-  }
-
   function resolveTypeMember(
     type: Type | undefined,
     sourceFile: SourceFile,
@@ -941,51 +812,15 @@ export function createCsharpObjectShapePolicy(
     }
   }
 
-  function resolvePropertyType(
-    property: TypePropertyInfo,
-    sourceType: Type,
-    queries: SourceFileSemantics,
-    state: CsharpTypeResolutionState,
-    authoredTypeRoot?: Node,
-  ): TargetTypeRef | undefined {
-    const authoredTypeNodes = [
-      ...sourcePropertyTypeEvidenceNodes(host.ast, queries, property),
-      ...(authoredTypeRoot === undefined
-        ? []
-        : sourceTransformedTypeFactEvidenceNodes(
-            host.ast,
-            queries,
-            authoredTypeRoot,
-            sourceType,
-          )),
-    ];
-    if (authoredTypeNodes.length === 0) {
-      return host.typeResolver.resolveType(
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      );
-    }
-    const authoredTypes = authoredTypeNodes.map((typeNode) =>
-      host.typeResolver.resolveSelectedType(
-        typeNode,
-        sourceType,
-        queries.sourceFile,
-        nextState(state),
-      )
-    );
-    if (authoredTypes.some((type) => type === undefined)) {
-      return undefined;
-    }
-    const first = authoredTypes[0]!;
-    return authoredTypes.every((type) =>
-        type !== undefined && targetTypeRefEquals(first, type)
-      )
-      ? first
-      : undefined;
-  }
-
   return Object.freeze({
+    resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact {
+      if (shape.targetType.kind !== "target-named" || (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) return shape;
+      return rememberTargetShape({
+        targetType: createStructuralObjectShapeTarget(shape.members, [shape.targetType]),
+        members: shape.members,
+        implements: [shape.targetType],
+      });
+    },
     resolveReference: unionDefinitions.reference,
     resolveUnion: unionDefinitions.resolve,
     resolveNode,

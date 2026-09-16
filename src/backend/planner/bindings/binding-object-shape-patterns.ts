@@ -133,7 +133,8 @@ function planObjectShapeRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
     return [];
   }
-  const restShape = getCsharpObjectShapeFactForNode(name, sourceFile, input);
+  const restContract = getCsharpObjectShapeFactForNode(name, sourceFile, input);
+  const restShape = restContract === undefined ? undefined : input.types.objectShapes.resolveCopyShape(restContract);
   if (restShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
     return [];

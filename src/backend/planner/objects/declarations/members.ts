@@ -82,8 +82,8 @@ export function renderObjectShapeMembers(
       const access = (name: string, args: readonly CsharpExpression[]): CsharpExpression => ({ kind: "InvocationExpression",
         callee: { kind: "SimpleMemberAccessExpression", receiver: location, name },
         arguments: args.map(expression => ({ kind: "Argument", expression })) });
-      return [{ kind: "FieldDeclaration" as const, name: backing.storageName, type: locationType,
-        modifiers: ["internal", "readonly"] as const, initializer },
+      return [{ kind: "PropertyDeclaration" as const, name: backing.storageName, type: locationType,
+        modifiers: ["public"] as const, autoGetter: true, initializer },
       { kind: "PropertyDeclaration" as const, name: member.targetName, type,
         modifiers: ["public", "required"] as const,
         getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: access("Load", []) }] },

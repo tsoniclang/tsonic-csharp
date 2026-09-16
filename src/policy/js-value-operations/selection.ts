@@ -10,6 +10,9 @@ import {
   csharpStringTargetType,
   csharpTsValueTargetType,
   isCsharpJsValueTargetType,
+  isCsharpRuntimeNullTargetType,
+  isCsharpRuntimeUndefinedTargetType,
+  getCsharpNullableElementTargetType,
 } from "../types/index.js";
 import type {
   TargetTypeRef,
@@ -137,6 +140,20 @@ export function selectCsharpJsValueBinaryOperation(
   sourceFile: SourceFile,
   operator: string,
 ): CsharpJsValueOperationSelection {
+  if (["===", "!==", "==", "!="].includes(operator) &&
+    [left, right].every(operand => {
+      if (operand === undefined) return false;
+      const type = input.types.resolveNode(operand, sourceFile);
+      return (isCsharpRuntimeNullTargetType(type) || isCsharpRuntimeUndefinedTargetType(type)) &&
+        getCsharpNullableElementTargetType(input.types.resolveReadStorage(operand)) === undefined;
+    })) {
+    return {
+      kind: "resolved",
+      runtimeMember: "ApplyDynamicBinaryBoolean",
+      dispatch: "static",
+      resultType: csharpSourcePrimitiveTargetType("bool"),
+    };
+  }
   const mode = selectJsValueOperandMode(
     input,
     [left, right],

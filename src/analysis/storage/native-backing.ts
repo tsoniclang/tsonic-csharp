@@ -3,21 +3,22 @@ import type { CsharpPolicyContext } from "../../policy/context.js";
 import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
-import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
-import type { TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
-import type { CsharpNativeObjectField, CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
+import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
+import type { CsharpObjectShapeClassifications } from "../object-shapes/model.js";
+import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 
 export function analyzeCsharpNativeBacking(
   policy: CsharpPolicyContext, evidence: CsharpSourceEvidenceIndex,
   operations: CsharpTargetOperationClassifications,
+  objectShapes: CsharpObjectShapeClassifications,
 ) {
   const backings = new Map<Node, CsharpNativeMemoryLayout>();
-  const fields = new Map<string, CsharpNativeObjectField>();
+  const fields = createCsharpNativeFieldBacking(objectShapes.knownShapes());
   const arrays = new Map<Node, CsharpNativeArrayStorage>();
-  const fieldKey = (owner: TargetTypeRef, name: string): string => JSON.stringify([targetTypeRefKey(owner), name]);
   const issues: CsharpStorageIssue[] = [];
   const reject = (node: Node, message: string): void => {
     issues.push(Object.freeze({ node, code: "CSHARP_NATIVE_BACKING_NOT_PROVEN", message }));
@@ -84,20 +85,8 @@ export function analyzeCsharpNativeBacking(
           reject(origin.call, "Native field backing requires one complete compiler-owned mutable data field.");
           continue;
         }
-        const key = fieldKey(shape.targetType, member.targetName);
-        const previous = fields.get(key);
-        if (previous !== undefined && !csharpNativeMemoryLayoutsEqual(previous.layout, selected)) {
-          reject(origin.call, "One exact object field has incompatible native layout requirements.");
-          continue;
-        }
-        if (previous === undefined) {
-          const used = new Set([...shape.members.map(field => field.targetName),
-            ...[...fields.values()].filter(field => targetTypeRefEquals(field.owner, shape.targetType)).map(field => field.storageName)]);
-          const base = `${member.targetName}Location`;
-          let storageName = base;
-          for (let suffix = 2; used.has(storageName); suffix += 1) storageName = `${base}_${suffix}`;
-          fields.set(key, Object.freeze({ owner: shape.targetType, memberName: member.targetName, storageName, layout: selected }));
-        }
+        const result = fields.select(shape, member, selected);
+        if (result.kind === "rejected") reject(origin.call, result.reason);
         continue;
       }
       if (storage.kind !== "direct-storage" || storage.identity.kind !== "local-storage" ||
@@ -134,8 +123,8 @@ export function analyzeCsharpNativeBacking(
   return Object.freeze({ issues: Object.freeze(issues),
     arrays: Object.freeze([...arrays].map(([subject, storage]) => Object.freeze({ subject, storage }))),
     array: (node: Node) => arrays.get(node),
-    fields: Object.freeze([...fields.values()]),
-    field: (owner: TargetTypeRef, name: string) => fields.get(fieldKey(owner, name)),
+    fields: fields.values(),
+    field: fields.get,
     entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),
     get: (subject: Node) => backings.get(subject) });
 }

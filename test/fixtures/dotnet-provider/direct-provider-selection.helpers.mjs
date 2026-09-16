@@ -571,6 +571,9 @@ export function directProviderHost(options = {}) {
             },
           }),
           types: Object.freeze({
+            isUnion() {
+              return false;
+            },
             effectiveTypeArguments(type) {
               return options.effectiveTypeArguments?.get(type) ?? [];
             },

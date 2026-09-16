@@ -30,6 +30,7 @@ import type {
 import {
   createCsharpAttributeApplicationFactIndex,
 } from "../attributes/application-index.js";
+import { diagnoseCsharpAttributeTypeValues } from "../attributes/type-validation.js";
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -76,6 +77,7 @@ import {
 } from "../expected-types/index.js";
 import {
   analyzeCsharpStorage,
+  sealCsharpStorage,
 } from "../storage/index.js";
 import {
   csharpStorageClassificationsEqual,
@@ -98,8 +100,9 @@ import {
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
-import { createJsArrayDensityQuery } from "@tsonic/js-source-profile";
-import type { JsArrayDensityQueries } from "@tsonic/js-source-profile";
+import { createSourceArrayDensityQuery } from "@tsonic/target-api/source";
+import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
+import { jsArrayMemberEffect } from "@tsonic/js-source-profile";
 import { csharpSourceProfileDeclarationIdentity } from "../../policy/members/source-profiles/source-profile-identity.js";
 
 interface CsharpRepresentationContract {
@@ -121,7 +124,7 @@ export function analyzeCsharpTargetProgram(
   const source = input.source;
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const arrayDensity = createJsArrayDensityQuery(source, {
+  const arrayDensity = createSourceArrayDensityQuery(source, {
     closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
     intrinsicallyDense(expression) {
       const semantics = source.semantics.forNode(expression);
@@ -129,12 +132,12 @@ export function analyzeCsharpTargetProgram(
       const identity = type === undefined ? undefined : classifyCsharpSourceProfileType(type, semantics, source.ast);
       return identity?.ownerId === "js" && identity.kind === "typed-array";
     },
-    memberIdentity(declaration) {
+    memberEffect(declaration) {
       const identity = csharpSourceProfileDeclarationIdentity(
         source.ast, source.semantics.forNode(declaration), source.sourceFacts, declaration,
       );
-      return identity?.owner === "js" && identity.declaringName !== undefined && identity.name !== undefined
-        ? { ownerName: identity.declaringName, memberName: identity.name } : undefined;
+      return jsArrayMemberEffect(identity?.owner === "js" && identity.declaringName !== undefined && identity.name !== undefined
+        ? { ownerName: identity.declaringName, memberName: identity.name } : undefined);
     },
   });
   const sourceIdentities = createCsharpSourceIdentityPolicy(
@@ -270,6 +273,8 @@ export function analyzeCsharpTargetProgram(
     sourceFiles: source.navigation.sourceFiles,
     sourceFacts: source.sourceFacts,
   });
+  const attributeIssues = diagnoseCsharpAttributeTypeValues(source, attributeApplications);
+  if (attributeIssues.length > 0) return rejectedTargetStage(attributeIssues);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
     sourceFiles: source.navigation.sourceFiles,
@@ -333,7 +338,7 @@ function analyzeIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
   typeHost: Parameters<typeof createCsharpTypeSystem>[0],
-  arrayDensity: JsArrayDensityQueries,
+  arrayDensity: SourceArrayDensityQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
@@ -392,7 +397,7 @@ function analyzeIteration(
     sourceEvidence,
     objectShapes,
   );
-  const storage = analyzeCsharpStorage(
+  const storageRepresentations = analyzeCsharpStorage(
     policy,
     sourceEvidence,
     operations,
@@ -404,14 +409,16 @@ function analyzeIteration(
   const conversions = conversionAnalysis.seal({
     operations,
     expectedTypes,
-    storage,
+    storage: storageRepresentations,
   });
+  const sealedObjectShapes = objectShapes.seal();
+  const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
   return Object.freeze({
     typeSystem,
     sourceEvidence,
     operations,
     declarations,
-    objectShapes: objectShapes.seal(),
+    objectShapes: sealedObjectShapes,
     callables,
     expectedTypes,
     conversions,

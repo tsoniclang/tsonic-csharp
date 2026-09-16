@@ -1,6 +1,5 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
-import { analyzeCsharpNativeBacking } from "./native-backing.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
 import {
   csharpConversionIsApplicable,
@@ -36,6 +35,7 @@ import type {
 } from "../object-shapes/index.js";
 import type {
   CsharpStorageClassifications,
+  CsharpStorageRepresentationClassifications,
   CsharpStorageIssue,
 } from "./model.js";
 
@@ -57,10 +57,9 @@ export function analyzeCsharpStorage(
   expectedTypes: CsharpExpectedTypeClassifications,
   conversions: CsharpConversionClassifications,
   previous?: CsharpStorageClassifications,
-): CsharpStorageClassifications {
+): CsharpStorageRepresentationClassifications {
   const contracts = new Map<Node, MutableStorageContract>();
-  const nativeBacking = analyzeCsharpNativeBacking(policy, evidence, operations);
-  const issues: CsharpStorageIssue[] = [...nativeBacking.issues];
+  const issues: CsharpStorageIssue[] = [];
   const nodes: Node[] = [];
 
   for (const sourceFile of policy.sourceFiles) {
@@ -125,13 +124,7 @@ export function analyzeCsharpStorage(
     effectiveTypes.set(node, sourceType);
   }
 
-  const classifications: CsharpStorageClassifications = {
-    nativeArrays: nativeBacking.arrays,
-    nativeArray: nativeBacking.array,
-    nativeFields: nativeBacking.fields,
-    nativeField: nativeBacking.field,
-    nativeBackings: nativeBacking.entries,
-    nativeBacking: nativeBacking.get,
+  const classifications: CsharpStorageRepresentationClassifications = {
     issues: Object.freeze(issues),
     contracts: Object.freeze([...contracts.values()].flatMap((contract) => {
       const type = resolvedTypes.get(contract.declaration);
@@ -162,28 +155,13 @@ export function analyzeCsharpStorage(
       return contracts.get(node)?.lambdaParameterType;
     },
     requiresTypedLocationIdentity(declaration) {
-      return nativeBacking.get(declaration) === undefined && nativeBacking.array(declaration) === undefined && contracts.get(declaration)?.typedLocationIdentity === true;
+      return contracts.get(declaration)?.typedLocationIdentity === true;
     },
   };
   return Object.freeze(classifications);
 
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node) || IsTypeSyntaxNode(policy.ast, node)) return;
-    if (nativeBacking.entries.length > 0 || nativeBacking.fields.length > 0 || nativeBacking.arrays.length > 0) {
-      const passing = selectCsharpSourceArgument(policy.sourceFacts, node);
-      if (passing.kind === "resolved" && passing.argument.passingMode !== "by-value") {
-        const declaration = policy.navigation.referenceFor(passing.argument.storageExpression)?.declaration;
-        const property = operations.property(passing.argument.storageExpression)?.sourceOwned;
-        const shape = property?.objectShape;
-        const member = property?.shapeMember?.kind === "resolved" ? property.shapeMember.member : undefined;
-        const field = shape === undefined || member === undefined ? undefined
-          : nativeBacking.field(shape.targetType, member.targetName);
-        if (nativeBacking.array(passing.argument.storageExpression) !== undefined || field !== undefined || declaration !== undefined && nativeBacking.get(declaration) !== undefined) {
-          issues.push(issue(node, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN",
-            "A physically backed location cannot be passed as a managed byref without an exact native reference contract."));
-        }
-      }
-    }
     nodes.push(node);
     for (const expectedType of expectedTypes.storageTypesForExpression(node)) {
       recordPromotedRepresentation(node, expectedType);

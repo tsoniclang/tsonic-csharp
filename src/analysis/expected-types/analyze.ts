@@ -301,12 +301,17 @@ export function analyzeCsharpExpectedTypes(
       record(nativePointer.expression, nativePointer.inputType, "required");
     } else if (nativePointer?.kind === "raw-address") {
       for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required");
+    } else if (nativePointer?.kind === "raw-identity") {
+      for (const argument of nativePointer.arguments) record(argument, nativePointer.parameterType, "required");
     } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
       typedLocation.kind !== "rejected") {
       if (typedLocation.kind === "location-allocate") {
         record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
       } else if (typedLocation.kind === "location-store") {
         record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
+      } else if (typedLocation.kind === "location-equal") {
+        record(typedLocation.leftExpression, typedLocation.parameterType, "required");
+        record(typedLocation.rightExpression, typedLocation.parameterType, "required");
       } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project" ||
         typedLocation.kind === "location-view") {
         for (const argument of typedLocation.arguments) {

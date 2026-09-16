@@ -5,7 +5,7 @@ import { accepted, rejected } from "../result.js";
 import { csharpObjectShapeContractCandidate } from "../../contracts.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../../../target-model/types/index.js";
 import { maximumArtifactCount } from "../model.js";
-import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
 import { csharpTargetTypeComponents } from "../../../../../target-model/types/components.js";
 import { targetTypeRefKey } from "../../../../../target-model/types/equality.js";
 import { isCsharpEmptyObjectTargetType } from "../../../../../target-model/types/runtime-carriers.js";
@@ -113,9 +113,9 @@ export function addObjectShapesToBatch(
         );
       }
       batch.shapes.set(key, shape);
-      const requested = isSourceDeclaredNominalShape(shape) || isCsharpEmptyObjectTargetType(shape.targetType)
+      const requested = isCsharpEmptyObjectTargetType(shape.targetType)
         ? "source"
-        : "synthetic";
+        : objectShapeMaterialization(shape);
       const current = batch.materializations.get(key);
       batch.materializations.set(
         key,

@@ -31,7 +31,7 @@ import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js
 import type { CsharpStructuralInterfaceRegistration } from "../object-shapes/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpStorageClassifications } from "../storage/index.js";
+import type { CsharpStorageRepresentationClassifications } from "../storage/index.js";
 import type {
   CsharpConversionAnalysis,
   CsharpConversionClassifications,
@@ -128,7 +128,7 @@ export function analyzeCsharpConversions(
     sourceFile: SourceFile,
     operations: CsharpTargetOperationClassifications,
     expectedTypes: CsharpExpectedTypeClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
@@ -168,7 +168,7 @@ export function analyzeCsharpConversions(
   function classifyAssertion(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (policy.ast.is.IsNonNullExpression(node)) {
       const expression = policy.ast.as.AsNonNullExpression(node)?.Expression;
@@ -210,7 +210,7 @@ export function analyzeCsharpConversions(
   function exactSourceTypes(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): readonly TargetTypeRef[] {
     const candidates = [
       operations.resultType(node),
@@ -322,7 +322,7 @@ export function analyzeCsharpConversions(
   function classifyCallUses(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     const classification = operations.call(node);
     if (classification === undefined) {

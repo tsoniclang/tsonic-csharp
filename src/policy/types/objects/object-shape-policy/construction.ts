@@ -42,7 +42,7 @@ export function createStructuralObjectShapeTarget(
     canonicalImplemented,
   );
   const jsValueCarrier =
-    !contract && canUseCsharpJsValueObjectShapeCarrier(
+    canUseCsharpJsValueObjectShapeCarrier(
       canonicalMembers,
       canonicalImplemented,
     );

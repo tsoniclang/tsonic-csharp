@@ -89,10 +89,12 @@ export function classifySourceOwnedProperty(
     "property-read",
     selection.source.optionalChain,
   );
-  const objectShape = policy.objectShapes.resolveNode(
+  const receiverShape = policy.objectShapes.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
   );
+  const objectShape = policy.projectTypes.catalog.definitionForTarget(receiverShape?.targetType)?.kind === "class"
+    ? undefined : receiverShape;
   const selectedSubjects = semantics.facts.selectedSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,

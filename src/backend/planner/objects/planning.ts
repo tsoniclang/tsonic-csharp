@@ -259,7 +259,7 @@ function renderObjectShapeDeclaration(
     undefined,
   );
   if ((fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
-    const contractMembers = renderCsharpStructuralInterfaceMembers(fact);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage);
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });

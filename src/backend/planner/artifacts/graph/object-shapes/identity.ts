@@ -5,6 +5,10 @@ export function objectShapeArtifactKey(fact: CsharpObjectShapeFact): string {
   return `object-shape:${targetTypeRefKey(fact.targetType)}`;
 }
 
+export function objectShapeMaterialization(fact: CsharpObjectShapeFact): "source" | "synthetic" {
+  return fact.constructible === true || isSourceDeclaredNominalShape(fact)
+    ? "source" : "synthetic";
+}
 
 export function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
   return fact.targetType.kind === "target-named" &&

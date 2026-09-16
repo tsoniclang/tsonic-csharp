@@ -85,7 +85,8 @@ test("source-union refinement requires exact unique member declarations", () => 
     declarations: { symbolDeclarations: () => declarations },
   };
   const union = csharpRuntimeUnionTargetType(shapes.map(shape => shape.targetType), shapes);
-  const select = value => selectCsharpAuthoredUnionRefinement(value, declaredType, selectedType, queries, () => undefined);
+  const select = value => selectCsharpAuthoredUnionRefinement(value, declaredType, selectedType, queries, () => undefined,
+    type => shapes.find(shape => targetTypeRefEquals(shape.targetType, type)));
   const selected = select(csharpNullableTargetType(union));
   assert.equal(selected.kind, "resolved");
   assert(targetTypeRefEquals(selected.type, shapes[0].targetType));

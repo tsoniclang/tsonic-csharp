@@ -162,8 +162,11 @@ test("generic method type arguments come only from shared selected call evidence
     consumerCounts.set(file, (consumerCounts.get(file) ?? 0) + 1);
   }
   assert.deepEqual([...consumerCounts.entries()].sort(), [
+    ["src/analysis/operations/union-calls.ts", 1],
     ["src/policy/members/instantiation/instantiation.ts", 4],
-    ["src/policy/members/source-profiles/js/arrays.ts", 3],
+    ["src/policy/members/source-profiles/js/array-construction.ts", 1],
+    ["src/policy/members/source-profiles/js/array-copy.ts", 1],
+    ["src/policy/members/source-profiles/js/arrays.ts", 2],
     ["src/policy/types/resolution/calls.ts", 2],
     ["src/policy/types/resolution/expressions.ts", 1],
   ]);

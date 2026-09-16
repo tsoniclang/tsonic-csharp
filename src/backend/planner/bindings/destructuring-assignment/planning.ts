@@ -500,7 +500,8 @@ function planObjectAssignmentRestElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object rest destructuring assignment requires an identifier assignment target."));
     return [];
   }
-  const restShape = getObjectShapeForBindingSource(element.target.node, sourceFile, input);
+  const restContract = getObjectShapeForBindingSource(element.target.node, sourceFile, input);
+  const restShape = restContract === undefined ? undefined : input.types.objectShapes.resolveCopyShape(restContract);
   if (restShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object rest destructuring assignment requires finalized provider object-shape facts for the rest target."));
     return [];

@@ -5,7 +5,7 @@ import { csharpTupleElementMemberName, targetTypeRefEquals } from "../../../../.
 import type { CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import type { ExpressionPlanner } from "../../expression-planner-types.js";
-import type { CsharpSelectedTargetCall } from "../../../../../policy/members/index.js";
+import type { CsharpSelectedTargetCall } from "../../../../../analysis/operations/index.js";
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 

@@ -220,17 +220,25 @@ export function tryPlanCsharpTypedLocationOperation(
       };
     }
     case "location-equal": {
-      const left = planExpression(
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      if (parameterType === undefined) return { handled: true };
+      const left = planExpressionWithExpectedType(
         operation.leftExpression,
         sourceFile,
         input,
         diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
       );
-      const right = planExpression(
+      const right = planExpressionWithExpectedType(
         operation.rightExpression,
         sourceFile,
         input,
         diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
       );
       return {
         handled: true,

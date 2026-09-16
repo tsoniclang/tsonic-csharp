@@ -99,6 +99,7 @@ export type CsharpResolvedTypedLocationOperation =
       readonly call: Node;
       readonly pointeeType: TargetTypeRef;
       readonly locationType: TargetTypeRef;
+      readonly parameterType: TargetTypeRef;
       readonly leftExpression: Node;
       readonly rightExpression: Node;
     }
@@ -380,6 +381,7 @@ export function selectCsharpTypedLocationOperation(
         locationType,
         leftExpression: source.leftExpression,
         rightExpression: source.rightExpression,
+        parameterType: csharpNullableReferenceTargetType(locationType),
       };
     }
   }

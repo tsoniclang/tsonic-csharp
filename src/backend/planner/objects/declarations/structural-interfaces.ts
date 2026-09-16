@@ -2,8 +2,10 @@ import type { CsharpObjectShapeFact } from "../../../../target-model/types/model
 import { getCsharpDelegateSignature } from "../../../../target-model/types/index.js";
 import type { CsharpInterfaceMember } from "../../../target-ast/roslyn/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
+import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
+import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
 
-export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
@@ -22,6 +24,12 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
       if (type === undefined) return undefined;
       result.push({ kind: "PropertyDeclaration", name: member.targetName, type,
         writable: member.readonly !== true && member.accessor?.setter !== false });
+      const backing = storage.nativeField(shape.targetType, member.targetName);
+      if (backing !== undefined) {
+        const locationType = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(member.type));
+        if (locationType === undefined) return undefined;
+        result.push({ kind: "PropertyDeclaration", name: backing.storageName, type: locationType, writable: false });
+      }
     }
   }
   return result;

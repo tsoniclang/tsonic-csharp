@@ -21,13 +21,16 @@ export interface CsharpNativeArrayStorage {
   readonly stride: number;
 }
 
-export interface CsharpStorageClassifications {
+export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {
   readonly nativeArrays: readonly { readonly subject: Node; readonly storage: CsharpNativeArrayStorage }[];
   nativeArray(subject: Node): CsharpNativeArrayStorage | undefined;
   readonly nativeFields: readonly CsharpNativeObjectField[];
   nativeField(owner: TargetTypeRef, memberName: string): CsharpNativeObjectField | undefined;
   readonly nativeBackings: readonly { readonly subject: Node; readonly layout: import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout }[];
   nativeBacking(subject: Node): import("../../target-model/operations/native-memory.js").CsharpNativeMemoryLayout | undefined;
+}
+
+export interface CsharpStorageRepresentationClassifications {
   readonly issues: readonly CsharpStorageIssue[];
   readonly contracts: readonly CsharpStorageContractClassification[];
   type(node: Node): TargetTypeRef | undefined;

@@ -29,6 +29,7 @@ export function analyzeCsharpObjectShapes(
 ): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } {
   const byNode = new WeakMap<Node, CsharpObjectShapeFact>();
   const byTarget = new Map<string, CsharpObjectShapeFact>();
+  const copies = new Map<string, CsharpObjectShapeFact>();
   const objectLiterals = new Map<Node, SourceFile>();
   let classificationCount = 0;
   let sealed = false;
@@ -155,6 +156,9 @@ export function analyzeCsharpObjectShapes(
   }
 
   const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } = {
+    knownShapes() {
+      return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
+    },
     registerStructuralInterface(expression, source, destination) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
       source = getCsharpNullableElementTargetType(source) ?? source;
@@ -183,6 +187,14 @@ export function analyzeCsharpObjectShapes(
         reserveClassification();
         const shape = policy.objectShapes.resolveTarget(type);
         rememberShape(shape);
+        if (shape !== undefined) {
+          const copy = policy.objectShapes.resolveCopyShape(shape);
+          copies.set(key, copy);
+          if (copy !== shape) {
+            rememberShape(copy);
+            pending.push(copy.targetType);
+          }
+        }
         pending.push(...csharpTargetTypeComponents(type, shape));
       }
       sealed = true;
@@ -191,6 +203,9 @@ export function analyzeCsharpObjectShapes(
     },
     resolveObjectLiteralUnionShape(node, type) {
       return literalUnionShapes.get(node)?.get(targetTypeRefKey(type));
+    },
+    resolveCopyShape(shape) {
+      return copies.get(targetTypeRefKey(shape.targetType));
     },
     resolveNode(node: Node | undefined) {
       return withInterfaces(node === undefined ? undefined : byNode.get(node));

@@ -126,7 +126,9 @@ export function isCsharpSourceRawPointer(
   sourceFacts: ReadonlySourceFactResolver | undefined,
   subject: ExtensionFactSubject | undefined,
 ): boolean {
-  return sourceFacts?.getFact(subject, rawPointerFactKey)?.representation === "opaque-identity";
+  const marker = sourceFacts?.getFact(subject, sourceMarkerFactKey);
+  return marker?.kind === "type-marker" ? marker.marker === "raw-pointer"
+    : sourceFacts?.getFact(subject, rawPointerFactKey)?.representation === "opaque-identity";
 }
 
 export function readCsharpSourceFunctionPointerType(

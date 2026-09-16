@@ -17,7 +17,7 @@ import {
 } from "./source-native-pointers.js";
 import { readCsharpSourceRawPointerIdentity } from "./source-raw-pointers.js";
 import { csharpRuntimeRawPointerTargetType, isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
-import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { selectCsharpRawAddress } from "./raw-addresses.js";
 import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "./raw-addresses.js";
 import { selectCsharpLayoutObservation } from "./layout-observations.js";
@@ -43,6 +43,7 @@ export type CsharpResolvedNativePointerOperation =
       readonly method: "Same" | "Hash";
       readonly arguments: readonly Node[];
       readonly carrier: TargetTypeRef;
+      readonly parameterType: TargetTypeRef;
     }
   | CsharpResolvedNativePointerOperationBase & {
       readonly kind: "load";
@@ -91,7 +92,8 @@ export function selectCsharpNativePointerOperation(
       }
     }
     return { kind: "raw-identity", method: identity.operation === "equal-raw-pointer" ? "Same" : "Hash",
-      arguments: Object.freeze(identity.arguments.map(argument => argument.expression)), carrier };
+      arguments: Object.freeze(identity.arguments.map(argument => argument.expression)), carrier,
+      parameterType: csharpNullableReferenceTargetType(carrier) };
   }
   const source = readCsharpSourceNativePointerOperation(
     input.sourceFacts,

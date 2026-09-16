@@ -7,6 +7,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import {
   combineCsharpTargetUnionMembers,
   csharpRuntimeLocationTargetType,
+  csharpRuntimeLocationPointee,
 } from "../../../target-model/types/runtime-carriers.js";
 
 export interface CsharpPointerReturnContract {
@@ -16,7 +17,7 @@ export interface CsharpPointerReturnContract {
 }
 
 export function resolveCsharpPointerReturnContract(
-  { host, resolveAuthoredAndSelectedSourceType, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveAuthoredAndSelectedSourceType, resolveDirectSourceFacts, resolveTypeWithState }: CsharpTypeResolutionScope,
   declaration: Node,
   state: CsharpTypeResolutionState,
 ): CsharpPointerReturnContract | undefined {
@@ -24,7 +25,9 @@ export function resolveCsharpPointerReturnContract(
   if (evidence === undefined) {
     return undefined;
   }
-  const pointees = evidence.pointees.map((value) => resolveAuthoredAndSelectedSourceType(
+  const pointees = evidence.pointees.map((value) => csharpRuntimeLocationPointee(
+    resolveDirectSourceFacts([value.subject], host.ast.getSourceFile(value.subject)!, nextState(state)),
+  ) ?? resolveAuthoredAndSelectedSourceType(
     value.typeNode,
     host.ast.getSourceFile(value.typeNode ?? value.subject)!,
     value.type,

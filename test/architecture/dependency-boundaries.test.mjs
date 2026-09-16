@@ -167,10 +167,13 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   );
   const storageQueries = sourceSection(
     storage,
-    "const classifications: CsharpStorageClassifications = {",
+    "const classifications: CsharpStorageRepresentationClassifications = {",
     "function visit(node: Node): void",
   );
   assert.doesNotMatch(storageQueries, /\bpolicy\.|\bnavigation\./u);
+  const storageSeal = readFileSync(resolve(repositoryRoot, "src/analysis/storage/seal.ts"), "utf8");
+  assert.doesNotMatch(sourceSection(storageSeal,
+    "const classifications: CsharpStorageClassifications = {", "function visit(node: Node): void"), /\bpolicy\.|\bnavigation\./u);
 
   const names = readFileSync(
     resolve(repositoryRoot, "src/analysis/names/source-names.ts"),
