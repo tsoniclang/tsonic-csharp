@@ -31,10 +31,22 @@ import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-a
 import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-objects.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
-import { structuralMethodRestSource } from "../../../../tsonic/test/fixtures/structural-method-rest.mjs";
+import { structuralMethodRestSource, receiverBoundMethodRestSource } from "../../../../tsonic/test/fixtures/structural-method-rest.mjs";
+import { compoundIndexedWriteSource } from "../../../../tsonic/test/fixtures/compound-indexed-write.mjs";
+
+test("JS indexed compound writes preserve evaluation order and exact result carriers", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: compoundIndexedWriteSource }), "compound-indexed-write");
+});
 
 test("object rest retains stored method values through reordered structural interfaces", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: structuralMethodRestSource }), "structural-method-rest");
+});
+
+test("object rest never binds a copied method to its original receiver", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: receiverBoundMethodRestSource });
+  assert.equal(compiled.artifacts.size, 0);
+  assert.ok(compiled.result.diagnostics.some(({ code, message }) =>
+    code === "CSHARP_UNSUPPORTED_AST" && message.includes("copied method-value contract")));
 });
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
