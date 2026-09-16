@@ -20,6 +20,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
+import { createNullableParameterQuery } from "../callables/nullable-parameters.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -115,6 +116,7 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionScope {
+  sourceParameterUsesOnlyNullableCarrier(declaration: Node, parameter: Node): boolean;
   resolvePointerReturn(
     declaration: Node,
     state: CsharpTypeResolutionState,
@@ -489,6 +491,7 @@ export function createCsharpTypeResolutionServices(
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
   const methods = {
+    sourceParameterUsesOnlyNullableCarrier: createNullableParameterQuery(host),
     resolveNode: (
       node: Node | undefined,
       sourceFile?: SourceFile,

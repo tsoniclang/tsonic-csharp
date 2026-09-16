@@ -54,6 +54,7 @@ export {
 import { isCsharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { guardCsharpFrozenDataProperties } from "./frozen-data-properties.js";
 import { renderCsharpStructuralInterfaceMembers } from "./declarations/structural-interfaces.js";
+import { renderCsharpMethodValueContracts } from "./declarations/method-values.js";
 import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
 
 export function registerSourceObjectShape(
@@ -181,6 +182,8 @@ export function materializeObjectShapeDeclarations(
         new Set(artifact.receiverBoundMethodKeys),
         artifact.capabilities.includes("js-freeze"),
         artifact.capabilities.includes("reference-identity"),
+        declaration.kind === "ClassDeclaration" ? declaration.members.filter(member =>
+          member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) : [],
       )) || existing.kind === "InterfaceDeclaration" && JSON.stringify(existing) !== JSON.stringify(declaration))
     ) {
       diagnostics.push({
@@ -259,7 +262,7 @@ function renderObjectShapeDeclaration(
     undefined,
   );
   if ((fact.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
-    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage);
+    const contractMembers = renderCsharpStructuralInterfaceMembers(fact, input.program.storage, capabilities.includes("method-values"));
     if (contractMembers === undefined || interfaces === undefined || typeParameters === undefined) {
       diagnostics.push({ code: "CSHARP_STRUCTURAL_INTERFACE_NOT_CLOSED", category: "error", source: "tsonic-csharp",
         message: "A structural reference contract requires exact renderable member signatures." });
@@ -278,10 +281,11 @@ function renderObjectShapeDeclaration(
     undefined,
     input.program.storage,
   );
+  const methodValues = renderCsharpMethodValueContracts(fact, input);
   if (
     interfaces === undefined ||
     typeParameters === undefined ||
-    members === undefined
+    members === undefined || methodValues === undefined
   ) {
     diagnostics.push({
       code: "CSHARP_OBJECT_SHAPE_RENDERING_REJECTED",
@@ -310,6 +314,7 @@ function renderObjectShapeDeclaration(
           ],
         }),
     members: [
+      ...methodValues,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),
       ...(jsonSerializable ? renderJsonSerializableObjectShapeMethod(fact) : []),
       ...renderObjectShapeProjectionMethods(

@@ -14,6 +14,8 @@ import { fixedArrayMemoryProofFiles } from "../../../../tsonic/test/fixtures/fix
 import { caughtErrorProofFiles } from "../../../../tsonic/test/fixtures/caught-errors.mjs";
 import { numberBoxingProof, numberBoxingOutput } from "../../../../tsonic/test/fixtures/number-boxing.mjs";
 import { genericBaseConstructorFiles } from "../../../../tsonic/test/fixtures/generic-base-constructors.mjs";
+import { explicitErrorStackSource, invalidErrorStackSources } from "../../../../tsonic/test/fixtures/explicit-error-stacks.mjs";
+import { sourceClassAnnotationSource, invalidSourceClassAnnotations } from "../../../../tsonic/test/fixtures/source-class-annotations.mjs";
 import { pointerViewFiles } from "../../../../tsonic/test/fixtures/pointer-views.mjs";
 import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy.mjs";
 import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
@@ -29,6 +31,11 @@ import { numberArrayUnionFiles } from "../../../../tsonic/test/fixtures/number-a
 import { recursiveSourceUnionFiles } from "../../../../tsonic/test/fixtures/recursive-source-unions.mjs";
 import { frozenObjectSources } from "../../../../tsonic/test/fixtures/frozen-objects.mjs";
 import { createTsonicPlugin as nodejsCapability } from "../../../../csharp-nodejs/dist/index.js";
+import { structuralMethodRestSource } from "../../../../tsonic/test/fixtures/structural-method-rest.mjs";
+
+test("object rest retains stored method values through reordered structural interfaces", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: structuralMethodRestSource }), "structural-method-rest");
+});
 
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
   assertCsharpCompilationSucceeded(compiled);
@@ -59,6 +66,24 @@ function execute(compiled, name, asynchronous = false, allowUnsafe = false, addi
   });
   assert.equal(native.status, 0, `${native.error ?? ""}\n${native.stdout}\n${native.stderr}`);
   return native.stdout;
+}
+
+for (const surface of [undefined, "js"]) {
+  const profile = surface ?? "native";
+  test(`explicit Error stacks execute without implicit capture (${profile})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: explicitErrorStackSource }), `explicit-error-stack-${profile}`);
+    for (const sourceText of invalidErrorStackSources) {
+      const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText });
+      assert.match(compiled.sourceDiagnosticsText, /error TS/u);
+    }
+  });
+  test(`abstract declarations and readonly annotations preserve native dispatch (${profile})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: sourceClassAnnotationSource }), `class-annotations-${profile}`);
+    for (const { source: sourceText, code } of invalidSourceClassAnnotations) {
+      const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText });
+      assert.ok(compiled.sourceDiagnosticsText.includes(code), compiled.sourceDiagnosticsText);
+    }
+  });
 }
 
 test("numeric array presence preserves holes, boundary keys and evaluation order", { timeout: 300_000 }, () => {

@@ -57,7 +57,8 @@ export function planClassMembers(
         planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
-        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined) {
+        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
+          input.program.source.ast.hasModifierKind(member, "abstract")) {
           const method = planMethodDeclaration(member, sourceFile, input, diagnostics);
           const write = input.program.declarations.methodWrite(member);
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));

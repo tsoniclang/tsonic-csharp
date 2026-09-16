@@ -47,7 +47,11 @@ export function objectShapeDeclarationMatches(
   receiverBoundMethodKeys: ReadonlySet<string> = new Set(),
   frozen = false,
   referenceIdentity = false,
+  methodValueContracts: readonly CsharpTypeMember[] = [],
 ): boolean {
+  const actualContracts = declaration.members.filter(member =>
+    member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined);
+  if (JSON.stringify(actualContracts) !== JSON.stringify(methodValueContracts)) return false;
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
     return false;
@@ -146,6 +150,7 @@ export function objectShapeDeclarationMatches(
       return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
+      if (member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) return true;
       if (frozen && member.kind === "FieldDeclaration" && shapeFrozenStorageMatches(member, fact)) return true;
       return fact.members.some((candidate) =>
         candidate.bound === true

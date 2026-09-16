@@ -156,7 +156,8 @@ function publicTypeMember(
 ): readonly Readonly<Record<string, unknown>>[] {
   if (
     member.kind === "StaticConstructorDeclaration" ||
-    !hasExternallyVisibleAccessibility(member.modifiers)
+    (!hasExternallyVisibleAccessibility(member.modifiers) &&
+      !(member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined))
   ) {
     return Object.freeze([]);
   }
@@ -191,6 +192,7 @@ function publicTypeMember(
       return [Object.freeze({
         kind: member.kind,
         name: member.name,
+        explicitInterface: member.explicitInterface,
         modifiers: publicModifiers(member.modifiers),
         attributes: member.attributes,
         type: member.type,

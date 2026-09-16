@@ -194,6 +194,11 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
   const typeParameters = context.printTypeParameters(method.typeParameters);
   const constraintLines = context.printTypeParameterConstraintLines(method.typeParameters);
   const parameters = method.parameters.map(context.printParameter).join(", ");
+  if (method.body === undefined) {
+    const header = `${modifiers}${context.printType(method.returnType)} ${method.name}${typeParameters}(${parameters})`;
+    const signature = [header, ...constraintLines];
+    return [...context.printAttributes(method.attributes), ...signature.slice(0, -1), `${signature[signature.length - 1]};`];
+  }
   return [
     ...context.printAttributes(method.attributes),
     `${modifiers}${context.printType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
@@ -206,6 +211,7 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
 
 function printPropertyLines(property: CsharpPropertyDeclaration, context: CsharpPrintContext): string[] {
   const modifiers = property.modifiers.length === 0 ? "" : `${property.modifiers.join(" ")} `;
+  const qualifier = property.explicitInterface === undefined ? "" : `${context.printType(property.explicitInterface)}.`;
   const initializer = property.initializer === undefined ? "" : ` = ${context.printExpression(property.initializer)};`;
   const accessors: string[] = [];
   if (property.autoGetter === true) {
@@ -224,7 +230,7 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
   }
   return [
     ...context.printAttributes(property.attributes),
-    `${modifiers}${context.printType(property.type)} ${property.name}`,
+    `${modifiers}${context.printType(property.type)} ${qualifier}${property.name}`,
     "{",
     ...indentLines(accessors),
     `}${initializer}`,

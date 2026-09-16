@@ -89,6 +89,7 @@ export function collectCapabilityClosure(
       return scope.collectJsonClosure(type, preferredShape, pendingShapes);
     case "js-freeze":
     case "reference-identity":
+    case "method-values":
       return collectCsharpReferenceClosure(scope, type, preferredShape, pendingShapes, capability);
   }
 }

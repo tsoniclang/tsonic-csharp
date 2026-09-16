@@ -58,7 +58,7 @@ export function planMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "method declaration", diagnostics, ["abstract"]);
   const state = createDestructuringPlannerState(node, input.program.source.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const declaredReturnTargetType = getDeclarationReturnTargetType(
@@ -79,6 +79,14 @@ export function planMethodDeclaration(
     input,
     diagnostics,
   );
+  if (input.program.source.ast.hasModifierKind(node, "abstract")) {
+    return {
+      kind: "MethodDeclaration", name, modifiers,
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+      returnType: declaredReturnType, parameters: parameters.parameters,
+    };
+  }
   if (hasCsharpGeneratorSyntax(node, input)) {
     const generator = planCsharpGeneratorFunction(
       node,

@@ -15,6 +15,7 @@ import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -113,7 +114,7 @@ export function resolveAuthoredAndSelectedSourceType(
 
 
 export function resolveSourceCallInstantiation(
-  { inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
+  { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType, sourceParameterUsesOnlyNullableCarrier }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -178,7 +179,7 @@ export function resolveSourceCallInstantiation(
     ) {
       return undefined;
     }
-    const targetArgument = selected.explicitTypeNode === undefined
+    let targetArgument = selected.explicitTypeNode === undefined
       ? inferredTargetArguments.get(selected.typeParameterName) ??
         resolveAuthoredAndSelectedSourceType(
           undefined,
@@ -196,6 +197,16 @@ export function resolveSourceCallInstantiation(
         );
     if (targetArgument === undefined) {
       return undefined;
+    }
+    const declaration = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+    const queries = host.semantics(sourceFile);
+    const symbol = queries.declarations.typeSymbol(selected.typeParameter);
+    const parameters = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
+      .filter(candidate => host.ast.is.IsTypeParameterDeclaration(candidate));
+    const parameter = parameters.length === 1 ? parameters[0] : undefined;
+    if (declaration !== undefined && parameter !== undefined &&
+      sourceParameterUsesOnlyNullableCarrier(declaration, parameter)) {
+      targetArgument = csharpNullableTargetType(targetArgument);
     }
     selectedParameters.add(selected.typeParameter);
     substitutions.set(selected.typeParameterName, targetArgument);

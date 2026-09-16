@@ -71,7 +71,7 @@ export interface CsharpMethodDeclaration {
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
   readonly parameters: readonly CsharpParameter[];
-  readonly body: CsharpBlock;
+  readonly body?: CsharpBlock;
 }
 
 export interface CsharpTypeParameter {
@@ -95,6 +95,7 @@ export interface CsharpFieldDeclaration {
 
 export interface CsharpPropertyDeclaration {
   readonly kind: "PropertyDeclaration";
+  readonly explicitInterface?: CsharpTypeNode;
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
@@ -133,4 +134,4 @@ export interface CsharpAttribute {
 
 export type CsharpAttributeTargetSpecifier = "field" | "property" | "param" | "return";
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "required" | "virtual" | "override" | "async" | "safe" | "unsafe";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "required" | "abstract" | "virtual" | "override" | "async" | "safe" | "unsafe";

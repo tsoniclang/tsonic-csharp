@@ -170,6 +170,14 @@ function planObjectShapeRestBindingElement(
       return undefined;
     }
     const sourceMember = sourceMemberLookup.member;
+    if (sourceMember.memberKind === "method") {
+      const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType,
+        sourceFile, "method-values", "object-shape");
+      if (required.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(elementNode, required.reason));
+        return undefined;
+      }
+    }
     if (!targetTypeRefEquals(sourceMember.type, restMember.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
       return undefined;

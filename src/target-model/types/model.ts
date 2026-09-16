@@ -286,6 +286,7 @@ export interface CsharpSourceArgumentAdapter {
 export type CsharpObjectShapeCapability =
   | "json-serialization"
   | "reference-identity"
+  | "method-values"
   | "js-freeze";
 
 export type CsharpObjectShapeProjectionKind =

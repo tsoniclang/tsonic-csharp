@@ -186,6 +186,10 @@ export function validateObjectShapeBatch(
         `Capability-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
     }
+    if (capabilitiesByShape.get(key)?.has("method-values") &&
+      ((records.get(key)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(key)?.size ?? 0) > 0)) {
+      return rejected("Copying a receiver-bearing method requires an exact shared receiver contract; a bound CLR delegate is not equivalent.");
+    }
   }
   for (const key of projectionsByShape.keys()) {
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
@@ -196,6 +200,9 @@ export function validateObjectShapeBatch(
     }
   }
   for (const [key, methodKeys] of receiverBoundMethodsByShape) {
+    if (methodKeys.size > 0 && (records.get(key)?.capabilities.has("method-values") || capabilitiesByShape.get(key)?.has("method-values"))) {
+      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
+    }
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
     if (candidate === undefined) {
       return rejected(

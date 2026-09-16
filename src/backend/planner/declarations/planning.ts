@@ -73,7 +73,7 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
   const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
@@ -114,7 +114,7 @@ export function planClassDeclaration(
   return {
     kind: "ClassDeclaration",
     name: className,
-    modifiers: ["public"],
+    modifiers: input.program.source.ast.hasModifierKind(node, "abstract") ? ["public", "abstract"] : ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),

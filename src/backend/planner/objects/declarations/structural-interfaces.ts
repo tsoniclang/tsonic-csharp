@@ -4,11 +4,17 @@ import type { CsharpInterfaceMember } from "../../../target-ast/roslyn/index.js"
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 
-export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications): readonly CsharpInterfaceMember[] | undefined {
+export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
+      if (methodValues) {
+        const type = csharpTypeFromTargetTypeRef(member.type);
+        if (type === undefined) return undefined;
+        result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
+      }
       const signature = getCsharpDelegateSignature(member.type);
       if (signature === undefined) return undefined;
       const returnType = csharpTypeFromTargetTypeRef(signature.returnType);

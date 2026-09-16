@@ -1,14 +1,14 @@
 import type { CsharpArtifactGraphScope } from "../engine.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../../target-model/types/index.js";
 import { isCsharpValueTypeTargetType, targetTypeRefEquals, targetTypeRefKey } from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey } from "./identity.js";
+import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
 
 export function collectCsharpReferenceClosure(
   scope: CsharpArtifactGraphScope,
   type: TargetTypeRef,
   preferred: CsharpObjectShapeFact | undefined,
   pending: ReadonlyMap<string, CsharpObjectShapeFact>,
-  capability: "js-freeze" | "reference-identity",
+  capability: "js-freeze" | "reference-identity" | "method-values",
 ): { readonly kind: "accepted"; readonly shapes: ReadonlyMap<string, CsharpObjectShapeFact> }
   | { readonly kind: "rejected"; readonly reason: string } {
   const root = preferred ?? scope.host.objectShapes.resolveTarget(type);
@@ -29,6 +29,9 @@ export function collectCsharpReferenceClosure(
     const shape = work[index]!;
     const key = objectShapeArtifactKey(shape);
     if (shapes.has(key)) continue;
+    if (capability === "method-values" && isSourceDeclaredNominalShape(shape)) {
+      return { kind: "rejected", reason: "Copying method values requires exact own callable storage, not a nominal prototype method." };
+    }
     if (isCsharpValueTypeTargetType(shape.targetType) || capability === "js-freeze" && shape.members.some(member => member.bound === true)) {
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage or an unprotected bound write route.` };
     }

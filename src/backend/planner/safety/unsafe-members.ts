@@ -53,11 +53,12 @@ export function typeMemberRequiresUnsafe(member: CsharpTypeMember): boolean {
       return csharpTypeRequiresUnsafe(member.returnType) ||
         typeParametersRequireUnsafe(member.typeParameters) ||
         member.parameters.some((parameter) => parameterRequiresUnsafe(parameter, (expression) => optionalExpressionRequiresUnsafe(expression, blockRequiresUnsafe))) ||
-        blockRequiresUnsafe(member.body);
+        optionalBlockRequiresUnsafe(member.body);
     case "FieldDeclaration":
       return csharpTypeRequiresUnsafe(member.type) || optionalExpressionRequiresUnsafe(member.initializer, blockRequiresUnsafe);
     case "PropertyDeclaration":
       return csharpTypeRequiresUnsafe(member.type) ||
+        (member.explicitInterface !== undefined && csharpTypeRequiresUnsafe(member.explicitInterface)) ||
         optionalBlockRequiresUnsafe(member.getter) ||
         optionalBlockRequiresUnsafe(member.setter);
   }
@@ -151,7 +152,7 @@ function typeMemberRequiresUnsafePermission(
           parameter.defaultValue,
           blockRequiresUnsafePermission,
         )
-      ) || blockRequiresUnsafePermission(member.body);
+      ) || (member.body !== undefined && blockRequiresUnsafePermission(member.body));
     case "FieldDeclaration":
       return optionalExpressionRequiresUnsafePermission(
         member.initializer,

@@ -4,7 +4,6 @@ import {
   getCsharpJsArrayElementTargetType,
   getCsharpNullableElementTargetType,
   isCsharpRuntimeUndefinedTargetType,
-  isCsharpValueTypeTargetType,
 } from "../../../types/index.js";
 import type { TargetTypeRef } from "../../../types/index.js";
 import { isUndefinedType } from "../../../types/resolution/source-evidence.js";
@@ -12,7 +11,7 @@ import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../../t
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
 
 export interface CsharpArrayCopySelection {
-  readonly method: "fromDense" | "fromOptionalValue" | "fromOptionalReference" | "fromUndefined" | "CopyDense";
+  readonly method: "fromDense" | "fromOptional" | "fromUndefined" | "CopyDense";
   readonly sourceType: TargetTypeRef;
   readonly typeArguments: readonly TargetTypeRef[];
 }
@@ -43,10 +42,10 @@ export function selectCsharpArrayCopy(
     return { method: "fromUndefined", sourceType, typeArguments: [] };
   }
   const payload = getCsharpNullableElementTargetType(element);
-  if (payload === undefined || payload.kind === "type-parameter") return undefined;
+  if (payload === undefined) return undefined;
   return {
-    method: isCsharpValueTypeTargetType(payload) ? "fromOptionalValue" : "fromOptionalReference",
+    method: "fromOptional",
     sourceType,
-    typeArguments: [payload],
+    typeArguments: [element],
   };
 }
