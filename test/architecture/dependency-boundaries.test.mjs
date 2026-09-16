@@ -182,7 +182,7 @@ test("sealed C# classification queries cannot delegate to analysis policy", () =
   const nameQuery = sourceSection(
     names,
     "function resolve(",
-    "return Object.freeze({ resolve });",
+    "function visitNames(node: Node): void",
   );
   assert.doesNotMatch(nameQuery, /\bhost\./u);
 });
