@@ -42,7 +42,7 @@ test("direct C# binding translation preserves tuple ordinals, defaults, rests, o
             int count = __tsonic_destructure1.Item2;
             User __tsonic_destructure2 = user;
             int age = __tsonic_destructure2.age ?? 0;
-            ObjectShape_0b8e655cafa6 identity = new ObjectShape_0b8e655cafa6
+            ObjectShape_35ca8b76b122 identity = new ObjectShape_35ca8b76b122
             {
                 name = __tsonic_destructure2.name,
                 active = __tsonic_destructure2.active,
@@ -67,7 +67,7 @@ test("direct C# binding translation preserves tuple ordinals, defaults, rests, o
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_0b8e655cafa6
+    public class ObjectShape_35ca8b76b122
     {
         public required bool active;
         public required string name;

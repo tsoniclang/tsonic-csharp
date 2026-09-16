@@ -36,8 +36,12 @@ import { compoundIndexedWriteSource } from "../../../../tsonic/test/fixtures/com
 import { bigintOperatorSource } from "../../../../tsonic/test/fixtures/bigint-operators.mjs";
 import { jsNumericPropertySource } from "../../../../tsonic/test/fixtures/js-numeric-properties.mjs";
 import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class-reads.mjs";
+import { referenceDefaultSource } from "../../../../tsonic/test/fixtures/reference-defaults.mjs";
 
 for (const surface of [undefined, "js"]) {
+  test(`reference defaults remain lazy for methods and delegates (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: referenceDefaultSource }), `reference-defaults-${surface ?? "native"}`);
+  });
   test(`class flow reads preserve declaration storage and selected members (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: flowClassReadSource }), `flow-class-reads-${surface ?? "native"}`);
   });

@@ -47,9 +47,9 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_3b2e57fabdb0 clone(ObjectShape_3b2e57fabdb0 input)
+        public static ObjectShape_95fcda96bb5b clone(ObjectShape_e6a7fc267655 input)
         {
-            return new ObjectShape_3b2e57fabdb0
+            return new ObjectShape_a7d9e2e4b81d
             {
                 id = input.id,
                 label = input.label,
@@ -62,10 +62,28 @@ test("direct C# translation derives mapped utility shapes from exact project mem
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_3b2e57fabdb0
+    public interface ObjectShape_95fcda96bb5b
     {
-        public required double id;
-        public required string label;
+        double id { get; set; }
+        string label { get; set; }
+    }
+    public class ObjectShape_a7d9e2e4b81d : ObjectShape_95fcda96bb5b
+    {
+        public required double id
+        {
+            get;
+            set;
+        }
+        public required string label
+        {
+            get;
+            set;
+        }
+    }
+    public interface ObjectShape_e6a7fc267655
+    {
+        double id { get; }
+        string label { get; }
     }
 }
 `,
@@ -96,14 +114,14 @@ test("direct C# translation coalesces duplicate structural union carriers withou
 {
     public static class Index
     {
-        public static double score(ObjectShape_baf0d8f7d255 result)
+        public static double score(ObjectShape_4005929040f1 result)
         {
             if (result.kind == "found")
             {
-                ObjectShape_baf0d8f7d255 found = result;
+                ObjectShape_4005929040f1 found = result;
                 return found.value + 1;
             }
-            ObjectShape_baf0d8f7d255 missing = result;
+            ObjectShape_4005929040f1 missing = result;
             return missing.value - 1;
         }
     }
@@ -113,10 +131,10 @@ test("direct C# translation coalesces duplicate structural union carriers withou
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_baf0d8f7d255
+    public interface ObjectShape_4005929040f1
     {
-        public required string kind;
-        public required double value;
+        string kind { get; set; }
+        double value { get; set; }
     }
 }
 `,
@@ -140,11 +158,11 @@ test("structural object-shape identity is independent of source member order", (
 {
     public static class Index
     {
-        public static ObjectShape_d9a1071fa28f left(ObjectShape_d9a1071fa28f value)
+        public static ObjectShape_497d3d34ede6 left(ObjectShape_497d3d34ede6 value)
         {
             return value;
         }
-        public static ObjectShape_d9a1071fa28f right(ObjectShape_d9a1071fa28f value)
+        public static ObjectShape_497d3d34ede6 right(ObjectShape_497d3d34ede6 value)
         {
             return value;
         }
@@ -155,10 +173,10 @@ test("structural object-shape identity is independent of source member order", (
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_d9a1071fa28f
+    public interface ObjectShape_497d3d34ede6
     {
-        public required double alpha;
-        public required string zeta;
+        string zeta { get; set; }
+        double alpha { get; set; }
     }
 }
 `,
@@ -209,7 +227,8 @@ test("object-literal callable properties remain ordinary delegates and reject un
   assert.deepEqual(accepted.extensionDiagnostics, []);
   assert.deepEqual(accepted.targetDiagnostics, []);
   const shapes = accepted.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
-  assert.match(shapes, /public required Func<double, double> run;/u);
+  assert.match(shapes, /Func<double, double> run \{ get; set; \}/u);
+  assert.match(shapes, /public required Func<double, double> run\s*\{\s*get;\s*set;\s*\}/u);
   assert.doesNotMatch(shapes, /__tsonic_shape_method_/u);
 
   const rejected = compileCsharpSource({
