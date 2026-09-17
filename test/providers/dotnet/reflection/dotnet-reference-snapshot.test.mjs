@@ -95,6 +95,30 @@ test("reference content determines the snapshot digest even when file size is un
   assert.notEqual(first.digest, third.digest);
 });
 
+test("selected platform assemblies join the same immutable snapshot and mutation guard", () => {
+  const platformDirectory = makeReferenceDirectory("platform");
+  const references = makeReferenceDirectory("application");
+  const options = { referenceDirectory: references, references: [], platformDirectory };
+  const snapshot = createDotnetReferenceSnapshot(options);
+  assert.equal(snapshot.uniqueFileCount, 4);
+  const original = snapshot.digest;
+  writeFileSync(join(platformDirectory, "Alpha.dll"), "ALPHA-ASSEMBLY-BYTES");
+  assert.notEqual(createDotnetReferenceSnapshot(options).digest, original);
+  assert.equal(snapshot.verify().path, join(platformDirectory, "Alpha.dll"));
+  const current = createDotnetReferenceSnapshot(options);
+  writeFileSync(join(platformDirectory, "Added.dll"), "new platform assembly");
+  assert.equal(current.verify().path, platformDirectory);
+});
+
+test("a different selected platform cannot reuse the former framework snapshot", () => {
+  const first = makeReferenceDirectory("platform-first");
+  const second = makeReferenceDirectory("platform-second");
+  const firstSnapshot = createDotnetReferenceSnapshot({ references: [], platformDirectory: first });
+  const secondSnapshot = createDotnetReferenceSnapshot({ references: [], platformDirectory: second });
+  assert.notEqual(firstSnapshot.digest, secondSnapshot.digest);
+  assert.notEqual(cacheRequest(firstSnapshot).referenceSnapshotDigest, cacheRequest(secondSnapshot).referenceSnapshotDigest);
+});
+
 test("reference file and directory-membership mutations fail closed", () => {
   const contentDirectory = makeReferenceDirectory("content-mutation");
   const contentSnapshot = createDotnetReferenceSnapshot({

@@ -106,6 +106,7 @@ export function collectCsharpCapabilityContributions(
 export function createCapabilityDotnetProviders(
   contributions: CollectedCsharpCapabilityContributions,
   storage: CsharpDotnetProviderStorage,
+  toolchain: import("./reflection/tool/toolchain.js").DotnetProviderToolchain,
 ): readonly CsharpCapabilityDotnetProvider[] {
   const providers: CsharpCapabilityDotnetProvider[] = [];
   const identities = new Set<string>();
@@ -120,13 +121,17 @@ export function createCapabilityDotnetProviders(
       );
     }
     identities.add(identity);
+    if (contribution.targetFramework !== undefined && contribution.targetFramework !== toolchain.targetFramework) {
+      throw new Error(`C# provider '${contribution.providerIdentity.id}' requires '${contribution.targetFramework}', not the selected '${toolchain.targetFramework}'.`);
+    }
     providers.push(Object.freeze({
       provider: createDotnetReflectionTypeDataProvider({
+        toolchain,
+        targetFramework: toolchain.targetFramework,
         providerIdentity: contribution.providerIdentity,
         moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,
         referenceDirectory: fileURLToPath(contribution.referenceDirectoryUrl),
         assemblySourcePackages: contribution.assemblySourcePackages,
-        targetFramework: contribution.targetFramework,
         storage,
       }),
       moduleSpecifierPolicy: contribution.moduleSpecifierPolicy,

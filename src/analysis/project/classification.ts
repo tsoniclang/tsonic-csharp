@@ -22,6 +22,8 @@ import type {
 import type {
   CsharpProjectClassifications,
 } from "./model.js";
+import type { CsharpRuntimeSourceProject } from "../../target-model/project/runtime.js";
+import { classifyCsharpRuntimeSource, validateCsharpRuntimeSources } from "./runtime-sources.js";
 
 const targetOwnedProjectProperties = new Set([
   "AllowUnsafeBlocks",
@@ -48,6 +50,8 @@ export function analyzeCsharpProject(
     diagnostics,
   );
   const runtimeProjectReferences: CsharpProjectReference[] = [];
+  let runtimeSources: readonly CsharpRuntimeSourceProject[] = [];
+  const collectedRuntimeSources: CsharpRuntimeSourceProject[] = [];
   for (let index = 0; index < runtimeReferences.length; index += 1) {
     if (!(index in runtimeReferences)) {
       diagnostics.push(projectDiagnostic(
@@ -57,12 +61,26 @@ export function analyzeCsharpProject(
       ));
       continue;
     }
-    const result = csharpRuntimeProjectReference(runtimeReferences[index], index);
+    const runtimeReference = runtimeReferences[index];
+    if (runtimeReference?.kind === "csharp-source-project") {
+      try {
+        collectedRuntimeSources.push(classifyCsharpRuntimeSource(runtimeReference));
+      } catch (error) {
+        diagnostics.push(projectDiagnostic("CSHARP_RUNTIME_REFERENCE_INVALID", String(error), [`runtime.reference.index=${index}`]));
+      }
+      continue;
+    }
+    const result = csharpRuntimeProjectReference(runtimeReference, index);
     if (result.kind === "rejected") {
       diagnostics.push(result.diagnostic);
       continue;
     }
     runtimeProjectReferences.push(result.reference);
+  }
+  try {
+    runtimeSources = validateCsharpRuntimeSources(collectedRuntimeSources);
+  } catch (error) {
+    diagnostics.push(projectDiagnostic("CSHARP_RUNTIME_REFERENCE_INVALID", String(error), []));
   }
   const references = canonicalProjectReferences(
     [...configuration.references, ...runtimeProjectReferences],
@@ -82,6 +100,7 @@ export function analyzeCsharpProject(
     project: configuration.project,
     properties,
     references,
+    runtimeSources,
   }));
 }
 

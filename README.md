@@ -12,7 +12,7 @@ Canonical product documentation lives in the Tsonic repository:
 
 ## Use in a project
 
-Install Node.js 22.18 or newer and the .NET 10 SDK, then create, install, and
+Install Node.js 22.18 or newer and a .NET SDK for your selected framework, then create, install, and
 run a complete project:
 
 ```sh

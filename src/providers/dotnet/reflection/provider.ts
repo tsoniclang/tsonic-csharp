@@ -100,6 +100,8 @@ import {
 import {
   dotnetReflectionProviderIdentity,
 } from "./provider-identity.js";
+import { defaultCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
+import type { DotnetProviderToolchain } from "./tool/toolchain.js";
 import {
   createDotnetReferenceSnapshot,
 } from "./reference-snapshot.js";
@@ -121,6 +123,8 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly disablePersistentCache?: boolean;
   readonly providerBroker?: DotnetReflectionProviderBroker;
   readonly telemetry?: DotnetProviderTelemetry;
+  readonly projectDirectory?: string;
+  readonly toolchain?: DotnetProviderToolchain;
 }
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
@@ -152,6 +156,7 @@ export function createDotnetReflectionTypeDataProvider(
     providerIdentity,
     moduleSpecifierPolicy,
     assemblySourcePackages,
+    targetFramework: options.targetFramework ?? defaultCsharpTargetFramework,
   };
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
@@ -167,12 +172,16 @@ export function createDotnetReflectionTypeDataProvider(
     toolProjectPath,
     toolBuildRoot: storage.toolBuildRoot,
     telemetry,
+    targetFramework: reflectionOptions.targetFramework,
+    ...(options.projectDirectory === undefined ? {} : { projectDirectory: options.projectDirectory }),
+    ...(options.toolchain === undefined ? {} : { toolchain: options.toolchain }),
   });
   const providerBroker = options.providerBroker;
   const persistentCache = options.disablePersistentCache === true
     ? undefined
     : createDotnetProviderCache(storage.cacheRoot, telemetry);
   const referenceSnapshot = createDotnetReferenceSnapshot({
+    platformDirectory: toolRunner.identity.platformDirectory,
     referenceDirectory: options.referenceDirectory,
     references: options.references ?? [],
     telemetry,
@@ -181,6 +190,8 @@ export function createDotnetReflectionTypeDataProvider(
   function loadModule(specifier: string, context: DotnetProviderDeclarationContext): DotnetProviderModuleResult {
     telemetry.request("module");
     telemetry.moduleRequest(context);
+    const frameworkDiagnostic = validateDotnetReflectionTargetFramework(context, reflectionOptions);
+    if (frameworkDiagnostic !== undefined) return frameworkDiagnostic;
     const parsed = parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy);
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });

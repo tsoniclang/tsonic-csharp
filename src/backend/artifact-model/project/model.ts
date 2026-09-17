@@ -4,6 +4,7 @@ import type {
 import type {
   CsharpProjectProperty,
 } from "../../../target-model/project/model.js";
+import type { CsharpRuntimeProjectInstance } from "./runtime.js";
 
 export type { CsharpProjectReference } from "../../../target-model/project/references.js";
 export type { CsharpProjectProperty } from "../../../target-model/project/model.js";
@@ -13,6 +14,7 @@ export interface CsharpProjectFile {
   readonly path: string;
   readonly properties: readonly CsharpProjectProperty[];
   readonly references: readonly CsharpProjectReference[];
+  readonly runtimeProjects: readonly CsharpRuntimeProjectInstance[];
 }
 
 export type CsharpProjectPlan =

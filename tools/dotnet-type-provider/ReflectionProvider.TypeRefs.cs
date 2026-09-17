@@ -775,7 +775,7 @@ sealed partial class ReflectionProvider
     string? SourcePackageForType(Type type)
     {
         var location = type.Assembly.Location;
-        var runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location);
+        var runtimeDirectory = request.PlatformDirectory;
         if (!string.IsNullOrEmpty(location) && runtimeDirectory is not null && StringComparer.Ordinal.Equals(Path.GetDirectoryName(Path.GetFullPath(location)), Path.GetFullPath(runtimeDirectory)))
         {
             return "@tsonic/dotnet";

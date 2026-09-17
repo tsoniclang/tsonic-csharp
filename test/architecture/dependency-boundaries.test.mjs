@@ -241,7 +241,7 @@ test("C# conversion analysis seals sparse exact uses without a type Cartesian pr
 
 test("C# runtime-reference construction has one owner and preserves core target requirements", () => {
   const helper = readFileSync(
-    resolve(repositoryRoot, "src/compilation/runtime-references.ts"),
+    resolve(repositoryRoot, "src/providers/runtime/source-projects.ts"),
     "utf8",
   );
   const session = readFileSync(
@@ -253,13 +253,13 @@ test("C# runtime-reference construction has one owner and preserves core target 
     "utf8",
   );
 
-  assert.match(helper, /export function csharpRuntimeAssemblyReference/u);
-  assert.doesNotMatch(session, /function csharpRuntimeAssemblyReference/u);
-  assert.doesNotMatch(composition, /function csharpRuntimeAssemblyReference/u);
-  assert.match(session, /"@tsonic\/csharp-runtime"/u);
-  assert.doesNotMatch(session, /"@tsonic\/csharp-js"/u);
-  assert.match(composition, /"@tsonic\/csharp-js"/u);
-  assert.doesNotMatch(composition, /"@tsonic\/csharp-runtime"/u);
+  assert.match(helper, /export function csharpRuntimeSourceContributions/u);
+  assert.doesNotMatch(session, /function csharpRuntimeSourceContributions/u);
+  assert.doesNotMatch(composition, /function csharpRuntimeSourceContributions/u);
+  assert.match(session, /csharpCoreRuntimeSource/u);
+  assert.doesNotMatch(session, /csharpJsRuntimeSource/u);
+  assert.match(composition, /csharpJsRuntimeSource/u);
+  assert.match(helper, /TsonicCsharpRuntimeProject/u);
 });
 
 test("compiler-intrinsic value carriers belong to the core C# runtime", () => {

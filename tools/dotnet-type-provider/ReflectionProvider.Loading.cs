@@ -77,13 +77,17 @@ sealed partial class ReflectionProvider
     IEnumerable<string> RuntimeAssemblyPaths()
     {
         var paths = new SortedSet<string>(StringComparer.Ordinal);
-        var runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        if (runtimeDirectory is not null)
+        var runtimeDirectory = request.PlatformDirectory;
+        if (Directory.Exists(runtimeDirectory))
         {
             foreach (var path in Directory.EnumerateFiles(runtimeDirectory, "*.dll"))
             {
                 paths.Add(Path.GetFullPath(path));
             }
+        }
+        else
+        {
+            throw new InvalidOperationException($"Selected .NET platform directory '{runtimeDirectory}' does not exist.");
         }
         return paths;
     }

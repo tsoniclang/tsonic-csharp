@@ -20,6 +20,7 @@ export interface DotnetReferenceSnapshotMutation {
 }
 
 export interface CreateDotnetReferenceSnapshotInput {
+  readonly platformDirectory?: string;
   readonly referenceDirectory: string | undefined;
   readonly references: readonly string[];
   readonly telemetry?: DotnetProviderTelemetry;
@@ -88,6 +89,13 @@ export function createDotnetReferenceSnapshot(
   };
 
   const referenceDirectory = snapshotReferenceDirectory(input.referenceDirectory);
+  const platformDirectory = snapshotReferenceDirectory(input.platformDirectory);
+  if (platformDirectory.kind !== "none" && platformDirectory.kind !== "directory") {
+    throw new Error(`Selected .NET platform directory is unavailable: '${platformDirectory.path}'.`);
+  }
+  const platformIdentities = platformDirectory.kind === "directory"
+    ? platformDirectory.files.map(identityFor)
+    : [];
   const directoryIdentities = referenceDirectory.kind === "directory"
     ? referenceDirectory.files.map(identityFor)
     : referenceDirectory.kind === "none"
@@ -100,7 +108,7 @@ export function createDotnetReferenceSnapshot(
   const references = uniqueResolvedPaths(input.references);
   const referenceIdentities = references.map(identityFor);
   const digest = createHash("sha256")
-    .update(JSON.stringify({ directoryIdentities, referenceIdentities }))
+    .update(JSON.stringify({ platformIdentities, directoryIdentities, referenceIdentities }))
     .digest("hex");
 
   input.telemetry?.referenceSnapshot(
@@ -126,15 +134,16 @@ export function createDotnetReferenceSnapshot(
       if (initialMutation !== undefined) {
         return initialMutation;
       }
-      if (referenceDirectory.kind !== "none") {
+      for (const directory of [referenceDirectory, platformDirectory]) {
+        if (directory.kind === "none") continue;
         try {
-          const directoryMutation = verifyReferenceDirectory(referenceDirectory);
+          const directoryMutation = verifyReferenceDirectory(directory);
           if (directoryMutation !== undefined) {
             return directoryMutation;
           }
         } catch {
           return {
-            path: referenceDirectory.path,
+            path: directory.path,
             reason: "reference directory could not be verified during compilation",
           };
         }
