@@ -191,7 +191,7 @@ function sourceArtifacts(compiled) {
   const artifacts = Object.fromEntries(compiled.artifacts);
   const project = artifacts["TsonicGenerated.csproj"];
   assert.match(project, /<OutputType>Library<\/OutputType>/u);
-  assert.match(project, /<Reference Include="Tsonic\.CSharp\.Runtime" HintPath="[^"]+\/Tsonic\.CSharp\.Runtime\.dll" \/>/u);
+  assert.match(project, /<ProjectReference Include="[^"]+\/csharp\/runtime\/net10\.0\/[a-f0-9]{64}\/Tsonic\.CSharp\.Runtime\.csproj" \/>/u);
   assert.doesNotMatch(project, /Tsonic\.CSharp\.Js/u);
   delete artifacts["TsonicGenerated.csproj"];
   return artifacts;

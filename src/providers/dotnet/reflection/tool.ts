@@ -32,16 +32,18 @@ export function createDotnetProviderToolRunner(options: DotnetProviderToolRunner
       projectPath: paths.projectPath,
       sourceHash: paths.sourceHash,
       dllPath: paths.dllPath,
+      sdkVersion: paths.toolchain.sdkVersion,
+      platformDirectory: paths.toolchain.platformDirectory,
     },
     run(args: readonly string[]): DotnetProviderToolResult {
-      ensureProviderToolBuilt(paths.projectPath, paths.buildRoot, paths.dllPath, options.telemetry);
+      ensureProviderToolBuilt(paths.projectPath, paths.buildRoot, paths.dllPath, options.telemetry, paths.toolchain);
       const startedAt = performance.now();
       const result = runProviderToolWorker(
         paths.projectPath,
         paths.sourceHash,
         paths.buildRoot,
         paths.dllPath,
-        args,
+        [...args, "--platform-dir", paths.toolchain.platformDirectory],
         options.telemetry,
       );
       options.telemetry.toolInvocation("server", performance.now() - startedAt);
@@ -57,10 +59,12 @@ export function createDotnetProviderCliToolRunner(options: DotnetProviderToolRun
       projectPath: paths.projectPath,
       sourceHash: paths.sourceHash,
       dllPath: paths.dllPath,
+      sdkVersion: paths.toolchain.sdkVersion,
+      platformDirectory: paths.toolchain.platformDirectory,
     },
     run(args: readonly string[]): DotnetProviderToolResult {
-      ensureProviderToolBuilt(paths.projectPath, paths.buildRoot, paths.dllPath, options.telemetry);
-      return runProviderToolCli(paths.dllPath, args, options.telemetry);
+      ensureProviderToolBuilt(paths.projectPath, paths.buildRoot, paths.dllPath, options.telemetry, paths.toolchain);
+      return runProviderToolCli(paths.dllPath, [...args, "--platform-dir", paths.toolchain.platformDirectory], options.telemetry);
     },
   };
 }

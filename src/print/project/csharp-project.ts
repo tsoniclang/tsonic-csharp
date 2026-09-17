@@ -52,7 +52,7 @@ function formatXmlItem(name: string, attributes: Readonly<Record<string, string 
   return `    <${name} ${renderedAttributes} />`;
 }
 
-function escapeXml(value: string): string {
+export function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

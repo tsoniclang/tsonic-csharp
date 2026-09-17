@@ -21,15 +21,15 @@ test("C# target owns one complete immutable starter descriptor", () => {
     contents: 'import { Console } from "@tsonic/dotnet/System.js";\n\nConsole.WriteLine("Hello from hello-csharp!");\n',
   }]);
   assert.deepEqual(starter.requirements, [{
-    id: "dotnet-sdk-10",
-    displayName: ".NET 10 SDK",
+    id: "dotnet-sdk",
+    displayName: ".NET SDK (10 or later)",
     checks: [{
       command: "dotnet",
       args: ["--list-sdks"],
-      expectedOutputPattern: "^10\\.0\\.[0-9]+",
+      expectedOutputPattern: "^(?:[1-9][0-9]+)\\.[0-9]+\\.[0-9]+",
     }],
-    installUrl: "https://dotnet.microsoft.com/en-us/download/dotnet/10.0",
-    installInstructions: "Install the .NET 10 SDK, not only the runtime.",
+    installUrl: "https://dotnet.microsoft.com/en-us/download/dotnet",
+    installInstructions: "Install a .NET 10-or-later SDK, not only the runtime. The starter defaults to net10.0; set target.options.targetFramework to the framework you intend to build and run.",
   }]);
   assert.equal(Object.isFrozen(starter), true);
 });

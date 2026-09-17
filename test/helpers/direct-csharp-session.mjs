@@ -54,7 +54,7 @@ function createCheckedCsharpSource(options) {
   };
   const sessionContext = {
     project,
-    projectDirectory: projectRoot,
+    projectDirectory: options.projectDirectory ?? fileURLToPath(new URL("../../", import.meta.url)),
     target,
     paths,
     selectedSurfaceIds: selectedSurfaces.map((surface) => surface.id),

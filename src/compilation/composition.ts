@@ -3,9 +3,6 @@ import type {
   TargetSurfaceImplementation,
 } from "@tsonic/target-api";
 import type {
-  TargetRuntimeContributionContext,
-} from "@tsonic/target-api/provider";
-import type {
   TargetRuntimeContributions,
 } from "@tsonic/target-api/artifacts";
 import {
@@ -15,7 +12,7 @@ import {
   createJsSourceSemanticsExtension,
   jsSourceSemanticsModules,
 } from "@tsonic/js-source-profile";
-import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
+import { csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
 
 export const csharpTargetProvider: TargetProviderDescriptor = Object.freeze({
   id: "csharp-provider",
@@ -37,18 +34,8 @@ export const csharpTargetSurfaces: readonly TargetSurfaceImplementation[] = Obje
         extensions: Object.freeze([createJsSourceSemanticsExtension()]),
       });
     },
-    runtimeContributions(
-      context: TargetRuntimeContributionContext,
-    ): TargetRuntimeContributions {
-      return Object.freeze({
-        references: Object.freeze([
-          csharpRuntimeAssemblyReference(
-            context,
-            "@tsonic/csharp-js",
-            "Tsonic.CSharp.Js",
-          ),
-        ]),
-      });
+    runtimeContributions(): TargetRuntimeContributions {
+      return csharpRuntimeSourceContributions(csharpJsRuntimeSource);
     },
   }),
 ]);

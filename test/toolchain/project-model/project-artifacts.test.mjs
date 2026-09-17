@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planCsharpProject, planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
@@ -20,6 +20,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const tsonicLangRoot = dirname(repoRoot);
 const fixtureProjectRoot = join(repoRoot, ".temp", "project-artifacts-installed-runtime");
 mkdirSync(fixtureProjectRoot, { recursive: true });
+writeFileSync(join(fixtureProjectRoot, "global.json"), readFileSync(join(repoRoot, "global.json")));
 
 test("project artifact emits explicit target-owned .NET references", () => {
   const project = planCsharpProjectFile(fakeInput({
@@ -252,7 +253,7 @@ test("project artifact includes runtime references only from selected target or 
   assert.match(withRuntimeReferences, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
-test("the JS surface alone contributes its canonical runtime assembly", () => {
+test("the JS surface alone contributes its canonical runtime source project", () => {
   const targetPack = createCsharpTargetPack();
   const jsSurface = targetPack.surfaces.find((surface) => surface.id === "js");
 
@@ -262,10 +263,10 @@ test("the JS surface alone contributes its canonical runtime assembly", () => {
   const references = targetRuntimeReferences(targetPack, []);
   const referencesWithJsSurface = targetRuntimeReferences(targetPack, ["js"]);
 
-  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 0);
-  assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Js").length, 1);
-  assert.equal(references.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Runtime").length, 1);
-  assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "assembly" && reference.include === "Tsonic.CSharp.Runtime").length, 1);
+  assert.equal(references.filter((reference) => reference.kind === "csharp-source-project" && reference.include.endsWith("/Tsonic.CSharp.Js.csproj")).length, 0);
+  assert.equal(referencesWithJsSurface.filter((reference) => reference.kind === "csharp-source-project" && reference.include.endsWith("/Tsonic.CSharp.Js.csproj")).length, 1);
+  assert.equal(references.filter((reference) => reference.kind === "csharp-source-project" && reference.include.endsWith("/Tsonic.CSharp.Runtime.csproj")).length, 1);
+  assert.equal(new Set(referencesWithJsSurface.filter((reference) => reference.kind === "csharp-source-project" && reference.include.endsWith("/Tsonic.CSharp.Runtime.csproj")).map(reference => reference.include)).size, 1);
 });
 
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {

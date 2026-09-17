@@ -35,7 +35,8 @@ import {
 import {
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
-import { csharpRuntimeAssemblyReference } from "./runtime-references.js";
+import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
+import { resolveDotnetProviderToolchain } from "../providers/dotnet/reflection/tool/toolchain.js";
 
 type CsharpCompilationSessionState =
   | "created"
@@ -58,6 +59,7 @@ export function createCsharpCompilationSession(
   );
   const binaryExecutionDriver =
     capabilityContributions.binaryExecutionDriver;
+  const toolchain = resolveDotnetProviderToolchain(context.projectDirectory, configuration.targetFramework);
   const providerStorage = Object.freeze({
     toolBuildRoot: resolve(
       context.paths.cacheRoot,
@@ -71,11 +73,13 @@ export function createCsharpCompilationSession(
   const builtInProvider = createDotnetReflectionTypeDataProvider({
     references: configuration.reflectionReferencePaths,
     targetFramework: configuration.targetFramework,
+    toolchain,
     storage: providerStorage,
   });
   const capabilityProviders = createCapabilityDotnetProviders(
     capabilityContributions,
     providerStorage,
+    toolchain,
   );
   const providers = Object.freeze([
     builtInProvider,
@@ -119,15 +123,7 @@ export function createCsharpCompilationSession(
     runtimeContributions(): TargetRuntimeContributions {
       requireState(state, "compiler-contributed", "runtimeContributions");
       state = "runtime-contributed";
-      return Object.freeze({
-        references: Object.freeze([
-          csharpRuntimeAssemblyReference(
-            context,
-            "@tsonic/csharp-runtime",
-            "Tsonic.CSharp.Runtime",
-          ),
-        ]),
-      });
+      return csharpRuntimeSourceContributions(csharpCoreRuntimeSource);
     },
     compile(input: TargetCompileInput): TargetCompileResult {
       requireState(state, "runtime-contributed", "compile");

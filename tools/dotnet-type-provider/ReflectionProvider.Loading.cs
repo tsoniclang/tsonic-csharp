@@ -77,13 +77,17 @@ sealed partial class ReflectionProvider
     IEnumerable<string> RuntimeAssemblyPaths()
     {
         var paths = new SortedSet<string>(StringComparer.Ordinal);
-        var runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        if (runtimeDirectory is not null)
+        var runtimeDirectory = request.PlatformDirectory;
+        if (Directory.Exists(runtimeDirectory))
         {
             foreach (var path in Directory.EnumerateFiles(runtimeDirectory, "*.dll"))
             {
                 paths.Add(Path.GetFullPath(path));
             }
+        }
+        else
+        {
+            throw new InvalidOperationException($"Selected .NET platform directory '{runtimeDirectory}' does not exist.");
         }
         return paths;
     }
@@ -190,11 +194,7 @@ sealed partial class ReflectionProvider
                 }
                 foreach (var reference in assembly.GetReferencedAssemblies())
                 {
-                    if (reference.FullName is not null && candidatesByIdentity.ContainsKey(reference.FullName))
-                    {
-                        continue;
-                    }
-                    if (HasDeterministicPlatformAssembly(reference))
+                    if (HasDeterministicAssembly(reference, candidatesByIdentity))
                     {
                         continue;
                     }
@@ -204,17 +204,22 @@ sealed partial class ReflectionProvider
             }
         }
 
-        bool HasDeterministicPlatformAssembly(AssemblyName reference)
+        bool HasDeterministicAssembly(AssemblyName reference, IReadOnlyDictionary<string, AssemblyCandidate> candidatesByIdentity)
         {
-            var candidates = rootCandidates
-                .Where(candidate => !candidate.IsExplicitReference && StringComparer.Ordinal.Equals(candidate.Name, reference.Name))
-                .ToArray();
-            if (candidates.Length != 1)
+            Assembly resolved;
+            try
+            {
+                resolved = context.LoadFromAssemblyName(reference);
+            }
+            catch (FileNotFoundException)
             {
                 return false;
             }
-            var candidate = new AssemblyName(candidates[0].Identity);
-            return StringComparer.Ordinal.Equals(candidate.CultureName ?? "", reference.CultureName ?? "") &&
+            var candidate = resolved.GetName();
+            return candidate.FullName is not null && candidatesByIdentity.ContainsKey(candidate.FullName) &&
+                StringComparer.OrdinalIgnoreCase.Equals(candidate.Name, reference.Name) &&
+                StringComparer.OrdinalIgnoreCase.Equals(candidate.CultureName ?? "", reference.CultureName ?? "") &&
+                candidate.Version is not null && reference.Version is not null && candidate.Version >= reference.Version &&
                 (candidate.GetPublicKeyToken() ?? []).SequenceEqual(reference.GetPublicKeyToken() ?? []);
         }
 

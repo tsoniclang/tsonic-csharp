@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, bool CompleteAllExports, IReadOnlyList<string> CompleteExports, IReadOnlyList<string> CompleteExportIds, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, string SourcePackage, IReadOnlyList<AssemblySourcePackage> AssemblySourcePackages, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, bool CompleteAllExports, IReadOnlyList<string> CompleteExports, IReadOnlyList<string> CompleteExportIds, string PlatformDirectory, string? ReferenceDirectory, IReadOnlyList<string> References, string? AssemblyName)
 {
     public static Request Parse(string[] args)
     {
@@ -21,6 +21,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         var completeExports = new List<string>();
         var completeExportIds = new List<string>();
         string? referenceDirectory = null;
+        string? platformDirectory = null;
         var references = new List<string>();
         string? assemblyName = null;
         for (var index = 0; index < args.Length; index++)
@@ -67,6 +68,13 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                 case "--reference-dir":
                     referenceDirectory = RequiredValue(args, ref index, arg);
                     break;
+                case "--platform-dir":
+                    if (platformDirectory is not null)
+                    {
+                        throw new InvalidOperationException("Argument '--platform-dir' must be specified exactly once.");
+                    }
+                    platformDirectory = RequiredValue(args, ref index, arg);
+                    break;
                 case "--reference":
                     references.Add(RequiredValue(args, ref index, arg));
                     break;
@@ -77,7 +85,12 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, completeAllExports, completeExports, completeExportIds, referenceDirectory, references, assemblyName);
+        if (platformDirectory is null || !Path.IsPathFullyQualified(platformDirectory) ||
+            !File.Exists(Path.Combine(platformDirectory, "System.Private.CoreLib.dll")))
+        {
+            throw new InvalidOperationException("Argument '--platform-dir' must select an installed .NET runtime directory.");
+        }
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, sourcePackage, assemblySourcePackages, allModules, exports, targetIds, metadataNames, completeAllExports, completeExports, completeExportIds, platformDirectory, referenceDirectory, references, assemblyName);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)

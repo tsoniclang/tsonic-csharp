@@ -274,13 +274,10 @@ test(".NET reflection provider preserves exact constructor facts including point
   assert.deepEqual(targetPointerConstructor.parameters[0].type, pointerConstructor.parameters[0].type);
 });
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
-  const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" });
-  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
-
-  assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
-  assert.match(module.message, /target framework is not supported/);
-  assert.match(JSON.stringify(module.evidence), /net10\.0/);
-  assert.match(JSON.stringify(module.evidence), /net9\.0/);
+  assert.throws(
+    () => createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" }),
+    /target framework 'net9\.0' must be a \.NET 10-or-later framework/u,
+  );
 });
 test(".NET reflection provider rejects missing explicit references instead of silently omitting them", () => {
   const provider = createDotnetReflectionTypeDataProvider({

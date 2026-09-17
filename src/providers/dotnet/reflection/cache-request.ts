@@ -30,8 +30,8 @@ import {
 import {
   dotnetReflectionProviderCacheAbiVersion,
   dotnetReflectionProviderIdentity,
-  dotnetReflectionSupportedTargetFramework,
 } from "./provider-identity.js";
+import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../../../target-model/configuration/framework.js";
 
 export interface DotnetReflectionCacheRequestOptions {
   readonly providerIdentity?: DotnetProviderIdentity;
@@ -58,7 +58,7 @@ export function createDotnetReflectionCacheRequest(
     providerId: input.options.providerIdentity?.id ?? dotnetReflectionProviderIdentity.id,
     providerVersion: input.options.providerIdentity?.version ?? dotnetReflectionProviderIdentity.version,
     providerCacheAbiVersion: dotnetReflectionProviderCacheAbiVersion,
-    targetFramework: input.context.targetFramework ?? input.options.targetFramework ?? dotnetReflectionSupportedTargetFramework,
+    targetFramework: input.context.targetFramework ?? input.options.targetFramework ?? defaultCsharpTargetFramework,
     moduleSpecifier: input.specifier,
     namespaceName: input.namespaceName,
     requestedExports: sortedNonEmpty(input.context.requestedExports),
@@ -77,14 +77,19 @@ export function validateDotnetReflectionTargetFramework(
   context: DotnetProviderDeclarationContext,
   options: DotnetReflectionCacheRequestOptions,
 ): DotnetProviderDiagnostic | undefined {
-  const targetFramework = context.targetFramework ?? options.targetFramework;
-  if (targetFramework === undefined || targetFramework === dotnetReflectionSupportedTargetFramework) {
-    return undefined;
+  const targetFramework = context.targetFramework ?? options.targetFramework ?? defaultCsharpTargetFramework;
+  try {
+    parseCsharpTargetFramework(targetFramework);
+  } catch (error) {
+    return diagnostic("DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED", String(error), { targetFramework });
   }
-  return diagnostic("DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED", ".NET reflection provider target framework is not supported by the active provider runtime.", {
-    supportedTargetFramework: dotnetReflectionSupportedTargetFramework,
-    targetFramework,
-  });
+  if (options.targetFramework !== undefined && options.targetFramework !== targetFramework) {
+    return diagnostic("DOTNET_REFLECTION_TARGET_FRAMEWORK_MISMATCH", ".NET reflection request does not match its compilation framework.", {
+      selectedTargetFramework: options.targetFramework,
+      targetFramework,
+    });
+  }
+  return undefined;
 }
 
 export function pushDotnetReflectionReferenceArgs(

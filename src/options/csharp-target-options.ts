@@ -22,6 +22,7 @@ import {
 import {
   resolveCsharpProjectConfiguration,
 } from "./csharp-user-project.js";
+import { defaultCsharpTargetFramework, parseCsharpTargetFramework } from "../target-model/configuration/framework.js";
 
 export type {
   CsharpLanguageDialect,
@@ -49,6 +50,7 @@ const supportedCsharpTargetOptionKeys = Object.freeze([
 
 export function validateCsharpTargetOptions(target: TargetSelection): void {
   validateCsharpTargetOptionKeys(target);
+  readCsharpTargetFramework(target);
   validateCsharpSafetyConfiguration(
     readCsharpLanguageDialect(target),
     readCsharpMemorySafetyRules(target),
@@ -116,7 +118,9 @@ export function createCsharpTargetConfiguration(
 }
 
 export function readCsharpTargetFramework(target: TargetSelection): string {
-  return readStringOption(target, "targetFramework", "net10.0");
+  const value = readStringOption(target, "targetFramework", defaultCsharpTargetFramework);
+  parseCsharpTargetFramework(value);
+  return value;
 }
 
 export function readCsharpLanguageDialect(

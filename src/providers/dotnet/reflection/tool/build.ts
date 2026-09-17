@@ -5,12 +5,14 @@ import { performance } from "node:perf_hooks";
 import type {
   DotnetProviderTelemetry,
 } from "../telemetry.js";
+import type { DotnetProviderToolchain } from "./toolchain.js";
 
 export function ensureProviderToolBuilt(
   projectPath: string,
   buildRoot: string,
   dllPath: string,
   telemetry: DotnetProviderTelemetry,
+  toolchain: DotnetProviderToolchain,
 ): void {
   if (existsSync(dllPath)) {
     return;
@@ -27,10 +29,13 @@ export function ensureProviderToolBuilt(
       "--nologo",
       "--verbosity",
       "quiet",
+      `-p:TsonicProviderTargetFramework=${toolchain.toolTargetFramework}`,
       `-p:BaseIntermediateOutputPath=${join(buildRoot, "obj/")}`,
       `-p:BaseOutputPath=${join(buildRoot, "bin/")}`,
     ], {
       encoding: "utf8",
+      cwd: toolchain.projectDirectory,
+      timeout: 120_000,
       maxBuffer: 512 * 1024 * 1024,
     });
     telemetry.toolBuild(performance.now() - startedAt);

@@ -1,5 +1,6 @@
 import type { CsharpPlanningContext } from "../context.js";
 import type { CsharpProjectFile, CsharpProjectPlan } from "../../artifact-model/project/model.js";
+import { planCsharpRuntimeProjects } from "./runtime-projects.js";
 import {
   readAssemblyName,
   readCsharpProjectProperties,
@@ -32,6 +33,7 @@ export function planCsharpProjectFile(
   input: CsharpPlanningContext,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectFile {
+  const runtimeProjects = planCsharpRuntimeProjects(input);
   return Object.freeze({
     sdk: "Microsoft.NET.Sdk",
     path: `${readAssemblyName(input)}.csproj`,
@@ -39,7 +41,9 @@ export function planCsharpProjectFile(
       readCsharpProjectProperties(input, options).map((property) => Object.freeze(property)),
     ),
     references: Object.freeze(
-      readReferencesOption(input).map((reference) => Object.freeze(reference)),
+      [...readReferencesOption(input), ...runtimeProjects.map((project) => ({ kind: "project" as const, include: project.path }))]
+        .map((reference) => Object.freeze(reference)),
     ),
+    runtimeProjects,
   });
 }
