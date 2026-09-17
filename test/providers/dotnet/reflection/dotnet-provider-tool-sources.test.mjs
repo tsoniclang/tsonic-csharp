@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { dirname, join, relative, sep } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -148,8 +149,7 @@ function relativeSources(root) {
 
 function fixtureDirectory(label) {
   const parent = join(repositoryRoot, ".temp/dotnet-provider-tool-sources");
-  mkdirSync(parent, { recursive: true });
-  return mkdtempSync(join(parent, `${label}-`));
+  return createTestWorkspace(parent, `${label}-`);
 }
 
 function writeSources(root, files) {

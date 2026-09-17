@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 
 import {
   compileCsharpSource,
@@ -59,11 +60,7 @@ test("readable C# strings compile and preserve their exact runtime value", () =>
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  const outputRoot = resolve(
-    import.meta.dirname,
-    "../../../../.temp/exact-human-output-native",
-    String(process.pid),
-  );
+  const outputRoot = createTestWorkspace(resolve(import.meta.dirname, "../../../../.temp/exact-human-output-native"), "proof-");
   for (const [path, text] of compiled.artifacts) {
     const outputPath = resolve(outputRoot, path);
     mkdirSync(dirname(outputPath), { recursive: true });

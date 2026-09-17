@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
+import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
 import { valueRecordMemoryProofFiles } from "../../../../tsonic/test/fixtures/value-record-memory.mjs";
 import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
@@ -145,8 +146,7 @@ test("object rest never binds a copied method to its original receiver", () => {
 function execute(compiled, name, asynchronous = false, allowUnsafe = false, additionalReferences = []) {
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
-  mkdirSync(scratch, { recursive: true });
-  const root = mkdtempSync(join(scratch, `${name}-`));
+  const root = createTestWorkspace(scratch, `${name}-`);
   for (const [path, text] of compiled.artifacts) {
     if (!path.endsWith(".cs")) continue;
     const file = join(root, path);

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
+import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 
 test("numeric fixed arrays execute with exact cross-file element carriers and ordinary array behavior", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ files: {
@@ -37,8 +38,7 @@ test("numeric fixed arrays execute with exact cross-file element carriers and or
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
-  mkdirSync(scratch, { recursive: true });
-  const root = mkdtempSync(join(scratch, "fixed-array-proof-"));
+  const root = createTestWorkspace(scratch, "fixed-array-proof-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

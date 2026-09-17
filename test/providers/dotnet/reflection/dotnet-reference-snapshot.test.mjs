@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -21,17 +22,8 @@ import {
 } from "../../../../dist/providers/dotnet/reflection/telemetry.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-let fixtureSequence = 0;
-
 function fixtureDirectory(name) {
-  fixtureSequence += 1;
-  const directory = join(
-    repoRoot,
-    ".temp/dotnet-reference-snapshot",
-    `${Date.now()}-${process.pid}-${fixtureSequence}-${name}`,
-  );
-  mkdirSync(directory, { recursive: true });
-  return directory;
+  return createTestWorkspace(join(repoRoot, ".temp/dotnet-reference-snapshot"), `${name}-`);
 }
 
 function makeReferenceDirectory(name) {
