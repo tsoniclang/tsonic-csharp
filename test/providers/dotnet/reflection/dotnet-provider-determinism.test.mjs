@@ -310,13 +310,10 @@ test("C# reflection framework policy has no installed-runtime version selector",
 });
 
 test(".NET reflection provider rejects unparseable target frameworks instead of drifting", () => {
-  const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "netbanana" });
-  const module = getCompleteDotnetModule(provider, "@tsonic/dotnet/System.js", {});
-
-  assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
-  assert.match(module.message, /target framework is not supported/u);
-  assert.match(JSON.stringify(module.evidence), /net10\.0/u);
-  assert.match(JSON.stringify(module.evidence), /netbanana/u);
+  assert.throws(
+    () => createDotnetReflectionTypeDataProvider({ targetFramework: "netbanana" }),
+    /target framework 'netbanana' must be a \.NET 10-or-later framework/u,
+  );
 });
 
 test(".NET reflection provider does not partially accept ReflectionTypeLoadException for explicit references", () => {
