@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -9,6 +9,7 @@ import { memoryAbiCapability } from "../../helpers/memory-abi.mjs";
 import { nativeMemoryProvider, nativeProviderProofSource, nativeProviderInferredProofSource } from "../../helpers/native-memory-provider.mjs";
 import { nativeRecordProvider, nativeProviderRecordProofSource } from "../../helpers/native-record-proof.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
+import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 
 function compile(options = {}, sourceText = nativeProviderProofSource, records = false) {
   return compileCsharpSource({ sourceText,
@@ -20,8 +21,7 @@ function verifyProviderSource(sourceText, records = false) {
   assertCsharpCompilationSucceeded(compiled);
   const repository = fileURLToPath(new URL("../../../", import.meta.url));
   const scratch = join(repository, ".temp");
-  mkdirSync(scratch, { recursive: true });
-  const root = mkdtempSync(join(scratch, "native-provider-"));
+  const root = createTestWorkspace(scratch, "native-provider-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

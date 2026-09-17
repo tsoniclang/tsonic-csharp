@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-  mkdirSync,
   readFileSync,
   readdirSync,
   writeFileSync,
@@ -24,15 +23,12 @@ import {
   dotnetReflectionProviderStorage,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
 import { getCompleteDotnetModule } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 test(".NET reflection cache contract failures regenerate instead of becoming sticky diagnostics", () => {
-  const cacheRoot = join(
-    repoRoot,
-    ".temp/provider-cache/dotnet-reflection-invalid-recovery",
-    `${Date.now()}-${process.pid}`,
-  );
+  const cacheRoot = createTestWorkspace(join(repoRoot, ".temp/provider-cache/dotnet-reflection-invalid-recovery"), "cache-");
   const request = {
     requestedExports: ["Convert"],
   };
@@ -92,13 +88,8 @@ test(".NET reflection cache contract failures regenerate instead of becoming sti
 });
 
 test(".NET reflection continues from authoritative tooling when persistent cache storage is unavailable", () => {
-  const fixtureRoot = join(
-    repoRoot,
-    ".temp/provider-cache/dotnet-reflection-unavailable",
-    `${Date.now()}-${process.pid}`,
-  );
+  const fixtureRoot = createTestWorkspace(join(repoRoot, ".temp/provider-cache/dotnet-reflection-unavailable"), "cache-");
   const cacheRoot = join(fixtureRoot, "not-a-directory");
-  mkdirSync(fixtureRoot, { recursive: true });
   writeFileSync(cacheRoot, "occupied");
   const telemetry = createDotnetProviderTelemetry();
   const provider = createDotnetReflectionTypeDataProvider({

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertCsharpCheckingSucceeded, assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
+import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 
 test("Intl exact integer, optional precision and grouping contracts execute in C#", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
@@ -53,8 +54,7 @@ test("Intl exact integer, optional precision and grouping contracts execute in C
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const scratch = fileURLToPath(new URL("../../../.temp/", import.meta.url));
-  mkdirSync(scratch, { recursive: true });
-  const root = realpathSync(mkdtempSync(join(scratch, "intl-number-proof-")));
+  const root = createTestWorkspace(scratch, "intl-number-proof-");
   for (const [path, text] of compiled.artifacts) if (path.endsWith(".cs")) {
     const file = join(root, path);
     mkdirSync(dirname(file), { recursive: true });

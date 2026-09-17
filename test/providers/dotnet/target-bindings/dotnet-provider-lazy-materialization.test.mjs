@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test from "node:test";
+import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-workspaces.mjs";
 import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
@@ -422,11 +423,7 @@ test("TSTS checking rebuilds the program after exact .NET export demand", () => 
 });
 
 test("persistent reflection cache isolates identity headers from exact completed exports", () => {
-  const cacheRoot = join(
-    process.cwd(),
-    ".temp/provider-cache/dotnet-reflection-lazy-materialization",
-    `${Date.now()}-${process.pid}`,
-  );
+  const cacheRoot = createTestWorkspace(join(process.cwd(), ".temp/provider-cache/dotnet-reflection-lazy-materialization"), "cache-");
   const populate = createDotnetReflectionTypeDataProvider({
     storage: dotnetReflectionProviderStorage({ cacheRoot }),
   });
