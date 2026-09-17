@@ -7,6 +7,7 @@ import { readCsharpTargetFramework } from "../../../dist/options/csharp-target-o
 import { parseCsharpTargetFramework } from "../../../dist/target-model/configuration/framework.js";
 import { selectDotnetPlatformDirectory } from "../../../dist/providers/dotnet/reflection/tool/toolchain.js";
 import { validateDotnetReflectionTargetFramework } from "../../../dist/providers/dotnet/reflection/cache-request.js";
+import { resolveDotnetProviderToolPaths } from "../../../dist/providers/dotnet/reflection/tool/path-resolution.js";
 
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { analyzeCsharpProject } from "../../../dist/analysis/project/index.js";
@@ -26,6 +27,20 @@ function csharpRuntimeProjectReference(selected, source) {
 function context(framework) {
   return { target: { id: "csharp", options: { targetFramework: framework } }, paths: { cacheRoot: resolve(".temp/source-runtime-contract/cache") } };
 }
+
+test("an injected provider toolchain cannot contradict the selected compilation", () => {
+  const toolchain = Object.freeze({
+    projectDirectory: process.cwd(), sdkRoot: "/sdk", sdkVersion: "10.0.400",
+    toolTargetFramework: "net10.0", targetFramework: "net10.0", platformDirectory: "/sdk/shared/10.0.11",
+  });
+  const options = {
+    toolchain, toolProjectPath: resolve("tools/dotnet-type-provider/DotnetTypeProvider.csproj"),
+    toolBuildRoot: resolve(".temp/source-runtime-contract/provider"),
+  };
+  assert.throws(() => resolveDotnetProviderToolPaths({ ...options, targetFramework: "net11.0" }), /compilation framework/u);
+  assert.throws(() => resolveDotnetProviderToolPaths({ ...options, projectDirectory: resolve("other") }), /compilation project directory/u);
+  assert.equal(resolveDotnetProviderToolPaths({ ...options, targetFramework: "net10.0", projectDirectory: process.cwd() }).toolchain, toolchain);
+});
 
 test("runtime source projects give restore and build one immutable framework-specific project graph", () => {
   const projects = new Set();
