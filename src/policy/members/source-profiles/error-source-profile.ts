@@ -16,9 +16,11 @@ import {
   csharpNullableTargetType,
   csharpRuntimeErrorTargetType,
   csharpStringTargetType,
+  csharpVoidTargetType,
 } from "../../types/index.js";
 import type { CsharpTargetMember, TargetTypeRef } from "../../types/index.js";
 import { csharpTargetId } from "../../../target-model/identities/source.js";
+import { csharpSourceErrorNames, type CsharpSourceErrorName } from "../../../target-model/identities/source-errors.js";
 
 const errorType = csharpRuntimeErrorTargetType();
 const stringType = csharpStringTargetType();
@@ -72,11 +74,35 @@ const errorProperties: readonly {
 
 export const csharpErrorSourceProfileCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze(
-    owners.flatMap((owner) => [
-      errorCallPolicy(owner, "construct"),
-      errorCallPolicy(owner, "call"),
+    owners.flatMap(owner => [
+      ...(owner === "js" ? csharpSourceErrorNames : ["Error"] as const)
+        .flatMap(name => [errorCallPolicy(owner, "construct", name), errorCallPolicy(owner, "call", name)]),
+      errorCapturePolicy(owner),
     ]),
   );
+
+function errorCapturePolicy(owner: CsharpSourceProfileOwner): CsharpSourceProfileCallPolicy {
+  return Object.freeze({
+    source: { owner, kind: "member" as const, declaringName: "ErrorConstructor", name: "captureStackTrace" },
+    select(context: CsharpSourceProfileCallPolicyContext): CsharpSourceProfileCallPolicyResult {
+      const call = csharpSourceProfileCall(context.source, {
+        id: "Tsonic.CSharp.Runtime.Error.captureStackTrace",
+        sourceName: "captureStackTrace",
+        targetName: "captureStackTrace",
+        kind: "method",
+        static: true,
+        declaringType: errorType,
+        parameters: [{ name: "error", type: errorType, passingMode: "by-value" }],
+        returnType: csharpVoidTargetType(),
+      }, noReceiver);
+      return call === undefined ? {
+        kind: "rejected",
+        diagnostic: csharpSourceProfileDiagnostic("CSHARP_ERROR_CAPTURE_CONTRACT", 9100952,
+          "Error.captureStackTrace requires the exact selected Error parameter contract.", []),
+      } : { kind: "resolved", call };
+    },
+  });
+}
 
 export const csharpErrorSourceProfilePropertyPolicies:
   readonly CsharpSourceProfilePropertyPolicy[] = Object.freeze(
@@ -109,8 +135,12 @@ export const csharpErrorSourceProfilePropertyPolicies:
 function errorCallPolicy(
   owner: CsharpSourceProfileOwner,
   kind: "call" | "construct",
+  name: CsharpSourceErrorName,
 ): CsharpSourceProfileCallPolicy {
-  const source = errorIdentity(owner, kind);
+  const source = { ...errorIdentity(owner, kind), declaringName: `${name}Constructor` };
+  const type = csharpRuntimeErrorTargetType(name);
+  const constructor = { ...errorConstructor, id: `Tsonic.CSharp.Runtime.${name}..ctor`, targetName: name,
+    declaringType: type, returnType: type };
   return Object.freeze({
     source,
     select(
@@ -118,7 +148,7 @@ function errorCallPolicy(
     ): CsharpSourceProfileCallPolicyResult {
       const call = csharpSourceProfileCall(
         context.source,
-        errorConstructor,
+        constructor,
         noReceiver,
       );
       return call === undefined

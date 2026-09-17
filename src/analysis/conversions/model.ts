@@ -11,7 +11,7 @@ import type {
   CsharpTargetOperationClassifications,
 } from "../operations/index.js";
 import type {
-  CsharpStorageClassifications,
+  CsharpStorageRepresentationClassifications,
 } from "../storage/index.js";
 
 export interface CsharpConversionIssue {
@@ -40,6 +40,6 @@ export interface CsharpConversionAnalysis {
   seal(input: {
     readonly operations: CsharpTargetOperationClassifications;
     readonly expectedTypes: CsharpExpectedTypeClassifications;
-    readonly storage: CsharpStorageClassifications;
+    readonly storage: CsharpStorageRepresentationClassifications;
   }): CsharpConversionClassifications;
 }

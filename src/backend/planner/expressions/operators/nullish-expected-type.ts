@@ -35,6 +35,7 @@ import {
 import {
   planSelectedCsharpBinaryOperation,
 } from "./selected-binary.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 
 export function tryPlanBinaryExpressionWithExpectedType(
   node: Node,
@@ -46,12 +47,16 @@ export function tryPlanBinaryExpressionWithExpectedType(
   expectedTargetType: TargetTypeRef | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!input.program.source.ast.is.IsBinaryExpression(node)) {
     return undefined;
   }
+  const baseline = input.program.operations.binary(node)?.target;
+  if (baseline?.kind === "resolved" && baseline.sourceOperator !== "??" &&
+    !binaryOperationUsesExpectedNumericType(baseline.sourceOperator)) return undefined;
   const selection = expectedTargetType === undefined
-    ? input.program.operations.binary(node)?.target
+    ? baseline
     : input.program.expectedTypes.binaryExpected(node, expectedTargetType);
   if (selection === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -75,6 +80,7 @@ export function tryPlanBinaryExpressionWithExpectedType(
           diagnostics,
           planExpression,
           planExpressionWithExpectedType,
+          state,
         )
       : undefined;
   }

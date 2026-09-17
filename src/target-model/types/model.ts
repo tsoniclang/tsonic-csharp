@@ -31,10 +31,13 @@ export interface CsharpObjectShapeMemberFact {
     readonly getter: true;
     readonly setter: boolean;
   };
+  readonly bound?: true;
 }
 
 export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
+  readonly sourceType?: Type;
+  readonly declarationTemplate?: CsharpObjectShapeFact;
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
@@ -168,10 +171,12 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpJsValueCarrier?: true;
   readonly csharpJsStringCarrier?: true;
   readonly csharpJsObjectShape?: true;
+  readonly csharpStructuralContract?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
   readonly csharpArrayLiteralConstructionType?: TargetTypeRef;
   readonly csharpImplicitArrayInputElementType?: TargetTypeRef;
   readonly csharpEnumerableElementType?: TargetTypeRef;
+  readonly csharpArrayLikeElementType?: TargetTypeRef;
   readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
   readonly csharpDenseMutableElementType?: TargetTypeRef;
   readonly csharpIndexableLengthMemberName?: string;
@@ -261,6 +266,7 @@ export interface CsharpTargetUnsupportedDefaultValueFact {
 }
 
 export interface CsharpTargetParameter extends TargetParameter {
+  readonly csharpSequenceHolePolicy?: "number-nan";
   readonly defaultValue?: unknown;
   readonly unsupportedDefaultValue?: CsharpTargetUnsupportedDefaultValueFact;
   readonly attributes?: readonly CsharpTargetAttributeFact[];
@@ -278,7 +284,11 @@ export interface CsharpSourceArgumentAdapter {
 }
 
 export type CsharpObjectShapeCapability =
-  | "json-serialization";
+  | "json-serialization"
+  | "reference-identity"
+  | "method-values"
+  | "enumerable-keys"
+  | "js-freeze";
 
 export type CsharpObjectShapeProjectionKind =
   | "keys"

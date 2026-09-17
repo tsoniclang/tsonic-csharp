@@ -358,6 +358,10 @@ export function allocateDestructuringTemp(state: DestructuringPlannerState): str
   return allocateSyntheticName(state, "__tsonic_destructure", "nextTempIndex");
 }
 
+export function allocateExpressionTemp(state: DestructuringPlannerState): string {
+  return allocateSyntheticName(state, "__tsonic_value", "nextTempIndex");
+}
+
 function allocateSyntheticName(
   state: DestructuringPlannerState,
   prefix: string,

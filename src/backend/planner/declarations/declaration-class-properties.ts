@@ -71,7 +71,7 @@ export function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "property declaration", diagnostics, ["readonly", "abstract"]);
   const sourceField = getClassPropertySourceField(node, declaration, input);
   if (sourceField !== undefined) {
     diagnoseUnavailableCsharpSafetyAccessors(
@@ -106,6 +106,14 @@ export function planPropertyDeclaration(
     : nullableCsharpType(declaredType);
   const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
   const modifiers = planClassMemberModifiers(node, declaration.name, input);
+  if (input.program.source.ast.hasModifierKind(node, "abstract")) {
+    return {
+      kind: "PropertyDeclaration", name: propertyName,
+      modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
+      type, autoGetter: true, autoSetter: true,
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    };
+  }
   if (declaration.Initializer === undefined && modifiers.includes("static")) {
     diagnostics.push(targetPolicyDiagnostic(
       node,
@@ -186,7 +194,7 @@ export function mergeAccessorProperty(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): void {
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "accessor declaration", diagnostics, ["abstract"]);
   const accessor = HasSourceKind(input.program.source.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(input.program.source.ast, node)!
     : AsSetAccessorDeclaration(input.program.source.ast, node)!;
@@ -247,15 +255,16 @@ function mergeGetterAccessor(
     ),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
-    getter: {
+    ...(input.program.source.ast.hasModifierKind(node, "abstract") ? { autoGetter: true } : { getter: {
       kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
-    },
+    } as const }),
     getterModifiers: mergeAccessorModifiers(
       existing?.getterModifiers,
       csharpSafetyAccessorModifiersForDeclaration(node, "getter", input),
     ),
     ...(existing?.setter === undefined ? {} : { setter: existing.setter }),
+    ...(existing?.autoSetter === undefined ? {} : { autoSetter: existing.autoSetter }),
     ...(existing?.setterModifiers === undefined
       ? {}
       : { setterModifiers: existing.setterModifiers }),
@@ -317,13 +326,14 @@ function mergeSetterAccessor(
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
+    ...(existing?.autoGetter === undefined ? {} : { autoGetter: existing.autoGetter }),
     ...(existing?.getterModifiers === undefined
       ? {}
       : { getterModifiers: existing.getterModifiers }),
-    setter: {
+    ...(input.program.source.ast.hasModifierKind(node, "abstract") ? { autoSetter: true } : { setter: {
       kind: "Block",
       statements: planSetAccessorStatements(declaration.Body, parameterAlias, parameterPrelude, sourceFile, input, diagnostics, state),
-    },
+    } as const }),
     setterModifiers: mergeAccessorModifiers(
       existing?.setterModifiers,
       csharpSafetyAccessorModifiersForDeclaration(node, "setter", input),

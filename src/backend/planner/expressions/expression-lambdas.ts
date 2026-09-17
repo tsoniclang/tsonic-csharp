@@ -62,6 +62,7 @@ import {
   hasCsharpGeneratorSyntax,
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
+import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -105,7 +106,7 @@ export function planArrowFunctionExpression(
   const plannerState = state === undefined
     ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(state, node, input.program.source.ast);
-  const parameters = planLambdaParameters(
+  const sourceParameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
     scopedInput,
@@ -113,11 +114,15 @@ export function planArrowFunctionExpression(
     plannerState,
     targetContext,
   );
-  const parameterIdentityDeclarations = planLambdaParameterIdentityDeclarations(
-    parameterNodes,
-    input,
-    plannerState,
+  const parameterPlan = planLambdaParameterStorage(
+    parameterNodes, sourceParameters, sourceFile, scopedInput, diagnostics, plannerState,
   );
+  if (parameterPlan === undefined) return undefined;
+  const parameters = parameterPlan.parameters;
+  const parameterIdentityDeclarations = [
+    ...parameterPlan.prelude,
+    ...planLambdaParameterIdentityDeclarations(parameterNodes, input, plannerState),
+  ];
   if (HasSourceKind(input.program.source.ast, expression.Body, KindBlock)) {
     const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
     if (body === undefined) {
@@ -196,7 +201,7 @@ export function planFunctionExpression(
   const plannerState = state === undefined
     ? createDestructuringPlannerState(node, input.program.source.ast)
     : createNestedPlannerState(state, node, input.program.source.ast);
-  const parameters = planLambdaParameters(
+  const sourceParameters = planLambdaParameters(
     parameterNodes,
     sourceFile,
     scopedInput,
@@ -204,11 +209,15 @@ export function planFunctionExpression(
     plannerState,
     targetContext,
   );
-  const parameterIdentityDeclarations = planLambdaParameterIdentityDeclarations(
-    parameterNodes,
-    input,
-    plannerState,
+  const parameterPlan = planLambdaParameterStorage(
+    parameterNodes, sourceParameters, sourceFile, scopedInput, diagnostics, plannerState,
   );
+  if (parameterPlan === undefined) return undefined;
+  const parameters = parameterPlan.parameters;
+  const parameterIdentityDeclarations = [
+    ...parameterPlan.prelude,
+    ...planLambdaParameterIdentityDeclarations(parameterNodes, input, plannerState),
+  ];
   if (generatorSyntax) {
     const generator = planCsharpGeneratorFunction(
       node,
@@ -397,10 +406,14 @@ export function planLambdaParameters(
       const authoredParameterType = parameter.Type === undefined
         ? undefined
         : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
-      const explicitParameterType = authoredParameterType === undefined ||
+      const sourceParameterType = authoredParameterType === undefined ||
           input.program.source.ast.questionToken(parameterNode) === undefined
         ? authoredParameterType
         : nullableCsharpType(authoredParameterType);
+      const nativeParameterType = input.program.storage.lambdaParameterType(parameterNode);
+      const explicitParameterType = nativeParameterType === undefined
+        ? sourceParameterType
+        : csharpTypeFromTargetTypeRef(nativeParameterType);
       return {
         kind: "Parameter",
         name: HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier) && state !== undefined
@@ -523,7 +536,7 @@ function createLambdaPlanningContext(
     targetType: targetContext.signature.parameterTargetTypes[index]!,
   }));
   for (const binding of bindings) {
-    const sealedTarget = input.program.storage.requiredType(binding.declaration);
+    const sealedTarget = input.program.storage.lambdaParameterType(binding.declaration);
     if (sealedTarget === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         binding.declaration,

@@ -113,6 +113,7 @@ export function csharpObjectShapeContractCandidate(
           value: csharpObjectShapeTypeSurface(
             fact,
             canonicalReceiverBoundMethodKeys,
+            canonicalCapabilities.includes("method-values"),
           ),
         },
       ],
@@ -168,9 +169,11 @@ function objectShapeProjectionContractParts(
 export function csharpObjectShapeTypeSurface(
   fact: CsharpObjectShapeFact,
   receiverBoundMethodKeys: readonly string[] = [],
+  methodValues = false,
 ): string {
   return encodeContractParts([
     "object-shape",
+    ...(methodValues ? ["method-values"] : []),
     targetTypeRefKey(fact.targetType),
     fact.constructible === undefined
       ? "constructibility-unspecified"

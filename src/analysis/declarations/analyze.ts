@@ -14,9 +14,11 @@ import {
   csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
+  getCsharpDelegateSignature,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type {
@@ -30,10 +32,14 @@ export function analyzeCsharpDeclarations(
   operations: CsharpTargetOperationClassifications,
 ): CsharpDeclarationClassifications {
   const returnContracts = new WeakMap<Node, CsharpReturnTargetContract>();
+  const referenceDefaults = new WeakMap<Node, TargetTypeRef>();
+  const methodWrites = new WeakMap<Node, { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string }>();
   for (const sourceFile of policy.sourceFiles) {
     visit(sourceFile);
   }
   return Object.freeze({
+    referenceDefault(node: Node) { return referenceDefaults.get(node); },
+    methodWrite(node: Node) { return methodWrites.get(node); },
     returnContract(node: Node) {
       return returnContracts.get(node);
     },
@@ -41,6 +47,38 @@ export function analyzeCsharpDeclarations(
 
   function visit(node: Node): void {
     if (evidence.isCompileTimeMetadata(node)) return;
+    const property = operations.property(node);
+    if (property?.selection.kind === "source-owned" && property.selection.source.accessMode !== "read") {
+      const declaration = property.selection.source.selectedDeclaration;
+      const selectedType = property.sourceOwned?.rawReadType;
+      if (declaration !== undefined && policy.ast.is.IsMethodDeclaration(declaration) &&
+        selectedType !== undefined && getCsharpDelegateSignature(selectedType) !== undefined && !methodWrites.has(declaration)) {
+        const owner = policy.ast.parent(declaration);
+        if (owner !== undefined && policy.ast.is.IsClassDeclaration(owner)) {
+          const reserved = new Set(policy.ast.members(owner).map(member => {
+            const name = policy.ast.name(member);
+            return name === undefined ? undefined : policy.ast.text(name);
+          }));
+          const allocate = (prefix: string): string => {
+            let name = `${prefix}${policy.ast.text(policy.ast.name(declaration))}`;
+            while (reserved.has(name)) name = `_${name}`;
+            reserved.add(name);
+            return name;
+          };
+          methodWrites.set(declaration, { type: selectedType,
+            storageName: allocate("__tsonic_method_slot_"), implementationName: allocate("__tsonic_method_body_") });
+        }
+      }
+    }
+    if (policy.ast.is.IsParameterDeclaration(node)) {
+      const parameter = policy.ast.as.AsParameterDeclaration(node);
+      const selected = parameter === undefined ? undefined
+        : evidence.nodeTargetType(parameter.Type ?? parameter.name!);
+      if (parameter?.Initializer !== undefined && selected !== undefined &&
+        csharpReferenceDefaultNeedsNullableParameter(selected)) {
+        referenceDefaults.set(node, selected);
+      }
+    }
     if (isCallableDeclaration(policy, node)) {
       returnContracts.set(
         node,

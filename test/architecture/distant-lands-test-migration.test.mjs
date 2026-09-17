@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildTypeScriptModuleAnalysis } from "../../../tsonic/test/architecture/tooling/module-graph.mjs";
 import {
   obsoleteTargetFactTests,
   replacementContracts,
@@ -47,20 +48,12 @@ test("every retained C# test module has resolvable local imports", () => {
   const testRoot = resolve(repositoryRoot, "test");
   const files = walk(testRoot).filter((path) => path.endsWith(".mjs"));
   const unresolved = [];
-  for (const file of files) {
-    const source = readFileSync(file, "utf8");
-    const specifiers = [
-      ...source.matchAll(
-        /^(?:import|export)\s+[^;]*?\sfrom\s+["'](?<specifier>\.[^"']+)["'];/gmu,
-      ),
-      ...source.matchAll(
-        /^import\s*["'](?<specifier>\.[^"']+)["'];/gmu,
-      ),
-    ].map((match) => match.groups.specifier);
-    for (const specifier of specifiers) {
-      if (specifier.startsWith(".") && !existsSync(resolve(dirname(file), specifier))) {
-        unresolved.push(`${file.slice(repositoryRoot.length + 1)} -> ${specifier}`);
-      }
+  const sources = new Map(files.map(file => [file.slice(repositoryRoot.length + 1), readFileSync(file, "utf8")]));
+  const analysis = buildTypeScriptModuleAnalysis(sources);
+  assert.equal(analysis.modules.length, sources.size);
+  for (const { source, specifier, kind } of analysis.edges) {
+    if (kind === "relative" && !existsSync(resolve(repositoryRoot, dirname(source), specifier))) {
+      unresolved.push(`${source} -> ${specifier}`);
     }
   }
   assert.deepEqual(unresolved, []);

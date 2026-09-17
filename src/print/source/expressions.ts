@@ -90,14 +90,16 @@ export function printCsharpExpression(
       if (expression.size !== undefined) {
         return expression.elementType === undefined
           ? `new[] { }`
-          : `new ${context.printType(expression.elementType)}[${context.printExpression(expression.size)}]`;
+          : `new ${printAllocatedArrayType(expression.elementType, `[${context.printExpression(expression.size)}]`, context)}`;
       }
       const elements = expression.elements.map(context.printExpression).join(", ");
       const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
       return expression.elementType === undefined
         ? `new[] ${initializer}`
-        : `new ${context.printType(expression.elementType)}[] ${initializer}`;
+        : `new ${printAllocatedArrayType(expression.elementType, "[]", context)} ${initializer}`;
     }
+    case "CollectionExpression":
+      return `[${expression.elements.map(element => `${element.kind === "SpreadElement" ? ".. " : ""}${context.printExpression(element.expression)}`).join(", ")}]`;
     case "TupleExpression":
       return `(${expression.elements.map(context.printExpression).join(", ")})`;
     case "DefaultExpression":
@@ -151,6 +153,7 @@ function postfixOperandRequiresParentheses(
     case "ElementAccessExpression":
     case "ConditionalElementAccessExpression":
     case "ArrayCreationExpression":
+    case "CollectionExpression":
     case "TupleExpression":
     case "DefaultExpression":
       return false;
@@ -215,6 +218,8 @@ function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): strin
 
 function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
   switch (token.kind) {
+    case "QuestionQuestionEqualsToken":
+      return "??=";
     case "EqualsToken":
       return "=";
     case "PlusEqualsToken":
@@ -317,6 +322,14 @@ function printCsharpCollectionInitializerElement(
       return `[${initializer.arguments.map(context.printExpression).join(", ")}] = ${context.printExpression(initializer.expression)},`;
   }
   return failUnsupportedCsharpSyntax(initializer, "collection initializer element");
+}
+
+function printAllocatedArrayType(element: CsharpTypeNode, dimensions: string, context: CsharpPrintContext): string {
+  const array = element.kind === "NullableType" ? element.inner : element;
+  if (array.kind !== "ArrayType") return `${context.printType(element)}${dimensions}`;
+  const rank = `[${",".repeat(Math.max(0, (array.rank ?? 1) - 1))}]`;
+  return printAllocatedArrayType(array.elementType,
+    `${dimensions}${rank}${element.kind === "NullableType" ? "?" : ""}`, context);
 }
 
 function printCsharpObjectCreation(

@@ -1,3 +1,5 @@
+import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
+import { Node_Expression } from "@tsonic/target-api/source";
 import type {
   Node,
   SourceFile,
@@ -6,20 +8,18 @@ import type {
   CsharpPolicyContext,
 } from "../../context.js";
 import type {
-  CsharpTargetNamedTypeRef,
   TargetTypeRef,
 } from "../../types/index.js";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpBigIntegerTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
-  isCsharpJsValueTargetType,
   isCsharpIntegralTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
   isCsharpValueTypeTargetType,
-  isCsharpVoidTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import {
@@ -29,6 +29,7 @@ import {
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";
+import { csharpJsArrayCarrierId } from "../../types/resolution/surface-types.js";
 import {
   sourcePrimitiveImplicitlyConverts,
 } from "../../conversions/source-primitives.js";
@@ -56,6 +57,14 @@ export interface CsharpResolvedBinaryOperation {
 }
 
 export type CsharpTargetBinaryOperation =
+  | {
+      readonly kind: "bigint-call";
+      readonly method: "LeftShift" | "RightShift" | "Divide" | "Remainder";
+      readonly assignment: boolean;
+      readonly location: "direct" | "reference-receiver" | "unsupported";
+    }
+  | { readonly kind: "array-index-presence" }
+  | { readonly kind: "nullish-equality"; readonly value: boolean }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -127,15 +136,13 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
-  const leftType = resolveBinaryOperandType(
-    input,
-    left,
-    targetTypeFor,
-  );
+  let leftType = sourceOperator === "??="
+    ? input.types.resolveReadStorage(left)
+    : resolveBinaryOperandType(input, left, targetTypeFor);
   const nullishRightExpectation = sourceOperator === "??"
     ? expectedResultType ?? nullishValueType(leftType)
-    : undefined;
-  const rightType = resolveBinaryOperandType(
+    : sourceOperator === "??=" ? nullishValueType(leftType) : undefined;
+  let rightType = resolveBinaryOperandType(
     input,
     right,
     targetTypeFor,
@@ -146,6 +153,58 @@ export function selectCsharpBinaryOperation(
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
+    targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
+    const method = bigintRuntimeMethods[sourceOperator];
+    if (method !== undefined) {
+      let location = left;
+      while (input.ast.is.IsParenthesizedExpression(location)) {
+        const nested = input.ast.as.AsParenthesizedExpression(location)?.Expression;
+        if (nested === undefined) return rejected("BigInt assignment has incomplete location syntax.");
+        location = nested;
+      }
+      const receiver = input.ast.is.IsElementAccessExpression(location) || input.ast.is.IsPropertyAccessExpression(location)
+        ? Node_Expression(input.ast, location) : undefined;
+      const receiverType = receiver === undefined ? undefined : targetTypeFor(receiver);
+      const selectedDeclaration = input.ast.is.IsPropertyAccessExpression(location)
+        ? input.semanticsFor(location).operations.propertyAccess(location)?.selectedDeclaration
+        : input.ast.is.IsElementAccessExpression(location)
+          ? input.semanticsFor(location).operations.elementAccess(location)?.selectedDeclaration
+          : undefined;
+      const direct = input.ast.is.IsIdentifier(location) ||
+        selectedDeclaration !== undefined && input.ast.hasModifierKind(selectedDeclaration, "static");
+      return {
+        kind: "resolved", sourceOperator,
+        targetOperation: { kind: "bigint-call", method, assignment: isCsharpAssignmentOperator(sourceOperator),
+          location: direct ? "direct" : receiverType !== undefined && referenceIdentityCarrier(receiverType, input) !== undefined
+            ? "reference-receiver" : "unsupported" },
+        left, right, leftType, rightType, leftInputType: leftType, rightInputType: rightType,
+        resultType: leftType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(leftType, expectedResultType),
+      };
+    }
+  }
+  if (sourceOperator === "in" && rightType.kind === "target-named" &&
+    rightType.id === csharpJsArrayCarrierId &&
+    (isCsharpIntegralTargetType(leftType) ||
+      targetTypeRefEquals(leftType, csharpSourcePrimitiveTargetType("float64")))) {
+    const resultType = csharpSourcePrimitiveTargetType("bool");
+    return {
+      kind: "resolved", sourceOperator, targetOperation: { kind: "array-index-presence" },
+      left, right, leftType, rightType,
+      leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
+      resultType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType),
+    };
+  }
+  if (isEquality(sourceOperator) &&
+    (isCsharpRuntimeNullTargetType(leftType) || isCsharpRuntimeUndefinedTargetType(leftType)) &&
+    (isCsharpRuntimeNullTargetType(rightType) || isCsharpRuntimeUndefinedTargetType(rightType))) {
+    const leftStorage = input.types.resolveReadStorage(left);
+    const rightStorage = input.types.resolveReadStorage(right);
+    const leftNullable = getCsharpNullableElementTargetType(leftStorage) !== undefined;
+    const rightNullable = getCsharpNullableElementTargetType(rightStorage) !== undefined;
+    if (leftNullable && !rightNullable) leftType = leftStorage!;
+    if (rightNullable && !leftNullable) rightType = rightStorage!;
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
   const stringRelational = selectStringRelational(
@@ -187,10 +246,10 @@ export function selectCsharpBinaryOperation(
       `Source operator '${sourceOperator}' has no exact predefined C# numeric promotion for the selected operand types.`,
     );
   }
-  const nullishResultType = sourceOperator === "??"
+  const nullishResultType = sourceOperator === "??" || sourceOperator === "??="
     ? selectNullishResultType(leftType, rightType)
     : undefined;
-  if (sourceOperator === "??" && nullishResultType === undefined) {
+  if ((sourceOperator === "??" || sourceOperator === "??=") && nullishResultType === undefined) {
     return rejected(
       "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
     );
@@ -250,7 +309,9 @@ function selectStrictReferenceIdentity(
   const leftIdentity = referenceIdentityCarrier(left, input);
   const rightIdentity = referenceIdentityCarrier(right, input);
   return leftIdentity !== undefined && rightIdentity !== undefined &&
-      targetTypeRefEquals(leftIdentity, rightIdentity)
+      (targetTypeRefEquals(leftIdentity, rightIdentity) ||
+        input.objectShapes.resolveTarget(leftIdentity) !== undefined &&
+        input.objectShapes.resolveTarget(rightIdentity) !== undefined)
     ? { kind: "reference-identity", negated: operator === "!==" }
     : undefined;
 }
@@ -324,6 +385,9 @@ function selectBinaryOperationTypes(
   CsharpResolvedBinaryOperation,
   "leftInputType" | "rightInputType" | "resultType"
 > {
+  if (operator === "??=" && nullishResultType !== undefined) {
+    return { leftInputType: leftType, rightInputType: rightType, resultType: nullishResultType };
+  }
   if (isCsharpAssignmentOperator(operator)) {
     return {
       leftInputType: leftType,
@@ -466,6 +530,7 @@ function operatorRequiresNumericPromotion(
   left: TargetTypeRef,
   right: TargetTypeRef,
 ): boolean {
+  if (targetTypeRefEquals(left, csharpBigIntegerTargetType()) && targetTypeRefEquals(right, csharpBigIntegerTargetType())) return false;
   if (
     isCsharpAssignmentOperator(operator) ||
     operator === "&&" ||
@@ -483,6 +548,11 @@ function operatorRequiresNumericPromotion(
     (isEquality(operator) || isRelational(operator) || isBitwise(operator) || isArithmetic(operator));
 }
 
+const bigintRuntimeMethods: Readonly<Partial<Record<CsharpSourceOperator, "LeftShift" | "RightShift" | "Divide" | "Remainder">>> = {
+  "<<": "LeftShift", "<<=": "LeftShift", ">>": "RightShift", ">>=": "RightShift",
+  "/": "Divide", "/=": "Divide", "%": "Remainder", "%=": "Remainder",
+};
+
 function isSourceNumericPrimitive(type: TargetTypeRef): boolean {
   return type.kind === "source-primitive" && type.name !== "bool";
 }
@@ -499,6 +569,10 @@ function selectNullishTest(
     isCsharpRuntimeUndefinedTargetType(left);
   const rightNullish = isCsharpRuntimeNullTargetType(right) ||
     isCsharpRuntimeUndefinedTargetType(right);
+  if (leftNullish && rightNullish) {
+    const equal = operator === "==" || operator === "!=" || targetTypeRefEquals(left, right);
+    return { kind: "nullish-equality", value: operator === "!==" || operator === "!=" ? !equal : equal };
+  }
   if (leftNullish === rightNullish) {
     return undefined;
   }
@@ -586,110 +660,6 @@ export function selectCsharpUnaryOperation(
     : rejected(incompatibility);
 }
 
-function validateBinaryTargetSemantics(
-  operator: CsharpSourceOperator,
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-  input: CsharpPolicyContext,
-): string | undefined {
-  if (operator === "=") {
-    return undefined;
-  }
-  if (isCsharpJsValueTargetType(left) || isCsharpJsValueTargetType(right)) {
-    return `Source operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
-  }
-  if (left.kind === "type-parameter" || right.kind === "type-parameter") {
-    return `Source operator '${operator}' over a type parameter requires an exact target constraint policy.`;
-  }
-  if (isEquality(operator)) {
-    if (supportsIntrinsicEquality(left, right, input)) {
-      return undefined;
-    }
-    return isProviderOwned(left, input) || isProviderOwned(right, input)
-      ? `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`
-      : `C# equality for '${operator}' is not proven equivalent for the selected target operand types.`;
-  }
-  if (isBitwise(operator) && supportsIntrinsicBitwise(left, right, input)) {
-    return undefined;
-  }
-  if (isProviderOwned(left, input) || isProviderOwned(right, input)) {
-    return `Source operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
-  }
-  if (operator === "&&" || operator === "||" || operator === "&&=" || operator === "||=") {
-    return isBoolean(left) && isBoolean(right)
-      ? undefined
-      : `C# logical operator '${operator}' requires exact bool operands.`;
-  }
-  if (operator === "??" || operator === "??=") {
-    return isNullishCapable(left)
-      ? undefined
-      : `C# nullish operator '${operator}' requires a nullable or runtime-union left operand.`;
-  }
-  if (isRelational(operator)) {
-    return (
-        isNumeric(left) && isNumeric(right)
-      ) || (
-        isCsharpStringTargetType(left) && isCsharpStringTargetType(right)
-      )
-      ? undefined
-      : `C# relational operator '${operator}' requires numeric source-primitive operands or two exact string operands.`;
-  }
-  if (isShift(operator)) {
-    return isCsharpIntegralTargetType(left) &&
-        isCsharpIntegralTargetType(right)
-      ? undefined
-      : `C# shift operator '${operator}' requires integral source-primitive operands.`;
-  }
-  if (isBitwise(operator)) {
-    return `C# bitwise operator '${operator}' requires integral operands or one exact enum type.`;
-  }
-  if (isArithmetic(operator)) {
-    if (
-      (operator === "+" || operator === "+=") &&
-      (isCsharpStringTargetType(left) || isCsharpStringTargetType(right))
-    ) {
-      return undefined;
-    }
-    return isNumeric(left) && isNumeric(right)
-      ? undefined
-      : `C# arithmetic operator '${operator}' requires numeric source-primitive operands.`;
-  }
-  return `Source operator '${operator}' has no intrinsic C# semantic policy.`;
-}
-
-function validateUnaryTargetSemantics(
-  operator: CsharpResolvedUnaryOperation["sourceOperator"],
-  operand: TargetTypeRef,
-  input: CsharpPolicyContext,
-): string | undefined {
-  if (isCsharpJsValueTargetType(operand)) {
-    return `Source unary operator '${operator}' over a dynamic JS value requires an exact closed runtime operation.`;
-  }
-  if (operand.kind === "type-parameter") {
-    return `Source unary operator '${operator}' over a type parameter requires an exact target constraint policy.`;
-  }
-  if (operator === "~" && isCsharpEnumTargetType(operand, input)) {
-    return undefined;
-  }
-  if (isProviderOwned(operand, input)) {
-    return `Source unary operator '${operator}' over a provider-owned type requires an exact provider operator relation.`;
-  }
-  if (operator === "!") {
-    return isBoolean(operand)
-      ? undefined
-      : "C# logical negation requires an exact bool operand.";
-  }
-  if (operator === "~") {
-    return isCsharpIntegralTargetType(operand) ||
-        isCsharpEnumTargetType(operand, input)
-      ? undefined
-      : "C# bitwise complement requires an integral or enum operand.";
-  }
-  return isNumeric(operand)
-    ? undefined
-    : `C# unary operator '${operator}' requires a numeric source-primitive operand.`;
-}
-
 function targetBinaryOperator(
   source: CsharpSourceOperator,
 ): string | undefined {
@@ -707,6 +677,7 @@ function targetBinaryOperator(
     case "&&":
     case "||":
     case "??":
+    case "??=":
     case "&":
     case "|":
     case "^":
@@ -734,159 +705,6 @@ function targetBinaryOperator(
     default:
       return undefined;
   }
-}
-
-function isProviderOwned(
-  type: TargetTypeRef,
-  input: CsharpPolicyContext,
-): boolean {
-  return type.kind === "target-named" &&
-    input.providers.findTargetBindingByTargetId(type.id) !== undefined;
-}
-
-function isBoolean(type: TargetTypeRef): boolean {
-  return type.kind === "source-primitive" && type.name === "bool";
-}
-
-function isNumeric(type: TargetTypeRef): boolean {
-  return type.kind === "source-primitive" &&
-    type.name !== "bool" &&
-    type.name !== "char";
-}
-
-function isCsharpEnumTargetType(
-  type: TargetTypeRef,
-  input: CsharpPolicyContext,
-): boolean {
-  return type.kind === "target-named" &&
-    (
-      (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum" ||
-      input.providers.findTargetBindingByTargetId(type.id)?.kind === "enum"
-    );
-}
-
-function isNullishCapable(type: TargetTypeRef): boolean {
-  return getCsharpNullableElementTargetType(type) !== undefined ||
-    isCsharpRuntimeNullTargetType(type) ||
-    isCsharpRuntimeUndefinedTargetType(type) ||
-    isCsharpReferenceCarrier(type) ||
-    (
-      type.kind === "target-named" &&
-      (type as CsharpTargetNamedTypeRef).csharpRuntimeUnionArms !== undefined
-    );
-}
-
-function isCsharpReferenceCarrier(type: TargetTypeRef): boolean {
-  return type.kind === "array" ||
-    type.kind === "target-named" &&
-      !isCsharpValueTypeTargetType(type) &&
-      !isCsharpVoidTargetType(type);
-}
-
-function supportsIntrinsicEquality(
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-  input: CsharpPolicyContext,
-): boolean {
-  if (
-    isCsharpRuntimeNullTargetType(left) ||
-    isCsharpRuntimeUndefinedTargetType(left) ||
-    isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right)
-  ) {
-    return true;
-  }
-  if (
-    runtimeUnionSupportsArmEquality(left, right) ||
-    runtimeUnionSupportsArmEquality(right, left)
-  ) {
-    return true;
-  }
-  if (isCsharpStringTargetType(left) || isCsharpStringTargetType(right)) {
-    return isCsharpStringTargetType(left) && isCsharpStringTargetType(right);
-  }
-  return (
-    left.kind === "source-primitive" &&
-    right.kind === "source-primitive"
-  ) || (
-    isCsharpEnumTargetType(left, input) &&
-    targetTypeRefEquals(left, right)
-  ) || (
-    left.kind === "array" &&
-    right.kind === "array" &&
-    targetTypeRefEquals(left, right)
-  ) || (
-    targetTypeRefEquals(left, right) &&
-    input.projectTypes.catalog.definitionForTarget(left)?.kind === "class"
-  );
-}
-
-function runtimeUnionSupportsArmEquality(
-  union: TargetTypeRef,
-  arm: TargetTypeRef,
-): boolean {
-  return getCsharpRuntimeUnionArms(union)?.some((candidate) =>
-    targetTypeRefEquals(candidate, arm)
-  ) === true;
-}
-
-function supportsIntrinsicBitwise(
-  left: TargetTypeRef,
-  right: TargetTypeRef,
-  input: CsharpPolicyContext,
-): boolean {
-  return (
-    isCsharpIntegralTargetType(left) &&
-    isCsharpIntegralTargetType(right)
-  ) || (
-    isCsharpEnumTargetType(left, input) &&
-    targetTypeRefEquals(left, right)
-  );
-}
-
-function isEquality(operator: CsharpSourceOperator): boolean {
-  return operator === "===" ||
-    operator === "==" ||
-    operator === "!==" ||
-    operator === "!=";
-}
-
-function isRelational(operator: CsharpSourceOperator): boolean {
-  return operator === "<" ||
-    operator === "<=" ||
-    operator === ">" ||
-    operator === ">=";
-}
-
-function isShift(operator: CsharpSourceOperator): boolean {
-  return operator === "<<" ||
-    operator === ">>" ||
-    operator === ">>>" ||
-    operator === "<<=" ||
-    operator === ">>=" ||
-    operator === ">>>=";
-}
-
-function isBitwise(operator: CsharpSourceOperator): boolean {
-  return operator === "&" ||
-    operator === "|" ||
-    operator === "^" ||
-    operator === "&=" ||
-    operator === "|=" ||
-    operator === "^=";
-}
-
-function isArithmetic(operator: CsharpSourceOperator): boolean {
-  return operator === "+" ||
-    operator === "-" ||
-    operator === "*" ||
-    operator === "/" ||
-    operator === "%" ||
-    operator === "+=" ||
-    operator === "-=" ||
-    operator === "*=" ||
-    operator === "/=" ||
-    operator === "%=";
 }
 
 function rejected(

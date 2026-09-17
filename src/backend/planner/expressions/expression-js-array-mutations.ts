@@ -128,10 +128,10 @@ function planMutationArgument(
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
 ) {
-  const targetType = csharpSourcePrimitiveTargetType("int32");
+  const targetType = csharpSourcePrimitiveTargetType("float64");
   const expectedType = csharpTypeFromTargetTypeRef(targetType);
   if (expectedType === undefined) {
-    throw new Error("The C# int32 mutation parameter must always be renderable.");
+    throw new Error("The C# float64 mutation parameter must always be renderable.");
   }
   const argument = planCallArgument(
     node,

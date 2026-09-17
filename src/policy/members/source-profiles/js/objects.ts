@@ -10,6 +10,8 @@ import type {
 } from "../../../types/index.js";
 import {
   csharpNullableTargetType,
+  csharpEmptyObjectTargetType,
+  isCsharpEmptyObjectTargetType,
   csharpObjectTargetType,
   csharpJsArrayTargetType,
   csharpQualifiedTypeRenderShape,
@@ -82,14 +84,12 @@ const unsupportedObjectMethods = [
   "create",
   "defineProperty",
   "defineProperties",
-  "freeze",
   "fromEntries",
   "getOwnPropertyDescriptor",
   "getOwnPropertyDescriptors",
   "getOwnPropertyNames",
   "getOwnPropertySymbols",
   "isExtensible",
-  "isFrozen",
   "isSealed",
   "preventExtensions",
   "seal",
@@ -97,6 +97,30 @@ const unsupportedObjectMethods = [
 
 export const csharpJsObjectCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
+    ...["freeze", "isFrozen"].map(name => jsCallPolicy(
+      jsMemberIdentity("ObjectConstructor", name),
+      context => {
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        if (argument === undefined) return undefined;
+        if (isCsharpEmptyObjectTargetType(argument)) {
+          const carrier = csharpEmptyObjectTargetType();
+          return staticMethod(`Tsonic.CSharp.Runtime.EmptyObject.${name}`, name,
+            name === "freeze" ? "Freeze" : "IsFrozen", carrier,
+            [targetParameter("value", carrier)], name === "freeze" ? carrier : boolType);
+        }
+        const expression = context.source.sourceArguments[0]?.expression;
+        if (expression === undefined || context.host.objectShapes?.resolveNode(expression, context.sourceFile) === undefined) return undefined;
+        return staticMethod(`Tsonic.CSharp.Js.FrozenObject.${name}`, name,
+          name === "freeze" ? "Freeze" : "IsFrozen", jsRuntimeTargetType("FrozenObject"),
+          [targetParameter("value", argument)], name === "freeze" ? argument : boolType, {
+            typeParameters: [{ name: "T" }],
+            csharpArtifactRequirements: [{ kind: "object-shape-capability",
+              source: { kind: "argument", index: 0 }, capability: "js-freeze", rootKind: "object-shape" }],
+          });
+      }, noReceiver, { targetMethodTypeArguments: context => {
+        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        return argument === undefined || isCsharpEmptyObjectTargetType(argument) ? [] : [argument];
+      } })),
     jsCallPolicy(
       jsMemberIdentity("ObjectConstructor", "is"),
       () =>

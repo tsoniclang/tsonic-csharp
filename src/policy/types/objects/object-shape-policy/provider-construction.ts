@@ -77,7 +77,8 @@ export function resolveProviderObjectLiteralShape(
   if (typeRelation === undefined) {
     return undefined;
   }
-  const targetArguments = input.selectedTarget.typeArguments ?? [];
+  const typeParameters = typeRelation.targetBinding.typeParameters ?? [];
+  const targetArguments = typeParameters.length === 0 ? [] : input.selectedTarget.typeArguments ?? [];
   const relatedTarget = csharpTargetTypeFromBinding(
     typeRelation.targetBinding,
     targetArguments,
@@ -88,7 +89,6 @@ export function resolveProviderObjectLiteralShape(
   ) {
     return undefined;
   }
-  const typeParameters = typeRelation.targetBinding.typeParameters ?? [];
   if (typeParameters.length !== targetArguments.length) {
     return undefined;
   }
@@ -141,8 +141,9 @@ function resolveProviderTypeRelation(
         relation.objectLiteralConstruction?.kind === "object-initializer"
       ) {
         const typeParameters = relation.targetBinding.typeParameters ?? [];
-        const relatedTarget = typeParameters.length === targetArguments.length
-          ? csharpTargetTypeFromBinding(relation.targetBinding, targetArguments)
+        const sourceArguments = typeParameters.length === 0 ? [] : targetArguments;
+        const relatedTarget = typeParameters.length === sourceArguments.length
+          ? csharpTargetTypeFromBinding(relation.targetBinding, sourceArguments)
           : undefined;
         if (
           relatedTarget === undefined ||

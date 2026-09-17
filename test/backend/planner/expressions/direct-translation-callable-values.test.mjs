@@ -64,7 +64,7 @@ namespace Tsonic.Generated
 `);
 });
 
-test("direct C# translation rejects an omitted delegate default without exact callee-side evaluation", () => {
+test("direct C# translation evaluates an omitted reference delegate default in the callee", () => {
   const compiled = compileCsharpSource({
     sourceText: `
       const defaulted = (value: string = "x"): string => value;
@@ -74,15 +74,12 @@ test("direct C# translation rejects an omitted delegate default without exact ca
 
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.deepEqual(compiled.targetDiagnostics, [
-    {
-      category: "error",
-      code: "CSHARP_UNSUPPORTED_AST",
-      message: "Omitted source-owned delegate parameter 0 has a default initializer that requires exact callee-side default evaluation before C# emission.",
-      source: "tsonic-csharp",
-    },
-  ]);
-  assert.deepEqual([...compiled.artifacts], []);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /public static Func<string\?, string> defaulted/u);
+  assert.match(source, /return defaulted\(null\);/u);
+  assert.match(source, /string value = __tsonic_param0 \?\? "x";/u);
+  assert.match(source, /return value;/u);
 });
 
 test("direct C# translation preserves omission on a source method with an emitted optional parameter", () => {

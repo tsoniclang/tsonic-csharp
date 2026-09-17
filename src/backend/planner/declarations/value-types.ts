@@ -20,7 +20,8 @@ import type {
   CsharpSourceStruct,
 } from "../../../analysis/source-evidence/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
-import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpTypeMember, CsharpStructDeclaration, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import { renderBoundRecordMember } from "../objects/declarations/members.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
@@ -38,17 +39,29 @@ export function planValueTypeDeclaration(
     diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "Struct declaration emission requires a finalized value-type struct fact."));
   }
   diagnoseUnprovenValueTypeFields(declaration, input, diagnostics);
+  const shape = input.types.objectShapes.resolveNode(declarationNode, sourceFile);
   return {
     kind: "StructDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousValueType", input, diagnostics, "Value type name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
-    members: valueType.fields.map((field): CsharpFieldDeclaration => ({
+    members: valueType.fields.flatMap((field): readonly CsharpTypeMember[] => {
+      const member = shape?.members.find(candidate => candidate.sourceSubjects?.includes(field.sourceType));
+      if (shape !== undefined && member?.bound === true) {
+        const rendered = renderBoundRecordMember(shape, member, getCsharpTypeForSourceField(field, "Value-type field", sourceFile, input, diagnostics));
+        if (rendered.some(candidate => candidate === undefined)) {
+          diagnostics.push(unsupportedNodeDiagnostic(declarationNode, "The bound value-type member has no renderable storage contract."));
+          return [];
+        }
+        return rendered as readonly CsharpTypeMember[];
+      }
+      return [{
       kind: "FieldDeclaration",
       name: field.sourceName,
       modifiers: field.readonly ? ["public", "readonly"] : ["public"],
       type: getCsharpTypeForSourceField(field, "Value-type field", sourceFile, input, diagnostics),
-    })),
+    }];
+    }),
   };
 }
 

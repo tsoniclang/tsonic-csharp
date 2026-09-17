@@ -133,7 +133,8 @@ function planObjectShapeRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
     return [];
   }
-  const restShape = getCsharpObjectShapeFactForNode(name, sourceFile, input);
+  const restContract = getCsharpObjectShapeFactForNode(name, sourceFile, input);
+  const restShape = restContract === undefined ? undefined : input.types.objectShapes.resolveCopyShape(restContract);
   if (restShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
     return [];
@@ -169,6 +170,14 @@ function planObjectShapeRestBindingElement(
       return undefined;
     }
     const sourceMember = sourceMemberLookup.member;
+    if (sourceMember.memberKind === "method") {
+      const required = input.artifacts.requireObjectShapeCapability(undefined, sourceShape.targetType,
+        sourceFile, "method-values", "object-shape");
+      if (required.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(elementNode, required.reason));
+        return undefined;
+      }
+    }
     if (!targetTypeRefEquals(sourceMember.type, restMember.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
       return undefined;

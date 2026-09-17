@@ -15,6 +15,7 @@ import {
   KindPropertyDeclaration,
   KindSetAccessor,
   SourceKind,
+  sourceClassFieldIsTypeOnly,
 } from "@tsonic/target-api/source";
 import {
   unsupportedNodeDiagnostic,
@@ -30,6 +31,7 @@ import {
   mergeAccessorProperty,
   planPropertyDeclaration,
 } from "./declaration-class-properties.js";
+import { planCsharpMutableMethod } from "./mutable-methods.js";
 
 export function planClassMembers(
   members: readonly (Node | undefined)[],
@@ -42,7 +44,7 @@ export function planClassMembers(
   const planned: CsharpTypeMember[] = [];
   const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
   for (const member of members) {
-    if (member === undefined) {
+    if (member === undefined || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
       continue;
     }
     switch (SourceKind(input.program.source.ast, member)) {
@@ -55,8 +57,11 @@ export function planClassMembers(
         planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
         break;
       case KindMethodDeclaration:
-        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined) {
-          planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
+          input.program.source.ast.hasModifierKind(member, "abstract")) {
+          const method = planMethodDeclaration(member, sourceFile, input, diagnostics);
+          const write = input.program.declarations.methodWrite(member);
+          planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
         }
         break;
       case KindPropertyDeclaration:

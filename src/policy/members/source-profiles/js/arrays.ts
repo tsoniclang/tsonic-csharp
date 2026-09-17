@@ -1,3 +1,4 @@
+import { arrayConstructionMember, arrayCallMember, arrayConstructorElementTypeArguments, arrayConstructionTypeArguments } from "./array-construction.js";
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
@@ -29,6 +30,9 @@ import type {
   CsharpSourceProfilePropertyPolicy,
 } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { selectCsharpArrayCopy } from "./array-copy.js";
+import { csharpArrayLikeElement } from "../../../../target-model/types/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
 import {
   instanceMethod,
   jsCallIdentity,
@@ -321,7 +325,7 @@ export const csharpJsArrayElementPolicies:
             : targetIndexer(
                 `Tsonic.CSharp.Js.JSArray.indexer:${declaringName}`,
                 receiverType,
-                intType,
+                getCsharpJsArrayElementTargetType(receiverType) === undefined ? intType : doubleType,
                 resultType,
                 readonly,
               );
@@ -596,12 +600,18 @@ function arrayFromMember(
   if (shape === undefined) {
     return undefined;
   }
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const isJsArray = getCsharpJsArrayElementTargetType(argument) !== undefined;
+  const isArrayUnion = getCsharpRuntimeUnionArms(argument) !== undefined;
+  const copy = isJsArray || isArrayUnion ? selectCsharpArrayCopy(context) : undefined;
+  if ((isJsArray || isArrayUnion) && copy === undefined) return undefined;
+  if (copy?.method === "CopyDense" && context.source.sourceSelectedSignatureParameters.length !== 1) return undefined;
   const parameters: CsharpTargetParameter[] = [
     targetParameter(
       "arrayLike",
-      sourceIsString(context)
+      copy?.sourceType ?? (sourceIsString(context)
         ? stringType
-        : csharpEnumerableTargetType(shape.sourceElement),
+        : csharpEnumerableTargetType(shape.sourceElement)),
     ),
   ];
   if (context.source.sourceSelectedSignatureParameters.length === 2) {
@@ -615,86 +625,16 @@ function arrayFromMember(
     ));
   }
   return staticMethod(
-    "Tsonic.CSharp.Js.JSArrayStatics.from",
+    `Tsonic.CSharp.Js.${copy?.method === "CopyDense" ? "ArrayLike" : "JSArrayStatics"}.${copy?.method ?? "from"}`,
     "from",
-    "from",
-    arrayStaticsType,
+    copy?.method ?? "from",
+    copy?.method === "CopyDense" ? jsRuntimeTargetType("ArrayLike") : arrayStaticsType,
     parameters,
     shape.resultType,
     {
       typeParameters: arrayFromTypeParameterNames(context)
         .map((name) => ({ name })),
     },
-  );
-}
-
-function arrayConstructionMember(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
-  const resultType = arrayConstructorResultType(context);
-  const element = getCsharpJsArrayElementTargetType(resultType);
-  if (resultType === undefined || element === undefined) {
-    return undefined;
-  }
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
-  if (numericLength) {
-    return Object.freeze({
-      id: "Tsonic.CSharp.Js.JSArray..ctor(length)",
-      sourceName: "constructor",
-      targetName: "JSArray",
-      kind: "constructor",
-      declaringType: resultType,
-      parameters: [targetParameter("length", intType)],
-      returnType: resultType,
-    });
-  }
-  return Object.freeze({
-    id: "Tsonic.CSharp.Js.JSArrayStatics.of:construction",
-    sourceName: "constructor",
-    targetName: "of",
-    kind: "constructor",
-    declaringType: resultType,
-    parameters: [targetParameter("items", element, { paramsArray: true })],
-    returnType: resultType,
-    csharpInvocation: {
-      kind: "static-factory-construction",
-      factoryType: arrayStaticsType,
-    },
-    typeParameters: [{ name: "T" }],
-  } satisfies CsharpTargetMember);
-}
-
-function arrayCallMember(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): CsharpTargetMember | undefined {
-  const resultType = arrayConstructorResultType(context);
-  const element = getCsharpJsArrayElementTargetType(resultType);
-  if (resultType === undefined || element === undefined) {
-    return undefined;
-  }
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
-  return staticMethod(
-    numericLength
-      ? "Tsonic.CSharp.Js.JSArrayStatics.withLength"
-      : "Tsonic.CSharp.Js.JSArrayStatics.of:call",
-    "constructor",
-    numericLength ? "withLength" : "of",
-    arrayStaticsType,
-    numericLength
-      ? [targetParameter("length", intType)]
-      : [targetParameter("items", element, { paramsArray: true })],
-    resultType,
-    { typeParameters: [{ name: "T" }] },
   );
 }
 
@@ -730,35 +670,6 @@ function readOnlyArrayCallShape(
   return receiver === undefined || element === undefined
     ? undefined
     : { receiver, element };
-}
-
-function arrayConstructorElementTypeArguments(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): readonly TargetTypeRef[] | undefined {
-  const result = arrayConstructorResultType(context);
-  const element = getCsharpJsArrayElementTargetType(result);
-  return element === undefined ? undefined : [element];
-}
-
-function arrayConstructorResultType(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): TargetTypeRef | undefined {
-  const selected = context.source.sourceSelectedMethodTypeArguments ?? [];
-  if (selected.length !== 0) {
-    if (selected.length !== 1) {
-      return undefined;
-    }
-    const element = context.host.types.resolveSelectedType(
-      selected[0]!.explicitTypeNode,
-      selected[0]!.selectedType,
-      context.sourceFile,
-    );
-    return element === undefined ? undefined : csharpJsArrayTargetType(element);
-  }
-  return context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
 }
 
 function arrayOfTypeArguments(
@@ -811,7 +722,7 @@ function arrayFromShape(
   );
   const sourceElement = sourceIsString(context)
     ? stringType
-    : getCsharpCollectionElementTargetType(sourceArgument);
+    : getCsharpCollectionElementTargetType(sourceArgument) ?? csharpArrayLikeElement(sourceArgument);
   if (sourceElement === undefined) {
     return undefined;
   }
@@ -837,6 +748,11 @@ function arrayFromTypeArguments(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly TargetTypeRef[] | undefined {
   const shape = arrayFromShape(context);
+  const copy = selectCsharpArrayCopy(context);
+  if (copy !== undefined && shape !== undefined) {
+    return context.source.sourceSelectedSignatureParameters.length === 1
+      ? copy.typeArguments : [...copy.typeArguments, shape.resultElement];
+  }
   return shape === undefined
     ? undefined
     : sourceIsString(context)
@@ -851,6 +767,13 @@ function arrayFromTypeArguments(
 function arrayFromTypeParameterNames(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): readonly string[] {
+  const copy = selectCsharpArrayCopy(context);
+  if (copy !== undefined) {
+    return [
+      ...copy.typeArguments.map((_, index) => `TSource${index}`),
+      ...(context.source.sourceSelectedSignatureParameters.length === 1 ? [] : ["TResult"]),
+    ];
+  }
   return sourceIsString(context)
     ? context.source.sourceSelectedSignatureParameters.length === 1
       ? []
@@ -858,18 +781,6 @@ function arrayFromTypeParameterNames(
     : context.source.sourceSelectedSignatureParameters.length === 1
       ? ["TSource"]
       : ["TSource", "TResult"];
-}
-
-function arrayConstructionTypeArguments(
-  context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
-): readonly TargetTypeRef[] | undefined {
-  const sourceArgument = context.source.sourceArguments[0];
-  const numericLength = context.source.sourceArguments.length === 1 &&
-    sourceArgument !== undefined &&
-    context.host.semantics(context.sourceFile).types.isNumberLike(
-      sourceArgument.type,
-    );
-  return numericLength ? [] : arrayConstructorElementTypeArguments(context);
 }
 
 function sourceIsString(

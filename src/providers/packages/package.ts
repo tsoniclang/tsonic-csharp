@@ -15,7 +15,6 @@ export function createCsharpProviderPackage(
     specifierPrefix: entry.moduleSpecifier,
     ...(entry.message === undefined ? {} : { message: entry.message }),
   })));
-  const contributions = Object.freeze([snapshot.policy]);
   return Object.freeze({
     kind: "target-capability",
     id: snapshot.id,
@@ -35,8 +34,8 @@ export function createCsharpProviderPackage(
         }],
       };
     },
-    createTargetContributions() {
-      return contributions;
+    createTargetContributions(context) {
+      return Object.freeze([snapshot.createPolicy(context.selectedSurfaceIds)]);
     },
     runtimeContributions() {
       return snapshot.runtime;

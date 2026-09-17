@@ -3,7 +3,7 @@ import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
-import { combineCsharpTargetUnionMembers } from "../../../target-model/types/runtime-carriers.js";
+import { combineCsharpTargetUnionMembers, csharpEmptyObjectTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
 import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/nullable.js";
@@ -14,6 +14,7 @@ import { resolveKeywordType } from "./source-primitives.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 
 export function resolveNodeWithState(
   { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -73,6 +74,9 @@ export function resolveNodeWithState(
   if (keyword !== undefined) {
     return keyword;
   }
+  if (host.ast.kindName(node) === "KindObjectKeyword" && selectedCsharpSourceProfileOwner(host.target) === "js") {
+    return csharpEmptyObjectTargetType();
+  }
   if (host.ast.is.IsArrayTypeNode(node)) {
     const element = resolveNodeWithState(
       host.ast.as.AsArrayTypeNode(node)!.ElementType,
@@ -94,6 +98,10 @@ export function resolveNodeWithState(
     return resolveTupleTypeNode(node, queries, state);
   }
   if (host.ast.is.IsUnionTypeNode(node)) {
+    const selected = queries.types.authoredType(node);
+    const structural = selected === undefined ? { kind: "not-applicable" as const }
+      : host.structuralTypes.resolveUnion(selected, queries.sourceFile, state);
+    if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
     const members = host.ast.children(node).map((member) =>
       resolveNodeWithState(
         member,
@@ -103,8 +111,9 @@ export function resolveNodeWithState(
     );
     return members.some((member) => member === undefined)
       ? undefined
-      : combineCsharpTargetUnionMembers(
-          members as readonly TargetTypeRef[],
+      : retainCsharpUnionObjectShapes(
+          combineCsharpTargetUnionMembers(members as readonly TargetTypeRef[]),
+          host.structuralTypes.resolveTarget,
         );
   }
   if (host.ast.is.IsNamedTupleMember(node)) {

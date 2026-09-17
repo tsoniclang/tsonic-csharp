@@ -25,6 +25,7 @@ import { rejected } from "../result.js";
 import { maximumJsonClosureDepth } from "../model.js";
 import { objectShapeArtifactKey } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
+import { collectCsharpReferenceClosure } from "./reference-closure.js";
 
 export function collectJsonClosure(
   { collectJsonShape, collectJsonType, visibleObjectShapes }: CsharpArtifactGraphScope,
@@ -72,7 +73,7 @@ export function collectJsonClosure(
 
 
 export function collectCapabilityClosure(
-  { collectJsonClosure }: CsharpArtifactGraphScope,
+  scope: CsharpArtifactGraphScope,
   capability: CsharpObjectShapeCapability,
   type: TargetTypeRef,
   preferredShape: CsharpObjectShapeFact | undefined,
@@ -85,7 +86,12 @@ export function collectCapabilityClosure(
   | { readonly kind: "rejected"; readonly reason: string } {
   switch (capability) {
     case "json-serialization":
-      return collectJsonClosure(type, preferredShape, pendingShapes);
+      return scope.collectJsonClosure(type, preferredShape, pendingShapes);
+    case "js-freeze":
+    case "reference-identity":
+    case "method-values":
+    case "enumerable-keys":
+      return collectCsharpReferenceClosure(scope, type, preferredShape, pendingShapes, capability);
   }
 }
 

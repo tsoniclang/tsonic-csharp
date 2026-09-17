@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  assertCsharpCheckingSucceeded,
   assertCsharpCompilationSucceeded,
+  assertCsharpCheckingSucceeded,
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 import { memoryAbiCapability } from "../../../helpers/memory-abi.mjs";
@@ -67,7 +67,7 @@ for (const [name, declarations, sourceType, layout] of [
       memoryField((value: typeof Envelope) => value.record, 0, 4, record));
   `, "typeof Envelope", "envelope"],
 ]) {
-  test(`native raw reinterpretation precisely rejects ${name}`, () => {
+  test(`native raw reinterpretation constructs exact codecs for ${name}`, () => {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
 ${declarations}
 export function expose(raw: RawPointer | undefined) {
@@ -75,10 +75,11 @@ export function expose(raw: RawPointer | undefined) {
   return reinterpretRawPointer(raw, ${layout});
 }
 ` });
-    assertInlineArrayRejection(compiled, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED");
+    assertCsharpCompilationSucceeded(compiled);
+    assert.match(compiled.artifacts.get("src/Index.cs"), /NativeLayout[\s\S]*for \(/u);
   });
 
-  test(`native physical backing precisely rejects ${name}`, () => {
+  test(`native physical backing constructs exact codecs for ${name}`, () => {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
 ${declarations}
 export function expose(value: ${sourceType}) {
@@ -86,15 +87,37 @@ export function expose(value: ${sourceType}) {
   return toRawPointer(pointer, ${layout});
 }
 ` });
-    assertInlineArrayRejection(compiled, "CSHARP_NATIVE_BACKING_NOT_PROVEN");
+    assertCsharpCompilationSucceeded(compiled);
+    assert.match(compiled.artifacts.get("src/Index.cs"), /NativeLayout[\s\S]*for \(/u);
   });
 }
 
-function assertInlineArrayRejection(compiled, code) {
-  assertCsharpCheckingSucceeded(compiled);
-  const diagnostic = compiled.targetDiagnostics.find(item => item.code === code);
-  assert.ok(diagnostic, JSON.stringify(compiled.targetDiagnostics, null, 2));
-  assert.match(diagnostic.message, /does not support inline fixed-array native memory layouts/u);
-  assert.match(diagnostic.message, /ordinary T\[\] carriers do not provide inline storage/u);
-  assert.equal(compiled.artifacts.size, 0);
+test("native array layouts reject reference elements rather than decoding object identities", () => {
+  const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
+interface Entry { count: uint32 }
+const entry = memoryLayout<Entry>(abi, 4, 4, 4,
+  memoryField((value: Entry) => value.count, 0, 4, word));
+const entries = memoryArrayLayout<Entry, 2>(abi, 8, 4, 8, entry, 2);
+export function expose(raw: RawPointer | undefined) {
+  unsafeContext();
+  return reinterpretRawPointer(raw, entries);
 }
+` });
+  assertCsharpCheckingSucceeded(compiled);
+  assert.ok(compiled.result.diagnostics.some(item => item.message.includes("all-bit-pattern")),
+    JSON.stringify(compiled.result.diagnostics));
+  assert.equal(compiled.artifacts.size, 0);
+});
+
+test("fixed-array codec identity includes exact count, stride and element layout", async () => {
+  const { csharpNativeMemoryLayoutsEqual } = await import("../../../../dist/target-model/operations/native-memory.js");
+  const scalar = { kind: "scalar", pointeeType: { kind: "source-primitive", name: "uint32" },
+    size: 4, alignment: 4, width: 64, littleEndian: true, fields: [] };
+  const array = { kind: "array", pointeeType: { kind: "array", element: scalar.pointeeType },
+    size: 16, alignment: 4, width: 64, littleEndian: true, length: "2", stride: 8, element: scalar };
+  assert.equal(csharpNativeMemoryLayoutsEqual(array, structuredClone(array)), true);
+  for (const change of [{ length: "3" }, { stride: 4 }, { element: { ...scalar, size: 8 } },
+    { element: { ...scalar, pointeeType: { kind: "source-primitive", name: "int32" } } }]) {
+    assert.equal(csharpNativeMemoryLayoutsEqual(array, { ...array, ...change }), false);
+  }
+});

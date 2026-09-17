@@ -20,6 +20,7 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
+import { createNullableParameterQuery } from "../callables/nullable-parameters.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -115,6 +116,7 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionScope {
+  sourceParameterUsesOnlyNullableCarrier(declaration: Node, parameter: Node): boolean;
   resolvePointerReturn(
     declaration: Node,
     state: CsharpTypeResolutionState,
@@ -226,6 +228,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   mode: "selected" | "storage",
+  selectedType?: Type,
 ): TargetTypeRef | undefined;
   resolveNonNullExpressionType(
   node: Node,
@@ -488,6 +491,7 @@ export function createCsharpTypeResolutionServices(
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
   const methods = {
+    sourceParameterUsesOnlyNullableCarrier: createNullableParameterQuery(host),
     resolveNode: (
       node: Node | undefined,
       sourceFile?: SourceFile,
@@ -555,8 +559,14 @@ export function createCsharpTypeResolutionServices(
       sourceFile: SourceFile | undefined,
       state: CsharpTypeResolutionState,
     ) => {
-      if (node === undefined || scope.activeNodes.has(node)) {
+      if (node === undefined) {
         return undefined;
+      }
+      if (scope.activeNodes.has(node)) {
+        if (!host.ast.is.IsTypeReferenceNode(node) && !host.ast.is.IsUnionTypeNode(node) && !host.ast.is.IsTypeLiteralNode(node)) return undefined;
+        const queries = sourceFile === undefined ? host.semanticsFor(node) : host.semantics(sourceFile);
+        const type = queries.types.authoredType(node);
+        return type === undefined ? undefined : host.structuralTypes.resolveReference(type);
       }
       scope.activeNodes.add(node);
       try {
@@ -641,9 +651,12 @@ export function createCsharpTypeResolutionServices(
       sourceFile: SourceFile,
       state: CsharpTypeResolutionState,
     ) => {
-      if (type === undefined || activeTypes.has(type)) {
+      if (type === undefined) {
         return undefined;
       }
+      const reference = host.structuralTypes.resolveReference(type);
+      if (reference !== undefined) return reference;
+      if (activeTypes.has(type)) return undefined;
       activeTypes.add(type);
       try {
         return resolveTypeWithStateImplementation(scope, type, sourceFile, state);

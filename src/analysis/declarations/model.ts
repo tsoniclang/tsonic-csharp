@@ -7,4 +7,6 @@ export type CsharpReturnTargetContract =
 
 export interface CsharpDeclarationClassifications {
   returnContract(node: Node): CsharpReturnTargetContract | undefined;
+  referenceDefault(node: Node): TargetTypeRef | undefined;
+  methodWrite(node: Node): { readonly type: TargetTypeRef; readonly storageName: string; readonly implementationName: string } | undefined;
 }

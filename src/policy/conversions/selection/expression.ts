@@ -154,6 +154,11 @@ export function selectCsharpFlowReadConversion(
   storageType: TargetTypeRef,
   selectedReadType: TargetTypeRef,
 ): CsharpConversionSelection {
+  if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
+  const nullableElement = getCsharpNullableElementTargetType(storageType);
+  if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
+    return selectCsharpConversion(input, storageType, selectedReadType, "explicit");
+  }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(storageType);
   if (runtimeUnionArms !== undefined) {
     const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
@@ -201,6 +206,9 @@ export function csharpConversionIsApplicable(
   mode: CsharpConversionMode,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "array-like-union" ||
+    selection.kind === "runtime-union-reference" ||
+    selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
     selection.kind === "provider-argument-adapter" ||
@@ -208,6 +216,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "nullable-value" ||
     selection.kind === "runtime-union-projection" ||
     selection.kind === "js-value-box" ||
+    selection.kind === "undefined-object-box" ||
     selection.kind === "js-value-cast" ||
     mode === "explicit" && selection.kind === "cast";
 }

@@ -9,6 +9,7 @@ import { csharpTargetParameterValueType } from "../../../target-model/types/memb
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
+import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -128,7 +129,7 @@ export function resolveSelectedValue(
 
 
 export function resolveSelectedValueWithState(
-  { host, resolveNodeWithState, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolvePropertyAccessTargetType, resolveSourceValueDeclaration, resolveTypeWithState, sourceValueDeclaration }: CsharpTypeResolutionScope,
   node: Node,
   selectedType: Type,
   sourceFile: SourceFile,
@@ -140,7 +141,20 @@ export function resolveSelectedValueWithState(
     declaration ?? node,
   ) ?? host.representations.scopedTargetType(node);
   if (scopedTarget !== undefined) {
+    const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
+      .declarations.declaredValueType(declaration);
+    const queries = host.semantics(sourceFile);
+    if (declaredType !== undefined && queries.types.refinement(declaredType, selectedType).kind === "unrelated") {
+      return reconcileCsharpSelectedTargetType(
+        scopedTarget,
+        resolveTypeWithState(selectedType, sourceFile, nextState(state)),
+        queries.types.relationship(declaredType, selectedType),
+      );
+    }
     return scopedTarget;
+  }
+  if (host.ast.is.IsPropertyAccessExpression(node)) {
+    return resolvePropertyAccessTargetType(node, host.semantics(sourceFile), nextState(state), "selected", selectedType);
   }
   if (declaration !== undefined) {
     const declared = resolveSourceValueDeclaration(
@@ -224,7 +238,7 @@ export function resolveTypedLocationOperationPointee(
 
 
 export function resolveTypedLocationOperationPointeeWithState(
-  { resolveAuthoredAndSelectedSourceType, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  { resolveAuthoredAndSelectedSourceType, resolveReadStorage, resolveSelectedValueWithState }: CsharpTypeResolutionScope,
   operation: CsharpSourceTypedLocationOperation,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -240,11 +254,9 @@ export function resolveTypedLocationOperationPointeeWithState(
   }
   switch (operation.kind) {
     case "location-address":
-      return resolveSelectedValueWithState(
+      return resolveReadStorage(
         operation.storageExpression,
-        operation.storageType,
         sourceFile,
-        nextState(state),
       );
     case "location-allocate":
       return resolveSelectedValueWithState(
@@ -275,6 +287,7 @@ export function resolveTypedLocationOperationPointeeWithState(
         nextState(state),
       ));
     case "location-bind":
+    case "location-view":
       return getCsharpDelegateSignature(resolveSelectedValueWithState(
         operation.readExpression,
         operation.readType,

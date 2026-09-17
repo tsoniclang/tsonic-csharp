@@ -33,6 +33,9 @@ import {
   callStatic,
   literalNumber,
 } from "../csharp-expression-builders.js";
+import { isCsharpRuntimeUndefinedTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { planCsharpBigIntCall } from "./bigint-call.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -42,7 +45,38 @@ export function planSelectedCsharpBinaryOperation(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (selection.targetOperation.kind === "bigint-call") {
+    return planCsharpBigIntCall(node, selection, sourceFile, input, diagnostics, planExpression, state);
+  }
+  if (selection.targetOperation.kind === "array-index-presence") {
+    const left = planExpression(selection.left, sourceFile, input, diagnostics);
+    const right = planExpression(selection.right, sourceFile, input, diagnostics);
+    return left === undefined || right === undefined ? undefined : callStatic(
+      { kind: "IdentifierName", requiredUsingNamespace: "Tsonic.CSharp.Js", name: "ArrayLike" },
+      "HasIndex", [left, right],
+    );
+  }
+  if (selection.targetOperation.kind === "nullish-equality") {
+    const operands = [
+      { node: selection.left, type: selection.leftInputType },
+      { node: selection.right, type: selection.rightInputType },
+    ].map(({ node: operand, type }) => {
+      const syntaxType = csharpTypeFromTargetTypeRef(type);
+      return syntaxType === undefined ? undefined : planExpressionWithExpectedType(
+        operand, sourceFile, input, diagnostics, syntaxType, undefined, type,
+      );
+    });
+    const [left, right] = operands;
+    if (left === undefined || right === undefined) return undefined;
+    return {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "TupleExpression", elements: [left, right,
+        { kind: "LiteralExpression", value: selection.targetOperation.value }] },
+      name: "Item3",
+    };
+  }
   if (selection.targetOperation.kind === "nullish-test") {
     const operandNode = selection.targetOperation.operand === "left"
       ? selection.left
@@ -50,16 +84,31 @@ export function planSelectedCsharpBinaryOperation(
     const operand = planExpression(
       operandNode,
       sourceFile,
-      input,
+      { ...input, storageExpression: operandNode },
       diagnostics,
     );
-    return operand === undefined
-      ? undefined
-      : {
-          kind: "NullPatternExpression",
-          expression: operand,
-          negated: selection.targetOperation.negated,
-        };
+    if (operand === undefined) return undefined;
+    const otherNode = selection.targetOperation.operand === "left" ? selection.right : selection.left;
+    const other = planExpression(otherNode, sourceFile, input, diagnostics);
+    if (other === undefined) return undefined;
+    let tested = operand;
+    const intrinsicUndefined = input.program.source.ast.is.IsIdentifier(otherNode) &&
+      input.program.sourceNavigation.referenceFor(otherNode) === undefined &&
+      isCsharpRuntimeUndefinedTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
+    if (other.kind !== "LiteralExpression" && !intrinsicUndefined) {
+      const testedType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
+        ? selection.leftType : selection.rightType);
+      const otherType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
+        ? selection.rightType : selection.leftType);
+      if (testedType === undefined || otherType === undefined) return undefined;
+      const testedValue: CsharpExpression = { kind: "CastExpression", type: testedType, expression: operand };
+      const otherValue: CsharpExpression = { kind: "CastExpression", type: otherType, expression: other };
+      tested = { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "TupleExpression", elements: selection.targetOperation.operand === "left"
+          ? [testedValue, otherValue] : [otherValue, testedValue] },
+        name: selection.targetOperation.operand === "left" ? "Item1" : "Item2" };
+    }
+    return { kind: "NullPatternExpression", expression: tested, negated: selection.targetOperation.negated };
   }
   if (selection.targetOperation.kind === "string-ordinal-relational") {
     const operatorToken = csharpBinaryOperatorTokenFromText(
@@ -129,10 +178,16 @@ export function planSelectedCsharpBinaryOperation(
     targetOperator,
   );
   if (assignmentToken !== undefined) {
+    let storageExpression = selection.left;
+    while (input.program.source.ast.is.IsParenthesizedExpression(storageExpression)) {
+      const inner = input.program.source.ast.as.AsParenthesizedExpression(storageExpression)?.Expression;
+      if (inner === undefined) return undefined;
+      storageExpression = inner;
+    }
     const left = planExpression(
       selection.left,
       sourceFile,
-      input,
+      { ...input, storageExpression },
       diagnostics,
     );
     const expectedRightType = csharpTypeFromTargetTypeRef(selection.leftType);

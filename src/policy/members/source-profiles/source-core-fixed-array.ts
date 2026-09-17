@@ -22,6 +22,7 @@ import type {
 import {
   csharpSourceProfileDiagnostic,
 } from "./source-profile-policy.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 
 type ResolvedSourcePropertyAccessInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["propertyAccess"]>
@@ -99,7 +100,8 @@ export function selectCsharpSourceCoreFixedArrayElement(
   const rejection = fixedArrayReceiverRejection(host, source.receiver, sourceFile);
   if (rejection !== undefined) return rejectedFixedArrayOperation(rejection);
   const receiver = resolveFixedArrayReceiver(host, source.receiver, sourceFile);
-  const indexType = host.types.resolveNode(
+  const integralLiteral = csharpLiteralIsRepresentableAs(host, source.argument.expression, csharpSourcePrimitiveTargetType("int32"));
+  const indexType = integralLiteral ? csharpSourcePrimitiveTargetType("int32") : host.types.resolveNode(
     source.argument.expression,
     sourceFile,
   ) ?? host.types.resolveType(source.argument.type, sourceFile);

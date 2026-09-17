@@ -10,6 +10,9 @@ import type {
 } from "../../policy/conversions/index.js";
 import {
   csharpRuntimeUndefinedTargetType,
+  csharpObjectTargetType,
+  getCsharpNullableElementTargetType,
+  targetTypeRefEquals,
   getCsharpGeneratorProtocol,
   getCsharpArrayLiteralInputCarrierTargetType,
   getCsharpJsArrayElementTargetType,
@@ -25,14 +28,16 @@ import {
 } from "../../target-model/types/index.js";
 import type { CsharpExpectedTypeClassifications } from "../expected-types/index.js";
 import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js";
+import type { CsharpStructuralInterfaceRegistration } from "../object-shapes/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
-import type { CsharpStorageClassifications } from "../storage/index.js";
+import type { CsharpStorageRepresentationClassifications } from "../storage/index.js";
 import type {
   CsharpConversionAnalysis,
   CsharpConversionClassifications,
   CsharpConversionIssue,
 } from "./model.js";
+import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -43,7 +48,7 @@ const maximumConversionClassifications = 1_048_576;
 export function analyzeCsharpConversions(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
-  objectShapes: CsharpObjectShapeClassifications,
+  objectShapes: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration,
 ): CsharpConversionAnalysis {
   const pairSelections = new Map<string, CsharpConversionSelection>();
   const expressionSelections = new WeakMap<
@@ -123,7 +128,7 @@ export function analyzeCsharpConversions(
     sourceFile: SourceFile,
     operations: CsharpTargetOperationClassifications,
     expectedTypes: CsharpExpectedTypeClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (evidence.isCompileTimeMetadata(node)) return;
     const sourceTypes = exactSourceTypes(node, operations, storage);
@@ -163,7 +168,7 @@ export function analyzeCsharpConversions(
   function classifyAssertion(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     if (policy.ast.is.IsNonNullExpression(node)) {
       const expression = policy.ast.as.AsNonNullExpression(node)?.Expression;
@@ -205,7 +210,7 @@ export function analyzeCsharpConversions(
   function exactSourceTypes(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): readonly TargetTypeRef[] {
     const candidates = [
       operations.resultType(node),
@@ -317,7 +322,7 @@ export function analyzeCsharpConversions(
   function classifyCallUses(
     node: Node,
     operations: CsharpTargetOperationClassifications,
-    storage: CsharpStorageClassifications,
+    storage: CsharpStorageRepresentationClassifications,
   ): void {
     const classification = operations.call(node);
     if (classification === undefined) {
@@ -493,13 +498,26 @@ export function analyzeCsharpConversions(
       return undefined;
     }
     const sourceFile = policy.ast.getSourceFile(expression);
-    const candidate = selectCsharpExpressionConversion(
+    let candidate = selectCsharpExpressionConversion(
       policy,
       expression,
       source,
       target,
       mode,
     );
+    if (getCsharpNullableElementTargetType(source) !== undefined && targetTypeRefEquals(target, csharpObjectTargetType())) {
+      const semantics = policy.semanticsFor(expression);
+      const selectedType = semantics.types.expressionType(expression);
+      const members = selectedType === undefined ? [] : semantics.types.isUnion(selectedType)
+        ? semantics.types.unionOrIntersectionTypes(selectedType) : [selectedType];
+      const nullish = members.filter(member => semantics.types.isNullish(member));
+      if (nullish.length === 1 && isUndefinedType(nullish[0]!, semantics)) {
+        candidate = { kind: "undefined-object-box" };
+      }
+    }
+    if (candidate.kind === "rejected" && objectShapes.registerStructuralInterface(expression, source, target)) {
+      candidate = { kind: "implicit", proof: "object-shape-interface" };
+    }
     const selected = candidate.kind === "delegate-adapter" &&
         (
           sourceFile === undefined ||

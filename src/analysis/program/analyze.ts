@@ -1,7 +1,8 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
-import { createTsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
+import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
   resolvedTargetStage,
@@ -29,6 +30,7 @@ import type {
 import {
   createCsharpAttributeApplicationFactIndex,
 } from "../attributes/application-index.js";
+import { diagnoseCsharpAttributeTypeValues } from "../attributes/type-validation.js";
 import {
   createCsharpSafetyApplicationFactIndex,
 } from "../safety/application-index.js";
@@ -75,6 +77,7 @@ import {
 } from "../expected-types/index.js";
 import {
   analyzeCsharpStorage,
+  sealCsharpStorage,
 } from "../storage/index.js";
 import {
   csharpStorageClassificationsEqual,
@@ -97,6 +100,10 @@ import {
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
+import { createSourceArrayDensityQuery } from "@tsonic/target-api/source";
+import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
+import { jsArrayMemberEffect } from "@tsonic/js-source-profile";
+import { csharpSourceProfileDeclarationIdentity } from "../../policy/members/source-profiles/source-profile-identity.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -115,7 +122,24 @@ export function analyzeCsharpTargetProgram(
     return rejectedTargetStage(project.diagnostics);
   }
   const source = input.source;
+  const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
+  const arrayDensity = createSourceArrayDensityQuery(source, {
+    closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
+    intrinsicallyDense(expression) {
+      const semantics = source.semantics.forNode(expression);
+      const type = semantics.types.expressionType(expression);
+      const identity = type === undefined ? undefined : classifyCsharpSourceProfileType(type, semantics, source.ast);
+      return identity?.ownerId === "js" && identity.kind === "typed-array";
+    },
+    memberEffect(declaration) {
+      const identity = csharpSourceProfileDeclarationIdentity(
+        source.ast, source.semantics.forNode(declaration), source.sourceFacts, declaration,
+      );
+      return jsArrayMemberEffect(identity?.owner === "js" && identity.declaringName !== undefined && identity.name !== undefined
+        ? { ownerName: identity.declaringName, memberName: identity.name } : undefined);
+    },
+  });
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -132,8 +156,10 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
+    arrayDensity,
     providers,
     pointerReturns: createTsonicPointerReturnQueries(source),
+    memoryBindings,
     target: input.target,
     semantics: source.semantics.forFile,
     semanticsFor: source.semantics.forNode,
@@ -150,6 +176,7 @@ export function analyzeCsharpTargetProgram(
         sourceIdentities,
         names,
         typeHost,
+        arrayDensity,
         previous,
       );
       return {
@@ -187,6 +214,7 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
     names,
     typeHost,
+    arrayDensity,
     stable,
   );
   if (!representationContractsEqual(stable, analysis)) {
@@ -202,6 +230,7 @@ export function analyzeCsharpTargetProgram(
     }]);
   }
   const analysisIssues = [
+    ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
@@ -244,6 +273,8 @@ export function analyzeCsharpTargetProgram(
     sourceFiles: source.navigation.sourceFiles,
     sourceFacts: source.sourceFacts,
   });
+  const attributeIssues = diagnoseCsharpAttributeTypeValues(source, attributeApplications);
+  if (attributeIssues.length > 0) return rejectedTargetStage(attributeIssues);
   const safetyApplications = createCsharpSafetyApplicationFactIndex({
     ast: source.ast,
     sourceFiles: source.navigation.sourceFiles,
@@ -307,6 +338,7 @@ function analyzeIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
   typeHost: Parameters<typeof createCsharpTypeSystem>[0],
+  arrayDensity: SourceArrayDensityQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
@@ -332,6 +364,7 @@ function analyzeIteration(
     providers,
     sourceIdentities,
     typeSystem,
+    arrayDensity,
   });
   const sourceEvidence = analyzeCsharpSourceEvidence(
     input.source,
@@ -364,7 +397,7 @@ function analyzeIteration(
     sourceEvidence,
     objectShapes,
   );
-  const storage = analyzeCsharpStorage(
+  const storageRepresentations = analyzeCsharpStorage(
     policy,
     sourceEvidence,
     operations,
@@ -376,14 +409,16 @@ function analyzeIteration(
   const conversions = conversionAnalysis.seal({
     operations,
     expectedTypes,
-    storage,
+    storage: storageRepresentations,
   });
+  const sealedObjectShapes = objectShapes.seal();
+  const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
   return Object.freeze({
     typeSystem,
     sourceEvidence,
     operations,
     declarations,
-    objectShapes,
+    objectShapes: sealedObjectShapes,
     callables,
     expectedTypes,
     conversions,

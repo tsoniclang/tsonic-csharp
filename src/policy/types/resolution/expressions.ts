@@ -11,7 +11,7 @@ import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetPr
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -69,11 +69,12 @@ export function resolveSelectedExpressionType(
   }
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);
+    const operator = sourceOperatorFromKindName(host.ast.operatorKindName(node));
     return resolveBinaryTargetRepresentation(
       host.ast,
-      sourceOperatorFromKindName(host.ast.operatorKindName(node)),
+      operator,
       binary?.Left,
-      resolveNodeWithState(
+      operator === "??=" ? resolveReadStorage(binary?.Left, queries.sourceFile) : resolveNodeWithState(
         binary?.Left,
         queries.sourceFile,
         nextState(state),
@@ -209,6 +210,7 @@ export function resolvePropertyAccessTargetType(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   mode: "selected" | "storage",
+  selectedType?: Type,
 ): TargetTypeRef | undefined {
   const selection = selectCsharpTargetProperty(
     { ...host, projectTypes: host.projectTypes(), types: policy },
@@ -230,7 +232,7 @@ export function resolvePropertyAccessTargetType(
     state,
   );
   const selectedSourceType = mode === "selected"
-    ? selection.source.sourceReadType ?? selection.source.sourceWriteType
+    ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
@@ -240,6 +242,7 @@ export function resolvePropertyAccessTargetType(
     ),
     selectedSourceType,
     queries.sourceFile,
+    queries.types.typeOfSymbol(selection.source.selectedSymbol),
   );
   const selectedSymbolType = selectedSourceType === undefined ||
       selection.source.selectedSymbol === undefined

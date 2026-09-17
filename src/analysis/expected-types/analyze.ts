@@ -301,13 +301,21 @@ export function analyzeCsharpExpectedTypes(
       record(nativePointer.expression, nativePointer.inputType, "required");
     } else if (nativePointer?.kind === "raw-address") {
       for (const argument of nativePointer.arguments) record(argument.expression, argument.sourceType, "required");
+    } else if (nativePointer?.kind === "raw-identity") {
+      for (const argument of nativePointer.arguments) record(argument, nativePointer.parameterType, "required");
     } else if (typedLocation !== undefined && typedLocation.kind !== "not-typed-location" &&
       typedLocation.kind !== "rejected") {
       if (typedLocation.kind === "location-allocate") {
         record(typedLocation.initialExpression, typedLocation.pointeeType, "required");
       } else if (typedLocation.kind === "location-store") {
         record(typedLocation.valueExpression, typedLocation.pointeeType, "required");
-      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project") {
+      } else if (typedLocation.kind === "location-equal") {
+        record(typedLocation.leftExpression, typedLocation.parameterType, "required");
+        record(typedLocation.rightExpression, typedLocation.parameterType, "required");
+      } else if (typedLocation.kind === "location-hash") {
+        record(typedLocation.locationExpression, typedLocation.parameterType, "required");
+      } else if (typedLocation.kind === "location-bind" || typedLocation.kind === "location-project" ||
+        typedLocation.kind === "location-view") {
         for (const argument of typedLocation.arguments) {
           record(argument.expression, argument.type, "required");
         }
@@ -499,6 +507,12 @@ export function analyzeCsharpExpectedTypes(
     targetType: TargetTypeRef,
     strength: ExpectedTypeStrength,
   ): void {
+    if (policy.ast.isConstAssertion(expression)) {
+      const assertion = policy.ast.is.IsAsExpression(expression)
+        ? policy.ast.as.AsAsExpression(expression) : policy.ast.as.AsTypeAssertion(expression);
+      record(assertion?.Expression, targetType, strength);
+      return;
+    }
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
       record(
         policy.ast.as.AsParenthesizedExpression(expression)?.Expression,
@@ -572,7 +586,7 @@ export function analyzeCsharpExpectedTypes(
         }
         return;
       }
-      const expectedShape = objectShapes.resolveTarget(targetType);
+      const expectedShape = objectShapes.resolveObjectLiteralUnionShape(expression, targetType) ?? objectShapes.resolveTarget(targetType);
       const resolution = objectShapes.resolveObjectLiteralTargetShape(
         expectedShape,
         expression,
@@ -828,6 +842,13 @@ function csharpBinaryTargetOperationsEqual(
     return false;
   }
   switch (left.kind) {
+    case "bigint-call":
+      return right.kind === "bigint-call" && left.method === right.method &&
+        left.assignment === right.assignment && left.location === right.location;
+    case "array-index-presence":
+      return right.kind === "array-index-presence";
+    case "nullish-equality":
+      return right.kind === "nullish-equality" && left.value === right.value;
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
     case "string-ordinal-relational":

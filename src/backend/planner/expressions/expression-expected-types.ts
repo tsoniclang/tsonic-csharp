@@ -71,6 +71,8 @@ import type {
 import {
   planCsharpExactLiteralConversion,
 } from "./literal-conversions.js";
+import { planVoidExpression } from "./expression-void.js";
+import { planCsharpSourceUndefinedValue } from "./undefined-values.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -99,6 +101,17 @@ export function planExpressionWithExpectedTypeCore(
   if (expectedRuntimeNullishLiteral !== undefined) {
     return expectedRepresentation(expectedRuntimeNullishLiteral);
   }
+  if (effectiveExpectedTargetType !== undefined && isGlobalUndefinedLiteral(node, sourceFile, input)) {
+    const selected = planCsharpSourceUndefinedValue(node, effectiveExpectedTargetType, sourceFile, input, diagnostics);
+    return selected.kind === "resolved" ? expectedRepresentation(selected.expression) : undefined;
+  }
+  if (input.program.source.ast.is.IsVoidExpression(node)) {
+    return expectedRepresentation(planVoidExpression(
+      node, sourceFile, input, diagnostics,
+      (operand, file, context, errors) => planners.planExpression(operand, file, context, errors, state),
+      effectiveExpectedTargetType,
+    ));
+  }
   const expectedTypeLiteral = planCsharpExactLiteralConversion(
     input,
     node,
@@ -112,6 +125,12 @@ export function planExpressionWithExpectedTypeCore(
     return undefined;
   }
   if (HasSourceKind(input.program.source.ast, node, KindAsExpression)) {
+    if (input.program.source.ast.isConstAssertion(node)) {
+      const inner = input.program.source.ast.as.AsAsExpression(node)?.Expression;
+      return inner === undefined ? undefined : expectedRepresentation(
+        planners.planExpressionWithExpectedType(inner, sourceFile, input, diagnostics, expectedType,
+          expectedTypeSubject, effectiveExpectedTargetType, state));
+    }
     return sourceRepresentation(
       planners.planExpression(node, sourceFile, input, diagnostics),
     );
@@ -127,6 +146,12 @@ export function planExpressionWithExpectedTypeCore(
     );
   }
   if (HasSourceKind(input.program.source.ast, node, KindTypeAssertionExpression)) {
+    if (input.program.source.ast.isConstAssertion(node)) {
+      const inner = input.program.source.ast.as.AsTypeAssertion(node)?.Expression;
+      return inner === undefined ? undefined : expectedRepresentation(
+        planners.planExpressionWithExpectedType(inner, sourceFile, input, diagnostics, expectedType,
+          expectedTypeSubject, effectiveExpectedTargetType, state));
+    }
     return sourceRepresentation(
       planners.planExpression(node, sourceFile, input, diagnostics),
     );
@@ -187,6 +212,7 @@ export function planExpressionWithExpectedTypeCore(
       effectiveExpectedTargetType,
       planners.planExpression,
       planners.planExpressionWithExpectedType,
+      state,
     );
     if (binaryExpression !== undefined) {
       return expectedRepresentation(binaryExpression);

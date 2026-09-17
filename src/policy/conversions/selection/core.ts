@@ -11,6 +11,9 @@ import { csharpConversionIsApplicable } from "./expression.js";
 import { namedTargetTypeImplicitlyAccepts, namedTargetTypesAreRelated, selectDelegateConversion, selectJsValueConversion, selectNullableConversion, selectRuntimeUnionConversion } from "./carriers.js";
 import { selectProviderConversionOperator } from "./provider-operators.js";
 import { sourcePrimitiveImplicitlyConverts } from "../source-primitives.js";
+import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
+import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/array-like.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
 import type { CsharpPolicyContext } from "../../context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
@@ -19,7 +22,7 @@ export function selectCsharpConversion(
   input: Pick<
     CsharpPolicyContext,
     "projectTypes" | "providers" | "target"
-  >,
+  > & Pick<Partial<CsharpPolicyContext>, "objectShapes">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
   mode: CsharpConversionMode,
@@ -34,6 +37,14 @@ export function selectCsharpConversion(
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
   }
+  const arrayElement = csharpArrayLikeElement(source);
+  if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
+    const arms = getCsharpRuntimeUnionArms(source);
+    return arms === undefined ? { kind: "implicit", proof: "collection-interface" }
+      : { kind: "array-like-union", arms };
+  }
+  const emptyRecord = selectCsharpEmptyRecordConversion(input, source, target);
+  if (emptyRecord !== undefined) return emptyRecord;
   const jsValueConversion = selectJsValueConversion(
     source,
     target,
@@ -51,17 +62,17 @@ export function selectCsharpConversion(
         "Task carriers cannot be unwrapped, reinterpreted, or changed in arity without an exact target conversion relation.",
     };
   }
-  const runtimeUnion = selectRuntimeUnionConversion(source, target, mode);
+  const nullable = selectNullableConversion(input, source, target, mode);
+  if (nullable !== undefined) {
+    return nullable;
+  }
+  const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode);
   if (runtimeUnion !== undefined) {
     return runtimeUnion;
   }
   const tuple = selectTupleConversion(input, source, target, mode);
   if (tuple !== undefined) {
     return tuple;
-  }
-  const nullable = selectNullableConversion(input, source, target, mode);
-  if (nullable !== undefined) {
-    return nullable;
   }
   const collectionInterface = selectCollectionInterfaceConversion(
     source,
@@ -167,6 +178,7 @@ export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter";
 }

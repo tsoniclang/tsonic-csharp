@@ -8,7 +8,7 @@ import {
 import { canUseCsharpJsValueObjectShapeCarrier } from "../../../../target-model/types/js-value-object-shapes.js";
 import { createHash } from "node:crypto";
 import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
-import { csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { isPlainCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpSourceMemberKey, TargetTypeRef } from "../../../../target-model/types/model.js";
@@ -19,14 +19,21 @@ import {
 export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
+  contract = false,
 ): TargetTypeRef {
+  if (members.length === 0 && (implemented?.length ?? 0) === 0) {
+    return csharpEmptyObjectTargetType();
+  }
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
   const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
     implemented ?? [],
   );
   const key = JSON.stringify({
-    members: canonicalMembers.map(csharpObjectShapeMemberContractParts),
+    members: canonicalMembers.map(member => contract
+      ? [csharpObjectShapeMemberContractParts(member), member.readonly === true]
+      : csharpObjectShapeMemberContractParts(member)),
     implements: canonicalImplemented.map(targetTypeRefKey),
+    ...(contract ? { contract: true } : {}),
   });
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
@@ -53,7 +60,7 @@ export function createStructuralObjectShapeTarget(
           jsValueCarrier: true,
           jsObjectShape: true,
         }
-      : {},
+      : contract ? { structuralContract: true } : {},
   );
 }
 

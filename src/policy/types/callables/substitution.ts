@@ -8,9 +8,11 @@ import type {
   CsharpTaskTargetTypeRef,
 } from "../../../target-model/types/model.js";
 import {
-  csharpNullableReferenceTargetType,
+  csharpNullableTargetType,
   isCsharpNullableReferenceTargetType,
+  getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
+import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
@@ -26,7 +28,7 @@ export function substituteTargetTypeParameters(
         return type;
       }
       return isCsharpNullableReferenceTargetType(type)
-        ? csharpNullableReferenceTargetType(substitution)
+        ? csharpNullableTargetType(substitution)
         : substitution;
     case "source-global":
       return {
@@ -40,6 +42,7 @@ export function substituteTargetTypeParameters(
       const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
       const implicitArrayInputElementType = (type as CsharpTargetNamedTypeRef).csharpImplicitArrayInputElementType;
       const enumerableElementType = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
+      const arrayLikeElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLikeElementType;
       const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
       const baseType = (type as CsharpTargetNamedTypeRef).csharpBaseType;
@@ -62,6 +65,9 @@ export function substituteTargetTypeParameters(
         ...(enumerableElementType === undefined
           ? {}
           : { csharpEnumerableElementType: substituteTargetTypeParameters(enumerableElementType, substitutions) }),
+        ...(arrayLikeElementType === undefined
+          ? {}
+          : { csharpArrayLikeElementType: substituteTargetTypeParameters(arrayLikeElementType, substitutions) }),
         ...(readOnlyIndexableElementType === undefined
           ? {}
           : { csharpReadOnlyIndexableElementType: substituteTargetTypeParameters(readOnlyIndexableElementType, substitutions) }),
@@ -137,6 +143,24 @@ export function inferCsharpTargetTypeParameterBindings(
       }
       return targetTypeRefEquals(existing, right);
     }
+    const leftElement = getCsharpNullableElementTargetType(left);
+    if (leftElement !== undefined) {
+      return match(leftElement, getCsharpNullableElementTargetType(right) ?? right);
+    }
+    const patternArms = getCsharpRuntimeUnionArms(left);
+    if (patternArms !== undefined && getCsharpRuntimeUnionArms(right) === undefined) {
+      const candidates = patternArms.flatMap(arm => {
+        const selected = inferCsharpTargetTypeParameterBindings(arm, right, parameterNames);
+        return selected === undefined ? [] : [selected];
+      });
+      if (candidates.length !== 1) return false;
+      for (const [name, type] of candidates[0]!) {
+        const existing = bindings.get(name);
+        if (existing !== undefined && !targetTypeRefEquals(existing, type)) return false;
+        bindings.set(name, type);
+      }
+      return true;
+    }
     if (left.kind !== right.kind) {
       return false;
     }
@@ -209,7 +233,7 @@ function stringListsEqual(
     leftValues.every((value, index) => value === rightValues[index]);
 }
 
-function substituteObjectShapeFactTargetTypeParameters(
+export function substituteObjectShapeFactTargetTypeParameters(
   objectShape: CsharpObjectShapeFact | undefined,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): CsharpObjectShapeFact | undefined {
@@ -217,6 +241,7 @@ function substituteObjectShapeFactTargetTypeParameters(
     ? undefined
     : {
         ...objectShape,
+        declarationTemplate: objectShape.declarationTemplate ?? objectShape,
         targetType: substituteTargetTypeParameters(objectShape.targetType, substitutions),
         members: objectShape.members.map((member) => ({
           ...member,

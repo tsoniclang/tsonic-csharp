@@ -17,6 +17,7 @@ import {
   isCsharpJsValueObjectShapeTargetType,
   projectCsharpJsValueObjectLiteralShape,
   validateCsharpJsValueObjectShapeCarrier,
+  getCsharpRuntimeUnionArms,
 } from "../../../../target-model/types/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
@@ -50,7 +51,13 @@ export function planObjectLiteralExpressionWithExpectedType(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
-  const expectedObjectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
+  const unionShape = expectedTargetType === undefined ? undefined
+    : input.types.objectShapes.resolveObjectLiteralUnionShape(node, expectedTargetType);
+  if (getCsharpRuntimeUnionArms(expectedTargetType) !== undefined && unionShape === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal requires one exact sealed union-arm construction contract."));
+    return undefined;
+  }
+  const expectedObjectShape = unionShape ?? getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input, expectedTargetType);
   const resolved = input.types.objectShapes.resolveObjectLiteralTargetShape(
     expectedObjectShape ?? getExpectedObjectShapeFact(node, sourceFile, input),
     node,

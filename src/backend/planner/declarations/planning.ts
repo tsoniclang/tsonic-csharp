@@ -20,6 +20,7 @@ import {
 } from "../bindings/index.js";
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "./modifiers.js";
+import { csharpReferenceIdentityInterfaceType } from "../objects/declarations/interfaces.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { planParametersWithPrelude } from "../bindings/parameters.js";
 import { planBlockStatements } from "../statements/index.js";
@@ -63,6 +64,7 @@ import {
 
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
+import { guardCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -71,15 +73,32 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(input.program.source.ast, node)!;
-  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics);
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
-  const autoPropertyNames = getImplementedInterfacePropertyNames(node, input);
+  const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+  const structuralInterfaces = objectShape?.implements ?? [];
+  const interfaces = [...heritage.interfaces];
+  for (const type of structuralInterfaces) {
+    const rendered = csharpTypeFromTargetTypeRef(type);
+    if (rendered === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "An analyzed structural interface has no C# type representation."));
+    } else if (!interfaces.some(existing => JSON.stringify(existing) === JSON.stringify(rendered))) {
+      interfaces.push(rendered);
+    }
+  }
+  if (structuralInterfaces.length > 0) for (const member of objectShape!.members) {
+    if (member.memberKind === "property") autoPropertyNames.add(member.targetName);
+  }
   if (objectShape !== undefined) {
     registerSourceObjectShape(input, objectShape, diagnostics, node);
   }
   const jsonSerializable = objectShape !== undefined && objectShapeRequiresJsonSerialization(input, objectShape);
+  const referenceIdentity = objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "reference-identity");
+  if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze") && heritage.baseType !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Object.freeze over a source class with inherited native storage requires a closed base-field write contract."));
+  }
   const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
   const implicitConstructors = planImplicitForwardingConstructors(
     node,
@@ -95,22 +114,24 @@ export function planClassDeclaration(
   return {
     kind: "ClassDeclaration",
     name: className,
-    modifiers: ["public"],
+    modifiers: input.program.source.ast.hasModifierKind(node, "abstract") ? ["public", "abstract"] : ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
-    ...(heritage.interfaces.length === 0 && !jsonSerializable
+    ...(heritage.interfaces.length === 0 && structuralInterfaces.length === 0 && !jsonSerializable && !referenceIdentity
       ? {}
       : {
           interfaces: [
-            ...heritage.interfaces,
+            ...interfaces,
             ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+            ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
           ],
         }),
     members: [
       ...implicitConstructors,
       ...safetyDefaultConstructors,
-      ...members,
+      ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
+        ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),

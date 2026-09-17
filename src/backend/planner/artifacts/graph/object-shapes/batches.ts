@@ -5,7 +5,10 @@ import { accepted, rejected } from "../result.js";
 import { csharpObjectShapeContractCandidate } from "../../contracts.js";
 import { csharpObjectShapesEqual, csharpObjectShapeMemberContractKey } from "../../../../../target-model/types/index.js";
 import { maximumArtifactCount } from "../model.js";
-import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
+import { objectShapeArtifactKey, objectShapeMaterialization } from "./identity.js";
+import { csharpTargetTypeComponents } from "../../../../../target-model/types/components.js";
+import { targetTypeRefKey } from "../../../../../target-model/types/equality.js";
+import { isCsharpEmptyObjectTargetType } from "../../../../../target-model/types/runtime-carriers.js";
 
 export function collectShapeDependencies(
   { host }: CsharpArtifactGraphScope,
@@ -39,14 +42,19 @@ export function collectShapeDependencies(
     }
     shapes.set(key, shape);
     const targets = [
-      ...shape.members
-        .filter((member) => member.memberKind !== "method")
-        .map((member) => member.type),
+      ...shape.members.map((member) => member.type),
       ...(shape.implements ?? []),
     ];
-    for (const target of targets) {
+    const visitedTypes = new Set<string>();
+    for (let index = 0; index < targets.length; index++) {
+      const target = targets[index]!;
+      const typeKey = targetTypeRefKey(target);
+      if (visitedTypes.has(typeKey)) continue;
+      visitedTypes.add(typeKey);
+      if (visitedTypes.size > maximumArtifactCount) return rejected("C# object-shape type dependency budget exceeded.");
       const nested = host.objectShapes.resolveTarget(target);
       if (nested === undefined) {
+        targets.push(...csharpTargetTypeComponents(target));
         continue;
       }
       const nestedKey = objectShapeArtifactKey(nested);
@@ -105,9 +113,9 @@ export function addObjectShapesToBatch(
         );
       }
       batch.shapes.set(key, shape);
-      const requested = isSourceDeclaredNominalShape(shape)
+      const requested = isCsharpEmptyObjectTargetType(shape.targetType)
         ? "source"
-        : root.materialization;
+        : objectShapeMaterialization(shape);
       const current = batch.materializations.get(key);
       batch.materializations.set(
         key,
@@ -178,6 +186,10 @@ export function validateObjectShapeBatch(
         `Capability-bearing C# object shape '${key}' is absent from the artifact transaction.`,
       );
     }
+    if (capabilitiesByShape.get(key)?.has("method-values") &&
+      ((records.get(key)?.receiverBoundMethodKeys.size ?? 0) > 0 || (receiverBoundMethodsByShape.get(key)?.size ?? 0) > 0)) {
+      return rejected("Copying a receiver-bearing method requires an exact shared receiver contract; a bound CLR delegate is not equivalent.");
+    }
   }
   for (const key of projectionsByShape.keys()) {
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
@@ -188,6 +200,9 @@ export function validateObjectShapeBatch(
     }
   }
   for (const [key, methodKeys] of receiverBoundMethodsByShape) {
+    if (methodKeys.size > 0 && (records.get(key)?.capabilities.has("method-values") || capabilitiesByShape.get(key)?.has("method-values"))) {
+      return rejected("A copied method-value contract cannot silently acquire a different receiver ABI.");
+    }
     const candidate = batch.shapes.get(key) ?? records.get(key)?.fact;
     if (candidate === undefined) {
       return rejected(

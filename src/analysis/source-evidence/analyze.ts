@@ -26,7 +26,7 @@ import {
 } from "../../policy/types/index.js";
 import {
   csharpTargetTypeComponents,
-} from "../../policy/types/model/target-type-components.js";
+} from "../../target-model/types/components.js";
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import type {
   TargetTypeRef,
@@ -284,19 +284,17 @@ export function analyzeCsharpSourceEvidence(
     }
     const selectedTargetType = refinement.kind === "resolved"
       ? recordTargetType(
-          refinement.refinement.kind === "unrelated"
-            ? types.resolveType(refinement.selectedType, sourceFile)
-            : types.resolveSelectedValue(
-                node,
-                refinement.selectedType,
-                sourceFile,
-              ),
+          types.resolveSelectedValue(
+            node,
+            refinement.selectedType,
+            sourceFile,
+          ),
         )
       : undefined;
     const memberTargetTypes = refinement.kind === "resolved" &&
         refinement.refinement.kind === "members"
       ? refinement.refinement.types.map((member) =>
-          recordTargetType(types.resolveType(member, sourceFile)))
+          recordTargetType(types.resolveSelectedValue(node, member, sourceFile)))
       : undefined;
     const readStorageTargetType = cachedValue(readStorageTargetTypes.get(node));
     const declaredTargetType = refinement.kind === "resolved" &&

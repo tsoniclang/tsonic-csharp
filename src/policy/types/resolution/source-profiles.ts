@@ -1,6 +1,7 @@
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpTypeResolutionScope } from "./engine.js";
 import type { CsharpTypeResolutionState } from "./model.js";
+import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 import type {
   SourceCallableTypeEvidence,
   SourceFileSemantics,
@@ -49,7 +50,9 @@ import { csharpNullableTargetType } from "../../../target-model/types/nullable.j
 import { csharpRuntimeErrorTargetType, csharpSourcePrimitiveTargetType, csharpStringTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpTargetTypeFromBinding } from "../storage/bindings.js";
 import { definedValues } from "./source-evidence.js";
+import { csharpSourceErrorNames } from "../../../target-model/identities/source-errors.js";
 import { nextState } from "./state.js";
+import { csharpReferenceDefaultNeedsNullableParameter } from "../../../target-model/types/reference-default.js";
 
 export function resolveSourceProfileType(
   { generatorProtocol, generatorResultProtocol, host }: CsharpTypeResolutionScope,
@@ -74,7 +77,8 @@ export function resolveSourceProfileType(
         : undefined;
     case "error":
       return typeArguments.length === 0
-        ? csharpRuntimeErrorTargetType()
+        ? csharpSourceErrorNames.includes(identity.sourceName as typeof csharpSourceErrorNames[number])
+          ? csharpRuntimeErrorTargetType(identity.sourceName as typeof csharpSourceErrorNames[number]) : undefined
         : undefined;
     case "array":
     case "readonly-array": {
@@ -299,11 +303,13 @@ export function generatorResultProtocol(
 
 
 export function resolveUnionType(
-  { resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveTypeWithState }: CsharpTypeResolutionScope,
   type: Type,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const structural = host.structuralTypes.resolveUnion(type, queries.sourceFile, state);
+  if (structural.kind !== "not-applicable") return structural.kind === "resolved" ? structural.type : undefined;
   const rawSourceMembers = queries.types.unionOrIntersectionTypes(type);
   const sourceMembers = definedValues(rawSourceMembers);
   if (sourceMembers.length !== rawSourceMembers.length) {
@@ -315,8 +321,9 @@ export function resolveUnionType(
   if (resolved.some((member) => member === undefined)) {
     return undefined;
   }
-  return combineCsharpTargetUnionMembers(
-    resolved as readonly TargetTypeRef[],
+  return retainCsharpUnionObjectShapes(
+    combineCsharpTargetUnionMembers(resolved as readonly TargetTypeRef[]),
+    host.structuralTypes.resolveTarget,
   );
 }
 
@@ -423,7 +430,9 @@ export function resolveSignatureParameterEvidence(
   );
   const nullable = use === "parameter-list"
     ? parameter.parameterKind === "optional"
-    : parameter.omissionKind === "undefined";
+    : parameter.omissionKind === "undefined" ||
+      parameter.omissionKind === "initializer" && resolved !== undefined &&
+      csharpReferenceDefaultNeedsNullableParameter(resolved);
   return resolved === undefined || !nullable
     ? resolved
     : csharpNullableTargetType(resolved);

@@ -2,6 +2,7 @@ import type {
   CsharpObjectShapeFact,
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
+import { csharpRuntimeRecordFieldTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
   csharpDelegateTargetType,
   getCsharpDelegateSignature,
@@ -55,6 +56,17 @@ export function objectShapeAccessorGetterStorageMemberName(
     member,
     "accessor_getter",
   );
+}
+
+export function objectShapeBoundStorageMemberName(
+  objectShape: CsharpObjectShapeFact,
+  member: CsharpObjectShapeFact["members"][number],
+): string {
+  return objectShapeSyntheticStorageMemberName(objectShape, member, "bound_field");
+}
+
+export function objectShapeBoundStorageTargetType(member: CsharpObjectShapeFact["members"][number]): TargetTypeRef {
+  return csharpRuntimeRecordFieldTargetType(member.type);
 }
 
 export function objectShapeAccessorSetterStorageMemberName(

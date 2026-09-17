@@ -54,6 +54,8 @@ export function csharpBinaryOperatorTokenFromText(text: string): CsharpBinaryOpe
 
 export function csharpAssignmentOperatorTokenFromText(text: string): CsharpAssignmentOperatorToken | undefined {
   switch (text) {
+    case "??=":
+      return { kind: "QuestionQuestionEqualsToken" };
     case "=":
       return { kind: "EqualsToken" };
     case "+=":

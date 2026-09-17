@@ -88,7 +88,9 @@ export function tryPlanCsharpNativePointerOperation(
   }
   if (selection.kind === "raw-identity") {
     const receiver = csharpTypeFromTargetTypeRef(selection.carrier);
-    const arguments_ = selection.arguments.map(argument => planExpression(argument, sourceFile, input, diagnostics, state));
+    const parameter = csharpTypeFromTargetTypeRef(selection.parameterType);
+    const arguments_ = selection.arguments.map(argument => parameter === undefined ? undefined : planExpressionWithExpectedType(
+      argument, sourceFile, input, diagnostics, parameter, undefined, selection.parameterType, state));
     return { handled: true, ...(receiver === undefined || arguments_.some(argument => argument === undefined) ? {} : {
       expression: {
         kind: "InvocationExpression" as const,

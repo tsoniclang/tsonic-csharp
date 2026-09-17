@@ -543,9 +543,11 @@ test("optional pointer projection retains missingness and evaluates exact callba
       return projectPointer<int32, int32>(pointer, value => value + 1, value => value - 1);
     }
     export function hash(pointer: Pointer<int32> | undefined): number { return hashPointer(pointer); }
+    export function missing(): number { return hashPointer<int32>(undefined); }
   `);
   assert.match(compiled.artifacts.get("src/Index.cs"), /ProjectOptional<int>\(pointer,/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(pointer\)/u);
+  assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(null\)/u);
 });
 
 test("reachability barriers consume selected aliases, not same-spelled local calls", () => {

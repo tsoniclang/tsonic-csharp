@@ -13,6 +13,7 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
+  csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
@@ -46,6 +47,7 @@ import {
 import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
+import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -108,6 +110,23 @@ export function applyCsharpConversionSelection(
   switch (selection.kind) {
     case "identity":
       return expression;
+    case "array-like-union": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      if (type === undefined) return undefined;
+      return {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Match", typeArguments: [type] },
+        arguments: selection.arms.map((_, index) => {
+          const name = `__tsonic_array_arm${index + 1}`;
+          return { kind: "Argument", expression: {
+            kind: "LambdaExpression", parameters: [{ kind: "Parameter", name }],
+            body: { kind: "IdentifierName", name },
+          } };
+        }),
+      };
+    }
+    case "empty-record":
+      return planCsharpEmptyRecordConversion(selection, sourceType, targetType, expression);
     case "implicit":
       if (selection.proof === "literal") {
         const literal = planCsharpExactLiteralConversion(input, node, targetType);
@@ -155,6 +174,25 @@ export function applyCsharpConversionSelection(
         },
         arguments: [],
       };
+    case "runtime-union-reference": {
+      const arms = getCsharpRuntimeUnionArms(sourceType);
+      if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
+        !arms.every((arm, index) => {
+          const selected = selection.arms[index];
+          return selected !== undefined && targetTypeRefEquals(arm, selected);
+        }) ||
+        !targetTypeRefEquals(targetType, selection.target)) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "Runtime-union reference projection conflicts with its exact selected arms and destination."));
+        return undefined;
+      }
+      const type = renderRequiredTargetType(node, getCsharpNullableElementTargetType(targetType) ?? targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "AsReference", typeArguments: [type] },
+        arguments: [],
+      };
+    }
     case "cast": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       return type === undefined
@@ -205,6 +243,15 @@ export function applyCsharpConversionSelection(
         sourceType,
         expression,
       );
+    case "undefined-object-box": {
+      const undefinedType = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
+      return undefinedType === undefined ? undefined : {
+        kind: "BinaryExpression",
+        left: { kind: "CastExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } }, expression },
+        operatorToken: { kind: "QuestionQuestionToken" },
+        right: { kind: "SimpleMemberAccessExpression", receiver: undefinedType, name: "value" },
+      };
+    }
     case "js-value-cast":
       return invokeStaticGeneric(
         selection.runtimeUnionArms === undefined

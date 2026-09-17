@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import { selectCsharpArrayUnionElement, selectCsharpArrayUnionProperty } from "./js/array-unions.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type {
   CsharpProviderCallSelectionHost,
@@ -80,6 +81,8 @@ export function selectCsharpComposedSourceProfileProperty(
   source: ResolvedSourcePropertyAccessInfo,
   sourceFile: SourceFile,
 ): CsharpSourceProfilePropertyPolicyResult | undefined {
+  const union = selectCsharpArrayUnionProperty(host, source, sourceFile);
+  if (union !== undefined) return union;
   return selectCsharpSourceProfilePropertyPolicy(
     host,
     source,
@@ -93,6 +96,8 @@ export function selectCsharpComposedSourceProfileElement(
   source: ResolvedSourceElementAccessInfo,
   sourceFile: SourceFile,
 ): CsharpSourceProfileElementPolicyResult | undefined {
+  const union = selectCsharpArrayUnionElement(host, source, sourceFile);
+  if (union !== undefined) return union;
   return selectCsharpSourceProfileElementPolicy(
     host,
     source,

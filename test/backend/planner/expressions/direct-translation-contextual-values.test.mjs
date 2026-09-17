@@ -35,7 +35,7 @@ test("direct C# translation separates flow-selected values from nullable storage
             {
                 return null;
             }
-            return new TodoCreateInputShape_057cd9bd1e63
+            return new TodoCreateInputShape_6454a09c3abc
             {
                 title = title,
                 id = id.Value,
@@ -65,7 +65,7 @@ test("direct C# translation separates flow-selected values from nullable storage
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class TodoCreateInputShape_057cd9bd1e63 : TodoCreateInput
+    public class TodoCreateInputShape_6454a09c3abc : TodoCreateInput
     {
         public required int id
         {
@@ -103,11 +103,11 @@ test("direct C# translation preserves authored primitive aliases through structu
 {
     public static class Index
     {
-        public static ObjectShape_af5744e677bb nextId
+        public static ObjectShape_a52e1b697e6e nextId
         {
             get;
             private set;
-        } = default(ObjectShape_af5744e677bb)!;
+        } = default(ObjectShape_a52e1b697e6e)!;
         public static int takeNext()
         {
             int id = nextId.value;
@@ -117,7 +117,7 @@ test("direct C# translation preserves authored primitive aliases through structu
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            nextId = new ObjectShape_af5744e677bb
+            nextId = new ObjectShape_401f2f68f9b4
             {
                 value = 1,
             };
@@ -134,9 +134,17 @@ test("direct C# translation preserves authored primitive aliases through structu
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_af5744e677bb
+    public class ObjectShape_401f2f68f9b4 : ObjectShape_a52e1b697e6e
     {
-        public required int value;
+        public required int value
+        {
+            get;
+            set;
+        }
+    }
+    public interface ObjectShape_a52e1b697e6e
+    {
+        int value { get; set; }
     }
 }
 `,
@@ -199,7 +207,7 @@ test("direct C# translation specializes generic object-shape members from exact 
     {
         public static Box<double> create()
         {
-            return new BoxShape_e10a2a56263f
+            return new BoxShape_31d01747a854
             {
                 value = 1,
                 label = "one",
@@ -217,7 +225,7 @@ test("direct C# translation specializes generic object-shape members from exact 
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class BoxShape_e10a2a56263f : Box<double>
+    public class BoxShape_31d01747a854 : Box<double>
     {
         public required string label
         {
@@ -276,7 +284,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            makeItem = (int id, string title) => (new ItemDtoShape_bdeebe94cfb6
+            makeItem = (int id, string title) => (new ItemDtoShape_f447239a5214
             {
                 id = id,
                 title = title,
@@ -294,7 +302,7 @@ namespace Tsonic.Generated
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ItemDtoShape_bdeebe94cfb6 : ItemDto
+    public class ItemDtoShape_f447239a5214 : ItemDto
     {
         public required int id
         {
@@ -612,7 +620,8 @@ test("direct C# translation derives generic JS array factories from exact source
     surface: "js",
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
-      export function copy(values: int[]): int[] {
+      export function copy(): int[] {
+        const values: int[] = [1, 2, 3];
         return Array.from(values);
       }
       export function make(left: int, right: int): int[] {
@@ -628,9 +637,10 @@ test("direct C# translation derives generic JS array factories from exact source
 {
     public static class Index
     {
-        public static Tsonic.CSharp.Js.JSArray<int> copy(Tsonic.CSharp.Js.JSArray<int> values)
+        public static Tsonic.CSharp.Js.JSArray<int> copy()
         {
-            return Tsonic.CSharp.Js.JSArrayStatics.from<int>(values);
+            Tsonic.CSharp.Js.JSArray<int> values = new Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2, 3 });
+            return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int>(values);
         }
         public static Tsonic.CSharp.Js.JSArray<int> make(int left, int right)
         {
@@ -639,6 +649,20 @@ test("direct C# translation derives generic JS array factories from exact source
     }
 }
 `);
+});
+
+test("open exported integer array copies reject unproved holes instead of inventing values", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int } from "@tsonic/csharp/types.js";
+    export function copy(values: int[]): int[] { return Array.from(values); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics, []);
+  assert.equal(compiled.artifacts.size, 0);
+  assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })), [{
+    code: "TS9101001",
+    message: "The exact selected JS source-profile call 'js.ArrayConstructor.from.member' has no closed C# target relation.",
+  }]);
 });
 
 test("direct C# translation preserves explicit void discard intent", () => {

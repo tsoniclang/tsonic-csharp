@@ -25,6 +25,7 @@ export function csharpJsArrayTargetType(
     [elementType],
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSArray"),
     {
+      arrayLikeElementType: elementType,
       arrayLiteralElementType: elementType,
       enumerableElementType: elementType,
       readOnlyIndexableElementType: elementType,
@@ -218,7 +219,7 @@ export function csharpJsIntlTargetType(
   } as CsharpTargetNamedTypeRef;
 }
 
-const typedArrayNames = Object.freeze([
+export const typedArrayNames = Object.freeze([
   "Int8Array",
   "Uint8Array",
   "Uint8ClampedArray",
@@ -242,6 +243,7 @@ export function csharpJsTypedArrayTargetType(
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
       {
+        arrayLikeElementType: elementType,
         enumerableElementType: elementType,
         readOnlyIndexableElementType: elementType,
         denseMutableElementType: elementType,

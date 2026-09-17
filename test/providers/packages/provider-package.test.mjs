@@ -16,6 +16,7 @@ const providerIdentity = {
 };
 
 function definition() {
+  const policy = structuredClone(csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], []));
   return {
     id: "@fixture/measurements",
     displayName: "Measurement capability",
@@ -39,7 +40,7 @@ function definition() {
     }),
     resolutionEvidence: [{ message: "measurement resolution", details: { origin: "catalog" } }],
     declarationEvidence: [{ message: "measurement declarations" }],
-    policy: structuredClone(csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], [])),
+    createPolicy: () => policy,
     runtime: { references: [{ kind: "assembly", include: "Measurement.Runtime", attributes: { HintPath: "/measurement/runtime.dll" } }] },
   };
 }
@@ -127,6 +128,7 @@ test("package metadata and surface selection are snapshots, not live definition 
     return [{ id: "measurement", name: selectedSurfaceIds.includes("units") ? "WithUnits" : "Native", kind: "interface" }];
   };
   const plugin = createCsharpProviderPackage(input);
+  const targetContributions = plugin.createTargetContributions({ selectedSurfaceIds: [] });
   const surfaces = ["units"];
   const sourceExtension = extension(plugin, surfaces);
   surfaces.splice(0);
@@ -144,7 +146,8 @@ test("package metadata and surface selection are snapshots, not live definition 
   input.moduleDiagnostic = () => { throw new Error("replaced diagnostic callback"); };
   input.resolutionEvidence[0].details.origin = "changed";
   input.declarationEvidence[0].message = "changed";
-  input.policy.providerVersion = "changed";
+  input.createPolicy([]).providerVersion = "changed";
+  input.createPolicy = () => { throw new Error("replaced policy callback"); };
   input.runtime.references[0].attributes.HintPath = "changed";
   assert.deepEqual(provider.identity, providerIdentity);
   assert.equal(Object.isFrozen(provider.identity.diagnosticRange), true);
@@ -159,7 +162,8 @@ test("package metadata and surface selection are snapshots, not live definition 
   assert.equal(declarationModel(nativeProvider, "measure").exports[0].name, "Native");
   assert.equal(declarationModel(provider, "measure").exports[0].name, "WithUnits");
   assert.equal(capturedSelections.every(Object.isFrozen), true);
-  assert.equal(plugin.createTargetContributions({})[0].providerVersion, providerIdentity.version);
+  assert.equal(plugin.createTargetContributions({ selectedSurfaceIds: [] })[0], targetContributions[0]);
+  assert.equal(targetContributions[0].providerVersion, providerIdentity.version);
   assert.equal(plugin.runtimeContributions({}).references[0].attributes.HintPath, "/measurement/runtime.dll");
   assert.equal(Object.isFrozen(plugin.moduleOwnership[1]), true);
   assert.equal(Object.isFrozen(plugin.runtimeContributions({}).references[0].attributes), true);
@@ -255,30 +259,31 @@ test("package imports are deterministic, de-duplicated and promote only class ex
   assert.deepEqual(declarationModel(provider, "measurements/core").imports, imports);
 });
 
-test("policy, rejections, execution driver and runtime data are retained once per package", () => {
+test("policy, rejections, execution driver and runtime data are retained per selected surface set", () => {
   const input = definition();
   const source = {
     kind: "type", providerId: providerIdentity.id, providerVersion: providerIdentity.version,
     providerModuleId: "core-model-v3", moduleSpecifier: "measure", exportId: "measurement", exportName: "Measurement",
   };
-  input.policy.relations.push({ kind: "type", source, targetBinding: { target: "csharp", id: "Measurement.Runtime.Measurement" } });
-  input.policy.rejections.push({ source, diagnostic: input.moduleDiagnostic("missing", "unsupported") });
-  input.policy.binaryExecutionDriver = {
+  const policy = input.createPolicy([]);
+  policy.relations.push({ kind: "type", source, targetBinding: { target: "csharp", id: "Measurement.Runtime.Measurement" } });
+  policy.rejections.push({ source, diagnostic: input.moduleDiagnostic("missing", "unsupported") });
+  policy.binaryExecutionDriver = {
     id: "measurement-driver", declaringType: { kind: "target-named", id: "Measurement.Runtime.Driver" },
     runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
   };
   const plugin = createCsharpProviderPackage(input);
-  const contributions = plugin.createTargetContributions({});
+  const contributions = plugin.createTargetContributions({ selectedSurfaceIds: [] });
   const runtime = plugin.runtimeContributions({});
-  assert.deepEqual(contributions, [input.policy]);
+  assert.deepEqual(contributions, [policy]);
   assert.deepEqual(runtime, input.runtime);
-  input.policy.relations[0].source.exportId = "changed";
-  input.policy.rejections[0].diagnostic.message = "changed";
-  input.policy.binaryExecutionDriver.runMethodName = "changed";
+  policy.relations[0].source.exportId = "changed";
+  policy.rejections[0].diagnostic.message = "changed";
+  policy.binaryExecutionDriver.runMethodName = "changed";
   const provider = registeredProvider(extension(plugin));
   declarationModel(provider, "measure");
   declarationModel(provider, "measurements/core");
-  assert.equal(plugin.createTargetContributions({}), contributions);
+  assert.equal(plugin.createTargetContributions({ selectedSurfaceIds: [] })[0], contributions[0]);
   assert.equal(plugin.runtimeContributions({}), runtime);
   assert.equal(contributions[0].relations[0].source.exportId, "measurement");
   assert.equal(contributions[0].rejections[0].diagnostic.message, "missing: unsupported");
@@ -307,16 +312,17 @@ test("package construction rejects ambiguous mappings and invalid existing polic
     ["duplicate alias", (input) => input.moduleSpecifiers.push({ ...input.moduleSpecifiers[1] }), /duplicate public/u],
     ["unknown destination", (input) => { input.moduleSpecifiers[1].canonicalModuleSpecifier = "unknown"; }, /unregistered canonical/u],
     ["missing canonical spelling", (input) => input.moduleSpecifiers.shift(), /requires its own public specifier/u],
-    ["policy identity", (input) => { input.policy.providerId = "different"; }, /source provider identity/u],
-    ["policy version", (input) => { input.policy.providerVersion = "different"; }, /source provider identity/u],
-    ["policy kind", (input) => { input.policy.kind = "other"; }, /policy contribution/u],
-    ["invalid rejection", (input) => input.policy.rejections.push({}), /invalid provider rejection/u],
+    ["policy identity", (input) => { input.createPolicy([]).providerId = "different"; }, /source provider identity/u],
+    ["policy version", (input) => { input.createPolicy([]).providerVersion = "different"; }, /source provider identity/u],
+    ["policy kind", (input) => { input.createPolicy([]).kind = "other"; }, /policy contribution/u],
+    ["missing policy callback", (input) => { input.createPolicy = undefined; }, /policy callbacks/u],
+    ["invalid rejection", (input) => input.createPolicy([]).rejections.push({}), /invalid provider rejection/u],
   ];
   for (const [name, mutate, expected] of cases) {
     const input = definition();
     input.modules[0].getExports = () => { throw new Error("eager exports"); };
     mutate(input);
-    assert.throws(() => createCsharpProviderPackage(input), expected, name);
+    assert.throws(() => createCsharpProviderPackage(input).createTargetContributions({ selectedSurfaceIds: [] }), expected, name);
   }
 });
 
@@ -331,10 +337,34 @@ test("policy identities must match exact package modules, not prefix lookalikes"
         kind: "type", providerId: providerIdentity.id, providerVersion: providerIdentity.version,
         moduleSpecifier, providerModuleId, exportId: "measurement", exportName: "Measurement",
       };
-      input.policy[contributionKind].push(contributionKind === "relations"
+      input.createPolicy([])[contributionKind].push(contributionKind === "relations"
         ? { kind: "type", source, targetBinding: { target: "csharp", id: "Measurement.Runtime.Measurement" } }
         : { source, diagnostic: input.moduleDiagnostic("missing", "unsupported") });
-      assert.throws(() => createCsharpProviderPackage(input), /registered provider module identity/u, contributionKind);
+      assert.throws(() => createCsharpProviderPackage(input).createTargetContributions({ selectedSurfaceIds: [] }), /registered provider module identity/u, contributionKind);
     }
   }
+});
+
+test("source declarations and target policy receive matching immutable surface selections", () => {
+  const input = definition();
+  const calls = [];
+  input.createPolicy = surfaces => {
+    calls.push(surfaces);
+    return csharpProviderPolicyContribution(providerIdentity.id, providerIdentity.version, [], [], {
+      id: surfaces.includes("units") ? "units-driver" : "native-driver",
+      declaringType: { kind: "target-named", id: "Measurement.Runtime.Driver" },
+      runMethodName: "Run", runWithEntrypointMethodName: "RunEntrypoint",
+    });
+  };
+  const plugin = createCsharpProviderPackage(input);
+  const selection = ["units"];
+  const selected = plugin.createTargetContributions({ selectedSurfaceIds: selection })[0];
+  selection.length = 0;
+  const native = plugin.createTargetContributions({ selectedSurfaceIds: selection })[0];
+  assert.equal(selected.binaryExecutionDriver.id, "units-driver");
+  assert.equal(native.binaryExecutionDriver.id, "native-driver");
+  assert.equal(plugin.createTargetContributions({ selectedSurfaceIds: ["units"] })[0], selected);
+  assert.deepEqual(calls, [["units"], []]);
+  assert.ok(calls.every(Object.isFrozen));
+  assert.ok(Object.isFrozen(selected));
 });

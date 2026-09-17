@@ -6,10 +6,11 @@ import type {
   TargetCompilationSessionContext,
   TargetSourceProfileContributions,
 } from "@tsonic/target-api/provider";
-import { jsStandardSourceProfileDeclarations } from "@tsonic/js-source-profile";
+import { jsStandardSourceProfileDeclarations, sourceErrorDeclarations } from "@tsonic/js-source-profile";
 import {
   csharpTargetId,
 } from "../../target-model/identities/source.js";
+import { csharpSourceErrorNames } from "../../target-model/identities/source-errors.js";
 
 export const csharpSourceProfileOwnerId = csharpTargetId;
 export const csharpJsSourceProfileOwnerId = "js";
@@ -29,16 +30,7 @@ interface Boolean {}
 interface Number {}
 interface RegExp {}
 
-interface Error {
-  name: string;
-  message: string;
-  stack?: string;
-}
-interface ErrorConstructor {
-  new (message?: string): Error;
-  (message?: string): Error;
-}
-declare var Error: ErrorConstructor;
+${sourceErrorDeclarations}
 
 interface PromiseLike<T> {
   then<TResult1 = T, TResult2 = never>(
@@ -162,6 +154,15 @@ interface ReadonlyArray<T> extends Iterable<T> {
 const jsSurfaceProfileDeclarations = `
 ${sharedNoLibDeclarations}
 ${jsStandardSourceProfileDeclarations}
+
+${csharpSourceErrorNames.filter(name => name !== "Error").map(name => `
+interface ${name} extends Error {}
+interface ${name}Constructor {
+  new (message?: string): ${name};
+  (message?: string): ${name};
+}
+declare var ${name}: ${name}Constructor;
+`).join("\n")}
 
 interface TemplateStringsArray extends ReadonlyArray<string> {
   readonly raw: readonly string[];
@@ -340,7 +341,9 @@ interface ReadonlyArray<T> extends Iterable<T> {
 }
 
 interface ArrayConstructor {
+  new <T>(arrayLength: number): T[];
   new <T>(...items: T[]): T[];
+  <T>(arrayLength: number): T[];
   <T>(...items: T[]): T[];
   isArray(value: unknown): value is unknown[];
   from<T>(arrayLike: ArrayLike<T> | Iterable<T>): T[];
@@ -348,6 +351,11 @@ interface ArrayConstructor {
   of<T>(...items: T[]): T[];
 }
 declare var Array: ArrayConstructor;
+
+interface BigIntConstructor {
+  (value: bigint | boolean | number | string): bigint;
+}
+declare var BigInt: BigIntConstructor;
 
 interface Map<K, V> extends ReadonlyMap<K, V> {
   readonly size: number;

@@ -16,6 +16,8 @@ import {
   objectShapeAccessorSetterStorageMemberName,
   objectShapeMethodStorageTargetType,
   objectShapeStorageMemberName,
+  objectShapeBoundStorageMemberName,
+  objectShapeBoundStorageTargetType,
 } from "../object-shape-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -25,6 +27,7 @@ import {
 } from "./type-parameters.js";
 import {
   renderObjectShapeInterfaces,
+  csharpReferenceIdentityInterfaceType,
 } from "./interfaces.js";
 import {
   csharpJsonValueInterfaceType,
@@ -34,6 +37,8 @@ import {
   csharpObjectShapeMemberContractKey,
   csharpObjectShapeProjectionMethodName,
 } from "../../../../target-model/types/index.js";
+import { csharpFrozenStorageName } from "../frozen-data-properties.js";
+import { isCsharpEnumerableKeysMember } from "./enumerable-keys.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
@@ -41,7 +46,15 @@ export function objectShapeDeclarationMatches(
   jsonSerializable = false,
   projections: readonly CsharpObjectShapeProjection[] = [],
   receiverBoundMethodKeys: ReadonlySet<string> = new Set(),
+  frozen = false,
+  referenceIdentity = false,
+  methodValueContracts: readonly CsharpTypeMember[] = [],
+  enumerableKeys: readonly CsharpTypeMember[] = [],
 ): boolean {
+  if (JSON.stringify(declaration.members.filter(isCsharpEnumerableKeysMember)) !== JSON.stringify(enumerableKeys)) return false;
+  const actualContracts = declaration.members.filter(member =>
+    member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined);
+  if (JSON.stringify(actualContracts) !== JSON.stringify(methodValueContracts)) return false;
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
     return false;
@@ -52,11 +65,23 @@ export function objectShapeDeclarationMatches(
     : [
         ...baseInterfaces,
         ...(jsonSerializable ? [csharpJsonValueInterfaceType()] : []),
+        ...(referenceIdentity ? [csharpReferenceIdentityInterfaceType()] : []),
       ];
   if (interfaces === undefined || !objectShapeInterfacesMatch(declaration.interfaces, interfaces)) {
     return false;
   }
   for (const member of fact.members) {
+    if (member.bound === true) {
+      const storageType = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(member));
+      const valueType = csharpTypeFromTargetTypeRef(member.type);
+      if (storageType === undefined || valueType === undefined || !declaration.members.some(candidate =>
+        candidate.kind === "FieldDeclaration" && candidate.name === objectShapeBoundStorageMemberName(fact, member) &&
+        sameCsharpType(candidate.type, storageType)) || !declaration.members.some(candidate =>
+        candidate.kind === "PropertyDeclaration" && candidate.name === member.targetName &&
+        sameCsharpType(candidate.type, valueType) && candidate.getter !== undefined &&
+        (member.readonly === true ? candidate.setter === undefined : candidate.setter !== undefined))) return false;
+      continue;
+    }
     if (member.memberKind === "method") {
       const storageName = objectShapeStorageMemberName(fact, member);
       const storageTargetType = objectShapeMethodStorageTargetType(
@@ -70,7 +95,7 @@ export function objectShapeDeclarationMatches(
         ? undefined
         : csharpTypeFromTargetTypeRef(storageTargetType);
       if (storageType === undefined || !declaration.members.some((candidate) =>
-        candidate.kind === "FieldDeclaration" &&
+        (candidate.kind === "FieldDeclaration" || frozen && candidate.kind === "PropertyDeclaration") &&
         candidate.name === storageName &&
         sameCsharpType(candidate.type, storageType)
       )) {
@@ -118,6 +143,7 @@ export function objectShapeDeclarationMatches(
     return false;
   }
   return declaration.members.every((member) => {
+    if (isCsharpEnumerableKeysMember(member)) return enumerableKeys.some(expected => JSON.stringify(expected) === JSON.stringify(member));
     if (member.kind === "MethodDeclaration") {
       if (jsonSerializable && member.name === csharpJsonValueWriterMethodName) {
         return true;
@@ -128,8 +154,12 @@ export function objectShapeDeclarationMatches(
       return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);
     }
     if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
+      if (member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined) return true;
+      if (frozen && member.kind === "FieldDeclaration" && shapeFrozenStorageMatches(member, fact)) return true;
       return fact.members.some((candidate) =>
-        candidate.memberKind === "method"
+        candidate.bound === true
+          ? candidate.targetName === member.name || objectShapeBoundStorageMemberName(fact, candidate) === member.name
+          : candidate.memberKind === "method"
           ? objectShapeStorageMemberName(fact, candidate) === member.name
           : candidate.accessor === undefined
             ? candidate.targetName === member.name
@@ -140,6 +170,11 @@ export function objectShapeDeclarationMatches(
     }
     return true;
   });
+}
+
+function shapeFrozenStorageMatches(member: Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" }>, fact: CsharpObjectShapeFact): boolean {
+  return member.modifiers.length === 1 && member.modifiers[0] === "private" && fact.members.some(candidate =>
+    candidate.accessor === undefined && member.name === csharpFrozenStorageName(fact, objectShapeStorageMemberName(fact, candidate)));
 }
 
 function isObjectShapeStorageDeclaration(

@@ -15,16 +15,23 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
   resolveCsharpObjectShapePropertyOrder,
   targetTypeRefEquals,
+  isCsharpEmptyObjectTargetType,
 } from "../../../../../target-model/types/index.js";
-import { objectShapeArtifactKey, isSourceDeclaredNominalShape } from "./identity.js";
+import { objectShapeArtifactKey, objectShapeMaterialization, isSourceDeclaredNominalShape } from "./identity.js";
 import { objectShapeProjectionKey } from "../../contracts.js";
 
 export function registerObjectShape(
-  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
+  { addObjectShapesToBatch, addShapeCapabilities, collectCapabilityClosure, commitObjectShapeBatch, dependOn, host, inheritedObjectShapeCapabilities, prepareObjectShapeBatch, validateObjectShapeBatch }: CsharpArtifactGraphScope,
   fact: CsharpObjectShapeFact,
   requestedMaterialization: "source" | "synthetic",
 ): CsharpArtifactRequestResult {
-  const materialization = isSourceDeclaredNominalShape(fact)
+  fact = host.objectShapes.resolveTarget(fact.targetType) ?? fact;
+  if (isCsharpEmptyObjectTargetType(fact.targetType)) {
+    return fact.members.length === 0 && (fact.implements?.length ?? 0) === 0
+      ? accepted
+      : rejected("An empty-object carrier cannot contain members or implemented contracts.");
+  }
+  const materialization = objectShapeMaterialization(fact) === "source"
     ? "source"
     : requestedMaterialization;
   const prepared = prepareObjectShapeBatch([{ fact, materialization }]);
@@ -47,9 +54,7 @@ export function registerObjectShape(
       prepared.batch,
       [...closure.shapes.values()].map((shape) => ({
         fact: shape,
-        materialization: isSourceDeclaredNominalShape(shape)
-          ? "source" as const
-          : "synthetic" as const,
+        materialization: objectShapeMaterialization(shape),
       })),
     );
     if (expanded.kind === "rejected") {
@@ -113,9 +118,7 @@ export function requireObjectShapeCapability(
   const prepared = prepareObjectShapeBatch(
     [...closure.shapes.values()].map((shape) => ({
       fact: shape,
-      materialization: isSourceDeclaredNominalShape(shape)
-        ? "source" as const
-        : "synthetic" as const,
+      materialization: objectShapeMaterialization(shape),
     })),
   );
   if (prepared.kind === "rejected") {
@@ -134,9 +137,7 @@ export function requireObjectShapeCapability(
     prepared.batch,
     [...completeClosure.shapes.values()].map((shape) => ({
       fact: shape,
-      materialization: isSourceDeclaredNominalShape(shape)
-        ? "source" as const
-        : "synthetic" as const,
+      materialization: objectShapeMaterialization(shape),
     })),
   );
   if (expanded.kind === "rejected") {
@@ -268,7 +269,6 @@ export function requireObjectShapeProjection(
             targetMember.kind === "resolved" &&
             targetMember.member.memberKind === "property" &&
             targetMember.member.optional !== true &&
-            targetMember.member.readonly !== true &&
             targetMember.member.accessor === undefined
           ? Object.freeze({
               sourceName: sourceMember.member.sourceName,
@@ -390,9 +390,7 @@ export function requireObjectShapeMethodReceiver(
   }
   const prepared = prepareObjectShapeBatch([{
     fact,
-    materialization: isSourceDeclaredNominalShape(fact)
-      ? "source"
-      : "synthetic",
+    materialization: objectShapeMaterialization(fact),
   }]);
   if (prepared.kind === "rejected") {
     return prepared;

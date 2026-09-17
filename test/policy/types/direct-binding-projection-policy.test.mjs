@@ -9,9 +9,26 @@ import {
   reconcileCsharpSelectedTargetType,
   resolveCsharpArrayBindingCarrier,
 } from "../../../dist/policy/types/index.js";
+import { csharpEmptyObjectTargetType, csharpTsValueTargetType } from "../../../dist/target-model/types/runtime-carriers.js";
+import { retainCsharpBroadValueCarrier } from "../../../dist/policy/types/resolution/selected-type-evidence.js";
 
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const string = csharpStringTargetType();
+
+test("non-nullish broad values do not become empty object identities", () => {
+  const broad = csharpTsValueTargetType();
+  const empty = csharpEmptyObjectTargetType();
+  assert.equal(retainCsharpBroadValueCarrier(broad, empty), broad);
+  assert.equal(reconcileCsharpSelectedTargetType(broad, empty, "unrelated"), broad);
+  for (const selected of [int32, string, { kind: "target-named", id: "source.Record", csharpSourceDeclarationKind: "class" }]) {
+    assert.equal(retainCsharpBroadValueCarrier(broad, selected), undefined);
+    assert.equal(reconcileCsharpSelectedTargetType(broad, selected, "unrelated"), selected);
+  }
+  assert.equal(retainCsharpBroadValueCarrier(empty, broad), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(empty, empty), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(undefined, empty), undefined);
+  assert.equal(retainCsharpBroadValueCarrier(broad, undefined), undefined);
+});
 
 test("array binding policy preserves raw and JS array rest carriers", () => {
   const rawArray = { kind: "array", element: int32 };

@@ -4,6 +4,7 @@ import type { CsharpProviderRelationResolver } from "../../providers/model/relat
 import type { CsharpPolicyContext } from "../../policy/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
 import type { CsharpTypeSystem } from "../../policy/types/model/system.js";
+import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
 
 export interface CsharpAnalysisPolicyContextInput {
   readonly input: TargetCompileInput;
@@ -11,6 +12,7 @@ export interface CsharpAnalysisPolicyContextInput {
   readonly providers: CsharpProviderRelationResolver;
   readonly sourceIdentities: CsharpSourceIdentityPolicy;
   readonly typeSystem: CsharpTypeSystem;
+  readonly arrayDensity: SourceArrayDensityQueries;
 }
 
 export function createCsharpAnalysisPolicyContext(
@@ -23,6 +25,7 @@ export function createCsharpAnalysisPolicyContext(
     sourceFiles,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
+    arrayDensity: context.arrayDensity,
     target: input.target,
     providers,
     types: typeSystem.analysisTypes,
@@ -34,4 +37,3 @@ export function createCsharpAnalysisPolicyContext(
     hasSemantics: source.semantics.includes,
   });
 }
-

@@ -1,3 +1,6 @@
+import { classifyCsharpUnionCall } from "./union-calls.js";
+import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
+import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import {
   createTargetClassificationBuilder,
   createTargetClassificationKey,
@@ -81,6 +84,7 @@ import {
 const callKey = createTargetClassificationKey<CsharpCallClassification>(
   "csharp.operation.call",
 );
+const memoryBindingKey = createTargetClassificationKey<ReturnType<typeof selectCsharpMemoryBinding>>("csharp.operation.memory-binding");
 const constructionKey = createTargetClassificationKey<CsharpConstructionClassification>(
   "csharp.operation.construction",
 );
@@ -165,6 +169,7 @@ export function analyzeCsharpTargetOperations(
   const selectedBinaryExecutionDriver =
     composeCsharpBinaryExecutionDriver(...binaryExecutionDrivers);
   const classifications: CsharpTargetOperationClassifications = {
+    memoryBinding: node => facts.get(node, memoryBindingKey),
     binaryExecutionDriver: () => selectedBinaryExecutionDriver,
     resultType: (node) => operationResultType(facts, node),
     call: (node) => facts.get(node, callKey),
@@ -256,6 +261,7 @@ function visit(
     );
   }
   if (ast.is.IsCallExpression(node)) {
+    setClassification(builder, node, memoryBindingKey, selectCsharpMemoryBinding(policy, node, sourceFile));
     setClassification(
       builder,
       node,
@@ -333,7 +339,10 @@ function visit(
     const selectedResultType = jsValue.kind === "resolved"
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
+    const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
     setClassification(builder, node, callKey, Object.freeze({
+      ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
+      unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
       sourceFlow: selectCsharpSourceFlowCall(policy, node),
       jsValue,
@@ -505,6 +514,8 @@ function visit(
       sourceOperator,
       sourceFile,
     );
+    const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
+      ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
     setClassification(
       builder,
       node,
@@ -530,6 +541,7 @@ function visit(
         ...(propertyWrite === undefined ? {} : { propertyWrite }),
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
+        ...(instanceType === undefined ? {} : { instanceType }),
       }),
     );
   } else if (
@@ -634,6 +646,15 @@ function visit(
   );
 }
 
+function resolveInstanceType(policy: CsharpPolicyContext, expression: Node, sourceFile: SourceFile): import("../../target-model/types/model.js").TargetTypeRef | undefined {
+  const semantics = policy.semantics(sourceFile);
+  const type = semantics.types.expressionType(expression);
+  const signatures = type === undefined ? [] : semantics.types.constructSignatures(type);
+  if (signatures.length !== 1) return undefined;
+  const instance = semantics.types.returnType(signatures[0]!);
+  return instance === undefined ? undefined : policy.types.resolveType(instance, sourceFile);
+}
+
 function classifyTypeofComparison(
   policy: CsharpPolicyContext,
   typeofNode: Node | undefined,
@@ -682,6 +703,8 @@ function operationResultType(
   facts: ReturnType<ReturnType<typeof createTargetClassificationBuilder>["seal"]>,
   node: Node,
 ): import("../../target-model/types/model.js").TargetTypeRef | undefined {
+  const binding = facts.get(node, memoryBindingKey);
+  if (binding !== undefined && binding.kind !== "rejected") return binding.type;
   const call = facts.get(node, callKey);
   if (call?.selectedResultType !== undefined) {
     return call.selectedResultType;

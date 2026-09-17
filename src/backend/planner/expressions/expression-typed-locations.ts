@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { planCsharpNativeMemoryCall } from "./native-memory.js";
+import { objectShapeBoundStorageMemberName, objectShapeBoundStorageTargetType } from "../objects/object-shape-storage.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type {
   CsharpTypedLocationOperationKind,
@@ -77,12 +78,23 @@ export function tryPlanCsharpTypedLocationOperation(
   }
   switch (operation.kind) {
     case "location-hash": {
-      const pointer = planExpression(operation.locationExpression, sourceFile, input, diagnostics);
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      if (parameterType === undefined) return { handled: true };
+      const pointer = planExpressionWithExpectedType(
+        operation.locationExpression,
+        sourceFile,
+        input,
+        diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
+      );
       return { handled: true, ...(pointer === undefined ? {} : {
         expression: invokeMember(locationType, "Hash", [pointer]),
       }) };
     }
     case "location-bind":
+    case "location-view":
     case "location-project": {
       const args = operation.arguments.map(argument => {
         const type = csharpTypeFromTargetTypeRef(argument.type);
@@ -218,17 +230,25 @@ export function tryPlanCsharpTypedLocationOperation(
       };
     }
     case "location-equal": {
-      const left = planExpression(
+      const parameterType = csharpTypeFromTargetTypeRef(operation.parameterType);
+      if (parameterType === undefined) return { handled: true };
+      const left = planExpressionWithExpectedType(
         operation.leftExpression,
         sourceFile,
         input,
         diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
       );
-      const right = planExpression(
+      const right = planExpressionWithExpectedType(
         operation.rightExpression,
         sourceFile,
         input,
         diagnostics,
+        parameterType,
+        undefined,
+        operation.parameterType,
       );
       return {
         handled: true,
@@ -246,6 +266,31 @@ export function tryPlanCsharpTypedLocationOperation(
   }
 }
 
+export function planCsharpProjectedFieldWrite(
+  node: Node,
+  planned: CsharpExpression,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  state?: DestructuringPlannerState,
+): CsharpExpression | undefined {
+  const selection = input.program.operations.property(node)?.sourceOwned?.projectedWrite;
+  if (selection === undefined) return planned;
+  if (selection.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
+    return undefined;
+  }
+  const type = csharpTypeFromTargetTypeRef(csharpRuntimeLocationTargetType(selection.storage.valueType));
+  if (type === undefined || state === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A bound value-field write requires its exact location type and owner identity scope."));
+    return undefined;
+  }
+  const location = planCsharpTypedLocationStorage(selection.storage, type, sourceFile,
+    input, diagnostics, planExpression, state, planned);
+  return location === undefined ? undefined : member(location, "Value");
+}
+
 function planCsharpTypedLocationStorage(
   storage: CsharpTypedLocationStorage,
   locationType: CsharpTypeNode,
@@ -254,8 +299,9 @@ function planCsharpTypedLocationStorage(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   state: DestructuringPlannerState,
+  selectedExpression?: CsharpExpression,
 ): CsharpExpression | undefined {
-  const planned = planExpression(
+  const planned = selectedExpression ?? planExpression(
     storage.expression,
     sourceFile,
     input,
@@ -281,6 +327,7 @@ function planCsharpTypedLocationStorage(
         storage.memberIdentity,
         diagnostics,
         state,
+        boundRecordStorage(storage.expression, input),
       );
     case "value-property-storage":
       return planValuePropertyLocation(
@@ -309,6 +356,7 @@ function planReferencePropertyLocation(
   memberIdentity: string,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  bound?: { readonly name: string; readonly type: CsharpTypeNode },
 ): CsharpExpression | undefined {
   if (planned.kind !== "SimpleMemberAccessExpression") {
     diagnostics.push(typedLocationDiagnostic(
@@ -322,6 +370,10 @@ function planReferencePropertyLocation(
   const valueName = allocateSyntheticParameter(state);
   const receiver = identifier(receiverName);
   const access = member(receiver, planned.name);
+  if (bound !== undefined) return invokeMember(bound.type, "FromReference", [
+    planned.receiver, literal(memberIdentity), lambda([receiverName], member(receiver, bound.name)),
+    lambda([receiverName, valueName], assignment(access, identifier(valueName))),
+  ]);
   return invokeMember(locationType, "CreateMember", [
     planned.receiver,
     literal(memberIdentity),
@@ -380,6 +432,11 @@ function planValuePropertyLocation(
   const valueName = allocateSyntheticParameter(state);
   const receiver = identifier(receiverName);
   const access = member(receiver, planned.name);
+  const bound = boundRecordStorage(storage.expression, input);
+  if (bound !== undefined) return invokeMember(bound.type, "FromValueLocation", [
+    owner, literal(storage.memberIdentity), lambda([receiverName], member(receiver, bound.name)),
+    updatingLambda(receiverName, valueName, assignment(access, identifier(valueName))),
+  ]);
   return invokeMember(
     owner,
     "ProjectMember",
@@ -394,6 +451,15 @@ function planValuePropertyLocation(
     ],
     [projectedType],
   );
+}
+
+function boundRecordStorage(node: Node, input: CsharpPlanningContext): { readonly name: string; readonly type: CsharpTypeNode } | undefined {
+  const selected = input.program.operations.property(node)?.sourceOwned;
+  const shape = selected?.objectShape;
+  const field = selected?.shapeMember?.kind === "resolved" ? selected.shapeMember.member : undefined;
+  if (shape === undefined || field?.bound !== true) return undefined;
+  const type = csharpTypeFromTargetTypeRef(objectShapeBoundStorageTargetType(field));
+  return type === undefined ? undefined : { type, name: objectShapeBoundStorageMemberName(shape, field) };
 }
 
 function planReferenceElementLocation(

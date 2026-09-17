@@ -8,6 +8,7 @@ import {
   isCsharpNullableReferenceTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
+  isCsharpValueTypeTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -48,11 +49,22 @@ export function selectJsValueConversion(
 }
 
 export function selectRuntimeUnionConversion(
+  input: Pick<CsharpPolicyContext, "projectTypes" | "providers">,
   source: TargetTypeRef,
   target: TargetTypeRef,
   mode: CsharpConversionMode,
 ): CsharpConversionSelection | undefined {
   const sourceArms = getCsharpRuntimeUnionArms(source);
+  const referenceTarget = getCsharpNullableElementTargetType(target) ?? target;
+  if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
+    !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>
+      arm.kind === "target-named" && !isCsharpValueTypeTargetType(arm) &&
+      !isCsharpRuntimeNullTargetType(arm) && !isCsharpRuntimeUndefinedTargetType(arm) &&
+      (!isCsharpNullableReferenceTargetType(arm) || isCsharpNullableReferenceTargetType(target)) &&
+      namedTargetTypeImplicitlyAccepts(input, getCsharpNullableElementTargetType(arm) ?? arm,
+        referenceTarget, new Set()))) {
+    return { kind: "runtime-union-reference", arms: sourceArms, target };
+  }
   if (sourceArms !== undefined && mode === "explicit") {
     const matchingArms = sourceArms.flatMap((armType, armIndex) =>
       targetTypeRefEquals(armType, target)
@@ -123,6 +135,10 @@ export function selectNullableConversion(
       targetElement,
       mode,
     );
+    if (sourceElement === undefined && isCsharpNullableReferenceTargetType(target) &&
+      elementConversion.kind === "runtime-union-reference") {
+      return { ...elementConversion, target };
+    }
     if (conversionIsImplicitlyApplicable(elementConversion)) {
       if (
         sourceElement === undefined &&

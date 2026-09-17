@@ -35,7 +35,7 @@ namespace Tsonic.Generated
         public static string? fromElement(Base[] values)
         {
             Base value = values[0];
-            if (value is Derived)
+            if ((object?)value is Derived)
             {
                 return ((Derived)value).value;
             }
@@ -49,7 +49,7 @@ namespace Tsonic.Generated
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            fromArrow = (Base value) => value is Derived ? ((Derived)value).value : null;
+            fromArrow = (Base value) => (object?)value is Derived ? ((Derived)value).value : null;
             return null;
         }
         public static void __tsonic_module_init()

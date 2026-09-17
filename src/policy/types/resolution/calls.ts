@@ -10,6 +10,12 @@ import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters 
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
+import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
+import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
+import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -41,7 +47,8 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     );
   }
-  const authoredSemanticType = authoredQueries?.types.authoredType(
+  const selectedQueries = host.semantics(selectedSourceFile);
+  const authoredSemanticType = selectedQueries.types.authoredType(
     authoredTypeNode,
   );
   if (authoredSemanticType === undefined) {
@@ -51,7 +58,15 @@ export function resolveAuthoredAndSelectedSourceType(
       nextState(state),
     );
   }
-  const authoredSelection = authoredQueries.types.authoredSelection(
+  const unionRefinement = selectCsharpAuthoredUnionRefinement(
+    authored, authoredSemanticType, selectedType, selectedQueries,
+    type => resolveTypeWithState(type, selectedSourceFile, nextState(state)),
+    host.structuralTypes.resolveTarget,
+  );
+  if (unionRefinement.kind !== "not-applicable") {
+    return unionRefinement.kind === "resolved" ? unionRefinement.type : undefined;
+  }
+  const authoredSelection = selectedQueries.types.authoredSelection(
     authoredTypeNode,
     selectedType,
   );
@@ -93,13 +108,13 @@ export function resolveAuthoredAndSelectedSourceType(
       selectedSourceFile,
       nextState(state),
     ),
-    authoredQueries.types.relationship(authoredSemanticType, selectedType),
+    selectedQueries.types.relationship(authoredSemanticType, selectedType),
   );
 }
 
 
 export function resolveSourceCallInstantiation(
-  { inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
+  { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType, sourceParameterUsesOnlyNullableCarrier }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -164,7 +179,7 @@ export function resolveSourceCallInstantiation(
     ) {
       return undefined;
     }
-    const targetArgument = selected.explicitTypeNode === undefined
+    let targetArgument = selected.explicitTypeNode === undefined
       ? inferredTargetArguments.get(selected.typeParameterName) ??
         resolveAuthoredAndSelectedSourceType(
           undefined,
@@ -182,6 +197,16 @@ export function resolveSourceCallInstantiation(
         );
     if (targetArgument === undefined) {
       return undefined;
+    }
+    const declaration = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+    const queries = host.semantics(sourceFile);
+    const symbol = queries.declarations.typeSymbol(selected.typeParameter);
+    const parameters = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
+      .filter(candidate => host.ast.is.IsTypeParameterDeclaration(candidate));
+    const parameter = parameters.length === 1 ? parameters[0] : undefined;
+    if (declaration !== undefined && parameter !== undefined &&
+      sourceParameterUsesOnlyNullableCarrier(declaration, parameter)) {
+      targetArgument = csharpNullableTargetType(targetArgument);
     }
     selectedParameters.add(selected.typeParameter);
     substitutions.set(selected.typeParameterName, targetArgument);
@@ -304,15 +329,25 @@ export function resolveSourceCallableContractType(
 
 
 export function inferSourceCallTargetTypeArguments(
-  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallableContract,
   sourceFile: SourceFile,
   parameterNames: ReadonlySet<string>,
   state: CsharpTypeResolutionState,
 ): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const { host, resolveSelectedValueWithState } = scope;
   const inferred = new Map<string, TargetTypeRef>();
-  for (const binding of source.sourceArgumentBindings) {
+  const isNumericLiteral = (binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number]): boolean => {
+    const expression = source.sourceArguments[binding.sourceArgumentIndex]?.expression;
+    return expression !== undefined && (csharpNumericLiteralValue(host.ast, expression) !== undefined ||
+      csharpBigIntLiteralValue(host.ast, expression) !== undefined);
+  };
+  const bindings = [
+    ...source.sourceArgumentBindings.filter(binding => !isNumericLiteral(binding)),
+    ...source.sourceArgumentBindings.filter(isNumericLiteral),
+  ];
+  for (const binding of bindings) {
     const parameter = callable.parameters[binding.sourceParameterIndex]
       ?.targetParameter;
     const argument = source.sourceArguments[binding.sourceArgumentIndex];
@@ -332,11 +367,11 @@ export function inferSourceCallTargetTypeArguments(
       parameter,
       binding.sourceForm,
     );
-    const candidates = inferCsharpTargetTypeParameterBindings(
-      pattern,
-      actual,
-      parameterNames,
-    );
+    if (isNumericLiteral(binding) && csharpLiteralIsRepresentableAs(host, argument.expression,
+      substituteTargetTypeParameters(pattern, inferred))) continue;
+    const candidates = host.ast.is.IsObjectLiteralExpression(argument.expression)
+      ? inferSourceObjectTypeArguments(scope, argument.expression, pattern, sourceFile, parameterNames, state)
+      : inferCsharpTargetTypeParameterBindings(pattern, actual, parameterNames);
     if (candidates === undefined) {
       continue;
     }
@@ -354,6 +389,42 @@ export function inferSourceCallTargetTypeArguments(
   return inferred;
 }
 
+function inferSourceObjectTypeArguments(
+  { host, resolveNodeWithState }: CsharpTypeResolutionScope,
+  literal: Node,
+  pattern: TargetTypeRef,
+  sourceFile: SourceFile,
+  parameterNames: ReadonlySet<string>,
+  state: CsharpTypeResolutionState,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const elements = host.ast.properties(literal).map(element => {
+    if (element === undefined) return undefined;
+    const initializer = ObjectLiteralProperty_Value(host.ast, element);
+    const evidence = host.semantics(sourceFile).operations.objectLiteralElement(element);
+    return initializer === undefined || evidence === undefined ? undefined : { initializer, evidence };
+  });
+  if (elements.some(element => element === undefined)) return undefined;
+  const shape = selectCsharpObjectLiteralUnionShape(pattern, elements.map(element => element!.evidence), host.structuralTypes.resolveTarget)
+    ?? host.structuralTypes.resolveTarget(pattern);
+  if (shape === undefined) return undefined;
+  const inferred = new Map<string, TargetTypeRef>();
+  for (const element of elements) {
+    const fields = shape.members.filter(member => member.sourceDeclarations?.some(declaration =>
+      element!.evidence.sourceSelectedDeclarations.includes(declaration)) === true);
+    if (fields.length !== 1) return undefined;
+    const actual = resolveNodeWithState(element!.initializer, sourceFile, nextState(state));
+    if (actual === undefined) return undefined;
+    const candidates = inferCsharpTargetTypeParameterBindings(fields[0]!.type, actual, parameterNames);
+    if (candidates === undefined) continue;
+    for (const [name, candidate] of candidates) {
+      const previous = inferred.get(name);
+      if (previous !== undefined && !targetTypeRefEquals(previous, candidate)) return undefined;
+      inferred.set(name, candidate);
+    }
+  }
+  return inferred;
+}
+
 
 export function sourceCallSelectedDeclaration(
   {  }: CsharpTypeResolutionScope,
@@ -365,11 +436,16 @@ export function sourceCallSelectedDeclaration(
 
 
 export function resolveSourceCallReceiverTargetType(
-  { host, resolveSelectedReceiverTargetType, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  if (host.ast.is.IsNewExpression(source.call) &&
+    host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
+    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)) {
+    return resolveSourceOwnedConstructionResult(source, host.semantics(selectedSourceFile), nextState(state));
+  }
   return host.ast.is.IsNewExpression(source.call)
     ? resolveTypeWithState(
         source.sourceResultType,

@@ -209,6 +209,8 @@ function expressionContainsUnsafe(
         blockContainsUnsafe,
         mode,
       ));
+    case "CollectionExpression":
+      return expression.elements.some(element => expressionContainsUnsafe(element.expression, blockContainsUnsafe, mode));
     case "TupleExpression":
       return expression.elements.some((element) => expressionContainsUnsafe(
         element,

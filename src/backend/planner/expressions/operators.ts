@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import type { DestructuringPlannerState } from "../bindings/binding-state.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import {
   sourceOperatorFromKindName,
@@ -59,6 +60,7 @@ export function tryPlanBinaryExpression(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (!HasSourceKind(input.program.source.ast, node, KindBinaryExpression)) {
     return undefined;
@@ -195,6 +197,7 @@ export function tryPlanBinaryExpression(
     diagnostics,
     planExpression,
     planExpressionWithExpectedType,
+    state,
   );
 }
 

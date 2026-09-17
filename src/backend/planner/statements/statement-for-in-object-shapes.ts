@@ -38,6 +38,7 @@ import {
   getForInKeyType,
   planForInBindingActivation,
 } from "./statement-for-in-binding.js";
+import { csharpEnumerableKeysMethodName, csharpEnumerableKeysType } from "../objects/declarations/enumerable-keys.js";
 
 export function planObjectShapeForInStatement(
   statementNode: Node,
@@ -74,6 +75,13 @@ export function planObjectShapeForInStatement(
     return [];
   }
   const objectShape = selectedIteration.lowering.objectShape;
+  const requirement = input.artifacts.requireObjectShapeCapability(
+    statement.Expression, objectShape.targetType, sourceFile, "enumerable-keys", "object-shape",
+  );
+  if (requirement.kind === "rejected") {
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, requirement.reason));
+    return [];
+  }
   const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType);
   if (collectionType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
@@ -140,13 +148,12 @@ export function planObjectShapeForInStatement(
         {
           kind: "LocalDeclarationStatement",
           name: keysName,
-          type: { kind: "ArrayType", elementType: keyType },
+          type: csharpEnumerableKeysType,
           initializer: {
-            kind: "ArrayCreationExpression",
-            elementType: keyType,
-            elements: objectShape.members
-              .filter((member) => member.sourceKey.kind === "property")
-              .map((member) => ({ kind: "LiteralExpression", value: member.sourceName }) satisfies CsharpExpression),
+            kind: "InvocationExpression",
+            callee: { kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: collectionName }, name: csharpEnumerableKeysMethodName },
+            arguments: [],
           },
         },
         plannedLoop,

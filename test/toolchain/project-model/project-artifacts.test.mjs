@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planCsharpProject, planCsharpProjectFile } from "../../../dist/backend/planner/project/project-artifacts.js";
@@ -71,7 +71,7 @@ test("user-owned project mode plans source-only output and never emits a generat
 
   assert.deepEqual(project, {
     kind: "user-owned",
-    projectFile: userProjectFile,
+    projectFile: realpathSync(userProjectFile),
   });
 
   const artifacts = materializeCsharpOutputPlan({

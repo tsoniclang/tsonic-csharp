@@ -30,6 +30,17 @@ export interface CsharpSelectedCallArgument {
 }
 
 interface CsharpSelectedTargetCallBase {
+  readonly sequenceArguments?: readonly {
+    readonly sourceArgumentIndex: number;
+    readonly expression: Node;
+    readonly sourceType: TargetTypeRef;
+    readonly elements: readonly {
+      readonly type: TargetTypeRef;
+      readonly conversion: CsharpConversionSelection;
+    }[];
+    readonly targetElementType: TargetTypeRef;
+    readonly targetParameterIndex: number;
+  }[];
   readonly targetMember: CsharpTargetMember;
   readonly receiver: CsharpTargetReceiverRelation;
   readonly targetMethodTypeArguments: readonly CsharpSelectedTargetMethodTypeArgument[];
@@ -90,6 +101,7 @@ export type CsharpSelectedTargetMethodTypeArgument =
 
 export type CsharpTargetElementInvocation =
   | { readonly kind: "indexer" }
+  | { readonly kind: "array-like"; readonly projection: import("../../conversions/selection/model.js").CsharpArrayLikeUnionProjection }
   | {
       readonly kind: "method";
       readonly targetName: string;

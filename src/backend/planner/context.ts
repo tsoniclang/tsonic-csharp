@@ -59,6 +59,7 @@ export interface CsharpPlanningScope {
 }
 
 export interface CsharpPlanningContext {
+  readonly storageExpression?: Node;
   readonly program: CsharpTargetProgram;
   readonly host: CsharpTargetProgram["host"];
   readonly types: CsharpPlanningTypeView;

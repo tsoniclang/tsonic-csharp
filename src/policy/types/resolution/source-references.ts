@@ -21,6 +21,8 @@ import {
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
+import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -44,6 +46,21 @@ export function resolveTypeReferenceNode(
   if (direct !== undefined) {
     return direct;
   }
+  const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
+    resolveNodeWithState(argument, queries.sourceFile, nextState(state))
+  );
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  const projectType = resolveProjectSourceType(
+    typeName,
+    queries.sourceFile,
+    state,
+    typeArguments as readonly TargetTypeRef[],
+  );
+  if (projectType !== undefined) {
+    return projectType;
+  }
   const standardTransformation = semanticType === undefined
     ? undefined
     : queries.types.standardTransformation(node, semanticType);
@@ -59,12 +76,6 @@ export function resolveTypeReferenceNode(
       node,
       semanticType,
     );
-  }
-  const typeArguments = csharpSourceTypeArgumentNodes(host.ast, node).map((argument) =>
-    resolveNodeWithState(argument, queries.sourceFile, nextState(state))
-  );
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
   }
   const providerType = resolveProviderType(
     subjects,
@@ -105,15 +116,6 @@ export function resolveTypeReferenceNode(
   }
   if (sourceAlias.kind === "rejected") {
     return undefined;
-  }
-  const projectType = resolveProjectSourceType(
-    typeName,
-    queries.sourceFile,
-    state,
-    typeArguments as readonly TargetTypeRef[],
-  );
-  if (projectType !== undefined) {
-    return projectType;
   }
   const transformedTarget = sourceAlias.kind === "checker-transformed-alias" &&
       semanticType !== undefined
@@ -361,6 +363,16 @@ export function resolveCompositionalSourceTypeAlias(
   if (target === undefined || parameters.length !== typeArguments.length) {
     return { kind: "rejected" };
   }
+  if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
+    const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
+    const structural = definitionType === undefined ? { kind: "not-applicable" as const }
+      : host.structuralTypes.resolveUnion(definitionType, reference.sourceFile, state);
+    if (structural.kind === "rejected") return structural;
+    if (structural.kind === "resolved") {
+      const bindings = new Map(parameters.map((parameter, index) => [host.ast.text(host.ast.name(parameter)), typeArguments[index]!]));
+      return { kind: "resolved", type: substituteTargetTypeParameters(structural.type, bindings) };
+    }
+  }
   const substitutions = new Map<string, TargetTypeRef>();
   for (let index = 0; index < parameters.length; index += 1) {
     const parameter = parameters[index];
@@ -377,7 +389,7 @@ export function resolveCompositionalSourceTypeAlias(
   }
   const resolved = target === undefined
     ? undefined
-    : sourceTypeSyntaxIsCompositional(host.ast, target)
+    : sourceTypeSyntaxIsCompositional(host.ast, target) || host.ast.is.IsTypeQueryNode(target)
       ? resolveNodeWithState(
           target,
           reference.sourceFile,
@@ -478,11 +490,12 @@ export function resolveSourceValueDeclaration(
     nextState(state),
   );
   if (syntax.initializer === undefined) {
-    return resolveTypeWithState(
+    const selected = resolveTypeWithState(
       selectedType ?? queries.types.expressionType(node),
       queries.sourceFile,
       nextState(state),
-    ) ?? declaredTarget;
+    );
+    return retainCsharpBroadValueCarrier(declaredTarget, selected) ?? selected ?? declaredTarget;
   }
   const selectedInitializerTarget = resolveDirectSourceFacts(
     [syntax.initializer],
@@ -509,6 +522,9 @@ export function resolveSourceValueDeclaration(
   if (initializerTarget === undefined) {
     return declaredTarget;
   }
+  if (node === declaration) {
+    return initializerTarget;
+  }
   const declaredType = declarationQueries.types.expressionType(
     syntax.initializer,
   );
@@ -520,8 +536,18 @@ export function resolveSourceValueDeclaration(
     declaredType,
     selectedValueType,
   );
+  const selectedUnion = selectCsharpAuthoredUnionRefinement(initializerTarget, declaredType, selectedValueType,
+    declarationQueries, type => resolveTypeWithState(type, sourceFile, nextState(state)), host.structuralTypes.resolveTarget);
+  if (selectedUnion.kind !== "not-applicable") return selectedUnion.kind === "resolved" ? selectedUnion.type : undefined;
   if (refinement.kind === "ambiguous") {
     return undefined;
+  }
+  if (refinement.kind === "unrelated") {
+    return reconcileCsharpSelectedTargetType(
+      initializerTarget,
+      resolveTypeWithState(selectedValueType, queries.sourceFile, nextState(state)),
+      declarationQueries.types.relationship(declaredType, selectedValueType),
+    );
   }
   if (
     refinement.kind === "members" &&

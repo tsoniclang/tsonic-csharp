@@ -372,17 +372,17 @@ test("direct C# translation closes structural aliases, literals, and destructure
 {
     public static class Index
     {
-        public static ObjectShape_604130bdb2a5 make(int age)
+        public static ObjectShape_c9acfbac966f make(int age)
         {
-            return new ObjectShape_604130bdb2a5
+            return new ObjectShape_4c6aa1b4a8b7
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(ObjectShape_604130bdb2a5 user)
+        public static int total(ObjectShape_c9acfbac966f user)
         {
-            ObjectShape_604130bdb2a5 __tsonic_destructure0 = user;
+            ObjectShape_c9acfbac966f __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -393,10 +393,23 @@ test("direct C# translation closes structural aliases, literals, and destructure
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_604130bdb2a5
+    public class ObjectShape_4c6aa1b4a8b7 : ObjectShape_c9acfbac966f
     {
-        public required int age;
-        public required string name;
+        public required int age
+        {
+            get;
+            set;
+        }
+        public required string name
+        {
+            get;
+            set;
+        }
+    }
+    public interface ObjectShape_c9acfbac966f
+    {
+        string name { get; set; }
+        int age { get; set; }
     }
 }
 `,
@@ -479,7 +492,7 @@ test("direct JS translation retains an object literal's exact selected value sha
     {
         public static string keys(string text)
         {
-            return Tsonic.CSharp.Js.Array.join(new ObjectShape_92778747e4be
+            return Tsonic.CSharp.Js.Array.join(new ObjectShape_515db29c74b5
             {
                 text = text,
             }.__tsonicObjectKeys_48e9fd789833(), ",");
@@ -491,7 +504,7 @@ test("direct JS translation retains an object literal's exact selected value sha
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_92778747e4be
+    public class ObjectShape_515db29c74b5
     {
         public required string text;
         public Tsonic.CSharp.Js.JSArray<string> __tsonicObjectKeys_48e9fd789833()
@@ -598,7 +611,7 @@ test("direct C# translation retains a project interface as object-literal contex
     {
         public static User make(int age)
         {
-            return new UserShape_8b36ca7a0e80
+            return new UserShape_28123f1703bd
             {
                 name = "Ada",
                 age = age,
@@ -616,7 +629,7 @@ test("direct C# translation retains a project interface as object-literal contex
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class UserShape_8b36ca7a0e80 : User
+    public class UserShape_28123f1703bd : User
     {
         public required int age
         {

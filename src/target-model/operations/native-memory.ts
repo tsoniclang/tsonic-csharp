@@ -1,15 +1,18 @@
 import type { TargetTypeRef } from "../types/model.js";
 import { targetTypeRefEquals } from "../types/equality.js";
 
-export interface CsharpNativeMemoryLayout {
-  readonly kind: "scalar" | "record";
+interface CsharpNativeMemoryDimensions {
   readonly pointeeType: TargetTypeRef;
   readonly size: number;
   readonly alignment: number;
   readonly width: 32 | 64;
   readonly littleEndian: boolean;
-  readonly fields: readonly CsharpNativeMemoryField[];
 }
+
+export type CsharpNativeMemoryLayout = CsharpNativeMemoryDimensions & (
+  | { readonly kind: "scalar" | "record"; readonly fields: readonly CsharpNativeMemoryField[] }
+  | { readonly kind: "array"; readonly length: string; readonly stride: number; readonly element: CsharpNativeMemoryLayout }
+);
 
 export interface CsharpNativeMemoryField {
   readonly name: string;
@@ -29,7 +32,14 @@ export function csharpNativeMemoryLayoutsEqual(left: CsharpNativeMemoryLayout, r
     visited.set(first, compared);
     if (first.kind !== second.kind || !targetTypeRefEquals(first.pointeeType, second.pointeeType) ||
       first.size !== second.size || first.alignment !== second.alignment || first.width !== second.width ||
-      first.littleEndian !== second.littleEndian || first.fields.length !== second.fields.length) return false;
+      first.littleEndian !== second.littleEndian) return false;
+    if (first.kind === "array" || second.kind === "array") {
+      if (first.kind !== "array" || second.kind !== "array" ||
+        first.length !== second.length || first.stride !== second.stride) return false;
+      pending.push([first.element, second.element]);
+      continue;
+    }
+    if (first.fields.length !== second.fields.length) return false;
     for (const [index, field] of first.fields.entries()) {
       const other = second.fields[index]!;
       if (field.name !== other.name || field.offset !== other.offset || field.alignment !== other.alignment) return false;

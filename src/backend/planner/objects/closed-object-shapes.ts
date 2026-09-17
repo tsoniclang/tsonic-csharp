@@ -1,5 +1,6 @@
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpPlanningContext } from "../context.js";
+import { planCsharpEmptyRecordConversion } from "../expressions/empty-record-conversion.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeProjection,
@@ -232,7 +233,6 @@ function renderProjectionExpression(
       }
       if (members.some((member) =>
         member.memberKind !== "property" ||
-        member.readonly === true ||
         member.accessor?.setter === false
       )) {
         return rejected("Object.assign requires exact writable data properties on the target carrier.");
@@ -361,6 +361,11 @@ function applyClosedShapeConversion(
   switch (selection.kind) {
     case "identity":
       return { kind: "resolved", expression };
+    case "empty-record": {
+      const converted = planCsharpEmptyRecordConversion(selection, selection.source, targetType, expression);
+      return converted === undefined ? rejected("The empty-record conversion has mismatched carriers.")
+        : { kind: "resolved", expression: converted };
+    }
     case "implicit":
       if (selection.proof !== "runtime-union-arm") {
         return { kind: "resolved", expression };

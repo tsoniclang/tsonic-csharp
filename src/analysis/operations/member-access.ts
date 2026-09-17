@@ -25,6 +25,7 @@ import type {
   CsharpPropertyClassification,
 } from "./model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
+import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
 
 export function elementSelectedTypes(
   policy: CsharpPolicyContext,
@@ -88,10 +89,12 @@ export function classifySourceOwnedProperty(
     "property-read",
     selection.source.optionalChain,
   );
-  const objectShape = policy.objectShapes.resolveNode(
+  const receiverShape = policy.objectShapes.resolveNode(
     selection.source.receiver.expression,
     sourceFile,
   );
+  const objectShape = policy.projectTypes.catalog.definitionForTarget(receiverShape?.targetType)?.kind === "class"
+    ? undefined : receiverShape;
   const selectedSubjects = semantics.facts.selectedSubjects(
     selection.source.selectedSymbol,
     selection.source.selectedDeclaration,
@@ -158,6 +161,9 @@ export function classifySourceOwnedProperty(
       ) ?? selectedSourceReadType
     : selectedSourceReadType ??
       policy.types.resolveNode(selection.source.expression, sourceFile);
+  const projectedWrite = classifyCsharpBoundFieldWrite(
+    policy, selection.source.expression, sourceFile, rawMemberReadType,
+  );
   return Object.freeze({
     jsValueOperation,
     ...(objectShape === undefined ? {} : { objectShape }),
@@ -168,6 +174,7 @@ export function classifySourceOwnedProperty(
     ...(shapeMember === undefined ? {} : { shapeMember }),
     ...(rawReadType === undefined ? {} : { rawReadType }),
     ...(selectedReadType === undefined ? {} : { selectedReadType }),
+    ...(projectedWrite === undefined ? {} : { projectedWrite }),
     jsValuePropertyWrite: selectCsharpJsValueReceiverOperation(
       jsValueProperty.kind === "resolved"
         ? jsValueProperty.shape.targetType

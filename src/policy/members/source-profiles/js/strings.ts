@@ -2,6 +2,7 @@ import type {
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "../../../types/index.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import {
   csharpJsArrayTargetType,
   csharpJsRegExpMatchArrayTargetType,
@@ -308,7 +309,7 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
             sourceName,
             sourceName,
             stringHelperType,
-            [targetParameter("codes", intType, { paramsArray: true })],
+            [targetParameter("codes", { kind: "array", element: doubleType }, { paramsArray: true, csharpSequenceHolePolicy: "number-nan" })],
             stringType,
           ),
         noReceiver,
@@ -316,20 +317,24 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
     ),
     jsCallPolicy(
       jsCallIdentity("StringConstructor"),
-      () =>
-        staticMethod(
+      (context) => {
+        const argument = context.source.sourceArguments[0];
+        const argumentType = argument === undefined
+          ? csharpObjectTargetType()
+          : resolveCsharpSelectedSourceValue(context, argument);
+        return argumentType === undefined ? undefined : staticMethod(
           "Tsonic.CSharp.Js.Globals.String",
           "constructor",
           "String",
           globalsType,
           [
-            targetParameter("value", csharpObjectTargetType(), {
+            targetParameter("value", argumentType, {
               optional: true,
-              csharpAcceptsClosedSourceArgument: true,
             }),
           ],
           stringType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsUnsupportedCallPolicy(

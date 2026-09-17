@@ -115,8 +115,9 @@ const mathCallPolicies = [
       name,
       mathType,
       [
-        targetParameter("values", doubleType, {
+        targetParameter("values", { kind: "array", element: doubleType }, {
           paramsArray: true,
+          csharpSequenceHolePolicy: "number-nan",
           csharpAcceptsCheckedSourceArgument: true,
         }),
       ],

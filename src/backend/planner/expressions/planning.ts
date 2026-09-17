@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import { tryPlanCsharpMemoryBinding } from "./memory-bindings.js";
 import {
   KindArrowFunction,
   KindCallExpression,
@@ -85,6 +86,7 @@ import {
 } from "./conversions.js";
 import {
   tryPlanCsharpTypedLocationOperation,
+  planCsharpProjectedFieldWrite,
 } from "./expression-typed-locations.js";
 import {
   tryPlanCsharpExplicitSafetyExpression,
@@ -193,6 +195,8 @@ function planExpressionCore(
     expectedArgumentPassingMode,
     selectedTargetParameter,
   );
+  const memoryBinding = tryPlanCsharpMemoryBinding(node, sourceFile, input, diagnostics, scopedPlanExpression);
+  if (memoryBinding.handled) return memoryBinding.expression;
   const explicitSafety = tryPlanCsharpExplicitSafetyExpression(
     node,
     sourceFile,
@@ -318,8 +322,12 @@ function planExpressionCore(
       return undefined;
     case KindTemplateExpression:
       return planTemplateExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
-    case KindPropertyAccessExpression:
-      return planPropertyAccessExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+    case KindPropertyAccessExpression: {
+      const property = planPropertyAccessExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+      return property === undefined ? undefined : planCsharpProjectedFieldWrite(
+        node, property, sourceFile, input, diagnostics, scopedPlanExpression, state,
+      );
+    }
     case KindElementAccessExpression:
       return planElementAccessExpression(
         node,
@@ -406,7 +414,7 @@ function planExpressionCore(
       }
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
         planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), scopedPlanCallArgument, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
-        planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType));
+        planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType), state);
       return binary;
     }
     default: {

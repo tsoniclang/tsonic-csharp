@@ -1,4 +1,5 @@
 import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
+import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
 import type {
   CsharpJsValueOperationSelection,
 } from "../../policy/js-value-operations/index.js";
@@ -57,6 +58,14 @@ export interface CsharpSourceCallArgumentClassification {
 
 export interface CsharpCallClassification
   extends CsharpSourceCallArgumentClassification {
+  readonly optionalReceiver?: {
+    readonly expression: Node;
+    readonly type: TargetTypeRef;
+    readonly guard: boolean;
+    readonly parameterType?: TargetTypeRef;
+    readonly conversion?: CsharpConversionSelection;
+  };
+  readonly unionCall: import("./union-calls.js").CsharpUnionCallClassification;
   readonly source?: ResolvedSourceCallInfo;
   readonly sourceFlow: CsharpSourceFlowCallSelection;
   readonly jsValue: CsharpJsValueOperationSelection;
@@ -83,6 +92,7 @@ export interface CsharpElementClassification {
 }
 
 export interface CsharpSourceOwnedPropertyClassification {
+  readonly projectedWrite?: import("../../policy/operations/typed-locations/typed-location-storage.js").CsharpTypedLocationStorageSelection;
   readonly jsValueOperation: CsharpJsValueOperationSelection;
   readonly objectShape?: CsharpObjectShapeFact;
   readonly selectedSubjects: readonly ExtensionFactSubject[];
@@ -105,6 +115,7 @@ export interface CsharpPropertyClassification {
 }
 
 export interface CsharpBinaryClassification {
+  readonly instanceType?: TargetTypeRef;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;
   readonly destructuring: CsharpOperationSelection<
@@ -125,6 +136,7 @@ export interface CsharpUnaryClassification {
 }
 
 export interface CsharpTargetOperationClassifications {
+  memoryBinding(node: Node): CsharpMemoryBindingSelection | undefined;
   binaryExecutionDriver(): CsharpTargetBinaryExecutionDriver | undefined;
   resultType(node: Node): TargetTypeRef | undefined;
   call(node: Node): CsharpCallClassification | undefined;

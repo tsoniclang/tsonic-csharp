@@ -7,7 +7,8 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { TargetSelection } from "@tsonic/target-api";
-import type { TsonicFixedArraySelection, TsonicPointerReturnQueries } from "@tsonic/source-core/facts";
+import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
+import type { TsonicFixedArraySelection, TsonicPointerReturnQueries, TsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../callables/pointer-return.js";
 import type {
   SourceFileSemantics,
@@ -19,6 +20,8 @@ import type { CsharpSourceCallableContract } from "../callables/source-callable-
 import type { CsharpSourceTypedLocationOperation } from "../../operations/typed-locations/source-typed-locations.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import type { CsharpSourceTargetTypeBinding } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapeFact } from "../../../target-model/types/model.js";
+import type { CsharpObjectShapePolicy } from "../objects/object-shape-policy.js";
 
 export type ResolvedSourceCallInfo = NonNullable<
   ReturnType<SourceFileSemantics["operations"]["call"]>
@@ -37,7 +40,9 @@ export interface CsharpTypePolicyBaseHost {
   readonly sourceFiles: readonly SourceFile[];
   readonly sourceFacts?: ReadonlySourceFactResolver;
   readonly navigation: SourceProgramNavigation;
+  readonly arrayDensity: SourceArrayDensityQueries;
   readonly pointerReturns: TsonicPointerReturnQueries;
+  readonly memoryBindings: TsonicMemoryBindingIndex;
   readonly providers: CsharpProviderRelationResolver;
   readonly target: TargetSelection;
   semantics(sourceFile: SourceFile): SourceFileSemantics;
@@ -48,9 +53,13 @@ export interface CsharpTypePolicyBaseHost {
 export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   readonly representations: CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
+  readonly objectShapes: CsharpObjectShapePolicy;
   projectTypes(): CsharpProjectTypePolicy;
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
+    resolveReference(type: Type): TargetTypeRef | undefined;
+    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../objects/object-shape-policy/union-definitions.js").CsharpStructuralUnionResolution;
+    resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
     resolveNode(
       node: Node,
       sourceFile: SourceFile,
@@ -67,6 +76,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
       selectedSubjects: readonly ExtensionFactSubject[],
       selectedType: Type | undefined,
       sourceFile: SourceFile,
+      declaredMemberType: Type | undefined,
     ): TargetTypeRef | undefined;
   };
 }

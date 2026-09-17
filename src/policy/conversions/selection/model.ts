@@ -3,8 +3,17 @@ import type { TargetTypeRef } from "../../types/index.js";
 
 export type CsharpConversionMode = "implicit" | "explicit";
 
+export interface CsharpArrayLikeUnionProjection {
+  readonly source: TargetTypeRef;
+  readonly target: TargetTypeRef;
+  readonly conversion: Extract<CsharpConversionSelection, { readonly kind: "array-like-union" }>;
+}
+
 export type CsharpConversionSelection =
   | { readonly kind: "identity" }
+  | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
+  | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }
+  | { readonly kind: "empty-record"; readonly source: TargetTypeRef; readonly target: TargetTypeRef }
   | {
       readonly kind: "implicit";
       readonly proof:
@@ -59,6 +68,7 @@ export type CsharpConversionSelection =
       readonly targetElementType: TargetTypeRef;
     }
   | { readonly kind: "js-value-box" }
+  | { readonly kind: "undefined-object-box" }
   | {
       readonly kind: "js-value-cast";
       readonly runtimeUnionArms?: readonly TargetTypeRef[];

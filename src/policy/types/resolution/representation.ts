@@ -19,6 +19,12 @@ export function resolveBinaryTargetRepresentation(
   if (operator === undefined || left === undefined || right === undefined) {
     return undefined;
   }
+  if (operator === "??=") {
+    const valueType = getCsharpNullableElementTargetType(left);
+    return valueType !== undefined && targetTypeRefEquals(valueType, right)
+      ? valueType
+      : left;
+  }
   if (isCsharpAssignmentOperator(operator)) {
     return operator === "=" &&
         isCsharpDestructuringAssignmentPattern(ast, leftNode)

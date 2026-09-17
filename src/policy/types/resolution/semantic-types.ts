@@ -5,6 +5,7 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import {
   csharpAnyTargetType,
+  csharpEmptyObjectTargetType,
   csharpRuntimeLocationTargetType,
   csharpRuntimeRawPointerTargetType,
   csharpRuntimeNullTargetType,
@@ -24,6 +25,7 @@ import { csharpJsSymbolTargetType } from "./surface-types.js";
 import {
   csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,
+  readCsharpSourceField,
   readCsharpSourceFixedArrayType,
   readCsharpSourceFunctionPointerType,
   readCsharpSourceJsStringMarker,
@@ -45,6 +47,7 @@ import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../op
 import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
 import { readCsharpRawLocation } from "../../operations/pointers/native-memory.js";
 import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
+import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
 export function resolveTypeWithState(
   { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType }: CsharpTypeResolutionScope,
@@ -164,6 +167,11 @@ export function resolveTypeWithState(
   if (queries.types.isVoidLike(type)) {
     return csharpVoidTargetType();
   }
+  if (!queries.types.isSymbolLike(type) && !queries.types.couldContainTypeVariables(type) && queries.types.propertyInfos(type).length === 0 &&
+    queries.types.callSignatures(type).length === 0 && queries.types.constructSignatures(type).length === 0 &&
+    queries.types.indexInfos(type).length === 0) {
+    return csharpEmptyObjectTargetType();
+  }
   return host.structuralTypes.resolveType(
     type,
     sourceFile,
@@ -179,13 +187,42 @@ export function resolveDirectSourceFacts(
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
+    const record = host.sourceFacts?.getFact(subject, tsonicMemoryRecordBindingFactKey);
+    if (record !== undefined && host.sourceFacts !== undefined) {
+      const selected = selectTsonicMemoryRecordBinding(host.ast, host.sourceFacts, record.call);
+      if (selected?.kind !== "resolved") return undefined;
+      const typeNode = selected.operation.layout.explicitTypeNode;
+      return typeNode === undefined
+        ? resolveTypeWithState(selected.operation.sourceType, sourceFile, nextState(state))
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
+    }
+    const binding = host.sourceFacts?.getFact(subject, tsonicMemoryFieldBindingFactKey);
+    if (binding !== undefined && host.sourceFacts !== undefined) {
+      const selected = selectTsonicMemoryFieldBinding(host.ast, host.sourceFacts, binding.call);
+      if (selected?.kind !== "resolved") return undefined;
+      const typeNode = host.ast.typeNode(selected.operation.field.selectedDeclaration) ??
+        readCsharpSourceField(host.sourceFacts, [selected.operation.field.selectedDeclaration])?.sourceType;
+      const pointee = typeNode === undefined
+        ? resolveTypeWithState(selected.operation.pointeeType, sourceFile, nextState(state))
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
+      return pointee === undefined ? undefined : csharpRuntimeLocationTargetType(pointee);
+    }
     const rawLocation = readCsharpRawLocation(host.ast, host.sourceFacts, subject);
     if (rawLocation?.kind === "resolved") {
       if (rawLocation.operation.operation === "to-raw") return csharpNullableReferenceTargetType(csharpRuntimeRawPointerTargetType());
       const typeNode = rawLocation.operation.explicitPointeeTypeNode ?? rawLocation.layout.explicitTypeNode;
+      if (typeNode === undefined && rawLocation.layout.kind === "array") {
+        const elementNode = rawLocation.layout.fixedArray.elementType;
+        const layoutFile = host.ast.getSourceFile(rawLocation.layout.call) ?? sourceFile;
+        const element = elementNode === undefined
+          ? resolveTypeWithState(rawLocation.layout.fixedArray.elementSourceType, layoutFile, nextState(state))
+          : resolveNodeWithState(elementNode, host.ast.getSourceFile(elementNode) ?? layoutFile, nextState(state));
+        if (element !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType({ kind: "array", element }));
+        return undefined;
+      }
       const pointee = typeNode === undefined
         ? resolveTypeWithState(rawLocation.operation.pointeeType, sourceFile, nextState(state))
-        : resolveNodeWithState(typeNode, sourceFile, nextState(state));
+        : resolveNodeWithState(typeNode, host.ast.getSourceFile(typeNode) ?? sourceFile, nextState(state));
       if (pointee !== undefined) return csharpNullableReferenceTargetType(csharpRuntimeLocationTargetType(pointee));
     }
     if (selectCsharpLayoutObservation(host.sourceFacts, subject)?.kind === "layout-query") {
@@ -280,6 +317,10 @@ export function resolveDirectSourceFacts(
             return csharpSourcePrimitiveTargetType("bool");
           case "location-hash":
             return csharpSourcePrimitiveTargetType("float64");
+          case "location-view": {
+            const location = csharpRuntimeLocationTargetType(pointee);
+            return pointerOperation.optional ? csharpNullableReferenceTargetType(location) : location;
+          }
           case "location-project": {
             const sourceLocation = resolveSelectedValueWithState(
               pointerOperation.locationExpression,
