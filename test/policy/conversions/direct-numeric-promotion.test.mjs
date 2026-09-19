@@ -12,10 +12,12 @@ const ast = {
     IsBigIntLiteral: (node) => node.kind === "bigint",
     IsNoSubstitutionTemplateLiteral: (node) => node.kind === "template",
     IsNumericLiteral: (node) => node.kind === "numeric",
+    IsParenthesizedExpression: (node) => node.kind === "parenthesized",
     IsPrefixUnaryExpression: (node) => node.kind === "prefix",
     IsStringLiteral: (node) => node.kind === "string",
   },
   as: {
+    AsParenthesizedExpression: (node) => node,
     AsPrefixUnaryExpression: (node) => node,
   },
   elements: (node) => node.elements ?? [],
