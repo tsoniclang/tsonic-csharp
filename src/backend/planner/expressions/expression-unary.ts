@@ -25,6 +25,7 @@ import type {
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
+import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -107,12 +108,20 @@ export function planPrefixUnaryExpression(
     input,
     diagnostics,
   );
+  const floatingNegation = selection.targetOperator === "-" &&
+    selection.operandType.kind === "source-primitive" &&
+    (selection.operandType.name === "float64" || selection.operandType.name === "float32");
+  const operandType = floatingNegation ? csharpTypeFromTargetTypeRef(selection.operandType) : undefined;
   return operand === undefined
     ? undefined
     : {
         kind: "PrefixUnaryExpression",
         operatorToken,
-        operand,
+        operand: operandType === undefined ? operand : {
+          kind: "CastExpression",
+          type: operandType,
+          expression: operand,
+        },
       };
 }
 

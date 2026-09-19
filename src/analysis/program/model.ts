@@ -1,4 +1,5 @@
 import type { SourceFile } from "@tsonic/tsts";
+import type { CsharpNumericRepresentations } from "../numeric/representations.js";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type {
   TargetPlanningSourceNavigation,
@@ -69,6 +70,7 @@ export interface CsharpPlanningHost {
 }
 
 export interface CsharpTargetProgram {
+  readonly numericRepresentations: CsharpNumericRepresentations;
   readonly host: CsharpPlanningHost;
   readonly configuration: CsharpTargetConfiguration;
   readonly project: CsharpProjectClassifications;
