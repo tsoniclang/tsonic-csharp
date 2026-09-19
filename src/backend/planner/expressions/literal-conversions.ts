@@ -11,6 +11,7 @@ import {
   csharpBigIntFitsSourcePrimitive,
   csharpBigIntLiteralValue,
   csharpNumericLiteralValue,
+  csharpNumericLiteralFitsSourcePrimitive,
 } from "../../../target-model/syntax/numeric-literals.js";
 import type {
   TargetTypeRef,
@@ -33,6 +34,25 @@ export function planCsharpExactLiteralConversion(
   const targetType = getCsharpNullableElementTargetType(target) ?? target;
   if (targetType.kind !== "source-primitive") {
     return classifiedLiteralRepresentation(input, node, target);
+  }
+  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+    if (targetType.name === "float64" || targetType.name === "float32" || targetType.name === "float16") {
+      const zero: CsharpExpression = {
+        kind: "PrefixUnaryExpression",
+        operatorToken: { kind: "MinusToken" },
+        operand: { kind: "NumericLiteralExpression", value: 0, suffix: targetType.name === "float64" ? "D" : "F" },
+      };
+      if (targetType.name !== "float16") return { kind: "resolved", expression: zero };
+      const halfType = csharpTypeFromTargetTypeRef(targetType);
+      return halfType === undefined
+        ? { kind: "rejected", reason: "C# Half signed-zero conversion requires an exact renderable target type." }
+        : { kind: "resolved", expression: {
+            kind: "CastExpression", type: halfType, expression: { kind: "ParenthesizedExpression", expression: zero },
+          } };
+    }
+    if (targetType.name !== "decimal" && csharpNumericLiteralFitsSourcePrimitive(input.program.source.ast, node, targetType.name)) {
+      return { kind: "resolved", expression: { kind: "LiteralExpression", value: 0 } };
+    }
   }
   switch (targetType.name) {
     case "char": {

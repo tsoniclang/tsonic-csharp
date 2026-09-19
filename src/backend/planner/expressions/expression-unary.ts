@@ -25,7 +25,8 @@ import type {
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
+import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -92,6 +93,14 @@ export function planPrefixUnaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
   }
+  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+    const literal = planCsharpExactLiteralConversion(input, node, selection.resultType);
+    if (literal.kind === "resolved") return literal.expression;
+    if (literal.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
+      return undefined;
+    }
+  }
   const operatorToken = csharpPrefixUnaryOperatorTokenFromText(
     selection.targetOperator,
   );
@@ -108,20 +117,12 @@ export function planPrefixUnaryExpression(
     input,
     diagnostics,
   );
-  const floatingNegation = selection.targetOperator === "-" &&
-    selection.operandType.kind === "source-primitive" &&
-    (selection.operandType.name === "float64" || selection.operandType.name === "float32");
-  const operandType = floatingNegation ? csharpTypeFromTargetTypeRef(selection.operandType) : undefined;
   return operand === undefined
     ? undefined
     : {
         kind: "PrefixUnaryExpression",
         operatorToken,
-        operand: operandType === undefined ? operand : {
-          kind: "CastExpression",
-          type: operandType,
-          expression: operand,
-        },
+        operand,
       };
 }
 

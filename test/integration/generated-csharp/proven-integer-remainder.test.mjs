@@ -10,9 +10,12 @@ import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-worksp
 import { integerRemainderCases, integerRemainderExecutionSource } from "../../../../tsonic/test/fixtures/proven-integer-remainder.mjs";
 
 test("proven integer remainder preserves all number results and rejects uncertain numeric selections", { timeout: 300_000 }, () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: integerRemainderExecutionSource() });
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `${integerRemainderExecutionSource()}
+import type { float16 } from "@tsonic/core/types.js";
+export function halfZero(): float16 { return -0; }` });
   assertCsharpCompilationSucceeded(compiled);
   const output = [...compiled.artifacts.values()].join("\n");
+  assert.match(output, /total \+= \(double\)\(\(int\)\(value\) % \(int\)\(3\)\);/u);
   for (const entry of integerRemainderCases) {
     const start = output.indexOf(`double ${entry.name}(`);
     assert.notEqual(start, -1, entry.name);
@@ -27,7 +30,7 @@ test("proven integer remainder preserves all number results and rejects uncertai
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, text);
   }
-  writeFileSync(join(root, "Program.cs"), "if (!Tsonic.Generated.Index.run()) throw new System.Exception(\"integer remainder\");");
+  writeFileSync(join(root, "Program.cs"), "if (!Tsonic.Generated.Index.run() || !System.Half.IsNegative(Tsonic.Generated.Index.halfZero())) throw new System.Exception(\"integer remainder\");");
   const references = [
     join(testRepositoryRoots.csharpRuntime, "src/Tsonic.CSharp.Runtime/Tsonic.CSharp.Runtime.csproj"),
     join(testRepositoryRoots.csharpJs, "src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj"),

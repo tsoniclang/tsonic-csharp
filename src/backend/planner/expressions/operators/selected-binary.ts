@@ -253,10 +253,13 @@ export function planSelectedCsharpBinaryOperation(
       kind: "CastExpression",
       type: number,
       expression: {
-        kind: "BinaryExpression",
-        left: { kind: "CastExpression", type: integer, expression: left },
-        operatorToken: binaryToken,
-        right: { kind: "CastExpression", type: integer, expression: right },
+        kind: "ParenthesizedExpression",
+        expression: {
+          kind: "BinaryExpression",
+          left: { kind: "CastExpression", type: integer, expression: { kind: "ParenthesizedExpression", expression: left } },
+          operatorToken: binaryToken,
+          right: { kind: "CastExpression", type: integer, expression: { kind: "ParenthesizedExpression", expression: right } },
+        },
       },
     };
   }
