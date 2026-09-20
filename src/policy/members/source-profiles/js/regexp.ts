@@ -510,9 +510,9 @@ function regexpInputMember(
   const sourceName = operation === "test" || operation === "exec"
     ? regexpMembers[operation]
     : wellKnown[operation === "matchAll" ? "matchAll" : operation];
-  const receiver = context.source.receiver?.expression;
+  const receiver = context.source.sourceReceiver?.expression;
   const nativeTest = operation === "test" && !exact && receiver !== undefined &&
-    context.host.source.ast.kindName(receiver) === "KindRegularExpressionLiteral";
+    context.host.ast.kindName(receiver) === "KindRegularExpressionLiteral";
   const targetName = nativeTest ? "testNative" : operation;
   const resultType = operation === "test"
     ? boolType
