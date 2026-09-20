@@ -1,7 +1,6 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
-import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
@@ -101,10 +100,6 @@ import {
 import {
   analyzeCsharpModuleInitialization,
 } from "../module-initialization/index.js";
-import { createSourceArrayDensityQuery } from "@tsonic/target-api/source";
-import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
-import { jsArrayMemberEffect } from "@tsonic/js-source-profile";
-import { csharpSourceProfileDeclarationIdentity } from "../../policy/members/source-profiles/source-profile-identity.js";
 
 interface CsharpRepresentationContract {
   readonly callables: CsharpCallableContractIndex;
@@ -125,22 +120,6 @@ export function analyzeCsharpTargetProgram(
   const source = input.source;
   const memoryBindings = createTsonicMemoryBindingIndex(source);
   const sourceFiles = Object.freeze([...source.navigation.sourceFiles]);
-  const arrayDensity = createSourceArrayDensityQuery(source, {
-    closedSourceFiles: new Set(configuration.outputType === "Exe" ? sourceFiles : []),
-    intrinsicallyDense(expression) {
-      const semantics = source.semantics.forNode(expression);
-      const type = semantics.types.expressionType(expression);
-      const identity = type === undefined ? undefined : classifyCsharpSourceProfileType(type, semantics, source.ast);
-      return identity?.ownerId === "js" && identity.kind === "typed-array";
-    },
-    memberEffect(declaration) {
-      const identity = csharpSourceProfileDeclarationIdentity(
-        source.ast, source.semantics.forNode(declaration), source.sourceFacts, declaration,
-      );
-      return jsArrayMemberEffect(identity?.owner === "js" && identity.declaringName !== undefined && identity.name !== undefined
-        ? { ownerName: identity.declaringName, memberName: identity.name } : undefined);
-    },
-  });
   const sourceIdentities = createCsharpSourceIdentityPolicy(
     source.ast,
     input.paths.projectRoot,
@@ -157,7 +136,6 @@ export function analyzeCsharpTargetProgram(
     sourceFiles,
     sourceFacts: source.sourceFacts,
     navigation: source.navigation,
-    arrayDensity,
     providers,
     pointerReturns: createTsonicPointerReturnQueries(source),
     memoryBindings,
@@ -177,7 +155,6 @@ export function analyzeCsharpTargetProgram(
         sourceIdentities,
         names,
         typeHost,
-        arrayDensity,
         previous,
       );
       return {
@@ -215,7 +192,6 @@ export function analyzeCsharpTargetProgram(
     sourceIdentities,
     names,
     typeHost,
-    arrayDensity,
     stable,
   );
   if (!representationContractsEqual(stable, analysis)) {
@@ -341,7 +317,6 @@ function analyzeIteration(
   sourceIdentities: ReturnType<typeof createCsharpSourceIdentityPolicy>,
   names: ReturnType<typeof createCsharpSourceNameResolver>,
   typeHost: Parameters<typeof createCsharpTypeSystem>[0],
-  arrayDensity: SourceArrayDensityQueries,
   previous: CsharpRepresentationContract | undefined,
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
@@ -367,7 +342,6 @@ function analyzeIteration(
     providers,
     sourceIdentities,
     typeSystem,
-    arrayDensity,
   });
   const sourceEvidence = analyzeCsharpSourceEvidence(
     input.source,

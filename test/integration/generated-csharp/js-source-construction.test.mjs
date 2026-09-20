@@ -431,23 +431,17 @@ test("retained cross-package callbacks preserve the original thrown object", { t
   }), "package-callback-errors");
 });
 
-test("Array.from preserves dense copies and materializes sparse undefined entries", { timeout: 300_000 }, () => {
+test("Array.from preserves dense copies and explicit undefined entries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
 });
 
-for (const [label, source] of [
-  ["a scalar hole", "const values: number[] = new Array<number>(2);"],
-  ["a null-only payload with a hole", "const values: (number | null)[] = new Array<number | null>(2);"],
-  ["length expansion", "const values = [1]; values.length = 3;"],
-  ["deletion through an alias", "const values = [1]; const alias = values; delete alias[0];"],
-]) {
-  test(`Array.from rejects ${label} without a representable undefined element`, () => {
+for (const source of ["const values = [1, , 3];", "const values = [, undefined];"]) {
+  test(`omitted array elements reject: ${source}`, () => {
     const result = compileCsharpSource({ surface: "js", sourceText: `
 export function copy(): number { ${source} return Array.from(values).length; }
 ` });
     assert.equal(result.result.artifacts.length, 0);
-    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101001" &&
-      diagnostic.message.includes("js.ArrayConstructor.from.member")));
+    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.message.includes("Sparse array literals")));
   });
 }
 
