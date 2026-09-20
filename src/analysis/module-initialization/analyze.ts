@@ -15,6 +15,7 @@ import {
   KindTypeAliasDeclaration,
   KindVariableStatement,
   SourceFile_FileName,
+  sourceMayReadBeforeInitialization,
 } from "@tsonic/target-api/source";
 import type {
   CsharpAttributeApplicationFactIndex,
@@ -48,7 +49,22 @@ export function analyzeCsharpModuleInitialization(
   input: CsharpModuleInitializationAnalysisInput,
 ): CsharpModuleInitializationAnalysis {
   const entries = new Map<string, ModuleInitializationEntry>();
+  const directCallables = new WeakSet<Node>();
   for (const sourceFile of input.sourceFiles) {
+    for (const statement of input.source.ast.statements(sourceFile)) {
+      const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
+      if (declarations === undefined || input.source.ast.variableDeclarationKind(declarations) !== "const") continue;
+      for (const declaration of input.source.ast.children(declarations)) {
+        if (declaration === undefined || !input.source.ast.is.IsVariableDeclaration(declaration)) continue;
+        const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
+        if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer)) continue;
+        const summary = input.source.navigation.declarationUseSummary(declaration);
+        if (summary.exported || summary.bindingWritten || summary.memberWritten ||
+          summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only") ||
+          sourceMayReadBeforeInitialization(declaration, input.source.ast, input.source.navigation)) continue;
+        directCallables.add(declaration);
+      }
+    }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
       sourceFile,
       dependencies: Object.freeze(input.source.navigation
@@ -86,6 +102,9 @@ export function analyzeCsharpModuleInitialization(
     },
     entrypointInitializer() {
       return entries.get(entrypointFileName)?.sourceFile;
+    },
+    isDirectCallable(declaration: Node) {
+      return directCallables.has(declaration);
     },
   });
   return Object.freeze({

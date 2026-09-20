@@ -24,6 +24,7 @@ import { planValueTypeDeclaration } from "../declarations/value-types.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
+import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -76,6 +77,30 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
+    if (input.program.moduleInitialization.isDirectCallable(declaration)) {
+      const lambda = field.initializer;
+      const signature = variable.Initializer === undefined ? undefined :
+        getLambdaTargetContext(variable.Initializer, sourceFile, input)?.signature;
+      if (lambda?.kind !== "LambdaExpression" || signature === undefined ||
+        lambda.parameters.some(parameter => parameter.type === undefined)) {
+        diagnostics.push(unsupportedNodeDiagnostic(declaration, "Direct callable planning requires its sealed lambda signature and body."));
+        continue;
+      }
+      moduleMembers.push({
+        kind: "MethodDeclaration",
+        name: field.name,
+        modifiers: lambda.async ? ["private", "static", "async"] : ["private", "static"],
+        returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
+        parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
+        body: lambda.body.kind === "Block" ? lambda.body : {
+          kind: "Block",
+          statements: [signature.returnType === undefined
+            ? { kind: "ExpressionStatement", expression: lambda.body }
+            : { kind: "ReturnStatement", expression: lambda.body }],
+        },
+      });
+      continue;
+    }
     moduleMembers.push(topLevelBindingMember(
       field.name,
       field.type,
