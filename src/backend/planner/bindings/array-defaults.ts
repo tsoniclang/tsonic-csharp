@@ -30,8 +30,9 @@ export function planArrayDefaultProjection(
       "Array destructuring defaults require an exact undefined-only element contract; the selected carrier must not conflate null and undefined."));
     return undefined;
   }
-  const carrier = behavior === "nullable"
-    ? getCsharpNullableElementTargetType(sourceCarrier.element)
+  const nullableElement = getCsharpNullableElementTargetType(sourceCarrier.element);
+  const defaultOnNull = behavior === "nullable" && nullableElement !== undefined;
+  const carrier = defaultOnNull ? nullableElement
     : behavior === "always" ? input.program.sourceEvidence.nodeTargetType(initializer) : sourceCarrier.element;
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (carrier === undefined || type === undefined) {
@@ -41,7 +42,7 @@ export function planArrayDefaultProjection(
   const defaultValue = planDefaultExpression(initializer, sourceFile, input, diagnostics, type, initializer, state);
   if (defaultValue === undefined) return undefined;
   if (behavior === "always") return { expression: defaultValue, carrier, type };
-  const presentValue: CsharpExpression = behavior === "nullable" ? {
+  const presentValue: CsharpExpression = defaultOnNull ? {
     kind: "BinaryExpression", left: projected,
     operatorToken: { kind: "QuestionQuestionToken" }, right: defaultValue,
   } : projected;
