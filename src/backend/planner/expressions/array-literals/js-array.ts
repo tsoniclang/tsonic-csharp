@@ -30,6 +30,7 @@ import {
 import {
   planArraySpreadSourceExpression,
 } from "./spread-source.js";
+import { callStatic } from "../csharp-expression-builders.js";
 
 export function planJsArrayLiteralExpression(
   node: Node,
@@ -168,6 +169,9 @@ function createJsArrayLiteralChunks(
 }
 
 function jsArrayFromNativeArray(arrayExpression: CsharpExpression, collectionType: CsharpTypeNode): CsharpExpression {
+  if (arrayExpression.kind === "ArrayCreationExpression") {
+    return callStatic(collectionType, "of", arrayExpression.elements);
+  }
   return {
     kind: "ObjectCreationExpression",
     type: collectionType,
