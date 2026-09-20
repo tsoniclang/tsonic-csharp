@@ -39,6 +39,7 @@ export type CsharpSourceArgumentClassification =
     };
 
 export interface CsharpSemanticTypeClassification {
+  readonly arrayElementDefault?: "never" | "nullable" | "always" | "ambiguous";
   readonly targetType?: TargetTypeRef;
   readonly typeParameterName?: string;
   readonly nullish: boolean;

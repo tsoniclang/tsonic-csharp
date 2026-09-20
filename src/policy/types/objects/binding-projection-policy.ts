@@ -3,10 +3,11 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import {
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
+import { isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
@@ -31,6 +32,7 @@ export interface CsharpBindingProjectionPolicyHost {
   readonly navigation: SourceProgramNavigation;
   readonly typeResolver: CsharpRecursiveTypeResolver;
   readonly objectShapes: CsharpObjectShapePolicy;
+  semantics(sourceFile: SourceFile): SourceFileSemantics;
 }
 
 export interface CsharpBindingProjectionPolicy {
@@ -78,9 +80,18 @@ export function createCsharpBindingProjectionPolicy(
         return undefined;
       }
       const declaration = host.ast.as.AsBindingElement(binding);
-      return declaration?.Initializer === undefined
-        ? projected
-        : getCsharpNullableElementTargetType(projected) ?? projected;
+      if (declaration?.Initializer === undefined) return projected;
+      if (isCsharpRuntimeUndefinedTargetType(projected)) {
+        return host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
+      }
+      const bindingFile = sourceFile ?? host.ast.getSourceFile(binding);
+      if (bindingFile === undefined || declaration.name === undefined) return undefined;
+      const queries = host.semantics(bindingFile);
+      const selected = queries.types.expressionType(declaration.name);
+      if (selected === undefined) return undefined;
+      const members = queries.types.isUnion(selected) ? queries.types.unionOrIntersectionTypes(selected) : [selected];
+      return members.some(member => queries.types.isNullish(member))
+        ? projected : getCsharpNullableElementTargetType(projected) ?? projected;
     } finally {
       activeBindings.delete(binding);
     }

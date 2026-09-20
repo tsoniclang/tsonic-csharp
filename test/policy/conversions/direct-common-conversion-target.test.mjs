@@ -213,10 +213,18 @@ test("flow reads project one exact runtime-union arm", () => {
       kind: "runtime-union-projection",
       armIndex: 1,
       armType: string,
+      unwrapNullableValue: false,
     },
   );
   assert.equal(
     selectCsharpFlowReadConversion(host, union, float64).kind,
     "rejected",
   );
+  const nullable = csharpNullableTargetType(union);
+  assert.deepEqual(selectCsharpFlowReadConversion(host, nullable, string), {
+    kind: "runtime-union-projection", armIndex: 1, armType: string,
+    unwrapNullableValue: true,
+  });
+  assert.equal(selectCsharpFlowReadConversion(host, nullable, float64).kind, "rejected");
+  assert.equal(selectCsharpConversion(host, nullable, string, "implicit").kind, "rejected");
 });

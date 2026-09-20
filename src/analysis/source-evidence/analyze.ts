@@ -59,6 +59,7 @@ import {
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
+import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -163,6 +164,19 @@ export function analyzeCsharpSourceEvidence(
                     ? "void"
                     : "other";
     const targetType = recordTargetType(types.resolveType(type, sourceFile));
+    const arrayIndex = semantics.types.isArrayLike(type)
+      ? semantics.types.indexInfos(type).filter(index =>
+          index.keyType !== undefined && semantics.types.isNumberLike(index.keyType))
+      : [];
+    const elementType = arrayIndex.length === 1 ? arrayIndex[0]?.valueType : undefined;
+    const elementMembers = elementType === undefined ? []
+      : semantics.types.isUnion(elementType) ? semantics.types.unionOrIntersectionTypes(elementType) : [elementType];
+    const undefinedMembers = elementMembers.filter(member => isUndefinedType(member, semantics));
+    const arrayElementDefault = elementType === undefined ? undefined
+      : undefinedMembers.length === 0 ? "never"
+      : undefinedMembers.length === elementMembers.length ? "always"
+      : elementMembers.some(member => semantics.types.isNullish(member) && !isUndefinedType(member, semantics))
+        ? "ambiguous" : "nullable";
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameterName = symbol !== undefined &&
         semantics.declarations.symbolDeclarations(symbol).some((declaration) =>
@@ -171,6 +185,7 @@ export function analyzeCsharpSourceEvidence(
       : undefined;
     const classification = Object.freeze({
       intrinsic,
+      ...(arrayElementDefault === undefined ? {} : { arrayElementDefault }),
       nullish: semantics.types.isNullish(type),
       ...(targetType === undefined ? {} : { targetType }),
       ...(typeParameterName === undefined ? {} : { typeParameterName }),

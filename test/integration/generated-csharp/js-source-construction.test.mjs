@@ -49,6 +49,44 @@ test("optional indexed arguments retain absence and single evaluation", { timeou
   execute(compileCsharpSource({ surface: "js", sourceText: optionalIndexedArgumentsSource }), "optional-indexed-arguments");
 });
 
+for (const surface of [undefined, "js"]) {
+  test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+      import { Exception } from "@tsonic/dotnet/System.js";
+      let calls = 0;
+      function fallback(): number { calls += 1; return calls; }
+      function countCalls(): number { return calls; }
+      export function run(): boolean {
+        const values: (number | undefined)[] = [undefined, 5];
+        const [first = fallback(), second = fallback(), missing = fallback()] = values;
+        if (first !== 1 || second !== 5 || missing !== 2 || countCalls() !== 2) throw new Exception("binding defaults");
+        let assigned = 0;
+        [assigned = fallback()] = values;
+        if (assigned !== 3 || countCalls() !== 3) throw new Exception("assignment defaults");
+        const nullable: (number | null)[] = [null];
+        const [retained = fallback()] = nullable;
+        if (retained !== null || countCalls() !== 3) throw new Exception("null is not undefined");
+        const absent: undefined[] = [undefined];
+        const [selected = 4] = absent;
+        if (selected !== 4) throw new Exception("undefined-only default");
+        return true;
+      }
+    ` }), `dense-defaults-${surface ?? "native"}`);
+  });
+}
+
+test("array defaults reject an erased null versus undefined distinction", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export function run(values: (number | null | undefined)[]): number | null {
+      const [value = 4] = values;
+      return value;
+    }
+  ` });
+  assert.ok(compiled.result.diagnostics.some(diagnostic =>
+    /must not conflate null and undefined/u.test(diagnostic.message)));
+  assert.equal(compiled.artifacts.size, 0);
+});
+
 test("optional receiver temporaries cannot collide with authored locals", { timeout: 300_000 }, () => {
   const prefix = "function normalize(value: string | undefined): string | undefined { const result = value?.trim();";
   const entry = 'export function run(): boolean { return normalize(" x ") === "x" && normalize(undefined) === undefined; }';
@@ -191,7 +229,7 @@ for (const surface of [undefined, "js"]) {
   });
 }
 
-test("numeric array presence preserves holes, boundary keys and evaluation order", { timeout: 300_000 }, () => {
+test("numeric array presence preserves initialized elements, boundary keys and evaluation order", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 let order = "";
 const values = new Array<number>(2);
@@ -200,7 +238,7 @@ function index(): number { order += "i"; return 1; }
 function array(): number[] { order += "a"; return values; }
 export function run(): boolean {
   const present = index() in array();
-  return present && order === "ia" && !(0 in values) && !(-0 in values) &&
+  return present && order === "ia" && 0 in values && -0 in values && values[0] === 0 &&
     !(-1 in values) && !(0.5 in values) && !(2 in values) && !(Number.POSITIVE_INFINITY in values) && !(Number.NaN in values);
 }` }), "numeric-array-presence");
 });
@@ -369,16 +407,20 @@ export function run(): boolean {
   });
 }
 
-for (const sparse of ["new Array<number>(3)", "[1, 2]"]) {
-  test(`numeric array union copying requires density for ${sparse}`, () => {
-    const compiled = compileCsharpSource({ surface: "js", targetOptions: { outputType: "Exe" },
+for (const initializer of ["new Array<number>(3)", "[1, 2]"]) {
+  test(`dense numeric arrays reject deletion before copying for ${initializer}`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface: "js",
       files: { "arrays.ts": numberArrayUnionFiles["arrays.ts"] },
       sourceText: `import { copy } from "./arrays.js";
-        const values = ${sparse}; delete values[0]; copy(values);`,
+        export function run(): boolean {
+          const values = ${initializer};
+          let rejected = false;
+          try { delete values[0]; } catch { rejected = true; }
+          const result = copy(values);
+          return rejected && 0 in values && result !== values && result[0] === values[0];
+        }`,
     });
-    assert.equal(compiled.sourceDiagnosticsText, "");
-    assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.message.includes("ArrayConstructor.from")));
-    assert.equal(compiled.artifacts.size, 0);
+    execute(compiled, "dense-array-deletion");
   });
 }
 
@@ -431,23 +473,17 @@ test("retained cross-package callbacks preserve the original thrown object", { t
   }), "package-callback-errors");
 });
 
-test("Array.from preserves dense copies and materializes sparse undefined entries", { timeout: 300_000 }, () => {
+test("Array.from preserves dense copies and explicit undefined entries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: jsArrayCopyFiles["index.ts"] }), "js-array-copy");
 });
 
-for (const [label, source] of [
-  ["a scalar hole", "const values: number[] = new Array<number>(2);"],
-  ["a null-only payload with a hole", "const values: (number | null)[] = new Array<number | null>(2);"],
-  ["length expansion", "const values = [1]; values.length = 3;"],
-  ["deletion through an alias", "const values = [1]; const alias = values; delete alias[0];"],
-]) {
-  test(`Array.from rejects ${label} without a representable undefined element`, () => {
+for (const source of ["const values = [1, , 3];", "const values = [, undefined];"]) {
+  test(`omitted array elements reject: ${source}`, () => {
     const result = compileCsharpSource({ surface: "js", sourceText: `
 export function copy(): number { ${source} return Array.from(values).length; }
 ` });
     assert.equal(result.result.artifacts.length, 0);
-    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.code === "TS9101001" &&
-      diagnostic.message.includes("js.ArrayConstructor.from.member")));
+    assert.ok(result.result.diagnostics.some(diagnostic => diagnostic.message.includes("Sparse array literals")));
   });
 }
 
@@ -570,7 +606,7 @@ export function run(): boolean {
 ` }), "qualified-source-builtins");
 });
 
-test("numeric sequence arguments retain holes, widths and source evaluation order", { timeout: 300_000 }, () => {
+test("numeric sequence arguments retain initialized values, widths and source evaluation order", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 import type { uint8 } from "@tsonic/core/types.js";
 function check(value: boolean): void { if (!value) throw new Error("sequence contract"); }
@@ -588,9 +624,9 @@ export function run(): boolean {
   check(String.fromCodePoint(...[128512]) === "😀");
   check(Math.max(2, ...[3, 8], ...empty, 4) === 8);
   check(Math.min(...[3, 8], 2) === 2 && Math.hypot(...[3, 4]) === 5);
-  const holes = new Array<number>(2);
-  holes[0] = 65;
-  check(String.fromCharCode(...holes) === "A\\0" && Number.isNaN(Math.max(...holes)));
+  const initialized = new Array<number>(2);
+  initialized[0] = 65;
+  check(String.fromCharCode(...initialized) === "A\\0" && Math.max(...initialized) === 65);
   const mutable: number[] = [66];
   let evaluations = 0;
   const next = (): number => { evaluations += 1; mutable[0] = 88; return 67; };
@@ -835,7 +871,7 @@ test("BigInt construction preserves native integer widths and closed numeric uni
   ` }), "bigint-construction");
 });
 
-test("length constructors preserve holes and generic fill preserves token identity", { timeout: 300_000 }, () => {
+test("length constructors initialize elements and generic fill preserves token identity", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
     import type { int64 } from "@tsonic/core/types.js";
     function filled<T>(length: number, value: T): T[] { return new Array<T>(length).fill(value); }
@@ -851,7 +887,7 @@ test("length constructors preserve holes and generic fill preserves token identi
       const slots = new Array<object>(3);
       let visits = 0;
       slots.forEach(() => { visits += 1; });
-      if (visits !== 0 || slots.length !== 3) return false;
+      if (visits !== 3 || slots.length !== 3) return false;
       slots.fill(first);
       const generic = filled(2, second);
       const empty = new Array<number>(0);

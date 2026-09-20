@@ -3,7 +3,6 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { SourceArrayDensityQueries } from "@tsonic/target-api/source";
 import type {
   SourceFileSemantics,
   SourceProgramNavigation,
@@ -62,7 +61,6 @@ export interface CsharpProviderCallSelectionHost
   extends CsharpProviderOperationHost,
     CsharpProviderCallInstantiationHost {
   readonly navigation: SourceProgramNavigation;
-  readonly arrayDensity: SourceArrayDensityQueries;
 }
 
 export function selectCsharpProviderCall(

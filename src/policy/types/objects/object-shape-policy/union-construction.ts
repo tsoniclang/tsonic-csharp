@@ -1,13 +1,14 @@
 import type { ResolvedSourceObjectLiteralElementInfo } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { getCsharpRuntimeUnionArms } from "../../../../target-model/types/runtime-carriers.js";
+import { getCsharpNullableElementTargetType } from "../../../../target-model/types/nullable.js";
 
 export function selectCsharpObjectLiteralUnionShape(
   target: TargetTypeRef,
   elements: readonly (ResolvedSourceObjectLiteralElementInfo | undefined)[],
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
 ): CsharpObjectShapeFact | undefined {
-  const arms = getCsharpRuntimeUnionArms(target);
+  const arms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target);
   if (arms === undefined || elements.some(element => element === undefined)) return undefined;
   const candidates = arms.flatMap(arm => {
     const shape = resolveShape(arm);

@@ -31,7 +31,7 @@ export function csharpJsArrayTargetType(
       readOnlyIndexableElementType: elementType,
       denseMutableElementType: elementType,
       indexableLengthMemberName: "length",
-      collectionSemantics: "js-sparse",
+      collectionSemantics: "js-array",
     },
   );
   return {
@@ -470,7 +470,7 @@ function csharpJsArrayLikeTargetType(
       readOnlyIndexableElementType: elementType,
       denseMutableElementType: elementType,
       indexableLengthMemberName: "length",
-      collectionSemantics: "js-sparse",
+      collectionSemantics: "js-array",
       baseType,
     },
   );
@@ -502,7 +502,7 @@ export function getCsharpJsArrayMutationPolicy(
 ): CsharpTargetNamedTypeRef["csharpJsArrayMutation"] {
   return type?.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpCollectionSemantics ===
-        "js-sparse"
+        "js-array"
     ? (type as CsharpTargetNamedTypeRef).csharpJsArrayMutation
     : undefined;
 }

@@ -1,4 +1,6 @@
 import { jsRegExpSourceProfileIdentity } from "@tsonic/js-source-profile";
+import type { Node } from "@tsonic/tsts";
+import { csharpSourceProfileDeclarationIdentity } from "../source-profile-identity.js";
 import type {
   CsharpTargetMember,
   TargetTypeRef,
@@ -510,9 +512,10 @@ function regexpInputMember(
   const sourceName = operation === "test" || operation === "exec"
     ? regexpMembers[operation]
     : wellKnown[operation === "matchAll" ? "matchAll" : operation];
-  const targetName = operation === "test" || operation === "exec"
-    ? operation
-    : operation;
+  const receiver = context.source.sourceReceiver?.expression;
+  const nativeTest = operation === "test" && !exact && receiver !== undefined &&
+    regexpReceiverHasNativeExecution(receiver, context);
+  const targetName = nativeTest ? "testNative" : operation;
   const resultType = operation === "test"
     ? boolType
     : operation === "exec"
@@ -523,7 +526,7 @@ function regexpInputMember(
           ? exact ? exactIteratorType : iteratorType
           : operation === "search"
             ? doubleType
-            : csharpJsArrayTargetType(exact ? jsStringType : stringType);
+            : csharpJsArrayTargetType(csharpNullableTargetType(exact ? jsStringType : stringType));
   return regexpInstanceMethod(
     sourceName,
     operation === "split" ? [inputType, doubleType] : [inputType],
@@ -531,6 +534,38 @@ function regexpInputMember(
     targetName,
     operation === "split" ? { optionalIndexes: [1] } : {},
   );
+}
+
+function regexpReceiverHasNativeExecution(
+  receiver: Node,
+  context: CsharpSourceProfileCallPolicyContext,
+): boolean {
+  const { ast, navigation } = context.host;
+  let origin = receiver;
+  while (ast.is.IsParenthesizedExpression(origin)) {
+    const inner = ast.as.AsParenthesizedExpression(origin)?.Expression;
+    if (inner === undefined) return false;
+    origin = inner;
+  }
+  if (ast.is.IsIdentifier(origin)) {
+    const declaration = navigation.sourceReferenceFor(origin)?.declaration;
+    const initializer = declaration === undefined || !ast.is.IsVariableDeclaration(declaration)
+      ? undefined : ast.as.AsVariableDeclaration(declaration)?.Initializer;
+    if (initializer === undefined || navigation.declarationUseSummary(declaration!).bindingWritten) return false;
+    const flow = navigation.expressionValueFlow(initializer);
+    if (flow.escapes || flow.hasUnclassifiedUse || flow.memberWritten || flow.bindingAliased) return false;
+    origin = initializer;
+  }
+  if (ast.kindName(origin) === "KindRegularExpressionLiteral") return true;
+  if (!ast.is.IsNewExpression(origin)) return false;
+  const semantics = context.host.semantics(ast.getSourceFile(origin) ?? context.sourceFile);
+  const selected = semantics.operations.call(origin);
+  const identity = selected === undefined ? undefined : csharpSourceProfileDeclarationIdentity(
+    ast, semantics, context.host.sourceFacts,
+    semantics.declarations.signatureDeclaration(selected.selectedSignature),
+  );
+  return identity?.owner === "js" && identity.kind === "construct" &&
+    identity.declaringName === regexpConstructorOwner;
 }
 
 function regexpReplacementMember(

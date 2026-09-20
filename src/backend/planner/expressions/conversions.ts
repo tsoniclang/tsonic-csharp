@@ -169,7 +169,9 @@ export function applyCsharpConversionSelection(
         kind: "InvocationExpression",
         callee: {
           kind: "SimpleMemberAccessExpression",
-          receiver: expression,
+          receiver: selection.unwrapNullableValue
+            ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" }
+            : expression,
           name: `As${selection.armIndex + 1}`,
         },
         arguments: [],

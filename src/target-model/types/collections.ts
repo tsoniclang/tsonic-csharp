@@ -160,7 +160,7 @@ export function csharpCollectionUsesJsArraySemantics(
 ): boolean {
   return type?.kind === "target-named" &&
     (type as CsharpTargetNamedTypeRef).csharpCollectionSemantics ===
-      "js-sparse";
+      "js-array";
 }
 
 export function isCsharpRecordDictionaryTargetType(

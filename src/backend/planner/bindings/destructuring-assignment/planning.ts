@@ -22,7 +22,6 @@ import {
 } from "@tsonic/target-api/source";
 import {
   csharpArrayBindingProjectionTarget,
-  csharpCollectionUsesJsArraySemantics,
   getCsharpNullableElementTargetType,
   resolveCsharpArrayBindingCarrier,
   targetTypeRefEquals,
@@ -49,6 +48,7 @@ import type { DestructuringPlannerState } from "../binding-state.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { TargetTypeRef } from "../../../../target-model/types/index.js";
+import { planArrayDefaultProjection } from "../array-defaults.js";
 
 export function planAssignmentPatternFromExpression(
   pattern: DestructuringAssignmentPattern,
@@ -133,13 +133,14 @@ function planArrayAssignmentPattern(
     if (element === undefined) {
       return [];
     }
-    return planArrayAssignmentElement(element, sourceExpression, index, bindingCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+    return planArrayAssignmentElement(element, sourceExpression, sourceNode, index, bindingCarrier, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   });
 }
 
 function planArrayAssignmentElement(
   element: DestructuringAssignmentArrayElement,
   sourceExpression: CsharpExpression,
+  sourceNode: Node | undefined,
   index: number,
   sourceCarrier: CsharpArrayBindingCarrier,
   sourceFile: SourceFile,
@@ -209,11 +210,11 @@ function planArrayAssignmentElement(
       }
       return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
     }
-    const defaultedProjection = planArrayAssignmentDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
+    const defaultedProjection = planArrayDefaultProjection(sourceExpression, sourceNode, index, projected, sourceCarrier, element.initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
     if (defaultedProjection === undefined) {
       return [];
     }
-    return planAssignmentTargetFromProjection(element.target, defaultedProjection, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
+    return planAssignmentTargetFromProjection(element.target, defaultedProjection.expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType);
   }
   return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, elementCarrier, planDefaultExpressionWithExpectedType);
 }
@@ -313,59 +314,6 @@ function planArrayAssignmentProjection(
     kind: "ElementAccessExpression",
     receiver: sourceExpression,
     arguments: [{ kind: "LiteralExpression", value: index }],
-  };
-}
-
-function planArrayAssignmentDefaultProjection(
-  sourceExpression: CsharpExpression,
-  index: number,
-  projected: CsharpExpression,
-  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "array" }>,
-  initializer: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-  diagnostics: TargetDiagnostic[],
-  projectedType: CsharpTypeNode,
-  state: DestructuringPlannerState,
-  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
-): CsharpExpression | undefined {
-  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state);
-  if (whenFalse === undefined) {
-    return undefined;
-  }
-  return {
-    kind: "ConditionalExpression",
-    condition: arrayAssignmentDefaultPresenceCondition(sourceExpression, index, sourceCarrier),
-    whenTrue: projected,
-    whenFalse,
-  };
-}
-
-function arrayAssignmentDefaultPresenceCondition(
-  sourceExpression: CsharpExpression,
-  index: number,
-  sourceCarrier: Extract<CsharpArrayBindingCarrier, { readonly kind: "array" }>,
-): CsharpExpression {
-  if (csharpCollectionUsesJsArraySemantics(sourceCarrier.carrier)) {
-    return {
-      kind: "InvocationExpression",
-      callee: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: sourceExpression,
-        name: "hasIndex",
-      },
-      arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: index } }],
-    };
-  }
-  return {
-    kind: "BinaryExpression",
-    left: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: sourceExpression,
-      name: sourceCarrier.lengthMember,
-    },
-    operatorToken: { kind: "GreaterThanToken" },
-    right: { kind: "LiteralExpression", value: index },
   };
 }
 

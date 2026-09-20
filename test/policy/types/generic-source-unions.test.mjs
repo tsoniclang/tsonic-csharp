@@ -102,6 +102,6 @@ test("nullable union conversion never confuses nullability with selecting an arm
   const union = csharpRuntimeUnionTargetType([byte, integer]);
   const nullable = csharpNullableTargetType(union);
   assert.equal(selectCsharpConversion({}, union, nullable, "implicit").kind, "implicit");
-  assert.equal(selectCsharpConversion({}, nullable, union, "explicit").kind, "implicit");
+  assert.equal(selectCsharpConversion({}, nullable, union, "explicit").kind, "nullable-value");
   assert.equal(selectCsharpConversion({}, nullable, union, "implicit").kind, "rejected");
 });

@@ -105,7 +105,8 @@ export function analyzeCsharpObjectShapes(
     ReadonlyMap<string, CsharpObjectLiteralTargetShapeResolution>
   >();
   const literalUnionShapes = new WeakMap<Node, ReadonlyMap<string, CsharpObjectShapeFact>>();
-  const unionTypes = evidence.targetTypes.filter(type => getCsharpRuntimeUnionArms(type) !== undefined);
+  const unionTypes = evidence.targetTypes.filter(type =>
+    getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(type) ?? type) !== undefined);
   for (const [literal, sourceFile] of objectLiterals) {
     const unionShapes = new Map<string, CsharpObjectShapeFact>();
     const elements = policy.ast.properties(literal).map(element => element === undefined

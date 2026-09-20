@@ -130,6 +130,7 @@ export function csharpRuntimeUnionTargetType(
     typeArguments: arms,
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpRuntimeUnionArms: arms,
+    csharpValueType: true,
     ...(objectShapes === undefined || objectShapes.every((objectShape) => objectShape === undefined) ? {} : { csharpRuntimeUnionObjectShapes: objectShapes }),
   } satisfies CsharpRuntimeUnionTargetTypeRef;
 }
