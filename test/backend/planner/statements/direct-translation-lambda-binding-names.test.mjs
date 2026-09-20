@@ -26,7 +26,7 @@ test("expression-bodied call arguments retain their exact renamed lambda binding
     {
         public static Tsonic.CSharp.Js.JSArray<int> map(int language)
         {
-            Tsonic.CSharp.Js.JSArray<int> values = new Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2 });
+            Tsonic.CSharp.Js.JSArray<int> values = Tsonic.CSharp.Js.JSArray<int>.of([1, 2]);
             return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int, int>(values, (int language_1, int _) => language_1 + 1);
         }
     }

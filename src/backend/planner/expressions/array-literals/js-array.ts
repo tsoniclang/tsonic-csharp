@@ -170,7 +170,10 @@ function createJsArrayLiteralChunks(
 
 function jsArrayFromNativeArray(arrayExpression: CsharpExpression, collectionType: CsharpTypeNode): CsharpExpression {
   if (arrayExpression.kind === "ArrayCreationExpression") {
-    return callStatic(collectionType, "of", arrayExpression.elements);
+    return callStatic(collectionType, "of", [{
+      kind: "CollectionExpression",
+      elements: arrayExpression.elements.map(expression => ({ kind: "ExpressionElement", expression })),
+    }]);
   }
   return {
     kind: "ObjectCreationExpression",
