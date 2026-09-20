@@ -12,6 +12,7 @@ import {
   csharpStringTargetType,
   csharpWellKnownSymbolSourceMemberKey,
   getCsharpDelegateSignature,
+  substituteTargetTypeParameters,
   targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
@@ -86,7 +87,18 @@ export function resolveCustomRegExpProtocol(
     context.sourceFile,
     sourceKey,
   );
-  const selectedSignature = getCsharpDelegateSignature(selectedMember?.type);
+  const selectedTypeArguments = context.source.sourceSelectedMethodTypeArguments ?? [];
+  const targetTypeArguments = context.host.types.resolveSourceCallTypeArguments(context.source, context.sourceFile);
+  if (targetTypeArguments === undefined || targetTypeArguments.length !== selectedTypeArguments.length) {
+    return undefined;
+  }
+  const substitutions = new Map(selectedTypeArguments.map((argument, index) => [
+    argument.typeParameterName,
+    targetTypeArguments[index]!,
+  ]));
+  const selectedSignature = getCsharpDelegateSignature(selectedMember === undefined
+    ? undefined
+    : substituteTargetTypeParameters(selectedMember.type, substitutions));
   const actualSignature = getCsharpDelegateSignature(actualMember?.type);
   const expectedReturn = kind === "match"
     ? csharpNullableTargetType(csharpJsRegExpMatchArrayTargetType())
@@ -95,7 +107,7 @@ export function resolveCustomRegExpProtocol(
       : kind === "search"
         ? doubleType
         : kind === "split"
-          ? csharpJsArrayTargetType(csharpNullableTargetType(stringType))
+          ? actualSignature?.returnType
           : stringType;
   if (
     receiverType === undefined ||
@@ -106,6 +118,9 @@ export function resolveCustomRegExpProtocol(
     actualMember.optional === true ||
     selectedSignature === undefined ||
     actualSignature === undefined ||
+    expectedReturn === undefined ||
+    kind === "split" && !targetTypeRefEquals(expectedReturn, csharpJsArrayTargetType(stringType)) &&
+      !targetTypeRefEquals(expectedReturn, csharpJsArrayTargetType(csharpNullableTargetType(stringType))) ||
     !csharpDelegateSignaturesEqual(selectedSignature, actualSignature) ||
     selectedSignature.parameters[0] === undefined ||
     !targetTypeRefEquals(selectedSignature.parameters[0], stringType) ||

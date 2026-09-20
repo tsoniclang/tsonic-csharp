@@ -106,8 +106,14 @@ test("custom well-known RegExp protocols use exact structural member evidence", 
             return [value];
           },
         };
+        const optionalSplitter = {
+          [Symbol.split](value: string, _limit?: number): (string | undefined)[] {
+            return [undefined, value];
+          },
+        };
         return (input.match(matcher)?.[0] ?? "") + input.search(searcher) +
-          input.replace(replacer, "x") + input.split(splitter)[0];
+          input.replace(replacer, "x") + input.split(splitter)[0] +
+          (input.split(optionalSplitter)[0] ?? "missing");
       }
     `,
   });
@@ -142,4 +148,22 @@ test("same-spelled project members never acquire RegExp runtime identity", () =>
   assert.match(source, /new Local/u);
   assert.doesNotMatch(source, /Tsonic\.CSharp\.Js\.RegExp/u);
   assert.doesNotMatch(source, /Tsonic\.CSharp\.Js\.String\.replace/u);
+});
+
+test("closed native RegExp tests omit result materialization without bypassing unknown overrides", () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    export function local(input: string, pattern: string): boolean {
+      const literal = /a/g;
+      const dynamic = new RegExp(pattern);
+      return literal.test(input) && dynamic.test(input);
+    }
+    export function unknown(expression: RegExp, input: string): boolean {
+      return expression.test(input);
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /literal\.testNative\(input\)/u);
+  assert.match(source, /dynamic\.testNative\(input\)/u);
+  assert.match(source, /expression\.test\(input\)/u);
 });

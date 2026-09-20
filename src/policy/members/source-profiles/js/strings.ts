@@ -800,7 +800,7 @@ function stringRegExpPatternMember(
     return customProtocolTargetMember(
       operation,
       custom,
-      resultType,
+      custom.signature.returnType,
       operation === "split"
         ? custom.signature.parameters.slice(1).map((type, index) =>
             targetParameter(`argument${index}`, type, {

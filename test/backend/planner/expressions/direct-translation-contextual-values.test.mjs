@@ -651,18 +651,18 @@ test("direct C# translation derives generic JS array factories from exact source
 `);
 });
 
-test("open exported integer array copies reject unproved holes instead of inventing values", () => {
+test("exported integer array copies retain their dense element carrier", () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     import type { int } from "@tsonic/csharp/types.js";
     export function copy(values: int[]): int[] { return Array.from(values); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.equal(compiled.artifacts.size, 0);
-  assert.deepEqual(compiled.targetDiagnostics.map(({ code, message }) => ({ code, message })), [{
-    code: "TS9101001",
-    message: "The exact selected JS source-profile call 'js.ArrayConstructor.from.member' has no closed C# target relation.",
-  }]);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /JSArray<int> copy\(Tsonic\.CSharp\.Js\.JSArray<int> values\)/u);
+  assert.match(source, /JSArrayStatics\.fromDense<int>\(values\)/u);
+  assert.doesNotMatch(source, /JSArray<double>|JSArray<int\?>/u);
 });
 
 test("direct C# translation preserves explicit void discard intent", () => {

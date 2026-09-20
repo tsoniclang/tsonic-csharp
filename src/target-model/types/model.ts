@@ -180,7 +180,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
   readonly csharpDenseMutableElementType?: TargetTypeRef;
   readonly csharpIndexableLengthMemberName?: string;
-  readonly csharpCollectionSemantics?: "dense" | "js-sparse";
+  readonly csharpCollectionSemantics?: "dense" | "js-array";
   readonly csharpJsArrayMutation?: {
     readonly deleteAtMemberName: string;
     readonly setLengthMemberName: string;

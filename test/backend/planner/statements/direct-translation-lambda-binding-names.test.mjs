@@ -34,7 +34,7 @@ test("expression-bodied call arguments retain their exact renamed lambda binding
 `);
 });
 
-test("an open integer array is not silently widened or copied through zero-valued holes", () => {
+test("an exported dense integer array retains exact callback and result carriers", () => {
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
@@ -46,6 +46,9 @@ test("an open integer array is not silently widened or copied through zero-value
   });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
-  assert.ok(compiled.targetDiagnostics.some(diagnostic => diagnostic.category === "error"));
-  assert.equal(compiled.artifacts.size, 0);
+  assert.deepEqual(compiled.targetDiagnostics, []);
+  const source = compiled.artifacts.get("src/Index.cs");
+  assert.match(source, /JSArray<int> map\(Tsonic\.CSharp\.Js\.JSArray<int> values, int language\)/u);
+  assert.match(source, /fromDense<int, int>\(values, \(int language_1, int _\) => language_1 \+ 1\)/u);
+  assert.doesNotMatch(source, /JSArray<double>|JSArray<int\?>/u);
 });
