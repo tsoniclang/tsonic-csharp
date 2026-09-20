@@ -159,7 +159,7 @@ export function selectCsharpFlowReadConversion(
   if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
     return selectCsharpConversion(input, storageType, selectedReadType, "explicit");
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(storageType);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
   if (runtimeUnionArms !== undefined) {
     const matchingArms = runtimeUnionArms.flatMap((armType, armIndex) =>
       targetTypeRefEquals(armType, selectedReadType)
@@ -170,6 +170,8 @@ export function selectCsharpFlowReadConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
+        unwrapNullableValue: nullableElement !== undefined &&
+          !isCsharpNullableReferenceTargetType(storageType),
       };
     }
     return {
