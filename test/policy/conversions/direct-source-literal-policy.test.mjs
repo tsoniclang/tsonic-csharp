@@ -78,9 +78,11 @@ function literalPolicyHost(target) {
     ast: {
       is: {
         IsNumericLiteral: (node) => node.kind === "numeric",
+        IsParenthesizedExpression: (node) => node.kind === "parenthesized",
         IsPrefixUnaryExpression: (node) => node.kind === "prefix",
       },
       as: {
+        AsParenthesizedExpression: (node) => ({ Expression: node.expression }),
         AsPrefixUnaryExpression: (node) =>
           node.kind === "prefix"
             ? { Operand: node.operand }

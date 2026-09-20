@@ -25,6 +25,8 @@ import type {
 import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
+import { planCsharpExactLiteralConversion } from "./literal-conversions.js";
+import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -90,6 +92,14 @@ export function planPrefixUnaryExpression(
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));
     return undefined;
+  }
+  if (Object.is(csharpNumericLiteralValue(input.program.source.ast, node), -0)) {
+    const literal = planCsharpExactLiteralConversion(input, node, selection.resultType);
+    if (literal.kind === "resolved") return literal.expression;
+    if (literal.kind === "rejected") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, literal.reason));
+      return undefined;
+    }
   }
   const operatorToken = csharpPrefixUnaryOperatorTokenFromText(
     selection.targetOperator,

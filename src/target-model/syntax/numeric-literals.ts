@@ -12,6 +12,10 @@ export function csharpNumericLiteralValue(
   ast: AstReader,
   node: Node,
 ): number | undefined {
+  if (ast.is.IsParenthesizedExpression(node)) {
+    const inner = ast.as.AsParenthesizedExpression(node)?.Expression;
+    return inner === undefined ? undefined : csharpNumericLiteralValue(ast, inner);
+  }
   if (ast.is.IsNumericLiteral(node)) {
     return parseFiniteNumberLiteral(ast.text(node));
   }
@@ -23,12 +27,11 @@ export function csharpNumericLiteralValue(
   const operator = ast.operatorKindName(node);
   if (
     operand === undefined ||
-    !ast.is.IsNumericLiteral(operand) ||
     (operator !== "KindPlusToken" && operator !== "KindMinusToken")
   ) {
     return undefined;
   }
-  const value = parseFiniteNumberLiteral(ast.text(operand));
+  const value = csharpNumericLiteralValue(ast, operand);
   return value === undefined
     ? undefined
     : operator === "KindMinusToken"

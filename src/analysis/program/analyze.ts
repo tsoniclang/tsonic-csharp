@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { classifyCsharpSourceProfileType } from "../../policy/types/resolution/source-profile.js";
+import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
@@ -298,6 +299,8 @@ export function analyzeCsharpTargetProgram(
     })));
   }
   const program: CsharpTargetProgram = Object.freeze({
+    numericRepresentations: analyzeCsharpNumericRepresentations({ source, sourceFiles,
+      evidence: analysis.sourceEvidence, operations: analysis.operations }),
     host: Object.freeze({
       paths: Object.freeze({ ...input.paths }),
       entryPoint: input.project.entryPoint,

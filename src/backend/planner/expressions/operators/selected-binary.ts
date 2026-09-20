@@ -246,6 +246,23 @@ export function planSelectedCsharpBinaryOperation(
     csharpTypeFromTargetTypeRef(selection.rightInputType),
     selection.rightInputType,
   );
+  if (left !== undefined && right !== undefined && input.program.numericRepresentations.usesInt32Remainder(node)) {
+    const integer = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "int32" })!;
+    const number = csharpTypeFromTargetTypeRef({ kind: "source-primitive", name: "float64" })!;
+    return {
+      kind: "CastExpression",
+      type: number,
+      expression: {
+        kind: "ParenthesizedExpression",
+        expression: {
+          kind: "BinaryExpression",
+          left: { kind: "CastExpression", type: integer, expression: { kind: "ParenthesizedExpression", expression: left } },
+          operatorToken: binaryToken,
+          right: { kind: "CastExpression", type: integer, expression: { kind: "ParenthesizedExpression", expression: right } },
+        },
+      },
+    };
+  }
   return left === undefined || right === undefined
     ? undefined
     : {
