@@ -93,7 +93,7 @@ export function planTopLevelVariableStatement(
       moduleMembers.push({
         kind: "MethodDeclaration",
         name: field.name,
-        modifiers: lambda.async ? ["private", "static", "async"] : ["private", "static"],
+        modifiers: lambda.async ? ["internal", "static", "async"] : ["internal", "static"],
         returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
         parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
         body: lambda.body.kind === "Block" ? lambda.body : {

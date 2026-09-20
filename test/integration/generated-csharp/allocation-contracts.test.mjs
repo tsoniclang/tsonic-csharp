@@ -18,18 +18,26 @@ test("direct module helpers and array literals execute without delegate or stagi
     const markDirect = (): void => mark();
     const markAsync = async (): Promise<void> => mark();
     function getCallback(): (value: string) => string { return retained; }
+    class Token {
+      matched: boolean;
+      constructor(value: string) { this.matched = isToken(value); }
+      get matches(): boolean { return this.matched && isToken(")"); }
+      check(value: string): boolean { return isToken(value); }
+    }
     export async function runAsync(): Promise<boolean> { await markAsync(); return calls === 2; }
     export function run(): boolean {
       markDirect();
       const values = ["café", "😀"];
       const alias = values;
       alias.push("tail");
-      return call(")") && getCallback()("kept") === "kept" && values.join("|") === "café|😀|tail";
+      const token = new Token(")");
+      return token.matches && token.check(")") && call(")") &&
+        getCallback()("kept") === "kept" && values.join("|") === "café|😀|tail";
     }
   ` });
   assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
-  assert.match(output, /static bool isToken\(string value\)/u);
+  assert.match(output, /internal static bool isToken\(string value\)/u);
   assert.doesNotMatch(output, /Func<string, bool>/u);
   assert.match(output, /Func<string, string>/u);
   assert.match(output, /JSArray<string>\.of\(\["café", "😀"\]\)/u);
