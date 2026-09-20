@@ -25,6 +25,7 @@ import type { DestructuringPlannerState } from "../bindings/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planResourceRegistrationStatement } from "../statements/resource-management.js";
 import { getLambdaTargetContext } from "../expressions/expression-lambdas.js";
+import { getCsharpTaskResultTargetType, isCsharpVoidTargetType } from "../../../target-model/types/index.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -86,6 +87,9 @@ export function planTopLevelVariableStatement(
         diagnostics.push(unsupportedNodeDiagnostic(declaration, "Direct callable planning requires its sealed lambda signature and body."));
         continue;
       }
+      const expressionResult = lambda.async
+        ? getCsharpTaskResultTargetType(signature.returnTargetType)
+        : signature.returnTargetType;
       moduleMembers.push({
         kind: "MethodDeclaration",
         name: field.name,
@@ -94,7 +98,7 @@ export function planTopLevelVariableStatement(
         parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
         body: lambda.body.kind === "Block" ? lambda.body : {
           kind: "Block",
-          statements: [signature.returnType === undefined
+          statements: [expressionResult !== undefined && isCsharpVoidTargetType(expressionResult)
             ? { kind: "ExpressionStatement", expression: lambda.body }
             : { kind: "ReturnStatement", expression: lambda.body }],
         },
