@@ -702,7 +702,8 @@ function exactJsStringRegExpMember(
       ? csharpExactJsRegExpStringIteratorTargetType()
       : operation === "search"
         ? doubleType
-        : csharpJsArrayTargetType(jsStringType);
+        : csharpJsArrayTargetType(targetTypeRefEquals(pattern, jsStringType)
+          ? jsStringType : csharpNullableTargetType(jsStringType));
   const parameters = [targetParameter("pattern", pattern)];
   if (operation === "split") {
     parameters.push(targetParameter("limit", doubleType, { optional: true }));
@@ -793,7 +794,8 @@ function stringRegExpPatternMember(
       ? csharpJsRegExpStringIteratorTargetType()
       : operation === "search"
         ? doubleType
-        : csharpJsArrayTargetType(stringType);
+        : csharpJsArrayTargetType(targetTypeRefEquals(pattern, stringType)
+          ? stringType : csharpNullableTargetType(stringType));
   if (custom !== undefined) {
     return customProtocolTargetMember(
       operation,

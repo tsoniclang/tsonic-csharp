@@ -95,7 +95,7 @@ export function resolveCustomRegExpProtocol(
       : kind === "search"
         ? doubleType
         : kind === "split"
-          ? csharpJsArrayTargetType(stringType)
+          ? csharpJsArrayTargetType(csharpNullableTargetType(stringType))
           : stringType;
   if (
     receiverType === undefined ||

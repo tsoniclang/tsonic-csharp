@@ -510,9 +510,10 @@ function regexpInputMember(
   const sourceName = operation === "test" || operation === "exec"
     ? regexpMembers[operation]
     : wellKnown[operation === "matchAll" ? "matchAll" : operation];
-  const targetName = operation === "test" || operation === "exec"
-    ? operation
-    : operation;
+  const receiver = context.source.receiver?.expression;
+  const nativeTest = operation === "test" && !exact && receiver !== undefined &&
+    context.host.source.ast.kindName(receiver) === "KindRegularExpressionLiteral";
+  const targetName = nativeTest ? "testNative" : operation;
   const resultType = operation === "test"
     ? boolType
     : operation === "exec"
@@ -523,7 +524,7 @@ function regexpInputMember(
           ? exact ? exactIteratorType : iteratorType
           : operation === "search"
             ? doubleType
-            : csharpJsArrayTargetType(exact ? jsStringType : stringType);
+            : csharpJsArrayTargetType(csharpNullableTargetType(exact ? jsStringType : stringType));
   return regexpInstanceMethod(
     sourceName,
     operation === "split" ? [inputType, doubleType] : [inputType],
