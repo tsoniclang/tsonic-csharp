@@ -422,7 +422,6 @@ declare var Date: DateConstructor;
 
 interface JSON {
   parse(text: string): unknown;
-  stringify(value: unknown): string;
 }
 declare var JSON: JSON;
 

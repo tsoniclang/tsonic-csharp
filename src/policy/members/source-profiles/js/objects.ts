@@ -477,7 +477,7 @@ function jsonStringifyMember(
             csharpAcceptsCheckedSourceArgument: true,
           }),
         ],
-        stringType,
+        csharpNullableTargetType(stringType),
         {
           csharpArtifactRequirements: [{
             kind: "object-shape-capability",
