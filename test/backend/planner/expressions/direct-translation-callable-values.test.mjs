@@ -32,11 +32,10 @@ namespace Tsonic.Generated
             get;
             private set;
         } = default(Func<string, string>)!;
-        public static Func<string, string?, string> join
+        internal static string join(string left, string? right)
         {
-            get;
-            private set;
-        } = default(Func<string, string?, string>)!;
+            return right is null ? left : left + right;
+        }
         public static string run()
         {
             return parse(join("a", null));
@@ -45,7 +44,6 @@ namespace Tsonic.Generated
         private static object? __tsonic_module_init_core()
         {
             parse = Parser.parse;
-            join = (string left, string? right) => right is null ? left : left + right;
             return null;
         }
         public static void __tsonic_module_init()
@@ -76,7 +74,7 @@ test("direct C# translation evaluates an omitted reference delegate default in t
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
   const source = compiled.artifacts.get("src/Index.cs");
-  assert.match(source, /public static Func<string\?, string> defaulted/u);
+  assert.match(source, /internal static string defaulted\(string\? __tsonic_param0\)/u);
   assert.match(source, /return defaulted\(null\);/u);
   assert.match(source, /string value = __tsonic_param0 \?\? "x";/u);
   assert.match(source, /return value;/u);

@@ -58,6 +58,16 @@ export function translateSelectedTargetCall(
   if (arguments_ === undefined) {
     return undefined;
   }
+  if (selection.targetMember.csharpInvocation?.kind === "numeric-conversion") {
+    const type = selection.targetMember.returnType === undefined ? undefined
+      : csharpTypeFromTargetTypeRef(selection.targetMember.returnType);
+    const argument = arguments_[0];
+    if (type === undefined || selection.targetMember.parameters.length !== 1 || arguments_.length !== 1 || argument?.passing !== undefined || argument === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "The selected numeric conversion requires one exact value and a renderable result type."));
+      return undefined;
+    }
+    return { kind: "CastExpression", type, expression: argument.expression };
+  }
   if (selection.targetMember.kind === "constructor") {
     const type = selection.targetMember.declaringType === undefined ? undefined
       : csharpTypeFromTargetTypeRef(selection.targetMember.declaringType);

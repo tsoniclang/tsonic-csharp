@@ -3,10 +3,12 @@ import type {
   TargetTypeRef,
 } from "../../../types/index.js";
 import {
+  csharpBigIntegerTargetType,
   csharpObjectTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   isCsharpRuntimeUnionTargetType,
+  targetTypeRefEquals,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -139,6 +141,20 @@ export const csharpJsNumberCallPolicies:
       jsCallIdentity("NumberConstructor"),
       (context) => {
         const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+        if (argument !== undefined && (
+          argument.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char" ||
+          targetTypeRefEquals(argument, csharpBigIntegerTargetType())
+        )) {
+          return staticMethod(
+            "Tsonic.CSharp.Js.Globals.Number",
+            "constructor",
+            "Number",
+            globalsType,
+            [targetParameter("value", argument)],
+            numberType,
+            { csharpInvocation: { kind: "numeric-conversion" } },
+          );
+        }
         return staticMethod(
           "Tsonic.CSharp.Js.Globals.Number",
           "constructor",

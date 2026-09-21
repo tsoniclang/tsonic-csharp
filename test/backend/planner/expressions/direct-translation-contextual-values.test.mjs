@@ -639,7 +639,7 @@ test("direct C# translation derives generic JS array factories from exact source
     {
         public static Tsonic.CSharp.Js.JSArray<int> copy()
         {
-            Tsonic.CSharp.Js.JSArray<int> values = new Tsonic.CSharp.Js.JSArray<int>(new int[] { 1, 2, 3 });
+            Tsonic.CSharp.Js.JSArray<int> values = Tsonic.CSharp.Js.JSArray<int>.of([1, 2, 3]);
             return Tsonic.CSharp.Js.JSArrayStatics.fromDense<int>(values);
         }
         public static Tsonic.CSharp.Js.JSArray<int> make(int left, int right)
