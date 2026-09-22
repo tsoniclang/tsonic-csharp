@@ -41,10 +41,7 @@ export function collectShapeDependencies(
       );
     }
     shapes.set(key, shape);
-    const targets = [
-      ...shape.members.map((member) => member.type),
-      ...(shape.implements ?? []),
-    ];
+    const targets = [...csharpTargetTypeComponents(shape.targetType, shape)];
     const visitedTypes = new Set<string>();
     for (let index = 0; index < targets.length; index++) {
       const target = targets[index]!;

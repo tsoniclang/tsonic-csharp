@@ -169,7 +169,7 @@ const stringHelperRows = [
     sourceName: "concat",
     targetName: "concat",
     parameters: [
-      targetParameter("strings", stringType, { paramsArray: true }),
+      targetParameter("strings", { kind: "array", element: stringType }, { paramsArray: true }),
     ],
     returnType: stringType,
   },
@@ -532,7 +532,7 @@ function exactJsStringCallPolicies(): readonly CsharpSourceProfileCallPolicy[] {
     },
     {
       sourceName: "concat",
-      parameters: [targetParameter("strings", jsStringType, { paramsArray: true })],
+      parameters: [targetParameter("strings", { kind: "array", element: jsStringType }, { paramsArray: true })],
       returnType: jsStringType,
     },
     {

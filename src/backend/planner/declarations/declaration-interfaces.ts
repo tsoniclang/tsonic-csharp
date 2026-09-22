@@ -43,6 +43,8 @@ import {
 import {
   registerSourceObjectShape,
 } from "../objects/index.js";
+import { renderCsharpStructuralInterfaceMembers } from "../objects/declarations/structural-interfaces.js";
+import { objectShapeStorageMemberName } from "../objects/object-shape-storage.js";
 import {
   csharpSafetyAccessorModifiersForDeclaration,
   csharpSafetyModifiersForDeclaration,
@@ -79,6 +81,13 @@ export function planInterfaceDeclaration(
         return [];
     }
   });
+  if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "method-values")) {
+    const storageNames = new Set(objectShape.members.filter(member => member.memberKind === "method")
+      .map(member => objectShapeStorageMemberName(objectShape, member)));
+    const rendered = renderCsharpStructuralInterfaceMembers(objectShape, input.program.storage, true, []);
+    if (rendered === undefined) diagnostics.push(unsupportedNodeDiagnostic(node, "An interface method value requires its exact native callable storage contract."));
+    else members.push(...rendered.filter(member => member.kind === "PropertyDeclaration" && storageNames.has(member.name)));
+  }
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),

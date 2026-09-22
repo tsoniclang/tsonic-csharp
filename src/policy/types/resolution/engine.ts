@@ -37,6 +37,7 @@ import {
   resolveTypedLocationOperationPointeeWithState as resolveTypedLocationOperationPointeeWithStateImplementation,
   resolveSourceCallTypeArguments as resolveSourceCallTypeArgumentsImplementation,
   resolveSourceCallParameter as resolveSourceCallParameterImplementation,
+  resolveSourceCallParameters as resolveSourceCallParametersImplementation,
   resolveSourceCallArgumentParameter as resolveSourceCallArgumentParameterImplementation,
   resolveSourceCallResult as resolveSourceCallResultImplementation,
   resolveSourceCallResultWithState as resolveSourceCallResultWithStateImplementation,
@@ -188,6 +189,10 @@ export interface CsharpTypeResolutionScope {
   parameterIndex: number,
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined;
+  resolveSourceCallParameters(
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
   resolveSourceCallArgumentParameter(
   source: ResolvedSourceCallInfo,
   binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],
@@ -546,6 +551,8 @@ export function createCsharpTypeResolutionServices(
       resolveSourceCallTypeArgumentsImplementation(scope, ...args),
     resolveSourceCallParameter: (...args: DropScope<Parameters<typeof resolveSourceCallParameterImplementation>>) =>
       resolveSourceCallParameterImplementation(scope, ...args),
+    resolveSourceCallParameters: (...args: DropScope<Parameters<typeof resolveSourceCallParametersImplementation>>) =>
+      resolveSourceCallParametersImplementation(scope, ...args),
     resolveSourceCallArgumentParameter: (...args: DropScope<Parameters<typeof resolveSourceCallArgumentParameterImplementation>>) =>
       resolveSourceCallArgumentParameterImplementation(scope, ...args),
     resolveSourceCallResult: (...args: DropScope<Parameters<typeof resolveSourceCallResultImplementation>>) =>
@@ -709,6 +716,7 @@ export function createCsharpTypeResolutionServices(
     resolveTypedLocationOperationPointee: methods.resolveTypedLocationOperationPointee,
     resolveSourceCallTypeArguments: methods.resolveSourceCallTypeArguments,
     resolveSourceCallParameter: methods.resolveSourceCallParameter,
+    resolveSourceCallParameters: methods.resolveSourceCallParameters,
     resolveSourceCallArgumentParameter: methods.resolveSourceCallArgumentParameter,
     resolveSourceCallResult: methods.resolveSourceCallResult,
     withSourceTargetBindings: methods.withSourceTargetBindings,

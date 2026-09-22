@@ -24,7 +24,7 @@ export function printCsharpAttributes(
 export function printTypeParameters(typeParameters: readonly CsharpTypeParameter[] | undefined): string {
   return typeParameters === undefined || typeParameters.length === 0
     ? ""
-    : `<${typeParameters.map((typeParameter) => typeParameter.name).join(", ")}>`;
+    : `<${typeParameters.map((typeParameter) => `${typeParameter.variance === undefined ? "" : `${typeParameter.variance} `}${typeParameter.name}`).join(", ")}>`;
 }
 
 export function printTypeParameterConstraintLines(

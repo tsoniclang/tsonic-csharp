@@ -6,27 +6,27 @@ import type {
   TargetDiagnostic,
   TargetStageResult,
 } from "@tsonic/target-api/artifacts";
-import type { CsharpPlanningContext } from "./context.js";
-import type { CsharpOutputPlan } from "../artifact-model/output.js";
-import { planCsharpStartupSourceFile } from "./program/startup.js";
-import { reconstructCsharpSourceFiles } from "./artifacts/source-file-reconstruction.js";
-import { planCsharpProject } from "./project/project-artifacts.js";
+import type { CsharpPlanningContext } from "../context.js";
+import type { CsharpOutputPlan } from "../../artifact-model/output.js";
+import { planCsharpStartupSourceFile } from "./startup.js";
+import { reconstructCsharpSourceFiles } from "../artifacts/source-file-reconstruction.js";
+import { planCsharpProject } from "../project/project-artifacts.js";
 import {
   sourceFileArtifactPath,
   validateSourceFileOutputIdentities,
-} from "./artifacts/source-paths.js";
+} from "../artifacts/source-paths.js";
 import {
   planCsharpObjectShapeSourceFile,
-} from "./objects/index.js";
+} from "../objects/index.js";
 import {
   planCsharpGeneratedHelperSourceFile,
-} from "./artifacts/generated-helper-source.js";
+} from "../artifacts/generated-helper-source.js";
 import {
   applyCsharpObjectShapeDisplayNames,
-} from "../target-ast/normalization/object-shape-names.js";
+} from "../../target-ast/normalization/object-shape-names.js";
 import {
   csharpObjectShapeNameCandidates,
-} from "./objects/display-names.js";
+} from "../objects/display-names.js";
 export type CsharpPlanningResult = TargetStageResult<CsharpOutputPlan>;
 
 export function planCsharpOutput(input: CsharpPlanningContext): CsharpPlanningResult {

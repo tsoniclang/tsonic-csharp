@@ -1,11 +1,13 @@
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpObjectShapeMemberContractKey, csharpStructuralObjectShapeIdentity } from "../../target-model/types/object-shape-identity.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { csharpNativeMemoryLayoutsEqual, type CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import type { CsharpNativeObjectField } from "./model.js";
+import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
 
 export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShapeFact[]) {
   const fields = new Map<string, CsharpNativeObjectField>();
+  const closedContracts = new Map<string, TargetTypeRef>();
   const dependents = new Map<string, { readonly base: TargetTypeRef; readonly shape: CsharpObjectShapeFact }[]>();
   const usedNames = new Set(shapes.flatMap(shape => shape.members.map(member => member.targetName)));
   const storageNames = new Map<string, string>();
@@ -20,6 +22,7 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
   }
   return Object.freeze({
     values: () => Object.freeze([...fields.values()]),
+    closedContracts: () => Object.freeze([...closedContracts.values()]),
     get: (owner: TargetTypeRef, name: string) => fields.get(fieldKey(owner, name)),
     select(root: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact, layout: CsharpNativeMemoryLayout):
       { readonly kind: "resolved" } | { readonly kind: "rejected"; readonly reason: string } {
@@ -56,9 +59,15 @@ export function createCsharpNativeFieldBacking(shapes: readonly CsharpObjectShap
         usedNames.add(storageName);
         storageNames.set(memberKey, storageName);
       }
-      for (const shape of selected) fields.set(fieldKey(shape.targetType, member.targetName), Object.freeze({
-        owner: shape.targetType, memberName: member.targetName, storageName, layout,
-      }));
+      for (const shape of selected) {
+        if (shape.targetType.kind === "target-named" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true) {
+          const contract = createStructuralObjectShapeTarget(shape.members, shape.implements, true);
+          closedContracts.set(targetTypeRefKey(contract), contract);
+        }
+        fields.set(fieldKey(shape.targetType, member.targetName), Object.freeze({
+          owner: shape.targetType, memberName: member.targetName, storageName, layout,
+        }));
+      }
       return { kind: "resolved" };
     },
   });

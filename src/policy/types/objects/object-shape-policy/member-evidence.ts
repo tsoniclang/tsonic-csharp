@@ -1,5 +1,5 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
-import { sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
+import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapePolicyHost } from "./api.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
@@ -10,6 +10,9 @@ import { nextState } from "../../resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "./construction.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
+import { csharpGenericMethodValueCoversContract } from "../../../../target-model/types/generic-method-values.js";
+import { csharpSourceTypeParameterName } from "../../../../target-model/names/type-parameters.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -130,7 +133,7 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       (getters.length === 0 && setters.length > 0)) {
       return undefined;
     }
-    const memberType = method
+    let memberType = method
       ? host.typeResolver.resolveType(
           sourceType,
           queries.sourceFile,
@@ -146,6 +149,29 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (memberType === undefined) {
       return undefined;
     }
+    if (!method && declarations.length === 1) {
+      const declaration = declarations[0]!;
+      const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
+        ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
+      const storage = value === undefined ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
+      if (storage !== undefined && csharpGenericMethodValueCoversContract(storage, memberType)) memberType = storage;
+    }
+    const signatures = method ? queries.types.callSignatures(sourceType) : [];
+    const methodDeclaration = signatures.length === 1
+      ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
+    const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {
+      if (declaration === undefined) return undefined;
+      const name = csharpSourceTypeParameterName(declaration, host.ast);
+      if (name === undefined) return undefined;
+      const selected = resolveCsharpTypeParameterConstraints(declaration, name, queries.sourceFile, {
+        ast: host.ast,
+        types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
+      });
+      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, name,
+        constraints: Object.freeze([...selected.constraints]),
+      });
+    });
+    if (typeParameters.some(parameter => parameter === undefined)) return undefined;
     const optional = property.optional;
     const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
     if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
@@ -162,6 +188,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       targetName,
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
+      ...(typeParameters.length === 0 ? {} : {
+        typeParameters: Object.freeze(typeParameters as NonNullable<typeof typeParameters[number]>[]),
+      }),
       ...(optional ? { optional: true } : {}),
       ...(property.readonly ? { readonly: true } : {}),
       ...(bound ? { bound: true as const } : {}),

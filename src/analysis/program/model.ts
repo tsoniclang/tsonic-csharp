@@ -70,6 +70,7 @@ export interface CsharpPlanningHost {
 }
 
 export interface CsharpTargetProgram {
+  readonly captureStorage: import("../callables/capture-storage.js").CsharpCaptureStorage;
   readonly numericRepresentations: CsharpNumericRepresentations;
   readonly host: CsharpPlanningHost;
   readonly configuration: CsharpTargetConfiguration;

@@ -51,6 +51,7 @@ export function typeMemberRequiresUnsafe(member: CsharpTypeMember): boolean {
       return blockRequiresUnsafe(member.body);
     case "MethodDeclaration":
       return csharpTypeRequiresUnsafe(member.returnType) ||
+        (member.explicitInterface !== undefined && csharpTypeRequiresUnsafe(member.explicitInterface)) ||
         typeParametersRequireUnsafe(member.typeParameters) ||
         member.parameters.some((parameter) => parameterRequiresUnsafe(parameter, (expression) => optionalExpressionRequiresUnsafe(expression, blockRequiresUnsafe))) ||
         optionalBlockRequiresUnsafe(member.body);

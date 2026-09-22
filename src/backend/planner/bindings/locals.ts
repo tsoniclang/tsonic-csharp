@@ -32,6 +32,7 @@ import {
   declareCsharpLocalBindingName,
 } from "./index.js";
 import type { DestructuringPlannerState } from "./index.js";
+import { planCsharpCapturedInitialization } from "./capture-storage.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
@@ -316,6 +317,8 @@ export function planLocalDeclarationStatements(
       )
     : undefined;
   const local = planLocalDeclaration(declarationNode, sourceFile, input, diagnostics, state);
+  const captured = planCsharpCapturedInitialization(declarationNode, local.initializer, input, state);
+  if (captured !== undefined) return [...(locationIdentity === undefined ? [] : [locationIdentity]), captured];
   if (
     variable.Initializer !== undefined &&
     local.initializer?.kind === "LambdaExpression" &&

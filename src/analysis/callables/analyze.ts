@@ -4,7 +4,7 @@ import {
   HasSourceKind,
   KindIdentifier,
 } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   csharpNullableTargetType,
   getCsharpDelegateSignature,
@@ -23,6 +23,7 @@ import type { CsharpDeclarationClassifications } from "../declarations/index.js"
 import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpCallableContractIndex } from "./model.js";
+import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
@@ -120,10 +121,7 @@ function sourceCallableContract(
     parameters.push(parameter);
   }
   const methodTypeParameterNames = policy.ast.typeParameters(declaration).map(
-    (parameter) => {
-      const name = policy.ast.name(parameter);
-      return name === undefined ? undefined : policy.ast.text(name);
-    },
+    (parameter) => parameter === undefined ? undefined : csharpSourceTypeParameterName(parameter, policy.ast),
   );
   if (
     methodTypeParameterNames.some((name) =>

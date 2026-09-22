@@ -23,7 +23,7 @@ import type {
   TargetTypeRef,
 } from "../../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 
 export function selectJsValueConversion(
   source: TargetTypeRef,

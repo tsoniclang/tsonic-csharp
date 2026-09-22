@@ -50,6 +50,7 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../../types/target-types.js";
+import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
 
 export function planObjectShapeAccessorMemberAssignment(
   accessorNode: Node,
@@ -208,6 +209,10 @@ function planSetter(
     state,
     bodyTarget,
   );
+  const parameterPlan = planLambdaParameterStorage(
+    parameterNodes, parameters, sourceFile, input, diagnostics, state,
+  );
+  if (parameterPlan === undefined) return undefined;
   const body = planLambdaBlockBody(
     accessorNode,
     declaration.Body,
@@ -223,8 +228,8 @@ function planSetter(
         kind: "LambdaExpression",
         parameters: [
           { kind: "Parameter", name: selfName, type: selfType },
-          ...parameters,
+          ...parameterPlan.parameters,
         ],
-        body,
+        body: { ...body, statements: [...parameterPlan.prelude, ...body.statements] },
       };
 }

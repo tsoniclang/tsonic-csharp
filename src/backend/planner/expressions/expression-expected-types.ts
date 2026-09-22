@@ -197,6 +197,7 @@ export function planExpressionWithExpectedTypeCore(
         planners.planExpression,
         planners.planExpressionWithExpectedType,
         effectiveExpectedTargetType,
+        state,
       ),
     );
   }

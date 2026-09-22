@@ -8,7 +8,7 @@ import {
 import type {
   CsharpTargetAnalysisRequest,
 } from "../analysis/program/index.js";
-import { planCsharpOutput } from "./planner/csharp-planner.js";
+import { planCsharpOutput } from "./planner/program/planning.js";
 import { createCsharpPlanningContext } from "./planner/context.js";
 import { materializeCsharpOutputPlan } from "./emission/materialize.js";
 

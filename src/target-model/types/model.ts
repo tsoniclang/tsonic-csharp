@@ -25,6 +25,13 @@ export interface CsharpObjectShapeMemberFact {
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
+  readonly methodValueContract?: TargetTypeRef;
+  readonly methodStorageType?: TargetTypeRef;
+  readonly typeParameters?: readonly {
+    readonly declaration: Node;
+    readonly name: string;
+    readonly constraints: readonly import("../declarations/generic-constraints.js").CsharpTypeParameterConstraint[];
+  }[];
   readonly optional?: boolean;
   readonly readonly?: boolean;
   readonly accessor?: {
@@ -38,14 +45,37 @@ export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
   readonly sourceType?: Type;
   readonly declarationTemplate?: CsharpObjectShapeFact;
+  readonly covariantTypeParameters?: readonly string[];
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
+  readonly methodImplementation?: {
+    readonly declaration: Node;
+    readonly identity: string;
+    readonly captures: readonly {
+      readonly declaration: Node;
+      readonly reference: Node;
+      readonly fieldName: string;
+      readonly type: TargetTypeRef;
+      readonly mutable: boolean;
+    }[];
+  };
 }
 
 export interface CsharpSourceTargetTypeBinding {
   readonly declaration: Node;
   readonly targetType: TargetTypeRef;
+}
+
+export interface CsharpStructuralInterfaceImplementation {
+  readonly sourceType: TargetTypeRef;
+  readonly interfaceType: TargetTypeRef;
+  readonly methods: readonly {
+    readonly sourceName: string;
+    readonly declaration: Node;
+    readonly member: CsharpObjectShapeMemberFact;
+    readonly defaultArguments: readonly number[];
+  }[];
 }
 
 export type TargetTypeRef =
@@ -188,6 +218,13 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpStringIteration?: CsharpStringIterationPolicy;
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
+  readonly csharpGenericMethodValue?: {
+    readonly owner: TargetTypeRef;
+    readonly method: string;
+    readonly identity: string;
+    readonly contract: TargetTypeRef;
+    readonly typeParameters: readonly string[];
+  };
   readonly csharpTaskResultType?: TargetTypeRef;
   readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
   readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;

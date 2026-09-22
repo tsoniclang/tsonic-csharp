@@ -46,7 +46,9 @@ export function renderObjectShapeTypeParameters(
     }
     if (!declaredNames.has(typeArgument.name)) {
       declaredNames.add(typeArgument.name);
-      declaredTypeParameters.push({ name });
+      declaredTypeParameters.push({ name,
+        ...(fact.covariantTypeParameters?.includes(typeArgument.name) === true ? { variance: "out" as const } : {}),
+      });
     }
   }
   const usedTypeParameters = collectObjectShapeTypeParameterNames(fact);
@@ -68,11 +70,21 @@ function collectObjectShapeTypeParameterNames(
 ): ReadonlySet<string> {
   const names = new Set<string>();
   for (const member of fact.members) {
-    collectTargetTypeParameterNames(member.type, names);
+    const memberNames = new Set<string>();
+    collectTargetTypeParameterNames(member.type, memberNames);
+    for (const parameter of member.typeParameters ?? []) {
+      for (const constraint of parameter.constraints) {
+        if (constraint.kind === "type") collectTargetTypeParameterNames(constraint.type, memberNames);
+      }
+    }
+    for (const parameter of member.typeParameters ?? []) memberNames.delete(parameter.name);
+    for (const name of memberNames) names.add(name);
+    if (member.methodStorageType !== undefined) collectTargetTypeParameterNames(member.methodStorageType, names);
   }
   for (const implementedType of fact.implements ?? []) {
     collectTargetTypeParameterNames(implementedType, names);
   }
+  for (const capture of fact.methodImplementation?.captures ?? []) collectTargetTypeParameterNames(capture.type, names);
   return names;
 }
 

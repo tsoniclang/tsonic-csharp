@@ -68,7 +68,7 @@ function planCsharpNativeLayout(layout: CsharpNativeMemoryLayout): CsharpExpress
         initializer: { kind: "VariableDeclaration", locals: [{ kind: "VariableDeclarator", name: index.name,
           type: { kind: "PredefinedType", name: "int" }, initializer: numeric(0) }] },
         condition: { kind: "BinaryExpression", left: index, operatorToken: { kind: "LessThanToken" }, right: numeric(length) },
-        incrementor: { kind: "PostfixUnaryExpression", operand: index, operatorToken: { kind: "PlusPlusToken" } },
+        incrementors: [{ kind: "PostfixUnaryExpression", operand: index, operatorToken: { kind: "PlusPlusToken" } }],
         body: { kind: "Block", statements } });
       const guard: CsharpStatement = { kind: "IfStatement", condition: { kind: "BinaryExpression",
         left: { kind: "NullPatternExpression", expression: source, negated: false }, operatorToken: { kind: "BarBarToken" },

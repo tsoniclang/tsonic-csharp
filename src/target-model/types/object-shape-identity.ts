@@ -16,6 +16,7 @@ export function csharpStructuralObjectShapeIdentity(
 }
 import {
   targetTypeRefKey,
+  scopedTargetTypeRefKey,
 } from "./equality.js";
 import { csharpSourceMemberKeyParts } from "./source-member-keys.js";
 
@@ -33,8 +34,19 @@ export function csharpObjectShapeMemberContractParts(
       : member.accessor.setter
         ? "getter-setter"
         : "getter",
-    targetTypeRefKey(member.type),
+    csharpObjectShapeMemberTypeKey(member),
   ];
+}
+
+export function csharpObjectShapeMemberTypeKey(member: CsharpObjectShapeMemberFact): string {
+  const parameters = member.typeParameters ?? [];
+  if (parameters.length === 0) return targetTypeRefKey(member.type);
+  const boundNames = new Map(parameters.map((parameter, index) => [parameter.name, index]));
+  return JSON.stringify([scopedTargetTypeRefKey(member.type, boundNames),
+    parameters.map(parameter => parameter.constraints.map(constraint =>
+      constraint.kind === "type" ? [constraint.kind, scopedTargetTypeRefKey(constraint.type, boundNames)]
+        : constraint.kind === "keyword" ? [constraint.kind, constraint.keyword] : [constraint.kind])),
+  ]);
 }
 
 export function csharpObjectShapeMemberContractKey(
@@ -49,10 +61,16 @@ export function csharpObjectShapeContractKey(
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
     String(shape.constructible),
+    shape.covariantTypeParameters ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])
       .map(targetTypeRefKey),
     canonicalCsharpObjectShapeMembers(shape.members)
       .map(csharpObjectShapeMemberContractParts),
+    ...(shape.members.some(member => member.methodStorageType !== undefined) ? [canonicalCsharpObjectShapeMembers(shape.members).map(member =>
+      member.methodStorageType === undefined ? null : targetTypeRefKey(member.methodStorageType))] : []),
+    ...(shape.methodImplementation === undefined ? [] : [shape.methodImplementation.identity,
+      shape.methodImplementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
+    ]),
   ]);
 }
 

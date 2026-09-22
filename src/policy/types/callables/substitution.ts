@@ -50,8 +50,15 @@ export function substituteTargetTypeParameters(
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
+      const methodValue = (type as CsharpTargetNamedTypeRef).csharpGenericMethodValue;
+      const methodSubstitutions = methodValue === undefined ? substitutions
+        : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
       return {
         ...type,
+        ...(methodValue === undefined ? {} : { csharpGenericMethodValue: { ...methodValue,
+          owner: substituteTargetTypeParameters(methodValue.owner, substitutions),
+          contract: substituteTargetTypeParameters(methodValue.contract, methodSubstitutions),
+        } }),
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
         ...(arrayLiteralElementType === undefined
           ? {}
@@ -243,10 +250,33 @@ export function substituteObjectShapeFactTargetTypeParameters(
         ...objectShape,
         declarationTemplate: objectShape.declarationTemplate ?? objectShape,
         targetType: substituteTargetTypeParameters(objectShape.targetType, substitutions),
-        members: objectShape.members.map((member) => ({
-          ...member,
-          type: substituteTargetTypeParameters(member.type, substitutions),
-        })),
+        ...(objectShape.methodImplementation === undefined ? {} : {
+          methodImplementation: { ...objectShape.methodImplementation,
+            captures: objectShape.methodImplementation.captures.map(capture => ({ ...capture,
+              type: substituteTargetTypeParameters(capture.type, substitutions),
+            })),
+          },
+        }),
+        members: objectShape.members.map(member => {
+          const boundNames = new Set(member.typeParameters?.map(parameter => parameter.name));
+          const freeSubstitutions = boundNames.size === 0 ? substitutions
+            : new Map([...substitutions].filter(([name]) => !boundNames.has(name)));
+          return { ...member,
+            type: substituteTargetTypeParameters(member.type, freeSubstitutions),
+            ...(member.methodStorageType === undefined ? {} : {
+              methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
+            }),
+            ...(member.methodValueContract === undefined ? {} : {
+              methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
+            }),
+            ...(member.typeParameters === undefined ? {} : {
+              typeParameters: member.typeParameters.map(parameter => ({ ...parameter,
+                constraints: parameter.constraints.map(constraint => constraint.kind !== "type" ? constraint
+                  : { ...constraint, type: substituteTargetTypeParameters(constraint.type, freeSubstitutions) }),
+              })),
+            }),
+          };
+        }),
         ...(objectShape.implements === undefined
           ? {}
           : { implements: objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions)) }),

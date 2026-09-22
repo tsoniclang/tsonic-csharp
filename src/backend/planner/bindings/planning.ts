@@ -93,7 +93,7 @@ export function planParameterBindingPrelude(
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
-  const parameter = AsParameterDeclaration(input.program.source.ast, getNodeParent(bindingName));
+  const parameter = AsParameterDeclaration(input.program.source.ast, input.program.source.ast.parent(bindingName));
   const bindingSource = parameter ?? bindingName;
   return planBindingPatternFromExpression(
     bindingName,
@@ -106,8 +106,4 @@ export function planParameterBindingPrelude(
     undefined,
     planExpressionWithExpectedType,
   );
-}
-
-function getNodeParent(node: Node): Node | undefined {
-  return (node as { readonly Parent?: Node }).Parent;
 }

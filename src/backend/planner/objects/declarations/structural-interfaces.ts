@@ -5,13 +5,17 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import type { CsharpStorageClassifications } from "../../../../analysis/storage/model.js";
 import { csharpRuntimeLocationTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { objectShapeStorageMemberName } from "../object-shape-storage.js";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type { CsharpTypeParameter } from "../../../target-ast/roslyn/index.js";
+import { csharpGenericConstraintFromTargetTypeParameterConstraint } from "../../types/type-parameters.js";
 
 export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeFact, storage: CsharpStorageClassifications, methodValues: boolean, inherited: readonly CsharpObjectShapeFact[]): readonly CsharpInterfaceMember[] | undefined {
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
       if (methodValues) {
-        const type = csharpTypeFromTargetTypeRef(member.type);
+        const valueType = (member.typeParameters?.length ?? 0) === 0 ? member.type : member.methodValueContract;
+        const type = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType);
         if (type === undefined) return undefined;
         result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
       }
@@ -20,7 +24,15 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
       const returnType = csharpTypeFromTargetTypeRef(signature.returnType);
       const parameters = signature.parameters.map(csharpTypeFromTargetTypeRef);
       if (returnType === undefined || parameters.some(type => type === undefined)) return undefined;
-      result.push({ kind: "MethodDeclaration", name: member.targetName, returnType,
+      const issues: TargetDiagnostic[] = [];
+      const typeParameters: CsharpTypeParameter[] = (member.typeParameters ?? []).map(parameter => ({
+        name: parameter.name, constraints: parameter.constraints.flatMap(constraint => {
+          const result = csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, parameter.declaration, issues);
+          return result === undefined ? [] : [result];
+        }),
+      }));
+      if (issues.length > 0) return undefined;
+      result.push({ kind: "MethodDeclaration", name: member.targetName, returnType, typeParameters,
         parameters: parameters.map((type, index) => ({ name: `arg${index}`, type: type!,
           ...(signature.restParameterIndex === index ? { isParams: true } : {}),
           ...(signature.optionalParameterIndexes?.includes(index) ? { defaultValue: { kind: "DefaultExpression" as const, type: type! } } : {}),

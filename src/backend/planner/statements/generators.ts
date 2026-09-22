@@ -45,6 +45,7 @@ type BlockPlanner = (
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  entryPrelude?: readonly CsharpStatement[],
 ) => readonly CsharpStatement[];
 
 export function hasCsharpGeneratorSyntax(
@@ -184,8 +185,7 @@ export function planCsharpGeneratorFunction(
           body: {
             kind: "Block" as const,
             statements: [
-              ...prelude,
-              ...planBlock(bodyNode, sourceFile, input, diagnostics, state),
+              ...planBlock(bodyNode, sourceFile, input, diagnostics, state, prelude),
             ],
           },
         }]

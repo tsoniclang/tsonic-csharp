@@ -9,6 +9,7 @@ import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
@@ -217,6 +218,18 @@ export function resolvePropertyAccessTargetType(
     node,
     queries.sourceFile,
   );
+  if ((selection.kind === "resolved" || selection.kind === "source-owned") &&
+    !selection.source.callCallee && selection.source.accessMode === "read" &&
+    selection.source.sourceReadType !== undefined &&
+    queries.types.callSignatures(selection.source.sourceReadType).some(signature => {
+      const declaration = queries.declarations.signatureDeclaration(signature);
+      return declaration !== undefined && host.ast.typeParameters(declaration).length > 0;
+    })) {
+    const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
+    const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host);
+    if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
+  }
   if (selection.kind === "resolved") {
     return optionalAccessTargetType(
       selection.targetMember.returnType,

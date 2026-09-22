@@ -50,6 +50,7 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpReadOnlyIndexableElementType);
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);
+    addDefined(components, target.csharpGenericMethodValue?.owner);
     addDefined(components, target.csharpTaskResultType);
     components.push(...target.csharpDelegateSignature?.parameters ?? []);
     addDefined(components, target.csharpDelegateSignature?.returnType);
@@ -84,5 +85,10 @@ function addObjectShapeComponents(
     return;
   }
   components.push(...shape.members.map((member) => member.type));
+  components.push(...shape.members.flatMap(member => [member.methodStorageType, member.methodValueContract]
+    .filter((type): type is TargetTypeRef => type !== undefined)));
+  components.push(...shape.members.flatMap(member => member.typeParameters?.flatMap(parameter =>
+    parameter.constraints.flatMap(constraint => constraint.kind === "type" ? [constraint.type] : [])) ?? []));
+  components.push(...shape.methodImplementation?.captures.map(capture => capture.type) ?? []);
   components.push(...shape.implements ?? []);
 }

@@ -16,6 +16,9 @@ import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-pol
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { resolveTypeParameter } from "./source-evidence.js";
+import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -127,6 +130,12 @@ export function resolveSourceCallInstantiation(
     }
   | undefined {
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  const queries = host.semantics(sourceFile);
+  const parameterNames = selectedArguments.map(argument => {
+    const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
+    return parameter?.kind === "type-parameter" ? parameter.name : undefined;
+  });
+  if (parameterNames.some(name => name === undefined)) return undefined;
   if (expectedTypeParameterNames?.length === 0) {
     return {
       arguments: Object.freeze([]),
@@ -137,8 +146,8 @@ export function resolveSourceCallInstantiation(
     expectedTypeParameterNames !== undefined &&
     (
       selectedArguments.length !== expectedTypeParameterNames.length ||
-      selectedArguments.some((argument, index) =>
-        argument.typeParameterName !== expectedTypeParameterNames[index]
+      parameterNames.some((name, index) =>
+        name !== expectedTypeParameterNames[index]
       )
     )
   ) {
@@ -151,9 +160,7 @@ export function resolveSourceCallInstantiation(
     };
   }
   const inferredParameterNames = new Set(
-    selectedArguments
-      .filter((argument) => argument.explicitTypeNode === undefined)
-      .map((argument) => argument.typeParameterName),
+    selectedArguments.flatMap((argument, index) => argument.explicitTypeNode === undefined ? [parameterNames[index]!] : []),
   );
   const inferredTargetArguments = callable === undefined ||
       inferredParameterNames.size === 0
@@ -171,16 +178,17 @@ export function resolveSourceCallInstantiation(
   const selectedParameters = new Set<Type>();
   const arguments_: TargetTypeRef[] = [];
   const substitutions = new Map<string, TargetTypeRef>();
-  for (const selected of selectedArguments) {
+  for (const [index, selected] of selectedArguments.entries()) {
+    const parameterName = parameterNames[index]!;
     if (
       selected.typeParameterName.length === 0 ||
       selectedParameters.has(selected.typeParameter) ||
-      substitutions.has(selected.typeParameterName)
+      substitutions.has(parameterName)
     ) {
       return undefined;
     }
     let targetArgument = selected.explicitTypeNode === undefined
-      ? inferredTargetArguments.get(selected.typeParameterName) ??
+      ? inferredTargetArguments.get(parameterName) ??
         resolveAuthoredAndSelectedSourceType(
           undefined,
           sourceFile,
@@ -199,7 +207,6 @@ export function resolveSourceCallInstantiation(
       return undefined;
     }
     const declaration = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-    const queries = host.semantics(sourceFile);
     const symbol = queries.declarations.typeSymbol(selected.typeParameter);
     const parameters = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
       .filter(candidate => host.ast.is.IsTypeParameterDeclaration(candidate));
@@ -209,7 +216,7 @@ export function resolveSourceCallInstantiation(
       targetArgument = csharpNullableTargetType(targetArgument);
     }
     selectedParameters.add(selected.typeParameter);
-    substitutions.set(selected.typeParameterName, targetArgument);
+    substitutions.set(parameterName, targetArgument);
     arguments_.push(targetArgument);
   }
   return {
@@ -322,9 +329,14 @@ export function resolveSourceCallableContractType(
   if (receiverInstantiation.kind === "unresolved") {
     return undefined;
   }
-  return receiverInstantiation.kind === "resolved"
-    ? receiverInstantiation.type
-    : substituted;
+  if (receiverInstantiation.kind === "resolved") return receiverInstantiation.type;
+  const shape = receiverType === undefined ? undefined : host.structuralTypes.resolveTarget(receiverType);
+  const template = shape?.declarationTemplate?.targetType;
+  if (template?.kind !== "target-named" || receiverType === undefined) return substituted;
+  const names = new Set((template.typeArguments ?? []).flatMap(argument =>
+    argument.kind === "type-parameter" ? [argument.name] : []));
+  const bindings = inferCsharpTargetTypeParameterBindings(template, receiverType, names);
+  return bindings === undefined ? undefined : substituteTargetTypeParameters(substituted, bindings);
 }
 
 
@@ -461,22 +473,35 @@ export function resolveSourceCallReceiverTargetType(
 
 
 export function sourceCallCalleeDelegateSignature(
-  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  { host, resolveSelectedValueWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): ReturnType<typeof getCsharpDelegateSignature> {
-  return getCsharpDelegateSignature(resolveSelectedValueWithState(
+  const carrier = resolveSelectedValueWithState(
     source.sourceCallee.expression,
     source.sourceCallee.type,
     sourceFile,
     nextState(state),
-  ));
+  );
+  const receiver = source.sourceReceiver;
+  const receiverCarrier = receiver === undefined ? undefined : resolveSelectedValueWithState(
+    receiver.expression, receiver.type, sourceFile, nextState(state));
+  const shape = receiverCarrier === undefined ? undefined : host.structuralTypes.resolveTarget(receiverCarrier);
+  const member = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
+    [source.sourceCallee.selectedDeclaration, source.sourceCallee.declaration, source.sourceCallee.selectedSymbol, source.sourceCallee.symbol]
+      .filter(subject => subject !== undefined));
+  const selected = member?.kind === "resolved" ? member.member.type : carrier;
+  const contract = getCsharpGenericMethodValue(selected)?.contract ?? selected;
+  if (getCsharpDelegateSignature(contract) === undefined) return undefined;
+  const instantiation = resolveSourceCallInstantiation(source, sourceFile, nextState(state));
+  return contract === undefined || instantiation === undefined ? undefined
+    : getCsharpDelegateSignature(substituteTargetTypeParameters(contract, instantiation.substitutions));
 }
 
 
 export function sourceCallableTypeParametersMatch(
-  {  }: CsharpTypeResolutionScope,
+  { host }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   callable: CsharpSourceCallableContract,
 ): boolean {
@@ -484,11 +509,14 @@ export function sourceCallableTypeParametersMatch(
     return true;
   }
   const selected = source.sourceSelectedMethodTypeArguments ?? [];
+  const file = host.ast.getSourceFile(source.sourceCallee.expression);
+  if (file === undefined) return false;
+  const queries = host.semantics(file);
   return selected.length === callable.methodTypeParameterNames.length &&
-    selected.every((argument, index) =>
-      argument.typeParameterName ===
-        callable.methodTypeParameterNames[index]
-    );
+    selected.every((argument, index) => {
+      const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
+      return parameter?.kind === "type-parameter" && parameter.name === callable.methodTypeParameterNames[index];
+    });
 }
 
 

@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
@@ -44,10 +44,94 @@ import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nul
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
+import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
+import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
+import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
+import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-array-rest.mjs";
+
+test("native params preserve array-valued arguments and nested storage identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
+  execute(compiled, "nested-array-rest");
+  assert.match(compiled.artifacts.get("src/Index.cs"), /values\.push\(first\);/u);
+});
+
+test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", files: genericObjectMethodFiles,
+    sourceText: genericObjectMethodFiles["index.ts"] });
+  execute(compiled, "generic-object-methods");
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+  assert.match(shapes, /identity<[TU]>\([TU] value\)/u);
+  assert.doesNotMatch(shapes, /(?:Func|Action)<[TU](?:, [TU])?> __tsonic_method/u);
+  assert.doesNotMatch(shapes, /DynamicInvoke|System\.Reflection|System\.Linq\.Expressions/u);
+  for (const sourceText of invalidGenericObjectMethods) {
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+  }
+});
+
+test("generic method captures preserve parameters, destructuring and loop activation identity", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: genericObjectCaptureSource }), "generic-object-captures");
+});
+
+test("generic method values retain the original environment without a wrapper or delegate", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: genericObjectMethodValueSource });
+  execute(compiled, "generic-object-method-values");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.doesNotMatch(generated, /DynamicInvoke|System\.Reflection|System\.Linq\.Expressions/u);
+  assert.match(generated, /identity<[^>]+>/u);
+  assert.doesNotMatch(generated, /Func<T,\s*T>\s+(?:identity|alias|escaped|selected)/u);
+});
+
+test("class structural views retain native reference identity across all value boundaries", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: classStructuralConversionFiles,
+    sourceText: classStructuralConversionFiles["index.ts"] }), "class-structural-conversions");
+  for (const sourceText of invalidClassStructuralConversions) {
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+  }
+});
+
+test("union calls compose generic, default, rest and async contracts without dispatch closures", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", files: unionCallContractsFiles,
+    sourceText: unionCallContractsFiles["index.ts"] });
+  execute(compiled, "union-call-contracts", true);
+  const native = [...compiled.artifacts.values()].join("\n");
+  assert.match(native, /private static [^\n]*__tsonic_union_call_/u);
+  assert.doesNotMatch(native, /\.Match(?:<[^\n]+>)?\(/u);
+  for (const sourceText of incompatibleUnionCalls) {
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+  }
+});
 
 test("optional indexed arguments retain absence and single evaluation", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: optionalIndexedArgumentsSource }), "optional-indexed-arguments");
 });
+
+for (const surface of [undefined, "js"]) {
+  test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+      function sum(...values: number[]): number {
+        let total = 0;
+        for (const value of values) total += value;
+        return total;
+      }
+      function forward(values: number[]): number { return sum(...values); }
+      export function run(): boolean {
+        const values = [2, 3];
+        const callable: (...values: number[]) => number = sum;
+        return sum() === 0 && sum(1, 2, 3) === 6 && forward(values) === 5 &&
+          sum(1, ...values, 4) === 10 && callable() === 0 && callable(1, 2) === 3 &&
+          callable(...values) === 5 && callable(1, ...values) === 6;
+      }
+    ` });
+    execute(compiled, `native-rest-boundary-${surface ?? "native"}`);
+    const source = compiled.artifacts.get("src/Index.cs");
+    assert.match(source, /sum\(1(?:\.0)?, 2(?:\.0)?, 3(?:\.0)?\)/u);
+    assert.match(source, /return sum\(values\);/u);
+    assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+  });
+}
 
 for (const surface of [undefined, "js"]) {
   test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
@@ -249,6 +333,26 @@ for (const [name, source] of Object.entries(frozenObjectSources)) {
   });
 }
 
+for (const surface of [undefined, "js"]) {
+  test(`structural generic templates preserve rest getter order (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: `
+let order = "";
+function copy(value: { readonly omitted: number; readonly zip: string; readonly country: string }): string {
+  const { omitted, ...rest } = value;
+  return rest.zip + rest.country;
+}
+export function run(): boolean {
+  const value = {
+    get omitted(): number { order += "o"; return 1; },
+    get zip(): string { order += "z"; return "75001"; },
+    get country(): string { order += "c"; return "FR"; },
+  };
+  const result = copy(value);
+  return result === "75001FR" && order === "ozc";
+}` }), `structural-rest-order-${surface ?? "native"}`);
+  });
+}
+
 test("reference defaults evaluate in the callee only for omitted and undefined arguments", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 let calls = 0;
@@ -316,7 +420,7 @@ export function run(): boolean {
 }` }), `inline-enumeration-${surface ?? "native"}`);
   });
   test(`mapped readonly arguments preserve identity and independent copies (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    execute(compileCsharpSource({ surface, sourceText: `
+    const compiled = compileCsharpSource({ surface, sourceText: `
 type Item = { count: number; label: string };
 function read(value: Readonly<Item>): number { return value.count; }
 function clone(value: Readonly<Item>): Item { return { ...value }; }
@@ -327,7 +431,11 @@ export function run(): boolean {
   item.count = 7;
   copy.count = 9;
   return read(view) === 7 && copy.count === 9 && item.count === 7;
-}` }), `mapped-readonly-${surface ?? "native"}`);
+}` });
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.match(generated, /interface ObjectShape_\w+<out Property0, out Property1>/u);
+    assert.match(generated, /interface ObjectShape_\w+<Property0, Property1> : ObjectShape_\w+<Property0, Property1>/u);
+    execute(compiled, `mapped-readonly-${surface ?? "native"}`);
   });
 }
 

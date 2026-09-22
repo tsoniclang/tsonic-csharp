@@ -39,6 +39,9 @@ import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";
 import { planResourceScopeStatements } from "./resource-management.js";
+import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
+import { csharpSourceExpressionSequence } from "../../../target-model/syntax/expression-sequence.js";
+import { expressionStatement, planDiscardedExpression } from "./statement-output.js";
 
 export function planForStatement(
   node: Node,
@@ -52,6 +55,7 @@ export function planForStatement(
   const resource = forInitializerResource(statement.Initializer, input);
   return resource === undefined
     ? planForStatementCore(
+        node,
         statement,
         sourceFile,
         input,
@@ -65,6 +69,7 @@ export function planForStatement(
         diagnostics,
         state,
         () => planForStatementCore(
+          node,
           statement,
           sourceFile,
           input,
@@ -76,6 +81,7 @@ export function planForStatement(
 }
 
 function planForStatementCore(
+  node: Node,
   statement: NonNullable<ReturnType<typeof AsForStatement>>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -83,38 +89,54 @@ function planForStatementCore(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
+  const capturePrelude = planCsharpCaptureFrame(node, input, diagnostics, state);
+  const frame = input.program.captureStorage.frame(node);
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
-  const condition = statement.Condition === undefined
+  const conditionNodes = statement.Condition === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Condition);
+  const conditionNode = conditionNodes[conditionNodes.length - 1];
+  const condition = conditionNode === undefined
     ? undefined
-    : planConditionExpression(statement.Condition, "For statement", sourceFile, input, diagnostics, state);
+    : planConditionExpression(conditionNode, "For statement", sourceFile, input, diagnostics, state);
+  const conditionPrelude = conditionNodes.slice(0, -1).map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
   if (statement.Condition !== undefined && condition === undefined) {
     return initializer?.prelude ?? [];
   }
-  const incrementor = statement.Incrementor === undefined
-    ? undefined
-    : planExpression(statement.Incrementor, sourceFile, input, diagnostics, state);
-  if (statement.Incrementor !== undefined && incrementor === undefined) {
+  const incrementors = statement.Incrementor === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Incrementor)
+    .map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
+  if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
     return initializer?.prelude ?? [];
   }
+  const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
+  const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
+  const outerLabels = new Set(state.controlLabels.flatMap(target => [target.breakLabel,
+    ...(target.continueLabel === undefined || target.loop === node ? [] : [target.continueLabel])]));
   const plannedFor: CsharpStatement = {
     kind: "ForStatement",
+    ...(incrementors.length > 0 && exitsBeforeIncrementor(body, outerLabels) ? { unreachableIncrementor: true } : {}),
     ...(initializer?.initializer !== undefined
       ? { initializer: initializer.initializer }
       : {}),
-    ...(statement.Condition !== undefined
+    ...(condition !== undefined && conditionPrelude.length === 0
       ? { condition }
       : {}),
-    ...(statement.Incrementor !== undefined
-      ? { incrementor }
-      : {}),
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.map(expression => planDiscardedExpression(expression!))],
     body: {
       kind: "Block",
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      statements: [
+        ...conditionPrelude.map(expression => expressionStatement(planDiscardedExpression(expression!))),
+        ...(condition !== undefined && conditionPrelude.length !== 0 ? [{ kind: "IfStatement" as const,
+          condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
+            operand: { kind: "ParenthesizedExpression" as const, expression: condition } },
+          thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
+        }] : []),
+        ...body,
+      ],
     },
   };
-  const initializerPrelude = initializer?.prelude ?? [];
+  const initializerPrelude: readonly CsharpStatement[] = [...capturePrelude, ...initializer?.prelude ?? [],
+    ...(rotation === undefined ? [] : [{ kind: "ExpressionStatement" as const, expression: rotation }])];
   return initializerPrelude.length === 0
     ? [plannedFor]
     : initializer?.preludeScope === "enclosing"
@@ -123,6 +145,16 @@ function planForStatementCore(
         kind: "Block",
         body: { kind: "Block", statements: [...initializerPrelude, plannedFor] },
       }];
+}
+
+function exitsBeforeIncrementor(statements: readonly CsharpStatement[], outerLabels: ReadonlySet<string>): boolean {
+  const last = statements[statements.length - 1];
+  if (last === undefined) return false;
+  if (last.kind === "ReturnStatement" || last.kind === "ThrowStatement" || last.kind === "BreakStatement") return true;
+  if (last.kind === "GotoStatement") return outerLabels.has(last.label);
+  if (last.kind === "Block") return exitsBeforeIncrementor(last.body.statements, outerLabels);
+  return last.kind === "IfStatement" && last.elseBody !== undefined &&
+    exitsBeforeIncrementor(last.thenBody.statements, outerLabels) && exitsBeforeIncrementor(last.elseBody.statements, outerLabels);
 }
 
 interface PlannedForInitializer {
@@ -142,6 +174,12 @@ function planForInitializer(
     const concreteDeclarations = input.program.source.ast.children(node)
       .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const declarationKind = input.program.source.ast.variableDeclarationKind(node);
+    if (concreteDeclarations.some(declaration => input.program.captureStorage.binding(declaration) !== undefined)) {
+      return { prelude: concreteDeclarations.flatMap(declaration =>
+        planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+        ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
+      };
+    }
     if (declarationKind === "using" || declarationKind === "await using") {
       return {
         prelude: concreteDeclarations.flatMap((declaration) =>

@@ -25,7 +25,7 @@ export type {
 
 export interface CsharpTypeParameterConstraintPolicyHost {
   readonly ast: AstReader;
-  readonly types: CsharpTypePolicy;
+  readonly types: Pick<CsharpTypePolicy, "resolveNode">;
 }
 
 const numericSourcePrimitives = new Set([

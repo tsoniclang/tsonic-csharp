@@ -1,7 +1,7 @@
 import { sourceNodesEqual } from "@tsonic/target-api/source";
 import type { Node } from "@tsonic/tsts";
 import { selectCsharpSourceArgument } from "../../policy/members/index.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 
 export function classifyExactUnmodifiedCatchRethrow(
   policy: CsharpPolicyContext,

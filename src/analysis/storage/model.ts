@@ -22,6 +22,7 @@ export interface CsharpNativeArrayStorage {
 }
 
 export interface CsharpStorageClassifications extends CsharpStorageRepresentationClassifications {
+  readonly closedNativeContracts: readonly TargetTypeRef[];
   readonly nativeArrays: readonly { readonly subject: Node; readonly storage: CsharpNativeArrayStorage }[];
   nativeArray(subject: Node): CsharpNativeArrayStorage | undefined;
   readonly nativeFields: readonly CsharpNativeObjectField[];

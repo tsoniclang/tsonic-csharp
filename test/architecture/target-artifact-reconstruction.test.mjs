@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-const planner = productSource("src/backend/planner/csharp-planner.ts");
+const planner = productSource("src/backend/planner/program/planning.ts");
 const reconstruction = productSource(
   "src/backend/planner/artifacts/source-file-reconstruction.ts",
 );

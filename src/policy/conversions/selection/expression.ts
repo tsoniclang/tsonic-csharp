@@ -10,7 +10,7 @@ import {
 import { csharpLiteralIsRepresentableAs } from "../literals.js";
 import { selectCsharpConversion } from "./core.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpProviderArgumentAdapter } from "../../../providers/relations/index.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetTypeRef } from "../../types/index.js";

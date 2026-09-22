@@ -357,8 +357,7 @@ function planSetAccessorStatements(
   diagnostics: TargetDiagnostic[],
   state: ReturnType<typeof createDestructuringPlannerState>,
 ): readonly CsharpStatement[] {
-  const statements = planBlockStatements(body, sourceFile, input, diagnostics, state);
-  return [
+  return planBlockStatements(body, sourceFile, input, diagnostics, state, [
     ...(parameter === undefined || parameter.name === "value"
       ? []
       : [{
@@ -368,6 +367,5 @@ function planSetAccessorStatements(
           initializer: { kind: "IdentifierName" as const, name: "value" },
         }]),
     ...parameterPrelude,
-    ...statements,
-  ];
+  ]);
 }

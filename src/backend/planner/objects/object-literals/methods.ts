@@ -40,6 +40,7 @@ import {
 import {
   findObjectShapeMemberForProperty,
 } from "./support.js";
+import { planLambdaParameterStorage } from "../../expressions/lambda-parameter-storage.js";
 
 export function planObjectShapeMethodMemberAssignment(
   methodNode: Node,
@@ -156,6 +157,13 @@ function planObjectLiteralMethodAsLambda(
         objectShape.targetType,
       );
   const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
+  const parameterNodes = method.Parameters?.Nodes ?? [];
+  const parameterPlan = planLambdaParameterStorage(
+    parameterNodes,
+    planLambdaParameters(parameterNodes, sourceFile, scopedInput, diagnostics, state, targetContext),
+    sourceFile, scopedInput, diagnostics, state,
+  );
+  if (parameterPlan === undefined) return undefined;
   const body = planLambdaBlockBody(
     methodNode,
     method.Body,
@@ -175,15 +183,8 @@ function planObjectLiteralMethodAsLambda(
       ...(selfName === undefined || selfType === undefined
         ? []
         : [{ kind: "Parameter" as const, name: selfName, type: selfType }]),
-      ...planLambdaParameters(
-        method.Parameters?.Nodes ?? [],
-        sourceFile,
-        scopedInput,
-        diagnostics,
-        state,
-        targetContext,
-      ),
+      ...parameterPlan.parameters,
     ],
-    body,
+    body: { ...body, statements: [...parameterPlan.prelude, ...body.statements] },
   };
 }

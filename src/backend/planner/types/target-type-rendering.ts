@@ -4,6 +4,7 @@ import type {
 import type { TargetTypeRef } from "../../../target-model/types/index.js";
 import type { CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import { csharpTupleType } from "./csharp-tuples.js";
+import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import { sanitizeIdentifier, tryCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
@@ -16,6 +17,8 @@ import {
 } from "../../../target-model/types/index.js";
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
+  const method = getCsharpGenericMethodValue(type);
+  if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner);
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type);
   return rendered === undefined
     ? undefined

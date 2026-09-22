@@ -15,8 +15,9 @@ import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
+import { getCsharpGenericMethodValue, csharpGenericMethodValueContractsEqual } from "../../../target-model/types/generic-method-values.js";
 
 export function selectCsharpConversion(
   input: Pick<
@@ -65,6 +66,17 @@ export function selectCsharpConversion(
   const nullable = selectNullableConversion(input, source, target, mode);
   if (nullable !== undefined) {
     return nullable;
+  }
+  const sourceMethod = getCsharpGenericMethodValue(source);
+  const targetMethod = getCsharpGenericMethodValue(target);
+  if (sourceMethod !== undefined && targetMethod !== undefined) {
+    if (!csharpGenericMethodValueContractsEqual(source, target)) return {
+      kind: "rejected", reason: "Generic method values require the same exact method identity and quantified native contract.",
+    };
+    const owner = selectCsharpConversion(input, sourceMethod.owner, targetMethod.owner, mode);
+    return owner.kind === "identity" || owner.kind === "implicit" ? owner : {
+      kind: "rejected", reason: "Generic method values cannot copy, erase or replace their original native environment.",
+    };
   }
   const runtimeUnion = selectRuntimeUnionConversion(input, source, target, mode);
   if (runtimeUnion !== undefined) {

@@ -26,6 +26,17 @@ import {
 
 const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
 
+test("unreachable authored incrementor diagnostics are scoped to the for header", () => {
+  const loop = {
+    kind: "ForStatement",
+    incrementors: [{ kind: "InvocationExpression", callee: { kind: "IdentifierName", name: "advance" }, arguments: [] }],
+    body: { kind: "Block", statements: [{ kind: "BreakStatement" }] },
+  };
+  assert.equal(printCsharpStatement(loop), "for (; ; advance())\n{\n    break;\n}");
+  assert.equal(printCsharpStatement({ ...loop, unreachableIncrementor: true }),
+    "#pragma warning disable CS0162\nfor (; ; advance())\n#pragma warning restore CS0162\n{\n    break;\n}");
+});
+
 test("printer preserves ordered collection elements and native spreads", () => {
   assert.equal(printCsharpExpression({ kind: "CollectionExpression", elements: [
     { kind: "ExpressionElement", expression: { kind: "LiteralExpression", value: 1 } },

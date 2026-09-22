@@ -11,7 +11,7 @@ import {
   createTargetUseClassificationBuilder,
   targetUseSiteRef,
 } from "@tsonic/target-api/analysis";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   csharpDelegateTargetType,
   csharpSourceArgumentExpectedType,

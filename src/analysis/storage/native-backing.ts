@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { csharpNativeArrayMemoryLayoutRejection, selectCsharpNativeMemoryLayout, selectCsharpRawLocation } from "../../policy/operations/pointers/native-memory.js";
 import type { CsharpNativeMemoryLayout } from "../../target-model/operations/native-memory.js";
 import { csharpNativeMemoryLayoutsEqual } from "../../target-model/operations/native-memory.js";
@@ -124,6 +124,7 @@ export function analyzeCsharpNativeBacking(
     arrays: Object.freeze([...arrays].map(([subject, storage]) => Object.freeze({ subject, storage }))),
     array: (node: Node) => arrays.get(node),
     fields: fields.values(),
+    closedContracts: fields.closedContracts(),
     field: fields.get,
     entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),
     get: (subject: Node) => backings.get(subject) });

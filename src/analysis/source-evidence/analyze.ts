@@ -27,7 +27,8 @@ import {
 import {
   csharpTargetTypeComponents,
 } from "../../target-model/types/components.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
+import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";
@@ -178,11 +179,10 @@ export function analyzeCsharpSourceEvidence(
       : elementMembers.some(member => semantics.types.isNullish(member) && !isUndefinedType(member, semantics))
         ? "ambiguous" : "nullable";
     const symbol = semantics.declarations.typeSymbol(type);
-    const typeParameterName = symbol !== undefined &&
-        semantics.declarations.symbolDeclarations(symbol).some((declaration) =>
-          source.ast.is.IsTypeParameterDeclaration(declaration))
-      ? semantics.declarations.symbolName(symbol)
-      : undefined;
+    const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
+      .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
+    const typeParameterName = typeParameters.length === 1
+      ? csharpSourceTypeParameterName(typeParameters[0]!, source.ast) : undefined;
     const classification = Object.freeze({
       intrinsic,
       ...(arrayElementDefault === undefined ? {} : { arrayElementDefault }),
@@ -419,13 +419,13 @@ export function analyzeCsharpSourceEvidence(
     if (pointerReturn !== undefined) pointerReturns.set(node, pointerReturn);
     inferredReturns.set(node, recordTargetType(pointerReturn?.type ?? inferredReturn) ?? missing);
     if (source.ast.is.IsTypeParameterDeclaration(node)) {
-      const name = source.ast.name(node);
+      const name = csharpSourceTypeParameterName(node, source.ast);
       if (name !== undefined) {
         typeParameterConstraints.set(
           node,
           resolveCsharpTypeParameterConstraints(
             node,
-            source.ast.text(name),
+            name,
             sourceFile,
             { ast: source.ast, types },
           ),

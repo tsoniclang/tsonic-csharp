@@ -1,12 +1,12 @@
 import {
   canonicalTargetForbiddenDirectories,
   canonicalTargetLayerPolicies,
+  canonicalTargetRootPolicies,
   canonicalTargetSourceRules,
   targetForbiddenPackage,
   targetLayerExact,
   targetLayerPrefix,
   targetLayerPredicate,
-  targetRootPolicy,
 } from "../../../tsonic/test/architecture/tooling/target-layer-contract.mjs";
 
 function isCsharpProviderModel(path) {
@@ -49,17 +49,7 @@ export const csharpForbiddenPackages = Object.freeze([
   targetForbiddenPackage("@tsonic/rust-nodejs", "C#"),
 ]);
 
-export const csharpRootPolicies = Object.freeze([
-  targetRootPolicy("src/", ["src/index.ts"]),
-  targetRootPolicy("src/backend/", ["src/backend/compile.ts"]),
-  targetRootPolicy("src/backend/planner/", [
-    "src/backend/planner/context.ts",
-    "src/backend/planner/csharp-planner.ts",
-    "src/backend/planner/diagnostics.ts",
-  ]),
-  targetRootPolicy("src/policy/", ["src/policy/context.ts", "src/policy/index.ts"]),
-  targetRootPolicy("src/source/", ["src/source/index.ts"]),
-]);
+export const csharpRootPolicies = canonicalTargetRootPolicies;
 
 export const csharpAllowedImplementationIndexes = new Set([
   "src/public/index.ts",

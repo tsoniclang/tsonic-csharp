@@ -1,7 +1,7 @@
 import type { ExtensionFactSubject, Node, ReadonlySourceFactResolver, SourceFile } from "@tsonic/tsts";
 import { readTsonicDataLayout, readTsonicRawMemoryOperation } from "@tsonic/source-core/facts";
 import type { TsonicRawMemoryOperationFact } from "@tsonic/source-core/facts";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
 import { csharpRuntimeRawPointerTargetType } from "../../../target-model/types/runtime-carriers.js";

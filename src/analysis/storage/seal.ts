@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { selectCsharpSourceArgument } from "../../policy/members/selection/argument-selection.js";
 import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
@@ -22,6 +22,7 @@ export function sealCsharpStorage(
   }
   const classifications: CsharpStorageClassifications = {
     ...representations,
+    closedNativeContracts: backing.closedContracts,
     nativeArrays: backing.arrays,
     nativeArray: backing.array,
     nativeFields: backing.fields,

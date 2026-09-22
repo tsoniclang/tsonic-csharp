@@ -368,6 +368,31 @@ export function resolveSourceCallParameter(
 }
 
 
+export function resolveSourceCallParameters(
+  scope: CsharpTypeResolutionScope,
+  source: ResolvedSourceCallInfo,
+  sourceFile: SourceFile,
+): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined {
+  const callable = scope.host.representations.sourceCallable(source, sourceFile);
+  const signature = callable === undefined
+    ? scope.sourceCallCalleeDelegateSignature(source, sourceFile, { depth: 0 }) : undefined;
+  const parameters = signature === undefined
+    ? source.sourceSelectedSignatureParameters.map((parameter, index) => {
+      const type = scope.resolveSourceCallParameter(source, index, sourceFile);
+      return type === undefined ? undefined : {
+        name: parameter.parameterName, type, passingMode: "by-value" as const,
+        optional: parameter.acceptsOmission, paramsArray: parameter.rest,
+      };
+    })
+    : signature.parameters.map((type, index) => ({
+      name: `parameter${index}`, type, passingMode: "by-value" as const,
+      optional: signature.optionalParameterIndexes?.includes(index) === true,
+      paramsArray: signature.restParameterIndex === index,
+    }));
+  return parameters.some(parameter => parameter === undefined) ? undefined
+    : Object.freeze(parameters.map(parameter => Object.freeze(parameter!)));
+}
+
 export function resolveSourceCallArgumentParameter(
   { host, resolveSourceCallableContractType, resolveSourceCallSelectedType, sourceCallableTypeParametersMatch, sourceCallCalleeDelegateSignature }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
@@ -409,19 +434,25 @@ export function resolveSourceCallArgumentParameter(
           binding.sourceForm,
         );
   }
-  const delegateParameter = sourceCallCalleeDelegateSignature(
+  const signature = sourceCallCalleeDelegateSignature(
     source,
     sourceFile,
     { depth: 0 },
-  )?.parameters[binding.effectiveArgumentIndex];
+  );
+  const parameterIndex = signature?.restParameterIndex === undefined ? binding.effectiveArgumentIndex
+    : Math.min(binding.effectiveArgumentIndex, signature.restParameterIndex);
+  const delegateParameter = signature?.parameters[parameterIndex];
   if (delegateParameter !== undefined) {
-    return delegateParameter;
+    return csharpTargetParameterValueType({ name: `parameter${parameterIndex}`,
+      type: delegateParameter, passingMode: "by-value",
+      paramsArray: signature?.restParameterIndex === parameterIndex,
+    }, binding.sourceForm);
   }
   return resolveSourceCallSelectedType(
     source,
     parameter.parameterDeclaration,
     parameter.authoredTypeNode,
-    binding.selectedParameterType,
+    binding.sourceForm === "spread-sequence" && parameter.rest ? parameter.selectedType : binding.selectedParameterType,
     sourceFile,
     { depth: 0 },
   );
@@ -511,6 +542,9 @@ export function withSourceTargetBindings(
     policy: createCsharpTypePolicy({
       ...host,
       representations: {
+        requiresClosedStructuralContract(type) {
+          return host.representations.requiresClosedStructuralContract(type);
+        },
         scopedTargetType(node) {
           const reference = host.navigation.referenceFor(node);
         return targetTypes.get(reference?.declaration ?? node) ??

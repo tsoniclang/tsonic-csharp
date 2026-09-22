@@ -125,6 +125,7 @@ export function planMethodDeclaration(
     input,
     diagnostics,
     state,
+    parameters.prelude,
   );
   if (returnContract?.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -150,7 +151,6 @@ export function planMethodDeclaration(
     body: {
       kind: "Block",
       statements: [
-        ...parameters.prelude,
         ...bodyStatements,
         ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
           ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : []),

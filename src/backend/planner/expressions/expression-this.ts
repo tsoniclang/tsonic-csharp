@@ -31,6 +31,8 @@ export function planThisExpression(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
+  const captured = input.scope.capturedReceivers?.get(node);
+  if (captured !== undefined) return captured;
   if (input.scope.sourceThisBinding === undefined) {
     const binding = classifyThisBinding(node, input);
     if (binding.kind === "unsupported") {

@@ -60,6 +60,21 @@ test("source-file public contracts exclude private implementation details", () =
   );
 });
 
+test("explicit interface methods remain part of the public structural contract", () => {
+  const unit = (name, bodyValue) => {
+    const result = methodUnit({ bodyValue, parameter: { name: "value", type: stringType } });
+    const method = result.members[0].members[0].members[0];
+    method.modifiers = [];
+    method.explicitInterface = { kind: "IdentifierName", name };
+    return result;
+  };
+  const first = resolvedCandidate(unit("IAction", 1));
+  const implementation = resolvedCandidate(unit("IAction", 2));
+  const contract = resolvedCandidate(unit("IOther", 1));
+  assert.equal(facet(first, "source-file-public-surface"), facet(implementation, "source-file-public-surface"));
+  assert.notEqual(facet(first, "source-file-public-surface"), facet(contract, "source-file-public-surface"));
+});
+
 test("source-file contracts preserve exact public dependencies", () => {
   const dependencies = [{
     owner: "source-file:/project/dependency.ts",

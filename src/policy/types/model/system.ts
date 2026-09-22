@@ -26,10 +26,10 @@ import {
   createCsharpTypeResolutionServices,
 } from "../resolution/engine.js";
 import type {
+  CsharpProjectTypeCatalog,
   CsharpProjectTypePolicy,
 } from "../project/project-types.js";
 import {
-  createCsharpProjectTypeCatalog,
   createCsharpProjectTypePolicy,
 } from "../project/project-types.js";
 import type {
@@ -53,13 +53,13 @@ export interface CsharpTypeSystem {
 
 export function createCsharpTypeSystem(
   host: CsharpTypePolicyBaseHost,
+  projectTypeCatalog: CsharpProjectTypeCatalog,
   representations: CsharpPlanningRepresentationQueries =
     emptyPlanningRepresentations,
 ): CsharpTypeSystem {
   let objectShapes: CsharpRecursiveObjectShapePolicy | undefined;
   let bindingProjections: CsharpBindingProjectionPolicy | undefined;
   let projectTypes: CsharpProjectTypePolicy | undefined;
-  const projectTypeCatalog = createCsharpProjectTypeCatalog(host);
   const createTypeResolution = (
     representations: CsharpPlanningRepresentationQueries,
   ) => createCsharpTypeResolutionServices({
@@ -176,6 +176,7 @@ export function createCsharpTypeSystem(
   const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
+    representations,
     projectTypeCatalog,
     typeResolver: typeResolution.recursive,
   });
@@ -197,6 +198,9 @@ export function createCsharpTypeSystem(
 
 const emptyPlanningRepresentations: CsharpPlanningRepresentationQueries =
   Object.freeze({
+    requiresClosedStructuralContract() {
+      return false;
+    },
     scopedTargetType() {
       return undefined;
     },

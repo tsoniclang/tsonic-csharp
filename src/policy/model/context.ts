@@ -13,18 +13,18 @@ import type {
 } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
-} from "../providers/model/relation-resolver.js";
+} from "../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderCallSelectionHost,
-} from "./members/index.js";
+} from "../members/index.js";
 import type {
   CsharpObjectShapePolicy,
   CsharpProjectTypePolicy,
   CsharpTypePolicy,
-} from "./types/index.js";
+} from "../types/index.js";
 import type {
   CsharpSourceIdentityPolicy,
-} from "./identities/source-nodes.js";
+} from "../identities/source-nodes.js";
 
 export interface CsharpPolicyContext extends CsharpProviderCallSelectionHost {
   readonly ast: AstReader;

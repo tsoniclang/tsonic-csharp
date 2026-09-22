@@ -39,6 +39,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
 import { csharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
 
 export function planIdentifierExpression(
   identifier: Node,
@@ -80,12 +81,12 @@ export function planIdentifierExpression(
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
   }
-  const expression: CsharpExpression = {
+  const declaration = declarationReference?.declaration;
+  const expression: CsharpExpression = (declaration === undefined ? undefined : csharpCapturedBindingExpression(declaration, input, state)) ?? {
     kind: "IdentifierName",
     name: getCsharpLocalBindingName(identifier, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
-  const declaration = declarationReference?.declaration;
   const value: CsharpExpression = declaration !== undefined && input.program.storage.nativeBacking(declaration) !== undefined
     ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression;
   return planFlowReadUseSiteProjection(identifier, value, sourceFile, input, diagnostics);

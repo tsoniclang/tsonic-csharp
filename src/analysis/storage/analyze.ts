@@ -15,7 +15,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
 } from "../../policy/members/selection/argument-selection.js";
@@ -563,6 +563,8 @@ export function csharpStorageClassificationsEqual(
   right: CsharpStorageClassifications,
 ): boolean {
   return left.issues.length === right.issues.length &&
+    left.closedNativeContracts.length === right.closedNativeContracts.length &&
+    left.closedNativeContracts.every((type, index) => targetTypeRefEquals(type, right.closedNativeContracts[index]!)) &&
     left.nativeArrays.length === right.nativeArrays.length && left.nativeArrays.every((entry, index) => {
       const other = right.nativeArrays[index];
       return other !== undefined && entry.subject === other.subject && entry.storage.kind === other.storage.kind &&

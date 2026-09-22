@@ -75,7 +75,7 @@ function planTypeParameterConstraints(
     );
 }
 
-function csharpGenericConstraintFromTargetTypeParameterConstraint(
+export function csharpGenericConstraintFromTargetTypeParameterConstraint(
   constraint: CsharpTypeParameterConstraint,
   sourceNode: Node,
   diagnostics: TargetDiagnostic[],

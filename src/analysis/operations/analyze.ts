@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import {
@@ -58,7 +59,7 @@ import type {
 import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   CsharpCallClassification,
   CsharpBinaryClassification,
@@ -340,7 +341,10 @@ function visit(
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
     const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
+    const sourceMethodValue = source === undefined ? undefined
+      : getCsharpGenericMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
+      ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),
@@ -364,6 +368,7 @@ function visit(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
+            sourceNativeParameters: policy.types.resolveSourceCallParameters(source, sourceFile),
             sourceParameterTypes: Object.freeze(
               source.sourceSelectedSignatureParameters.map((_, index) =>
                 policy.types.resolveSourceCallParameter(
@@ -417,6 +422,7 @@ function visit(
         : {},
       ...target?.kind === "source-owned"
         ? {
+            sourceNativeParameters: policy.types.resolveSourceCallParameters(target.source, sourceFile),
             sourceParameterTypes: Object.freeze(
               target.source.sourceSelectedSignatureParameters.map((_, index) =>
                 policy.types.resolveSourceCallParameter(

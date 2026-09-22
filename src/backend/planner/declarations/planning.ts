@@ -21,6 +21,7 @@ import {
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "./modifiers.js";
 import { csharpReferenceIdentityInterfaceType } from "../objects/declarations/interfaces.js";
+import { planCsharpStructuralInterfaceMethods } from "./structural-interfaces.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { planParametersWithPrelude } from "../bindings/parameters.js";
 import { planBlockStatements } from "../statements/index.js";
@@ -65,6 +66,7 @@ import {
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
 import { guardCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
+import { createCsharpMemberPlanningContext } from "../context.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -72,6 +74,7 @@ export function planClassDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
+  input = createCsharpMemberPlanningContext(input);
   const declaration = AsClassDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
@@ -130,11 +133,13 @@ export function planClassDeclaration(
     members: [
       ...implicitConstructors,
       ...safetyDefaultConstructors,
+      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
+      ...input.scope.generatedMethods!.values(),
     ],
   };
 }
@@ -285,6 +290,7 @@ export function planFunctionDeclaration(
     input,
     diagnostics,
     state,
+    parameters.prelude,
   );
   if (returnContract?.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -315,7 +321,6 @@ export function planFunctionDeclaration(
     body: {
       kind: "Block",
       statements: [
-        ...parameters.prelude,
         ...bodyStatements,
         ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
           ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : []),

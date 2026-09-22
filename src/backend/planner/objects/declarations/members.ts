@@ -35,6 +35,7 @@ import {
   getCsharpDelegateSignature,
   isCsharpVoidTargetType,
 } from "../../../../target-model/types/index.js";
+import { renderCsharpStructuralInterfaceMembers } from "./structural-interfaces.js";
 
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,
@@ -45,6 +46,11 @@ export function renderObjectShapeMembers(
   storage: CsharpStorageClassifications,
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
+    if ((member.typeParameters?.length ?? 0) > 0) {
+      if (member.methodStorageType !== undefined) return renderCopiedGenericMethod(fact, member, storage);
+      if (fact.methodImplementation !== undefined) return [];
+      return [undefined];
+    }
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {
@@ -114,6 +120,24 @@ export function renderObjectShapeMembers(
   return members.some((member) => member === undefined)
     ? undefined
     : members as CsharpClassDeclaration["members"];
+}
+
+function renderCopiedGenericMethod(
+  shape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number], storage: CsharpStorageClassifications,
+): readonly (CsharpTypeMember | undefined)[] {
+  const storageType = member.methodStorageType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.methodStorageType);
+  const contract = renderCsharpStructuralInterfaceMembers({ ...shape, members: [member] }, storage, false, []);
+  const method = contract?.[0];
+  if (storageType === undefined || method?.kind !== "MethodDeclaration") return [undefined];
+  const name = objectShapeStorageMemberName(shape, member);
+  const call: CsharpExpression = { kind: "InvocationExpression", callee: {
+    kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: member.targetName,
+    typeArguments: (member.typeParameters ?? []).map(parameter => csharpTypeFromTargetTypeRef({ kind: "type-parameter", name: parameter.name })!),
+  }, arguments: method.parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) };
+  const returnsVoid = getCsharpDelegateSignature(member.type)?.returnType;
+  return [{ kind: "FieldDeclaration", name, type: storageType, modifiers: ["public", "required"] },
+    { ...method, modifiers: ["public"], body: { kind: "Block", statements: [returnsVoid !== undefined && isCsharpVoidTargetType(returnsVoid)
+      ? { kind: "ExpressionStatement", expression: call } : { kind: "ReturnStatement", expression: call }] } }];
 }
 
 export function renderBoundRecordMember(

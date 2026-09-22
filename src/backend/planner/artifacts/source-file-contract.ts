@@ -157,7 +157,7 @@ function publicTypeMember(
   if (
     member.kind === "StaticConstructorDeclaration" ||
     (!hasExternallyVisibleAccessibility(member.modifiers) &&
-      !(member.kind === "PropertyDeclaration" && member.explicitInterface !== undefined))
+    !((member.kind === "PropertyDeclaration" || member.kind === "MethodDeclaration") && member.explicitInterface !== undefined))
   ) {
     return Object.freeze([]);
   }
@@ -179,6 +179,7 @@ function publicTypeMember(
         typeParameters: member.typeParameters,
         returnType: member.returnType,
         parameters: member.parameters,
+        explicitInterface: member.explicitInterface,
       })];
     case "FieldDeclaration":
       return [Object.freeze({

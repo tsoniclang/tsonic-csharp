@@ -83,7 +83,14 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   }
 }
 
+const noBoundTypeNames: ReadonlyMap<string, number> = new Map();
+
 export function targetTypeRefKey(type: TargetTypeRef): string {
+  return scopedTargetTypeRefKey(type, noBoundTypeNames);
+}
+
+export function scopedTargetTypeRefKey(type: TargetTypeRef, boundNames: ReadonlyMap<string, number>): string {
+  const key = (child: TargetTypeRef): string => scopedTargetTypeRefKey(child, boundNames);
   const nullablePrefix = isCsharpNullableReferenceTargetType(type)
     ? "nullable-reference:"
     : "";
@@ -91,23 +98,25 @@ export function targetTypeRefKey(type: TargetTypeRef): string {
     case "source-primitive":
       return `${nullablePrefix}source:${type.name}`;
     case "source-global":
-      return `${nullablePrefix}source-global:${type.name}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+      return `${nullablePrefix}source-global:${type.name}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "target-named":
-      return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+      return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(key).join(",")}>`;
     case "type-parameter":
-      return `${nullablePrefix}type-parameter:${type.name}`;
+      return boundNames.has(type.name)
+        ? `${nullablePrefix}bound-type-parameter:${boundNames.get(type.name)}`
+        : `${nullablePrefix}type-parameter:${type.name}`;
     case "array":
-      return `${nullablePrefix}array:${type.rank ?? 1}:${targetTypeRefKey(type.element)}`;
+      return `${nullablePrefix}array:${type.rank ?? 1}:${key(type.element)}`;
     case "tuple":
-      return `${nullablePrefix}tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
+      return `${nullablePrefix}tuple:${type.elements.map(key).join(",")}`;
     case "pointer":
-      return `${nullablePrefix}pointer:${type.mutability ?? ""}:${targetTypeRefKey(type.pointee)}`;
+      return `${nullablePrefix}pointer:${type.mutability ?? ""}:${key(type.pointee)}`;
     case "function-pointer":
-      return `${nullablePrefix}function-pointer:${(type.abi ?? []).join(",")}:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
+      return `${nullablePrefix}function-pointer:${(type.abi ?? []).join(",")}:${type.args.map(key).join(",")}=>${key(type.result)}`;
     case "opaque":
       return `${nullablePrefix}opaque:${type.id}`;
     case "associated-type":
-      return `${nullablePrefix}associated:${type.name}:${targetTypeRefKey(type.owner)}`;
+      return `${nullablePrefix}associated:${type.name}:${key(type.owner)}`;
     case "lifetime":
       return `${nullablePrefix}lifetime:${type.name}`;
     case "target-specific":

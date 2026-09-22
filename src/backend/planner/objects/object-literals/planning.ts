@@ -24,6 +24,8 @@ import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../../../target-ast/roslyn/index.js";
 import type { CsharpObjectShapeFact } from "../../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
+import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import { planCsharpObjectCaptureAssignments } from "../declarations/generic-methods.js";
 import { csharpConstructibleTypeFromObjectShapeFact } from "../index.js";
 import {
   translateCsharpJsValueInvocation,
@@ -51,6 +53,7 @@ export function planObjectLiteralExpressionWithExpectedType(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedTargetType?: TargetTypeRef,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const unionShape = expectedTargetType === undefined ? undefined
     : input.types.objectShapes.resolveObjectLiteralUnionShape(node, expectedTargetType);
@@ -92,7 +95,7 @@ export function planObjectLiteralExpressionWithExpectedType(
     objectShape = projection.shape;
   }
   if (objectShape !== undefined) {
-    return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType);
+    return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType, state);
   }
   void expectedType;
   diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
@@ -107,6 +110,7 @@ function planObjectLiteralExpressionWithObjectShape(
   objectShape: CsharpObjectShapeFact,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (isCsharpJsValueObjectShapeTargetType(objectShape.targetType)) {
     return planJsValueObjectLiteral(
@@ -128,7 +132,9 @@ function planObjectLiteralExpressionWithObjectShape(
     return undefined;
   }
   const literal = AsObjectLiteralExpression(input.program.source.ast, node)!;
-  const assignments: CsharpObjectInitializerAssignment[] = [];
+  const captures = planCsharpObjectCaptureAssignments(objectShape, input, diagnostics, state);
+  if (captures === undefined) return undefined;
+  const assignments: CsharpObjectInitializerAssignment[] = [...captures];
   for (const property of literal.Properties?.Nodes ?? []) {
     if (property === undefined) {
       continue;

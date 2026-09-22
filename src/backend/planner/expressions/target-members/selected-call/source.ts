@@ -1,9 +1,8 @@
 import { applyCalleeTypeArguments, isProjectSourceDeclaration, sourceCalleeRequiresExactTargetArity } from "./helpers.js";
+import { planCsharpUnionDispatcherCall } from "./union.js";
 import { planCsharpSourceUndefinedValue } from "../../undefined-values.js";
 import { translateCallArgument } from "./arguments.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
-import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
-import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
 import type { CallArgumentPlanner, ExpressionPlanner } from "../../expression-planner-types.js";
 import type { CsharpArgument, CsharpExpression } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
@@ -13,6 +12,7 @@ import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/
 import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -48,24 +48,8 @@ export function translateSourceOwnedCall(
     const union = classification.unionCall;
     const receiver = planExpression(union.receiver, sourceFile, input, diagnostics);
     const arguments_ = translateSourceOwnedArguments(node, source, classification, sourceFile, input, diagnostics, planExpression, planCallArgument);
-    if (receiver === undefined || arguments_ === undefined) return undefined;
-    const resultType = csharpTypeFromTargetTypeRef(union.resultType);
-    if (resultType === undefined) return undefined;
-    return {
-      kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver, name: "Match",
-        ...(isCsharpVoidTargetType(union.resultType) ? {} : { typeArguments: [resultType] }) },
-      arguments: union.methods.map((method, index) => {
-        const name = `__tsonic_union_arm${index + 1}`;
-        return { kind: "Argument", expression: {
-          kind: "LambdaExpression",
-          parameters: [{ kind: "Parameter", name }],
-          body: { kind: "InvocationExpression", callee: {
-            kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name }, name: method.targetName,
-          }, arguments: arguments_ },
-        } };
-      }),
-    };
+    return receiver === undefined || arguments_ === undefined ? undefined
+      : planCsharpUnionDispatcherCall(node, source, classification, receiver, arguments_, input, diagnostics);
   }
   let callee = planExpression(
     source.sourceCallee.expression,
@@ -75,6 +59,9 @@ export function translateSourceOwnedCall(
   );
   if (callee === undefined) {
     return undefined;
+  }
+  if (classification.sourceMethodValue !== undefined) {
+    callee = { kind: "SimpleMemberAccessExpression", receiver: callee, name: classification.sourceMethodValue.method };
   }
   const typeArguments = classification.sourceTypeArguments;
   if (typeArguments === undefined) {
@@ -118,6 +105,14 @@ export function translateSourceOwnedArguments(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): readonly CsharpArgument[] | undefined {
+  const exactTargetArity = classification.sourceMethodValue === undefined && sourceCalleeRequiresExactTargetArity(source, input);
+  const nativeParameters = classification.sourceNativeParameters;
+  const groups = csharpSourceArgumentGroups(source, classification, exactTargetArity);
+  if (nativeParameters === undefined || groups === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
+    return undefined;
+  }
+  const restIndex = nativeParameters.findIndex(parameter => parameter.paramsArray === true);
   const bindingsBySourceArgument = new Map<
     number,
     ResolvedSourceCallInfo["sourceArgumentBindings"]
@@ -157,9 +152,8 @@ export function translateSourceOwnedArguments(
       ));
       return undefined;
     }
-    const parameter = source.sourceSelectedSignatureParameters[
-      first.sourceParameterIndex
-    ];
+    const parameterIndex = restIndex < 0 ? first.effectiveArgumentIndex : Math.min(first.effectiveArgumentIndex, restIndex);
+    const parameter = nativeParameters[parameterIndex];
     const bindingIndex = source.sourceArgumentBindings.indexOf(first);
     const targetType = bindingIndex < 0
       ? undefined
@@ -172,14 +166,20 @@ export function translateSourceOwnedArguments(
       return undefined;
     }
     const targetParameter: CsharpTargetParameter = {
-      name: parameter.parameterName,
+      name: parameter.name,
       type: targetType,
       passingMode: "by-value",
-      ...(parameter.acceptsOmission ? { optional: true } : {}),
-      ...(parameter.rest ? { paramsArray: true } : {}),
+      ...(parameter.optional === true ? { optional: true } : {}),
+      ...(parameter.paramsArray === true && first.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
     };
+    const value = first.sourceForm === "spread-sequence"
+      ? input.program.source.ast.as.AsSpreadElement(argument)?.Expression : argument;
+    if (value === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(argument, "A selected sequence spread has no exact source operand."));
+      return undefined;
+    }
     const plannedArgument = translateCallArgument(
-      argument,
+      value,
       targetParameter,
       first.sourceForm,
       sourceFile,
@@ -193,58 +193,31 @@ export function translateSourceOwnedArguments(
     }
     planned.push(plannedArgument);
   }
-  const boundParameterIndexes = new Set(
-    source.sourceArgumentBindings.map((binding) => binding.sourceParameterIndex),
-  );
-  for (
-    let parameterIndex = 0;
-    parameterIndex < source.sourceSelectedSignatureParameters.length;
-    parameterIndex += 1
-  ) {
-    if (boundParameterIndexes.has(parameterIndex)) {
+  const arguments_: CsharpArgument[] = [];
+  for (const group of groups) {
+    if (group.collect) {
+      arguments_.push({ kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
+        kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: planned[argument.index]!.expression,
+      })) } });
       continue;
     }
-    const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
-    if (parameter === undefined || parameter.rest) {
+    const argument = group.arguments[0];
+    if (argument !== undefined) {
+      arguments_.push(planned[argument.index]!);
       continue;
     }
-    if (!parameter.acceptsOmission) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Source-owned selected parameter ${parameterIndex} has no exact source argument and does not accept omission.`,
-      ));
-      return undefined;
-    }
-    const exactTargetArity = sourceCalleeRequiresExactTargetArity(
-      source,
-      input,
-    );
-    if (!exactTargetArity) {
-      continue;
-    }
-    const declaration = input.program.source.ast.as.AsParameterDeclaration(
-      parameter.parameterDeclaration,
-    );
-    if (declaration?.Initializer !== undefined &&
-      (parameter.parameterDeclaration === undefined ||
-        input.program.declarations.referenceDefault(parameter.parameterDeclaration) === undefined)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Omitted source-owned delegate parameter ${parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`,
-      ));
-      return undefined;
-    }
-    const targetType = classification.sourceParameterTypes?.[parameterIndex];
-    if (targetType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Omitted source-owned selected parameter ${parameterIndex} has no closed C# type.`,
-      ));
+    const parameter = source.sourceSelectedSignatureParameters[group.parameterIndex];
+    const declaration = parameter === undefined ? undefined
+      : input.program.source.ast.as.AsParameterDeclaration(parameter.parameterDeclaration);
+    if (declaration?.Initializer !== undefined && parameter?.parameterDeclaration !== undefined &&
+      input.program.declarations.referenceDefault(parameter.parameterDeclaration) === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node,
+        `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`));
       return undefined;
     }
     const omitted = planCsharpSourceUndefinedValue(
       node,
-      targetType,
+      group.type,
       sourceFile,
       input,
       diagnostics,
@@ -252,11 +225,11 @@ export function translateSourceOwnedArguments(
     if (omitted.kind !== "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        `Omitted source-owned selected parameter ${parameterIndex} has no exact C# representation for source undefined.`,
+        `Omitted source-owned selected parameter ${group.parameterIndex} has no exact C# representation for source undefined.`,
       ));
       return undefined;
     }
-    planned.push({ kind: "Argument", expression: omitted.expression });
+    arguments_.push({ kind: "Argument", expression: omitted.expression });
   }
-  return planned;
+  return arguments_;
 }
