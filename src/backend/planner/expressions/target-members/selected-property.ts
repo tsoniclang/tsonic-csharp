@@ -37,6 +37,8 @@ import {
 } from "../flow-read-projections.js";
 import { applyCsharpConversionSelection } from "../conversions.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
+import { getCsharpGenericMethodValue } from "../../../../target-model/types/generic-method-values.js";
+import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function translateCsharpPropertyAccess(
   node: Node,
@@ -296,6 +298,7 @@ function translateSourceOwnedProperty(
   const nameNode = input.program.source.ast.name(declaration) ?? syntaxName;
   const methodValue = objectShape !== undefined && shapeMember?.kind === "resolved" &&
     shapeMember.member.memberKind === "method" && !selection.source.callCallee;
+  const genericMethodValue = getCsharpGenericMethodValue(rawReadType);
   if (methodValue) {
     const required = input.artifacts.requireObjectShapeCapability(undefined, objectShape.targetType,
       sourceFile, "method-values", "object-shape");
@@ -338,6 +341,14 @@ function translateSourceOwnedProperty(
   );
   if (receiver === undefined) {
     return undefined;
+  }
+  if (genericMethodValue !== undefined) {
+    if (objectShape === undefined || shapeMember?.kind !== "resolved" ||
+        genericMethodValue.method !== shapeMember.member.targetName ||
+        !targetTypeRefEquals(genericMethodValue.owner, objectShape.targetType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A generic method value lost its exact selected native owner."));
+      return undefined;
+    }
   }
   const planned = jsValueOperation.kind === "resolved" && jsValueSourceName !== undefined
     ? translateCsharpJsValueInvocation(

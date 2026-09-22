@@ -1,5 +1,6 @@
 import { validateBinaryTargetSemantics, validateUnaryTargetSemantics, isCsharpReferenceCarrier, isEquality, isRelational, isShift, isBitwise, isArithmetic } from "./operator-validation.js";
 import { Node_Expression } from "@tsonic/target-api/source";
+import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import type {
   Node,
   SourceFile,
@@ -81,6 +82,7 @@ export type CsharpTargetBinaryOperation =
   | {
       readonly kind: "reference-identity";
       readonly negated: boolean;
+      readonly distinctMethodValues?: true;
     };
 
 export interface CsharpResolvedUnaryOperation {
@@ -303,9 +305,16 @@ function selectStrictReferenceIdentity(
   input: CsharpPolicyContext,
 ): Extract<CsharpTargetBinaryOperation, { readonly kind: "reference-identity" }> |
     undefined {
-  if (operator !== "===" && operator !== "!==") {
+  if (operator !== "===" && operator !== "!==" && operator !== "==" && operator !== "!=") {
     return undefined;
   }
+  const leftMethod = getCsharpGenericMethodValue(left);
+  const rightMethod = getCsharpGenericMethodValue(right);
+  if (leftMethod !== undefined && rightMethod !== undefined) {
+    return { kind: "reference-identity", negated: operator === "!==" || operator === "!=",
+      ...(leftMethod.identity === rightMethod.identity ? {} : { distinctMethodValues: true }) };
+  }
+  if (operator !== "===" && operator !== "!==") return undefined;
   const leftIdentity = referenceIdentityCarrier(left, input);
   const rightIdentity = referenceIdentityCarrier(right, input);
   return leftIdentity !== undefined && rightIdentity !== undefined &&

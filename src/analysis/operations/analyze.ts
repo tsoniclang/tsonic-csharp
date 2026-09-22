@@ -1,4 +1,5 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
+import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import {
@@ -340,7 +341,10 @@ function visit(
       ? jsValue.resultType
       : policy.types.resolveNode(node, sourceFile);
     const optionalReceiver = classifyCsharpOptionalCallReceiver(policy, source, target, sourceFile);
+    const sourceMethodValue = source === undefined ? undefined
+      : getCsharpGenericMethodValue(policy.types.resolveNode(source.sourceCallee.expression, sourceFile));
     setClassification(builder, node, callKey, Object.freeze({
+      ...(sourceMethodValue === undefined ? {} : { sourceMethodValue }),
       ...(optionalReceiver === undefined ? {} : { optionalReceiver }),
       unionCall: classifyCsharpUnionCall(policy, source, sourceFile),
       ...(source === undefined ? {} : { source }),

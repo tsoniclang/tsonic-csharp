@@ -59,6 +59,9 @@ export function translateSourceOwnedCall(
   if (callee === undefined) {
     return undefined;
   }
+  if (classification.sourceMethodValue !== undefined) {
+    callee = { kind: "SimpleMemberAccessExpression", receiver: callee, name: classification.sourceMethodValue.method };
+  }
   const typeArguments = classification.sourceTypeArguments;
   if (typeArguments === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
@@ -198,7 +201,7 @@ export function translateSourceOwnedArguments(
       ));
       return undefined;
     }
-    const exactTargetArity = sourceCalleeRequiresExactTargetArity(
+    const exactTargetArity = classification.sourceMethodValue === undefined && sourceCalleeRequiresExactTargetArity(
       source,
       input,
     );

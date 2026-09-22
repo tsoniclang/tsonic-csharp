@@ -46,7 +46,7 @@ import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../.
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
-import { genericObjectMethodFiles, genericObjectCaptureSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
+import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
 
 test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", files: genericObjectMethodFiles,
@@ -65,6 +65,15 @@ test("generic object methods retain native binders, independent bodies and share
 
 test("generic method captures preserve parameters, destructuring and loop activation identity", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: genericObjectCaptureSource }), "generic-object-captures");
+});
+
+test("generic method values retain the original environment without a wrapper or delegate", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: genericObjectMethodValueSource });
+  execute(compiled, "generic-object-method-values");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.doesNotMatch(generated, /DynamicInvoke|System\.Reflection|System\.Linq\.Expressions/u);
+  assert.match(generated, /identity<[^>]+>/u);
+  assert.doesNotMatch(generated, /Func<T,\s*T>\s+(?:identity|alias|escaped|selected)/u);
 });
 
 test("class structural views retain native reference identity across all value boundaries", { timeout: 300_000 }, () => {

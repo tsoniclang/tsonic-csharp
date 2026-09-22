@@ -50,6 +50,7 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpReadOnlyIndexableElementType);
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);
+    addDefined(components, target.csharpGenericMethodValue?.owner);
     addDefined(components, target.csharpTaskResultType);
     components.push(...target.csharpDelegateSignature?.parameters ?? []);
     addDefined(components, target.csharpDelegateSignature?.returnType);

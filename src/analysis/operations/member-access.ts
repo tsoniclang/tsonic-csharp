@@ -26,6 +26,7 @@ import type {
 } from "./model.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { classifyCsharpBoundFieldWrite } from "./bound-field-writes.js";
+import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
 
 export function elementSelectedTypes(
   policy: CsharpPolicyContext,
@@ -134,8 +135,10 @@ export function classifySourceOwnedProperty(
       ? jsValueOperation.resultType
       : shapeMember.member.type
     : policy.types.resolveReadStorage(selection.source.expression, sourceFile);
+  const methodValueType = selection.source.callCallee ? undefined : policy.types.resolveReadStorage(selection.source.expression, sourceFile);
+  const selectedMethodValue = getCsharpGenericMethodValue(methodValueType) === undefined ? undefined : methodValueType;
   const rawReadType = optionalResultType(
-    rawMemberReadType,
+    selectedMethodValue ?? rawMemberReadType,
     selection.source.optionalChain,
   );
   const selectedSourceReadType = optionalResultType(
@@ -154,13 +157,13 @@ export function classifySourceOwnedProperty(
           semantics.types.relationship(left, right) !== "unrelated",
       )
     : undefined;
-  const selectedReadType = shapeMember?.kind === "resolved"
+  const selectedReadType = selectedMethodValue ?? (shapeMember?.kind === "resolved"
     ? optionalResultType(
         selectedMemberReadType,
         selection.source.optionalChain,
       ) ?? selectedSourceReadType
     : selectedSourceReadType ??
-      policy.types.resolveNode(selection.source.expression, sourceFile);
+      policy.types.resolveNode(selection.source.expression, sourceFile));
   const projectedWrite = classifyCsharpBoundFieldWrite(
     policy, selection.source.expression, sourceFile, rawMemberReadType,
   );

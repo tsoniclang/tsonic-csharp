@@ -204,6 +204,13 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpStringIteration?: CsharpStringIterationPolicy;
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
+  readonly csharpGenericMethodValue?: {
+    readonly owner: TargetTypeRef;
+    readonly method: string;
+    readonly identity: string;
+    readonly contract: TargetTypeRef;
+    readonly typeParameters: readonly string[];
+  };
   readonly csharpTaskResultType?: TargetTypeRef;
   readonly csharpGeneratorProtocol?: CsharpGeneratorProtocol;
   readonly csharpIteratorResultProtocol?: CsharpIteratorResultProtocol;

@@ -16,6 +16,7 @@ import type {
 import {
   isCsharpJsValueTargetType,
 } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 
 export function isTypeParameterTargetRef(
   type: TargetTypeRef | undefined,
@@ -40,7 +41,7 @@ export function isSourceOwnedCallableRuntimeCarrierSubject(
   }
   const carrier = input.types.resolveNode(node, sourceFile);
   const reference = input.navigation.referenceFor(node);
-  return isCsharpDelegateTargetRef(carrier) &&
+  return (isCsharpDelegateTargetRef(carrier) || getCsharpGenericMethodValue(carrier) !== undefined) &&
     (
       isDirectSourceCallableSyntax(node, input) ||
       isSourceDeclaredCallableReference(reference, input) ||

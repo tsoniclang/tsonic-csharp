@@ -9,6 +9,7 @@ import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
+import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
@@ -231,6 +232,11 @@ export function resolvePropertyAccessTargetType(
     queries,
     state,
   );
+  if (!selection.source.callCallee && selection.source.accessMode === "read") {
+    const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host);
+    if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
+  }
   const selectedSourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;

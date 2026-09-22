@@ -52,6 +52,7 @@ import type {
 } from "../../policy/operations/index.js";
 
 export interface CsharpSourceCallArgumentClassification {
+  readonly sourceMethodValue?: NonNullable<import("../../target-model/types/model.js").CsharpTargetNamedTypeRef["csharpGenericMethodValue"]>;
   readonly sourceParameterTypes?: readonly (TargetTypeRef | undefined)[];
   readonly sourceArgumentParameterTypes?: readonly (TargetTypeRef | undefined)[];
 }

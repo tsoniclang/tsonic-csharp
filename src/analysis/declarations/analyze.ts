@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { csharpGenericMethodValueCoversContract } from "../../target-model/types/generic-method-values.js";
 import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
@@ -192,7 +193,7 @@ function uncoveredBaselineReturnAlternatives(
   collectTargetContractAlternatives(baseline, alternatives);
   return [...alternatives.values()].filter((alternative) =>
     !observed.some((source) =>
-      csharpConversionIsApplicable(
+      csharpGenericMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
         selectCsharpConversion(policy, source, alternative, "implicit"),
         "implicit",
       )

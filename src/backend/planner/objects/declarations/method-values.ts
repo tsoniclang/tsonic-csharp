@@ -25,15 +25,15 @@ export function renderCsharpMethodValueContracts(
     if (explicitInterface === undefined) return undefined;
     for (const required of contract.members) {
       if (required.memberKind !== "method") continue;
-      if ((required.typeParameters?.length ?? 0) > 0) continue;
+      const generic = (required.typeParameters?.length ?? 0) > 0;
       const exact = shape.members.filter(candidate =>
         csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(required));
       const selected = exact.length === 1 ? exact[0] : undefined;
-      const memberType = selected === undefined ? undefined : csharpTypeFromTargetTypeRef(selected.type);
+      const memberType = selected === undefined ? undefined : csharpTypeFromTargetTypeRef(generic ? contract.targetType : selected.type);
       if (selected === undefined || memberType === undefined || input.artifacts.objectShapeMethodUsesReceiver(shape, selected)) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(contract, required),
         explicitInterface, modifiers: [], type: memberType, getter: { kind: "Block", statements: [{
-          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: objectShapeStorageMemberName(shape, selected) },
+          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: generic ? "this" : objectShapeStorageMemberName(shape, selected) },
         }] } });
     }
   }

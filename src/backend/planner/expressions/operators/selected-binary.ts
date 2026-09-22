@@ -160,7 +160,14 @@ export function planSelectedCsharpBinaryOperation(
     if (left === undefined || right === undefined) {
       return undefined;
     }
-    const comparison = callStatic(
+    const comparison: CsharpExpression = selection.targetOperation.distinctMethodValues === true ? {
+      kind: "BinaryExpression",
+      left: { kind: "TupleExpression", elements: [left, right] },
+      operatorToken: { kind: "EqualsEqualsToken" },
+      right: { kind: "TupleExpression", elements: [
+        { kind: "LiteralExpression", value: null }, { kind: "LiteralExpression", value: null },
+      ] },
+    } : callStatic(
       { kind: "PredefinedType", name: "object" },
       "ReferenceEquals",
       [left, right],

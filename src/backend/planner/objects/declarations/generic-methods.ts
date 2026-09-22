@@ -12,6 +12,8 @@ import type { DestructuringPlannerState } from "../../bindings/binding-state.js"
 import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
 import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
+import { sourceCallableUsesLexicalThis } from "@tsonic/target-api/source";
+import { objectShapeStorageMemberName } from "../object-shape-storage.js";
 
 interface ObjectCaptureField {
   readonly name: string;
@@ -73,6 +75,13 @@ export function renderCsharpGenericObjectMethods(
       return undefined;
     }
     const declaration = declarations[0]!;
+    if (sourceCallableUsesLexicalThis(input.program.source.ast, declaration)) {
+      const selected = input.artifacts.requireObjectShapeMethodReceiver(shape, member);
+      if (selected.kind === "rejected") {
+        diagnostics.push(unsupportedNodeDiagnostic(declaration, selected.reason));
+        return undefined;
+      }
+    }
     const sourceFile = input.program.source.ast.getSourceFile(declaration);
     if (sourceFile === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(declaration, "A generic object method requires its exact checked source file."));
@@ -82,6 +91,14 @@ export function renderCsharpGenericObjectMethods(
     const method = planMethodDeclaration(declaration, sourceFile, methodContext, diagnostics);
     members.push({ ...method, name: member.targetName });
     members.push(...methodContext.scope.generatedMethods?.values() ?? []);
+    if (input.artifacts.objectShapeHasCapability(shape, "method-values")) {
+      const type = csharpTypeFromTargetTypeRef(shape.targetType);
+      if (type === undefined) return undefined;
+      members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member),
+        modifiers: ["public"], type,
+        getter: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "IdentifierName", name: "this" } }] },
+      });
+    }
   }
   return members;
 }

@@ -13,8 +13,8 @@ export function renderCsharpStructuralInterfaceMembers(shape: CsharpObjectShapeF
   const result: CsharpInterfaceMember[] = [];
   for (const member of shape.members) {
     if (member.memberKind === "method") {
-      if (methodValues && (member.typeParameters?.length ?? 0) === 0) {
-        const type = csharpTypeFromTargetTypeRef(member.type);
+      if (methodValues) {
+        const type = csharpTypeFromTargetTypeRef((member.typeParameters?.length ?? 0) === 0 ? member.type : shape.targetType);
         if (type === undefined) return undefined;
         result.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(shape, member), type, writable: false });
       }
