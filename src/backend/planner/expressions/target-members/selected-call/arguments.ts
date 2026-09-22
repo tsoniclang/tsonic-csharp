@@ -7,7 +7,7 @@ import {
 } from "../../../../../target-model/types/index.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { targetArgumentOrderIsRepresentable } from "./helpers.js";
-import { planCsharpNumericRestSequence } from "./numeric-rest-sequences.js";
+import { planCsharpRestSequence } from "./rest-sequences.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import type {
   CsharpSelectedCallArgument,
@@ -89,7 +89,7 @@ export function translateSelectedTargetArguments(
       if (plannedSequences.has(sequence.sourceArgumentIndex)) continue;
       const operand = input.program.source.ast.as.AsSpreadElement(sourceArgument)?.Expression;
       if (operand !== sequence.expression || sequence.targetParameterIndex !== argumentSelection.targetParameterIndex) return undefined;
-      const expression = planCsharpNumericRestSequence(sequence, sourceFile, input, diagnostics, planExpression);
+      const expression = planCsharpRestSequence(sequence, sourceFile, input, diagnostics, planExpression);
       if (expression === undefined) return undefined;
       plannedSequences.add(sequence.sourceArgumentIndex);
       planned.push({ parameterIndex: sequence.targetParameterIndex, effectiveArgumentIndex: argumentSelection.sourceArgumentIndex,

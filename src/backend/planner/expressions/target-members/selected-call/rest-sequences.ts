@@ -9,7 +9,7 @@ import type { CsharpSelectedTargetCall } from "../../../../../analysis/operation
 import type { SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
-export function planCsharpNumericRestSequence(
+export function planCsharpRestSequence(
   sequence: NonNullable<CsharpSelectedTargetCall["sequenceArguments"]>[number],
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -44,6 +44,13 @@ export function planCsharpNumericRestSequence(
   }
   const element = sequence.elements[0];
   if (sequence.elements.length !== 1 || element === undefined) return undefined;
+  if (sequence.semantics === "native") {
+    const elementType = csharpTypeFromTargetTypeRef(sequence.targetElementType);
+    return elementType === undefined ? undefined : {
+      kind: "CastExpression", type: { kind: "ArrayType", elementType },
+      expression: { kind: "CollectionExpression", elements: [{ kind: "SpreadElement", expression: source }] },
+    };
+  }
   const type = csharpTypeFromTargetTypeRef(element.type);
   if (type === undefined) return undefined;
   const converted = applyCsharpConversionSelection(sequence.expression, sourceFile, input, diagnostics,

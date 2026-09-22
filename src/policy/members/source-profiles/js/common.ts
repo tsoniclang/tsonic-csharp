@@ -1,7 +1,7 @@
 import type {
   CsharpTargetReceiverRelation,
 } from "../../../../providers/relations/index.js";
-import { finalizeCsharpNumericRestSequences } from "../numeric-rest-sequences.js";
+import { finalizeCsharpRestSequences } from "../rest-sequences.js";
 import type {
   CsharpTargetMember,
   CsharpTargetParameter,
@@ -131,7 +131,7 @@ export function jsCallPolicy(
               targetParameterBySourceParameter,
             },
           );
-      const call = selected === undefined ? undefined : finalizeCsharpNumericRestSequences(context, selected);
+      const call = selected === undefined ? undefined : finalizeCsharpRestSequences(context, selected);
       return call === undefined
         ? {
             kind: "rejected",

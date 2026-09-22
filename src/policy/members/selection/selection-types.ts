@@ -34,6 +34,7 @@ interface CsharpSelectedTargetCallBase {
     readonly sourceArgumentIndex: number;
     readonly expression: Node;
     readonly sourceType: TargetTypeRef;
+    readonly semantics: "native" | "number-nan";
     readonly elements: readonly {
       readonly type: TargetTypeRef;
       readonly conversion: CsharpConversionSelection;
