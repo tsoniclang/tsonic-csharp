@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import { createCsharpMemberPlanningContext } from "../context.js";
 import {
   AsExportAssignment,
   AsFunctionDeclaration,
@@ -92,6 +93,7 @@ export function planSourceFile(
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
+  input = createCsharpMemberPlanningContext(input);
   const moduleClassName = sourceFileClassName(input, fileName);
   const hasModuleInitializer = moduleInitialization.requiresInitializer(
     sourceFile,
@@ -296,6 +298,7 @@ export function planSourceFile(
       });
     }
   }
+  members.push(...input.scope.generatedMethods!.values());
   if (members.length > 0) {
     namespaceMembers.unshift({
       kind: "ClassDeclaration",

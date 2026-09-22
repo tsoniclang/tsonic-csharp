@@ -44,6 +44,21 @@ import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nul
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
+import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
+
+test("union calls compose generic, default, rest and async contracts without dispatch closures", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", files: unionCallContractsFiles,
+    sourceText: unionCallContractsFiles["index.ts"] });
+  execute(compiled, "union-call-contracts", true);
+  const native = [...compiled.artifacts.values()].join("\n");
+  assert.match(native, /private static [^\n]*__tsonic_union_call_/u);
+  assert.doesNotMatch(native, /\.Match(?:<[^\n]+>)?\(/u);
+  for (const sourceText of incompatibleUnionCalls) {
+    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+    assert.equal(invalid.artifacts.size, 0);
+  }
+});
 
 test("optional indexed arguments retain absence and single evaluation", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: optionalIndexedArgumentsSource }), "optional-indexed-arguments");

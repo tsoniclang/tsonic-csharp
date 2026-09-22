@@ -29,6 +29,7 @@ import type {
   CsharpTargetProgram,
 } from "../../analysis/program/index.js";
 import type { SourceFile } from "@tsonic/tsts";
+import type { CsharpMethodDeclaration } from "../target-ast/roslyn/index.js";
 
 export interface CsharpPlanningTypeClassifications {
   resolveNode(
@@ -52,10 +53,20 @@ export interface CsharpPlanningTypeView {
 }
 
 export interface CsharpPlanningScope {
+  readonly generatedMethods?: Map<Node, CsharpMethodDeclaration>;
   readonly sourceThisBinding?: {
     readonly name: string;
     readonly targetType: TargetTypeRef;
   };
+}
+
+export function createCsharpMemberPlanningContext(
+  input: CsharpPlanningContext,
+): CsharpPlanningContext {
+  return Object.freeze({
+    ...input,
+    scope: Object.freeze({ ...input.scope, generatedMethods: new Map<Node, CsharpMethodDeclaration>() }),
+  });
 }
 
 export interface CsharpPlanningContext {

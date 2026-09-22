@@ -6,6 +6,7 @@ import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpSourceArgumentPassingMode } from "../../policy/members/selection/argument-selection.js";
+import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 
 export type CsharpUnionCallClassification =
   | { readonly kind: "not-union" }
@@ -33,10 +34,9 @@ export function classifyCsharpUnionCall(
   if (arms === undefined || receiverType === undefined ||
     arms.some(arm => policy.projectTypes.catalog.definitionForTarget(arm)?.kind !== "class")) return { kind: "not-union" };
   const reject = (reason: string): CsharpUnionCallClassification => ({ kind: "rejected", reason });
-  if (property.optionalChain || (source.sourceSelectedMethodTypeArguments?.length ?? 0) !== 0 ||
-    source.sourceSelectedSignatureParameters.some(parameter => parameter.rest || parameter.acceptsOmission) ||
+  if (property.optionalChain ||
     source.sourceArguments.some(argument => csharpSourceArgumentPassingMode(policy.sourceFacts, argument.expression) !== "by-value")) {
-    return reject("Closed class-union calls require exact required value arguments and a synchronous non-generic method contract.");
+    return reject("Closed class-union calls require a present receiver and exact value-argument passing contracts.");
   }
   const selectedProperty = semantics.types.propertyInfos(property.receiver.type).filter(info => info.symbol === property.selectedSymbol);
   const declarations = [...semantics.facts.selectedSubjects(property.selectedSymbol, property.selectedDeclaration),
@@ -47,7 +47,8 @@ export function classifyCsharpUnionCall(
     });
   const parameterTypes = source.sourceSelectedSignatureParameters.map((_, index) => policy.types.resolveSourceCallParameter(source, index, sourceFile));
   const resultType = policy.types.resolveSourceCallResult(source, sourceFile);
-  if (resultType === undefined || parameterTypes.some(type => type === undefined)) return reject("Closed class-union call arguments and result require exact target carriers.");
+  const typeArguments = policy.types.resolveSourceCallTypeArguments(source, sourceFile);
+  if (resultType === undefined || typeArguments === undefined || parameterTypes.some(type => type === undefined)) return reject("Closed class-union call arguments and result require exact target carriers.");
   const methods = arms.map(arm => {
     const owners = new Set<Node>();
     const pending = [arm];
@@ -62,8 +63,7 @@ export function classifyCsharpUnionCall(
       pending.push(...(policy.projectTypes.directSupertypes(type) ?? []));
     }
     const candidates = [...new Set(declarations)].filter(declaration => {
-      if (policy.ast.kindName(declaration) !== "KindMethodDeclaration" || policy.ast.hasModifierKind(declaration, "static") ||
-        policy.ast.hasModifierKind(declaration, "async") || policy.ast.typeParameters(declaration).length !== 0) return false;
+      if (policy.ast.kindName(declaration) !== "KindMethodDeclaration" || policy.ast.hasModifierKind(declaration, "static")) return false;
       const owner = policy.projectTypes.catalog.definitionContainingDeclaration(declaration);
       return owner !== undefined && owners.has(owner.declaration);
     });
@@ -72,14 +72,26 @@ export function classifyCsharpUnionCall(
     const name = policy.ast.name(declaration);
     const parameters = policy.ast.parameters(declaration);
     if (!policy.ast.is.IsIdentifier(name) || parameters.length !== parameterTypes.length) return undefined;
+    const typeParameters = policy.ast.typeParameters(declaration);
+    if (typeParameters.length !== typeArguments.length || typeParameters.some(parameter =>
+      parameter === undefined || !policy.ast.is.IsIdentifier(policy.ast.name(parameter)))) return undefined;
+    const substitutions = new Map(typeParameters.map((parameter, index) =>
+      [policy.ast.text(policy.ast.name(parameter)), typeArguments[index]!] as const));
     const instantiate = (member: Node, type: TargetTypeRef | undefined) => {
       if (type === undefined) return undefined;
-      const value = policy.projectTypes.instantiateMemberType(member, arm, type);
+      const value = policy.projectTypes.instantiateMemberType(member, arm,
+        substituteTargetTypeParameters(type, substitutions));
       return value.kind === "resolved" ? value.type : undefined;
     };
     if (parameters.some((parameter, index) => {
       if (parameter === undefined) return true;
       const file = policy.ast.getSourceFile(parameter);
+      const contract = source.sourceSelectedSignatureParameters[index];
+      const parameterSyntax = policy.ast.as.AsParameterDeclaration(parameter);
+      if (contract === undefined || parameterSyntax === undefined ||
+        contract.rest !== (parameterSyntax.DotDotDotToken !== undefined) ||
+        contract.acceptsOmission && parameterSyntax.Initializer === undefined &&
+          policy.ast.questionToken(parameter) === undefined && !contract.rest) return true;
       const expected = parameterTypes[index];
       const actual = file === undefined ? undefined : instantiate(parameter, policy.types.resolveStorage(parameter, file));
       return expected === undefined || actual === undefined || !targetTypeRefEquals(expected, actual);

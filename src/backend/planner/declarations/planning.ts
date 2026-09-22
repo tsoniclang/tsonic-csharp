@@ -65,6 +65,7 @@ import {
 export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
 import { guardCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
+import { createCsharpMemberPlanningContext } from "../context.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -72,6 +73,7 @@ export function planClassDeclaration(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
+  input = createCsharpMemberPlanningContext(input);
   const declaration = AsClassDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
@@ -135,6 +137,7 @@ export function planClassDeclaration(
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),
+      ...input.scope.generatedMethods!.values(),
     ],
   };
 }
