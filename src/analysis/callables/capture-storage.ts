@@ -1,17 +1,24 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceBindingScope } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
+import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../object-shapes/model.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/runtime-carriers.js";
-import { targetTypeRefEquals } from "../../target-model/types/equality.js";
+import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
+import type { CsharpSourceEvidenceIndex } from "../source-evidence/model.js";
+import { selectCsharpFrameClosures, type CsharpFrameClosure } from "./capture-closures.js";
+import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 
 export interface CsharpCaptureFrame {
   readonly scope: Node;
   readonly shape: CsharpObjectShapeFact;
   readonly bindings: readonly { readonly declaration: Node; readonly fieldName: string; readonly type: TargetTypeRef }[];
+  readonly parents: readonly { readonly frame: CsharpCaptureFrame; readonly fieldName: string }[];
+  readonly methods: readonly CsharpFrameClosure[];
+  readonly receivers: readonly { readonly owner: Node; readonly references: readonly Node[]; readonly type: TargetTypeRef; readonly fieldName: string }[];
 }
 
 export interface CsharpCapturedBinding {
@@ -25,12 +32,15 @@ export interface CsharpCaptureStorage {
   frame(scope: Node): CsharpCaptureFrame | undefined;
   binding(declaration: Node): CsharpCapturedBinding | undefined;
   physicalType(declaration: Node, logicalType: TargetTypeRef): TargetTypeRef;
+  closure(declaration: Node): { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure } | undefined;
+  forShape(type: TargetTypeRef): CsharpCaptureFrame | undefined;
 }
 
 export function analyzeCsharpCaptureStorage(
   source: TargetSourceProgram,
   shapes: CsharpObjectShapeClassifications,
   storage: CsharpStorageClassifications,
+  evidence: CsharpSourceEvidenceIndex,
 ): CsharpCaptureStorage {
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
   const issues: CsharpStorageIssue[] = [];
@@ -61,24 +71,56 @@ export function analyzeCsharpCaptureStorage(
       groups.set(scope, bindings);
     }
   }
+  const closures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues);
   const byScope = new Map<Node, CsharpCaptureFrame>();
   const byBinding = new Map<Node, CsharpCapturedBinding>();
-  for (const [scope, group] of groups) {
+  const byClosure = new Map<Node, { readonly frame: CsharpCaptureFrame; readonly method: CsharpFrameClosure }>();
+  const byShape = new Map<string, CsharpCaptureFrame>();
+  const buildFrame = (scope: Node): CsharpCaptureFrame => {
+    const previous = byScope.get(scope);
+    if (previous !== undefined) return previous;
+    const group = groups.get(scope)!;
+    const methods = Object.freeze(closures.filter(closure => closure.scope === scope));
+    const parentScopes = new Set(methods.flatMap(method => method.captures.flatMap(declaration => {
+      const parentScope = sourceBindingScope(declaration, source.ast);
+      return parentScope === undefined || parentScope === scope ? [] : [parentScope];
+    })));
+    const parents = Object.freeze([...parentScopes].map((parent, index) => Object.freeze({ frame: buildFrame(parent), fieldName: `parent${index}` })));
+    const receiverMap = new Map<Node, CsharpFrameClosure["receivers"][number]>();
+    for (const method of methods) for (const receiver of method.receivers) {
+      const previous = receiverMap.get(receiver.owner);
+      receiverMap.set(receiver.owner, { ...receiver, references: Object.freeze([
+        ...new Set([...(previous?.references ?? []), ...receiver.references]),
+      ]) });
+    }
+    const receivers = Object.freeze([...receiverMap.values()].map((receiver, index) => Object.freeze({ ...receiver, fieldName: `receiver${index}` })));
     const bindings = Object.freeze([...group].map(([declaration, type], index) => Object.freeze({
       declaration, type, fieldName: `value${index}`,
     })));
-    const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(bindings.map(binding => Object.freeze({
-      sourceKey: { kind: "property" as const, name: binding.fieldName }, sourceName: binding.fieldName,
-      targetName: binding.fieldName, type: binding.type, memberKind: "property" as const,
+    const fields = [...bindings, ...parents.map(parent => ({ fieldName: parent.fieldName, type: parent.frame.shape.targetType })), ...receivers];
+    const members: readonly CsharpObjectShapeMemberFact[] = Object.freeze(fields.map(field => Object.freeze({
+      sourceKey: { kind: "property" as const, name: field.fieldName }, sourceName: field.fieldName,
+      targetName: field.fieldName, type: field.type, memberKind: "property" as const,
     })));
-    const frame = Object.freeze({ scope, bindings, shape: Object.freeze({
-      targetType: createStructuralObjectShapeTarget(members, undefined), members,
+    const selectedType = createStructuralObjectShapeTarget(members, undefined);
+    const identity = sourceNodeIdentity(source.ast, scope);
+    if (identity === undefined || selectedType.kind !== "target-named") throw new Error("A native capture frame requires an exact named source identity.");
+    const digest = createHash("sha256").update(identity).digest("hex");
+    const type = csharpTargetNamedType(`tsonic.shape:capture_${digest}`, selectedType.typeArguments,
+      { kind: "named", name: `__TsonicCapture_${digest}` });
+    const frame: CsharpCaptureFrame = Object.freeze({ scope, bindings, parents, methods, receivers, shape: Object.freeze({
+      targetType: type, members,
     }) });
     byScope.set(scope, frame);
+    byShape.set(targetTypeRefKey(type), frame);
     for (const binding of bindings) byBinding.set(binding.declaration, Object.freeze({ frame, fieldName: binding.fieldName }));
-  }
+    for (const method of methods) byClosure.set(method.declaration, Object.freeze({ frame, method }));
+    return frame;
+  };
+  for (const scope of groups.keys()) buildFrame(scope);
   return Object.freeze({ issues: Object.freeze(issues), frames: Object.freeze([...byScope.values()]),
     frame: (scope: Node) => byScope.get(scope), binding: (declaration: Node) => byBinding.get(declaration), physicalType,
+    closure: (declaration: Node) => byClosure.get(declaration), forShape: (type: TargetTypeRef) => byShape.get(targetTypeRefKey(type)),
   });
 }
 

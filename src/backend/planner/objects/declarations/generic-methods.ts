@@ -9,8 +9,8 @@ import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromObjectShapeFact } from "../planning.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
-import { csharpCaptureFrameName, getCsharpLocalBindingName } from "../../bindings/binding-state.js";
-import { csharpCapturedBindingExpression } from "../../bindings/capture-storage.js";
+import { getCsharpLocalBindingName } from "../../bindings/binding-state.js";
+import { csharpCapturedBindingExpression, csharpCaptureFrameExpression } from "../../bindings/capture-storage.js";
 import { requireCsharpIdentifier } from "../../../../target-model/names/identifiers.js";
 
 interface ObjectCaptureField {
@@ -51,6 +51,7 @@ export function renderCsharpGenericObjectMethods(
   if (implementation === undefined) return [];
   const members: CsharpTypeMember[] = [];
   const capturedBindings = new Map<Node, CsharpExpression>();
+  const captureFrames = new Map<Node, CsharpExpression>();
   for (const field of objectCaptureFields(shape, input)) {
     const type = csharpTypeFromTargetTypeRef(field.type);
     if (type === undefined) return undefined;
@@ -58,10 +59,11 @@ export function renderCsharpGenericObjectMethods(
     if (frame !== undefined && csharpTypeFromObjectShapeFact(input, frame.shape, diagnostics, implementation.declaration) === undefined) return undefined;
     members.push({ kind: "FieldDeclaration", name: field.name, type, modifiers: ["public", "required"] });
     const receiver: CsharpExpression = { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: field.name };
+    if (field.frameScope !== undefined) captureFrames.set(field.frameScope, receiver);
     for (const binding of field.declarations) capturedBindings.set(binding.declaration, binding.member === undefined ? receiver
       : { kind: "SimpleMemberAccessExpression", receiver, name: binding.member });
   }
-  const context = createCsharpThisBindingPlanningContext({ ...input, scope: { capturedBindings } }, "this", shape.targetType);
+  const context = createCsharpThisBindingPlanningContext({ ...input, scope: { capturedBindings, captureFrames } }, "this", shape.targetType);
   for (const member of shape.members) {
     if ((member.typeParameters?.length ?? 0) === 0) continue;
     const declarations = (member.sourceDeclarations ?? []).filter(declaration =>
@@ -93,8 +95,8 @@ export function planCsharpObjectCaptureAssignments(
     let expression: CsharpExpression | undefined;
     if (field.frameScope !== undefined) {
       const forwarded = input.scope.capturedBindings?.get(declaration);
-      if (forwarded?.kind === "SimpleMemberAccessExpression") expression = forwarded.receiver;
-      else if (state !== undefined) expression = { kind: "IdentifierName", name: csharpCaptureFrameName(field.frameScope, state) };
+      expression = input.scope.captureFrames?.get(field.frameScope) ?? (forwarded?.kind === "SimpleMemberAccessExpression"
+        ? forwarded.receiver : csharpCaptureFrameExpression(field.frameScope, input, state));
     } else {
       const name = input.program.source.ast.name(declaration);
       expression = csharpCapturedBindingExpression(declaration, input, state) ?? (name === undefined ? undefined : {

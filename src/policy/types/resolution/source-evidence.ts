@@ -10,6 +10,7 @@ import type {
   SourceProgramNavigation,
 } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
+import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
 
 export function sourceFactSubjectsForNode(
   node: Node,
@@ -54,11 +55,11 @@ export function resolveTypeParameter(
     if (!ast.is.IsTypeParameterDeclaration(declaration)) {
       continue;
     }
-    const nameNode = ast.name(declaration);
-    if (nameNode !== undefined) {
+    const name = csharpSourceTypeParameterName(declaration, ast);
+    if (name !== undefined) {
       return {
         kind: "type-parameter",
-        name: ast.text(nameNode),
+        name,
       };
     }
   }

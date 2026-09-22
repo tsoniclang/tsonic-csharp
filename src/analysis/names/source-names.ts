@@ -7,6 +7,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { sourceNodesEqual } from "@tsonic/target-api/source";
+import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import {
   tryCsharpIdentifier,
@@ -106,7 +107,10 @@ export function createCsharpSourceNameResolver(
   function visitNames(node: Node): void {
     if (host.ast.is.IsIdentifier(node)) {
       const sourceName = host.ast.text(node);
-      const name = tryCsharpIdentifier(sourceName);
+      const parent = host.ast.parent(node);
+      const selected = parent !== undefined && host.ast.is.IsTypeParameterDeclaration(parent) && host.ast.name(parent) === node
+        ? csharpSourceTypeParameterName(parent, host.ast) : sourceName;
+      const name = selected === undefined ? undefined : tryCsharpIdentifier(selected);
       if (name !== undefined) sourceNames.add(name);
       resolutions.set(
         node,

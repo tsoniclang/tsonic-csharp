@@ -65,6 +65,7 @@ import {
   planCsharpGeneratorFunction,
 } from "../statements/generators.js";
 import { planLambdaParameterStorage } from "./lambda-parameter-storage.js";
+import { planCsharpFrameClosureReference } from "../bindings/capture-closures.js";
 
 export interface LambdaTargetContext {
   readonly type: CsharpTypeNode;
@@ -88,6 +89,9 @@ export function planArrowFunctionExpression(
   expectedTargetType?: TargetTypeRef,
   planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
+  if (input.scope.nativeCallableBody !== node && input.program.captureStorage.closure(node) !== undefined) {
+    return planCsharpFrameClosureReference(node, input, diagnostics, state);
+  }
   const expression = AsArrowFunction(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
@@ -185,6 +189,9 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
+  if (input.scope.nativeCallableBody !== node && input.program.captureStorage.closure(node) !== undefined) {
+    return planCsharpFrameClosureReference(node, input, diagnostics, state);
+  }
   const expression = AsFunctionExpression(input.program.source.ast, node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);

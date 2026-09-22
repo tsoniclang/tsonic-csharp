@@ -5,6 +5,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
+import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
 import type { SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
@@ -344,7 +345,7 @@ export function projectTypeDefinition(
     (parameter): parameter is Node => parameter !== undefined,
   );
   const typeParameterNames = typeParameters.map((parameter) =>
-    host.ast.name(parameter)
+    csharpSourceTypeParameterName(parameter, host.ast)
   );
   if (
     typeParameters.length !== rawTypeParameters.length ||
@@ -359,7 +360,7 @@ export function projectTypeDefinition(
     sourceName: host.ast.text(name),
     kind,
     typeParameterNames: Object.freeze(
-      typeParameterNames.map((parameter) => host.ast.text(parameter)),
+      typeParameterNames as readonly string[],
     ),
     abstract:
       kind === "class" && host.ast.hasModifierKind(declaration, "abstract"),

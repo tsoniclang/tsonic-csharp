@@ -59,6 +59,7 @@ import { renderCsharpMethodValueContracts } from "./declarations/method-values.j
 import { csharpReferenceIdentityInterfaceType } from "./declarations/interfaces.js";
 import { csharpEnumerableKeysContract, isCsharpEnumerableKeysMember, renderCsharpEnumerableKeys } from "./declarations/enumerable-keys.js";
 import { renderCsharpGenericObjectMethods } from "./declarations/generic-methods.js";
+import { renderCsharpCaptureFrameMethods } from "./declarations/capture-methods.js";
 
 export function registerSourceObjectShape(
   input: CsharpPlanningContext,
@@ -177,7 +178,7 @@ export function materializeObjectShapeDeclarations(
     const existing = declarations.get(declaration.name);
     if (
       existing !== undefined &&
-      (existing.kind !== declaration.kind || (artifact.fact.methodImplementation !== undefined
+      (existing.kind !== declaration.kind || (artifact.fact.methodImplementation !== undefined || input.program.captureStorage.forShape(artifact.fact.targetType) !== undefined
         ? JSON.stringify(existing) !== JSON.stringify(declaration)
         : existing.kind === "ClassDeclaration" && !objectShapeDeclarationMatches(
         existing,
@@ -298,11 +299,12 @@ function renderObjectShapeDeclaration(
   );
   const methodValues = renderCsharpMethodValueContracts(fact, input);
   const genericMethods = renderCsharpGenericObjectMethods(fact, input, diagnostics);
+  const captureMethods = renderCsharpCaptureFrameMethods(fact, input, diagnostics);
   const enumerableKeys = capabilities.includes("enumerable-keys") ? renderCsharpEnumerableKeys(fact, input) : [];
   if (
     interfaces === undefined ||
     typeParameters === undefined ||
-    members === undefined || methodValues === undefined || genericMethods === undefined || enumerableKeys === undefined
+    members === undefined || methodValues === undefined || genericMethods === undefined || captureMethods === undefined || enumerableKeys === undefined
   ) {
     diagnostics.push({
       code: "CSHARP_OBJECT_SHAPE_RENDERING_REJECTED",
@@ -332,6 +334,7 @@ function renderObjectShapeDeclaration(
         }),
     members: [
       ...genericMethods,
+      ...captureMethods,
       ...methodValues,
       ...enumerableKeys,
       ...(capabilities.includes("js-freeze") ? guardCsharpFrozenDataProperties(fact, members, input, diagnostics) : members),

@@ -276,7 +276,7 @@ export function analyzeCsharpTargetProgram(
       source: "tsonic-csharp",
     })));
   }
-  const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage);
+  const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage, analysis.sourceEvidence);
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));

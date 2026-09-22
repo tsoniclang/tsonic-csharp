@@ -97,8 +97,8 @@ function enclosingMethodTypeParameters(node: Node, input: CsharpPlanningContext)
     if (ast.is.IsClassDeclaration(parent) || ast.is.IsClassExpression(parent)) break;
     for (const parameter of ast.typeParameters(parent)) {
       if (parameter === undefined) continue;
-      const name = ast.text(ast.name(parameter));
-      if (!parameters.has(name)) parameters.set(name, parameter);
+      const selected = input.program.names.resolve(ast.name(parameter), parameter);
+      if (selected.kind === "resolved" && !parameters.has(selected.name)) parameters.set(selected.name, parameter);
     }
   }
   return [...parameters.values()];
