@@ -27,7 +27,7 @@ import {
 import {
   csharpTargetTypeComponents,
 } from "../../target-model/types/components.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   TargetTypeRef,
 } from "../../target-model/types/model.js";

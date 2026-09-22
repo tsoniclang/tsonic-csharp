@@ -5,7 +5,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import {
   csharpJsStringTargetType,
   csharpStringTargetType,

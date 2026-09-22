@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
+import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
 import {
   rejectedTargetStage,
@@ -335,7 +336,11 @@ function analyzeIteration(
     },
   };
   const representations = Object.freeze(planningRepresentations);
-  typeSystem = createCsharpTypeSystem(typeHost, representations);
+  typeSystem = createCsharpTypeSystem(
+    typeHost,
+    createCsharpProjectTypeCatalog(typeHost),
+    representations,
+  );
   const policy = createCsharpAnalysisPolicyContext({
     input,
     sourceFiles,

@@ -5,7 +5,7 @@ import {
   targetTypeRefKey,
 } from "../../types/index.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetBindingFact, CsharpTargetConversionOperatorFact, TargetTypeRef } from "../../types/index.js";
 
 export function targetBindingSubstitutions(

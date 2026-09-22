@@ -1,5 +1,5 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject, targetTypeRefEquals } from "../../target-model/types/index.js";
 

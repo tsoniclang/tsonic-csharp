@@ -9,7 +9,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpPolicyContext,
-} from "../../context.js";
+} from "../../model/context.js";
 import { tsonicKeepAliveFactKey } from "@tsonic/source-core/facts";
 
 export function readCsharpSourceKeepAlive(

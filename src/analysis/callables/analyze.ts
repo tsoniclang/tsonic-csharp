@@ -4,7 +4,7 @@ import {
   HasSourceKind,
   KindIdentifier,
 } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   csharpNullableTargetType,
   getCsharpDelegateSignature,

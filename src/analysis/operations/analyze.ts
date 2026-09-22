@@ -58,7 +58,7 @@ import type {
 import {
   isCsharpThrowableType,
 } from "../../policy/types/index.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   CsharpCallClassification,
   CsharpBinaryClassification,

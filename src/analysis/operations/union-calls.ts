@@ -1,6 +1,6 @@
 import type { Node, ResolvedSourceCallInfo, SourceFile } from "@tsonic/tsts";
 import { asSourceNode } from "@tsonic/target-api/source";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import { getCsharpRuntimeUnionArms } from "../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";

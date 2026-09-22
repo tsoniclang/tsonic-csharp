@@ -1,7 +1,7 @@
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpProviderRelationResolver } from "../../providers/model/relation-resolver.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpSourceIdentityPolicy } from "../../policy/identities/source-nodes.js";
 import type { CsharpTypeSystem } from "../../policy/types/model/system.js";
 

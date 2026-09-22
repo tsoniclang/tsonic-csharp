@@ -2,7 +2,7 @@ import { conversionIsImplicitlyApplicable, selectCsharpConversion } from "./core
 import { csharpConversionIsApplicable } from "./expression.js";
 import { targetTypeRefEquals, targetTypeRefKey } from "../../types/index.js";
 import type { CsharpCommonImplicitTargetSelection, CsharpConversionTargetPreference } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../types/index.js";
 
 export function selectCsharpCommonImplicitTarget(

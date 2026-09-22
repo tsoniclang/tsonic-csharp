@@ -7,7 +7,7 @@ import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "
 import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpTargetBindingFact } from "../../../target-model/types/model.js";
 import type { CsharpNativeMemoryLayout } from "../../../target-model/operations/native-memory.js";

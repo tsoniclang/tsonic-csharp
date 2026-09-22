@@ -19,7 +19,7 @@ import {
 import {
   selectCsharpFlowReadConversion,
 } from "../../policy/conversions/index.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type {
   CsharpElementClassification,
   CsharpPropertyClassification,

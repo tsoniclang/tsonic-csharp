@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpPolicyContext,
-} from "../../context.js";
+} from "../../model/context.js";
 import {
   csharpLiteralIsRepresentableAs,
 } from "../../conversions/literals.js";

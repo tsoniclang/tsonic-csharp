@@ -15,7 +15,7 @@ import { selectCsharpEmptyRecordConversion } from "./empty-record.js";
 import { csharpArrayLikeElement, csharpArrayLikeTargetType } from "../../../target-model/types/array-like.js";
 import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
 import type { CsharpConversionMode, CsharpConversionSelection } from "./model.js";
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 
 export function selectCsharpConversion(

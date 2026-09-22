@@ -8,7 +8,7 @@ import {
 } from "@tsonic/target-api/source";
 import type {
   CsharpPolicyContext,
-} from "../../context.js";
+} from "../../model/context.js";
 import {
   selectCsharpTargetCall,
   selectCsharpTargetElement,

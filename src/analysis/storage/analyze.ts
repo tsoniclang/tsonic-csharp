@@ -15,7 +15,7 @@ import {
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
 } from "../../policy/members/selection/argument-selection.js";

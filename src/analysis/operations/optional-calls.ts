@@ -1,5 +1,5 @@
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpPolicyContext } from "../../policy/context.js";
+import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpTargetCallSelection, ResolvedSourceCallInfo } from "../../policy/members/index.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";

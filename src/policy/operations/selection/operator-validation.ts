@@ -1,4 +1,4 @@
-import type { CsharpPolicyContext } from "../../context.js";
+import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
 import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpRuntimeNullTargetType, isCsharpRuntimeUndefinedTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";

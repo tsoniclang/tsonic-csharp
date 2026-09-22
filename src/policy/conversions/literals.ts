@@ -9,7 +9,7 @@ import {
 } from "../../target-model/syntax/numeric-literals.js";
 import type {
   CsharpPolicyContext,
-} from "../context.js";
+} from "../model/context.js";
 import type {
   TargetTypeRef,
 } from "../types/index.js";
