@@ -92,7 +92,7 @@ function runtimeUnionArmIndex(
   return armIndex === undefined || armIndex < 0 ? undefined : armIndex;
 }
 
-function runtimeUnionArmProjection(
+export function runtimeUnionArmProjection(
   baseExpression: CsharpExpression,
   armIndex: number,
 ): CsharpExpression {
@@ -107,7 +107,7 @@ function runtimeUnionArmProjection(
   };
 }
 
-function runtimeUnionArmTest(
+export function runtimeUnionArmTest(
   baseExpression: CsharpExpression,
   armIndex: number,
 ): CsharpExpression {

@@ -2,14 +2,15 @@ import type { Node } from "@tsonic/tsts";
 import { csharpSourceTypeParameters } from "../../../../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallClassification, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
-import { csharpTargetParameterValueType } from "../../../../../target-model/types/member-facts.js";
 import { isCsharpVoidTargetType } from "../../../../../target-model/types/identity.js";
-import type { CsharpArgument, CsharpExpression, CsharpMethodDeclaration, CsharpStatement, CsharpTypeNode } from "../../../../target-ast/roslyn/index.js";
+import type { CsharpArgument, CsharpExpression, CsharpMethodDeclaration, CsharpStatement } from "../../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../../context.js";
 import { unsupportedNodeDiagnostic } from "../../../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { planTypeParameters } from "../../../types/type-parameters.js";
 import { renderCsharpTargetTypeArguments } from "./helpers.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../../runtime-union-projections.js";
+import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function planCsharpUnionDispatcherCall(
   node: Node,
@@ -27,23 +28,10 @@ export function planCsharpUnionDispatcherCall(
   const resultType = csharpTypeFromTargetTypeRef(union.resultType);
   const selectedTypeArguments = classification.sourceTypeArguments === undefined ? undefined
     : renderCsharpTargetTypeArguments(classification.sourceTypeArguments, node, diagnostics);
-  const argumentTypes = source.sourceArguments.map((_, index): CsharpTypeNode | undefined => {
-    const bindings = source.sourceArgumentBindings.filter(binding => binding.sourceArgumentIndex === index);
-    const binding = bindings[0];
-    const bindingIndex = binding === undefined ? -1 : source.sourceArgumentBindings.indexOf(binding);
-    const type = classification.sourceArgumentParameterTypes?.[bindingIndex];
-    const parameter = binding === undefined ? undefined : source.sourceSelectedSignatureParameters[binding.sourceParameterIndex];
-    if (binding === undefined || parameter === undefined || type === undefined || bindings.some(other =>
-      other.sourceParameterIndex !== binding.sourceParameterIndex || other.sourceForm !== binding.sourceForm)) return undefined;
-    return csharpTypeFromTargetTypeRef(csharpTargetParameterValueType({
-      name: parameter.parameterName,
-      type,
-      passingMode: "by-value",
-      ...(parameter.rest ? { paramsArray: true } : {}),
-    }, binding.sourceForm));
-  });
+  const groups = csharpSourceArgumentGroups(source, classification);
+  const argumentTypes = groups?.map(group => csharpTypeFromTargetTypeRef(group.type));
   if (methods === undefined || receiverType === undefined || resultType === undefined ||
-    selectedTypeArguments === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {
+    selectedTypeArguments === undefined || argumentTypes === undefined || arguments_.length !== argumentTypes.length || argumentTypes.some(type => type === undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "A closed union dispatcher requires exact native receiver, argument, result and containing-type contracts."));
     return undefined;
   }
@@ -59,7 +47,7 @@ export function planCsharpUnionDispatcherCall(
       kind: "InvocationExpression",
       callee: {
         kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "receiver" }, name: `As${index + 1}` },
+        receiver: runtimeUnionArmProjection({ kind: "IdentifierName", name: "receiver" }, index),
         name: method.targetName,
         ...(selectedTypeArguments.length === 0 ? {} : { typeArguments: selectedTypeArguments }),
       },
@@ -71,7 +59,7 @@ export function planCsharpUnionDispatcherCall(
     if (index === union.methods.length - 1) statements.push(...branch);
     else statements.push({
       kind: "IfStatement",
-      condition: { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "receiver" }, name: `Is${index + 1}` },
+      condition: runtimeUnionArmTest({ kind: "IdentifierName", name: "receiver" }, index),
       thenBody: { kind: "Block", statements: branch },
     });
   }

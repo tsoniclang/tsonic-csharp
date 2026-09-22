@@ -5,6 +5,7 @@ import type {
   CsharpTargetMember,
   CsharpTargetParameter,
 } from "./model.js";
+import { getCsharpJsArrayElementTargetType } from "./collections.js";
 
 export function targetMethod(
   id: string,
@@ -83,11 +84,9 @@ export function csharpTargetParameterValueType(
   parameter: CsharpTargetParameter,
   sourceForm: "value" | "spread-element" | "spread-sequence",
 ): TargetTypeRef {
-  return sourceForm !== "spread-sequence" &&
-      parameter.paramsArray === true &&
-      parameter.type.kind === "array"
-    ? parameter.type.element
-    : parameter.type;
+  if (sourceForm === "spread-sequence" || parameter.paramsArray !== true) return parameter.type;
+  return parameter.type.kind === "array" ? parameter.type.element
+    : getCsharpJsArrayElementTargetType(parameter.type) ?? parameter.type;
 }
 
 export function csharpSourceArgumentExpectedType(

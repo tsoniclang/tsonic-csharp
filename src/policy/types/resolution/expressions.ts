@@ -219,7 +219,12 @@ export function resolvePropertyAccessTargetType(
     queries.sourceFile,
   );
   if ((selection.kind === "resolved" || selection.kind === "source-owned") &&
-    !selection.source.callCallee && selection.source.accessMode === "read") {
+    !selection.source.callCallee && selection.source.accessMode === "read" &&
+    selection.source.sourceReadType !== undefined &&
+    queries.types.callSignatures(selection.source.sourceReadType).some(signature => {
+      const declaration = queries.declarations.signatureDeclaration(signature);
+      return declaration !== undefined && host.ast.typeParameters(declaration).length > 0;
+    })) {
     const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
     const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
       selection.source.selectedSymbol, selection.source.selectedDeclaration), host);

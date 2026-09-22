@@ -12,6 +12,7 @@ import type { ResolvedSourceCallInfo } from "../../../../../analysis/operations/
 import type { CsharpCallClassification } from "../../../../../analysis/operations/index.js";
 import type { CsharpSourceCallArgumentClassification } from "../../../../../analysis/operations/index.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { csharpSourceArgumentGroups } from "./source-argument-groups.js";
 
 export function translateSourceOwnedCall(
   node: Node,
@@ -162,10 +163,16 @@ export function translateSourceOwnedArguments(
       type: targetType,
       passingMode: "by-value",
       ...(parameter.acceptsOmission ? { optional: true } : {}),
-      ...(parameter.rest ? { paramsArray: true } : {}),
+      ...(parameter.rest && first.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
     };
+    const value = first.sourceForm === "spread-sequence"
+      ? input.program.source.ast.as.AsSpreadElement(argument)?.Expression : argument;
+    if (value === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(argument, "A selected sequence spread has no exact source operand."));
+      return undefined;
+    }
     const plannedArgument = translateCallArgument(
-      argument,
+      value,
       targetParameter,
       first.sourceForm,
       sourceFile,
@@ -244,5 +251,14 @@ export function translateSourceOwnedArguments(
     }
     planned.push({ kind: "Argument", expression: omitted.expression });
   }
-  return planned;
+  const groups = csharpSourceArgumentGroups(source, classification);
+  if (groups === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
+    return undefined;
+  }
+  return [...groups.map((group): CsharpArgument => group.rest
+    ? { kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
+      kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: planned[argument.index]!.expression,
+    })) } }
+    : planned[group.arguments[0]!.index]!), ...planned.slice(source.sourceArguments.length)];
 }
