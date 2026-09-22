@@ -368,6 +368,7 @@ function visit(
         : {
             sourceTypeArguments:
               policy.types.resolveSourceCallTypeArguments(source, sourceFile),
+            sourceNativeParameters: policy.types.resolveSourceCallParameters(source, sourceFile),
             sourceParameterTypes: Object.freeze(
               source.sourceSelectedSignatureParameters.map((_, index) =>
                 policy.types.resolveSourceCallParameter(
@@ -421,6 +422,7 @@ function visit(
         : {},
       ...target?.kind === "source-owned"
         ? {
+            sourceNativeParameters: policy.types.resolveSourceCallParameters(target.source, sourceFile),
             sourceParameterTypes: Object.freeze(
               target.source.sourceSelectedSignatureParameters.map((_, index) =>
                 policy.types.resolveSourceCallParameter(

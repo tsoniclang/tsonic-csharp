@@ -53,6 +53,7 @@ import { csharpCopiedObjectShapeMembers, csharpGenericMethodEnvironment, retainC
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
+  readonly representations: import("../../resolution/model.js").CsharpPlanningRepresentationQueries;
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
   readonly typeResolver: CsharpRecursiveTypeResolver;
 }
@@ -585,7 +586,7 @@ export function createCsharpObjectShapePolicy(
         genericShapes.set(canonical.targetType.id, canonical);
       }
     }
-    return canonical;
+    return shape;
   }
 
   function resolveStructShape(
@@ -790,7 +791,8 @@ export function createCsharpObjectShapePolicy(
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         return selected.kind === "resolved" ? { ...selected.shape, sourceType: type } : undefined;
       }
-      return structuralContract && unionDefinitions.reference(type) === undefined
+      return structuralContract && unionDefinitions.reference(type) === undefined &&
+        !host.representations.requiresClosedStructuralContract(shape.targetType)
         ? parameterizeCsharpStructuralContract(shape) : shape;
     } finally {
       activeTypes.delete(type);

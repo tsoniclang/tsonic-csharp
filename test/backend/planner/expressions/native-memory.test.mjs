@@ -61,8 +61,15 @@ const crossFileLayout = `
   export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
 `;
 
+const ordinaryFieldSource = `function ordinary(cell: { value: string }): string { return cell.value; }
+  function ordinaryProof(): boolean { return ordinary({ value: "native" }) === "native"; }`;
+const mixedFieldSource = nativeFieldProofSource.replace("return loadPointer(pointer) === 21;",
+  "return loadPointer(pointer) === 21 && ordinaryProof();");
+
 for (const [name, sourceText, files] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
   ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource],
+  ["object field ordinary first", ordinaryFieldSource + mixedFieldSource],
+  ["object field ordinary last", mixedFieldSource + ordinaryFieldSource],
   ["cross-file inferred scalar", crossFileSource(""), { "layout.ts": crossFileLayout }],
   ["cross-file explicit scalar", crossFileSource("<uint32>"), { "layout.ts": crossFileLayout }]]) {
 test(`native ${name} locations retain storage and replacement semantics`, { timeout: 300_000 }, () => {
@@ -70,7 +77,14 @@ test(`native ${name} locations retain storage and replacement semantics`, { time
   assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
   assert.match(output, name.endsWith("scalar") ? /NativeLocation.Allocate<uint>/u
-    : name === "object field" ? /valueLocation/u : name === "array element" ? /NativeArray<uint>/u : /ReadAt<uint>/u);
+    : name.startsWith("object field") ? /valueLocation/u : name === "array element" ? /NativeArray<uint>/u : /ReadAt<uint>/u);
+  if (name.startsWith("object field ordinary")) {
+    const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+    assert.match(shapes, /Location<uint> valueLocation/u);
+    assert.match(shapes, /NativeLocation\.Allocate<uint>/u);
+    assert.doesNotMatch(shapes, /Location<string>/u);
+    assert.match(shapes, /interface ObjectShape_[a-f0-9]{12}<Property0>/u);
+  }
   assert.match(output, /NativeLocation.Reinterpret<uint>/u);
   if (name.endsWith("scalar")) assert.match(output, /value.Value/u);
   const repository = fileURLToPath(new URL("../../../../", import.meta.url));

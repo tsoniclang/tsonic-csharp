@@ -193,7 +193,16 @@ export function analyzeCsharpObjectShapes(
       const targetKey = targetTypeRefKey(selected.interfaceType);
       let interfaces = structuralInterfaces.get(key);
       if (interfaces === undefined) { interfaces = new Map(); structuralInterfaces.set(key, interfaces); }
-      if (!interfaces.has(targetKey) && !(sourceShape?.implements ?? []).some(type => targetTypeRefKey(type) === targetKey)) {
+      const inherited = [...sourceShape?.implements ?? [], ...policy.projectTypes.directSupertypes(source) ?? []];
+      const visited = new Set<string>();
+      for (let index = 0; index < inherited.length; index++) {
+        const type = inherited[index]!;
+        const inheritedKey = targetTypeRefKey(type);
+        if (visited.has(inheritedKey)) continue;
+        visited.add(inheritedKey);
+        inherited.push(...policy.projectTypes.directSupertypes(type) ?? []);
+      }
+      if (!interfaces.has(targetKey) && !visited.has(targetKey)) {
         reserveClassification();
         interfaces.set(targetKey, selected);
         rememberShape(policy.objectShapes.resolveTarget(selected.interfaceType));

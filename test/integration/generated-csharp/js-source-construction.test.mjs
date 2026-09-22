@@ -102,6 +102,31 @@ test("optional indexed arguments retain absence and single evaluation", { timeou
 });
 
 for (const surface of [undefined, "js"]) {
+  test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+      function sum(...values: number[]): number {
+        let total = 0;
+        for (const value of values) total += value;
+        return total;
+      }
+      function forward(values: number[]): number { return sum(...values); }
+      export function run(): boolean {
+        const values = [2, 3];
+        const callable: (...values: number[]) => number = sum;
+        return sum() === 0 && sum(1, 2, 3) === 6 && forward(values) === 5 &&
+          sum(1, ...values, 4) === 10 && callable() === 0 && callable(1, 2) === 3 &&
+          callable(...values) === 5 && callable(1, ...values) === 6;
+      }
+    ` });
+    execute(compiled, `native-rest-boundary-${surface ?? "native"}`);
+    const source = compiled.artifacts.get("src/Index.cs");
+    assert.match(source, /sum\(1(?:\.0)?, 2(?:\.0)?, 3(?:\.0)?\)/u);
+    assert.match(source, /return sum\(values\);/u);
+    assert.doesNotMatch(source, /sum\(\[\.\. values\]\)/u);
+  });
+}
+
+for (const surface of [undefined, "js"]) {
   test(`dense destructuring defaults preserve explicit absence, null and lazy evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
     execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
       import { Exception } from "@tsonic/dotnet/System.js";

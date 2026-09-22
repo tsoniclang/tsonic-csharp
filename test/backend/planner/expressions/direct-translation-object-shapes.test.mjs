@@ -47,9 +47,9 @@ test("direct C# translation derives mapped utility shapes from exact project mem
 {
     public static class Index
     {
-        public static ObjectShape_95fcda96bb5b clone(ObjectShape_acf3e14e8eee input)
+        public static ObjectShape_9db935ba1a03<double, string> clone(ObjectShape_576c4989da85<double, string> input)
         {
-            return new ObjectShape_a7d9e2e4b81d
+            return new ObjectShape_630c7f6c610c
             {
                 id = input.id,
                 label = input.label,
@@ -62,12 +62,12 @@ test("direct C# translation derives mapped utility shapes from exact project mem
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_95fcda96bb5b
+    public interface ObjectShape_576c4989da85<out Property0, out Property1>
     {
-        double id { get; set; }
-        string label { get; set; }
+        Property0 id { get; }
+        Property1 label { get; }
     }
-    public class ObjectShape_a7d9e2e4b81d : ObjectShape_95fcda96bb5b
+    public class ObjectShape_630c7f6c610c : ObjectShape_9db935ba1a03<double, string>
     {
         public required double id
         {
@@ -80,10 +80,10 @@ test("direct C# translation derives mapped utility shapes from exact project mem
             set;
         }
     }
-    public interface ObjectShape_acf3e14e8eee
+    public interface ObjectShape_9db935ba1a03<Property0, Property1>
     {
-        double id { get; }
-        string label { get; }
+        Property0 id { get; set; }
+        Property1 label { get; set; }
     }
 }
 `,
@@ -114,14 +114,14 @@ test("direct C# translation coalesces duplicate structural union carriers withou
 {
     public static class Index
     {
-        public static double score(ObjectShape_4005929040f1 result)
+        public static double score(ObjectShape_1301406ee37c<string, double> result)
         {
             if (result.kind == "found")
             {
-                ObjectShape_4005929040f1 found = result;
+                ObjectShape_1301406ee37c<string, double> found = result;
                 return found.value + 1;
             }
-            ObjectShape_4005929040f1 missing = result;
+            ObjectShape_1301406ee37c<string, double> missing = result;
             return missing.value - 1;
         }
     }
@@ -131,10 +131,10 @@ test("direct C# translation coalesces duplicate structural union carriers withou
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_4005929040f1
+    public interface ObjectShape_1301406ee37c<Property0, Property1>
     {
-        string kind { get; set; }
-        double value { get; set; }
+        Property0 kind { get; set; }
+        Property1 value { get; set; }
     }
 }
 `,
@@ -158,11 +158,11 @@ test("structural object-shape identity is independent of source member order", (
 {
     public static class Index
     {
-        public static ObjectShape_497d3d34ede6 left(ObjectShape_497d3d34ede6 value)
+        public static ObjectShape_69b166f4d8eb<double, string> left(ObjectShape_69b166f4d8eb<double, string> value)
         {
             return value;
         }
-        public static ObjectShape_497d3d34ede6 right(ObjectShape_497d3d34ede6 value)
+        public static ObjectShape_69b166f4d8eb<double, string> right(ObjectShape_69b166f4d8eb<double, string> value)
         {
             return value;
         }
@@ -173,10 +173,10 @@ test("structural object-shape identity is independent of source member order", (
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public interface ObjectShape_497d3d34ede6
+    public interface ObjectShape_69b166f4d8eb<Property0, Property1>
     {
-        string zeta { get; set; }
-        double alpha { get; set; }
+        Property0 alpha { get; set; }
+        Property1 zeta { get; set; }
     }
 }
 `,
@@ -227,7 +227,8 @@ test("object-literal callable properties remain ordinary delegates and reject un
   assert.deepEqual(accepted.extensionDiagnostics, []);
   assert.deepEqual(accepted.targetDiagnostics, []);
   const shapes = accepted.artifacts.get("generated/TsonicObjectShapes.cs") ?? "";
-  assert.match(shapes, /Func<double, double> run \{ get; set; \}/u);
+  assert.match(shapes, /Property0 run \{ get; set; \}/u);
+  assert.match(shapes, /ObjectShape_[a-f0-9]{12}<Func<double, double>>/u);
   assert.match(shapes, /public required Func<double, double> run\s*\{\s*get;\s*set;\s*\}/u);
   assert.doesNotMatch(shapes, /__tsonic_shape_method_/u);
 

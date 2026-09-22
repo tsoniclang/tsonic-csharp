@@ -124,6 +124,7 @@ export function analyzeCsharpNativeBacking(
     arrays: Object.freeze([...arrays].map(([subject, storage]) => Object.freeze({ subject, storage }))),
     array: (node: Node) => arrays.get(node),
     fields: fields.values(),
+    closedContracts: fields.closedContracts(),
     field: fields.get,
     entries: Object.freeze([...backings].map(([subject, layout]) => Object.freeze({ subject, layout }))),
     get: (subject: Node) => backings.get(subject) });

@@ -37,8 +37,9 @@ test("object-shape reads retain exact authored member carriers through utility p
   );
   assert.match(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
-    /public interface ObjectShape_[a-f0-9]{12}\s*\{[^}]*int x \{ get; set; \}/u,
+    /public interface ObjectShape_[a-f0-9]{12}<Property0, Property1>\s*\{\s*Property0 label \{ get; set; \}\s*Property1 x \{ get; set; \}/u,
   );
+  assert.match(compiled.artifacts.get("src/Index.cs"), /ObjectShape_[a-f0-9]{12}<string, int>/u);
   assert.match(
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     /public required Func<int, int> __tsonic_shape_method_\d+_run;/u,

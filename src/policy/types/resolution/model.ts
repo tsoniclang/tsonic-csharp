@@ -27,6 +27,7 @@ export type ResolvedSourceCallInfo = NonNullable<
 >;
 
 export interface CsharpPlanningRepresentationQueries {
+  requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   sourceCallable(
     source: ResolvedSourceCallInfo,
@@ -129,6 +130,10 @@ export interface CsharpTypePolicy {
     parameterIndex: number,
     sourceFile: SourceFile,
   ): TargetTypeRef | undefined;
+  resolveSourceCallParameters(
+    source: ResolvedSourceCallInfo,
+    sourceFile: SourceFile,
+  ): readonly import("../../../target-model/types/model.js").CsharpTargetParameter[] | undefined;
   resolveSourceCallArgumentParameter(
     source: ResolvedSourceCallInfo,
     binding: ResolvedSourceCallInfo["sourceArgumentBindings"][number],

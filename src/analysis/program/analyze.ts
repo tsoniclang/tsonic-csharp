@@ -2,6 +2,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
+import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
@@ -328,6 +329,9 @@ function analyzeIteration(
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
+    requiresClosedStructuralContract(type) {
+      return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
+    },
     scopedTargetType(node) {
       return previous?.storage.requiredType(node);
     },

@@ -176,6 +176,7 @@ export function createCsharpTypeSystem(
   const types = typeResolution.policy;
   objectShapes = createCsharpObjectShapePolicy({
     ...host,
+    representations,
     projectTypeCatalog,
     typeResolver: typeResolution.recursive,
   });
@@ -197,6 +198,9 @@ export function createCsharpTypeSystem(
 
 const emptyPlanningRepresentations: CsharpPlanningRepresentationQueries =
   Object.freeze({
+    requiresClosedStructuralContract() {
+      return false;
+    },
     scopedTargetType() {
       return undefined;
     },

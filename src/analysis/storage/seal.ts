@@ -22,6 +22,7 @@ export function sealCsharpStorage(
   }
   const classifications: CsharpStorageClassifications = {
     ...representations,
+    closedNativeContracts: backing.closedContracts,
     nativeArrays: backing.arrays,
     nativeArray: backing.array,
     nativeFields: backing.fields,

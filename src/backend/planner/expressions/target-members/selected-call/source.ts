@@ -105,6 +105,14 @@ export function translateSourceOwnedArguments(
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
 ): readonly CsharpArgument[] | undefined {
+  const exactTargetArity = classification.sourceMethodValue === undefined && sourceCalleeRequiresExactTargetArity(source, input);
+  const nativeParameters = classification.sourceNativeParameters;
+  const groups = csharpSourceArgumentGroups(source, classification, exactTargetArity);
+  if (nativeParameters === undefined || groups === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
+    return undefined;
+  }
+  const restIndex = nativeParameters.findIndex(parameter => parameter.paramsArray === true);
   const bindingsBySourceArgument = new Map<
     number,
     ResolvedSourceCallInfo["sourceArgumentBindings"]
@@ -144,9 +152,8 @@ export function translateSourceOwnedArguments(
       ));
       return undefined;
     }
-    const parameter = source.sourceSelectedSignatureParameters[
-      first.sourceParameterIndex
-    ];
+    const parameterIndex = restIndex < 0 ? first.effectiveArgumentIndex : Math.min(first.effectiveArgumentIndex, restIndex);
+    const parameter = nativeParameters[parameterIndex];
     const bindingIndex = source.sourceArgumentBindings.indexOf(first);
     const targetType = bindingIndex < 0
       ? undefined
@@ -159,11 +166,11 @@ export function translateSourceOwnedArguments(
       return undefined;
     }
     const targetParameter: CsharpTargetParameter = {
-      name: parameter.parameterName,
+      name: parameter.name,
       type: targetType,
       passingMode: "by-value",
-      ...(parameter.acceptsOmission ? { optional: true } : {}),
-      ...(parameter.rest && first.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
+      ...(parameter.optional === true ? { optional: true } : {}),
+      ...(parameter.paramsArray === true && first.sourceForm === "spread-sequence" ? { paramsArray: true } : {}),
     };
     const value = first.sourceForm === "spread-sequence"
       ? input.program.source.ast.as.AsSpreadElement(argument)?.Expression : argument;
@@ -186,58 +193,31 @@ export function translateSourceOwnedArguments(
     }
     planned.push(plannedArgument);
   }
-  const boundParameterIndexes = new Set(
-    source.sourceArgumentBindings.map((binding) => binding.sourceParameterIndex),
-  );
-  for (
-    let parameterIndex = 0;
-    parameterIndex < source.sourceSelectedSignatureParameters.length;
-    parameterIndex += 1
-  ) {
-    if (boundParameterIndexes.has(parameterIndex)) {
+  const arguments_: CsharpArgument[] = [];
+  for (const group of groups) {
+    if (group.collect) {
+      arguments_.push({ kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
+        kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: planned[argument.index]!.expression,
+      })) } });
       continue;
     }
-    const parameter = source.sourceSelectedSignatureParameters[parameterIndex];
-    if (parameter === undefined || parameter.rest) {
+    const argument = group.arguments[0];
+    if (argument !== undefined) {
+      arguments_.push(planned[argument.index]!);
       continue;
     }
-    if (!parameter.acceptsOmission) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Source-owned selected parameter ${parameterIndex} has no exact source argument and does not accept omission.`,
-      ));
-      return undefined;
-    }
-    const exactTargetArity = classification.sourceMethodValue === undefined && sourceCalleeRequiresExactTargetArity(
-      source,
-      input,
-    );
-    if (!exactTargetArity) {
-      continue;
-    }
-    const declaration = input.program.source.ast.as.AsParameterDeclaration(
-      parameter.parameterDeclaration,
-    );
-    if (declaration?.Initializer !== undefined &&
-      (parameter.parameterDeclaration === undefined ||
-        input.program.declarations.referenceDefault(parameter.parameterDeclaration) === undefined)) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Omitted source-owned delegate parameter ${parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`,
-      ));
-      return undefined;
-    }
-    const targetType = classification.sourceParameterTypes?.[parameterIndex];
-    if (targetType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(
-        node,
-        `Omitted source-owned selected parameter ${parameterIndex} has no closed C# type.`,
-      ));
+    const parameter = source.sourceSelectedSignatureParameters[group.parameterIndex];
+    const declaration = parameter === undefined ? undefined
+      : input.program.source.ast.as.AsParameterDeclaration(parameter.parameterDeclaration);
+    if (declaration?.Initializer !== undefined && parameter?.parameterDeclaration !== undefined &&
+      input.program.declarations.referenceDefault(parameter.parameterDeclaration) === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node,
+        `Omitted source-owned delegate parameter ${group.parameterIndex} has a default initializer that requires exact callee-side default evaluation before C# emission.`));
       return undefined;
     }
     const omitted = planCsharpSourceUndefinedValue(
       node,
-      targetType,
+      group.type,
       sourceFile,
       input,
       diagnostics,
@@ -245,20 +225,11 @@ export function translateSourceOwnedArguments(
     if (omitted.kind !== "resolved") {
       diagnostics.push(unsupportedNodeDiagnostic(
         node,
-        `Omitted source-owned selected parameter ${parameterIndex} has no exact C# representation for source undefined.`,
+        `Omitted source-owned selected parameter ${group.parameterIndex} has no exact C# representation for source undefined.`,
       ));
       return undefined;
     }
-    planned.push({ kind: "Argument", expression: omitted.expression });
+    arguments_.push({ kind: "Argument", expression: omitted.expression });
   }
-  const groups = csharpSourceArgumentGroups(source, classification);
-  if (groups === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Source-owned arguments have no exact native parameter grouping."));
-    return undefined;
-  }
-  return [...groups.map((group): CsharpArgument => group.rest
-    ? { kind: "Argument", expression: { kind: "CollectionExpression", elements: group.arguments.map(argument => ({
-      kind: argument.spread ? "SpreadElement" : "ExpressionElement", expression: planned[argument.index]!.expression,
-    })) } }
-    : planned[group.arguments[0]!.index]!), ...planned.slice(source.sourceArguments.length)];
+  return arguments_;
 }

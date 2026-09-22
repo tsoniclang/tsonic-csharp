@@ -372,17 +372,17 @@ test("direct C# translation closes structural aliases, literals, and destructure
 {
     public static class Index
     {
-        public static ObjectShape_c9acfbac966f make(int age)
+        public static ObjectShape_016e3d2ca239<int, string> make(int age)
         {
-            return new ObjectShape_4c6aa1b4a8b7
+            return new ObjectShape_de3df72b998d
             {
                 name = "Ada",
                 age = age,
             };
         }
-        public static int total(ObjectShape_c9acfbac966f user)
+        public static int total(ObjectShape_016e3d2ca239<int, string> user)
         {
-            ObjectShape_c9acfbac966f __tsonic_destructure0 = user;
+            ObjectShape_016e3d2ca239<int, string> __tsonic_destructure0 = user;
             int age = __tsonic_destructure0.age;
             return age;
         }
@@ -393,7 +393,12 @@ test("direct C# translation closes structural aliases, literals, and destructure
     compiled.artifacts.get("generated/TsonicObjectShapes.cs"),
     `namespace Tsonic.Generated
 {
-    public class ObjectShape_4c6aa1b4a8b7 : ObjectShape_c9acfbac966f
+    public interface ObjectShape_016e3d2ca239<Property0, Property1>
+    {
+        Property0 age { get; set; }
+        Property1 name { get; set; }
+    }
+    public class ObjectShape_de3df72b998d : ObjectShape_016e3d2ca239<int, string>
     {
         public required int age
         {
@@ -405,11 +410,6 @@ test("direct C# translation closes structural aliases, literals, and destructure
             get;
             set;
         }
-    }
-    public interface ObjectShape_c9acfbac966f
-    {
-        string name { get; set; }
-        int age { get; set; }
     }
 }
 `,

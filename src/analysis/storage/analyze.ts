@@ -563,6 +563,8 @@ export function csharpStorageClassificationsEqual(
   right: CsharpStorageClassifications,
 ): boolean {
   return left.issues.length === right.issues.length &&
+    left.closedNativeContracts.length === right.closedNativeContracts.length &&
+    left.closedNativeContracts.every((type, index) => targetTypeRefEquals(type, right.closedNativeContracts[index]!)) &&
     left.nativeArrays.length === right.nativeArrays.length && left.nativeArrays.every((entry, index) => {
       const other = right.nativeArrays[index];
       return other !== undefined && entry.subject === other.subject && entry.storage.kind === other.storage.kind &&
