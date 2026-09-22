@@ -68,14 +68,14 @@ const directArrayRows = [
   {
     sourceName: "push",
     parameters: (element: TargetTypeRef) => [
-      targetParameter("items", element, { paramsArray: true }),
+      targetParameter("items", { kind: "array", element }, { paramsArray: true }),
     ],
     result: () => intType,
   },
   {
     sourceName: "unshift",
     parameters: (element: TargetTypeRef) => [
-      targetParameter("items", element, { paramsArray: true }),
+      targetParameter("items", { kind: "array", element }, { paramsArray: true }),
     ],
     result: () => intType,
   },
@@ -84,14 +84,14 @@ const directArrayRows = [
     parameters: (element: TargetTypeRef) => [
       targetParameter("start", intType),
       targetParameter("deleteCount", intType, { optional: true }),
-      targetParameter("items", element, { paramsArray: true }),
+      targetParameter("items", { kind: "array", element }, { paramsArray: true }),
     ],
     result: (_element: TargetTypeRef, receiver: TargetTypeRef) => receiver,
   },
   {
     sourceName: "concat",
     parameters: () => [
-      targetParameter("items", csharpObjectTargetType(), {
+      targetParameter("items", { kind: "array", element: csharpObjectTargetType() }, {
         paramsArray: true,
         csharpAcceptsClosedSourceArgument: true,
       }),
@@ -587,7 +587,7 @@ function arrayOfMember(
         "of",
         "of",
         arrayStaticsType,
-        [targetParameter("items", element, { paramsArray: true })],
+        [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
         csharpJsArrayTargetType(element),
         { typeParameters: [{ name: "T" }] },
       );

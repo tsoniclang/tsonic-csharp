@@ -259,10 +259,12 @@ export function closedObjectParameter(
   name: string,
   options: Omit<CsharpTargetParameter, "name" | "type" | "passingMode"> = {},
 ): CsharpTargetParameter {
-  return targetParameter(name, csharpObjectTargetType(), {
-    csharpAcceptsClosedSourceArgument: true,
-    ...options,
-  });
+  const type = csharpObjectTargetType();
+  return targetParameter(
+    name,
+    options.paramsArray === true ? { kind: "array", element: type } : type,
+    { csharpAcceptsClosedSourceArgument: true, ...options },
+  );
 }
 
 export function staticMethod(

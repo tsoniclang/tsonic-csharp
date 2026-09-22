@@ -47,6 +47,13 @@ import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
 import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
+import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-array-rest.mjs";
+
+test("native params preserve array-valued arguments and nested storage identity", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
+  execute(compiled, "nested-array-rest");
+  assert.match(compiled.artifacts.get("src/Index.cs"), /values\.push\(first\);/u);
+});
 
 test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", files: genericObjectMethodFiles,

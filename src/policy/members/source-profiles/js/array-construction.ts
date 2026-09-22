@@ -37,7 +37,7 @@ export function arrayConstructionMember(
     targetName: "of",
     kind: "constructor",
     declaringType: resultType,
-    parameters: [targetParameter("items", element, { paramsArray: true })],
+    parameters: [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
     returnType: resultType,
     csharpInvocation: {
       kind: "static-factory-construction",
@@ -70,7 +70,7 @@ export function arrayCallMember(
     arrayStaticsType,
     numericLength
       ? [targetParameter("length", doubleType)]
-      : [targetParameter("items", element, { paramsArray: true })],
+      : [targetParameter("items", { kind: "array", element }, { paramsArray: true })],
     resultType,
     { typeParameters: [{ name: "T" }] },
   );
