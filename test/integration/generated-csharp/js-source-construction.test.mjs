@@ -326,6 +326,26 @@ for (const [name, source] of Object.entries(frozenObjectSources)) {
   });
 }
 
+for (const surface of [undefined, "js"]) {
+  test(`structural generic templates preserve rest getter order (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface, sourceText: `
+let order = "";
+function copy(value: { readonly omitted: number; readonly zip: string; readonly country: string }): string {
+  const { omitted, ...rest } = value;
+  return rest.zip + rest.country;
+}
+export function run(): boolean {
+  const value = {
+    get omitted(): number { order += "o"; return 1; },
+    get zip(): string { order += "z"; return "75001"; },
+    get country(): string { order += "c"; return "FR"; },
+  };
+  const result = copy(value);
+  return result === "75001FR" && order === "ozc";
+}` }), `structural-rest-order-${surface ?? "native"}`);
+  });
+}
+
 test("reference defaults evaluate in the callee only for omitted and undefined arguments", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 let calls = 0;

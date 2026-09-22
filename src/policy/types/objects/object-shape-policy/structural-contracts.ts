@@ -16,5 +16,5 @@ export function parameterizeCsharpStructuralContract(shape: CsharpObjectShapeFac
       ? [member.type.name] : []);
   const template: CsharpObjectShapeFact = { targetType, members: templateMembers, covariantTypeParameters };
   return { ...shape, targetType: { ...targetType, typeArguments: members.map(member => member.type) },
-    members, covariantTypeParameters, declarationTemplate: template };
+    covariantTypeParameters, declarationTemplate: template };
 }
