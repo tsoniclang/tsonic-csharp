@@ -16,6 +16,7 @@ import {
   allocateControlLabel,
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
+import type { ControlLabelTarget } from "../bindings/binding-state.js";
 import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 
 export type NestedStatementBodyPlanner = (
@@ -35,17 +36,17 @@ export function planLabeledStatement(
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
   const sourceName = requireCsharpIdentifier(Node_Text(input.program.source.ast, statement.Label!), diagnostics, "Statement label");
-  const target = {
+  const target: ControlLabelTarget = {
     sourceName,
     breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
     ...(isIterationStatement(statement.Statement, input)
-      ? { continueLabel: allocateControlLabel(state, sourceName, "ContinueStatement") }
+      ? { continueLabel: allocateControlLabel(state, sourceName, "ContinueStatement"), loop: statement.Statement }
       : {}),
   };
   state.controlLabels.push(target);
   const planned = planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
   state.controlLabels.pop();
-  const loweredStatement = target.continueLabel === undefined
+  const loweredStatement = target.continueLabel === undefined || target.continueUsed !== true
     ? planned
     : attachContinueLabel(planned, target.continueLabel);
   return {
@@ -53,12 +54,8 @@ export function planLabeledStatement(
     body: {
       kind: "Block",
       statements: [
-        {
-          kind: "LabeledStatement",
-          name: sourceName,
-          statement: loweredStatement,
-        },
-        controlLabelStatement(target.breakLabel),
+        loweredStatement,
+        ...(target.breakUsed === true ? [controlLabelStatement(target.breakLabel)] : []),
       ],
     },
   };
@@ -67,7 +64,7 @@ export function planLabeledStatement(
 export function findControlLabel(
   state: DestructuringPlannerState,
   sourceName: string,
-): { readonly breakLabel: string; readonly continueLabel?: string } | undefined {
+): ControlLabelTarget | undefined {
   const sanitized = sourceName;
   for (let index = state.controlLabels.length - 1; index >= 0; index--) {
     const target = state.controlLabels[index]!;

@@ -109,8 +109,12 @@ function planForStatementCore(
     return initializer?.prelude ?? [];
   }
   const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
+  const body = planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state);
+  const outerLabels = new Set(state.controlLabels.flatMap(target => [target.breakLabel,
+    ...(target.continueLabel === undefined || target.loop === node ? [] : [target.continueLabel])]));
   const plannedFor: CsharpStatement = {
     kind: "ForStatement",
+    ...(incrementors.length > 0 && exitsBeforeIncrementor(body, outerLabels) ? { unreachableIncrementor: true } : {}),
     ...(initializer?.initializer !== undefined
       ? { initializer: initializer.initializer }
       : {}),
@@ -123,10 +127,11 @@ function planForStatementCore(
       statements: [
         ...conditionPrelude.map(expression => expressionStatement(planDiscardedExpression(expression!))),
         ...(condition !== undefined && conditionPrelude.length !== 0 ? [{ kind: "IfStatement" as const,
-          condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const }, operand: condition },
+          condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const },
+            operand: { kind: "ParenthesizedExpression" as const, expression: condition } },
           thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
         }] : []),
-        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+        ...body,
       ],
     },
   };
@@ -140,6 +145,16 @@ function planForStatementCore(
         kind: "Block",
         body: { kind: "Block", statements: [...initializerPrelude, plannedFor] },
       }];
+}
+
+function exitsBeforeIncrementor(statements: readonly CsharpStatement[], outerLabels: ReadonlySet<string>): boolean {
+  const last = statements[statements.length - 1];
+  if (last === undefined) return false;
+  if (last.kind === "ReturnStatement" || last.kind === "ThrowStatement" || last.kind === "BreakStatement") return true;
+  if (last.kind === "GotoStatement") return outerLabels.has(last.label);
+  if (last.kind === "Block") return exitsBeforeIncrementor(last.body.statements, outerLabels);
+  return last.kind === "IfStatement" && last.elseBody !== undefined &&
+    exitsBeforeIncrementor(last.thenBody.statements, outerLabels) && exitsBeforeIncrementor(last.elseBody.statements, outerLabels);
 }
 
 interface PlannedForInitializer {

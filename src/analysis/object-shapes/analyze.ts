@@ -19,6 +19,8 @@ import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistra
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import { csharpTargetTypeComponents } from "../../target-model/types/components.js";
+import type { CsharpStructuralInterfaceImplementation } from "../../target-model/types/model.js";
+import { inferCsharpTargetTypeParameterBindings, substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 
 const noExpectedShape = "<none>";
 const maximumObjectShapeClassifications = 131_072;
@@ -33,13 +35,29 @@ export function analyzeCsharpObjectShapes(
   const objectLiterals = new Map<Node, SourceFile>();
   let classificationCount = 0;
   let sealed = false;
-  const structuralInterfaces = new Map<string, Map<string, TargetTypeRef>>();
+  const structuralInterfaces = new Map<string, Map<string, CsharpStructuralInterfaceImplementation>>();
+  const structuralImplementations = (type: TargetTypeRef): readonly CsharpStructuralInterfaceImplementation[] => {
+    if (type.kind !== "target-named") return [];
+    return [...structuralInterfaces.get(type.id)?.values() ?? []].map(selected => {
+      const parameters = new Set(selected.sourceType.kind === "target-named"
+        ? (selected.sourceType.typeArguments ?? []).flatMap(argument => argument.kind === "type-parameter" ? [argument.name] : []) : []);
+      const bindings = inferCsharpTargetTypeParameterBindings(selected.sourceType, type, parameters);
+      if (bindings === undefined) throw new Error("A structural implementation lost its exact source generic instantiation.");
+      return { ...selected, sourceType: type, interfaceType: substituteTargetTypeParameters(selected.interfaceType, bindings),
+        methods: selected.methods.map(method => ({ ...method, member: { ...method.member,
+          type: substituteTargetTypeParameters(method.member.type, bindings),
+        } })),
+      };
+    });
+  };
   const withInterfaces = (shape: CsharpObjectShapeFact | undefined): CsharpObjectShapeFact | undefined => {
     if (shape === undefined) return undefined;
-    const additional = structuralInterfaces.get(targetTypeRefKey(shape.targetType));
-    return additional === undefined ? shape : { ...shape, implements: Object.freeze([
-      ...(shape.implements ?? []), ...additional.values(),
-    ]) };
+    const interfaces = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
+    for (const selected of structuralImplementations(shape.targetType)) interfaces.set(targetTypeRefKey(selected.interfaceType), selected.interfaceType);
+    const declarationTemplate = withInterfaces(shape.declarationTemplate);
+    return interfaces.size === 0 && declarationTemplate === shape.declarationTemplate ? shape
+      : { ...shape, ...(interfaces.size === 0 ? {} : { implements: Object.freeze([...interfaces.values()]) }),
+        ...(declarationTemplate === undefined ? {} : { declarationTemplate }) };
   };
 
   const rememberShape = (shape: CsharpObjectShapeFact | undefined): void => {
@@ -157,23 +175,28 @@ export function analyzeCsharpObjectShapes(
   }
 
   const classifications: CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } = {
+    structuralImplementations,
     knownShapes() {
       return Object.freeze([...byTarget.values()].map(shape => withInterfaces(shape)!));
     },
-    registerStructuralInterface(expression, source, destination) {
+    registerStructuralInterface(expression, source, destination, sourceType) {
       if (sealed) throw new Error("C# structural-interface analysis is sealed.");
       source = getCsharpNullableElementTargetType(source) ?? source;
       destination = getCsharpNullableElementTargetType(destination) ?? destination;
-      const sourceShape = byTarget.get(targetTypeRefKey(source));
-      const destinationShape = byTarget.get(targetTypeRefKey(destination));
-      if (!selectCsharpStructuralInterface(policy, expression, sourceShape, destinationShape)) return false;
-      const key = targetTypeRefKey(source);
-      const targetKey = targetTypeRefKey(destination);
+      const sourceShape = byTarget.get(targetTypeRefKey(source)) ?? policy.objectShapes.resolveTarget(source);
+      const destinationShape = byTarget.get(targetTypeRefKey(destination)) ?? policy.objectShapes.resolveTarget(destination);
+      rememberShape(sourceShape);
+      rememberShape(destinationShape);
+      const selected = selectCsharpStructuralInterface(policy, expression, sourceShape, destinationShape, sourceType);
+      if (selected === undefined || selected.sourceType.kind !== "target-named") return false;
+      const key = selected.sourceType.id;
+      const targetKey = targetTypeRefKey(selected.interfaceType);
       let interfaces = structuralInterfaces.get(key);
       if (interfaces === undefined) { interfaces = new Map(); structuralInterfaces.set(key, interfaces); }
       if (!interfaces.has(targetKey) && !(sourceShape?.implements ?? []).some(type => targetTypeRefKey(type) === targetKey)) {
         reserveClassification();
-        interfaces.set(targetKey, destination);
+        interfaces.set(targetKey, selected);
+        rememberShape(policy.objectShapes.resolveTarget(selected.interfaceType));
       }
       return true;
     },

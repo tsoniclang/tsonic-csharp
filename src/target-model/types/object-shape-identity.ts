@@ -61,6 +61,7 @@ export function csharpObjectShapeContractKey(
   return JSON.stringify([
     targetTypeRefKey(shape.targetType),
     String(shape.constructible),
+    shape.covariantTypeParameters ?? [],
     canonicalCsharpObjectShapeImplementedTypes(shape.implements ?? [])
       .map(targetTypeRefKey),
     canonicalCsharpObjectShapeMembers(shape.members)

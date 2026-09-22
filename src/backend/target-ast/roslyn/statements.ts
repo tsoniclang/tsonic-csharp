@@ -40,6 +40,7 @@ export type CsharpStatement =
       readonly initializer?: CsharpForInitializer;
       readonly condition?: CsharpExpression;
       readonly incrementors?: readonly CsharpExpression[];
+      readonly unreachableIncrementor?: true;
       readonly body: CsharpBlock;
     };
 

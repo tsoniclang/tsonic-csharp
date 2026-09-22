@@ -46,7 +46,9 @@ export function renderObjectShapeTypeParameters(
     }
     if (!declaredNames.has(typeArgument.name)) {
       declaredNames.add(typeArgument.name);
-      declaredTypeParameters.push({ name });
+      declaredTypeParameters.push({ name,
+        ...(fact.covariantTypeParameters?.includes(typeArgument.name) === true ? { variance: "out" as const } : {}),
+      });
     }
   }
   const usedTypeParameters = collectObjectShapeTypeParameterNames(fact);

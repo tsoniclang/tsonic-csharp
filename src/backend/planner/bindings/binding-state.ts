@@ -80,6 +80,9 @@ export interface ControlLabelTarget {
   readonly sourceName: string;
   readonly breakLabel: string;
   readonly continueLabel?: string;
+  readonly loop?: Node;
+  breakUsed?: boolean;
+  continueUsed?: boolean;
 }
 
 export interface ForInSyntheticNames {

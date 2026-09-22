@@ -65,6 +65,7 @@ export interface CsharpStaticConstructorDeclaration {
 
 export interface CsharpMethodDeclaration {
   readonly kind: "MethodDeclaration";
+  readonly explicitInterface?: CsharpTypeNode;
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
@@ -76,6 +77,7 @@ export interface CsharpMethodDeclaration {
 
 export interface CsharpTypeParameter {
   readonly name: string;
+  readonly variance?: "in" | "out";
   readonly constraints?: readonly CsharpGenericConstraint[];
 }
 

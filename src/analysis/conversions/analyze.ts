@@ -38,6 +38,8 @@ import type {
   CsharpConversionIssue,
 } from "./model.js";
 import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
+import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
+import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -334,6 +336,29 @@ export function analyzeCsharpConversions(
         : undefined
     );
     if (source !== undefined) {
+      const queries = policy.semanticsFor(node);
+      const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+      const parameters = selectedArguments.map(argument => {
+        const symbol = queries.declarations.typeSymbol(argument.typeParameter);
+        const declarations = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
+          .filter(declaration => policy.ast.is.IsTypeParameterDeclaration(declaration));
+        return declarations.length === 1 ? declarations[0] : undefined;
+      });
+      const substitutions = new Map(parameters.flatMap((parameter, index) => {
+        const type = classification.sourceTypeArguments?.[index];
+        const name = parameter === undefined ? undefined : csharpSourceTypeParameterName(parameter, policy.ast);
+        return name === undefined || type === undefined ? [] : [[name, type] as const];
+      }));
+      for (const [index, argument] of selectedArguments.entries()) {
+        const parameter = parameters[index];
+        const type = classification.sourceTypeArguments?.[index];
+        const requirements = parameter === undefined ? undefined : evidence.typeParameterConstraints(parameter);
+        if (type === undefined || requirements?.kind !== "resolved") continue;
+        for (const constraint of requirements.constraints) {
+          if (constraint.kind === "type") objectShapes.registerStructuralInterface(node, type,
+            substituteTargetTypeParameters(constraint.type, substitutions), argument.selectedType);
+        }
+      }
       const boundParameterIndexes = new Set(
         source.sourceArgumentBindings.map((binding) =>
           binding.sourceParameterIndex),
@@ -515,7 +540,8 @@ export function analyzeCsharpConversions(
         candidate = { kind: "undefined-object-box" };
       }
     }
-    if (candidate.kind === "rejected" && objectShapes.registerStructuralInterface(expression, source, target)) {
+    if ((candidate.kind === "rejected" || candidate.kind === "implicit") &&
+      objectShapes.registerStructuralInterface(expression, source, target)) {
       candidate = { kind: "implicit", proof: "object-shape-interface" };
     }
     const selected = candidate.kind === "delegate-adapter" &&

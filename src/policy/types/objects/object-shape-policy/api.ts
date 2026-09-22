@@ -50,6 +50,7 @@ import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions, type CsharpStructuralUnionResolution } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 import { csharpCopiedObjectShapeMembers, csharpGenericMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
+import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
@@ -556,6 +557,7 @@ export function createCsharpObjectShapePolicy(
       return shape;
     }
     shape = retainCsharpMethodValueContracts(shape, rememberTargetShape);
+    if (shape.declarationTemplate !== undefined) rememberTargetShape(shape.declarationTemplate);
     const key = targetTypeRefKey(shape.targetType);
     const existing = targetShapes.get(key);
     if (existing !== undefined && !csharpObjectShapesEqual(existing, shape)) {
@@ -606,9 +608,9 @@ export function createCsharpObjectShapePolicy(
       if (targetType === undefined) {
         return undefined;
       }
-      const selectedType = queries.types.expressionType(node) ?? queries.types.authoredType(node);
+      const selectedType = queries.types.expressionType(definition.declaration) ?? queries.types.authoredType(definition.declaration);
       const selectedMembers = selectedType === undefined ? undefined : deriveMembers(selectedType, queries, state);
-      const initializer = host.ast.is.IsCallExpression(node) ? node : Node_Initializer(host.ast, node);
+      const initializer = Node_Initializer(host.ast, definition.declaration);
       const shapeNode = initializer === undefined || readCsharpSourceStruct(host.sourceFacts, initializer) === undefined
         ? undefined : host.ast.arguments(initializer)[0];
       const shapeType = shapeNode === undefined ? undefined : queries.types.expressionType(shapeNode);
@@ -788,7 +790,8 @@ export function createCsharpObjectShapePolicy(
         const selected = resolveObjectLiteralTargetShape(shape, authoredLiteral, queries.sourceFile);
         return selected.kind === "resolved" ? { ...selected.shape, sourceType: type } : undefined;
       }
-      return shape;
+      return structuralContract && unionDefinitions.reference(type) === undefined
+        ? parameterizeCsharpStructuralContract(shape) : shape;
     } finally {
       activeTypes.delete(type);
     }

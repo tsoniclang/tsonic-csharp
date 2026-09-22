@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
+import { assertCsharpCompilationSucceeded, checkCsharpSource, compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { valueStructProofFiles } from "../../../../tsonic/test/fixtures/value-structs.mjs";
@@ -57,9 +57,8 @@ test("generic object methods retain native binders, independent bodies and share
   assert.doesNotMatch(shapes, /(?:Func|Action)<[TU](?:, [TU])?> __tsonic_method/u);
   assert.doesNotMatch(shapes, /DynamicInvoke|System\.Reflection|System\.Linq\.Expressions/u);
   for (const sourceText of invalidGenericObjectMethods) {
-    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
     assert.match(invalid.sourceDiagnosticsText, /error TS/u);
-    assert.equal(invalid.artifacts.size, 0);
   }
 });
 
@@ -80,9 +79,8 @@ test("class structural views retain native reference identity across all value b
   execute(compileCsharpSource({ surface: "js", files: classStructuralConversionFiles,
     sourceText: classStructuralConversionFiles["index.ts"] }), "class-structural-conversions");
   for (const sourceText of invalidClassStructuralConversions) {
-    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
     assert.match(invalid.sourceDiagnosticsText, /error TS/u);
-    assert.equal(invalid.artifacts.size, 0);
   }
 });
 
@@ -94,9 +92,8 @@ test("union calls compose generic, default, rest and async contracts without dis
   assert.match(native, /private static [^\n]*__tsonic_union_call_/u);
   assert.doesNotMatch(native, /\.Match(?:<[^\n]+>)?\(/u);
   for (const sourceText of incompatibleUnionCalls) {
-    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
     assert.match(invalid.sourceDiagnosticsText, /error TS/u);
-    assert.equal(invalid.artifacts.size, 0);
   }
 });
 
@@ -371,7 +368,7 @@ export function run(): boolean {
 }` }), `inline-enumeration-${surface ?? "native"}`);
   });
   test(`mapped readonly arguments preserve identity and independent copies (${surface ?? "native"})`, { timeout: 300_000 }, () => {
-    execute(compileCsharpSource({ surface, sourceText: `
+    const compiled = compileCsharpSource({ surface, sourceText: `
 type Item = { count: number; label: string };
 function read(value: Readonly<Item>): number { return value.count; }
 function clone(value: Readonly<Item>): Item { return { ...value }; }
@@ -382,7 +379,11 @@ export function run(): boolean {
   item.count = 7;
   copy.count = 9;
   return read(view) === 7 && copy.count === 9 && item.count === 7;
-}` }), `mapped-readonly-${surface ?? "native"}`);
+}` });
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.match(generated, /interface ObjectShape_\w+<out Property0, out Property1>/u);
+    assert.match(generated, /interface ObjectShape_\w+<Property0, Property1> : ObjectShape_\w+<Property0, Property1>/u);
+    execute(compiled, `mapped-readonly-${surface ?? "native"}`);
   });
 }
 

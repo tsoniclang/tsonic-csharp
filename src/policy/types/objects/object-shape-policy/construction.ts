@@ -27,7 +27,8 @@ export function createStructuralObjectShapeTarget(
   }
   const canonicalMembers = canonicalCsharpObjectShapeMembers(members);
   const canonicalImplemented = canonicalCsharpObjectShapeImplementedTypes(
-    implemented ?? [],
+    (implemented ?? []).filter(type => !members.some(member => member.methodValueContract !== undefined &&
+      targetTypeRefKey(member.methodValueContract) === targetTypeRefKey(type))),
   );
   const key = JSON.stringify({
     members: canonicalMembers.map(member => contract

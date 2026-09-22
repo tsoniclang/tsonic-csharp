@@ -222,6 +222,7 @@ export function planBreakStatement(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
       return [];
     }
+    target.breakUsed = true;
     return [{ kind: "GotoStatement", label: target.breakLabel }];
   }
   return [{ kind: "BreakStatement" }];
@@ -240,6 +241,7 @@ export function planContinueStatement(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
       return [];
     }
+    target.continueUsed = true;
     return [{ kind: "GotoStatement", label: target.continueLabel }];
   }
   return [{ kind: "ContinueStatement" }];

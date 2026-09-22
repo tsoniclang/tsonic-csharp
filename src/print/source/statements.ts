@@ -111,7 +111,9 @@ export function printCsharpStatement(
       ].join("\n");
     case "ForStatement":
       return [
+        ...(statement.unreachableIncrementor === true ? ["#pragma warning disable CS0162"] : []),
         `for (${printCsharpForInitializer(statement.initializer, context)}; ${statement.condition === undefined ? "" : context.printExpression(statement.condition)}; ${(statement.incrementors ?? []).map(expression => context.printExpression(expression)).join(", ")})`,
+        ...(statement.unreachableIncrementor === true ? ["#pragma warning restore CS0162"] : []),
         "{",
         ...indentLines(context.printStatements(statement.body.statements)),
         "}",

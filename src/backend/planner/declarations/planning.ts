@@ -21,6 +21,7 @@ import {
 import { planClassHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "./modifiers.js";
 import { csharpReferenceIdentityInterfaceType } from "../objects/declarations/interfaces.js";
+import { planCsharpStructuralInterfaceMethods } from "./structural-interfaces.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { planParametersWithPrelude } from "../bindings/parameters.js";
 import { planBlockStatements } from "../statements/index.js";
@@ -132,6 +133,7 @@ export function planClassDeclaration(
     members: [
       ...implicitConstructors,
       ...safetyDefaultConstructors,
+      ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
       ...(jsonSerializable && objectShape !== undefined

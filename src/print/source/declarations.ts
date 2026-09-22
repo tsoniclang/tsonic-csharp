@@ -190,18 +190,19 @@ function printStaticConstructorLines(
 }
 
 function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintContext): string[] {
+  const qualifier = method.explicitInterface === undefined ? "" : `${context.printType(method.explicitInterface)}.`;
   const modifiers = method.modifiers.length === 0 ? "" : `${method.modifiers.join(" ")} `;
   const typeParameters = context.printTypeParameters(method.typeParameters);
   const constraintLines = context.printTypeParameterConstraintLines(method.typeParameters);
   const parameters = method.parameters.map(context.printParameter).join(", ");
   if (method.body === undefined) {
-    const header = `${modifiers}${context.printType(method.returnType)} ${method.name}${typeParameters}(${parameters})`;
+    const header = `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`;
     const signature = [header, ...constraintLines];
     return [...context.printAttributes(method.attributes), ...signature.slice(0, -1), `${signature[signature.length - 1]};`];
   }
   return [
     ...context.printAttributes(method.attributes),
-    `${modifiers}${context.printType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
+    `${modifiers}${context.printType(method.returnType)} ${qualifier}${method.name}${typeParameters}(${parameters})`,
     ...constraintLines,
     "{",
     ...indentLines(context.printStatements(method.body.statements)),

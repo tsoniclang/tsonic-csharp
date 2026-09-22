@@ -45,6 +45,7 @@ export interface CsharpObjectShapeFact {
   readonly targetType: TargetTypeRef;
   readonly sourceType?: Type;
   readonly declarationTemplate?: CsharpObjectShapeFact;
+  readonly covariantTypeParameters?: readonly string[];
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
@@ -64,6 +65,17 @@ export interface CsharpObjectShapeFact {
 export interface CsharpSourceTargetTypeBinding {
   readonly declaration: Node;
   readonly targetType: TargetTypeRef;
+}
+
+export interface CsharpStructuralInterfaceImplementation {
+  readonly sourceType: TargetTypeRef;
+  readonly interfaceType: TargetTypeRef;
+  readonly methods: readonly {
+    readonly sourceName: string;
+    readonly declaration: Node;
+    readonly member: CsharpObjectShapeMemberFact;
+    readonly defaultArguments: readonly number[];
+  }[];
 }
 
 export type TargetTypeRef =
