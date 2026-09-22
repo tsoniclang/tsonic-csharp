@@ -1,5 +1,15 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 
+const typeParameterOwnerKinds = new Set([
+  "KindClassDeclaration", "KindClassExpression", "KindInterfaceDeclaration", "KindTypeAliasDeclaration",
+  "KindFunctionDeclaration", "KindFunctionExpression", "KindArrowFunction", "KindMethodDeclaration", "KindMethodSignature",
+  "KindFunctionType", "KindConstructorType", "KindCallSignature", "KindConstructSignature",
+]);
+
+export function csharpSourceTypeParameters(node: Node, ast: AstReader): readonly (Node | undefined)[] {
+  return typeParameterOwnerKinds.has(ast.kindName(node)) ? ast.typeParameters(node) : [];
+}
+
 export function csharpSourceTypeParameterName(declaration: Node, ast: AstReader): string | undefined {
   if (!ast.is.IsTypeParameterDeclaration(declaration)) return undefined;
   const nameNode = ast.name(declaration);
@@ -8,7 +18,7 @@ export function csharpSourceTypeParameterName(declaration: Node, ast: AstReader)
   const name = ast.text(nameNode);
   const occupied = new Set<string>();
   for (let ancestor = ast.parent(owner); ancestor !== undefined; ancestor = ast.parent(ancestor)) {
-    for (const parameter of ast.typeParameters(ancestor)) {
+    for (const parameter of csharpSourceTypeParameters(ancestor, ast)) {
       if (parameter === undefined) return undefined;
       const selected = csharpSourceTypeParameterName(parameter, ast);
       if (selected === undefined) return undefined;

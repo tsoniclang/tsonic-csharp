@@ -9,7 +9,8 @@ export function selectCsharpStructuralInterface(
   source: CsharpObjectShapeFact | undefined, destination: CsharpObjectShapeFact | undefined,
 ): boolean {
   if (source === undefined || destination?.sourceType === undefined ||
-    (destination.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true ||
+    ((destination.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
+      (destination.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") ||
     isCsharpValueTypeTargetType(source.targetType) || source.members.some(member => member.bound === true)) return false;
   const semantics = policy.semanticsFor(expression);
   const sourceType = semantics.types.expressionType(expression);

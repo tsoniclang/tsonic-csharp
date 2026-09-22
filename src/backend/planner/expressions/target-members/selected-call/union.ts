@@ -1,4 +1,5 @@
 import type { Node } from "@tsonic/tsts";
+import { csharpSourceTypeParameters } from "../../../../../target-model/names/type-parameters.js";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpCallClassification, ResolvedSourceCallInfo } from "../../../../../analysis/operations/index.js";
 import { csharpTargetParameterValueType } from "../../../../../target-model/types/member-facts.js";
@@ -95,7 +96,7 @@ function enclosingMethodTypeParameters(node: Node, input: CsharpPlanningContext)
   const parameters = new Map<string, Node>();
   for (let parent = ast.parent(node); parent !== undefined; parent = ast.parent(parent)) {
     if (ast.is.IsClassDeclaration(parent) || ast.is.IsClassExpression(parent)) break;
-    for (const parameter of ast.typeParameters(parent)) {
+    for (const parameter of csharpSourceTypeParameters(parent, ast)) {
       if (parameter === undefined) continue;
       const selected = input.program.names.resolve(ast.name(parameter), parameter);
       if (selected.kind === "resolved" && !parameters.has(selected.name)) parameters.set(selected.name, parameter);

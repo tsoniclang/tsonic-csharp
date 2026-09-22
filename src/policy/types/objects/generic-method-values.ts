@@ -20,7 +20,8 @@ export function selectCsharpGenericMethodValue(
     const declarations = member.member.sourceDeclarations?.filter(declaration =>
       host.ast.parent(declaration) === shape.methodImplementation!.declaration && host.ast.body(declaration) !== undefined);
     if (declarations?.length !== 1 || sourceCallableUsesLexicalThis(host.ast, declarations[0]!)) return undefined;
-  } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) return undefined;
+  } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true &&
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return undefined;
   const environment = csharpGenericMethodEnvironment(shape, member.member);
   if (environment === undefined) return undefined;
   const identity = JSON.stringify(csharpSourceMemberKeyParts(member.member.sourceKey));

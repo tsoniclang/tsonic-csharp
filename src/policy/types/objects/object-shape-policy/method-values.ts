@@ -6,7 +6,8 @@ import { csharpStructuralObjectShapeIdentity } from "../../../../target-model/ty
 export function retainCsharpMethodValueContracts(
   shape: CsharpObjectShapeFact, remember: (shape: CsharpObjectShapeFact) => CsharpObjectShapeFact,
 ): CsharpObjectShapeFact {
-  if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined) return shape;
+  if (csharpStructuralObjectShapeIdentity(shape.targetType) === undefined &&
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") return shape;
   const implemented = new Map((shape.implements ?? []).map(type => [targetTypeRefKey(type), type]));
   const members = shape.members.map(member => {
     if (member.memberKind !== "method" || (member.typeParameters?.length ?? 0) === 0) return member;
@@ -26,7 +27,8 @@ export function csharpGenericMethodEnvironment(
   shape: CsharpObjectShapeFact, member: CsharpObjectShapeMemberFact,
 ): TargetTypeRef | undefined {
   if (member.memberKind !== "method" || (member.typeParameters?.length ?? 0) === 0) return undefined;
-  return member.methodStorageType ?? ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
+  return member.methodStorageType ?? ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
+    (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface"
     ? member.methodValueContract : shape.methodImplementation === undefined ? undefined : shape.targetType);
 }
 

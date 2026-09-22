@@ -17,6 +17,8 @@ import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../ta
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { resolveTypeParameter } from "./source-evidence.js";
+import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
+import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -327,9 +329,14 @@ export function resolveSourceCallableContractType(
   if (receiverInstantiation.kind === "unresolved") {
     return undefined;
   }
-  return receiverInstantiation.kind === "resolved"
-    ? receiverInstantiation.type
-    : substituted;
+  if (receiverInstantiation.kind === "resolved") return receiverInstantiation.type;
+  const shape = receiverType === undefined ? undefined : host.structuralTypes.resolveTarget(receiverType);
+  const template = shape?.declarationTemplate?.targetType;
+  if (template?.kind !== "target-named" || receiverType === undefined) return substituted;
+  const names = new Set((template.typeArguments ?? []).flatMap(argument =>
+    argument.kind === "type-parameter" ? [argument.name] : []));
+  const bindings = inferCsharpTargetTypeParameterBindings(template, receiverType, names);
+  return bindings === undefined ? undefined : substituteTargetTypeParameters(substituted, bindings);
 }
 
 
@@ -466,17 +473,30 @@ export function resolveSourceCallReceiverTargetType(
 
 
 export function sourceCallCalleeDelegateSignature(
-  { resolveSelectedValueWithState }: CsharpTypeResolutionScope,
+  { host, resolveSelectedValueWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): ReturnType<typeof getCsharpDelegateSignature> {
-  return getCsharpDelegateSignature(resolveSelectedValueWithState(
+  const carrier = resolveSelectedValueWithState(
     source.sourceCallee.expression,
     source.sourceCallee.type,
     sourceFile,
     nextState(state),
-  ));
+  );
+  const receiver = source.sourceReceiver;
+  const receiverCarrier = receiver === undefined ? undefined : resolveSelectedValueWithState(
+    receiver.expression, receiver.type, sourceFile, nextState(state));
+  const shape = receiverCarrier === undefined ? undefined : host.structuralTypes.resolveTarget(receiverCarrier);
+  const member = shape === undefined ? undefined : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
+    [source.sourceCallee.selectedDeclaration, source.sourceCallee.declaration, source.sourceCallee.selectedSymbol, source.sourceCallee.symbol]
+      .filter(subject => subject !== undefined));
+  const selected = member?.kind === "resolved" ? member.member.type : carrier;
+  const contract = getCsharpGenericMethodValue(selected)?.contract ?? selected;
+  if (getCsharpDelegateSignature(contract) === undefined) return undefined;
+  const instantiation = resolveSourceCallInstantiation(source, sourceFile, nextState(state));
+  return contract === undefined || instantiation === undefined ? undefined
+    : getCsharpDelegateSignature(substituteTargetTypeParameters(contract, instantiation.substitutions));
 }
 
 

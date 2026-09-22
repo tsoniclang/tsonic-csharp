@@ -343,11 +343,17 @@ function translateSourceOwnedProperty(
   if (receiver === undefined) {
     return undefined;
   }
-  if (genericMethodValue !== undefined) {
+  if (genericMethodValue !== undefined && shapeMember?.kind === "resolved" && shapeMember.member.memberKind === "property") {
+    if (rawReadType === undefined || !targetTypeRefEquals(shapeMember.member.type, rawReadType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A stored generic method value lost its exact selected native storage type."));
+      return undefined;
+    }
+  } else if (genericMethodValue !== undefined) {
     if (objectShape === undefined || shapeMember?.kind !== "resolved" ||
         genericMethodValue.method !== shapeMember.member.targetName ||
         !targetTypeRefEquals(genericMethodValue.owner, shapeMember.member.methodStorageType ??
-          ((objectShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
+          ((objectShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true ||
+            (objectShape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "interface"
             ? shapeMember.member.methodValueContract ?? objectShape.targetType : objectShape.targetType))) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A generic method value lost its exact selected native owner."));
       return undefined;

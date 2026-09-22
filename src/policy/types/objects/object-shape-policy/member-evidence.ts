@@ -12,6 +12,7 @@ import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 import { csharpGenericMethodValueCoversContract } from "../../../../target-model/types/generic-method-values.js";
+import { csharpSourceTypeParameterName } from "../../../../target-model/names/type-parameters.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -160,13 +161,13 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
     const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {
       if (declaration === undefined) return undefined;
-      const type = host.typeResolver.resolveNode(declaration, queries.sourceFile, nextState(state));
-      if (type?.kind !== "type-parameter") return undefined;
-      const selected = resolveCsharpTypeParameterConstraints(declaration, type.name, queries.sourceFile, {
+      const name = csharpSourceTypeParameterName(declaration, host.ast);
+      if (name === undefined) return undefined;
+      const selected = resolveCsharpTypeParameterConstraints(declaration, name, queries.sourceFile, {
         ast: host.ast,
         types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
       });
-      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, name: type.name,
+      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, name,
         constraints: Object.freeze([...selected.constraints]),
       });
     });

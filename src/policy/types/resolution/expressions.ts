@@ -218,6 +218,13 @@ export function resolvePropertyAccessTargetType(
     node,
     queries.sourceFile,
   );
+  if ((selection.kind === "resolved" || selection.kind === "source-owned") &&
+    !selection.source.callCallee && selection.source.accessMode === "read") {
+    const receiverType = resolveSelectedReceiverTargetType(selection.source.receiver, queries, state);
+    const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
+      selection.source.selectedSymbol, selection.source.selectedDeclaration), host);
+    if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
+  }
   if (selection.kind === "resolved") {
     return optionalAccessTargetType(
       selection.targetMember.returnType,
@@ -232,11 +239,6 @@ export function resolvePropertyAccessTargetType(
     queries,
     state,
   );
-  if (!selection.source.callCallee && selection.source.accessMode === "read") {
-    const methodValue = selectCsharpGenericMethodValue(receiverType, queries.facts.selectedSubjects(
-      selection.source.selectedSymbol, selection.source.selectedDeclaration), host);
-    if (methodValue !== undefined) return optionalAccessTargetType(methodValue, selection.source.optionalChain);
-  }
   const selectedSourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;

@@ -29,7 +29,8 @@ export function collectCsharpReferenceClosure(
     const shape = work[index]!;
     const key = objectShapeArtifactKey(shape);
     if (shapes.has(key)) continue;
-    if (capability === "method-values" && isSourceDeclaredNominalShape(shape)) {
+    if (capability === "method-values" && isSourceDeclaredNominalShape(shape) &&
+      (shape.targetType as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind !== "interface") {
       return { kind: "rejected", reason: "Copying method values requires exact own callable storage, not a nominal prototype method." };
     }
     if (capability === "enumerable-keys" && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) {

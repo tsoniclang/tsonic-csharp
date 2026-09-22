@@ -40,6 +40,8 @@ import {
 } from "../bindings/typed-location-identities.js";
 import { planResourceScopeStatements } from "./resource-management.js";
 import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
+import { csharpSourceExpressionSequence } from "../../../target-model/syntax/expression-sequence.js";
+import { expressionStatement, planDiscardedExpression } from "./statement-output.js";
 
 export function planForStatement(
   node: Node,
@@ -92,16 +94,18 @@ function planForStatementCore(
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
-  const condition = statement.Condition === undefined
+  const conditionNodes = statement.Condition === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Condition);
+  const conditionNode = conditionNodes[conditionNodes.length - 1];
+  const condition = conditionNode === undefined
     ? undefined
-    : planConditionExpression(statement.Condition, "For statement", sourceFile, input, diagnostics, state);
+    : planConditionExpression(conditionNode, "For statement", sourceFile, input, diagnostics, state);
+  const conditionPrelude = conditionNodes.slice(0, -1).map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
   if (statement.Condition !== undefined && condition === undefined) {
     return initializer?.prelude ?? [];
   }
-  const incrementor = statement.Incrementor === undefined
-    ? undefined
-    : planExpression(statement.Incrementor, sourceFile, input, diagnostics, state);
-  if (statement.Incrementor !== undefined && incrementor === undefined) {
+  const incrementors = statement.Incrementor === undefined ? [] : csharpSourceExpressionSequence(input.program.source.ast, statement.Incrementor)
+    .map(expression => planExpression(expression, sourceFile, input, diagnostics, state));
+  if (incrementors.some(expression => expression === undefined) || conditionPrelude.some(expression => expression === undefined)) {
     return initializer?.prelude ?? [];
   }
   const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
@@ -110,13 +114,20 @@ function planForStatementCore(
     ...(initializer?.initializer !== undefined
       ? { initializer: initializer.initializer }
       : {}),
-    ...(statement.Condition !== undefined
+    ...(condition !== undefined && conditionPrelude.length === 0
       ? { condition }
       : {}),
-    incrementors: [...(rotation === undefined ? [] : [rotation]), ...(incrementor === undefined ? [] : [incrementor])],
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...incrementors.map(expression => planDiscardedExpression(expression!))],
     body: {
       kind: "Block",
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      statements: [
+        ...conditionPrelude.map(expression => expressionStatement(planDiscardedExpression(expression!))),
+        ...(condition !== undefined && conditionPrelude.length !== 0 ? [{ kind: "IfStatement" as const,
+          condition: { kind: "PrefixUnaryExpression" as const, operatorToken: { kind: "ExclamationToken" as const }, operand: condition },
+          thenBody: { kind: "Block" as const, statements: [{ kind: "BreakStatement" as const }] },
+        }] : []),
+        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      ],
     },
   };
   const initializerPrelude: readonly CsharpStatement[] = [...capturePrelude, ...initializer?.prelude ?? [],
