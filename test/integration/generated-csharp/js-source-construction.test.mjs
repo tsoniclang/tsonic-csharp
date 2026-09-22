@@ -45,6 +45,17 @@ import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
+import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
+
+test("class structural views retain native reference identity across all value boundaries", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: classStructuralConversionFiles,
+    sourceText: classStructuralConversionFiles["index.ts"] }), "class-structural-conversions");
+  for (const sourceText of invalidClassStructuralConversions) {
+    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+    assert.equal(invalid.artifacts.size, 0);
+  }
+});
 
 test("union calls compose generic, default, rest and async contracts without dispatch closures", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", files: unionCallContractsFiles,
