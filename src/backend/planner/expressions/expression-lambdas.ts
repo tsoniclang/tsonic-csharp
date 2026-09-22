@@ -9,7 +9,8 @@ import {
   KindBlock,
   KindFunctionExpression,
   KindIdentifier,
-  Node_Text,
+  KindObjectBindingPattern,
+  KindArrayBindingPattern,
   ModifierFlagsAsync,
 } from "@tsonic/target-api/source";
 import type {
@@ -26,6 +27,7 @@ import {
   createDestructuringPlannerState,
   createNestedPlannerState,
   declareCsharpLocalBindingName,
+  allocateSyntheticParameter,
 } from "../bindings/index.js";
 import type {
   DestructuringPlannerState,
@@ -35,7 +37,6 @@ import {
   nullableCsharpType,
 } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { requireCsharpIdentifier } from "../../../target-model/names/identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import { planBlockStatements } from "../statements/index.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -381,7 +382,7 @@ export function planLambdaParameters(
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
-  state?: DestructuringPlannerState,
+  state: DestructuringPlannerState,
   expectedContext?: LambdaTargetContext,
 ): readonly CsharpLambdaParameter[] {
   const expectedParameterTypes = expectedContext?.signature.parameters ?? [];
@@ -399,7 +400,9 @@ export function planLambdaParameters(
           "A lambda rest parameter requires exact selected delegate rest-parameter evidence before C# emission.",
         ));
       }
-      if (!HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)) {
+      const bindingPattern = HasSourceKind(input.program.source.ast, parameter.name, KindObjectBindingPattern) ||
+        HasSourceKind(input.program.source.ast, parameter.name, KindArrayBindingPattern);
+      if (!HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier) && !bindingPattern) {
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
       }
       const expectedParameterType = expectedParameterTypes[index];
@@ -416,11 +419,9 @@ export function planLambdaParameters(
         : csharpTypeFromTargetTypeRef(nativeParameterType);
       return {
         kind: "Parameter",
-        name: HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier) && state !== undefined
-          ? declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg")
-          : HasSourceKind(input.program.source.ast, parameter.name, KindIdentifier)
-            ? requireCsharpIdentifier(Node_Text(input.program.source.ast, parameter.name), diagnostics, "Lambda parameter")
-            : "arg",
+        name: bindingPattern
+          ? allocateSyntheticParameter(state)
+          : declareCsharpLocalBindingName(parameter.name, input, diagnostics, state, "Lambda parameter", "arg"),
         ...(explicitParameterType !== undefined
           ? { type: explicitParameterType }
           : expectedParameterType === undefined
