@@ -43,6 +43,7 @@ export function collectShapeDependencies(
     shapes.set(key, shape);
     const targets = [
       ...shape.members.map((member) => member.type),
+      ...shape.members.flatMap(member => member.methodStorageType === undefined ? [] : [member.methodStorageType]),
       ...(shape.implements ?? []),
     ];
     const visitedTypes = new Set<string>();

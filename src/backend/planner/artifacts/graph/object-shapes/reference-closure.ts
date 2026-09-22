@@ -40,6 +40,14 @@ export function collectCsharpReferenceClosure(
       return { kind: "rejected", reason: `The ${capability} capability cannot use native value storage or an unprotected bound write route.` };
     }
     shapes.set(key, shape);
+    if (capability === "method-values") {
+      for (const member of shape.members) {
+        if (member.methodValueContract === undefined) continue;
+        const contract = scope.host.objectShapes.resolveTarget(member.methodValueContract);
+        if (contract === undefined) return { kind: "rejected", reason: "A generic method value requires its sealed native callable contract." };
+        work.push(contract);
+      }
+    }
     for (const dependent of dependents.get(targetTypeRefKey(shape.targetType)) ?? []) {
       if (targetTypeRefEquals(dependent.base, shape.targetType)) work.push(dependent.shape);
     }

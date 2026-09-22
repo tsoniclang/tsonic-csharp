@@ -34,6 +34,9 @@ export function createStructuralObjectShapeTarget(
       ? [csharpObjectShapeMemberContractParts(member), member.readonly === true]
       : csharpObjectShapeMemberContractParts(member)),
     implements: canonicalImplemented.map(targetTypeRefKey),
+    ...(!contract && canonicalMembers.some(member => member.methodStorageType !== undefined) ? {
+      methodStorage: canonicalMembers.map(member => member.methodStorageType === undefined ? null : targetTypeRefKey(member.methodStorageType)),
+    } : {}),
     ...(contract ? { contract: true } : {}),
     ...(implementation === undefined ? {} : { implementation: implementation.identity,
       captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
@@ -112,6 +115,7 @@ function collectObjectShapeTypeParameters(
   members.forEach(member => {
     const boundNames = new Set(member.typeParameters?.map(parameter => parameter.name));
     collect(member.type, boundNames);
+    if (member.methodStorageType !== undefined) collect(member.methodStorageType);
     member.typeParameters?.forEach(parameter => parameter.constraints.forEach(constraint => {
       if (constraint.kind === "type") collect(constraint.type, boundNames);
     }));

@@ -34,6 +34,7 @@ export function objectShapeMethodStorageTargetType(
   if (member.memberKind !== "method") {
     return undefined;
   }
+  if (member.methodStorageType !== undefined) return receiverBound ? undefined : member.methodStorageType;
   const signature = getCsharpDelegateSignature(member.type);
   if (signature === undefined) {
     return undefined;

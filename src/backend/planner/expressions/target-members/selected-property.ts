@@ -38,6 +38,7 @@ import {
 import { applyCsharpConversionSelection } from "../conversions.js";
 import { objectShapeStorageMemberName } from "../../objects/object-shape-storage.js";
 import { getCsharpGenericMethodValue } from "../../../../target-model/types/generic-method-values.js";
+import type { CsharpTargetNamedTypeRef } from "../../../../target-model/types/model.js";
 import { targetTypeRefEquals } from "../../../../target-model/types/equality.js";
 
 export function translateCsharpPropertyAccess(
@@ -345,7 +346,9 @@ function translateSourceOwnedProperty(
   if (genericMethodValue !== undefined) {
     if (objectShape === undefined || shapeMember?.kind !== "resolved" ||
         genericMethodValue.method !== shapeMember.member.targetName ||
-        !targetTypeRefEquals(genericMethodValue.owner, objectShape.targetType)) {
+        !targetTypeRefEquals(genericMethodValue.owner, shapeMember.member.methodStorageType ??
+          ((objectShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true
+            ? shapeMember.member.methodValueContract ?? objectShape.targetType : objectShape.targetType))) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "A generic method value lost its exact selected native owner."));
       return undefined;
     }

@@ -29,6 +29,10 @@ export function csharpObjectShapesEqual(
         member.memberKind === other.memberKind &&
         member.optional === other.optional &&
         member.bound === other.bound &&
+        (member.methodStorageType === undefined ? other.methodStorageType === undefined :
+          other.methodStorageType !== undefined && targetTypeRefEquals(member.methodStorageType, other.methodStorageType)) &&
+        (member.methodValueContract === undefined ? other.methodValueContract === undefined :
+          other.methodValueContract !== undefined && targetTypeRefEquals(member.methodValueContract, other.methodValueContract)) &&
         member.accessor?.getter === other.accessor?.getter &&
         member.accessor?.setter === other.accessor?.setter &&
         csharpObjectShapeMemberContractKey(member) === csharpObjectShapeMemberContractKey(other);

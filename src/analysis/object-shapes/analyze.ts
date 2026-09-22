@@ -178,7 +178,8 @@ export function analyzeCsharpObjectShapes(
       return true;
     },
     seal() {
-      const pending = [...byTarget.values()].flatMap(shape => [shape.targetType, ...shape.members.map(member => member.type), ...shape.implements ?? []]);
+      const pending = [...byTarget.values()].flatMap(shape => [shape.targetType, ...shape.members.map(member => member.type),
+        ...shape.members.flatMap(member => member.methodStorageType === undefined ? [] : [member.methodStorageType]), ...shape.implements ?? []]);
       const visited = new Set<string>();
       for (let index = 0; index < pending.length; index++) {
         const type = pending[index]!;

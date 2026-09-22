@@ -263,6 +263,12 @@ export function substituteObjectShapeFactTargetTypeParameters(
             : new Map([...substitutions].filter(([name]) => !boundNames.has(name)));
           return { ...member,
             type: substituteTargetTypeParameters(member.type, freeSubstitutions),
+            ...(member.methodStorageType === undefined ? {} : {
+              methodStorageType: substituteTargetTypeParameters(member.methodStorageType, substitutions),
+            }),
+            ...(member.methodValueContract === undefined ? {} : {
+              methodValueContract: substituteTargetTypeParameters(member.methodValueContract, substitutions),
+            }),
             ...(member.typeParameters === undefined ? {} : {
               typeParameters: member.typeParameters.map(parameter => ({ ...parameter,
                 constraints: parameter.constraints.map(constraint => constraint.kind !== "type" ? constraint

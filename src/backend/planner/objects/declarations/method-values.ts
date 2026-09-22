@@ -29,11 +29,12 @@ export function renderCsharpMethodValueContracts(
       const exact = shape.members.filter(candidate =>
         csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(required));
       const selected = exact.length === 1 ? exact[0] : undefined;
-      const memberType = selected === undefined ? undefined : csharpTypeFromTargetTypeRef(generic ? contract.targetType : selected.type);
+      const valueType = generic ? required.methodValueContract : selected?.type;
+      const memberType = valueType === undefined ? undefined : csharpTypeFromTargetTypeRef(valueType);
       if (selected === undefined || memberType === undefined || input.artifacts.objectShapeMethodUsesReceiver(shape, selected)) return undefined;
       members.push({ kind: "PropertyDeclaration", name: objectShapeStorageMemberName(contract, required),
         explicitInterface, modifiers: [], type: memberType, getter: { kind: "Block", statements: [{
-          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: generic ? "this" : objectShapeStorageMemberName(shape, selected) },
+          kind: "ReturnStatement", expression: { kind: "IdentifierName", name: generic && selected.methodStorageType === undefined ? "this" : objectShapeStorageMemberName(shape, selected) },
         }] } });
     }
   }

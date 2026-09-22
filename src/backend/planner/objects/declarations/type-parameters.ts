@@ -77,6 +77,7 @@ function collectObjectShapeTypeParameterNames(
     }
     for (const parameter of member.typeParameters ?? []) memberNames.delete(parameter.name);
     for (const name of memberNames) names.add(name);
+    if (member.methodStorageType !== undefined) collectTargetTypeParameterNames(member.methodStorageType, names);
   }
   for (const implementedType of fact.implements ?? []) {
     collectTargetTypeParameterNames(implementedType, names);

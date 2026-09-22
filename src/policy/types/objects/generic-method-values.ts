@@ -5,6 +5,7 @@ import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../target-mo
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { csharpGenericMethodValueType } from "../../../target-model/types/generic-method-values.js";
 import { csharpSourceMemberKeyParts } from "../../../target-model/types/source-member-keys.js";
+import { csharpGenericMethodEnvironment } from "./object-shape-policy/method-values.js";
 
 export function selectCsharpGenericMethodValue(
   owner: TargetTypeRef | undefined, subjects: readonly ExtensionFactSubject[], host: CsharpTypePolicyHost,
@@ -15,12 +16,14 @@ export function selectCsharpGenericMethodValue(
   const member = resolveCsharpObjectShapeMemberBySelectedSubject(shape, subjects);
   if (member.kind !== "resolved" || member.member.memberKind !== "method" ||
       (member.member.typeParameters?.length ?? 0) === 0) return undefined;
-  if (shape.methodImplementation !== undefined) {
+  if (member.member.methodStorageType === undefined && shape.methodImplementation !== undefined) {
     const declarations = member.member.sourceDeclarations?.filter(declaration =>
       host.ast.parent(declaration) === shape.methodImplementation!.declaration && host.ast.body(declaration) !== undefined);
     if (declarations?.length !== 1 || sourceCallableUsesLexicalThis(host.ast, declarations[0]!)) return undefined;
-  } else if ((shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) return undefined;
+  } else if (member.member.methodStorageType === undefined && (shape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract !== true) return undefined;
+  const environment = csharpGenericMethodEnvironment(shape, member.member);
+  if (environment === undefined) return undefined;
   const identity = JSON.stringify(csharpSourceMemberKeyParts(member.member.sourceKey));
-  return csharpGenericMethodValueType(owner, member.member.targetName, identity,
+  return csharpGenericMethodValueType(environment, member.member.targetName, identity,
     member.member.type, member.member.typeParameters!.map(parameter => parameter.name));
 }

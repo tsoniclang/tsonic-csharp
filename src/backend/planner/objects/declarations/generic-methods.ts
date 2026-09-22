@@ -67,7 +67,7 @@ export function renderCsharpGenericObjectMethods(
   }
   const context = createCsharpThisBindingPlanningContext({ ...input, scope: { capturedBindings, captureFrames } }, "this", shape.targetType);
   for (const member of shape.members) {
-    if ((member.typeParameters?.length ?? 0) === 0) continue;
+    if ((member.typeParameters?.length ?? 0) === 0 || member.methodStorageType !== undefined) continue;
     const declarations = (member.sourceDeclarations ?? []).filter(declaration =>
       input.program.source.ast.parent(declaration) === implementation.declaration && input.program.source.ast.body(declaration) !== undefined);
     if (declarations.length !== 1) {
