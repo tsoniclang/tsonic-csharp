@@ -25,6 +25,7 @@ export function renderCsharpMethodValueContracts(
     if (explicitInterface === undefined) return undefined;
     for (const required of contract.members) {
       if (required.memberKind !== "method") continue;
+      if ((required.typeParameters?.length ?? 0) > 0) continue;
       const exact = shape.members.filter(candidate =>
         csharpObjectShapeMemberContractKey(candidate) === csharpObjectShapeMemberContractKey(required));
       const selected = exact.length === 1 ? exact[0] : undefined;

@@ -25,6 +25,7 @@ import {
   planBindingPatternFromExpression,
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
+import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
 import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
 import { planLocalDeclaration } from "../bindings/locals.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
@@ -219,6 +220,28 @@ interface PlannedForOfBinding extends CsharpLocalDeclaration {
 }
 
 function planForOfBinding(
+  initializer: Node | undefined,
+  selectedIteration: CsharpForOfIteration | CsharpForAwaitOfIteration,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): PlannedForOfBinding | undefined {
+  const binding = planForOfBindingCore(initializer, selectedIteration, sourceFile, input, diagnostics, state);
+  if (binding === undefined || initializer === undefined) return binding;
+  const loop = input.program.source.ast.parent(initializer);
+  if (loop === undefined) return binding;
+  const declarations = input.program.source.ast.children(initializer).filter((node): node is Node =>
+    node !== undefined && input.program.source.ast.is.IsVariableDeclaration(node));
+  const declaration = declarations.length === 1 ? declarations[0] : undefined;
+  const identifierBinding = declaration !== undefined && input.program.source.ast.is.IsIdentifier(input.program.source.ast.name(declaration)!);
+  const captured = identifierBinding ? planCsharpCapturedInitialization(declaration,
+    { kind: "IdentifierName", name: binding.name }, input, state) : undefined;
+  return { ...binding, prelude: [...planCsharpCaptureFrame(loop, input, diagnostics, state), ...binding.prelude,
+    ...(captured === undefined ? [] : [captured])] };
+}
+
+function planForOfBindingCore(
   initializer: Node | undefined,
   selectedIteration: CsharpForOfIteration | CsharpForAwaitOfIteration,
   sourceFile: SourceFile,

@@ -1,4 +1,4 @@
-import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers } from "./object-shape-identity.js";
+import { canonicalCsharpObjectShapeImplementedTypes, canonicalCsharpObjectShapeMembers, csharpObjectShapeMemberContractKey } from "./object-shape-identity.js";
 import { targetTypeRefEquals } from "./equality.js";
 import type { CsharpObjectShapeFact, TargetTypeRef } from "./model.js";
 import { csharpSourceMemberKeysEqual } from "./source-member-keys.js";
@@ -10,6 +10,14 @@ export function csharpObjectShapesEqual(
   const leftMembers = canonicalCsharpObjectShapeMembers(left.members);
   const rightMembers = canonicalCsharpObjectShapeMembers(right.members);
   return targetTypeRefEquals(left.targetType, right.targetType) &&
+    left.methodImplementation?.identity === right.methodImplementation?.identity &&
+    left.methodImplementation?.declaration === right.methodImplementation?.declaration &&
+    (left.methodImplementation?.captures.length ?? 0) === (right.methodImplementation?.captures.length ?? 0) &&
+    (left.methodImplementation?.captures ?? []).every((capture, index) => {
+      const other = right.methodImplementation?.captures[index];
+      return other !== undefined && capture.declaration === other.declaration && capture.fieldName === other.fieldName &&
+        capture.mutable === other.mutable && targetTypeRefEquals(capture.type, other.type);
+    }) &&
     left.constructible === right.constructible &&
     targetTypeListsEqual(left.implements ?? [], right.implements ?? []) &&
     leftMembers.length === rightMembers.length &&
@@ -23,7 +31,7 @@ export function csharpObjectShapesEqual(
         member.bound === other.bound &&
         member.accessor?.getter === other.accessor?.getter &&
         member.accessor?.setter === other.accessor?.setter &&
-        targetTypeRefEquals(member.type, other.type);
+        csharpObjectShapeMemberContractKey(member) === csharpObjectShapeMemberContractKey(other);
     });
 }
 

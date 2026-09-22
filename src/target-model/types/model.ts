@@ -25,6 +25,11 @@ export interface CsharpObjectShapeMemberFact {
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
+  readonly typeParameters?: readonly {
+    readonly declaration: Node;
+    readonly name: string;
+    readonly constraints: readonly import("../declarations/generic-constraints.js").CsharpTypeParameterConstraint[];
+  }[];
   readonly optional?: boolean;
   readonly readonly?: boolean;
   readonly accessor?: {
@@ -41,6 +46,17 @@ export interface CsharpObjectShapeFact {
   readonly members: readonly CsharpObjectShapeMemberFact[];
   readonly implements?: readonly TargetTypeRef[];
   readonly constructible?: boolean;
+  readonly methodImplementation?: {
+    readonly declaration: Node;
+    readonly identity: string;
+    readonly captures: readonly {
+      readonly declaration: Node;
+      readonly reference: Node;
+      readonly fieldName: string;
+      readonly type: TargetTypeRef;
+      readonly mutable: boolean;
+    }[];
+  };
 }
 
 export interface CsharpSourceTargetTypeBinding {

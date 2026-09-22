@@ -15,6 +15,7 @@ import {
 } from "@tsonic/target-api/source";
 
 export interface DestructuringPlannerState {
+  readonly captureFrameNames: Map<Node, string>;
   readonly parent?: DestructuringPlannerState;
   nextTempIndex: number;
   nextParameterIndex: number;
@@ -96,6 +97,7 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
   const usedNames = new Set<string>();
   collectReservedSourceNames(root, usedNames, ast);
   return {
+    captureFrameNames: new Map(),
     nextTempIndex: 0,
     nextParameterIndex: 0,
     nextForOfIndex: 0,
@@ -360,6 +362,16 @@ export function allocateDestructuringTemp(state: DestructuringPlannerState): str
 
 export function allocateExpressionTemp(state: DestructuringPlannerState): string {
   return allocateSyntheticName(state, "__tsonic_value", "nextTempIndex");
+}
+
+export function csharpCaptureFrameName(scope: Node, state: DestructuringPlannerState): string {
+  for (let current: DestructuringPlannerState | undefined = state; current !== undefined; current = current.parent) {
+    const existing = current.captureFrameNames.get(scope);
+    if (existing !== undefined) return existing;
+  }
+  const name = allocateSyntheticName(state, "__tsonic_captures", "nextTempIndex");
+  state.captureFrameNames.set(scope, name);
+  return name;
 }
 
 function allocateSyntheticName(

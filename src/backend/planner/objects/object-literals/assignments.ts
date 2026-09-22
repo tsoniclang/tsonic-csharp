@@ -79,6 +79,8 @@ export function planObjectShapeLiteralAssignment(
           }];
     }
     case KindMethodDeclaration: {
+      if (objectShape.methodImplementation?.declaration === input.program.source.ast.parent(property) &&
+        objectShape.members.some(member => (member.typeParameters?.length ?? 0) > 0 && member.sourceDeclarations?.includes(property))) return [];
       const assignment = planObjectShapeMethodMemberAssignment(property, objectShape, sourceFile, input, diagnostics);
       return assignment === undefined ? undefined : [assignment];
     }

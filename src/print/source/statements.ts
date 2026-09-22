@@ -111,7 +111,7 @@ export function printCsharpStatement(
       ].join("\n");
     case "ForStatement":
       return [
-        `for (${printCsharpForInitializer(statement.initializer, context)}; ${statement.condition === undefined ? "" : context.printExpression(statement.condition)}; ${statement.incrementor === undefined ? "" : context.printExpression(statement.incrementor)})`,
+        `for (${printCsharpForInitializer(statement.initializer, context)}; ${statement.condition === undefined ? "" : context.printExpression(statement.condition)}; ${(statement.incrementors ?? []).map(expression => context.printExpression(expression)).join(", ")})`,
         "{",
         ...indentLines(context.printStatements(statement.body.statements)),
         "}",

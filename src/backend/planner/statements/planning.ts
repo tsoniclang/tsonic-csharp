@@ -37,6 +37,7 @@ import {
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
+import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import {
   planDoStatement,
   planIfStatement,
@@ -71,16 +72,19 @@ export function planBlockStatements(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
+  entryPrelude: readonly CsharpStatement[] = [],
+  skipLeadingStatements = 0,
 ): readonly CsharpStatement[] {
   if (blockNode === undefined) {
     return [];
   }
   const block = AsBlock(input.program.source.ast, blockNode)!;
-  const statements = (block.Statements?.Nodes ?? []).filter(
+  const statements = (block.Statements?.Nodes ?? []).slice(skipLeadingStatements).filter(
     (statement): statement is Node => statement !== undefined,
   );
   const explicitUnsafe = isExplicitUnsafeBlockMarker(statements[0], input);
-  const plan = () => planResourceManagedBlockStatements(
+  const captures = planCsharpCaptureFrame(blockNode, input, diagnostics, state);
+  const plan = () => [...captures, ...entryPrelude, ...planCsharpCaptureEntryBindings(blockNode, input, state), ...planResourceManagedBlockStatements(
     blockNode,
     input,
     diagnostics,
@@ -94,7 +98,7 @@ export function planBlockStatements(
         state,
       ),
     ),
-  );
+  )];
   if (!explicitUnsafe) {
     return plan();
   }
@@ -142,7 +146,10 @@ export function planStatements(
         planExpression,
         planStatements,
       });
-      return statement === undefined ? [] : [statement];
+      if (statement === undefined) return [];
+      const body = input.program.source.ast.as.AsSwitchStatement(node)?.CaseBlock;
+      const captures = body === undefined ? [] : planCsharpCaptureFrame(body, input, diagnostics, state);
+      return captures.length === 0 ? [statement] : [{ kind: "Block", body: { kind: "Block", statements: [...captures, statement] } }];
     }
     case KindTryStatement:
       return [planTryStatement(node, sourceFile, input, diagnostics, state, planBlockStatements)];

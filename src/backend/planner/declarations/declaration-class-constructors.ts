@@ -33,7 +33,6 @@ import {
 } from "../bindings/parameters.js";
 import {
   planBlockStatements,
-  planStatements,
 } from "../statements/index.js";
 import {
   planAttributesForSubject,
@@ -113,18 +112,8 @@ export function planConstructorDeclaration(
       : { baseArguments }),
     body: {
       kind: "Block",
-      statements: leadingSuperCall === undefined
-        ? [
-            ...parameters.prelude,
-            ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
-          ]
-        : [
-            ...parameters.prelude,
-            ...bodyStatements
-              .slice(1)
-              .filter((statement): statement is Node => statement !== undefined)
-              .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics, state)),
-          ],
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
+        parameters.prelude, leadingSuperCall === undefined ? 0 : 1),
     },
   };
 }

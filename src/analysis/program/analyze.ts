@@ -1,6 +1,7 @@
 import type {
   SourceFile,
 } from "@tsonic/tsts";
+import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
 import { createCsharpProjectTypeCatalog } from "../project-types/catalog.js";
 import { createTsonicPointerReturnQueries, createTsonicMemoryBindingIndex } from "@tsonic/source-core/facts";
@@ -275,7 +276,12 @@ export function analyzeCsharpTargetProgram(
       source: "tsonic-csharp",
     })));
   }
+  const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage);
+  if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
+    code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
+  })));
   const program: CsharpTargetProgram = Object.freeze({
+    captureStorage,
     numericRepresentations: analyzeCsharpNumericRepresentations({ source, sourceFiles,
       evidence: analysis.sourceEvidence, operations: analysis.operations }),
     host: Object.freeze({

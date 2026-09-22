@@ -1,3 +1,4 @@
+import { planCsharpCapturedInitialization } from "./capture-storage.js";
 import type {
   CsharpPlanningContext } from "../context.js";
 import {
@@ -100,6 +101,8 @@ function planBindingNameFromProjection(
   planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.program.source.ast, name, KindIdentifier)) {
+    const declaration = input.program.sourceNavigation.sourceReferenceFor(name)?.declaration ?? projectionNode;
+    const captured = declaration === undefined ? undefined : planCsharpCapturedInitialization(declaration, projected, input, state);
     const identity = projectionNode === undefined
       ? undefined
       : planCsharpTypedLocationIdentityDeclaration(
@@ -109,8 +112,8 @@ function planBindingNameFromProjection(
         );
     return [
       ...(identity === undefined ? [] : [identity]),
-      {
-        kind: "LocalDeclarationStatement",
+      ...(captured === undefined ? [{
+        kind: "LocalDeclarationStatement" as const,
         name: requireCsharpIdentifier(Node_Text(input.program.source.ast, name), diagnostics, "Destructuring binding"),
         type: projectedType ??
           getCsharpTypeFromSemanticType(
@@ -120,7 +123,7 @@ function planBindingNameFromProjection(
           ) ??
           getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
         initializer: projected,
-      },
+      }] : [captured]),
     ];
   }
   if (HasSourceKind(input.program.source.ast, name, KindObjectBindingPattern) || HasSourceKind(input.program.source.ast, name, KindArrayBindingPattern)) {

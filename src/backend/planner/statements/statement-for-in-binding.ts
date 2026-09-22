@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import { planCsharpCaptureFrame, planCsharpCapturedInitialization } from "../bindings/capture-storage.js";
 import {
   AsIdentifier,
   AsVariableDeclaration,
@@ -211,6 +212,7 @@ export function planForInBindingActivationForIndex(
         keyExpression,
         input,
         state,
+        diagnostics,
       );
 }
 
@@ -220,7 +222,21 @@ export function planForInBindingActivation(
   keyExpression: CsharpExpression,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
+  diagnostics: TargetDiagnostic[],
 ): PlannedForInBindingActivation {
+  const declaration = binding.kind === "assignment"
+    ? input.program.sourceNavigation.sourceReferenceFor(binding.node)?.declaration : binding.node;
+  const captured = declaration === undefined ? undefined : planCsharpCapturedInitialization(declaration, keyExpression, input, state);
+  if (captured !== undefined) {
+    const selected = input.program.captureStorage.binding(declaration!);
+    const scope = selected?.frame.scope;
+    const loop = scope !== undefined && ["KindForInStatement", "KindForOfStatement"].includes(input.program.source.ast.kindName(scope));
+    const identity = planCsharpTypedLocationIdentityDeclaration(declaration!, input, state);
+    return { outerPrelude: [], iterationPrelude: [
+      ...(loop ? planCsharpCaptureFrame(scope, input, diagnostics, state) : []),
+      ...(identity === undefined ? [] : [identity]), captured,
+    ] };
+  }
   if (binding.kind === "assignment") {
     return {
       outerPrelude: [],
@@ -275,6 +291,7 @@ export function planForInKeyCollectionBindingActivation(
   syntheticItemName: string,
   input: CsharpPlanningContext,
   state: DestructuringPlannerState,
+  diagnostics: TargetDiagnostic[],
 ): PlannedForInKeyCollectionBindingActivation {
   if (
     binding.kind === "LocalDeclarationStatement" &&
@@ -308,6 +325,7 @@ export function planForInKeyCollectionBindingActivation(
       { kind: "IdentifierName", name: syntheticItemName },
       input,
       state,
+      diagnostics,
     ),
   };
 }

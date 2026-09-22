@@ -144,11 +144,11 @@ export function planForInStatement(
         name: selectedIteration.lowering.lengthMemberName,
       },
     },
-    incrementor: {
+    incrementors: [{
       kind: "PostfixUnaryExpression",
       operand: { kind: "IdentifierName", name: indexName },
       operatorToken: { kind: "PlusPlusToken" },
-    },
+    }],
     body: {
       kind: "Block",
       statements: [

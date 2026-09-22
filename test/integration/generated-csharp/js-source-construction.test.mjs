@@ -46,6 +46,26 @@ import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../.
 import { optionalIndexedArgumentsSource } from "../../../../tsonic/test/fixtures/optional-indexed-arguments.mjs";
 import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tsonic/test/fixtures/union-call-contracts.mjs";
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
+import { genericObjectMethodFiles, genericObjectCaptureSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
+
+test("generic object methods retain native binders, independent bodies and shared captures", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", files: genericObjectMethodFiles,
+    sourceText: genericObjectMethodFiles["index.ts"] });
+  execute(compiled, "generic-object-methods");
+  const shapes = compiled.artifacts.get("generated/TsonicObjectShapes.cs");
+  assert.match(shapes, /identity<[TU]>\([TU] value\)/u);
+  assert.doesNotMatch(shapes, /(?:Func|Action)<[TU](?:, [TU])?> __tsonic_method/u);
+  assert.doesNotMatch(shapes, /DynamicInvoke|System\.Reflection|System\.Linq\.Expressions/u);
+  for (const sourceText of invalidGenericObjectMethods) {
+    const invalid = compileCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+    assert.equal(invalid.artifacts.size, 0);
+  }
+});
+
+test("generic method captures preserve parameters, destructuring and loop activation identity", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: genericObjectCaptureSource }), "generic-object-captures");
+});
 
 test("class structural views retain native reference identity across all value boundaries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: classStructuralConversionFiles,

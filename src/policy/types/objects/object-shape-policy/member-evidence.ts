@@ -10,6 +10,7 @@ import { nextState } from "../../resolution/state.js";
 import { objectShapeMemberTargetNameForKey } from "./construction.js";
 import { typeIncludesNullish } from "./source-evidence.js";
 import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
+import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -146,6 +147,22 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
     if (memberType === undefined) {
       return undefined;
     }
+    const signatures = method ? queries.types.callSignatures(sourceType) : [];
+    const methodDeclaration = signatures.length === 1
+      ? queries.declarations.signatureDeclaration(signatures[0]!) : undefined;
+    const typeParameters = methodDeclaration === undefined ? [] : host.ast.typeParameters(methodDeclaration).map(declaration => {
+      if (declaration === undefined) return undefined;
+      const type = host.typeResolver.resolveNode(declaration, queries.sourceFile, nextState(state));
+      if (type?.kind !== "type-parameter") return undefined;
+      const selected = resolveCsharpTypeParameterConstraints(declaration, type.name, queries.sourceFile, {
+        ast: host.ast,
+        types: { resolveNode: (node, sourceFile) => host.typeResolver.resolveNode(node, sourceFile, nextState(state)) },
+      });
+      return selected.kind !== "resolved" ? undefined : Object.freeze({ declaration, name: type.name,
+        constraints: Object.freeze([...selected.constraints]),
+      });
+    });
+    if (typeParameters.some(parameter => parameter === undefined)) return undefined;
     const optional = property.optional;
     const bound = host.memoryBindings.hasBoundField([property.symbol, ...declarations]);
     if (bound && (optional || typeIncludesNullish(sourceType, queries) || method || getters.length !== 0 || setters.length !== 0)) return undefined;
@@ -162,6 +179,9 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
       targetName,
       memberKind: method ? "method" : "property",
       type: optional ? csharpNullableTargetType(memberType) : memberType,
+      ...(typeParameters.length === 0 ? {} : {
+        typeParameters: Object.freeze(typeParameters as NonNullable<typeof typeParameters[number]>[]),
+      }),
       ...(optional ? { optional: true } : {}),
       ...(property.readonly ? { readonly: true } : {}),
       ...(bound ? { bound: true as const } : {}),

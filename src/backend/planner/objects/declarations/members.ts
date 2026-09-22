@@ -45,6 +45,7 @@ export function renderObjectShapeMembers(
   storage: CsharpStorageClassifications,
 ): CsharpClassDeclaration["members"] | undefined {
   const members = canonicalCsharpObjectShapeMembers(fact.members).flatMap((member) => {
+    if ((member.typeParameters?.length ?? 0) > 0 && fact.methodImplementation !== undefined) return [];
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {

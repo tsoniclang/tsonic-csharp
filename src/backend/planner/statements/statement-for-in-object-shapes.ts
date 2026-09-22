@@ -99,6 +99,7 @@ export function planObjectShapeForInStatement(
     keyExpression,
     input,
     state,
+    diagnostics,
   );
   const plannedLoop: CsharpStatement = {
     kind: "ForStatement",
@@ -121,11 +122,11 @@ export function planObjectShapeForInStatement(
         name: "Length",
       },
     },
-    incrementor: {
+    incrementors: [{
       kind: "PostfixUnaryExpression",
       operand: { kind: "IdentifierName", name: indexName },
       operatorToken: { kind: "PlusPlusToken" },
-    },
+    }],
     body: {
       kind: "Block",
       statements: [

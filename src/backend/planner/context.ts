@@ -29,7 +29,7 @@ import type {
   CsharpTargetProgram,
 } from "../../analysis/program/index.js";
 import type { SourceFile } from "@tsonic/tsts";
-import type { CsharpMethodDeclaration } from "../target-ast/roslyn/index.js";
+import type { CsharpExpression, CsharpMethodDeclaration } from "../target-ast/roslyn/index.js";
 
 export interface CsharpPlanningTypeClassifications {
   resolveNode(
@@ -53,6 +53,7 @@ export interface CsharpPlanningTypeView {
 }
 
 export interface CsharpPlanningScope {
+  readonly capturedBindings?: ReadonlyMap<Node, CsharpExpression>;
   readonly generatedMethods?: Map<Node, CsharpMethodDeclaration>;
   readonly sourceThisBinding?: {
     readonly name: string;

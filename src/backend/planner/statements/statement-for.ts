@@ -39,6 +39,7 @@ import {
   planCsharpTypedLocationIdentityDeclaration,
 } from "../bindings/typed-location-identities.js";
 import { planResourceScopeStatements } from "./resource-management.js";
+import { planCsharpCaptureFrame, planCsharpCaptureFrameRotation } from "../bindings/capture-storage.js";
 
 export function planForStatement(
   node: Node,
@@ -52,6 +53,7 @@ export function planForStatement(
   const resource = forInitializerResource(statement.Initializer, input);
   return resource === undefined
     ? planForStatementCore(
+        node,
         statement,
         sourceFile,
         input,
@@ -65,6 +67,7 @@ export function planForStatement(
         diagnostics,
         state,
         () => planForStatementCore(
+          node,
           statement,
           sourceFile,
           input,
@@ -76,6 +79,7 @@ export function planForStatement(
 }
 
 function planForStatementCore(
+  node: Node,
   statement: NonNullable<ReturnType<typeof AsForStatement>>,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
@@ -83,6 +87,8 @@ function planForStatementCore(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
+  const capturePrelude = planCsharpCaptureFrame(node, input, diagnostics, state);
+  const frame = input.program.captureStorage.frame(node);
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
@@ -98,6 +104,7 @@ function planForStatementCore(
   if (statement.Incrementor !== undefined && incrementor === undefined) {
     return initializer?.prelude ?? [];
   }
+  const rotation = frame === undefined ? undefined : planCsharpCaptureFrameRotation(frame, input, diagnostics, state);
   const plannedFor: CsharpStatement = {
     kind: "ForStatement",
     ...(initializer?.initializer !== undefined
@@ -106,15 +113,14 @@ function planForStatementCore(
     ...(statement.Condition !== undefined
       ? { condition }
       : {}),
-    ...(statement.Incrementor !== undefined
-      ? { incrementor }
-      : {}),
+    incrementors: [...(rotation === undefined ? [] : [rotation]), ...(incrementor === undefined ? [] : [incrementor])],
     body: {
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
     },
   };
-  const initializerPrelude = initializer?.prelude ?? [];
+  const initializerPrelude: readonly CsharpStatement[] = [...capturePrelude, ...initializer?.prelude ?? [],
+    ...(rotation === undefined ? [] : [{ kind: "ExpressionStatement" as const, expression: rotation }])];
   return initializerPrelude.length === 0
     ? [plannedFor]
     : initializer?.preludeScope === "enclosing"
@@ -142,6 +148,12 @@ function planForInitializer(
     const concreteDeclarations = input.program.source.ast.children(node)
       .filter((declaration): declaration is Node => declaration !== undefined && input.program.source.ast.is.IsVariableDeclaration(declaration));
     const declarationKind = input.program.source.ast.variableDeclarationKind(node);
+    if (concreteDeclarations.some(declaration => input.program.captureStorage.binding(declaration) !== undefined)) {
+      return { prelude: concreteDeclarations.flatMap(declaration =>
+        planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+        ...(declarationKind === "var" ? { preludeScope: "enclosing" as const } : {}),
+      };
+    }
     if (declarationKind === "using" || declarationKind === "await using") {
       return {
         prelude: concreteDeclarations.flatMap((declaration) =>

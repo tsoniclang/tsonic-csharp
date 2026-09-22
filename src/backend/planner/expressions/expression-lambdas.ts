@@ -39,6 +39,7 @@ import {
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
 import { planBlockStatements } from "../statements/index.js";
+import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import type {
   CsharpDelegateSignatureShape,
@@ -125,7 +126,7 @@ export function planArrowFunctionExpression(
     ...planLambdaParameterIdentityDeclarations(parameterNodes, input, plannerState),
   ];
   if (HasSourceKind(input.program.source.ast, expression.Body, KindBlock)) {
-    const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
+    const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext, parameterIdentityDeclarations);
     if (body === undefined) {
       return undefined;
     }
@@ -133,9 +134,14 @@ export function planArrowFunctionExpression(
       kind: "LambdaExpression",
       ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
       parameters,
-      body: prependLambdaStatements(body, parameterIdentityDeclarations),
+      body,
     };
   }
+  const entryPrelude = expression.Body === undefined ? parameterIdentityDeclarations : [
+    ...planCsharpCaptureFrame(expression.Body, scopedInput, diagnostics, plannerState),
+    ...parameterIdentityDeclarations,
+    ...planCsharpCaptureEntryBindings(expression.Body, scopedInput, plannerState),
+  ];
   const body = returnContext !== undefined && planExpressionWithExpectedType !== undefined
     ? planExpressionWithExpectedType(
       expression.Body!,
@@ -155,12 +161,12 @@ export function planArrowFunctionExpression(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
-    body: parameterIdentityDeclarations.length === 0
+    body: entryPrelude.length === 0
       ? body
       : {
           kind: "Block",
           statements: [
-            ...parameterIdentityDeclarations,
+            ...entryPrelude,
             targetContext?.signature.returnTargetType !== undefined &&
                 isCsharpVoidTargetType(targetContext.signature.returnTargetType)
               ? { kind: "ExpressionStatement", expression: body }
@@ -239,7 +245,7 @@ export function planFunctionExpression(
       body: generator.body,
     };
   }
-  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext);
+  const body = planLambdaBlockBody(node, expression.Body, sourceFile, scopedInput, diagnostics, plannerState, targetContext, returnContext, parameterIdentityDeclarations);
   if (body === undefined) {
     return undefined;
   }
@@ -247,7 +253,7 @@ export function planFunctionExpression(
     kind: "LambdaExpression",
     ...(isAsyncExpression(input.program.source.ast, node) ? { async: true } : {}),
     parameters,
-    body: prependLambdaStatements(body, parameterIdentityDeclarations),
+    body,
   };
 }
 
@@ -269,18 +275,6 @@ function planLambdaParameterIdentityDeclarations(
   });
 }
 
-function prependLambdaStatements(
-  body: CsharpBlock,
-  statements: readonly CsharpStatement[],
-): CsharpBlock {
-  return statements.length === 0
-    ? body
-    : {
-        ...body,
-        statements: [...statements, ...body.statements],
-      };
-}
-
 export interface LambdaReturnContext {
   readonly returnExpressionType: CsharpTypeNode;
   readonly returnExpressionTypeSubject?: Node;
@@ -296,6 +290,7 @@ export function planLambdaBlockBody(
   state: DestructuringPlannerState | undefined,
   targetContext: LambdaTargetContext | undefined,
   returnContext: LambdaReturnContext | undefined = getLambdaReturnContext(lambdaNode, targetContext, input, diagnostics),
+  entryPrelude: readonly CsharpStatement[] = [],
 ): CsharpBlock | undefined {
   if (isAsyncExpression(input.program.source.ast, lambdaNode) && returnContext === undefined) {
     return undefined;
@@ -313,7 +308,7 @@ export function planLambdaBlockBody(
     lambdaState.currentReturnExpressionTargetType = returnContext.returnExpressionTargetType;
   }
   try {
-    const statements = planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState);
+    const statements = planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState, entryPrelude);
     return { kind: "Block", statements: [...statements,
       ...(returnContract?.kind === "resolved" && returnContract.fallthroughUndefined
         ? [{ kind: "ReturnStatement" as const, expression: { kind: "LiteralExpression" as const, value: null } }] : [])] };

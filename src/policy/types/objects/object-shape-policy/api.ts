@@ -47,6 +47,7 @@ import {
 } from "../../../../target-model/types/source-member-keys.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
 import { createCsharpStructuralUnionDefinitions, type CsharpStructuralUnionResolution } from "./union-definitions.js";
+import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 
 export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
   readonly projectTypeCatalog: CsharpProjectTypeCatalog;
@@ -315,7 +316,9 @@ export function createCsharpObjectShapePolicy(
           (expectedShape.targetType as CsharpTargetNamedTypeRef).csharpStructuralContract === true)
       ? [expectedShape.targetType]
       : expectedShape.implements;
-    if (accessors.kind === "none" && implemented === expectedShape.implements) {
+    const genericMethodLiteral = host.ast.properties(objectLiteral).some(property => property !== undefined &&
+      host.ast.is.IsMethodDeclaration(property) && host.ast.typeParameters(property).length > 0);
+    if (accessors.kind === "none" && implemented === expectedShape.implements && !genericMethodLiteral) {
       return { kind: "resolved", shape: expectedShape };
     }
     const members = [...retainLiteralMemberEvidence(expectedShape.members, objectLiteral, host.semantics(sourceFile))];
@@ -399,12 +402,20 @@ export function createCsharpObjectShapePolicy(
         };
       }
     }
+    const methodImplementation = selectCsharpObjectMethodImplementation(members, host, { depth: 0 }, objectLiteral);
+    if (genericMethodLiteral && methodImplementation === undefined) return {
+      kind: "rejected", subject: objectLiteral,
+      reason: "Generic object methods require one exact authored implementation and closed lexical capture types.",
+    };
     const shape = rememberTargetShape({
       targetType: createStructuralObjectShapeTarget(
         members,
         implemented,
+        false,
+        methodImplementation,
       ),
       members,
+      ...(methodImplementation === undefined ? {} : { methodImplementation }),
       ...(implemented === undefined ? {} : { implements: implemented }),
     });
     return { kind: "resolved", shape };
@@ -731,10 +742,12 @@ export function createCsharpObjectShapePolicy(
       const structuralContract = !objectLiteral && !members.some(member => member.bound === true) && symbol !== undefined &&
         queries.declarations.symbolDeclarations(symbol).some(declaration =>
           host.ast.is.IsTypeLiteralNode(declaration) || host.ast.is.IsMappedTypeNode(declaration));
+      const methodImplementation = structuralContract ? undefined : selectCsharpObjectMethodImplementation(members, host, state);
       return {
-        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, structuralContract),
+        targetType: unionDefinitions.reference(type) ?? createStructuralObjectShapeTarget(members, implemented, structuralContract, methodImplementation),
         sourceType: type,
         members: unionDefinitions.substituteMembers(type, members),
+        ...(methodImplementation === undefined ? {} : { methodImplementation }),
         ...(implemented === undefined ? {} : { implements: implemented }),
       };
     } finally {

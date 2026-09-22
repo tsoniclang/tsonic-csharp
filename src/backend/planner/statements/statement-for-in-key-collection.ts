@@ -84,6 +84,7 @@ export function planKeyCollectionForInStatement(
     keysName,
     input,
     state,
+    diagnostics,
   );
   const itemName = bindingActivation.itemName;
   return [...bindingActivation.outerPrelude, {

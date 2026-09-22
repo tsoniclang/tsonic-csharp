@@ -1,7 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import type { CsharpObjectShapeFact, CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
-import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject, targetTypeRefEquals } from "../../target-model/types/index.js";
+import { isCsharpValueTypeTargetType, resolveCsharpObjectShapeMemberBySelectedSubject } from "../../target-model/types/index.js";
+import { csharpObjectShapeMemberTypeKey } from "../../target-model/types/object-shape-identity.js";
 
 export function selectCsharpStructuralInterface(
   policy: CsharpPolicyContext, expression: Node,
@@ -24,7 +25,7 @@ export function selectCsharpStructuralInterface(
       [pair.destination.property.symbol, ...pair.destination.property.rootSymbols, ...pair.destination.declarations]);
     return read.kind === "resolved" && write.kind === "resolved" &&
       read.member.targetName === write.member.targetName && read.member.memberKind === write.member.memberKind &&
-      targetTypeRefEquals(read.member.type, write.member.type) &&
+      csharpObjectShapeMemberTypeKey(read.member) === csharpObjectShapeMemberTypeKey(write.member) &&
       (write.member.readonly === true || read.member.readonly !== true &&
         (read.member.accessor === undefined || read.member.accessor.setter === true));
   });

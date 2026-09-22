@@ -20,6 +20,7 @@ export function createStructuralObjectShapeTarget(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
   contract = false,
+  implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): TargetTypeRef {
   if (members.length === 0 && (implemented?.length ?? 0) === 0) {
     return csharpEmptyObjectTargetType();
@@ -34,12 +35,16 @@ export function createStructuralObjectShapeTarget(
       : csharpObjectShapeMemberContractParts(member)),
     implements: canonicalImplemented.map(targetTypeRefKey),
     ...(contract ? { contract: true } : {}),
+    ...(implementation === undefined ? {} : { implementation: implementation.identity,
+      captures: implementation.captures.map(capture => [capture.fieldName, targetTypeRefKey(capture.type), capture.mutable]),
+    }),
   });
   const identity = createHash("sha256").update(key).digest("hex");
   const name = `__TsonicShape_${identity}`;
   const typeParameters = collectObjectShapeTypeParameters(
     canonicalMembers,
     canonicalImplemented,
+    implementation,
   );
   const jsValueCarrier =
     canUseCsharpJsValueObjectShapeCarrier(
@@ -67,34 +72,35 @@ export function createStructuralObjectShapeTarget(
 function collectObjectShapeTypeParameters(
   members: readonly CsharpObjectShapeMemberFact[],
   implemented: readonly TargetTypeRef[] | undefined,
+  implementation?: CsharpObjectShapeFact["methodImplementation"],
 ): readonly TargetTypeRef[] {
   const parameters = new Map<string, TargetTypeRef>();
-  const collect = (type: TargetTypeRef): void => {
+  const collect = (type: TargetTypeRef, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (type.kind) {
       case "type-parameter":
-        parameters.set(type.name, type);
+        if (!boundNames.has(type.name)) parameters.set(type.name, type);
         return;
       case "source-global":
       case "target-named":
         for (const argument of type.typeArguments ?? []) {
-          collect(argument);
+          collect(argument, boundNames);
         }
         return;
       case "array":
-        collect(type.element);
+        collect(type.element, boundNames);
         return;
       case "tuple":
-        type.elements.forEach(collect);
+        type.elements.forEach(element => collect(element, boundNames));
         return;
       case "pointer":
-        collect(type.pointee);
+        collect(type.pointee, boundNames);
         return;
       case "function-pointer":
-        type.args.forEach(collect);
-        collect(type.result);
+        type.args.forEach(argument => collect(argument, boundNames));
+        collect(type.result, boundNames);
         return;
       case "associated-type":
-        collect(type.owner);
+        collect(type.owner, boundNames);
         return;
       case "source-primitive":
       case "opaque":
@@ -103,8 +109,15 @@ function collectObjectShapeTypeParameters(
         return;
     }
   };
-  members.forEach((member) => collect(member.type));
-  (implemented ?? []).forEach(collect);
+  members.forEach(member => {
+    const boundNames = new Set(member.typeParameters?.map(parameter => parameter.name));
+    collect(member.type, boundNames);
+    member.typeParameters?.forEach(parameter => parameter.constraints.forEach(constraint => {
+      if (constraint.kind === "type") collect(constraint.type, boundNames);
+    }));
+  });
+  (implemented ?? []).forEach(type => collect(type));
+  implementation?.captures.forEach(capture => collect(capture.type));
   return [...parameters.values()].sort((left, right) =>
     targetTypeRefKey(left).localeCompare(targetTypeRefKey(right))
   );

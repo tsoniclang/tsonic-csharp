@@ -95,7 +95,7 @@ function statementContainsUnsafe(
     case "ForStatement":
       return optionalForInitializerContainsUnsafe(statement.initializer, mode) ||
         optionalExpressionContainsUnsafe(statement.condition, mode) ||
-        optionalExpressionContainsUnsafe(statement.incrementor, mode) ||
+        (statement.incrementors ?? []).some(expression => expressionContainsUnsafe(expression, mode)) ||
         blockContainsUnsafe(statement.body, mode);
     case "GotoSwitchStatement":
       return switchLabelContainsUnsafe(statement.label, mode);
