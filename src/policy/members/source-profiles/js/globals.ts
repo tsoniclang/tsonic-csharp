@@ -276,10 +276,8 @@ export const csharpJsGlobalCallPolicies:
     ...["encodeURIComponent", "decodeURIComponent"].map((name) =>
       jsCallPolicy(
         jsGlobalCallIdentity(name),
-        (context) => {
-          const parameter = csharpJsNumericArgument(context);
-          if (parameter === undefined) return undefined;
-          return staticMethod(
+        () =>
+          staticMethod(
             `Tsonic.CSharp.Js.Globals.${name}`,
             name,
             name,
@@ -293,8 +291,10 @@ export const csharpJsGlobalCallPolicies:
     ...["isNaN", "isFinite"].map((name) =>
       jsCallPolicy(
         jsGlobalCallIdentity(name),
-        () =>
-          staticMethod(
+        (context) => {
+          const parameter = csharpJsNumericArgument(context);
+          if (parameter === undefined) return undefined;
+          return staticMethod(
             `Tsonic.CSharp.Js.Globals.${name}`,
             name,
             name,

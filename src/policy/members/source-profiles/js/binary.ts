@@ -271,7 +271,7 @@ function typedArrayConstructor(
 ): CsharpTargetMember | undefined {
   const target = csharpJsTypedArrayTargetType(name);
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-  if (argument?.kind === "target-named" && argument.csharpJsSurfaceKind === "typed-array") {
+  if (argument?.kind === "target-named" && csharpJsTypedArrayElementTargetType(argument) !== undefined) {
     return staticMethod(
       `Tsonic.CSharp.Js.${name}.From:${argument.id}`,
       "constructor",
@@ -310,7 +310,7 @@ function typedArrayMethod(
   const source = name === "set"
     ? resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0])
     : undefined;
-  const parameters = source?.kind === "target-named" && source.csharpJsSurfaceKind === "typed-array"
+  const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
     ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
     : typedArrayMethodParameters(name);
   const result = name === "includes"
