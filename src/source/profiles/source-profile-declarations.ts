@@ -354,6 +354,8 @@ declare var Array: ArrayConstructor;
 
 interface BigIntConstructor {
   (value: bigint | boolean | number | string): bigint;
+  asIntN(bits: number, value: bigint): bigint;
+  asUintN(bits: number, value: bigint): bigint;
 }
 declare var BigInt: BigIntConstructor;
 

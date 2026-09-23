@@ -53,6 +53,23 @@ import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-swit
 import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
 import { tupleSatisfiesSource, invalidTupleSatisfiesSources } from "../../../../tsonic/test/fixtures/tuple-satisfies.mjs";
 import { initializedModuleStateFiles } from "../../../../tsonic/test/fixtures/initialized-module-state.mjs";
+import { nativeIntegerComplementSource } from "../../../../tsonic/test/fixtures/native-integer-complement.mjs";
+import { nullishNeverSource } from "../../../../tsonic/test/fixtures/nullish-never.mjs";
+import { pointerOwnerNarrowingSource } from "../../../../tsonic/test/fixtures/pointer-owner-narrowing.mjs";
+import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-truncation.mjs";
+import { selectedConstructorFiles } from "../../../../tsonic/test/fixtures/selected-constructors.mjs";
+
+test("equal constructor carriers retain the exact selected source signatures", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: selectedConstructorFiles,
+    sourceText: selectedConstructorFiles["index.ts"] }), "selected-constructors");
+});
+
+for (const [name, sourceText] of [["native-integer-complement", nativeIntegerComplementSource], ["nullish-never", nullishNeverSource],
+  ["pointer-owner-narrowing", pointerOwnerNarrowingSource], ["bigint-truncation", bigintTruncationSource]]) {
+  test(`${name} preserves checked native values and effects`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ surface: "js", sourceText }), name);
+  });
+}
 
 test("module state is fully constructed before reads and preserves aliases", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: initializedModuleStateFiles,
