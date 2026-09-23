@@ -1,4 +1,6 @@
 export { analyzeCsharpTargetOperations } from "./analyze.js";
+export type { CsharpSwitchSelection } from "../../policy/operations/control-flow/switch.js";
+export type { CsharpTypedArrayMutation, CsharpTypedArrayUpdate } from "../../policy/operations/collections/typed-array-mutations.js";
 export type {
   CsharpCallClassification,
   CsharpBinaryClassification,

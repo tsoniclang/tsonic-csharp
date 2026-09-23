@@ -68,7 +68,7 @@ export function printCsharpExpression(
         : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
     case "CastExpression": {
       const printedExpression = context.printExpression(expression.expression);
-      return expression.expression.kind === "LambdaExpression"
+      return castOperandRequiresParentheses(expression.expression)
         ? `(${context.printType(expression.type)})(${printedExpression})`
         : `(${context.printType(expression.type)})${printedExpression}`;
     }
@@ -108,6 +108,20 @@ export function printCsharpExpression(
       return printCsharpLambda(expression, context);
   }
   return failUnsupportedCsharpSyntax(expression, "expression");
+}
+
+function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
+  switch (expression.kind) {
+    case "BinaryExpression":
+    case "AssignmentExpression":
+    case "ConditionalExpression":
+    case "IsPatternExpression":
+    case "NullPatternExpression":
+    case "LambdaExpression":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function printPostfixOperand(

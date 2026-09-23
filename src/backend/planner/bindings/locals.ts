@@ -142,7 +142,7 @@ export function planLocalDeclaration(
       state,
       lambdaInitializer && variable.Type === undefined
         ? undefined
-        : nativeRefTargetType ?? expectedTargetType,
+        : nativeRefTargetType ?? storageType ?? expectedTargetType,
     );
   } else if (inferredTargetType !== undefined) {
     const undefinedValue = planCsharpSourceUndefinedValue(

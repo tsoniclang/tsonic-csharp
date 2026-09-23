@@ -73,6 +73,7 @@ import {
 } from "./expression-unary.js";
 import {
   tryPlanJsArrayDeleteExpression,
+  tryPlanJsArrayMutationExpression,
 } from "./expression-js-array-mutations.js";
 import {
   tryPlanSourceSyntaxExpression,
@@ -388,11 +389,20 @@ function planExpressionCore(
     case KindNewExpression:
       return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
         planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
-    case KindPrefixUnaryExpression: {
-      return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
-    }
+    case KindPrefixUnaryExpression:
     case KindPostfixUnaryExpression: {
-      return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+      const mutation = input.program.operations.jsArrayMutation(node);
+      if (mutation?.kind !== "not-js-array-mutation") {
+        return tryPlanJsArrayMutationExpression(node, sourceFile, input, diagnostics, scopedPlanExpression,
+          (argument, file, context, errors, type, subject, target, passing, parameter) =>
+            planCallArgument(argument, file, context, errors, type, subject, target, state, passing, parameter),
+          (expression, file, context, errors, type, subject, target, nestedState) =>
+            planExpressionWithExpectedType(expression, file, context, errors, type, subject, nestedState ?? state, target), state);
+      }
+      if (SourceKind(input.program.source.ast, node) === KindPostfixUnaryExpression) {
+        return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+      }
+      return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
       const destructuringAssignment = tryPlanDestructuringAssignmentExpression(

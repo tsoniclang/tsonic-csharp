@@ -108,6 +108,14 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "never": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value", typeArguments: [type] },
+        arguments: [],
+      };
+    }
     case "checked-native-integer": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       return type === undefined ? undefined : {

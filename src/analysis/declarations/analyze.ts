@@ -231,6 +231,10 @@ function collectDirectReturnExpressions(
   if (body === undefined) {
     return;
   }
+  if (policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsBlock(body)) {
+    consume(body);
+    return;
+  }
   visit(body);
 
   function visit(node: Node): void {

@@ -83,6 +83,22 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("casts retain the complete lower-precedence operand inside checked expressions", () => {
+  const operand = { kind: "BinaryExpression", operatorToken: { kind: "MinusToken" },
+    left: { kind: "IdentifierName", name: "size" },
+    right: { kind: "IntegerLiteralExpression", digits: "8", suffix: "L" } };
+  const cast = { kind: "CastExpression", type: { kind: "PredefinedType", name: "int" }, expression: operand };
+  assert.equal(printCsharpExpression({ kind: "CheckedExpression", expression: cast }), "checked((int)(size - 8L))");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "ConditionalExpression", condition: { kind: "IdentifierName", name: "ready" },
+    whenTrue: operand, whenFalse: { kind: "LiteralExpression", value: 0 },
+  } }), "(int)(ready ? size - 8L : 0)");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+    left: { kind: "IdentifierName", name: "offset" }, right: operand,
+  } }), "(int)(offset = size - 8L)");
+});
+
 test("printer preserves exact 64-bit integer literal digits", () => {
   assert.equal(
     printCsharpExpression({

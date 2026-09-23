@@ -25,7 +25,7 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
-  tryPlanJsArrayLengthMutationExpression,
+  tryPlanJsArrayMutationExpression,
 } from "./expression-js-array-mutations.js";
 import {
   planSelectedCsharpBinaryOperation,
@@ -66,13 +66,15 @@ export function tryPlanBinaryExpression(
     return undefined;
   }
   const mutationDiagnosticsStart = diagnostics.length;
-  const mutation = tryPlanJsArrayLengthMutationExpression(
+  const mutation = tryPlanJsArrayMutationExpression(
     node,
     sourceFile,
     input,
     diagnostics,
     planExpression,
     planCallArgument,
+    planExpressionWithExpectedType,
+    state,
   );
   if (mutation !== undefined || diagnostics.length > mutationDiagnosticsStart) {
     return mutation;

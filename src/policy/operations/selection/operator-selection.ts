@@ -17,6 +17,7 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpIntegralTargetType,
+  isCsharpNeverTargetType,
   isCsharpRuntimeNullTargetType,
   isCsharpRuntimeUndefinedTargetType,
   isCsharpStringTargetType,
@@ -138,6 +139,19 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
+  return selectCsharpBinaryOperands(input, left, right, sourceOperator,
+    targetTypeFor(node), targetTypeFor, expectedResultType);
+}
+
+export function selectCsharpBinaryOperands(
+  input: CsharpPolicyContext,
+  left: Node,
+  right: Node,
+  sourceOperator: CsharpSourceOperator,
+  selectedResultType: TargetTypeRef | undefined,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
+  expectedResultType?: TargetTypeRef,
+): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   let leftType = sourceOperator === "??="
     ? input.types.resolveReadStorage(left)
     : resolveBinaryOperandType(input, left, targetTypeFor);
@@ -150,7 +164,6 @@ export function selectCsharpBinaryOperation(
     targetTypeFor,
     nullishRightExpectation,
   );
-  const selectedResultType = targetTypeFor(node);
   if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
@@ -421,7 +434,7 @@ function selectBinaryOperationTypes(
   if (operator === "??" && nullishResultType !== undefined) {
     return {
       leftInputType: leftType,
-      rightInputType: rightType,
+      rightInputType: isCsharpNeverTargetType(rightType) ? nullishResultType : rightType,
       resultType: nullishResultType,
     };
   }
@@ -499,7 +512,7 @@ function selectNullishResultType(
   if (valueType === undefined) {
     return undefined;
   }
-  if (targetTypeRefEquals(right, valueType)) {
+  if (isCsharpNeverTargetType(right) || targetTypeRefEquals(right, valueType)) {
     return valueType;
   }
   if (

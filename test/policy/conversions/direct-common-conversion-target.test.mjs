@@ -14,6 +14,8 @@ import {
   csharpTargetNamedType,
   csharpTsValueTargetType,
   csharpRuntimeUnionTargetType,
+  csharpNeverTargetType,
+  csharpVoidTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -27,6 +29,15 @@ const host = {
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const float64 = csharpSourcePrimitiveTargetType("float64");
 const string = csharpSourcePrimitiveTargetType("string");
+
+test("never supplies a bottom conversion without admitting void values", () => {
+  const never = csharpNeverTargetType();
+  assert.deepEqual(selectCsharpConversion(host, never, int32, "implicit"), { kind: "never" });
+  assert.deepEqual(selectCsharpConversion(host, never, string, "implicit"), { kind: "never" });
+  assert.deepEqual(selectCsharpConversion(host, never, never, "implicit"), { kind: "identity" });
+  assert.equal(selectCsharpConversion(host, csharpVoidTargetType(), int32, "implicit").kind, "rejected");
+  assert.equal(selectCsharpConversion(host, int32, never, "implicit").kind, "rejected");
+});
 
 test("common implicit target keeps an exact narrower observed return", () => {
   assert.deepEqual(

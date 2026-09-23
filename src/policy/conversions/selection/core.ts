@@ -4,6 +4,8 @@ import {
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
   getCsharpTaskResultTargetType,
+  isCsharpNeverTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../types/index.js";
@@ -37,6 +39,9 @@ export function selectCsharpConversion(
   }
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
+  }
+  if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
+    return { kind: "never" };
   }
   const arrayElement = csharpArrayLikeElement(source);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {

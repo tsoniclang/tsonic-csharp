@@ -354,6 +354,15 @@ export function analyzeCsharpStorage(
     if (variable?.Type !== undefined || variable?.Initializer === undefined) {
       return;
     }
+    if (policy.ast.is.IsObjectLiteralExpression(variable.Initializer)) {
+      const shape = objectShapes.resolveTarget(requiredStorageType);
+      const construction = shape === undefined ? undefined
+        : objectShapes.resolveObjectLiteralTargetShape(shape, variable.Initializer);
+      if (construction?.kind === "resolved") {
+        requireTargetType(expression, declaration, requiredStorageType);
+      }
+      return;
+    }
     const initializerType = evidence.nodeTargetType(variable.Initializer);
     const initializerConversion = conversions.selectExpression(
       variable.Initializer,

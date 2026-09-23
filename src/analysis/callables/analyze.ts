@@ -97,9 +97,9 @@ function sourceCallableContract(
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
+    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     getCsharpDelegateSignature(evidence.contextualTargetType(declaration))
       ?.returnType ??
-    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     constructorReturnType(policy, declaration, sourceFile);
   if (returnType === undefined) {
     return undefined;

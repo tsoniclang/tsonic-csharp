@@ -219,6 +219,7 @@ export function csharpConversionIsApplicable(
   mode: CsharpConversionMode,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||

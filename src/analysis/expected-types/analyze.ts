@@ -1,4 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import { csharpCallableValueType } from "../callables/value-type.js";
 import {
   HasSourceKind,
   HasSyntacticModifier,
@@ -13,14 +14,12 @@ import {
 } from "@tsonic/target-api/analysis";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
-  csharpDelegateTargetType,
   csharpSourceArgumentExpectedType,
   csharpTargetParameterValueType,
   getCsharpDelegateSignature,
   getCsharpArrayLiteralElementTargetType,
   getCsharpGeneratorProtocol,
   getCsharpTaskResultTargetType,
-  isCsharpVoidTargetType,
   isCsharpJsValueTargetType,
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
@@ -373,6 +372,11 @@ export function analyzeCsharpExpectedTypes(
     if (binary?.kind === "resolved") {
       record(binary.left, binary.leftInputType, "required");
       record(binary.right, binary.rightInputType, "required");
+    }
+    const mutation = operations.jsArrayMutation(node);
+    if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
+      record(mutation.calculation.left, mutation.calculation.leftInputType, "required");
+      record(mutation.calculation.right, mutation.calculation.rightInputType, "required");
     }
     const unary = operations.unary(node)?.target;
     if (unary?.kind === "resolved") {
@@ -754,37 +758,7 @@ export function analyzeCsharpExpectedTypes(
     if (callable === undefined || callable.methodTypeParameterNames.length > 0) {
       return declaredExpectedType;
     }
-    const parameters = Object.freeze(callable.parameters.map((candidate) =>
-      candidate.targetParameter.type));
-    const optionalParameterIndexes = Object.freeze(callable.parameters.flatMap(
-      (candidate, index) =>
-        candidate.targetParameter.optional === true ? [index] : [],
-    ));
-    const restParameterIndexes = callable.parameters.flatMap(
-      (candidate, index) =>
-        candidate.targetParameter.paramsArray === true ? [index] : [],
-    );
-    if (restParameterIndexes.length > 1) {
-      return declaredExpectedType;
-    }
-    return isCsharpVoidTargetType(callable.returnType)
-      ? csharpDelegateTargetType("System.Action", parameters, undefined, {
-          optionalParameterIndexes,
-          ...(restParameterIndexes[0] === undefined
-            ? {}
-            : { restParameterIndex: restParameterIndexes[0] }),
-        })
-      : csharpDelegateTargetType(
-          "System.Func",
-          parameters,
-          callable.returnType,
-          {
-            optionalParameterIndexes,
-            ...(restParameterIndexes[0] === undefined
-              ? {}
-              : { restParameterIndex: restParameterIndexes[0] }),
-          },
-        );
+    return csharpCallableValueType(callable) ?? declaredExpectedType;
   }
 
   function recordSelectedCallReceiver(

@@ -605,6 +605,22 @@ test("address-of rejects each readonly or non-storage occurrence independently",
   );
 });
 
+test("address-of rejects imported constants before target planning", () => {
+  const compiled = compileCsharpSource({ files: {
+    "values.ts": `export const fixed = 7;`,
+    "exports.ts": `export { fixed } from "./values.js";`,
+  }, sourceText: `
+    import { addressOf } from "@tsonic/core/lang.js";
+    import { fixed } from "./values.js";
+    import { fixed as alias } from "./exports.js";
+    export function reject(): void { addressOf(fixed); addressOf(alias); }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.deepEqual(compiled.extensionDiagnostics.map(diagnostic => diagnostic.publicCode),
+    ["TSTS_SOURCE_SEMANTICS_0002", "TSTS_SOURCE_SEMANTICS_0002"]);
+  assert.equal(compiled.artifacts.size, 0);
+});
+
 test("same-spelled local pointer functions remain ordinary source calls", () => {
   const compiled = cleanCompile(`
     import type { int32 } from "@tsonic/core/types.js";

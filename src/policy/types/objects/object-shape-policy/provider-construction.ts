@@ -1,10 +1,11 @@
-import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import type {
   Node,
   Type,
   TypePropertyInfo,
 } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
+import { sourcePropertyTypeEvidenceNodes } from "@tsonic/target-api/source";
 import type {
   CsharpProviderTargetRelation,
 } from "../../../../providers/relations/index.js";
@@ -22,6 +23,7 @@ import type {
 } from "../../resolution/model.js";
 import {
   csharpNullableTargetType,
+  getCsharpNullableElementTargetType,
 } from "../../../../target-model/types/nullable.js";
 import {
   targetTypeRefEquals,
@@ -259,7 +261,8 @@ function deriveProviderObjectLiteralMember(
     sourceTarget === undefined ||
     memberTarget === undefined ||
     declaringTarget === undefined ||
-    !targetTypeRefEquals(sourceTarget, memberTarget) ||
+    (!targetTypeRefEquals(sourceTarget, memberTarget) &&
+      !providerSelectsNumericStorage(property, sourceTarget, memberTarget, input)) ||
     !targetTypeRefEquals(declaringTarget, selectedTarget) ||
     targetReadonly !== property.readonly
   ) {
@@ -279,6 +282,28 @@ function deriveProviderObjectLiteralMember(
     ...(optional ? { optional: true } : {}),
     ...(property.readonly ? { readonly: true } : {}),
   };
+}
+
+function providerSelectsNumericStorage(
+  property: TypePropertyInfo,
+  source: TargetTypeRef,
+  target: TargetTypeRef,
+  input: CsharpProviderObjectLiteralInput,
+): boolean {
+  const sourceElement = getCsharpNullableElementTargetType(source);
+  const targetElement = getCsharpNullableElementTargetType(target);
+  if ((sourceElement === undefined) !== (targetElement === undefined)) return false;
+  const selected = targetElement ?? target;
+  const defaultType = sourceElement ?? source;
+  if (defaultType.kind !== "source-primitive" || defaultType.name !== "float64" ||
+    selected.kind !== "source-primitive" || selected.name === "bool" || selected.name === "char") return false;
+  const members = input.queries.types.isUnion(property.type)
+    ? input.queries.types.unionOrIntersectionTypes(property.type).filter(type => !input.queries.types.isNullish(type))
+    : [property.type];
+  if (members.length === 0 || !members.every(type => input.queries.types.isNumberLike(type))) return false;
+  const subjects = [...members.flatMap(type => input.queries.facts.typeSubjects(type)),
+    ...sourcePropertyTypeEvidenceNodes(input.host.ast, input.queries, property)];
+  return subjects.every(subject => input.host.sourceFacts?.getFact(subject, sourcePrimitiveFactKey) === undefined);
 }
 
 function resolveProviderMemberRelation(

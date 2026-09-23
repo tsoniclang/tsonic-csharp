@@ -291,6 +291,7 @@ declare var String: StringConstructor;
 interface Array<T> extends Iterable<T> {
   length: number;
   [index: number]: T;
+  entries(): Iterable<[number, T]>;
   push(...items: T[]): number;
   pop(): T | undefined;
   shift(): T | undefined;
@@ -323,6 +324,7 @@ interface Array<T> extends Iterable<T> {
 interface ReadonlyArray<T> extends Iterable<T> {
   readonly length: number;
   readonly [index: number]: T;
+  entries(): Iterable<[number, T]>;
   slice(start?: number, end?: number): T[];
   concat(...items: (T | readonly T[])[]): T[];
   join(separator?: string): string;

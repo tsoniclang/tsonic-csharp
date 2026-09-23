@@ -25,6 +25,7 @@ import type {
   CsharpSourceProfilePropertyPolicyContext,
 } from "../source-profile-policy.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpJsNumericArgument } from "./numeric-argument.js";
 import {
   instanceMethod,
   jsCallPolicy,
@@ -210,7 +211,7 @@ export const csharpJsBinaryElementPolicies:
               `Tsonic.CSharp.Js.TypedArray.indexer:${receiver.id}`,
               receiver,
               doubleType,
-              context.source.accessMode === "read" ? element : doubleType,
+              element,
               false,
             );
       },
@@ -254,6 +255,10 @@ function dataViewMember(
     return undefined;
   }
   const endian = name.endsWith("16") || name.endsWith("32") || name.endsWith("64");
+  const valueParameter = write && !name.startsWith("setFloat")
+    ? csharpJsNumericArgument(context, 1)
+    : targetParameter("value", doubleType);
+  if (write && valueParameter === undefined) return undefined;
   return instanceMethod(
     `Tsonic.CSharp.Js.DataView.${name}`,
     name,
@@ -261,7 +266,7 @@ function dataViewMember(
     receiver,
     [
       targetParameter("byteOffset", doubleType),
-      ...(write ? [targetParameter("value", doubleType)] : []),
+      ...(write && valueParameter !== undefined ? [valueParameter] : []),
       ...(endian ? [targetParameter("littleEndian", boolType, { optional: true })] : []),
     ],
     write ? voidType : dataViewReadTypes.get(name)!,
@@ -317,7 +322,13 @@ function typedArrayMethod(
     : undefined;
   const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
     ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
-    : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
+    : name === "fill"
+      ? (() => {
+        const value = csharpJsNumericArgument(context);
+        return value === undefined ? undefined : [value, targetParameter("start", doubleType, { optional: true }),
+          targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true })];
+      })()
+      : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
   const result = name === "at"
     ? csharpNullableValueTargetType(csharpJsTypedArrayElementTargetType(receiver)!)
     : name === "includes"
@@ -348,12 +359,6 @@ function typedArrayMethodParameters(
   switch (name) {
     case "at":
       return [targetParameter("index", doubleType)];
-    case "fill":
-      return [
-        targetParameter("value", doubleType),
-        targetParameter("start", doubleType, { optional: true }),
-        targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true }),
-      ];
     case "includes":
     case "indexOf":
       return [
