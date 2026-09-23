@@ -51,6 +51,21 @@ import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-a
 import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } from "../../../../tsonic/test/fixtures/nested-structural-storage.mjs";
 import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-switch.mjs";
 import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
+import { tupleSatisfiesSource, invalidTupleSatisfiesSources } from "../../../../tsonic/test/fixtures/tuple-satisfies.mjs";
+import { initializedModuleStateFiles } from "../../../../tsonic/test/fixtures/initialized-module-state.mjs";
+
+test("module state is fully constructed before reads and preserves aliases", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: initializedModuleStateFiles,
+    sourceText: initializedModuleStateFiles["index.ts"] }), "initialized-module-state");
+});
+
+test("checked satisfies tuples preserve distinct optional elements and evaluation order", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: tupleSatisfiesSource }), "tuple-satisfies");
+  for (const sourceText of invalidTupleSatisfiesSources) {
+    const invalid = checkCsharpSource({ surface: "js", sourceText });
+    assert.match(invalid.sourceDiagnosticsText, /error TS/u);
+  }
+});
 
 test("class factories retain distinct evaluation and constructor exception boundaries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: classFactoryEffectsFiles,
