@@ -352,6 +352,9 @@ interface ArrayConstructor {
 }
 declare var Array: ArrayConstructor;
 
+interface BigInt {
+  toString(radix?: number): string;
+}
 interface BigIntConstructor {
   (value: bigint | boolean | number | string): bigint;
   asIntN(bits: number, value: bigint): bigint;
@@ -501,8 +504,8 @@ declare var console: Console;
 
 declare function parseInt(value: string, radix?: number): number;
 declare function parseFloat(value: string): number;
-declare function isNaN(value: number): boolean;
-declare function isFinite(value: number): boolean;
+declare function isNaN(value: number | bigint): boolean;
+declare function isFinite(value: number | bigint): boolean;
 declare function setTimeout(callback: () => void, delay?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(callback: () => void, delay: number): number;

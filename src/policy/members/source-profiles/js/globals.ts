@@ -3,6 +3,7 @@ import type {
   CsharpTargetParameter,
   TargetTypeRef,
 } from "../../../types/index.js";
+import { csharpJsNumericArgument } from "./numeric-argument.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -275,8 +276,10 @@ export const csharpJsGlobalCallPolicies:
     ...["encodeURIComponent", "decodeURIComponent"].map((name) =>
       jsCallPolicy(
         jsGlobalCallIdentity(name),
-        () =>
-          staticMethod(
+        (context) => {
+          const parameter = csharpJsNumericArgument(context);
+          if (parameter === undefined) return undefined;
+          return staticMethod(
             `Tsonic.CSharp.Js.Globals.${name}`,
             name,
             name,
@@ -296,13 +299,10 @@ export const csharpJsGlobalCallPolicies:
             name,
             name,
             globalsType,
-            [
-              targetParameter("value", doubleType, {
-                csharpAcceptsCheckedSourceArgument: true,
-              }),
-            ],
+            [parameter],
             boolType,
-          ),
+          );
+        },
         noReceiver,
       )
     ),

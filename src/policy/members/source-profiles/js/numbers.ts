@@ -2,6 +2,7 @@ import type {
   CsharpTargetMember,
   TargetTypeRef,
 } from "../../../types/index.js";
+import { csharpJsNumericArgument } from "./numeric-argument.js";
 import {
   csharpBigIntegerTargetType,
   csharpObjectTargetType,
@@ -127,11 +128,9 @@ export const csharpJsNumberCallPolicies:
         (context) => {
           let parameters: readonly import("../../../types/index.js").CsharpTargetParameter[] = row.parameters;
           if (["isFinite", "isInteger", "isNaN", "isSafeInteger"].includes(row.sourceName)) {
-            const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-            if (argument === undefined || !(argument.kind === "source-primitive" &&
-              argument.name !== "bool" && argument.name !== "char" ||
-              targetTypeRefEquals(argument, csharpBigIntegerTargetType()))) return undefined;
-            parameters = [targetParameter("value", argument)];
+            const parameter = csharpJsNumericArgument(context);
+            if (parameter === undefined) return undefined;
+            parameters = [parameter];
           }
           return staticMethod(
             `Tsonic.CSharp.Js.Number.${row.sourceName}`,
@@ -282,7 +281,7 @@ function numberReceiverMember(
         numberHelperType,
         receiverType,
         row.parameters,
-        row.returnType,
+        row.sourceName === "valueOf" ? receiverType : row.returnType,
       );
 }
 

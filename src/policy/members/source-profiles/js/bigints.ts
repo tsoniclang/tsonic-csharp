@@ -7,7 +7,7 @@ import {
   type TargetTypeRef,
 } from "../../../types/index.js";
 import { resolveCsharpSelectedSourceValue, type CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
-import { jsCallIdentity, jsCallPolicy, jsMemberIdentity, jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
+import { jsCallIdentity, jsCallPolicy, jsMemberIdentity, jsRuntimeTargetType, receiverHelperMethod, staticMethod, targetParameter } from "./common.js";
 
 const primitiveKinds = new Set([
   "bool", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
@@ -21,6 +21,17 @@ function isBigIntInput(type: TargetTypeRef): boolean {
 }
 
 export const csharpJsBigIntCallPolicies: readonly CsharpSourceProfileCallPolicy[] = [
+  jsCallPolicy(jsMemberIdentity("BigInt", "toString"), context => {
+    const receiver = resolveCsharpSelectedSourceValue(context, context.source.sourceReceiver);
+    if (receiver === undefined || !(targetTypeRefEquals(receiver, csharpBigIntegerTargetType()) ||
+      receiver.kind === "source-primitive" && ["int8", "uint8", "int16", "uint16", "int32", "uint32",
+        "int64", "uint64", "int128", "uint128", "native-int", "native-uint"].includes(receiver.name))) return undefined;
+    const helper = targetTypeRefEquals(receiver, csharpBigIntegerTargetType()) ? "BigIntOps" : "Number";
+    return receiverHelperMethod(`Tsonic.CSharp.Js.${helper}.toString:bigint`, "toString", "toString",
+      jsRuntimeTargetType(helper), receiver,
+      [targetParameter("radix", csharpSourcePrimitiveTargetType("int32"), { optional: true })],
+      csharpStringTargetType());
+  }, { kind: "target-parameter", targetParameterIndex: 0 }),
   ...["asIntN", "asUintN"].map(name => jsCallPolicy(jsMemberIdentity("BigIntConstructor", name), context => {
     const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[1]);
     if (argument === undefined || context.source.sourceArguments.length !== 2 ||

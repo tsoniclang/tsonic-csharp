@@ -34,6 +34,7 @@ import {
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
+  staticMethod,
   targetIndexer,
   targetParameter,
   targetProperty,
@@ -269,6 +270,17 @@ function typedArrayConstructor(
   name: CsharpJsTypedArrayName,
 ): CsharpTargetMember | undefined {
   const target = csharpJsTypedArrayTargetType(name);
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  if (argument?.kind === "target-named" && argument.csharpJsSurfaceKind === "typed-array") {
+    return staticMethod(
+      `Tsonic.CSharp.Js.${name}.From:${argument.id}`,
+      "constructor",
+      "From",
+      target,
+      [targetParameter("source", argument)],
+      target,
+    );
+  }
   const parameters = context.source.sourceSelectedSignatureParameters.length === 3
     ? [
         targetParameter("buffer", arrayBufferType),
@@ -276,8 +288,7 @@ function typedArrayConstructor(
         targetParameter("length", csharpNullableValueTargetType(doubleType), { optional: true }),
       ]
     : (() => {
-        const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
-        return argument?.kind === "source-primitive" && argument.name === "float64"
+        return argument?.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char"
           ? [targetParameter("length", doubleType)]
           : [targetParameter("values", csharpEnumerableTargetType(doubleType))];
       })();
@@ -296,7 +307,12 @@ function typedArrayMethod(
   if (receiver === undefined) {
     return undefined;
   }
-  const parameters = typedArrayMethodParameters(name);
+  const source = name === "set"
+    ? resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0])
+    : undefined;
+  const parameters = source?.kind === "target-named" && source.csharpJsSurfaceKind === "typed-array"
+    ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
+    : typedArrayMethodParameters(name);
   const result = name === "includes"
     ? boolType
     : name === "indexOf"
