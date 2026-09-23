@@ -207,12 +207,13 @@ export const csharpJsBinaryElementPolicies:
       (context) => {
         const receiver = typedArrayAccessReceiver(context);
         const element = csharpJsTypedArrayElementTargetType(receiver);
-        return receiver === undefined || element === undefined
+        const index = resolveCsharpSelectedSourceValue(context, context.source.argument);
+        return receiver === undefined || element === undefined || index === undefined
           ? undefined
           : targetIndexer(
               `Tsonic.CSharp.Js.TypedArray.indexer:${receiver.id}`,
               receiver,
-              doubleType,
+              index,
               element,
               false,
             );
@@ -261,13 +262,15 @@ function dataViewMember(
     ? csharpJsNumericArgument(context, 1)
     : targetParameter("value", doubleType);
   if (write && valueParameter === undefined) return undefined;
+  const offsetParameter = csharpJsNumericArgument(context);
+  if (offsetParameter === undefined) return undefined;
   return instanceMethod(
     `Tsonic.CSharp.Js.DataView.${name}`,
     name,
     name,
     receiver,
     [
-      targetParameter("byteOffset", doubleType),
+      { ...offsetParameter, name: "byteOffset" },
       ...(write && valueParameter !== undefined ? [valueParameter] : []),
       ...(endian ? [targetParameter("littleEndian", boolType, { optional: true })] : []),
     ],
@@ -314,7 +317,7 @@ function typedArrayConstructor(
       ]
     : (() => {
         return argument?.kind === "source-primitive" && argument.name !== "bool" && argument.name !== "char"
-          ? [targetParameter("length", doubleType)]
+          ? [targetParameter("length", argument.name === "int32" ? intType : doubleType)]
           : [targetParameter("values", csharpEnumerableTargetType(doubleType))];
       })();
   return constructorMember(

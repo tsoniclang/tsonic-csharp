@@ -1,6 +1,7 @@
 import type { CsharpTargetMember, TargetTypeRef } from "../../../types/index.js";
 import { csharpJsArrayTargetType, csharpSourcePrimitiveTargetType, getCsharpJsArrayElementTargetType } from "../../../types/index.js";
 import type { CsharpSourceProfileCallPolicy } from "../source-profile-policy.js";
+import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { jsRuntimeTargetType, staticMethod, targetParameter } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -21,13 +22,14 @@ export function arrayConstructionMember(
       sourceArgument.type,
     );
   if (numericLength) {
+    const carrier = resolveCsharpSelectedSourceValue(context, sourceArgument);
     return Object.freeze({
       id: "Tsonic.CSharp.Js.JSArray..ctor(length)",
       sourceName: "constructor",
       targetName: "JSArray",
       kind: "constructor",
       declaringType: resultType,
-      parameters: [targetParameter("length", doubleType)],
+      parameters: [targetParameter("length", carrier?.kind === "source-primitive" && carrier.name === "int32" ? carrier : doubleType)],
       returnType: resultType,
     });
   }

@@ -28,13 +28,14 @@ export function planTypedArrayMutation(
   });
   if (selection.kind === "update-typed-element") {
     const type = csharpTypeFromTargetTypeRef(selection.resultType);
-    if (type === undefined) {
+    const indexType = csharpTypeFromTargetTypeRef(selection.indexType);
+    if (type === undefined || indexType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Typed array update has no sealed native result type."));
       return undefined;
     }
     return {
       kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver, name: "Update", typeArguments: [type] },
+      callee: { kind: "SimpleMemberAccessExpression", receiver, name: "Update", typeArguments: [type, indexType] },
       arguments: [index, { kind: "LiteralExpression" as const, value: selection.increment },
         { kind: "LiteralExpression" as const, value: selection.prefix }].map(expression => ({ kind: "Argument", expression })),
     };

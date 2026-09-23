@@ -19,6 +19,7 @@ export interface CsharpTypedArrayUpdate {
   readonly kind: "update-typed-element";
   readonly receiver: Node;
   readonly index: Node;
+  readonly indexType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
   readonly increment: boolean;
   readonly prefix: boolean;
@@ -41,10 +42,11 @@ export function selectCsharpTypedArrayMutation(input: CsharpPolicyContext, node:
   if (source === undefined || identity?.owner !== "js" || identity.kind !== "indexer" || identity.declaringName !== "TypedArray") return undefined;
   const element = csharpJsTypedArrayElementTargetType(input.types.resolveNode(source.receiver.expression, sourceFile));
   if (update && element !== undefined) {
+    const indexType = input.types.resolveNode(source.argument.expression, sourceFile);
     const resultType = csharpUnaryNumericPromotion(element);
-    return resultType === undefined ? { kind: "rejected", reason: "Typed array updates require native numeric storage." }
+    return resultType === undefined || indexType === undefined ? { kind: "rejected", reason: "Typed array updates require native numeric storage and index carriers." }
       : { kind: "update-typed-element", receiver: source.receiver.expression, index: source.argument.expression,
-        resultType, increment: operator === "++", prefix: input.ast.is.IsPrefixUnaryExpression(node) };
+        indexType, resultType, increment: operator === "++", prefix: input.ast.is.IsPrefixUnaryExpression(node) };
   }
   if (value === undefined) return undefined;
   const valueType = input.types.resolveNode(value, sourceFile);
