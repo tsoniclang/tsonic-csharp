@@ -49,6 +49,17 @@ import { classStructuralConversionFiles, invalidClassStructuralConversions } fro
 import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
 import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-array-rest.mjs";
 import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } from "../../../../tsonic/test/fixtures/nested-structural-storage.mjs";
+import { bigintSwitchSource } from "../../../../tsonic/test/fixtures/bigint-switch.mjs";
+import { classFactoryEffectsFiles } from "../../../../tsonic/test/fixtures/class-factory-effects.mjs";
+
+test("class factories retain distinct evaluation and constructor exception boundaries", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", files: classFactoryEffectsFiles,
+    sourceText: classFactoryEffectsFiles["index.ts"] }), "class-factory-effects");
+});
+
+test("bigint switches preserve wide equality, evaluation order and fallthrough", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: bigintSwitchSource }), "bigint-switch");
+});
 
 for (const surface of [undefined, "js"]) {
   const profile = surface ?? "native";
