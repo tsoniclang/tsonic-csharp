@@ -48,6 +48,20 @@ import { unionCallContractsFiles, incompatibleUnionCalls } from "../../../../tso
 import { classStructuralConversionFiles, invalidClassStructuralConversions } from "../../../../tsonic/test/fixtures/class-structural-conversions.mjs";
 import { genericObjectMethodFiles, genericObjectCaptureSource, genericObjectMethodValueSource, invalidGenericObjectMethods } from "../../../../tsonic/test/fixtures/generic-object-methods.mjs";
 import { nestedArrayRestSource } from "../../../../tsonic/test/fixtures/nested-array-rest.mjs";
+import { nestedStructuralStorageFiles, invalidNestedStructuralStorageFiles } from "../../../../tsonic/test/fixtures/nested-structural-storage.mjs";
+
+for (const surface of [undefined, "js"]) {
+  const profile = surface ?? "native";
+  test(`nested structural storage preserves compound aliases and shared mutation (${profile})`, { timeout: 300_000 }, () => {
+    const options = surface === undefined ? {} : { surface };
+    execute(compileCsharpSource({ ...options, files: nestedStructuralStorageFiles,
+      sourceText: nestedStructuralStorageFiles["index.ts"] }), `nested-structural-storage-${profile}`);
+    for (const files of invalidNestedStructuralStorageFiles) {
+      const invalid = checkCsharpSource({ ...options, files, sourceText: files["index.ts"] });
+      assert.match(invalid.sourceDiagnosticsText, /error TS(?:2322|2345)/u);
+    }
+  });
+}
 
 test("native params preserve array-valued arguments and nested storage identity", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nestedArrayRestSource });
