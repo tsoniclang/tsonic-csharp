@@ -34,11 +34,15 @@ export function selectCsharpNumericBinaryPromotion(
   rightType: TargetTypeRef,
   expectedResultType?: TargetTypeRef,
 ): CsharpNumericBinaryPromotion | undefined {
-  if (!isNumericPrimitive(leftType) || !isNumericPrimitive(rightType)) {
+  const selectedLeft = isNumericPrimitive(leftType) ? leftType
+    : isNumericPrimitive(rightType) && csharpLiteralIsRepresentableAs(input, leftNode, rightType)
+      ? rightType : undefined;
+  const selectedRight = isNumericPrimitive(rightType) ? rightType
+    : isNumericPrimitive(leftType) && csharpLiteralIsRepresentableAs(input, rightNode, leftType)
+      ? leftType : undefined;
+  if (selectedLeft === undefined || selectedRight === undefined) {
     return undefined;
   }
-  const selectedLeft = leftType;
-  const selectedRight = rightType;
   const expectedPromotion = expectedNumericPromotion(
     input,
     leftNode,

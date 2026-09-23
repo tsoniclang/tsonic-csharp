@@ -126,31 +126,22 @@ const mathCallPolicies = [
     )
   ),
   fixedStaticCall("Math", "random", mathType, [], doubleType),
-  fixedStaticCall(
-    "Math",
-    "imul",
-    mathType,
-    [
-      targetParameter("left", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-      targetParameter("right", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-    ],
-    intType,
-  ),
-  fixedStaticCall(
-    "Math",
-    "clz32",
-    mathType,
-    [
-      targetParameter("value", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-    ],
-    intType,
-  ),
+  ...[
+    { name: "imul", parameters: ["left", "right"] },
+    { name: "clz32", parameters: ["value"] },
+  ].map(({ name, parameters }) => jsCallPolicy(
+    jsMemberIdentity("Math", name),
+    context => {
+      const selected: CsharpTargetParameter[] = [];
+      for (const [index, parameterName] of parameters.entries()) {
+        const parameter = csharpJsNumericArgument(context, index);
+        if (parameter === undefined) return undefined;
+        selected.push({ ...parameter, name: parameterName });
+      }
+      return staticMethod(`Tsonic.CSharp.Js.Math.${name}`, name, name, mathType, selected, intType);
+    },
+    noReceiver,
+  )),
 ];
 
 const consoleVariadicNames = [

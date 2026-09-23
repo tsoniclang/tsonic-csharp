@@ -181,8 +181,9 @@ function planWideIntegerLiteral(
         kind: "source-primitive", name: target.name === "native-int" ? "int64" : "uint64",
       });
       return type === undefined || literal === undefined ? undefined : {
-        kind: "CheckedExpression",
-        expression: { kind: "CastExpression", type, expression: literal },
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: type, name: "CreateChecked" },
+        arguments: [{ kind: "Argument", expression: literal }],
       };
     }
     case "int64":

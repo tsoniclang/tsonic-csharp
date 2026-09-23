@@ -76,6 +76,7 @@ const numberInstanceRows = [
     targetName: "valueOf",
     parameters: [],
     returnType: numberType,
+    returnsReceiver: true,
   },
 ] as const;
 
@@ -96,6 +97,7 @@ const numberStaticRows = [
   ...["isFinite", "isInteger", "isNaN", "isSafeInteger"].map(
     (sourceName) => ({
       sourceName,
+      nativeArgument: true,
       parameters: [
         targetParameter("value", numberType, {
           csharpAcceptsCheckedSourceArgument: true,
@@ -127,7 +129,7 @@ export const csharpJsNumberCallPolicies:
         jsMemberIdentity("NumberConstructor", row.sourceName),
         (context) => {
           let parameters: readonly import("../../../types/index.js").CsharpTargetParameter[] = row.parameters;
-          if (["isFinite", "isInteger", "isNaN", "isSafeInteger"].includes(row.sourceName)) {
+          if ("nativeArgument" in row && row.nativeArgument) {
             const parameter = csharpJsNumericArgument(context);
             if (parameter === undefined) return undefined;
             parameters = [parameter];
@@ -270,6 +272,7 @@ function numberReceiverMember(
     readonly targetName: string;
     readonly parameters: CsharpTargetMember["parameters"];
     readonly returnType: TargetTypeRef;
+    readonly returnsReceiver?: boolean;
   },
 ): CsharpTargetMember | undefined {
   return receiverType === undefined
@@ -281,7 +284,7 @@ function numberReceiverMember(
         numberHelperType,
         receiverType,
         row.parameters,
-        row.sourceName === "valueOf" ? receiverType : row.returnType,
+        row.returnsReceiver === true ? receiverType : row.returnType,
       );
 }
 

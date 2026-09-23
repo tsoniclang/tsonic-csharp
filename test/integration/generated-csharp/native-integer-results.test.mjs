@@ -8,10 +8,12 @@ import { assertCsharpCompilationSucceeded, compileCsharpSource } from "../../hel
 import { testRepositoryRoots } from "../../../../tsonic/test/scripts/workspace-layout.mjs";
 import { createTestWorkspace } from "../../../../tsonic/test/scripts/test-workspaces.mjs";
 import { nativeNumericTextFunctions } from "../../../../tsonic/test/fixtures/native-numeric-text.mjs";
+import { numericApiFormattingSource } from "../../../../tsonic/test/fixtures/numeric-api-formatting.mjs";
 
 test("bounded integer results use native words without a BigInteger result allocation", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
 ${nativeNumericTextFunctions}
+${numericApiFormattingSource}
 import type { int128, uint128 } from "@tsonic/core/types.js";
 export function signed(value: int64): int64 { return BigInt.asIntN(64, value); }
 export function unsigned(value: int64): uint64 { return BigInt.asUintN(64, value); }
@@ -22,7 +24,7 @@ function operand(): int64 { visits += 1; return 9007199254740993n; }
 export function once(): boolean { return signed(operand()) === 9007199254740993n && visits === 1; }
 export function word(): nativeUint { return 100000; }
 export function classify(value: int64): boolean {
-  return Number.isSafeInteger(value) && Number.isInteger(value) && Number.isFinite(value) && !Number.isNaN(value);
+  return !Number.isSafeInteger(value) && Number.isInteger(value) && Number.isFinite(value) && !Number.isNaN(value);
 }
 ` });
   assertCsharpCompilationSucceeded(compiled);
@@ -44,7 +46,10 @@ if (Subject.signed(9007199254740993L) != 9007199254740993L || Subject.unsigned(-
 if (Subject.wide(BigInteger.CreateChecked(Int128.MaxValue)) != Int128.MaxValue ||
     Subject.wideUnsigned(-BigInteger.One) != UInt128.MaxValue) throw new Exception("128-bit result");
 if (!Subject.once() || Subject.word() != 100000 || !Subject.classify(long.MaxValue)) throw new Exception("native proof");
-if (Subject.exactWord() != (nuint)9007199254740993UL || !Subject.nativePredicates(long.MaxValue))
+if (!Subject.jsNumericApiContract()) throw new Exception("explicit JS API behavior");
+var formattingFailures = Subject.numericApiFormattingFailures();
+if (formattingFailures != "") throw new Exception("numeric formatting cases:\\n" + formattingFailures);
+if (Subject.exactWord() != nuint.CreateChecked(9007199254740993UL) || !Subject.nativePredicates(long.MaxValue))
     throw new Exception("exact word or global predicate");
 if (Subject.signedText(9007199254740993L) != "9007199254740993" || Subject.unsignedHex(ulong.MaxValue) != "ffffffffffffffff")
     throw new Exception("native integer text");

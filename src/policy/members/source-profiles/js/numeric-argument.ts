@@ -4,8 +4,8 @@ import type { CsharpSourceProfileCallPolicyContext } from "../source-profile-pol
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
 import { targetParameter } from "./common.js";
 
-export function csharpJsNumericArgument(context: CsharpSourceProfileCallPolicyContext): CsharpTargetParameter | undefined {
-  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+export function csharpJsNumericArgument(context: CsharpSourceProfileCallPolicyContext, index = 0): CsharpTargetParameter | undefined {
+  const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[index]);
   if (argument === undefined) return undefined;
   const numeric = getCsharpNullableElementTargetType(argument) ?? argument;
   if (!(numeric.kind === "source-primitive" && numeric.name !== "bool" && numeric.name !== "char") &&

@@ -34,7 +34,6 @@ import {
   jsMemberIdentity,
   jsPropertyPolicy,
   jsRuntimeTargetType,
-  staticMethod,
   targetIndexer,
   targetParameter,
   targetProperty,
@@ -272,14 +271,16 @@ function typedArrayConstructor(
   const target = csharpJsTypedArrayTargetType(name);
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
   if (argument?.kind === "target-named" && csharpJsTypedArrayElementTargetType(argument) !== undefined) {
-    return staticMethod(
-      `Tsonic.CSharp.Js.${name}.From:${argument.id}`,
-      "constructor",
-      "From",
-      target,
-      [targetParameter("source", argument)],
-      target,
-    );
+    return Object.freeze({
+      id: `Tsonic.CSharp.Js.${name}.From:${argument.id}`,
+      sourceName: "constructor",
+      targetName: "From",
+      kind: "constructor",
+      declaringType: target,
+      parameters: [targetParameter("source", argument)],
+      returnType: target,
+      csharpInvocation: { kind: "static-factory-construction", factoryType: target },
+    } satisfies CsharpTargetMember);
   }
   const parameters = context.source.sourceSelectedSignatureParameters.length === 3
     ? [
