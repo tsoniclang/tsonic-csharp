@@ -16,6 +16,10 @@ import {
   jsRegExpSourceProfileDeclarations,
   jsSourceSemanticsModules,
 } from "@tsonic/js-source-profile";
+import {
+  createTsonicCoreSourceExtension,
+  tsonicCoreSourceSemanticsModules,
+} from "@tsonic/source-core";
 
 test("only the JS surface composes the canonical RegExp declaration contract", () => {
   const nativeText = sourceProfileFiles("csharp").map((file) => file.text).join("\n");
@@ -151,14 +155,18 @@ function createSourceProfileSession(options) {
       moduleResolution: "bundler",
       strict: true,
     },
-    extensionHostOptions: options.profile === "js"
-      ? {
-          extensions: [
-            createSourceSemanticsExtension({ modules: jsSourceSemanticsModules() }),
-            createJsSourceSemanticsExtension(),
+    extensionHostOptions: {
+      extensions: [
+        createSourceSemanticsExtension({
+          modules: [
+            ...tsonicCoreSourceSemanticsModules(),
+            ...(options.profile === "js" ? jsSourceSemanticsModules() : []),
           ],
-        }
-      : undefined,
+        }),
+        createTsonicCoreSourceExtension(),
+        ...(options.profile === "js" ? [createJsSourceSemanticsExtension()] : []),
+      ],
+    },
   });
 }
 
