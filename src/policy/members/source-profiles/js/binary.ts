@@ -6,6 +6,8 @@ import type {
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
+  csharpReadOnlyListTargetType,
+  getCsharpJsArrayElementTargetType,
   csharpJsArrayBufferTargetType,
   csharpJsDataViewTargetType,
   csharpJsTypedArrayElementTargetType,
@@ -279,6 +281,19 @@ function typedArrayConstructor(
 ): CsharpTargetMember | undefined {
   const target = csharpJsTypedArrayTargetType(name);
   const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const element = numericArrayElement(argument);
+  if (element !== undefined) {
+    return Object.freeze({
+      id: `Tsonic.CSharp.Js.${name}.From:array`,
+      sourceName: "constructor",
+      targetName: "From",
+      kind: "constructor",
+      declaringType: target,
+      parameters: [targetParameter("source", csharpReadOnlyListTargetType(element))],
+      returnType: target,
+      csharpInvocation: { kind: "static-factory-construction", factoryType: target },
+    } satisfies CsharpTargetMember);
+  }
   if (argument?.kind === "target-named" && csharpJsTypedArrayElementTargetType(argument) !== undefined) {
     return Object.freeze({
       id: `Tsonic.CSharp.Js.${name}.From:${argument.id}`,
@@ -322,6 +337,9 @@ function typedArrayMethod(
     : undefined;
   const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
     ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
+    : name === "set" && numericArrayElement(source) !== undefined
+      ? [targetParameter("source", csharpReadOnlyListTargetType(numericArrayElement(source)!)),
+        targetParameter("offset", doubleType, { optional: true })]
     : name === "fill"
       ? (() => {
         const value = csharpJsNumericArgument(context);
@@ -391,6 +409,12 @@ function typedArrayMethodParameters(
     default:
       return undefined;
   }
+}
+
+function numericArrayElement(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  const element = type?.kind === "array" ? type.element : getCsharpJsArrayElementTargetType(type);
+  return element?.kind === "source-primitive" && element.name !== "bool" && element.name !== "char"
+    ? element : undefined;
 }
 
 function arrayBufferViewProperty(

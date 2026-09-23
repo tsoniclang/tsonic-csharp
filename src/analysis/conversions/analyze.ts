@@ -41,6 +41,7 @@ import { isUndefinedType } from "../../policy/types/resolution/source-evidence.j
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
+import { selectCsharpExactIntegerConversion } from "../../policy/conversions/selection/exact-integer.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -142,7 +143,8 @@ export function analyzeCsharpConversions(
     }
     for (const targetType of expectedTypes.forExpression(node)) {
       for (const candidate of sourceTypes) {
-        classifyExpression(node, candidate, targetType, "implicit");
+        classifyExpression(node, candidate, targetType, "implicit",
+          expectedTypes.requiresExactIntegerConversion(node, targetType));
       }
       classifyArrayCarrier(node, effectiveSourceType, targetType);
     }
@@ -510,6 +512,7 @@ export function analyzeCsharpConversions(
     source: TargetTypeRef | undefined,
     target: TargetTypeRef | undefined,
     mode: CsharpConversionMode,
+    exactInteger = false,
   ): CsharpConversionSelection | undefined {
     if (source === undefined || target === undefined) {
       return unavailableConversion;
@@ -517,7 +520,7 @@ export function analyzeCsharpConversions(
     const key = pairKey(source, target, mode);
     let selections = expressionSelections.get(expression);
     const previous = selections?.get(key);
-    if (previous !== undefined) {
+    if (previous !== undefined && (!exactInteger || previous.kind !== "rejected")) {
       return previous;
     }
     if (!reserveClassification(expression)) {
@@ -531,6 +534,9 @@ export function analyzeCsharpConversions(
       target,
       mode,
     );
+    if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
+      candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
+    }
     if (getCsharpNullableElementTargetType(source) !== undefined && targetTypeRefEquals(target, csharpObjectTargetType())) {
       const semantics = policy.semanticsFor(expression);
       const selectedType = semantics.types.expressionType(expression);

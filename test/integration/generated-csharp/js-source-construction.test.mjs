@@ -22,6 +22,8 @@ import { jsArrayCopyFiles } from "../../../../tsonic/test/fixtures/js-array-copy
 import { sourcePackageCallbackErrorFiles, sourcePackageCallbackErrorGraph } from "../../../../tsonic/test/fixtures/source-package-callback-errors.mjs";
 import { falliblePointerFiles, falliblePointerPackageFiles, falliblePointerPackageGraph } from "../../../../tsonic/test/fixtures/fallible-pointer-views.mjs";
 import { nativeV8FlagsSource } from "../../../../tsonic/test/fixtures/native-v8-flags.mjs";
+import { nativeCharacterInputsSource } from "../../../../tsonic/test/fixtures/native-character-inputs.mjs";
+import { nativeNumericArraysSource } from "../../../../tsonic/test/fixtures/native-numeric-arrays.mjs";
 import { nativeV8HeapSource } from "../../../../tsonic/test/fixtures/native-v8-heap.mjs";
 import { boundMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/bound-memory-records.mjs";
 import { emptyMemoryRecordProofFiles } from "../../../../tsonic/test/fixtures/empty-memory-records.mjs";
@@ -59,6 +61,13 @@ import { pointerOwnerNarrowingSource } from "../../../../tsonic/test/fixtures/po
 import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-truncation.mjs";
 import { selectedConstructorFiles } from "../../../../tsonic/test/fixtures/selected-constructors.mjs";
 import { nativeSurfaceResultsSource, nativeNodeResultsSource } from "../../../../tsonic/test/fixtures/native-surface-results.mjs";
+import { nativeOptionRuntimeSource } from "../../../../tsonic/test/fixtures/native-process-options.mjs";
+
+test("native option fields check dynamic values before use", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeOptionRuntimeSource });
+  execute(compiled, "native-option-fields", false, false,
+    [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")]);
+});
 
 test("native JS result carriers preserve widths, aliases and API behavior", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativeSurfaceResultsSource });
@@ -84,6 +93,14 @@ test("native Node result carriers reach locals and comparisons unchanged", { tim
 test("equal constructor carriers retain the exact selected source signatures", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: selectedConstructorFiles,
     sourceText: selectedConstructorFiles["index.ts"] }), "selected-constructors");
+});
+
+test("numeric array construction and copy retain native element bits", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nativeNumericArraysSource });
+  execute(compiled, "native-numeric-arrays");
+  const text = [...compiled.artifacts.values()].join("\n");
+  assert.match(text, /Uint8Array\.From/u);
+  assert.doesNotMatch(text, /Convert\.ToDouble|\.Select\(|IEnumerable<double>/u);
 });
 
 for (const [name, sourceText] of [["native-integer-complement", nativeIntegerComplementSource], ["nullish-never", nullishNeverSource],
@@ -828,6 +845,15 @@ export function run(): boolean {
   return true;
 }
 ` }), "numeric-rest-sequences");
+});
+
+test("character constructors retain native arguments and evaluation order", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nativeCharacterInputsSource });
+  execute(compiled, "native-character-inputs");
+  const text = [...compiled.artifacts.values()].join("\n");
+  assert.match(text, /fromCodePoint<uint>/u);
+  assert.match(text, /fromCharCode<byte>/u);
+  assert.doesNotMatch(text, /Convert\.ToDouble|\(double\)/u);
 });
 
 test("character constructors preserve numeric coercion and exact runtime rejection", { timeout: 300_000 }, () => {

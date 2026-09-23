@@ -1,5 +1,7 @@
 import {
   csharpEnumerableTargetType,
+  csharpReadOnlyListTargetType,
+  getCsharpJsArrayElementTargetType,
   csharpObjectTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
@@ -227,6 +229,10 @@ function selectCollectionInterfaceConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
+  const jsArrayElement = getCsharpJsArrayElementTargetType(source);
+  if (jsArrayElement !== undefined && targetTypeRefEquals(target, csharpReadOnlyListTargetType(jsArrayElement))) {
+    return { kind: "implicit", proof: "collection-interface" };
+  }
   const implicitArrayInputElement =
     getCsharpImplicitArrayInputElementTargetType(target);
   if (

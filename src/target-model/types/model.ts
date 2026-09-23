@@ -25,6 +25,7 @@ export interface CsharpObjectShapeMemberFact {
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
+  readonly exactNumericStorage?: true;
   readonly methodValueContract?: TargetTypeRef;
   readonly methodStorageType?: TargetTypeRef;
   readonly typeParameters?: readonly {

@@ -257,12 +257,14 @@ function deriveProviderObjectLiteralMember(
         substitutions,
       );
   const targetReadonly = relation.targetMember.readonly === true;
+  const exactNumericStorage = sourceTarget !== undefined && memberTarget !== undefined &&
+    providerSelectsNumericStorage(property, sourceTarget, memberTarget, input);
   if (
     sourceTarget === undefined ||
     memberTarget === undefined ||
     declaringTarget === undefined ||
     (!targetTypeRefEquals(sourceTarget, memberTarget) &&
-      !providerSelectsNumericStorage(property, sourceTarget, memberTarget, input)) ||
+      !exactNumericStorage) ||
     !targetTypeRefEquals(declaringTarget, selectedTarget) ||
     targetReadonly !== property.readonly
   ) {
@@ -279,6 +281,7 @@ function deriveProviderObjectLiteralMember(
     targetName: relation.targetMember.targetName,
     memberKind: "property",
     type: memberTarget,
+    ...(exactNumericStorage ? { exactNumericStorage: true as const } : {}),
     ...(optional ? { optional: true } : {}),
     ...(property.readonly ? { readonly: true } : {}),
   };

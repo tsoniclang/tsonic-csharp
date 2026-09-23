@@ -3,6 +3,7 @@ import type {
   CsharpTargetParameter,
 } from "../../../types/index.js";
 import { resolveCsharpSelectedSourceValue } from "../source-profile-policy.js";
+import { csharpJsNumericRestCarrier } from "./numeric-rest.js";
 import {
   csharpJsArrayTargetType,
   csharpJsRegExpMatchArrayTargetType,
@@ -303,16 +304,24 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
     ...["fromCharCode", "fromCodePoint"].map((sourceName) =>
       jsCallPolicy(
         jsMemberIdentity("StringConstructor", sourceName),
-        () =>
-          staticMethod(
+        (context) => {
+          const element = csharpJsNumericRestCarrier(context);
+          return element === undefined ? undefined : staticMethod(
             `Tsonic.CSharp.Js.String.${sourceName}`,
             sourceName,
             sourceName,
             stringHelperType,
-            [targetParameter("codes", { kind: "array", element: doubleType }, { paramsArray: true, csharpSequenceHolePolicy: "number-nan" })],
+            [targetParameter("codes", { kind: "array", element }, { paramsArray: true,
+              ...(targetTypeRefEquals(element, doubleType) ? { csharpSequenceHolePolicy: "number-nan" as const } : {}) })],
             stringType,
-          ),
+            { typeParameters: [{ name: "T" }] },
+          );
+        },
         noReceiver,
+        { targetMethodTypeArguments(context) {
+          const element = csharpJsNumericRestCarrier(context);
+          return element === undefined ? undefined : [element];
+        } },
       )
     ),
     jsCallPolicy(

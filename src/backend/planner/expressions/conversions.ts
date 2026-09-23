@@ -123,6 +123,20 @@ export function applyCsharpConversionSelection(
         expression: { kind: "CastExpression", type, expression },
       };
     }
+    case "exact-integer": {
+      const source = renderRequiredTargetType(node, selection.input, diagnostics);
+      const target = renderRequiredTargetType(node, selection.output, diagnostics);
+      return source === undefined || target === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: qualifiedCsharpType("Tsonic.CSharp.Runtime", "IntegerConversions"),
+          name: selection.nullable ? "CheckedNullable" : "Checked",
+          typeArguments: [source, target],
+        },
+        arguments: [{ kind: "Argument", expression }],
+      };
+    }
     case "integer-truncation": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       if (type === undefined) return undefined;

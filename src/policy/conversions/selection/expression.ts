@@ -221,6 +221,7 @@ export function csharpConversionIsApplicable(
   return selection.kind === "identity" ||
     selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||
+    selection.kind === "exact-integer" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||

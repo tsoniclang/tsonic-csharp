@@ -12,6 +12,7 @@ export interface CsharpArrayLikeUnionProjection {
 export type CsharpConversionSelection =
   | { readonly kind: "never" }
   | { readonly kind: "checked-native-integer" }
+  | { readonly kind: "exact-integer"; readonly input: TargetTypeRef; readonly output: TargetTypeRef; readonly nullable: boolean }
   | { readonly kind: "integer-truncation"; readonly signed: boolean; readonly width: number }
   | { readonly kind: "identity" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }

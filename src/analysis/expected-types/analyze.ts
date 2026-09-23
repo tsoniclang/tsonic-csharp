@@ -24,6 +24,7 @@ import {
   csharpPropertySourceMemberKey,
   csharpWellKnownSymbolSourceMemberKey,
   resolveCsharpObjectShapeMemberBySourceKey,
+  resolveCsharpObjectShapeMemberBySelectedSubject,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../policy/types/index.js";
@@ -76,6 +77,7 @@ export function analyzeCsharpExpectedTypes(
   interface ExpectedTypeUse {
     readonly targetType: TargetTypeRef;
     readonly strength: ExpectedTypeStrength;
+    readonly exactInteger: boolean;
   }
   const byExpression = new WeakMap<Node, Map<string, ExpectedTypeUse>>();
   const targetTypes = new Map<string, TargetTypeRef>();
@@ -83,6 +85,7 @@ export function analyzeCsharpExpectedTypes(
     readonly expression: Node;
     readonly targetType: TargetTypeRef;
     readonly strength: ExpectedTypeStrength;
+    readonly exactInteger: boolean;
   }[] = [];
   const issues: CsharpExpectedTypeIssue[] = [];
   const binaryUses = createTargetUseClassificationBuilder();
@@ -101,6 +104,7 @@ export function analyzeCsharpExpectedTypes(
     expression: Node | undefined,
     targetType: TargetTypeRef | undefined,
     strength: ExpectedTypeStrength,
+    exactInteger = false,
   ): void => {
     if (expression === undefined || targetType === undefined) {
       return;
@@ -118,7 +122,8 @@ export function analyzeCsharpExpectedTypes(
       byExpression.set(expression, types);
     }
     const previous = types.get(key);
-    if (previous?.strength === "required" || previous?.strength === strength) {
+    if ((previous?.strength === "required" || previous?.strength === strength) &&
+      (!exactInteger || previous.exactInteger)) {
       return;
     }
     if (previous === undefined) {
@@ -136,8 +141,10 @@ export function analyzeCsharpExpectedTypes(
       return;
     }
     targetTypes.set(key, targetType);
-    types.set(key, Object.freeze({ targetType, strength }));
-    pending.push(Object.freeze({ expression, targetType, strength }));
+    const use = Object.freeze({ targetType, strength: previous?.strength === "required" ? "required" : strength,
+      exactInteger: exactInteger || previous?.exactInteger === true });
+    types.set(key, use);
+    pending.push(Object.freeze({ expression, ...use }));
   };
 
   const callableTargets = new WeakMap<Node, TargetTypeRef>();
@@ -153,6 +160,7 @@ export function analyzeCsharpExpectedTypes(
         classification.expression,
         classification.targetType,
         classification.strength,
+        classification.exactInteger,
       );
     }
     callableStateChanged = refreshCallableTargets();
@@ -173,6 +181,9 @@ export function analyzeCsharpExpectedTypes(
       return Object.freeze([...(byExpression.get(expression)?.entries() ?? [])]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([, use]) => use.targetType));
+    },
+    requiresExactIntegerConversion(expression, targetType) {
+      return byExpression.get(expression)?.get(targetTypeRefKey(targetType))?.exactInteger === true;
     },
     storageTypesForExpression(expression) {
       const uses = [...(byExpression.get(expression)?.entries() ?? [])]
@@ -371,7 +382,17 @@ export function analyzeCsharpExpectedTypes(
     const binary = operations.binary(node)?.target;
     if (binary?.kind === "resolved") {
       record(binary.left, binary.leftInputType, "required");
-      record(binary.right, binary.rightInputType, "required");
+      const selected = binary.sourceOperator === "="
+        ? policy.semantics(sourceFile)?.operations.propertyAccess(binary.left) ??
+          policy.semantics(sourceFile)?.operations.elementAccess(binary.left)
+        : undefined;
+      const shape = selected === undefined ? undefined
+        : objectShapes.resolveNode(selected.receiver.expression, sourceFile);
+      const member = shape === undefined || selected === undefined ? undefined
+        : resolveCsharpObjectShapeMemberBySelectedSubject(shape,
+          [selected.selectedDeclaration, selected.selectedSymbol]);
+      record(binary.right, binary.rightInputType, "required",
+        member?.kind === "resolved" && member.member.exactNumericStorage === true);
     }
     const mutation = operations.jsArrayMutation(node);
     if (mutation?.kind === "set-typed-element" && mutation.calculation !== undefined) {
@@ -510,11 +531,12 @@ export function analyzeCsharpExpectedTypes(
     expression: Node,
     targetType: TargetTypeRef,
     strength: ExpectedTypeStrength,
+    exactInteger: boolean,
   ): void {
     if (policy.ast.isConstAssertion(expression)) {
       const assertion = policy.ast.is.IsAsExpression(expression)
         ? policy.ast.as.AsAsExpression(expression) : policy.ast.as.AsTypeAssertion(expression);
-      record(assertion?.Expression, targetType, strength);
+      record(assertion?.Expression, targetType, strength, exactInteger);
       return;
     }
     if (policy.ast.is.IsParenthesizedExpression(expression)) {
@@ -522,6 +544,7 @@ export function analyzeCsharpExpectedTypes(
         policy.ast.as.AsParenthesizedExpression(expression)?.Expression,
         targetType,
         strength,
+        exactInteger,
       );
       return;
     }
@@ -530,13 +553,14 @@ export function analyzeCsharpExpectedTypes(
         policy.ast.as.AsSatisfiesExpression(expression)?.Expression,
         targetType,
         strength,
+        exactInteger,
       );
       return;
     }
     if (policy.ast.is.IsConditionalExpression(expression)) {
       const conditional = policy.ast.as.AsConditionalExpression(expression);
-      record(conditional?.WhenTrue, targetType, strength);
-      record(conditional?.WhenFalse, targetType, strength);
+      record(conditional?.WhenTrue, targetType, strength, exactInteger);
+      record(conditional?.WhenFalse, targetType, strength, exactInteger);
       return;
     }
     if (policy.ast.is.IsBinaryExpression(expression)) {
@@ -636,9 +660,10 @@ export function analyzeCsharpExpectedTypes(
             policy.ast.as.AsPropertyAssignment(property)?.Initializer,
             selected.member.type,
             strength,
+            selected.member.exactNumericStorage === true,
           );
         } else if (policy.ast.is.IsShorthandPropertyAssignment(property)) {
-          record(policy.ast.name(property), selected.member.type, strength);
+          record(policy.ast.name(property), selected.member.type, strength, selected.member.exactNumericStorage === true);
         }
       }
     }
