@@ -431,6 +431,38 @@ test("provider argument adapters require ordinary by-value parameter relations",
   );
 });
 
+test("checked integral adapter contracts reject nonnumeric and malformed selections", () => {
+  const primitive = name => ({ kind: "source-primitive", name });
+  const valid = {
+    kind: "static-method", id: "Fixture.Convert", targetName: "Convert",
+    declaringType: { kind: "target-named", id: "Fixture" },
+    inputType: primitive("float64"), resultType: primitive("int64"),
+    nativeIntegerConversion: "checked",
+  };
+  for (const [changes, accepted] of [
+    [{}, true],
+    [{ inputType: primitive("float32") }, true],
+    [{ nativeIntegerConversion: "unchecked" }, false],
+    [{ inputType: primitive("bool") }, false],
+    [{ resultType: primitive("float64") }, false],
+    [{ resultType: primitive("bool") }, false],
+  ]) {
+    const relation = signatureRelation({
+      declaration: providerDeclaration(),
+      member: providerMethod({ parameters: [{ name: "value", type: primitive("int64"), passingMode: "by-value" }] }),
+      sourceParameters: [{
+        sourceParameterIndex: 0, targetParameterIndex: 0,
+        sourcePassingMode: "by-value", targetPassingMode: "by-value",
+        sourceAcceptsOmission: false, targetAcceptsOmission: false,
+        sourceRest: false, targetParamsArray: false,
+        argumentAdapter: { ...valid, ...changes },
+      }],
+    });
+    if (accepted) assert.doesNotThrow(() => createCsharpProviderRelationCatalog([[relation]]));
+    else assert.throws(() => createCsharpProviderRelationCatalog([[relation]]), /parameter relation is incomplete, contradictory/u);
+  }
+});
+
 test("provider type-parameter relations must cover exact target arity", () => {
   const declaration = providerDeclaration();
   const binding = providerBinding({

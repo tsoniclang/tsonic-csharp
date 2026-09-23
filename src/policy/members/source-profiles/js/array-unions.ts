@@ -44,7 +44,7 @@ export function selectCsharpArrayUnionProperty(
   if (identities.length === 0 || identities.some(identity => !owned(identity) || identity.kind !== "member" || identity.name !== "length")) return undefined;
   return {
     kind: "resolved", receiver: { kind: "instance" }, invocation: { kind: "array-like", projection },
-    targetMember: targetProperty("Tsonic.CSharp.Js.IArrayLike.Length", "length", "Length", projection.target, numberType, { readonly: true }),
+    targetMember: targetProperty("Tsonic.CSharp.Js.IArrayLike.Length", "length", "Length", projection.target, csharpSourcePrimitiveTargetType("int32"), { readonly: true }),
   };
 }
 

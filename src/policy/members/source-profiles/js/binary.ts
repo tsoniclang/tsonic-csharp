@@ -40,6 +40,7 @@ import {
 } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
+const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const voidType = csharpVoidTargetType();
@@ -61,16 +62,16 @@ const typedArrayNames = [
   "Float64Array",
 ] as const satisfies readonly CsharpJsTypedArrayName[];
 
-const dataViewReadMethods = [
-  "getInt8",
-  "getUint8",
-  "getInt16",
-  "getUint16",
-  "getInt32",
-  "getUint32",
-  "getFloat32",
-  "getFloat64",
-] as const;
+const dataViewReadTypes: ReadonlyMap<string, TargetTypeRef> = new Map([
+  ["getInt8", csharpSourcePrimitiveTargetType("int8")],
+  ["getUint8", csharpSourcePrimitiveTargetType("uint8")],
+  ["getInt16", csharpSourcePrimitiveTargetType("int16")],
+  ["getUint16", csharpSourcePrimitiveTargetType("uint16")],
+  ["getInt32", csharpSourcePrimitiveTargetType("int32")],
+  ["getUint32", csharpSourcePrimitiveTargetType("uint32")],
+  ["getFloat32", csharpSourcePrimitiveTargetType("float32")],
+  ["getFloat64", csharpSourcePrimitiveTargetType("float64")],
+]);
 
 const dataViewWriteMethods = [
   "setInt8",
@@ -122,7 +123,7 @@ export const csharpJsBinaryCallPolicies:
       ),
       noReceiver,
     ),
-    ...dataViewReadMethods.map((name) =>
+    ...[...dataViewReadTypes.keys()].map((name) =>
       jsCallPolicy(
         jsMemberIdentity("DataView", name),
         (context) => dataViewMember(context, name, false),
@@ -143,7 +144,7 @@ export const csharpJsBinaryCallPolicies:
         noReceiver,
       )
     ),
-    ...["fill", "includes", "indexOf", "join", "reverse", "set", "slice", "sort", "subarray"].map((name) =>
+    ...["at", "fill", "includes", "indexOf", "join", "reverse", "set", "slice", "sort", "subarray"].map((name) =>
       jsCallPolicy(
         jsMemberIdentity("TypedArray", name),
         (context) => typedArrayMethod(context, name),
@@ -161,7 +162,7 @@ export const csharpJsBinaryPropertyPolicies:
         "byteLength",
         "byteLength",
         arrayBufferType,
-        doubleType,
+        intType,
         { readonly: true },
       ),
       instanceReceiver,
@@ -188,7 +189,7 @@ export const csharpJsBinaryPropertyPolicies:
           "BYTES_PER_ELEMENT",
           `${name.replace("Array", "")}BytesPerElement`,
           typedArrayRuntimeType,
-          doubleType,
+          intType,
           { static: true, readonly: true },
         ),
         noReceiver,
@@ -209,10 +210,13 @@ export const csharpJsBinaryElementPolicies:
               `Tsonic.CSharp.Js.TypedArray.indexer:${receiver.id}`,
               receiver,
               doubleType,
-              element,
+              context.source.accessMode === "read" ? element : doubleType,
               false,
             );
       },
+      (context) => context.source.accessMode === "read"
+        ? { kind: "method", targetName: "Get" }
+        : { kind: "indexer" },
     ),
   ]);
 
@@ -236,7 +240,7 @@ function constructorMember(
 
 function dataViewMember(
   context: CsharpSourceProfileCallPolicyContext,
-  name: typeof dataViewReadMethods[number] | typeof dataViewWriteMethods[number],
+  name: string,
   write: boolean,
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
@@ -260,7 +264,7 @@ function dataViewMember(
       ...(write ? [targetParameter("value", doubleType)] : []),
       ...(endian ? [targetParameter("littleEndian", boolType, { optional: true })] : []),
     ],
-    write ? voidType : doubleType,
+    write ? voidType : dataViewReadTypes.get(name)!,
   );
 }
 
@@ -313,11 +317,13 @@ function typedArrayMethod(
     : undefined;
   const parameters = source?.kind === "target-named" && csharpJsTypedArrayElementTargetType(source) !== undefined
     ? [targetParameter("source", source), targetParameter("offset", doubleType, { optional: true })]
-    : typedArrayMethodParameters(name);
-  const result = name === "includes"
+    : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
+  const result = name === "at"
+    ? csharpNullableValueTargetType(csharpJsTypedArrayElementTargetType(receiver)!)
+    : name === "includes"
     ? boolType
     : name === "indexOf"
-      ? doubleType
+      ? intType
       : name === "join"
         ? stringType
         : name === "set"
@@ -337,8 +343,11 @@ function typedArrayMethod(
 
 function typedArrayMethodParameters(
   name: string,
+  elementType: TargetTypeRef,
 ): readonly ReturnType<typeof targetParameter>[] | undefined {
   switch (name) {
+    case "at":
+      return [targetParameter("index", doubleType)];
     case "fill":
       return [
         targetParameter("value", doubleType),
@@ -370,7 +379,7 @@ function typedArrayMethodParameters(
       return [
         targetParameter(
           "compareFn",
-          csharpDelegateTargetType("System.Func", [doubleType, doubleType], doubleType),
+          csharpDelegateTargetType("System.Func", [elementType, elementType], doubleType),
           { optional: true },
         ),
       ];
@@ -396,7 +405,7 @@ function arrayBufferViewProperty(
     name,
     name,
     receiver,
-    name === "buffer" ? arrayBufferType : doubleType,
+    name === "buffer" ? arrayBufferType : intType,
     { readonly: true },
   );
 }
@@ -413,7 +422,7 @@ function typedArrayProperty(
         name,
         name,
         receiver,
-        doubleType,
+        intType,
         { readonly: true },
       );
 }

@@ -206,7 +206,7 @@ export function jsElementPolicy(
   createTargetMember: (
     context: CsharpSourceProfileElementPolicyContext,
   ) => CsharpTargetMember | undefined,
-  invocation: CsharpTargetElementInvocation = { kind: "indexer" },
+  invocation: CsharpTargetElementInvocation | ((context: CsharpSourceProfileElementPolicyContext) => CsharpTargetElementInvocation) = { kind: "indexer" },
 ): CsharpSourceProfileElementPolicy {
   return Object.freeze({
     source,
@@ -228,7 +228,7 @@ export function jsElementPolicy(
             targetMember,
             targetParameterIndex: 0,
             receiver: { kind: "instance" },
-            invocation,
+            invocation: typeof invocation === "function" ? invocation(context) : invocation,
           };
     },
   });

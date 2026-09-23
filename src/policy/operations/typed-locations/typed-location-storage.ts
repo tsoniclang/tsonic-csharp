@@ -301,6 +301,11 @@ function selectCsharpDirectStorage(
   valueType: TargetTypeRef,
   declaration: Node | undefined,
 ): CsharpTypedLocationStorageSelection {
+  if (declaration !== undefined && (
+    input.ast.is.IsImportSpecifier(declaration) || input.ast.is.IsImportClause(declaration)
+  )) {
+    declaration = input.navigation.sourceReferenceFor(expression)?.declaration;
+  }
   if (declaration === undefined) {
     return storageRejected(
       "The selected direct writable storage has no exact declaration evidence.",

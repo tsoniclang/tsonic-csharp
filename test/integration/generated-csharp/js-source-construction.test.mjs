@@ -58,6 +58,28 @@ import { nullishNeverSource } from "../../../../tsonic/test/fixtures/nullish-nev
 import { pointerOwnerNarrowingSource } from "../../../../tsonic/test/fixtures/pointer-owner-narrowing.mjs";
 import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-truncation.mjs";
 import { selectedConstructorFiles } from "../../../../tsonic/test/fixtures/selected-constructors.mjs";
+import { nativeSurfaceResultsSource, nativeNodeResultsSource } from "../../../../tsonic/test/fixtures/native-surface-results.mjs";
+
+test("native JS result carriers preserve widths, aliases and API behavior", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: nativeSurfaceResultsSource });
+  execute(compiled, "native-surface-results");
+  const text = [...compiled.artifacts.values()].join("\n");
+  assert.match(text, /uint word\b/u);
+  assert.match(text, /float single\b/u);
+  assert.match(text, /uint first\b/u);
+  assert.match(text, /int timer\b/u);
+  assert.match(text, /int interval\b/u);
+});
+
+test("native Node result carriers reach locals and comparisons unchanged", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeNodeResultsSource });
+  execute(compiled, "native-node-results", false, false,
+    [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")]);
+  const text = [...compiled.artifacts.values()].join("\n");
+  assert.match(text, /long size\b/u);
+  assert.match(text, /uint word\b/u);
+  assert.doesNotMatch(text, /Convert\.ToDouble|\(double\)stats\.size/u);
+});
 
 test("equal constructor carriers retain the exact selected source signatures", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: selectedConstructorFiles,

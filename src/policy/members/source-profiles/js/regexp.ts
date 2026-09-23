@@ -90,7 +90,7 @@ const boolType = csharpSourcePrimitiveTargetType("bool");
 const undefinedType = csharpRuntimeUndefinedTargetType();
 const pairType: TargetTypeRef = {
   kind: "tuple",
-  elements: [doubleType, doubleType],
+  elements: [intType, intType],
 };
 const nullableStringType = csharpNullableTargetType(stringType);
 const nullablePairType = csharpNullableTargetType(pairType);
@@ -194,19 +194,19 @@ export const csharpJsRegExpPropertyPolicies:
     ...regexpResultPropertyPolicies(
       regexpExecArrayOwner,
       execArrayType,
-      doubleType,
+      intType,
       stringType,
     ),
     ...regexpResultPropertyPolicies(
       regexpMatchArrayOwner,
       matchArrayType,
-      csharpNullableTargetType(doubleType),
+      csharpNullableTargetType(intType),
       csharpNullableTargetType(stringType),
     ),
     ...regexpResultPropertyPolicies(
       exactExecArrayOwner,
       exactExecArrayType,
-      doubleType,
+      intType,
       jsStringType,
       exactNamedGroupsType,
       exactIndicesArrayType,
@@ -214,7 +214,7 @@ export const csharpJsRegExpPropertyPolicies:
     ...regexpResultPropertyPolicies(
       exactMatchArrayOwner,
       exactMatchArrayType,
-      csharpNullableTargetType(doubleType),
+      csharpNullableTargetType(intType),
       csharpNullableTargetType(jsStringType),
       exactNamedGroupsType,
       exactIndicesArrayType,
@@ -525,7 +525,7 @@ function regexpInputMember(
         : operation === "matchAll"
           ? exact ? exactIteratorType : iteratorType
           : operation === "search"
-            ? doubleType
+            ? intType
             : csharpJsArrayTargetType(csharpNullableTargetType(exact ? jsStringType : stringType));
   return regexpInstanceMethod(
     sourceName,

@@ -304,15 +304,18 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearTimeout"),
-      () =>
-        staticMethod(
+      (context) => {
+        const parameter = csharpJsNumericArgument(context);
+        if (parameter === undefined) return undefined;
+        return staticMethod(
           "Tsonic.CSharp.Js.Timers.clearTimeout",
           "clearTimeout",
           "clearTimeout",
           timersType,
-          [targetParameter("id", doubleType)],
+          [parameter],
           voidType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsCallPolicy(
@@ -322,15 +325,18 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearInterval"),
-      () =>
-        staticMethod(
+      (context) => {
+        const parameter = csharpJsNumericArgument(context);
+        if (parameter === undefined) return undefined;
+        return staticMethod(
           "Tsonic.CSharp.Js.Timers.clearInterval",
           "clearInterval",
           "clearInterval",
           timersType,
-          [targetParameter("id", doubleType)],
+          [parameter],
           voidType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsUnsupportedCallPolicy(
@@ -370,7 +376,7 @@ function timerSchedulingMember(
           targetParameter("delay", doubleType, { optional: true }),
           closedObjectParameter("arguments", { paramsArray: true }),
         ],
-        doubleType,
+        intType,
         {
           csharpBinaryExecutionDriver:
             csharpJsEventLoopBinaryExecutionDriver,

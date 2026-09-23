@@ -3,6 +3,7 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
+  isCsharpIntegralTargetType,
   isCsharpThrowableType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -99,6 +100,16 @@ export function selectCsharpProviderArgumentConversion(
   }
   const sourceElementType = getCsharpNullableElementTargetType(source);
   const targetElementType = getCsharpNullableElementTargetType(target);
+  if (
+    adapter.nativeIntegerConversion === "checked" &&
+    source !== undefined &&
+    isCsharpIntegralTargetType(sourceElementType ?? source) &&
+    isCsharpIntegralTargetType(targetElementType ?? target) &&
+    (sourceElementType === undefined || targetElementType !== undefined) &&
+    targetTypeRefEquals(adapter.resultType, targetElementType ?? target)
+  ) {
+    return { kind: "checked-native-integer" };
+  }
   if (
     source !== undefined &&
     sourceElementType !== undefined &&
@@ -208,6 +219,7 @@ export function csharpConversionIsApplicable(
   mode: CsharpConversionMode,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "checked-native-integer" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||

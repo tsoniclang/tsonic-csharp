@@ -108,6 +108,13 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "checked-native-integer": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "CheckedExpression",
+        expression: { kind: "CastExpression", type, expression },
+      };
+    }
     case "integer-truncation": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       if (type === undefined) return undefined;
