@@ -86,6 +86,8 @@ test("native Node result carriers reach locals and comparisons unchanged", { tim
     [join(testRepositoryRoots.csharpNodejs, "csharp/src/Tsonic.CSharp.Node/Tsonic.CSharp.Node.csproj")]);
   const text = [...compiled.artifacts.values()].join("\n");
   assert.match(text, /long size\b/u);
+  assert.match(text, /public static long nativeFileSize\(string path\)/u);
+  assert.match(text, /public static long forwardedFileSize\(string path\)/u);
   assert.match(text, /uint word\b/u);
   assert.doesNotMatch(text, /Convert\.ToDouble|\(double\)stats\.size/u);
 });

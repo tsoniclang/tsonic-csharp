@@ -102,12 +102,8 @@ test("C# fixed-array selection caches inferred evidence without publishing Type 
 for (const [name, extent, body, reason] of [
   ["first unsupported numeric extent", "2147483648", "return values.length;", /signed 32-bit/u],
   ["largest safe numeric extent", "9007199254740991", "return values.length;", /signed 32-bit/u],
-  ["small bigint length", "4n", "return values.length;", /bigint/u],
-  ["zero bigint value", "0n", "", /bigint/u],
-  ["first huge bigint length", "9007199254740992n", "return values.length;", /bigint/u],
-  ["adjacent huge bigint length", "9007199254740993n", "return values.length;", /bigint/u],
-  ["bigint index access", "4n", "return values[0];", /bigint/u],
-  ["bigint iteration", "4n", "for (const value of values) { if (value === 0) return; }", /bigint/u],
+  ["first huge bigint length", "9007199254740992n", "return values.length;", /signed 32-bit/u],
+  ["adjacent huge bigint length", "9007199254740993n", "return values.length;", /signed 32-bit/u],
 ]) {
   test(`fixed-array values precisely reject ${name} without an array fallback`, () => {
     const compiled = compileCsharpSource({ sourceText: `
@@ -127,14 +123,13 @@ test("named huge fixed-array aliases reject in signatures and inferred length re
 export function accept(values: Huge): void {}
 export function extent(values: Huge) { const alias = values; return alias.length; }
 ` });
-  assertFixedArrayRejection(compiled, "9007199254740993", /bigint/u);
+  assertFixedArrayRejection(compiled, "9007199254740993", /signed 32-bit/u);
 });
 
 for (const [name, sourceType, result, extent, reason] of [
   ["numeric overflow", "FixedArray<uint8, 2147483648>", "values", "2147483648", /signed 32-bit/u],
-  ["small bigint length", "FixedArray<uint8, 4n>", "values.length", "4", /bigint/u],
-  ["huge bigint length", "FixedArray<uint8, 9007199254740993n>", "values.length", "9007199254740993", /bigint/u],
-  ["nested bigint array", "FixedArray<FixedArray<uint8, 4n>, 2>", "values", "4", /bigint/u],
+  ["huge bigint length", "FixedArray<uint8, 9007199254740993n>", "values.length", "9007199254740993", /signed 32-bit/u],
+  ["nested huge bigint array", "FixedArray<FixedArray<uint8, 9007199254740993n>, 2>", "values", "9007199254740993", /signed 32-bit/u],
 ]) {
   test(`inferred fixed-array ${name} rejects without a consuming type annotation`, () => {
     const compiled = compileCsharpSource({ files: {
@@ -147,6 +142,29 @@ export function expose() { const values = produce(); return ${result}; }
     assertFixedArrayRejection(compiled, extent, reason);
   });
 }
+
+test("representable bigint fixed-array extents retain native arrays and length", () => {
+  const compiled = compileCsharpSource({ files: {
+    "arrays.ts": `import type { FixedArray, uint8 } from "@tsonic/core/types.js";
+      export function identity(values: FixedArray<uint8, 4n>) { return values; }`,
+  }, sourceText: `
+import type { FixedArray, uint8 } from "@tsonic/core/types.js";
+import { identity } from "./arrays.js";
+export function zero(values: FixedArray<uint8, 0n>) { return values.length; }
+export function length(values: FixedArray<uint8, 4n>) { return identity(values).length; }
+export function first(values: FixedArray<uint8, 4n>) { return values[0]; }
+export function nested(values: FixedArray<FixedArray<uint8, 4n>, 2n>) { return values; }
+export function each(values: FixedArray<uint8, 4n>) { for (const value of values) { if (value === 0) return; } }
+` });
+  assertCsharpCompilationSucceeded(compiled);
+  const output = compiled.artifacts.get("src/Index.cs");
+  assert.match(output, /public static int zero\(byte\[\] values\)/u);
+  assert.match(output, /public static int length\(byte\[\] values\)/u);
+  assert.match(output, /public static byte first\(byte\[\] values\)/u);
+  assert.match(output, /public static byte\[\]\[\] nested\(byte\[\]\[\] values\)/u);
+  assert.match(output, /foreach \(byte value in values\)/u);
+  assert.doesNotMatch(output, /BigInteger|Convert\.ToDouble/u);
+});
 
 function assertFixedArrayRejection(compiled, length, reason) {
   assertCsharpCheckingSucceeded(compiled);
