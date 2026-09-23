@@ -10,6 +10,7 @@ export interface CsharpArrayLikeUnionProjection {
 }
 
 export type CsharpConversionSelection =
+  | { readonly kind: "integer-truncation"; readonly signed: boolean; readonly width: number }
   | { readonly kind: "identity" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
   | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }

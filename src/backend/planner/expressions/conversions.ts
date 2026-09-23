@@ -108,6 +108,26 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "integer-truncation": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      if (type === undefined) return undefined;
+      if (expression.kind !== "InvocationExpression" || expression.arguments.length !== 2) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "A native integer truncation requires its exact classified two-argument invocation."));
+        return undefined;
+      }
+      return {
+        kind: "CastExpression", type,
+        expression: {
+          ...expression,
+          callee: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "BigIntOps"),
+            name: selection.signed ? "AsIntNative" : "AsUintNative",
+          },
+        },
+      };
+    }
     case "identity":
       return expression;
     case "array-like-union": {

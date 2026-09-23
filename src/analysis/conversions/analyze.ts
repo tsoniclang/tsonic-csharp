@@ -40,6 +40,7 @@ import type {
 import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
 
 const unavailableConversion: CsharpConversionSelection = Object.freeze({
   kind: "rejected",
@@ -523,7 +524,7 @@ export function analyzeCsharpConversions(
       return undefined;
     }
     const sourceFile = policy.ast.getSourceFile(expression);
-    let candidate = selectCsharpExpressionConversion(
+    let candidate = selectCsharpIntegerTruncationConversion(policy, expression, sourceFile, source, target) ?? selectCsharpExpressionConversion(
       policy,
       expression,
       source,
@@ -579,6 +580,7 @@ export function analyzeCsharpConversions(
       policy.ast.is.IsNumericLiteral(node) ||
       policy.ast.is.IsBigIntLiteral(node) ||
       policy.ast.is.IsPrefixUnaryExpression(node) ||
+      policy.ast.is.IsCallExpression(node) ||
       policy.ast.kindName(node) === "KindTrueKeyword" ||
       policy.ast.kindName(node) === "KindFalseKeyword";
   }

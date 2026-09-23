@@ -120,7 +120,9 @@ export function planCsharpExactLiteralConversion(
     case "int64":
     case "uint64":
     case "int128":
-    case "uint128": {
+    case "uint128":
+    case "native-int":
+    case "native-uint": {
       const value = csharpBigIntLiteralValue(input.program.source.ast, node);
       if (value === undefined) {
         return { kind: "not-applicable" };
@@ -172,6 +174,17 @@ function planWideIntegerLiteral(
   target: Extract<TargetTypeRef, { readonly kind: "source-primitive" }>,
 ): CsharpExpression | undefined {
   switch (target.name) {
+    case "native-int":
+    case "native-uint": {
+      const type = csharpTypeFromTargetTypeRef(target);
+      const literal = planWideIntegerLiteral(value, {
+        kind: "source-primitive", name: target.name === "native-int" ? "int64" : "uint64",
+      });
+      return type === undefined || literal === undefined ? undefined : {
+        kind: "CheckedExpression",
+        expression: { kind: "CastExpression", type, expression: literal },
+      };
+    }
     case "int64":
       return value === -(1n << 63n)
         ? {

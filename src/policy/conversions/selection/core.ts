@@ -190,6 +190,7 @@ export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "integer-truncation" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter";

@@ -208,6 +208,7 @@ export function csharpConversionIsApplicable(
   mode: CsharpConversionMode,
 ): boolean {
   return selection.kind === "identity" ||
+    selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||
     selection.kind === "empty-record" ||
