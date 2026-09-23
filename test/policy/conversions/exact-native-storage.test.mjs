@@ -8,14 +8,32 @@ import { csharpJsArrayTargetType, csharpReadOnlyListTargetType } from "../../../
 
 const primitive = name => ({ kind: "source-primitive", name });
 const integers = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128"];
+const conversionContext = {
+  projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
+  providers: { findTargetBindingByTargetId: () => undefined },
+};
 
 test("native JSArray read-only-list conversion retains the exact element carrier", () => {
-  const input = { projectTypes: { typeFromTarget: () => undefined }, providers: [] };
   for (const name of integers) {
     const element = primitive(name);
-    assert.deepEqual(selectCsharpConversion(input, csharpJsArrayTargetType(element), csharpReadOnlyListTargetType(element), "implicit"),
+    assert.deepEqual(selectCsharpConversion(conversionContext, csharpJsArrayTargetType(element), csharpReadOnlyListTargetType(element), "implicit"),
       { kind: "implicit", proof: "collection-interface" });
   }
+});
+
+test("read-only-list conversion rejects changed elements and unrelated collection identities", () => {
+  const target = csharpReadOnlyListTargetType(primitive("uint64"));
+  const source = csharpJsArrayTargetType(primitive("uint64"));
+  for (const candidate of [
+    csharpJsArrayTargetType(primitive("float64")),
+    csharpJsArrayTargetType(primitive("int64")),
+    { kind: "target-named", id: "unrelated.Collection", typeArguments: [primitive("uint64")] },
+  ]) {
+    for (const mode of ["implicit", "explicit"]) {
+      assert.equal(selectCsharpConversion(conversionContext, candidate, target, mode).kind, "rejected");
+    }
+  }
+  assert.equal(selectCsharpConversion(conversionContext, target, source, "implicit").kind, "rejected");
 });
 
 test("exact native storage keeps every integer width and does not route through floating point", () => {
