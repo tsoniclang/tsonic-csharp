@@ -4,7 +4,7 @@ import { selectCsharpExactIntegerConversion } from "../../../dist/policy/convers
 import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
-import { csharpJsArrayTargetType, csharpReadOnlyListTargetType } from "../../../dist/policy/types/index.js";
+import { csharpJsArrayTargetType, csharpReadOnlyListTargetType, csharpStringTargetType } from "../../../dist/policy/types/index.js";
 import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/selection/expression.js";
 
 const primitive = name => ({ kind: "source-primitive", name });
@@ -15,13 +15,13 @@ const conversionContext = {
 };
 
 test("nullable conversions distinguish exact flow evidence from explicit assertions", () => {
-  for (const type of [primitive("int64"), primitive("string")]) {
+  for (const [type, reference] of [[primitive("int64"), false], [csharpStringTargetType(), true]]) {
     const nullable = csharpNullableTargetType(type);
     assert.equal(selectCsharpConversion(conversionContext, nullable, type, "implicit").kind, "rejected");
     assert.deepEqual(selectCsharpConversion(conversionContext, nullable, type, "explicit"),
-      type.name === "string" ? { kind: "nullable-reference" } : { kind: "nullable-value", asserted: true });
+      reference ? { kind: "nullable-reference" } : { kind: "nullable-value", asserted: true });
     assert.deepEqual(selectCsharpFlowReadConversion(conversionContext, nullable, type),
-      type.name === "string" ? { kind: "implicit", proof: "nullable" } : { kind: "nullable-value", asserted: false });
+      reference ? { kind: "implicit", proof: "nullable" } : { kind: "nullable-value", asserted: false });
   }
 });
 
