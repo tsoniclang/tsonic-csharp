@@ -25,7 +25,7 @@ import { planCsharpStructuralInterfaceMethods } from "./structural-interfaces.js
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { planParametersWithPrelude } from "../bindings/parameters.js";
 import { planBlockStatements } from "../statements/index.js";
-import { planTypeParameters } from "../types/type-parameters.js";
+import { planTypeParameter, planTypeParameters } from "../types/type-parameters.js";
 import {
   getAsyncReturnExpressionExpectedType,
   getDeclarationReturnTargetType,
@@ -87,6 +87,7 @@ export function planClassDeclaration(
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
   const structuralInterfaces = objectShape?.implements ?? [];
   const interfaces = [...heritage.interfaces];
+  if (factory?.identity !== undefined) interfaces.push(csharpTypeFromTargetTypeRef(factory.identity.type)!);
   for (const type of structuralInterfaces) {
     const rendered = csharpTypeFromTargetTypeRef(type);
     if (rendered === undefined) {
@@ -130,9 +131,13 @@ export function planClassDeclaration(
     name: className,
     modifiers: input.program.source.ast.hasModifierKind(node, "abstract") ? ["public", "abstract"] : ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+    typeParameters: [
+      ...input.types.projectTypes.definitionContainingDeclaration(node)?.outerTypeParameters.map(parameter =>
+        planTypeParameter(parameter, input, diagnostics)) ?? [],
+      ...planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+    ],
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
-    ...(heritage.interfaces.length === 0 && structuralInterfaces.length === 0 && !jsonSerializable && !referenceIdentity
+    ...(interfaces.length === 0 && !jsonSerializable && !referenceIdentity
       ? {}
       : {
           interfaces: [
@@ -148,6 +153,13 @@ export function planClassDeclaration(
       ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
         type: csharpTypeFromTargetTypeRef(factory.factoryType)!,
         modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
+      ...(factory?.identity === undefined ? [] : [{ kind: "PropertyDeclaration" as const,
+        name: factory.environmentName, explicitInterface: csharpTypeFromTargetTypeRef(factory.identity.type)!, modifiers: [],
+        type: csharpTypeFromTargetTypeRef(factory.factoryType)!,
+        getter: { kind: "Block" as const, statements: [{ kind: "ReturnStatement" as const, expression: {
+          kind: "SimpleMemberAccessExpression" as const, receiver: { kind: "IdentifierName" as const, name: "this" }, name: factory.environmentName,
+        } }] },
+      }]),
       ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
         ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>

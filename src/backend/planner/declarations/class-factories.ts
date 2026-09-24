@@ -2,7 +2,7 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpClassFactory } from "../../../analysis/project-types/class-factories.js";
 import type { CsharpCaptureFrame } from "../../../analysis/callables/capture-storage.js";
-import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
+import type { CsharpClassDeclaration, CsharpConstructorDeclaration, CsharpExpression, CsharpInterfaceDeclaration, CsharpStatement, CsharpTypeMember, CsharpTypeNode } from "../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../context.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { csharpCaptureFrameExpression, csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
@@ -12,7 +12,7 @@ import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planExpression, planExpressionWithExpectedType } from "../expressions/index.js";
 import { planClassMembers } from "./declaration-class-members.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
-import { planTypeParameters } from "../types/type-parameters.js";
+import { planTypeParameter, planTypeParameters } from "../types/type-parameters.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planClassStaticBlockDeclaration } from "./declaration-class-constructors.js";
 
@@ -166,7 +166,8 @@ export function planClassFactoryDeclaration(
         { name: "factory", type: csharpTypeFromTargetTypeRef(factory.factoryType)! },
       ], body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: {
         kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
-        left: { kind: "IsPatternExpression", expression: { kind: "IdentifierName", name: "value" }, type: instance, designation: "selected" },
+        left: { kind: "IsPatternExpression", expression: { kind: "IdentifierName", name: "value" },
+          type: factory.identity === undefined ? instance : csharpTypeFromTargetTypeRef(factory.identity.type)!, designation: "selected" },
         right: { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression",
           receiver: { kind: "PredefinedType", name: "object" }, name: "ReferenceEquals" }, arguments: [
           { kind: "Argument", expression: member({ kind: "IdentifierName", name: "selected" }, factory.environmentName) },
@@ -175,11 +176,25 @@ export function planClassFactoryDeclaration(
       } }] } });
   }
   members.push({ kind: "MethodDeclaration", name: factory.contract.createMethodName, modifiers: ["public"], returnType: instance, parameters,
+    typeParameters: planTypeParameters(input.program.source.ast.typeParameters(factory.declaration), input, diagnostics),
     body: { kind: "Block", statements: [{ kind: "ReturnStatement", expression: { kind: "ObjectCreationExpression", type: instance,
       arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "this" } }, ...parameters.map(parameter => ({
         kind: "Argument" as const,
         expression: { kind: "IdentifierName" as const, name: parameter.name },
       }))] } }] } });
   return { kind: "ClassDeclaration", name: factory.factoryName, modifiers: ["public"], members,
-    typeParameters: planTypeParameters(input.program.source.ast.typeParameters(factory.declaration), input, diagnostics) };
+    typeParameters: input.types.projectTypes.definitionContainingDeclaration(factory.declaration)?.outerTypeParameters
+      .map(parameter => planTypeParameter(parameter, input, diagnostics)) ?? [] };
+}
+
+export function planClassFactoryIdentity(
+  factory: CsharpClassFactory, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+): CsharpInterfaceDeclaration | undefined {
+  if (factory.identity === undefined) return undefined;
+  return { kind: "InterfaceDeclaration", name: factory.identity.name, modifiers: ["public"],
+    typeParameters: input.types.projectTypes.definitionContainingDeclaration(factory.declaration)?.outerTypeParameters
+      .map(parameter => planTypeParameter(parameter, input, diagnostics)) ?? [],
+    members: [{ kind: "PropertyDeclaration", name: factory.environmentName,
+      type: csharpTypeFromTargetTypeRef(factory.factoryType)!, writable: false }],
+  };
 }

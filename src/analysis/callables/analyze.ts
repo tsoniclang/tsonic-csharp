@@ -208,7 +208,7 @@ function constructorReturnType(
   const parent = policy.ast.parent(declaration);
   return parent === undefined
     ? undefined
-    : policy.types.resolveNode(parent, sourceFile);
+    : policy.types.resolveType(policy.semantics(sourceFile).declarations.declaredType(parent), sourceFile);
 }
 
 function sourceCallableReceiverTypeOwner(
@@ -220,6 +220,7 @@ function sourceCallableReceiverTypeOwner(
   return parent !== undefined &&
       (
         policy.ast.is.IsClassDeclaration(parent) ||
+        policy.ast.is.IsClassExpression(parent) ||
         policy.ast.is.IsInterfaceDeclaration(parent)
       )
     ? parent

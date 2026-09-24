@@ -23,7 +23,7 @@ export function planTypeParameters(
     .map((node) => planTypeParameter(node, input, diagnostics)), ...projections.map(parameter => ({ name: parameter.name }))];
 }
 
-function planTypeParameter(
+export function planTypeParameter(
   node: Node,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],

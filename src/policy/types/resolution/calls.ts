@@ -19,6 +19,7 @@ import { resolveTypeParameter } from "./source-evidence.js";
 import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
 import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
+import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -450,14 +451,15 @@ export function sourceCallSelectedDeclaration(
 
 
 export function resolveSourceCallReceiverTargetType(
-  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState }: CsharpTypeResolutionScope,
+  { host, resolveSelectedReceiverTargetType, resolveSourceOwnedConstructionResult, resolveTypeWithState, resolveNodeWithState }: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   selectedSourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
-  if (host.ast.is.IsNewExpression(source.call) &&
+  if (host.ast.is.IsNewExpression(source.call) && (
     host.ast.is.IsClassDeclaration(source.sourceCallee.selectedDeclaration) &&
-    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration)) {
+    host.navigation.isProjectDeclaration(source.sourceCallee.selectedDeclaration) ||
+    getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, selectedSourceFile, nextState(state))) !== undefined)) {
     return resolveSourceOwnedConstructionResult(source, host.semantics(selectedSourceFile), nextState(state));
   }
   return host.ast.is.IsNewExpression(source.call)

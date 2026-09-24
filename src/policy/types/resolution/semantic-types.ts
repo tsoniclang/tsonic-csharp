@@ -151,6 +151,7 @@ export function resolveTypeWithState(
     type,
     queries,
     targetTypeArguments,
+    state,
   );
   if (projectType !== undefined) {
     return projectType;

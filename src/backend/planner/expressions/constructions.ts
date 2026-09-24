@@ -363,8 +363,15 @@ function translateSourceOwnedConstruction(
   const factory = getCsharpClassFactory(input.types.classifications.resolveNode(calleeNode));
   if (arguments_ !== undefined && factory !== undefined) {
     const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
+    const typeArguments = targetType?.kind === "target-named" ?
+      (targetType.typeArguments ?? []).slice(factory.outerTypeParameterCount).map(csharpTypeFromTargetTypeRef) : [];
+    if (typeArguments.some(argument => argument === undefined)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A generic class construction requires its exact native type arguments."));
+      return undefined;
+    }
     return callee === undefined ? undefined : { kind: "InvocationExpression",
-      callee: { kind: "SimpleMemberAccessExpression", receiver: callee, name: factory.createMethodName }, arguments: arguments_ };
+      callee: { kind: "SimpleMemberAccessExpression", receiver: callee, name: factory.createMethodName,
+        ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/roslyn/index.js").CsharpTypeNode[] }) }, arguments: arguments_ };
   }
   if (arguments_ !== undefined && getCsharpDelegateSignature(input.types.classifications.resolveNode(calleeNode)) !== undefined &&
     (calleeReference === undefined || !input.program.source.ast.is.IsClassDeclaration(calleeReference.declaration))) {

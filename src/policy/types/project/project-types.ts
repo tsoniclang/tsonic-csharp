@@ -6,7 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -51,12 +51,14 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
+  readonly outerTypeParameters: readonly Node[];
   readonly sourceTypeParameterCount: number;
   readonly staticCompanion: boolean;
   readonly abstract: boolean;
   readonly publicParameterlessConstructor: boolean;
   readonly local: boolean;
   readonly factoryName?: string;
+  readonly factoryIdentityName?: string;
 }
 
 export interface CsharpProjectTypeCatalog {
@@ -120,6 +122,7 @@ export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly sourceFacts?: ReadonlySourceFactResolver;
+  semanticsFor(node: Node): SourceFileSemantics;
 }
 
 export interface CsharpProjectTypePolicyHost
@@ -342,13 +345,20 @@ export function projectTypeDefinition(
   ) {
     return undefined;
   }
+  const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
+  const semantics = host.semanticsFor(declaration);
+  const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
+  if (local && declaredType === undefined) return undefined;
+  const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);
+  if (declaredType !== undefined && semantics.types.isTypeReference(declaredType) && bindings === undefined) return undefined;
+  const outerTypeParameters = bindings?.filter(binding => binding.scope === "outer").map(binding => binding.declaration) ?? [];
   const rawTypeParameters = kind === "enum" || kind === "struct"
     ? []
     : host.ast.typeParameters(declaration);
   const typeParameters = rawTypeParameters.filter(
     (parameter): parameter is Node => parameter !== undefined,
   );
-  const typeParameterNames = typeParameters.map((parameter) =>
+  const typeParameterNames = [...outerTypeParameters, ...typeParameters].map((parameter) =>
     csharpSourceTypeParameterName(parameter, host.ast)
   );
   if (
@@ -364,9 +374,10 @@ export function projectTypeDefinition(
     sourceName: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!)
       ? `${name === undefined ? "AnonymousClass" : host.ast.text(name)}__${host.ast.pos(declaration)}`
       : host.ast.text(name),
-    local: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!),
+    local,
     kind,
-    sourceTypeParameterCount: typeParameterNames.length,
+    sourceTypeParameterCount: typeParameters.length,
+    outerTypeParameters: Object.freeze(outerTypeParameters),
     staticCompanion: kind === "class" && typeParameterNames.length > 0 &&
       host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
         member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),

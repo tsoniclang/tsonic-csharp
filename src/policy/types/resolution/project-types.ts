@@ -60,6 +60,7 @@ export function resolveProjectSourceSemanticType(
   type: Type,
   queries: SourceFileSemantics,
   typeArguments: readonly TargetTypeRef[],
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const symbols = [
     queries.declarations.typeAliasSymbol(type),
@@ -76,6 +77,8 @@ export function resolveProjectSourceSemanticType(
         declaration,
         typeArguments,
         queries.types.effectiveTypeArguments(type),
+        state,
+        type,
       );
       if (targetType !== undefined) {
         return targetType;
@@ -110,6 +113,7 @@ export function resolveProjectSourceType(
     resolvedArguments as readonly TargetTypeRef[],
     sourceArguments ?? csharpSourceTypeArgumentNodes(host.ast, node).map(argument => host.semantics(sourceFile).types.authoredType(argument)),
     state,
+    host.semantics(sourceFile).types.authoredType(node),
   );
 }
 
@@ -120,11 +124,13 @@ export function projectSourceDeclarationTargetType(
   typeArguments: readonly TargetTypeRef[],
   sourceArguments?: readonly (Type | undefined)[],
   state: CsharpTypeResolutionState = { depth: 0 },
+  selectedType?: Type,
 ): TargetTypeRef | undefined {
   const { host } = scope;
   const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
   if (definition === undefined) return undefined;
-  if (typeArguments.length !== definition.typeParameterNames.length) {
+  const outerCount = definition.outerTypeParameters.length;
+  if (typeArguments.length !== definition.typeParameterNames.length - outerCount) {
     if (typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
     const sources = sourceArguments ?? host.ast.typeParameters(declaration).map(parameter =>
       parameter === undefined ? undefined : host.semanticsFor(declaration).types.authoredType(parameter));
@@ -133,8 +139,16 @@ export function projectSourceDeclarationTargetType(
     if (projections === undefined) return undefined;
     typeArguments = [...typeArguments, ...projections];
   }
+  const queries = host.semanticsFor(declaration);
+  const bindings = selectedType === undefined ? undefined : queries.types.typeArgumentBindings(selectedType);
+  const outerArguments = definition.outerTypeParameters.map((parameter, index): TargetTypeRef | undefined => {
+    if (selectedType === undefined) return { kind: "type-parameter", name: definition.typeParameterNames[index]! };
+    const binding = bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer");
+    return binding === undefined ? undefined : scope.resolveTypeWithState(binding.argumentType, queries.sourceFile, nextState(state));
+  });
+  if (outerArguments.some(argument => argument === undefined)) return undefined;
   return host.projectTypeCatalog.targetTypeForDeclaration(
     declaration,
-    typeArguments,
+    [...outerArguments as readonly TargetTypeRef[], ...typeArguments],
   );
 }

@@ -180,13 +180,13 @@ export function resolveNodeWithState(
   if (projectThis !== undefined) {
     return projectThis;
   }
-  if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
-    const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
-    if (constructor !== undefined) return constructor;
-  }
   const declaredValue = resolveSourceValueDeclaration(node, queries, state);
   if (declaredValue !== undefined) {
     return declaredValue;
+  }
+  if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
+    const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
+    if (constructor !== undefined) return constructor;
   }
   const projectType = resolveProjectSourceType(node, queries.sourceFile, state);
   if (projectType !== undefined) {

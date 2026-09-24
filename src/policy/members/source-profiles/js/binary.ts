@@ -349,7 +349,14 @@ function typedArrayMethod(
         return value === undefined ? undefined : [value, targetParameter("start", doubleType, { optional: true }),
           targetParameter("end", csharpNullableValueTargetType(doubleType), { optional: true })];
       })()
-      : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
+      : name === "includes" || name === "indexOf"
+        ? (() => {
+          const value = csharpJsNumericArgument(context);
+          const from = context.source.sourceArguments.length > 1 ? csharpJsNumericArgument(context, 1) : undefined;
+          return value === undefined || context.source.sourceArguments.length > 1 && from === undefined
+            ? undefined : [value, from ?? targetParameter("fromIndex", intType, { optional: true })];
+        })()
+        : typedArrayMethodParameters(name, csharpJsTypedArrayElementTargetType(receiver)!);
   const result = name === "at"
     ? csharpNullableValueTargetType(csharpJsTypedArrayElementTargetType(receiver)!)
     : name === "includes"
@@ -380,12 +387,6 @@ function typedArrayMethodParameters(
   switch (name) {
     case "at":
       return [targetParameter("index", doubleType)];
-    case "includes":
-    case "indexOf":
-      return [
-        targetParameter("searchElement", doubleType),
-        targetParameter("fromIndex", doubleType, { optional: true }),
-      ];
     case "join":
       return [targetParameter("separator", stringType, { optional: true })];
     case "reverse":

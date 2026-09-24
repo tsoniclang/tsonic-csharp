@@ -137,6 +137,69 @@ test("numeric array construction and copy retain native element bits", { timeout
   assert.doesNotMatch(text, /Convert\.ToDouble|\.Select\(|IEnumerable<double>/u);
 });
 
+for (const surface of [undefined, "js"]) {
+  test(`local class factories separate captured and construction generics (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+      import type { int32, int64 } from "@tsonic/core/types.js";
+      function make<Outer extends number | bigint>(outer: Outer) {
+        return class Box<Inner> {
+          outer: Outer = outer;
+          inner: Inner;
+          constructor(inner: Inner) { this.inner = inner; }
+          read(): Outer { return outer; }
+          echo<Value>(value: Value): Value { return value; }
+        };
+      }
+      function captured<Value>(value: Value) {
+        return class Item { readonly value: Value = value; read(): Value { return value; } };
+      }
+      export function run(): boolean {
+        const Box = make<int64>(9007199254740993n);
+        const Alias = Box;
+        const first = new Box<int32>(7);
+        const second = new Alias<string>("stored");
+        const Other = make<int64>(9007199254740993n);
+        const Item = captured<int32>(11);
+        const item = new Item();
+        const values = first.inner === 7 && second.inner === "stored" && first.outer === 9007199254740993n &&
+          first.read() === 9007199254740993n && first.echo<int32>(9) === 9 && item.value === 11 && item.read() === 11;
+        const identity = first instanceof Box && second instanceof Alias && !(first instanceof Other);
+        return values && identity;
+      }
+    ` });
+    execute(compiled, `class-factory-generics-${surface ?? "native"}`);
+    const generated = [...compiled.artifacts.values()].join("\n");
+    assert.match(generated, /Create<Inner>\(Inner inner\)/u);
+    assert.doesNotMatch(generated, /Activator|System\.Reflection|DynamicInvoke|Convert\.ToDouble/u);
+  });
+}
+
+test("local class factories retain overloads, rest arrays and abstract implementations", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    abstract class Base { abstract read(): int32; }
+    function overloaded() {
+      return class Box extends Base {
+        value: int32;
+        constructor(value: int32);
+        constructor(value: string);
+        constructor(value: int32 | string) { super(); this.value = typeof value === "string" ? 7 : value; }
+        read(): int32 { return this.value; }
+      };
+    }
+    function rest() {
+      return class Items { values: int32[]; constructor(...values: int32[]) { this.values = values; } };
+    }
+    export function run(): boolean {
+      const Box = overloaded();
+      const Items = rest();
+      const values = new Items(3, 5);
+      const base: Base = new Box("seven");
+      return base.read() === 7 && new Box(9).read() === 9 && values.values[0] === 3 && values.values[1] === 5;
+    }
+  ` }), "class-factory-constructor-forms");
+});
+
 test("local class constructor defaults execute once per omitted construction", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
     import type { int32 } from "@tsonic/core/types.js";

@@ -6,6 +6,7 @@ import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storag
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../target-model/types/model.js";
 import { getCsharpClassFactory, type CsharpClassFactoryType } from "../../target-model/types/class-factories.js";
 import type { CsharpSourceNameResolver } from "../names/source-names.js";
+import { csharpTargetNamedType } from "../../target-model/types/factories.js";
 
 export interface CsharpClassCapture {
   readonly declaration: Node;
@@ -26,6 +27,7 @@ export interface CsharpClassFactory {
   readonly retainsEnvironment: boolean;
   readonly requiresInstanceTest: boolean;
   readonly environmentName: string;
+  readonly identity?: { readonly name: string; readonly type: CsharpTargetNamedTypeRef };
 }
 
 export interface CsharpClassFactoryIndex {
@@ -92,7 +94,13 @@ export function analyzeCsharpClassFactories(
     factories.push(Object.freeze({ declaration, sourceFile: definition.sourceFile,
       instanceName: definition.sourceName, factoryName: definition.factoryName!, factoryType: type,
       environmentName: names.temporaryName("environment"),
-      contract, captures: Object.freeze(captures as CsharpClassCapture[]), retainsEnvironment, requiresInstanceTest }));
+      contract, captures: Object.freeze(captures as CsharpClassCapture[]), retainsEnvironment, requiresInstanceTest,
+      ...(requiresInstanceTest && definition.sourceTypeParameterCount > 0 ? { identity: Object.freeze({
+        name: definition.factoryIdentityName!,
+        type: csharpTargetNamedType(`${definition.id}:factory-identity`, type.typeArguments,
+          { kind: "named", name: definition.factoryIdentityName! }),
+      }) } : {}),
+    }));
   }
   const byDeclaration = new Map(factories.map(factory => [factory.declaration, factory]));
   return Object.freeze({ factories: Object.freeze(factories), issues: Object.freeze(issues),

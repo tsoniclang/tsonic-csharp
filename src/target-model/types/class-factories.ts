@@ -1,11 +1,11 @@
 import type { Node } from "@tsonic/tsts";
-import type { CsharpDelegateSignatureShape, CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
+import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "./model.js";
 import { csharpTargetNamedType } from "./factories.js";
 
 export interface CsharpClassFactoryType {
   readonly declaration: Node;
   readonly instance: CsharpTargetNamedTypeRef;
-  readonly signature: CsharpDelegateSignatureShape;
+  readonly outerTypeParameterCount: number;
   readonly createMethodName: string;
   readonly instanceTestMethodName: string;
 }
@@ -14,12 +14,12 @@ export function csharpClassFactoryTargetType(
   declaration: Node,
   instance: CsharpTargetNamedTypeRef,
   name: string,
-  signature: CsharpDelegateSignatureShape,
+  outerTypeParameterCount: number,
   createMethodName: string,
   instanceTestMethodName: string,
 ): CsharpTargetNamedTypeRef {
-  return { ...csharpTargetNamedType(`${instance.id}:factory`, instance.typeArguments, { kind: "named", name }),
-    csharpClassFactory: Object.freeze({ declaration, instance, signature, createMethodName, instanceTestMethodName }) };
+  return { ...csharpTargetNamedType(`${instance.id}:factory`, instance.typeArguments?.slice(0, outerTypeParameterCount), { kind: "named", name }),
+    csharpClassFactory: Object.freeze({ declaration, instance, outerTypeParameterCount, createMethodName, instanceTestMethodName }) };
 }
 
 export function getCsharpClassFactory(type: TargetTypeRef | undefined): CsharpClassFactoryType | undefined {

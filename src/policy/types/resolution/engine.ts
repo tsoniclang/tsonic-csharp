@@ -470,6 +470,7 @@ export interface CsharpTypeResolutionScope {
   type: Type,
   queries: SourceFileSemantics,
   typeArguments: readonly TargetTypeRef[],
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveProjectSourceType(
   node: Node,
@@ -483,6 +484,7 @@ export interface CsharpTypeResolutionScope {
   typeArguments: readonly TargetTypeRef[],
   sourceArguments?: readonly (Type | undefined)[],
   state?: CsharpTypeResolutionState,
+  selectedType?: Type,
 ): TargetTypeRef | undefined;
 }
 

@@ -57,7 +57,7 @@ export function analyzeCsharpDeclarations(
       if (declaration !== undefined && policy.ast.is.IsMethodDeclaration(declaration) &&
         selectedType !== undefined && getCsharpDelegateSignature(selectedType) !== undefined && !methodWrites.has(declaration)) {
         const owner = policy.ast.parent(declaration);
-        if (owner !== undefined && policy.ast.is.IsClassDeclaration(owner)) {
+        if (owner !== undefined && (policy.ast.is.IsClassDeclaration(owner) || policy.ast.is.IsClassExpression(owner))) {
           const reserved = new Set(policy.ast.members(owner).map(member => {
             const name = policy.ast.name(member);
             return name === undefined ? undefined : policy.ast.text(name);
