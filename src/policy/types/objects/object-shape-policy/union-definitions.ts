@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SourceFile, Type } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpObjectShapePolicyHost, CsharpStructuralUnionResolution } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import { csharpTargetNamedType } from "../../../../target-model/types/factories.js";
@@ -10,11 +10,6 @@ import { csharpStructuralObjectShapeIdPrefix } from "../../../../target-model/ty
 import { targetTypeRefKey } from "../../../../target-model/types/equality.js";
 import { nextState } from "../../resolution/state.js";
 import { substituteTargetTypeParameters } from "../../callables/substitution.js";
-
-export type CsharpStructuralUnionResolution =
-  | { readonly kind: "not-applicable" }
-  | { readonly kind: "rejected" }
-  | { readonly kind: "resolved"; readonly type: TargetTypeRef };
 
 interface Definition {
   readonly arms: readonly TargetTypeRef[];

@@ -16,6 +16,7 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
+  isCsharpJsValueTargetType,
   targetTypeRefKey,
   targetTypeRefEquals,
   csharpBigIntegerTargetType,
@@ -148,6 +149,11 @@ function classifyReturnContract(
     observed,
     incomplete,
   );
+  const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
+  if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
+    csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
+    return { kind: "resolved", type: contextualReturn };
+  }
   return contract.kind !== "resolved" || pointer === undefined ? contract
     : Object.freeze({ ...contract, undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined });
 }

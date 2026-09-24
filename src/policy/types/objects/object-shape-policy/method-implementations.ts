@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Node } from "@tsonic/tsts";
 import { sourceLexicalCaptures } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../../../target-model/types/model.js";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import { nextState } from "../../resolution/state.js";
 

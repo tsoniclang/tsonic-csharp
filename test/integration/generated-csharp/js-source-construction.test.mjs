@@ -1049,6 +1049,27 @@ test("character constructors retain native arguments and evaluation order", { ti
   assert.doesNotMatch(text, /Convert\.ToDouble|\(double\)/u);
 });
 
+test("contextual callback returns convert broad values without erasing native integer results", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import type { int64 } from "@tsonic/core/types.js";
+    export function run(): boolean {
+      let calls = 0;
+      const replaced = "a1b2".replace(/([a-z])(\\d)/g, (whole, letter, digit, offset, input) => {
+        if (input !== "a1b2" || offset !== calls * 2) throw new Error("callback arguments");
+        calls += 1;
+        return digit + letter;
+      });
+      const wide: int64 = 9007199254740993n;
+      const retained = [wide].map(value => value);
+      return replaced === "1a2b" && calls === 2 && retained[0] === wide;
+    }
+  ` });
+  execute(compiled, "contextual-callback-return-carriers");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.match(generated, /JSArray<long>/u);
+  assert.doesNotMatch(generated, /Convert\.ToDouble|\(double\)wide/u);
+});
+
 test("character constructors preserve numeric coercion and exact runtime rejection", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 import type { uint8 } from "@tsonic/core/types.js";

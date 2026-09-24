@@ -1,6 +1,6 @@
 import type { Node, Type, TypePropertyInfo } from "@tsonic/tsts";
 import { ObjectLiteralProperty_Value, sourceClassFieldIsTypeOnly, sourcePropertyTypeEvidenceNodes, sourceTransformedTypeFactEvidenceNodes, type SourceFileSemantics } from "@tsonic/target-api/source";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpObjectShapeMemberFact, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import { csharpNullableTargetType } from "../../../../target-model/types/nullable.js";

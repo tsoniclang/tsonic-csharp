@@ -25,15 +25,10 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type {
-  CsharpRecursiveTypeResolver,
-  CsharpTypePolicyBaseHost,
   CsharpTypeResolutionState,
 } from "../../resolution/model.js";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import { nextState } from "../../resolution/state.js";
-import type {
-  CsharpProjectTypeCatalog,
-} from "../../project/project-types.js";
 import {
   substituteTargetTypeParameters,
   inferCsharpTargetTypeParameterBindings,
@@ -47,77 +42,17 @@ import {
   csharpSourceMemberKeysEqual,
 } from "../../../../target-model/types/source-member-keys.js";
 import { resolveProviderObjectLiteralShape } from "./provider-construction.js";
-import { createCsharpStructuralUnionDefinitions, type CsharpStructuralUnionResolution } from "./union-definitions.js";
+import { createCsharpStructuralUnionDefinitions } from "./union-definitions.js";
 import { selectCsharpObjectMethodImplementation } from "./method-implementations.js";
 import { csharpCopiedObjectShapeMembers, csharpGenericMethodEnvironment, retainCsharpMethodValueContracts } from "./method-values.js";
 import { parameterizeCsharpStructuralContract } from "./structural-contracts.js";
 
-export interface CsharpObjectShapePolicyHost extends CsharpTypePolicyBaseHost {
-  readonly representations: import("../../resolution/model.js").CsharpPlanningRepresentationQueries;
-  readonly projectTypeCatalog: CsharpProjectTypeCatalog;
-  readonly typeResolver: CsharpRecursiveTypeResolver;
-}
-
-export interface CsharpObjectShapePolicy {
-  resolveCopyShape(shape: CsharpObjectShapeFact): CsharpObjectShapeFact;
-  resolveNode(
-    node: Node | undefined,
-    sourceFile?: SourceFile,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTarget(type: TargetTypeRef | undefined): CsharpObjectShapeFact | undefined;
-  resolveType(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot?: Node,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTypeMember(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    sourceKey: CsharpSourceMemberKey,
-  ): CsharpObjectShapeMemberFact | undefined;
-  resolveObjectLiteralTargetShape(
-    expectedShape: CsharpObjectShapeFact | undefined,
-    objectLiteral: Node,
-    sourceFile: SourceFile,
-  ): CsharpObjectLiteralTargetShapeResolution;
-  resolveProjectConstructibleSelectedType(
-    targetType: TargetTypeRef,
-    explicitTypeNode: Node | undefined,
-    selectedType: Type,
-    contextNode: Node,
-    sourceFile: SourceFile,
-  ): CsharpProjectConstructibleTypeProjection;
-}
-
-export interface CsharpRecursiveObjectShapePolicy extends CsharpObjectShapePolicy {
-  resolveReference(type: Type): TargetTypeRef | undefined;
-  resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): CsharpStructuralUnionResolution;
-  resolveNodeWithState(
-    node: Node | undefined,
-    sourceFile: SourceFile | undefined,
-    state: CsharpTypeResolutionState,
-  ): CsharpObjectShapeFact | undefined;
-  resolveTypeWithState(
-    type: Type | undefined,
-    sourceFile: SourceFile,
-    authoredTypeRoot: Node | undefined,
-    state: CsharpTypeResolutionState,
-  ): CsharpObjectShapeFact | undefined;
-}
-
-export type CsharpObjectLiteralTargetShapeResolution =
-  | { readonly kind: "not-applicable" }
-  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
-  | {
-      readonly kind: "rejected";
-      readonly subject: Node;
-      readonly reason: string;
-    };
-
-export type CsharpProjectConstructibleTypeProjection =
-  | { readonly kind: "unchanged" }
-  | { readonly kind: "resolved"; readonly shape: CsharpObjectShapeFact }
-  | { readonly kind: "rejected"; readonly reason: string };
+import type {
+  CsharpObjectLiteralTargetShapeResolution,
+  CsharpObjectShapePolicyHost,
+  CsharpProjectConstructibleTypeProjection,
+  CsharpRecursiveObjectShapePolicy,
+} from "./model.js";
 
 export function createCsharpObjectShapePolicy(
   host: CsharpObjectShapePolicyHost,

@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";

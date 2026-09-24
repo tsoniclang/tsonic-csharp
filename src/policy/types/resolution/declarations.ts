@@ -45,18 +45,18 @@ export function resolveSelectedDeclarationResult(
   const declarationSourceFile = declarationType === undefined
     ? queries.sourceFile
     : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
-  const authored = declarationType === undefined
-    ? undefined
-    : resolveNodeWithState(
-        declarationType,
-        declarationSourceFile,
-        nextState(state),
-      );
-  if (authored !== undefined) {
+  const selected = resolveAuthoredAndSelectedSourceType(
+    declarationType,
+    declarationSourceFile,
+    semanticType,
+    queries.sourceFile,
+    state,
+  );
+  if (selected !== undefined) {
     const instantiated = host.projectTypes().instantiateMemberType(
       declaration,
       receiverType,
-      authored,
+      selected,
     );
     if (instantiated.kind === "unresolved") {
       return undefined;
@@ -65,13 +65,7 @@ export function resolveSelectedDeclarationResult(
       return instantiated.type;
     }
   }
-  return resolveAuthoredAndSelectedSourceType(
-    declarationType,
-    declarationSourceFile,
-    semanticType,
-    queries.sourceFile,
-    state,
-  );
+  return selected;
 }
 
 

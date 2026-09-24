@@ -9,7 +9,7 @@ import type {
 } from "../objects/object-shape-policy.js";
 import type {
   CsharpRecursiveObjectShapePolicy,
-} from "../objects/object-shape-policy/api.js";
+} from "../objects/object-shape-policy/model.js";
 import {
   createCsharpObjectShapePolicy,
 } from "../objects/object-shape-policy.js";

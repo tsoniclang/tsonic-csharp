@@ -20,8 +20,8 @@ export function resolveCsharpConstructorValueType(
   if (result === undefined) return undefined;
   const symbol = queries.declarations.typeSymbol(type);
   const owner = symbol === undefined ? undefined : queries.declarations.symbolDeclarations(symbol)
-    .map(candidate => scope.host.projectTypeCatalog.definitionForDeclaration(candidate)).find(candidate => candidate?.local);
-  if (owner !== undefined) {
+    .map(candidate => scope.host.projectTypeCatalog.definitionForDeclaration(candidate)).find(candidate => candidate !== undefined);
+  if (owner?.local === true) {
     if (!signatures.every(candidate => {
       const selected = queries.types.returnType(candidate);
       return selected !== undefined && queries.types.isIdentical(result, selected);
@@ -39,8 +39,10 @@ export function resolveCsharpConstructorValueType(
   }
   if (signatures.length !== 1) return undefined;
   const declaration = queries.declarations.signatureDeclaration(signature);
-  const returnNode = declaration !== undefined && scope.host.ast.is.IsConstructSignatureDeclaration(declaration)
-    ? scope.host.ast.typeNode(declaration) : undefined;
+  if (declaration === undefined || owner?.abstract === true ||
+    (owner?.kind !== "class" && !scope.host.ast.is.IsConstructSignatureDeclaration(declaration) &&
+      !scope.host.ast.is.IsConstructorTypeNode(declaration))) return undefined;
+  const returnNode = scope.host.ast.typeNode(declaration);
   return scope.resolveCallableEvidence({
     parameters: queries.types.signatureParameterInfos(signature).map(parameter => ({
       ...parameter,

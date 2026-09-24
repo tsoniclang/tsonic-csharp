@@ -56,7 +56,6 @@ test("direct C# declaration translation preserves generic constraints, static st
     public class Box<T>
     where T : Named
     {
-        public static int count = 0;
         public T value;
         public string? note;
         public Box(T value)
@@ -81,6 +80,10 @@ test("direct C# declaration translation preserves generic constraints, static st
         {
             return fallback;
         }
+    }
+    public static class Box
+    {
+        public static int count = 0;
     }
 }
 `);

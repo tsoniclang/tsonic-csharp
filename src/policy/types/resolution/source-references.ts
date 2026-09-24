@@ -24,7 +24,7 @@ import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/typ
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
-import { resolveCsharpConditionalApplication } from "./conditional-types.js";
+import { csharpConditionalDeclaration, resolveCsharpConditionalApplication } from "./conditional-types.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -384,8 +384,10 @@ export function resolveCompositionalSourceTypeAlias(
   const queries = host.semantics(reference.sourceFile);
   const application = sourceArguments === undefined ? undefined
     : queries.types.instantiateAlias(reference.declaration, sourceArguments as readonly Type[]);
-  if (application?.kind === "conditional") {
-    const type = resolveCsharpConditionalApplication(scope, application, typeArguments, queries, boundState);
+  if (application?.kind === "conditional" && csharpConditionalDeclaration(scope, application) !== undefined) {
+    const authoredRoot = host.ast.parent(typeName);
+    const type = resolveCsharpConditionalApplication(scope, application, typeArguments, queries, boundState,
+      authoredRoot !== undefined && host.ast.is.IsTypeReferenceNode(authoredRoot) ? authoredRoot : target);
     return type === undefined ? { kind: "rejected" } : { kind: "resolved", type };
   }
   if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
