@@ -168,7 +168,9 @@ export function selectCsharpFlowReadConversion(
   if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
   const nullableElement = getCsharpNullableElementTargetType(storageType);
   if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
-    return selectCsharpConversion(input, storageType, selectedReadType, "explicit");
+    return isCsharpNullableReferenceTargetType(storageType)
+      ? { kind: "implicit", proof: "nullable" }
+      : { kind: "nullable-value", asserted: false };
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
   if (runtimeUnionArms !== undefined) {
@@ -232,6 +234,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "provider-argument-adapter" ||
     selection.kind === "lifted-provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
+    selection.kind === "nullable-reference" ||
     selection.kind === "runtime-union-projection" ||
     selection.kind === "js-value-box" ||
     selection.kind === "undefined-object-box" ||

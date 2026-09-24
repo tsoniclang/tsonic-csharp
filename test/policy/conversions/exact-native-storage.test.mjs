@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { selectCsharpExactIntegerConversion } from "../../../dist/policy/conversions/selection/exact-integer.js";
-import { csharpNullableValueTargetType } from "../../../dist/target-model/types/nullable.js";
+import { csharpNullableTargetType, csharpNullableValueTargetType } from "../../../dist/target-model/types/nullable.js";
 import { csharpObjectShapesEqual } from "../../../dist/target-model/types/object-shape-equality.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
 import { csharpJsArrayTargetType, csharpReadOnlyListTargetType } from "../../../dist/policy/types/index.js";
+import { selectCsharpFlowReadConversion } from "../../../dist/policy/conversions/selection/expression.js";
 
 const primitive = name => ({ kind: "source-primitive", name });
 const integers = ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "int128", "uint128"];
@@ -12,6 +13,17 @@ const conversionContext = {
   projectTypes: { typeFromTarget: () => undefined, directSupertypes: () => [] },
   providers: { findTargetBindingByTargetId: () => undefined },
 };
+
+test("nullable conversions distinguish exact flow evidence from explicit assertions", () => {
+  for (const type of [primitive("int64"), primitive("string")]) {
+    const nullable = csharpNullableTargetType(type);
+    assert.equal(selectCsharpConversion(conversionContext, nullable, type, "implicit").kind, "rejected");
+    assert.deepEqual(selectCsharpConversion(conversionContext, nullable, type, "explicit"),
+      type.name === "string" ? { kind: "nullable-reference" } : { kind: "nullable-value", asserted: true });
+    assert.deepEqual(selectCsharpFlowReadConversion(conversionContext, nullable, type),
+      type.name === "string" ? { kind: "implicit", proof: "nullable" } : { kind: "nullable-value", asserted: false });
+  }
+});
 
 test("native JSArray read-only-list conversion retains the exact element carrier", () => {
   for (const name of integers) {

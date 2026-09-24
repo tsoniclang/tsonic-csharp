@@ -273,6 +273,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   receiverType?: TargetTypeRef,
+  declaredMemberType?: Type,
 ): TargetTypeRef | undefined;
   resolveProjectEnumMemberTarget(
   declaration: Node | undefined,

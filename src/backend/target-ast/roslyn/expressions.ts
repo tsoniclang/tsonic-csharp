@@ -86,6 +86,7 @@ export type CsharpPrefixUnaryOperatorToken =
   | { readonly kind: "MinusMinusToken" };
 
 export type CsharpPostfixUnaryOperatorToken =
+  | { readonly kind: "ExclamationToken" }
   | { readonly kind: "PlusPlusToken" }
   | { readonly kind: "MinusMinusToken" };
 

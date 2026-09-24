@@ -9,6 +9,7 @@ import {
   csharpJsRegExpExecArrayTargetType,
   csharpJsArrayTargetType,
   csharpJsRegExpIndicesArrayTargetType,
+  csharpRegExpIndexPairTargetType,
   csharpJsRegExpMatchArrayTargetType,
   csharpJsRegExpNamedGroupsTargetType,
   csharpJsRegExpNamedIndicesTargetType,
@@ -88,12 +89,8 @@ const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const undefinedType = csharpRuntimeUndefinedTargetType();
-const pairType: TargetTypeRef = {
-  kind: "tuple",
-  elements: [intType, intType],
-};
 const nullableStringType = csharpNullableTargetType(stringType);
-const nullablePairType = csharpNullableTargetType(pairType);
+const nullablePairType = csharpNullableTargetType(csharpRegExpIndexPairTargetType());
 const noReceiver = { kind: "none" } as const;
 const instanceReceiver = { kind: "instance" } as const;
 

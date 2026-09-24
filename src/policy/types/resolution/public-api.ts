@@ -10,6 +10,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { nextState } from "./state.js";
 import { reconcileCsharpSelectedTargetType } from "./selected-type-evidence.js";
+import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 
 export function resolveNode(
   { resolveNodeWithState }: CsharpTypeResolutionScope,
@@ -144,6 +145,16 @@ export function resolveSelectedValueWithState(
     const declaredType = declaration === undefined ? undefined : host.semanticsFor(declaration)
       .declarations.declaredValueType(declaration);
     const queries = host.semantics(sourceFile);
+    if (declaredType !== undefined) {
+      const refinement = selectCsharpAuthoredUnionRefinement(
+        scopedTarget, declaredType, selectedType, queries,
+        type => resolveTypeWithState(type, sourceFile, nextState(state)),
+        host.structuralTypes.resolveTarget,
+      );
+      if (refinement.kind !== "not-applicable") {
+        return refinement.kind === "resolved" ? refinement.type : undefined;
+      }
+    }
     if (declaredType !== undefined && queries.types.refinement(declaredType, selectedType).kind === "unrelated") {
       return reconcileCsharpSelectedTargetType(
         scopedTarget,

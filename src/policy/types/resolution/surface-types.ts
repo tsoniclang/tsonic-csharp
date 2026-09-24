@@ -345,18 +345,21 @@ export function csharpJsRegExpMatchArrayTargetType(): CsharpTargetNamedTypeRef {
   );
 }
 
-export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
-  const pair: TargetTypeRef = {
+export function csharpRegExpIndexPairTargetType(): TargetTypeRef {
+  return {
     kind: "tuple",
     elements: [
-      csharpSourcePrimitiveTargetType("float64"),
-      csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("int32"),
+      csharpSourcePrimitiveTargetType("int32"),
     ],
   };
+}
+
+export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
   return csharpJsArrayLikeTargetType(
     "Tsonic.CSharp.Js.RegExpIndicesArray",
     "RegExpIndicesArray",
-    csharpNullableTargetType(pair),
+    csharpNullableTargetType(csharpRegExpIndexPairTargetType()),
   );
 }
 
@@ -401,17 +404,10 @@ export function csharpExactJsRegExpMatchArrayTargetType(): CsharpTargetNamedType
 }
 
 export function csharpExactJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
-  const pair: TargetTypeRef = {
-    kind: "tuple",
-    elements: [
-      csharpSourcePrimitiveTargetType("float64"),
-      csharpSourcePrimitiveTargetType("float64"),
-    ],
-  };
   return csharpJsArrayLikeTargetType(
     "Tsonic.CSharp.Js.JsRegExpIndicesArray",
     "RegExpIndicesArray",
-    csharpNullableTargetType(pair),
+    csharpNullableTargetType(csharpRegExpIndexPairTargetType()),
   );
 }
 

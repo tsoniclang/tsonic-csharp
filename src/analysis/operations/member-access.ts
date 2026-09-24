@@ -141,14 +141,13 @@ export function classifySourceOwnedProperty(
     selectedMethodValue ?? rawMemberReadType,
     selection.source.optionalChain,
   );
-  const selectedSourceReadType = optionalResultType(
-    policy.types.resolveSelectedResult(
-      selection.source.selectedDeclaration,
+  const selectedSourceReadType = selection.source.sourceReadType === undefined
+    ? policy.types.resolveNode(selection.source.expression, sourceFile)
+    : policy.types.resolveSelectedValue(
+      selection.source.expression,
       selection.source.sourceReadType,
       sourceFile,
-    ),
-    selection.source.optionalChain,
-  );
+    );
   const selectedMemberReadType = shapeMember?.kind === "resolved"
     ? resolveCsharpObjectShapeMemberReadTargetType(
         shapeMember.member,
@@ -162,8 +161,7 @@ export function classifySourceOwnedProperty(
         selectedMemberReadType,
         selection.source.optionalChain,
       ) ?? selectedSourceReadType
-    : selectedSourceReadType ??
-      policy.types.resolveNode(selection.source.expression, sourceFile));
+    : selectedSourceReadType);
   const projectedWrite = classifyCsharpBoundFieldWrite(
     policy, selection.source.expression, sourceFile, rawMemberReadType,
   );

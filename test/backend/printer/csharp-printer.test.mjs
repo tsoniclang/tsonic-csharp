@@ -26,6 +26,16 @@ import {
 
 const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
 
+test("null-forgiving expressions retain precedence and compose with member reads", () => {
+  const assertion = operand => ({ kind: "PostfixUnaryExpression", operand, operatorToken: { kind: "ExclamationToken" } });
+  const value = { kind: "IdentifierName", name: "value" };
+  assert.equal(printCsharpExpression(assertion(value)), "value!");
+  assert.equal(printCsharpExpression({ kind: "SimpleMemberAccessExpression", receiver: assertion(value), name: "Value" }), "value!.Value");
+  assert.equal(printCsharpExpression(assertion({ kind: "ConditionalExpression", condition: value,
+    whenTrue: { kind: "IdentifierName", name: "first" }, whenFalse: { kind: "IdentifierName", name: "second" } })),
+  "(value ? first : second)!");
+});
+
 test("unreachable authored incrementor diagnostics are scoped to the for header", () => {
   const loop = {
     kind: "ForStatement",

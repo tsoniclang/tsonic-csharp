@@ -166,8 +166,8 @@ export function selectNullableConversion(
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
     return mode === "explicit"
       ? isCsharpNullableReferenceTargetType(source)
-        ? { kind: "implicit", proof: "nullable" }
-        : { kind: "nullable-value" }
+        ? { kind: "nullable-reference" }
+        : { kind: "nullable-value", asserted: true }
       : {
           kind: "rejected",
           reason:

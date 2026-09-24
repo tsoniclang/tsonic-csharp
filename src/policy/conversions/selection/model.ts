@@ -50,7 +50,8 @@ export type CsharpConversionSelection =
         | "provider-operator";
       readonly providerOperatorId?: string;
     }
-  | { readonly kind: "nullable-value" }
+  | { readonly kind: "nullable-reference" }
+  | { readonly kind: "nullable-value"; readonly asserted: boolean }
   | {
       readonly kind: "runtime-union-projection";
       readonly armIndex: number;

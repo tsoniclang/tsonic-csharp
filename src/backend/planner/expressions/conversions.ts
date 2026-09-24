@@ -217,10 +217,14 @@ export function applyCsharpConversionSelection(
             expression,
           )
         : expression;
+    case "nullable-reference":
+      return { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } };
     case "nullable-value":
       return {
         kind: "SimpleMemberAccessExpression",
-        receiver: expression,
+        receiver: selection.asserted
+          ? { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } }
+          : expression,
         name: "Value",
       };
     case "runtime-union-projection":

@@ -5,6 +5,21 @@ import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "..
 import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
+export function sourceRefinementOnlyRemovesNullish(
+  declaredType: Type,
+  selectedType: Type,
+  queries: SourceFileSemantics,
+): boolean {
+  const refinement = queries.types.refinement(declaredType, selectedType);
+  if (refinement.kind !== "members" || refinement.types.length === 0 ||
+    refinement.types.some(type => queries.types.isNullish(type))) return false;
+  const declaredMembers = queries.types.unionOrIntersectionTypes(declaredType);
+  if (declaredMembers.some(type => type === undefined)) return false;
+  const present = declaredMembers.filter((type): type is Type => type !== undefined && !queries.types.isNullish(type));
+  return present.length < declaredMembers.length && present.length === refinement.types.length &&
+    present.every(type => refinement.types.includes(type));
+}
+
 export function retainCsharpUnionObjectShapes(
   type: TargetTypeRef | undefined,
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
@@ -27,15 +42,17 @@ export function selectCsharpAuthoredUnionRefinement(
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
 ): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
-  const base = getCsharpNullableElementTargetType(authored) ?? authored;
+  const nullableElement = getCsharpNullableElementTargetType(authored);
+  const base = nullableElement ?? authored;
+  const optional = getCsharpGenericOptionalParts(base);
+  if ((nullableElement !== undefined || optional !== undefined) &&
+    sourceRefinementOnlyRemovesNullish(declaredType, selectedType, queries)) {
+    const type = nullableElement ?? optional?.element;
+    if (type !== undefined) return { kind: "resolved", type };
+  }
   const arms = getCsharpRuntimeUnionArms(base);
   if (arms === undefined) return { kind: "not-applicable" };
   const refinement = queries.types.refinement(declaredType, selectedType);
-  const optional = getCsharpGenericOptionalParts(base);
-  if (optional !== undefined && refinement.kind === "members" &&
-    refinement.types.length > 0 && refinement.types.every(type => !queries.types.isNullish(type))) {
-    return { kind: "resolved", type: optional.element };
-  }
   const shapes = arms.map(resolveShape);
   if (shapes.every(shape => shape === undefined)) return { kind: "not-applicable" };
   if (refinement.kind === "exact") return { kind: "resolved", type: authored };
