@@ -29,7 +29,11 @@ export { csharpJsDateTargetType } from "../policy/types/resolution/surface-types
 export { csharpJsArrayTargetType } from "../policy/types/resolution/surface-types.js";
 export { csharpJsTypedArrayTargetType } from "../policy/types/resolution/surface-types.js";
 export { csharpTsValueTargetType } from "../target-model/types/runtime-carriers.js";
-export { csharpRuntimeUnionTargetType, csharpRuntimeNullTargetType, csharpRuntimeUndefinedTargetType } from "../target-model/types/runtime-carriers.js";
+export {
+  csharpRuntimeUnionTargetType,
+  csharpAbsenceTargetType,
+  combineCsharpTargetUnionMembers,
+} from "../target-model/types/runtime-carriers.js";
 export {
   csharpProviderPolicyContribution,
   csharpProviderPolicyContributionKind,

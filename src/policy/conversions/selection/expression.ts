@@ -227,7 +227,6 @@ export function csharpConversionIsApplicable(
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||
-    selection.kind === "generic-optional" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||
@@ -237,7 +236,6 @@ export function csharpConversionIsApplicable(
     selection.kind === "nullable-reference" ||
     selection.kind === "runtime-union-projection" ||
     selection.kind === "js-value-box" ||
-    selection.kind === "undefined-object-box" ||
     selection.kind === "js-value-cast" ||
     mode === "explicit" && selection.kind === "cast";
 }

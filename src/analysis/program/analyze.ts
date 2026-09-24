@@ -382,8 +382,8 @@ function analyzeIteration(
     typeSystem.analysisTypes,
     policy,
   );
-  const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence);
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
+  const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence, operations);
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,

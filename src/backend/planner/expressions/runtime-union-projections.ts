@@ -16,7 +16,7 @@ import {
 } from "../diagnostics.js";
 import {
   getCsharpRuntimeUnionArms,
-  isCsharpRuntimeUnionTargetType,
+  getCsharpGenericOptionalParts,
 } from "../../../target-model/types/index.js";
 
 export function tryPlanRuntimeUnionTypeTest(
@@ -29,7 +29,7 @@ export function tryPlanRuntimeUnionTypeTest(
   negated: boolean,
 ): CsharpExpression | undefined {
   const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
-  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
+  if (storageCarrier === undefined) {
     return undefined;
   }
   const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
@@ -40,7 +40,7 @@ export function tryPlanRuntimeUnionTypeTest(
     ));
     return undefined;
   }
-  const test = runtimeUnionArmTest(baseExpression, armIndex);
+  const test = runtimeUnionArmTest(baseExpression, armIndex, storageCarrier);
   return negated
     ? {
         kind: "PrefixUnaryExpression",
@@ -59,7 +59,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
   baseExpression: CsharpExpression,
 ): CsharpExpression | undefined {
   const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
-  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
+  if (storageCarrier === undefined) {
     return undefined;
   }
   const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
@@ -70,7 +70,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
     ));
     return undefined;
   }
-  return runtimeUnionArmProjection(baseExpression, armIndex);
+  return runtimeUnionArmProjection(baseExpression, armIndex, storageCarrier);
 }
 
 function getRuntimeUnionStorageCarrier(
@@ -79,7 +79,7 @@ function getRuntimeUnionStorageCarrier(
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
   const storageCarrier = input.types.classifications.resolveStorage(node, sourceFile);
-  return isCsharpRuntimeUnionTargetType(storageCarrier)
+  return getCsharpRuntimeUnionArms(storageCarrier) !== undefined
     ? storageCarrier
     : undefined;
 }
@@ -95,29 +95,33 @@ function runtimeUnionArmIndex(
 export function runtimeUnionArmProjection(
   baseExpression: CsharpExpression,
   armIndex: number,
+  carrier?: TargetTypeRef,
 ): CsharpExpression {
+  const optional = getCsharpGenericOptionalParts(carrier);
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver: baseExpression,
+      receiver: optional === undefined ? baseExpression : { kind: "IdentifierName", name: optional.operations.name },
       name: `As${armIndex + 1}`,
     },
-    arguments: [],
+    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
   };
 }
 
 export function runtimeUnionArmTest(
   baseExpression: CsharpExpression,
   armIndex: number,
+  carrier?: TargetTypeRef,
 ): CsharpExpression {
+  const optional = getCsharpGenericOptionalParts(carrier);
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver: baseExpression,
+      receiver: optional === undefined ? baseExpression : { kind: "IdentifierName", name: optional.operations.name },
       name: `Is${armIndex + 1}`,
     },
-    arguments: [],
+    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
   };
 }

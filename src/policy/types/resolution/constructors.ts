@@ -34,7 +34,7 @@ export function resolveCsharpConstructorValueType(
     names.add(createMethodName);
     let instanceTestMethodName = "IsInstance";
     while (names.has(instanceTestMethodName)) instanceTestMethodName = `_${instanceTestMethodName}`;
-    return csharpClassFactoryTargetType(owner.declaration, instance, owner.factoryName!, owner.outerTypeParameters.length,
+    return csharpClassFactoryTargetType(owner.declaration, instance, owner.factoryName!, owner.outerTypeParameters.length + owner.outerTypeProjections.length,
       createMethodName, instanceTestMethodName);
   }
   if (signatures.length !== 1) return undefined;

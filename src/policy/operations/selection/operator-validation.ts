@@ -1,6 +1,6 @@
 import type { CsharpPolicyContext } from "../../model/context.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../types/index.js";
-import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpRuntimeNullTargetType, isCsharpRuntimeUndefinedTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../types/index.js";
+import { csharpBigIntegerTargetType, getCsharpNullableElementTargetType, getCsharpRuntimeUnionArms, isCsharpJsValueTargetType, isCsharpIntegralTargetType, isCsharpAbsenceTargetType, isCsharpStringTargetType, isCsharpValueTypeTargetType, isCsharpVoidTargetType, targetTypeRefEquals } from "../../types/index.js";
 import type { CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
 
 export function validateBinaryTargetSemantics(
@@ -148,8 +148,7 @@ function isCsharpEnumTargetType(
 
 function isNullishCapable(type: TargetTypeRef): boolean {
   return getCsharpNullableElementTargetType(type) !== undefined ||
-    isCsharpRuntimeNullTargetType(type) ||
-    isCsharpRuntimeUndefinedTargetType(type) ||
+    isCsharpAbsenceTargetType(type) ||
     isCsharpReferenceCarrier(type) ||
     (
       type.kind === "target-named" &&
@@ -182,10 +181,8 @@ function supportsIntrinsicEquality(
     return true;
   }
   if (
-    isCsharpRuntimeNullTargetType(left) ||
-    isCsharpRuntimeUndefinedTargetType(left) ||
-    isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right)
+    isCsharpAbsenceTargetType(left) ||
+    isCsharpAbsenceTargetType(right)
   ) {
     return true;
   }

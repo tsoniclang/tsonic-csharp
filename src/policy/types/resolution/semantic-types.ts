@@ -11,9 +11,8 @@ import {
   csharpEmptyObjectTargetType,
   csharpRuntimeLocationTargetType,
   csharpRuntimeRawPointerTargetType,
-  csharpRuntimeNullTargetType,
-  csharpRuntimeUndefinedTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
+  isCsharpAbsenceTargetType,
   csharpTsValueTargetType,
 } from "../../../target-model/types/runtime-carriers.js";
 import {
@@ -49,7 +48,7 @@ import { relateTypeArguments } from "./generic-arguments.js";
 import { readCsharpSourceRawAddress, csharpRawAddressResultType } from "../../operations/pointers/raw-addresses.js";
 import { selectCsharpLayoutObservation } from "../../operations/pointers/layout-observations.js";
 import { readCsharpRawLocation } from "../../operations/pointers/native-memory.js";
-import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-evidence.js";
+import { resolveTypeParameter, definedValues } from "./source-evidence.js";
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
 export function resolveTypeWithState(
@@ -110,9 +109,7 @@ export function resolveTypeWithState(
     return csharpNeverTargetType();
   }
   if (queries.types.isNullish(type)) {
-    return isUndefinedType(type, queries)
-      ? csharpRuntimeUndefinedTargetType()
-      : csharpRuntimeNullTargetType();
+    return csharpAbsenceTargetType();
   }
   if (queries.types.isUnion(type)) {
     return resolveUnionType(type, queries, state);
@@ -340,7 +337,7 @@ export function resolveDirectSourceFacts(
               nextState(state),
             );
             const location = csharpRuntimeLocationTargetType(pointee);
-            return isCsharpNullableReferenceTargetType(sourceLocation) || isCsharpRuntimeUndefinedTargetType(sourceLocation)
+            return isCsharpNullableReferenceTargetType(sourceLocation) || isCsharpAbsenceTargetType(sourceLocation)
               ? csharpNullableReferenceTargetType(location)
               : location;
           }

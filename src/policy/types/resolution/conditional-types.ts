@@ -29,7 +29,7 @@ export function resolveCsharpConditionalApplication(
       const identity = sourceNodeIdentity(scope.host.ast, declaration);
       const sourceName = scope.host.ast.text(scope.host.ast.name(declaration));
       if (identity === undefined || sourceName.length === 0) return undefined;
-      return csharpProjectedType({ declaration, identity, sourceName,
+      return csharpProjectedType({ kind: "conditional", declaration, identity, sourceName,
         sourceArguments: application.bindings.map(binding => binding.argument), arguments: arguments_ });
     }
     if (step.selectedNode === undefined || step.selectedType === undefined) return undefined;

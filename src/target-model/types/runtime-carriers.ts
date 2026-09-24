@@ -17,7 +17,9 @@ import {
 } from "./equality.js";
 import {
   csharpNullableTargetType,
+  csharpNullableReferenceTargetType,
 } from "./nullable.js";
+import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "./projections.js";
 
 export function csharpAnyTargetType(): CsharpTargetNamedTypeRef {
   return csharpTsValueTargetType();
@@ -56,12 +58,11 @@ export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
   });
 }
 
-export function csharpRuntimeNullTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Null", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Null"));
-}
-
-export function csharpRuntimeUndefinedTargetType(): TargetTypeRef {
-  return csharpTargetNamedType("Tsonic.CSharp.Runtime.Undefined", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Undefined"));
+export function csharpAbsenceTargetType(): TargetTypeRef {
+  return csharpNullableReferenceTargetType(csharpTargetNamedType(
+    "csharp.native.absence", undefined, { kind: "predefined", name: "object" },
+    { absorbsNullish: true },
+  ));
 }
 
 export function csharpRuntimeLocationTargetType(
@@ -146,18 +147,14 @@ export function combineCsharpTargetUnionMembers(
     targetTypeRefKey(left).localeCompare(targetTypeRefKey(right)));
   const nonNullishMembers = canonicalMembers.filter(
     (member) =>
-      !isCsharpRuntimeNullTargetType(member) &&
-      !isCsharpRuntimeUndefinedTargetType(member),
+      !isCsharpAbsenceTargetType(member),
   );
   const nullishMembers = canonicalMembers.filter(
     (member) =>
-      isCsharpRuntimeNullTargetType(member) ||
-      isCsharpRuntimeUndefinedTargetType(member),
+      isCsharpAbsenceTargetType(member),
   );
   if (nonNullishMembers.length === 0) {
-    return nullishMembers.length === 1
-      ? nullishMembers[0]
-      : csharpRuntimeUnionTargetType(nullishMembers);
+    return nullishMembers[0];
   }
   if (nullishMembers.length === 0) {
     return nonNullishMembers.length === 1
@@ -165,22 +162,12 @@ export function combineCsharpTargetUnionMembers(
       : csharpRuntimeUnionTargetType(nonNullishMembers);
   }
   if (nonNullishMembers.length === 1 && nonNullishMembers[0]!.kind === "type-parameter") {
-    if (nullishMembers.length !== 1) {
-      return csharpRuntimeUnionTargetType(canonicalMembers);
-    }
-    const element = nonNullishMembers[0]!;
-    const absent = nullishMembers[0]!;
-    const optional: CsharpRuntimeUnionTargetTypeRef = { ...csharpTargetNamedType("Tsonic.CSharp.Runtime.Optional`2", [element, absent],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Optional"), { valueType: true }),
-      csharpRuntimeUnionArms: [absent, element] };
-    return optional;
+    return csharpOptionalStorageProjection(nonNullishMembers[0]!);
   }
-  return nonNullishMembers.length === 1
-    ? csharpNullableTargetType(nonNullishMembers[0]!)
-    : csharpRuntimeUnionTargetType([
-        ...nonNullishMembers,
-        ...nullishMembers,
-      ]);
+  const value = nonNullishMembers.length === 1
+    ? nonNullishMembers[0]
+    : csharpRuntimeUnionTargetType(nonNullishMembers);
+  return value === undefined ? undefined : csharpNullableTargetType(value);
 }
 
 export function isCsharpJsValueTargetType(
@@ -209,12 +196,8 @@ export function isCsharpClosedJsRuntimeCarrier(type: TargetTypeRef | undefined):
     );
 }
 
-export function isCsharpRuntimeNullTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Null";
-}
-
-export function isCsharpRuntimeUndefinedTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Undefined";
+export function isCsharpAbsenceTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "csharp.native.absence";
 }
 
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
@@ -226,13 +209,11 @@ export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined):
 }
 
 export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {
+  const optional = getCsharpGenericOptionalParts(type);
+  if (optional !== undefined) return [csharpAbsenceTargetType(), optional.element];
   return isCsharpRuntimeUnionTargetType(type)
     ? type.csharpRuntimeUnionArms
     : undefined;
 }
 
-export function getCsharpGenericOptionalParts(type: TargetTypeRef | undefined):
-    { readonly element: TargetTypeRef; readonly absent: TargetTypeRef } | undefined {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Optional`2" && type.typeArguments?.length === 2
-    ? { element: type.typeArguments[0]!, absent: type.typeArguments[1]! } : undefined;
-}
+export { getCsharpGenericOptionalParts } from "./projections.js";

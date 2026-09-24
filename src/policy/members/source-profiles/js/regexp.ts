@@ -23,7 +23,7 @@ import {
   csharpExactJsRegExpStringIteratorTargetType,
   csharpJsStringTargetType,
   csharpNullableTargetType,
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
@@ -88,7 +88,7 @@ const exactIteratorType = csharpExactJsRegExpStringIteratorTargetType();
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
-const undefinedType = csharpRuntimeUndefinedTargetType();
+const undefinedType = csharpAbsenceTargetType();
 const nullableStringType = csharpNullableTargetType(stringType);
 const nullablePairType = csharpNullableTargetType(csharpRegExpIndexPairTargetType());
 const noReceiver = { kind: "none" } as const;
@@ -403,7 +403,7 @@ function regexpConstructionMember(
   }
   const parameters = [
     ...(pattern === undefined ? [] : [targetParameter("pattern", pattern)]),
-    ...(flags === undefined ? [] : [targetParameter("flags", flags)]),
+    ...(flags === undefined ? [] : [targetParameter("flags", targetTypeRefEquals(flags, undefinedType) ? nullableStringType : flags)]),
   ];
   if (form === "call") {
     return staticMethod(

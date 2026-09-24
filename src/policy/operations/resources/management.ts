@@ -12,8 +12,7 @@ import type {
 import {
   getCsharpRuntimeUnionArms,
   getCsharpNullableElementTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import type {
@@ -116,7 +115,7 @@ export function selectCsharpResourceManagement(
     );
   }
   const disposableArmIndexes = storageArms.flatMap((arm, armIndex) =>
-    isCsharpRuntimeNullTargetType(arm) || isCsharpRuntimeUndefinedTargetType(arm)
+    isCsharpAbsenceTargetType(arm)
       ? []
       : [armIndex]);
   const arms = canonical.flatMap((alternative) => {

@@ -11,6 +11,7 @@ import {
 import {
   csharpTargetNamedType,
 } from "./factories.js";
+import { csharpOptionalStorageProjection, getCsharpGenericOptionalParts } from "./projections.js";
 
 export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
   return csharpTargetNamedType("System.Nullable`1", [elementType], { kind: "nullable" }, {
@@ -33,11 +34,13 @@ export function getCsharpNullableElementTargetType(type: TargetTypeRef | undefin
 export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
   if (
     getCsharpNullableElementTargetType(type) !== undefined ||
+    getCsharpGenericOptionalParts(type) !== undefined ||
     type.kind === "target-named" &&
       (type as CsharpTargetNamedTypeRef).csharpAbsorbsNullish === true
   ) {
     return type;
   }
+  if (type.kind === "type-parameter") return csharpOptionalStorageProjection(type);
   if (isCsharpValueTypeTargetType(type)) {
     return csharpNullableValueTargetType(type);
   }

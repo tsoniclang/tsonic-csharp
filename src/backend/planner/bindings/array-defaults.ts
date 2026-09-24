@@ -25,9 +25,9 @@ export function planArrayDefaultProjection(
   const sourceType = sourceNode === undefined ? undefined : input.program.sourceEvidence.expressionType(sourceNode);
   const behavior = sourceType === undefined ? undefined
     : input.program.sourceEvidence.semanticType(sourceType, sourceFile)?.arrayElementDefault;
-  if (behavior === undefined || behavior === "ambiguous") {
+  if (behavior === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(initializer,
-      "Array destructuring defaults require an exact undefined-only element contract; the selected carrier must not conflate null and undefined."));
+      "Array destructuring defaults require a finalized native absence contract for the element."));
     return undefined;
   }
   const nullableElement = getCsharpNullableElementTargetType(sourceCarrier.element);

@@ -22,7 +22,7 @@ import {
   getCsharpDelegateSignature,
   isCsharpNullableReferenceTargetType,
   isCsharpValueTypeTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
   type CsharpTargetMember,
@@ -185,7 +185,7 @@ export function selectCsharpTypedLocationOperation(
       if (sourcePointee === undefined || sourceLocation === undefined ||
         !isCsharpTypedLocationEqualityOperand(sourceLocation, sourcePointee) ||
         (!source.optional && (isCsharpNullableReferenceTargetType(sourceLocation) ||
-          isCsharpRuntimeUndefinedTargetType(sourceLocation)))) {
+          isCsharpAbsenceTargetType(sourceLocation)))) {
         return rejected(source.kind, "Pointer views require the exact source location carrier.");
       }
       const parameter = csharpRuntimeLocationTargetType(sourcePointee);
@@ -240,7 +240,7 @@ export function selectCsharpTypedLocationOperation(
         return rejected(source.kind, "Pointer projection requires the exact source location carrier.");
       }
       const optional = isCsharpNullableReferenceTargetType(sourceLocation) ||
-        isCsharpRuntimeUndefinedTargetType(sourceLocation);
+        isCsharpAbsenceTargetType(sourceLocation);
       return {
         kind: source.kind, call: source.call, pointeeType, locationType,
         method: optional ? "ProjectOptional" : "Project",
@@ -571,7 +571,7 @@ function isCsharpTypedLocationEqualityOperand(
   operandType: TargetTypeRef | undefined,
   pointeeType: TargetTypeRef,
 ): boolean {
-  if (isCsharpRuntimeUndefinedTargetType(operandType)) {
+  if (isCsharpAbsenceTargetType(operandType)) {
     return true;
   }
   const operandPointee = csharpRuntimeLocationPointee(operandType);

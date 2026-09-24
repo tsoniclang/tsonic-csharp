@@ -19,6 +19,8 @@ import type {
 } from "../../policy/types/index.js";
 import {
   combineCsharpTargetUnionMembers,
+  getCsharpNullableElementTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpJsValueTargetType,
   isTypeParameterTargetRef,
   targetTypeRefEquals,
@@ -60,7 +62,6 @@ import {
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
-import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
 import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
 
@@ -175,12 +176,10 @@ export function analyzeCsharpSourceEvidence(
     const elementType = arrayIndex.length === 1 ? arrayIndex[0]?.valueType : undefined;
     const elementMembers = elementType === undefined ? []
       : semantics.types.isUnion(elementType) ? semantics.types.unionOrIntersectionTypes(elementType) : [elementType];
-    const undefinedMembers = elementMembers.filter(member => isUndefinedType(member, semantics));
+    const absentMembers = elementMembers.filter(member => semantics.types.isNullish(member));
     const arrayElementDefault = elementType === undefined ? undefined
-      : undefinedMembers.length === 0 ? "never"
-      : undefinedMembers.length === elementMembers.length ? "always"
-      : elementMembers.some(member => semantics.types.isNullish(member) && !isUndefinedType(member, semantics))
-        ? "ambiguous" : "nullable";
+      : absentMembers.length === 0 ? "never"
+      : absentMembers.length === elementMembers.length ? "always" : "nullable";
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
@@ -329,7 +328,9 @@ export function analyzeCsharpSourceEvidence(
       declaredTargetType !== undefined &&
       selectedTargetType !== undefined &&
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
-    const flowReadTargetType = unrelatedSourceTypesShareTargetRepresentation &&
+    const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
+      getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
+    const flowReadTargetType = (unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
         readStorageTargetType !== undefined
       ? readStorageTargetType
       : selectedTargetType !== undefined &&

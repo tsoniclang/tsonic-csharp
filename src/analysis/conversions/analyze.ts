@@ -9,10 +9,7 @@ import type {
   CsharpConversionSelection,
 } from "../../policy/conversions/index.js";
 import {
-  csharpRuntimeUndefinedTargetType,
-  csharpObjectTargetType,
-  getCsharpNullableElementTargetType,
-  targetTypeRefEquals,
+  csharpAbsenceTargetType,
   getCsharpGeneratorProtocol,
   getCsharpArrayLiteralInputCarrierTargetType,
   getCsharpJsArrayElementTargetType,
@@ -37,7 +34,6 @@ import type {
   CsharpConversionClassifications,
   CsharpConversionIssue,
 } from "./model.js";
-import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
 import { selectCsharpIntegerTruncationConversion } from "../../policy/conversions/selection/integer-truncation.js";
@@ -257,7 +253,7 @@ export function analyzeCsharpConversions(
       return;
     }
     classifyPair(
-      csharpRuntimeUndefinedTargetType(),
+      csharpAbsenceTargetType(),
       evidence.storageTargetType(node),
       "implicit",
       node,
@@ -383,7 +379,7 @@ export function analyzeCsharpConversions(
           continue;
         }
         classifyPair(
-          csharpRuntimeUndefinedTargetType(),
+          csharpAbsenceTargetType(),
           classification.sourceParameterTypes?.[parameterIndex],
           "implicit",
           node,
@@ -536,16 +532,6 @@ export function analyzeCsharpConversions(
     );
     if (exactInteger && mode === "implicit" && candidate.kind === "rejected") {
       candidate = selectCsharpExactIntegerConversion(source, target) ?? candidate;
-    }
-    if (getCsharpNullableElementTargetType(source) !== undefined && targetTypeRefEquals(target, csharpObjectTargetType())) {
-      const semantics = policy.semanticsFor(expression);
-      const selectedType = semantics.types.expressionType(expression);
-      const members = selectedType === undefined ? [] : semantics.types.isUnion(selectedType)
-        ? semantics.types.unionOrIntersectionTypes(selectedType) : [selectedType];
-      const nullish = members.filter(member => semantics.types.isNullish(member));
-      if (nullish.length === 1 && isUndefinedType(nullish[0]!, semantics)) {
-        candidate = { kind: "undefined-object-box" };
-      }
     }
     if ((candidate.kind === "rejected" || candidate.kind === "implicit") &&
       objectShapes.registerStructuralInterface(expression, source, target)) {

@@ -51,7 +51,10 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
+  readonly typeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
+  readonly outerTypeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   readonly outerTypeParameters: readonly Node[];
+  readonly typeParameters: readonly Node[];
   readonly sourceTypeParameterCount: number;
   readonly staticCompanion: boolean;
   readonly abstract: boolean;
@@ -377,7 +380,10 @@ export function projectTypeDefinition(
     local,
     kind,
     sourceTypeParameterCount: typeParameters.length,
+    typeProjections: Object.freeze([]),
+    outerTypeProjections: Object.freeze([]),
     outerTypeParameters: Object.freeze(outerTypeParameters),
+    typeParameters: Object.freeze(typeParameters),
     staticCompanion: kind === "class" && typeParameterNames.length > 0 &&
       host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
         member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),

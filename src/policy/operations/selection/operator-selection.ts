@@ -18,8 +18,7 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpIntegralTargetType,
   isCsharpNeverTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
@@ -172,8 +171,10 @@ export function selectCsharpBinaryOperands(
     );
   }
   if (isEquality(sourceOperator)) {
-    const leftArms = getCsharpRuntimeUnionArms(leftType);
-    const rightArms = getCsharpRuntimeUnionArms(rightType);
+    const leftNullable = getCsharpNullableElementTargetType(leftType);
+    const rightNullable = getCsharpNullableElementTargetType(rightType);
+    const leftArms = getCsharpRuntimeUnionArms(leftType) ?? (leftNullable === undefined ? [] : [leftNullable]);
+    const rightArms = getCsharpRuntimeUnionArms(rightType) ?? (rightNullable === undefined ? [] : [rightNullable]);
     const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input, right, arm));
     const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input, left, arm));
     if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
@@ -220,16 +221,6 @@ export function selectCsharpBinaryOperands(
       leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
       resultType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType),
     };
-  }
-  if (isEquality(sourceOperator) &&
-    (isCsharpRuntimeNullTargetType(leftType) || isCsharpRuntimeUndefinedTargetType(leftType)) &&
-    (isCsharpRuntimeNullTargetType(rightType) || isCsharpRuntimeUndefinedTargetType(rightType))) {
-    const leftStorage = input.types.resolveReadStorage(left);
-    const rightStorage = input.types.resolveReadStorage(right);
-    const leftNullable = getCsharpNullableElementTargetType(leftStorage) !== undefined;
-    const rightNullable = getCsharpNullableElementTargetType(rightStorage) !== undefined;
-    if (leftNullable && !rightNullable) leftType = leftStorage!;
-    if (rightNullable && !leftNullable) rightType = rightStorage!;
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
   const stringRelational = selectStringRelational(
@@ -280,7 +271,7 @@ export function selectCsharpBinaryOperands(
     );
   }
   const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType) : undefined;
-  const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpRuntimeNullTargetType(arm) && !isCsharpRuntimeUndefinedTargetType(arm));
+  const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpAbsenceTargetType(arm));
   const unionCoalesce: CsharpTargetBinaryOperation | undefined = coalesceValueArm !== undefined && coalesceValueArm >= 0
     ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, nullishResultType!) }
     : undefined;
@@ -504,6 +495,16 @@ function resolveBinaryOperandType(
     }
   }
   const selected = targetTypeFor(node);
+  if (isCsharpAbsenceTargetType(selected)) {
+    const storage = input.types.resolveReadStorage(node);
+    if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
+  }
+  if (expectedType !== undefined && input.ast.is.IsObjectLiteralExpression(node)) {
+    const shape = input.objectShapes.resolveTarget(expectedType);
+    const construction = shape === undefined ? undefined
+      : input.objectShapes.resolveObjectLiteralTargetShape(shape, node, input.semanticsFor(node).sourceFile);
+    if (construction?.kind === "resolved") return expectedType;
+  }
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 
@@ -533,8 +534,7 @@ function selectNullishResultType(
   }
   if (
     targetTypeRefEquals(right, left) ||
-    isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right)
+    isCsharpAbsenceTargetType(right)
   ) {
     return left;
   }
@@ -552,8 +552,7 @@ function nullishValueType(
     ? undefined
     : getCsharpRuntimeUnionArms(type);
   const valueArms = runtimeArms?.filter((arm) =>
-    !isCsharpRuntimeNullTargetType(arm) &&
-    !isCsharpRuntimeUndefinedTargetType(arm)
+    !isCsharpAbsenceTargetType(arm)
   );
   if (valueArms?.length === 1) {
     return valueArms[0];
@@ -603,10 +602,8 @@ function selectNullishTest(
   if (!isEquality(operator)) {
     return undefined;
   }
-  const leftNullish = isCsharpRuntimeNullTargetType(left) ||
-    isCsharpRuntimeUndefinedTargetType(left);
-  const rightNullish = isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right);
+  const leftNullish = isCsharpAbsenceTargetType(left);
+  const rightNullish = isCsharpAbsenceTargetType(right);
   if (leftNullish && rightNullish) {
     const equal = operator === "==" || operator === "!=" || targetTypeRefEquals(left, right);
     return { kind: "nullish-equality", value: operator === "!==" || operator === "!=" ? !equal : equal };
@@ -623,7 +620,7 @@ function selectNullishTest(
       kind: "nullish-test", operand: leftNullish ? "right" : "left",
       negated: operator === "!==" || operator === "!=",
       unionArmIndexes: Object.freeze(unionArms.flatMap((arm, index) =>
-        targetTypeRefEquals(arm, compared) || loose && (isCsharpRuntimeNullTargetType(arm) || isCsharpRuntimeUndefinedTargetType(arm)) ? [index] : [])),
+        targetTypeRefEquals(arm, compared) || loose && (isCsharpAbsenceTargetType(arm)) ? [index] : [])),
     };
   }
   if (getCsharpNullableElementTargetType(testedType) === undefined) {

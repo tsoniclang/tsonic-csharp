@@ -38,7 +38,6 @@ import { sourceFileClassName } from "../artifacts/source-paths.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import { csharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 
@@ -76,8 +75,7 @@ export function planIdentifierExpression(
     }
   }
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
-    const type = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
-    return type === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver: type, name: "value" };
+    return { kind: "LiteralExpression", value: null };
   }
   const providerDiagnosticsStart = diagnostics.length;
   const providerValue = planProviderValueReference(

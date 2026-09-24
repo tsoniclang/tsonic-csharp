@@ -33,7 +33,7 @@ import {
   callStatic,
   literalNumber,
 } from "../csharp-expression-builders.js";
-import { isCsharpRuntimeUndefinedTargetType } from "../../../../target-model/types/runtime-carriers.js";
+import { isCsharpAbsenceTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
 import { allocateExpressionTemp } from "../../bindings/binding-state.js";
@@ -67,8 +67,8 @@ export function planSelectedCsharpBinaryOperation(
     return { kind: "ConditionalExpression", condition: {
       kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
       left: { kind: "IsPatternExpression", expression: left, type: { kind: "IdentifierName", name: "var" }, designation: name },
-      right: runtimeUnionArmTest(reference, selection.targetOperation.valueArmIndex),
-    }, whenTrue: selection.targetOperation.retainCarrier ? reference : runtimeUnionArmProjection(reference, selection.targetOperation.valueArmIndex),
+      right: runtimeUnionArmTest(reference, selection.targetOperation.valueArmIndex, selection.leftType),
+    }, whenTrue: selection.targetOperation.retainCarrier ? reference : runtimeUnionArmProjection(reference, selection.targetOperation.valueArmIndex, selection.leftType),
     whenFalse: right };
   }
   if (selection.targetOperation.kind === "array-index-presence") {
@@ -85,9 +85,12 @@ export function planSelectedCsharpBinaryOperation(
       { node: selection.right, type: selection.rightInputType },
     ].map(({ node: operand, type }) => {
       const syntaxType = csharpTypeFromTargetTypeRef(type);
-      return syntaxType === undefined ? undefined : planExpressionWithExpectedType(
-        operand, sourceFile, input, diagnostics, syntaxType, undefined, type,
+      const expression = syntaxType === undefined ? undefined : planExpressionWithExpectedType(
+        operand, sourceFile, input, diagnostics, syntaxType, undefined, type, state,
       );
+      return expression === undefined || syntaxType === undefined ? undefined : {
+        kind: "CastExpression" as const, type: syntaxType, expression,
+      };
     });
     const [left, right] = operands;
     if (left === undefined || right === undefined) return undefined;
@@ -115,7 +118,7 @@ export function planSelectedCsharpBinaryOperation(
     let tested = operand;
     const intrinsicUndefined = input.program.source.ast.is.IsIdentifier(otherNode) &&
       input.program.sourceNavigation.referenceFor(otherNode) === undefined &&
-      isCsharpRuntimeUndefinedTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
+      isCsharpAbsenceTargetType(input.program.sourceEvidence.nodeTargetType(otherNode));
     if (other.kind !== "LiteralExpression" && !intrinsicUndefined) {
       const testedType = csharpTypeFromTargetTypeRef(selection.targetOperation.operand === "left"
         ? selection.leftType : selection.rightType);
@@ -144,7 +147,8 @@ export function planSelectedCsharpBinaryOperation(
         temporary = allocateExpressionTemp(state);
         reference = { kind: "IdentifierName", name: temporary };
       }
-      let test = arms.map(arm => runtimeUnionArmTest(reference, arm)).reduce((left, right): CsharpExpression => ({
+      const carrier = selection.targetOperation.operand === "left" ? selection.leftType : selection.rightType;
+      let test = arms.map(arm => runtimeUnionArmTest(reference, arm, carrier)).reduce((left, right): CsharpExpression => ({
         kind: "BinaryExpression", left, operatorToken: { kind: "BarBarToken" }, right,
       }));
       if (selection.targetOperation.negated) test = {

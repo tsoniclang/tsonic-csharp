@@ -2,13 +2,11 @@ import {
   csharpBaseTargetTypeFromBinding,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
-  getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpJsValueTargetType,
   isCsharpNullableReferenceTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpValueTypeTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
@@ -60,7 +58,7 @@ export function selectRuntimeUnionConversion(
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
     !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>
       arm.kind === "target-named" && !isCsharpValueTypeTargetType(arm) &&
-      !isCsharpRuntimeNullTargetType(arm) && !isCsharpRuntimeUndefinedTargetType(arm) &&
+      !isCsharpAbsenceTargetType(arm) &&
       (!isCsharpNullableReferenceTargetType(arm) || isCsharpNullableReferenceTargetType(target)) &&
       namedTargetTypeImplicitlyAccepts(input, getCsharpNullableElementTargetType(arm) ?? arm,
         referenceTarget, new Set()))) {
@@ -124,18 +122,9 @@ export function selectNullableConversion(
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
-  const sourceOptional = getCsharpGenericOptionalParts(source);
-  const targetOptional = getCsharpGenericOptionalParts(target);
-  if (sourceOptional !== undefined && targetElement !== undefined && targetTypeRefEquals(sourceOptional.element, targetElement)) {
-    return { kind: "generic-optional", ...sourceOptional, method: isCsharpValueTypeTargetType(targetElement) ? "ToNullable" : "ToReference" };
-  }
-  if (targetOptional !== undefined && sourceElement !== undefined && targetTypeRefEquals(targetOptional.element, sourceElement)) {
-    return { kind: "generic-optional", ...targetOptional, method: isCsharpValueTypeTargetType(sourceElement) ? "FromNullable" : "FromReference" };
-  }
   if (targetElement !== undefined) {
     if (
-      isCsharpRuntimeNullTargetType(source) ||
-      isCsharpRuntimeUndefinedTargetType(source)
+      isCsharpAbsenceTargetType(source)
     ) {
       return { kind: "implicit", proof: "nullable" };
     }

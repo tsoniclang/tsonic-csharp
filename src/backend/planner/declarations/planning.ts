@@ -25,7 +25,7 @@ import { planCsharpStructuralInterfaceMethods } from "./structural-interfaces.js
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { planParametersWithPrelude } from "../bindings/parameters.js";
 import { planBlockStatements } from "../statements/index.js";
-import { planTypeParameter, planTypeParameters } from "../types/type-parameters.js";
+import { planOuterTypeParameters, planTypeParameters } from "../types/type-parameters.js";
 import {
   getAsyncReturnExpressionExpectedType,
   getDeclarationReturnTargetType,
@@ -132,9 +132,8 @@ export function planClassDeclaration(
     modifiers: input.program.source.ast.hasModifierKind(node, "abstract") ? ["public", "abstract"] : ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: [
-      ...input.types.projectTypes.definitionContainingDeclaration(node)?.outerTypeParameters.map(parameter =>
-        planTypeParameter(parameter, input, diagnostics)) ?? [],
-      ...planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics),
+      ...planOuterTypeParameters(node, input, diagnostics),
+      ...planTypeParameters(declaration.TypeParameters?.Nodes ?? [], input, diagnostics, node),
     ],
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(interfaces.length === 0 && !jsonSerializable && !referenceIdentity

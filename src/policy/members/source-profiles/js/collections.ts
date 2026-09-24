@@ -12,6 +12,7 @@ import {
   csharpVoidTargetType,
   getCsharpJsMapTargetTypes,
   getCsharpJsSetElementTargetType,
+  getCsharpNullableElementTargetType,
   isCsharpRecordDictionaryTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
@@ -269,13 +270,13 @@ function mapGetMember(
   ) {
     return undefined;
   }
-  const valueType = isCsharpValueTypeTargetType(shape.value);
+  const valueType = isCsharpValueTypeTargetType(shape.value) && getCsharpNullableElementTargetType(shape.value) === undefined;
   return staticMethod(
     valueType
       ? "Tsonic.CSharp.Js.Map.getValue"
-      : "Tsonic.CSharp.Js.Map.getReference",
+      : "Tsonic.CSharp.Js.Map.getOptional",
     "get",
-    valueType ? "getValue" : "getReference",
+    valueType ? "getValue" : "getOptional",
     mapHelperType,
     [
       targetParameter("map", shape.receiver),
@@ -287,7 +288,7 @@ function mapGetMember(
         { name: "TKey" },
         {
           name: "TValue",
-          constraints: [{ kind: valueType ? "value-type" : "reference-type" }],
+          ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
       ],
     },

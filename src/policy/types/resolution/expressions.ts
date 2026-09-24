@@ -283,7 +283,7 @@ export function resolvePropertyAccessTargetType(
     : undefined;
   const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
   if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
-    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType, queries, state, receiverType,
+    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
       declaredMemberType);
     if (member !== undefined) return optionalAccessTargetType(member, selection.source.optionalChain);
   }

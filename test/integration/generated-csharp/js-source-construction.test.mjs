@@ -62,6 +62,25 @@ import { bigintTruncationSource } from "../../../../tsonic/test/fixtures/bigint-
 import { selectedConstructorFiles } from "../../../../tsonic/test/fixtures/selected-constructors.mjs";
 import { nativeSurfaceResultsSource, nativeNodeResultsSource } from "../../../../tsonic/test/fixtures/native-surface-results.mjs";
 import { nativeOptionRuntimeSource } from "../../../../tsonic/test/fixtures/native-process-options.mjs";
+import { nativeAbsenceSource, nativeAbsenceJsSource, nativeAbsenceArraySource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
+
+test("generic absence arrays retain native storage and aliases", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: nativeAbsenceArraySource }), "native-absence-js-arrays");
+});
+
+test("JS surface absence keeps membership and native values", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: nativeAbsenceJsSource }), "native-absence-js-collections");
+});
+
+for (const surface of [undefined, "js"]) {
+  test(`one native absence preserves values, aliases and evaluation (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: nativeAbsenceSource });
+    execute(compiled, `native-absence-${surface ?? "native"}`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(output, /Runtime\.(?:Null|Undefined|Optional)</u);
+    assert.match(output, /long\?/u);
+  });
+}
 
 test("native option fields check dynamic values before use", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()], sourceText: nativeOptionRuntimeSource });
@@ -255,6 +274,8 @@ for (const surface of [undefined, "js"]) {
       }
       function fallback(): int64 { effects += 10; return 9007199254740993n; }
       function closed(value: int64 | undefined): int64 { return pick<int64>(value, 7n); }
+      function nullValue<Value>(value: Value, present: boolean): Value | null { return present ? value : null; }
+      function invoke<Value>(callback: () => Value | undefined): Value | undefined { return callback(); }
       export function run(): boolean {
         const zero = maybe<int64>(0n, true);
         if (zero === undefined || zero !== 0n) return false;
@@ -263,10 +284,72 @@ for (const surface of [undefined, "js"]) {
         const absent = maybe<int64>(0n, false) ?? fallback();
         if (effectCount() !== 13 || absent !== 9007199254740993n) return false;
         const closedValue: int64 | undefined = maybe<int64>(9n, true);
+        if (nullValue<int64>(0n, true) !== 0n || nullValue<int64>(0n, false) !== null ||
+          pick<int64 | undefined>(undefined, 0n) !== 0n || invoke<int64>(() => 9n) !== 9n) return false;
         return narrow<int64>(zero, 1n) === 0n && pick<string>(maybe<string>("", true), "fallback") === "" &&
           pick<string>(undefined, "fallback") === "fallback" && closed(closedValue) === 9n && closed(undefined) === 7n;
       }
     ` }), `generic-absence-${surface ?? "native"}`);
+  });
+}
+
+for (const surface of [undefined, "js"]) {
+  test(`generic native optional containers retain storage and aliases (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    const compiled = compileCsharpSource({ surface, sourceText: `
+      import type { int64 } from "@tsonic/core/types.js";
+      function fill<Value>(values: (Value | undefined)[], value: Value): (Value | undefined)[] {
+        values[0] = value;
+        values[1] = undefined;
+        return values;
+      }
+      function forward<Value>(values: (Value | undefined)[], value: Value): (Value | undefined)[] {
+        return fill(values, value);
+      }
+      function fillNullish<Value>(values: (Value | null | undefined)[], value: Value): void {
+        values[0] = value;
+        values[1] = null;
+        values[2] = undefined;
+      }
+      function pickNullish<Value>(value: Value | null | undefined, fallback: Value): Value { return value ?? fallback; }
+      class Box<Value> {
+        values: (Value | undefined)[];
+        constructor(values: (Value | undefined)[]) { this.values = values; }
+        put(value: Value): void { this.values[0] = value; }
+        get(): Value | undefined { return this.values[0]; }
+      }
+      function capture<Value>(values: (Value | undefined)[]) {
+        return class Captured {
+          get(): Value | undefined { return values[0]; }
+          put(value: Value): void { values[0] = value; }
+        };
+      }
+      export function run(): boolean {
+        const integers: (int64 | undefined)[] = [0n, 1n];
+        const nullish: (int64 | null | undefined)[] = [undefined, null, undefined];
+        fillNullish(nullish, 9007199254740993n as int64);
+        if (nullish[0] !== 9007199254740993n || pickNullish<int64>(nullish[1], 0n) !== 0n ||
+          pickNullish<int64>(nullish[2], 1n) !== 1n) return false;
+        const alias = forward<int64>(integers, 9007199254740993n);
+        if (alias !== integers || alias[0] !== 9007199254740993n || alias[1] !== undefined) return false;
+        const integerBox = new Box<int64>(integers);
+        integerBox.put(-9007199254740993n);
+        if (integers[0] !== -9007199254740993n || integerBox.get() !== -9007199254740993n) return false;
+        const Captured = capture(integers);
+        const captured = new Captured();
+        captured.put(9007199254740993n);
+        if (captured.get() !== 9007199254740993n || integerBox.get() !== 9007199254740993n) return false;
+        const strings: (string | undefined)[] = ["before", "after"];
+        const stringBox = new Box<string>(strings);
+        if (forward<string>(strings, "") !== strings || stringBox.get() !== "" || strings[1] !== undefined) return false;
+        stringBox.put("value");
+        return strings[0] === "value" && strings[1] === undefined;
+      }
+    ` });
+    execute(compiled, `generic-native-optional-storage-${surface ?? "native"}`);
+    const output = [...compiled.artifacts.values()].join("\n");
+    assert.doesNotMatch(output, /Runtime\.Optional<|\.FromNullable|\.ToNullable|\.ToArray\(\)|\.Select\(/u);
+    assert.match(output, /long\?/u);
+    assert.match(output, /string\?/u);
   });
 }
 
@@ -438,7 +521,7 @@ for (const surface of [undefined, "js"]) {
         if (assigned !== 3 || countCalls() !== 3) throw new Exception("assignment defaults");
         const nullable: (number | null)[] = [null];
         const [retained = fallback()] = nullable;
-        if (retained !== null || countCalls() !== 3) throw new Exception("null is not undefined");
+        if (retained !== 4 || countCalls() !== 4) throw new Exception("native absence default");
         const absent: undefined[] = [undefined];
         const [selected = 4] = absent;
         if (selected !== 4) throw new Exception("undefined-only default");
@@ -448,16 +531,16 @@ for (const surface of [undefined, "js"]) {
   });
 }
 
-test("array defaults reject an erased null versus undefined distinction", () => {
-  const compiled = compileCsharpSource({ surface: "js", sourceText: `
-    export function run(values: (number | null | undefined)[]): number | null {
+test("array defaults consume the one native absence", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+    function read(values: (number | null | undefined)[]): number | null {
       const [value = 4] = values;
       return value;
     }
-  ` });
-  assert.ok(compiled.result.diagnostics.some(diagnostic =>
-    /must not conflate null and undefined/u.test(diagnostic.message)));
-  assert.equal(compiled.artifacts.size, 0);
+    export function run(): boolean {
+      return read([null]) === 4 && read([undefined]) === 4 && read([0]) === 0 && read([]) === 4;
+    }
+  ` }), "native-array-absence-default");
 });
 
 test("optional receiver temporaries cannot collide with authored locals", { timeout: 300_000 }, () => {
@@ -889,16 +972,16 @@ test("number-domain scalar boxing preserves complete values and evaluation order
     "number-boxing"), numberBoxingOutput);
 });
 
-test("broad values distinguish null, undefined and source reference identity", { timeout: 300_000 }, () => {
+test("broad values collapse absence and preserve source reference identity", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", sourceText: `
 class Item { value = 3; }
-function absent(value: unknown): boolean { return value === undefined && value !== null; }
-function nil(value: unknown): boolean { return value === null && value !== undefined; }
+function absent(value: unknown): boolean { return value === undefined && value === null; }
+function nil(value: unknown): boolean { return value === null && value === undefined; }
 function same(left: unknown, right: unknown): boolean { return left === right; }
 export function run(): boolean {
   const value = new Item();
   const empty = {};
-  return absent(undefined) && !absent(null) && nil(null) && !nil(undefined) &&
+  return absent(undefined) && absent(null) && nil(null) && nil(undefined) &&
     same(value, value) && !same(value, new Item()) && same(empty, empty) && !same(empty, {});
 }` }), "broad-reference-nullish");
 });
@@ -967,7 +1050,7 @@ function unit(): void { visits += 1; }
 function optional(value: number | undefined): boolean { return value === undefined; }
 function compare(value: number | undefined): boolean { return value === void unit(); }
 export function run(): boolean {
-  return String(void value()) === "undefined" && String(void unit()) === "undefined" &&
+  return String(void value()) === "null" && String(void unit()) === "null" &&
     optional(void value()) && optional(void unit()) && compare(undefined) && visits === 5;
 }
 ` }), "void-source-values");
@@ -1183,9 +1266,9 @@ export function run(): boolean {
   const evaluate = (): number => { evaluations += 1; return 7; };
   const absent = undefined;
   const missing = (): undefined => { evaluations += 1; return undefined; };
-  const absenceChecks = String(absent) === "undefined" &&
-    String(void evaluate()) === "undefined" && String(missing()) === "undefined" && evaluations === 2;
-  return String() === "" && String(undefined) === "undefined" && String(null) === "null" &&
+  const absenceChecks = String(absent) === "null" &&
+    String(void evaluate()) === "null" && String(missing()) === "null" && evaluations === 2;
+  return String() === "" && String(undefined) === "null" && String(null) === "null" &&
     String(true) === "true" && String(false) === "false" && String("a😀z") === "a😀z" &&
     String(-0) === "0" && String(1.5) === "1.5" && String(1e21) === "1e+21" &&
     String(Number.NaN) === "NaN" && String(Number.POSITIVE_INFINITY) === "Infinity" &&

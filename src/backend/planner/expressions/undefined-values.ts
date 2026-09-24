@@ -10,15 +10,12 @@ import type {
   TargetTypeRef,
 } from "../../../target-model/types/index.js";
 import {
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 import type {
   CsharpExpression,
 } from "../../target-ast/roslyn/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
 import type {
   CsharpPlanningContext,
 } from "../context.js";
@@ -47,11 +44,7 @@ export function planCsharpSourceUndefinedValue(
       expression: { kind: "LiteralExpression", value: null },
     };
   }
-  const sourceType = csharpRuntimeUndefinedTargetType();
-  const sourceRender = csharpTypeFromTargetTypeRef(sourceType);
-  if (sourceRender === undefined) {
-    return { kind: "not-representable" };
-  }
+  const sourceType = csharpAbsenceTargetType();
   const selection = readCsharpExpressionConversionClassification(
     node,
     input,
@@ -74,11 +67,7 @@ export function planCsharpSourceUndefinedValue(
     sourceType,
     targetType,
     selection,
-    {
-      kind: "SimpleMemberAccessExpression",
-      receiver: sourceRender,
-      name: "value",
-    },
+    { kind: "LiteralExpression", value: null },
   );
   return expression === undefined
     ? { kind: "not-representable" }

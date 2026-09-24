@@ -26,8 +26,13 @@ export function createCsharpProjectTypeCatalog(
       if (sourceDefinition === undefined) {
         return;
       }
-      const definition = Object.freeze({ ...sourceDefinition, typeParameterNames: Object.freeze([
-        ...sourceDefinition.typeParameterNames, ...projections?.get(declaration).map(parameter => parameter.name) ?? [],
+      const selectedProjections = projections?.get(declaration) ?? [];
+      const outerProjections = projections?.outer(declaration) ?? [];
+      const outerCount = sourceDefinition.outerTypeParameters.length;
+      const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
+        typeParameterNames: Object.freeze([
+        ...sourceDefinition.typeParameterNames.slice(0, outerCount), ...outerProjections.map(parameter => parameter.name),
+        ...sourceDefinition.typeParameterNames.slice(outerCount), ...selectedProjections.map(parameter => parameter.name),
       ]) });
       const existing = byId.get(definition.id);
       if (existing !== undefined && existing.declaration !== declaration) {
@@ -92,7 +97,10 @@ export function createCsharpProjectTypeCatalog(
       return definition === undefined ||
           typeArguments.length !== definition.typeParameterNames.length
         ? undefined
-        : projectDefinitionTargetType(definition, typeArguments);
+        : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
+          argument.kind === "type-parameter" && argument.name === definition.typeParameterNames[index]
+            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.name === argument.name) ?? argument
+            : argument));
     },
   });
 }

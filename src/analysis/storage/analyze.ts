@@ -178,16 +178,15 @@ export function analyzeCsharpStorage(
   }
 
   function recordCallableParameterRequirements(node: Node): void {
-    if (
-      !policy.ast.is.IsArrowFunction(node) &&
-      !policy.ast.is.IsFunctionExpression(node)
-    ) {
+    const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node);
+    if (!contextual && !policy.ast.is.IsFunctionDeclaration(node) &&
+      !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
       return;
     }
     const parameters = policy.ast.parameters(node).filter(
       (parameter): parameter is Node => parameter !== undefined,
     );
-    const callableTarget = expectedTypes.callableTarget(node);
+    const callableTarget = contextual ? expectedTypes.callableTarget(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpDelegateSignature(callableTarget);

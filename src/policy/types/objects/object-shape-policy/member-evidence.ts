@@ -13,6 +13,7 @@ import { resolveObjectShapeSourceMemberKey } from "./source-member-identity.js";
 import { resolveCsharpTypeParameterConstraints } from "../../../constraints/type-parameter-constraints.js";
 import { csharpGenericMethodValueCoversContract } from "../../../../target-model/types/generic-method-values.js";
 import { csharpSourceTypeParameterName } from "../../../../target-model/names/type-parameters.js";
+import { isCsharpIntegralTargetType } from "../../../../target-model/types/scalar-types.js";
 
 export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePolicyHost) {
   function retainLiteralMemberEvidence(
@@ -224,6 +225,18 @@ export function createCsharpObjectShapeMemberResolver(host: CsharpObjectShapePol
           )),
     ];
     if (authoredTypeNodes.length === 0) {
+      if (queries.types.isNumberLike(sourceType) || queries.types.isBigIntLike(sourceType)) {
+        const declarations = [...new Set([property.symbol, ...property.rootSymbols].flatMap(symbol =>
+          queries.declarations.symbolDeclarations(symbol)))];
+        const carriers = declarations.map(declaration => {
+          const value = host.ast.is.IsPropertyAssignment(declaration) || host.ast.is.IsShorthandPropertyAssignment(declaration)
+            ? ObjectLiteralProperty_Value(host.ast, declaration) : undefined;
+          return value === undefined ? undefined : host.typeResolver.resolveNode(value, queries.sourceFile, nextState(state));
+        });
+        const first = carriers[0];
+        if (first !== undefined && isCsharpIntegralTargetType(first) &&
+          carriers.every(carrier => carrier !== undefined && targetTypeRefEquals(carrier, first))) return first;
+      }
       return host.typeResolver.resolveType(
         sourceType,
         queries.sourceFile,

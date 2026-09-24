@@ -6,6 +6,7 @@ import type {
 import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
+  isCsharpAbsenceTargetType,
 } from "../../types/index.js";
 
 export type CsharpTypeofComparisonSelection =
@@ -31,6 +32,7 @@ export type CsharpTypeofComparisonSelection =
 export function getCsharpTypeofRuntimeKind(
   type: TargetTypeRef | undefined,
 ): CsharpTypeofRuntimeKind | undefined {
+  if (isCsharpAbsenceTargetType(type)) return "object";
   if (
     type === undefined ||
     getCsharpNullableElementTargetType(type) !== undefined
@@ -81,6 +83,11 @@ export function selectCsharpTypeofComparison(
       return rejected(
         "The selected nullable typeof comparison has no exact target runtime-kind representation.",
       );
+    }
+    if (runtimeKind === "object") {
+      return valueRuntimeKind === "object"
+        ? { kind: "constant", value: !negated }
+        : { kind: "target-type-test", targetType: nullableElement, negated: !negated };
     }
     return valueRuntimeKind === runtimeKind
       ? {

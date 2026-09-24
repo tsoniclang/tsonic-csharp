@@ -12,7 +12,7 @@ import {
   selectCsharpConversion,
 } from "../../policy/conversions/index.js";
 import {
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
@@ -259,7 +259,7 @@ function collectTargetContractAlternatives(
   const nullableElement = getCsharpNullableElementTargetType(type);
   if (nullableElement !== undefined) {
     collectTargetContractAlternatives(nullableElement, alternatives);
-    const undefinedType = csharpRuntimeUndefinedTargetType();
+    const undefinedType = csharpAbsenceTargetType();
     alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
     return;
   }

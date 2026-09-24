@@ -129,26 +129,30 @@ export function projectSourceDeclarationTargetType(
   const { host } = scope;
   const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
   if (definition === undefined) return undefined;
-  const outerCount = definition.outerTypeParameters.length;
-  if (typeArguments.length !== definition.typeParameterNames.length - outerCount) {
-    if (typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
-    const sources = sourceArguments ?? host.ast.typeParameters(declaration).map(parameter =>
-      parameter === undefined ? undefined : host.semanticsFor(declaration).types.authoredType(parameter));
-    if (sources.some(source => source === undefined)) return undefined;
-    const projections = resolveCsharpProjectionArguments(scope, declaration, sources as readonly Type[], typeArguments, state);
-    if (projections === undefined) return undefined;
-    typeArguments = [...typeArguments, ...projections];
-  }
   const queries = host.semanticsFor(declaration);
   const bindings = selectedType === undefined ? undefined : queries.types.typeArgumentBindings(selectedType);
-  const outerArguments = definition.outerTypeParameters.map((parameter, index): TargetTypeRef | undefined => {
+  const outerSources = definition.outerTypeParameters.map(parameter => selectedType === undefined
+    ? queries.types.authoredType(parameter)
+    : bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer")?.argumentType);
+  const outerArguments = outerSources.map((source, index): TargetTypeRef | undefined => {
     if (selectedType === undefined) return { kind: "type-parameter", name: definition.typeParameterNames[index]! };
-    const binding = bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer");
-    return binding === undefined ? undefined : scope.resolveTypeWithState(binding.argumentType, queries.sourceFile, nextState(state));
+    return source === undefined ? undefined : scope.resolveTypeWithState(source, queries.sourceFile, nextState(state));
   });
-  if (outerArguments.some(argument => argument === undefined)) return undefined;
+  if (outerArguments.some(argument => argument === undefined) || outerSources.some(source => source === undefined)) return undefined;
+  const ownParameters = definition.typeParameters;
+  const sources = sourceArguments ?? ownParameters.map(parameter =>
+    parameter === undefined ? undefined : queries.types.authoredType(parameter));
+  if (sources.some(source => source === undefined) || typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
+  const projections = resolveCsharpProjectionArguments(scope, declaration,
+    [...outerSources, ...sources] as readonly Type[],
+    [...outerArguments as readonly TargetTypeRef[], ...typeArguments], state,
+    [...definition.outerTypeProjections, ...definition.typeProjections],
+    [...definition.outerTypeParameters, ...ownParameters]);
+  if (projections === undefined) return undefined;
+  const outerProjectionCount = definition.outerTypeProjections.length;
   return host.projectTypeCatalog.targetTypeForDeclaration(
     declaration,
-    [...outerArguments as readonly TargetTypeRef[], ...typeArguments],
+    [...outerArguments as readonly TargetTypeRef[], ...projections.slice(0, outerProjectionCount),
+      ...typeArguments, ...projections.slice(outerProjectionCount)],
   );
 }

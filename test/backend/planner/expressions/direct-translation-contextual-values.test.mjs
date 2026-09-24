@@ -174,11 +174,11 @@ namespace Tsonic.Generated
     {
         public static string unwrap(string? value)
         {
-            return value;
+            return value!;
         }
         public static string invoke(Func<string>? value)
         {
-            return value();
+            return value!();
         }
     }
 }
