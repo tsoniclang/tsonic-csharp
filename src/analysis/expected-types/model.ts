@@ -11,6 +11,7 @@ export interface CsharpExpectedTypeClassifications {
   readonly issues: readonly CsharpExpectedTypeIssue[];
   readonly targetTypes: readonly TargetTypeRef[];
   forExpression(expression: Node): readonly TargetTypeRef[];
+  requiresExactIntegerConversion(expression: Node, targetType: TargetTypeRef): boolean;
   storageTypesForExpression(expression: Node): readonly TargetTypeRef[];
   callableTarget(expression: Node): TargetTypeRef | undefined;
   binaryExpected(

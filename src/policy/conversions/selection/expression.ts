@@ -3,6 +3,7 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpNullableReferenceTargetType,
+  isCsharpIntegralTargetType,
   isCsharpThrowableType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -41,7 +42,7 @@ export function selectCsharpExpressionConversion(
   ) {
     return { kind: "implicit", proof: "object-shape-interface" };
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target);
   if (runtimeUnionArms !== undefined) {
     const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
       const sourceToArm = selectCsharpExpressionConversion(
@@ -100,6 +101,16 @@ export function selectCsharpProviderArgumentConversion(
   const sourceElementType = getCsharpNullableElementTargetType(source);
   const targetElementType = getCsharpNullableElementTargetType(target);
   if (
+    adapter.nativeIntegerConversion === "checked" &&
+    source !== undefined &&
+    isCsharpIntegralTargetType(sourceElementType ?? source) &&
+    isCsharpIntegralTargetType(targetElementType ?? target) &&
+    (sourceElementType === undefined || targetElementType !== undefined) &&
+    targetTypeRefEquals(adapter.resultType, targetElementType ?? target)
+  ) {
+    return { kind: "checked-native-integer" };
+  }
+  if (
     source !== undefined &&
     sourceElementType !== undefined &&
     targetElementType !== undefined &&
@@ -157,7 +168,9 @@ export function selectCsharpFlowReadConversion(
   if (targetTypeRefEquals(storageType, selectedReadType)) return { kind: "identity" };
   const nullableElement = getCsharpNullableElementTargetType(storageType);
   if (nullableElement !== undefined && targetTypeRefEquals(nullableElement, selectedReadType)) {
-    return selectCsharpConversion(input, storageType, selectedReadType, "explicit");
+    return isCsharpNullableReferenceTargetType(storageType)
+      ? { kind: "implicit", proof: "nullable" }
+      : { kind: "nullable-value", asserted: false };
   }
   const runtimeUnionArms = getCsharpRuntimeUnionArms(nullableElement ?? storageType);
   if (runtimeUnionArms !== undefined) {
@@ -170,8 +183,6 @@ export function selectCsharpFlowReadConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
-        unwrapNullableValue: nullableElement !== undefined &&
-          !isCsharpNullableReferenceTargetType(storageType),
       };
     }
     return {
@@ -207,7 +218,12 @@ export function csharpConversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
 ): boolean {
+  if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
+    selection.kind === "never" ||
+    selection.kind === "checked-native-integer" ||
+    selection.kind === "exact-integer" ||
+    selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||
     selection.kind === "empty-record" ||
@@ -216,9 +232,9 @@ export function csharpConversionIsApplicable(
     selection.kind === "provider-argument-adapter" ||
     selection.kind === "lifted-provider-argument-adapter" ||
     selection.kind === "nullable-value" ||
+    selection.kind === "nullable-reference" ||
     selection.kind === "runtime-union-projection" ||
     selection.kind === "js-value-box" ||
-    selection.kind === "undefined-object-box" ||
     selection.kind === "js-value-cast" ||
     mode === "explicit" && selection.kind === "cast";
 }

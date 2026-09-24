@@ -12,7 +12,7 @@ import {
   isCsharpNullableReferenceTargetType,
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
-import { getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import {
   targetTypeRefEquals,
 } from "../../../target-model/types/equality.js";
@@ -51,10 +51,14 @@ export function substituteTargetTypeParameters(
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
       const methodValue = (type as CsharpTargetNamedTypeRef).csharpGenericMethodValue;
+      const factory = (type as CsharpTargetNamedTypeRef).csharpClassFactory;
       const methodSubstitutions = methodValue === undefined ? substitutions
         : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
       return {
         ...type,
+        ...(factory === undefined ? {} : { csharpClassFactory: { ...factory,
+          instance: substituteTargetTypeParameters(factory.instance, substitutions) as CsharpTargetNamedTypeRef,
+        } }),
         ...(methodValue === undefined ? {} : { csharpGenericMethodValue: { ...methodValue,
           owner: substituteTargetTypeParameters(methodValue.owner, substitutions),
           contract: substituteTargetTypeParameters(methodValue.contract, methodSubstitutions),
@@ -142,6 +146,10 @@ export function inferCsharpTargetTypeParameterBindings(
   return match(pattern, actual) ? bindings : undefined;
 
   function match(left: TargetTypeRef, right: TargetTypeRef): boolean {
+    const optional = getCsharpGenericOptionalParts(left);
+    if (optional !== undefined) {
+      return match(optional.element, getCsharpGenericOptionalParts(right)?.element ?? getCsharpNullableElementTargetType(right) ?? right);
+    }
     if (left.kind === "type-parameter" && parameterNames.has(left.name)) {
       const existing = bindings.get(left.name);
       if (existing === undefined) {

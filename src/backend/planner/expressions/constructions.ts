@@ -36,6 +36,8 @@ import {
   translateCsharpJsValueInvocation,
 } from "./js-value-operations.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
+import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 
 export function translateCsharpConstruction(
   node: Node,
@@ -356,6 +358,26 @@ function translateSourceOwnedConstruction(
     planExpression,
     planCallArgument,
   );
+  const calleeNode = selection.source.sourceCallee.expression;
+  const calleeReference = input.program.sourceNavigation.sourceReferenceFor(calleeNode);
+  const factory = getCsharpClassFactory(input.types.classifications.resolveNode(calleeNode));
+  if (arguments_ !== undefined && factory !== undefined) {
+    const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
+    const typeArguments = targetType?.kind === "target-named" ?
+      (targetType.typeArguments ?? []).slice(factory.outerTypeParameterCount).map(csharpTypeFromTargetTypeRef) : [];
+    if (typeArguments.some(argument => argument === undefined)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A generic class construction requires its exact native type arguments."));
+      return undefined;
+    }
+    return callee === undefined ? undefined : { kind: "InvocationExpression",
+      callee: { kind: "SimpleMemberAccessExpression", receiver: callee, name: factory.createMethodName,
+        ...(typeArguments.length === 0 ? {} : { typeArguments: typeArguments as import("../../target-ast/roslyn/index.js").CsharpTypeNode[] }) }, arguments: arguments_ };
+  }
+  if (arguments_ !== undefined && getCsharpDelegateSignature(input.types.classifications.resolveNode(calleeNode)) !== undefined &&
+    (calleeReference === undefined || !input.program.source.ast.is.IsClassDeclaration(calleeReference.declaration))) {
+    const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
+    return callee === undefined ? undefined : { kind: "InvocationExpression", callee, arguments: arguments_ };
+  }
   return arguments_ === undefined
     ? undefined
     : {

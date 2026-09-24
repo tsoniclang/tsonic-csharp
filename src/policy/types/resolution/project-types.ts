@@ -12,6 +12,7 @@ import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 
 export function resolveSelectedSymbolType(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
@@ -59,6 +60,7 @@ export function resolveProjectSourceSemanticType(
   type: Type,
   queries: SourceFileSemantics,
   typeArguments: readonly TargetTypeRef[],
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
   const symbols = [
     queries.declarations.typeAliasSymbol(type),
@@ -74,6 +76,9 @@ export function resolveProjectSourceSemanticType(
       const targetType = projectSourceDeclarationTargetType(
         declaration,
         typeArguments,
+        queries.types.effectiveTypeArguments(type),
+        state,
+        type,
       );
       if (targetType !== undefined) {
         return targetType;
@@ -90,6 +95,7 @@ export function resolveProjectSourceType(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   typeArguments?: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
 ): TargetTypeRef | undefined {
   const reference = host.navigation.referenceFor(node);
   if (reference === undefined) {
@@ -105,17 +111,48 @@ export function resolveProjectSourceType(
   return projectSourceDeclarationTargetType(
     reference.declaration,
     resolvedArguments as readonly TargetTypeRef[],
+    sourceArguments ?? csharpSourceTypeArgumentNodes(host.ast, node).map(argument => host.semantics(sourceFile).types.authoredType(argument)),
+    state,
+    host.semantics(sourceFile).types.authoredType(node),
   );
 }
 
 
 export function projectSourceDeclarationTargetType(
-  { host }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   declaration: Node,
   typeArguments: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
+  state: CsharpTypeResolutionState = { depth: 0 },
+  selectedType?: Type,
 ): TargetTypeRef | undefined {
+  const { host } = scope;
+  const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
+  if (definition === undefined) return undefined;
+  const queries = host.semanticsFor(declaration);
+  const bindings = selectedType === undefined ? undefined : queries.types.typeArgumentBindings(selectedType);
+  const outerSources = definition.outerTypeParameters.map(parameter => selectedType === undefined
+    ? queries.types.authoredType(parameter)
+    : bindings?.find(candidate => candidate.declaration === parameter && candidate.scope === "outer")?.argumentType);
+  const outerArguments = outerSources.map((source, index): TargetTypeRef | undefined => {
+    if (selectedType === undefined) return { kind: "type-parameter", name: definition.typeParameterNames[index]! };
+    return source === undefined ? undefined : scope.resolveTypeWithState(source, queries.sourceFile, nextState(state));
+  });
+  if (outerArguments.some(argument => argument === undefined) || outerSources.some(source => source === undefined)) return undefined;
+  const ownParameters = definition.typeParameters;
+  const sources = sourceArguments ?? ownParameters.map(parameter =>
+    parameter === undefined ? undefined : queries.types.authoredType(parameter));
+  if (sources.some(source => source === undefined) || typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
+  const projections = resolveCsharpProjectionArguments(scope, declaration,
+    [...outerSources, ...sources] as readonly Type[],
+    [...outerArguments as readonly TargetTypeRef[], ...typeArguments], state,
+    [...definition.outerTypeProjections, ...definition.typeProjections],
+    [...definition.outerTypeParameters, ...ownParameters]);
+  if (projections === undefined) return undefined;
+  const outerProjectionCount = definition.outerTypeProjections.length;
   return host.projectTypeCatalog.targetTypeForDeclaration(
     declaration,
-    typeArguments,
+    [...outerArguments as readonly TargetTypeRef[], ...projections.slice(0, outerProjectionCount),
+      ...typeArguments, ...projections.slice(outerProjectionCount)],
   );
 }

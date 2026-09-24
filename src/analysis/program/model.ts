@@ -70,6 +70,8 @@ export interface CsharpPlanningHost {
 }
 
 export interface CsharpTargetProgram {
+  readonly typeProjections: import("../declarations/type-projections.js").CsharpGenericProjectionIndex;
+  readonly classFactories: import("../project-types/class-factories.js").CsharpClassFactoryIndex;
   readonly captureStorage: import("../callables/capture-storage.js").CsharpCaptureStorage;
   readonly numericRepresentations: CsharpNumericRepresentations;
   readonly host: CsharpPlanningHost;

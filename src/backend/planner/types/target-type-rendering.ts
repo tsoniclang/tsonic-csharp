@@ -14,9 +14,13 @@ import {
   csharpSourcePrimitiveCsharpRender,
   csharpStructuralObjectShapeIdentity,
   isCsharpNullableReferenceTargetType,
+  isCsharpNeverTargetType,
 } from "../../../target-model/types/index.js";
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
+  if (isCsharpNeverTargetType(type)) {
+    return { kind: "IdentifierName", name: "Never", requiredUsingNamespace: "Tsonic.CSharp.Runtime" };
+  }
   const method = getCsharpGenericMethodValue(type);
   if (method !== undefined) return csharpTypeFromTargetTypeRef(method.owner);
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type);

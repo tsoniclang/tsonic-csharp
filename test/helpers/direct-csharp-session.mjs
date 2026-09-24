@@ -154,6 +154,7 @@ export function compileCsharpSource(options) {
       sourcePackages: checked.sourcePackages,
       project: checked.project,
       target: checked.target,
+      runtimeActivatedCapabilityIds: [],
       runtimeReferences: [
         ...(runtime.references ?? []),
         ...(options.runtimeReferences ?? []),

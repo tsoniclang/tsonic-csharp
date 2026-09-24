@@ -17,6 +17,20 @@ test(".NET provider source selection preserves every wide primitive as bigint", 
   }]);
 });
 
+test(".NET native projections retain every primitive width in scalar, nullable and array positions", () => {
+  for (const name of ["bool", "char", "int8", "uint8", "int16", "uint16", "int32", "uint32",
+    "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float16", "float32", "float64", "decimal"]) {
+    const primitive = { kind: "source-primitive", name };
+    assert.deepEqual(dotnetTypeRefToTargetTypeRef(primitive), primitive);
+    assert.deepEqual(dotnetTypeRefToProviderType(primitive), primitive);
+    assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "array", elementType: primitive }), {
+      kind: "array", element: primitive,
+    });
+    const nullable = dotnetTypeRefToTargetTypeRef({ kind: "nullable", elementType: primitive });
+    assert.deepEqual(nullable.typeArguments, [primitive]);
+  }
+});
+
 test(".NET provider declaration model preserves generic base arguments on heritage declarations", () => {
   const int32 = { kind: "source-primitive", name: "int32" };
   const baseType = {

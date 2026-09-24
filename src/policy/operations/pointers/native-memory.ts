@@ -4,7 +4,7 @@ import type { TsonicMemoryLayoutFact, TsonicRawLocationSelection } from "@tsonic
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { csharpFixedArrayRepresentationRejection, readCsharpSourceStruct } from "../../types/resolution/source-markers.js";
 import { csharpTargetBindingSubstitutions, substituteCsharpTargetMember } from "../../types/callables/member-substitution.js";
-import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeLocationPointee, csharpRuntimeLocationTargetType, csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { getCsharpNullableElementTargetType, csharpNullableReferenceTargetType } from "../../../target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import type { CsharpPolicyContext } from "../../model/context.js";
@@ -154,13 +154,13 @@ export function selectCsharpRawLocation(input: CsharpPolicyContext, node: Node, 
   if (inputType === undefined) return reject("The raw conversion operand has no exact native carrier.");
   if (operation.operation === "to-raw") {
     const pointee = csharpRuntimeLocationPointee(inputType);
-    if (!isCsharpRuntimeUndefinedTargetType(inputType) &&
+    if (!isCsharpAbsenceTargetType(inputType) &&
       (pointee === undefined || !targetTypeRefEquals(pointee, layout.pointeeType))) {
       return reject("The typed location and selected memory layout have different C# pointee representations.");
     }
   } else {
     const raw = getCsharpNullableElementTargetType(inputType) ?? inputType;
-    if (!isCsharpRuntimeUndefinedTargetType(raw) && !targetTypeRefEquals(raw, csharpRuntimeRawPointerTargetType())) {
+    if (!isCsharpAbsenceTargetType(raw) && !targetTypeRefEquals(raw, csharpRuntimeRawPointerTargetType())) {
       return reject("Reinterpretation requires the exact raw address carrier.");
     }
     const pointee = operation.explicitPointeeTypeNode === undefined ? layout.pointeeType

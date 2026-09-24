@@ -1,4 +1,5 @@
 import type { ExtensionFactSubject, Node } from "@tsonic/tsts";
+import type { CsharpSwitchSelection } from "../../policy/operations/control-flow/switch.js";
 import type { CsharpMemoryBindingSelection } from "../../policy/operations/memory-bindings.js";
 import type {
   CsharpJsValueOperationSelection,
@@ -118,6 +119,7 @@ export interface CsharpPropertyClassification {
 
 export interface CsharpBinaryClassification {
   readonly instanceType?: TargetTypeRef;
+  readonly instanceFactory?: TargetTypeRef;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;
   readonly destructuring: CsharpOperationSelection<
@@ -146,6 +148,7 @@ export interface CsharpTargetOperationClassifications {
   property(node: Node): CsharpPropertyClassification | undefined;
   element(node: Node): CsharpElementClassification | undefined;
   binary(node: Node): CsharpBinaryClassification | undefined;
+  switchStatement(node: Node): CsharpSwitchSelection | undefined;
   unary(node: Node): CsharpUnaryClassification | undefined;
   iteration(node: Node): CsharpOperationSelection<CsharpResolvedIteration> | undefined;
   resource(node: Node): CsharpOperationSelection<CsharpResolvedResourceManagement> | undefined;

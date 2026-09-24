@@ -14,6 +14,7 @@ import {
 } from "../../policy/types/index.js";
 import { selectCsharpObjectLiteralUnionShape } from "../../policy/types/objects/object-shape-policy/union-construction.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
+import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpObjectShapeClassifications } from "./model.js";
 import { selectCsharpStructuralInterface, type CsharpStructuralInterfaceRegistration } from "./structural-interfaces.js";
 import { mergeCsharpObjectShapeSubjects } from "../../policy/types/objects/object-shape-policy/construction.js";
@@ -28,11 +29,13 @@ const maximumObjectShapeClassifications = 131_072;
 export function analyzeCsharpObjectShapes(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
+  operations: CsharpTargetOperationClassifications,
 ): CsharpObjectShapeClassifications & CsharpStructuralInterfaceRegistration & { seal(): CsharpObjectShapeClassifications } {
   const byNode = new WeakMap<Node, CsharpObjectShapeFact>();
   const byTarget = new Map<string, CsharpObjectShapeFact>();
   const copies = new Map<string, CsharpObjectShapeFact>();
   const objectLiterals = new Map<Node, SourceFile>();
+  const operationTypes: TargetTypeRef[] = [];
   let classificationCount = 0;
   let sealed = false;
   const structuralInterfaces = new Map<string, Map<string, CsharpStructuralInterfaceImplementation>>();
@@ -116,6 +119,17 @@ export function analyzeCsharpObjectShapes(
   }
   for (const type of evidence.targetTypes) {
     rememberTargetShape(type, policy.objectShapes.resolveTarget(type));
+  }
+  const visitedOperationTypes = new Set<string>();
+  for (let index = 0; index < operationTypes.length; index += 1) {
+    const type = operationTypes[index]!;
+    const key = targetTypeRefKey(type);
+    if (visitedOperationTypes.has(key)) continue;
+    visitedOperationTypes.add(key);
+    reserveClassification();
+    const shape = policy.objectShapes.resolveTarget(type);
+    rememberTargetShape(type, shape);
+    operationTypes.push(...csharpTargetTypeComponents(type, shape));
   }
 
   const literalResults = new WeakMap<
@@ -264,6 +278,10 @@ export function analyzeCsharpObjectShapes(
 
   function visit(node: Node, sourceFile: SourceFile): void {
     if (evidence.isCompileTimeMetadata(node)) return;
+    const operation = operations.call(node) ?? operations.construction(node);
+    for (const type of operation?.sourceArgumentParameterTypes ?? []) {
+      if (type !== undefined) operationTypes.push(type);
+    }
     const shape = policy.objectShapes.resolveNode(node, sourceFile);
     if (shape !== undefined) {
       reserveClassification();

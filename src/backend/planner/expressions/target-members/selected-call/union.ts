@@ -47,7 +47,7 @@ export function planCsharpUnionDispatcherCall(
       kind: "InvocationExpression",
       callee: {
         kind: "SimpleMemberAccessExpression",
-        receiver: runtimeUnionArmProjection({ kind: "IdentifierName", name: "receiver" }, index),
+        receiver: runtimeUnionArmProjection({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType),
         name: method.targetName,
         ...(selectedTypeArguments.length === 0 ? {} : { typeArguments: selectedTypeArguments }),
       },
@@ -59,7 +59,7 @@ export function planCsharpUnionDispatcherCall(
     if (index === union.methods.length - 1) statements.push(...branch);
     else statements.push({
       kind: "IfStatement",
-      condition: runtimeUnionArmTest({ kind: "IdentifierName", name: "receiver" }, index),
+      condition: runtimeUnionArmTest({ kind: "IdentifierName", name: "receiver" }, index, union.receiverType),
       thenBody: { kind: "Block", statements: branch },
     });
   }

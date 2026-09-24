@@ -52,8 +52,7 @@ import {
   planCsharpConditionExpression,
 } from "./expression-bool-carriers.js";
 import {
-  csharpRuntimeNullTargetType,
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpArrayLiteralInputCarrierTargetType,
   targetTypeRefEquals,
@@ -99,7 +98,7 @@ export function planExpressionWithExpectedTypeCore(
     (expectedTypeSubject === undefined ? undefined : getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile));
   const expectedRuntimeNullishLiteral = planExpectedRuntimeNullishLiteral(node, sourceFile, input, effectiveExpectedTargetType, expectedTypeSubject);
   if (expectedRuntimeNullishLiteral !== undefined) {
-    return expectedRepresentation(expectedRuntimeNullishLiteral);
+    return sourceRepresentation(expectedRuntimeNullishLiteral);
   }
   if (effectiveExpectedTargetType !== undefined && isGlobalUndefinedLiteral(node, sourceFile, input)) {
     const selected = planCsharpSourceUndefinedValue(node, effectiveExpectedTargetType, sourceFile, input, diagnostics);
@@ -374,16 +373,12 @@ function planExpectedRuntimeNullishLiteral(
   if (effectiveExpectedTargetType === undefined) {
     return undefined;
   }
-  const nullCarrier = csharpRuntimeNullTargetType();
-  if (targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, nullCarrier) && HasSourceKind(input.program.source.ast, node, KindNullKeyword)) {
-    return runtimeCarrierSingletonValue(nullCarrier);
-  }
-  const undefinedCarrier = csharpRuntimeUndefinedTargetType();
+  const absence = csharpAbsenceTargetType();
   if (
-    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, undefinedCarrier) &&
-    isGlobalUndefinedLiteral(node, sourceFile, input)
+    targetAcceptsRuntimeCarrier(effectiveExpectedTargetType, absence) &&
+    (HasSourceKind(input.program.source.ast, node, KindNullKeyword) || isGlobalUndefinedLiteral(node, sourceFile, input))
   ) {
-    return runtimeCarrierSingletonValue(undefinedCarrier);
+    return { kind: "LiteralExpression", value: null };
   }
   return undefined;
 }
@@ -391,17 +386,6 @@ function planExpectedRuntimeNullishLiteral(
 function targetAcceptsRuntimeCarrier(expectedTargetType: TargetTypeRef, carrier: TargetTypeRef): boolean {
   return targetTypeRefEquals(expectedTargetType, carrier) ||
     (getCsharpRuntimeUnionArms(expectedTargetType)?.some((arm) => targetTypeRefEquals(arm, carrier)) === true);
-}
-
-function runtimeCarrierSingletonValue(carrier: TargetTypeRef): CsharpExpression | undefined {
-  const type = csharpTypeFromTargetTypeRef(carrier);
-  return type === undefined
-    ? undefined
-    : {
-        kind: "SimpleMemberAccessExpression",
-        receiver: type,
-        name: "value",
-      };
 }
 
 function isGlobalUndefinedLiteral(
@@ -419,5 +403,5 @@ function isGlobalUndefinedLiteral(
   }
   const targetType = input.types.classifications.resolveNode(node, sourceFile);
   return targetType !== undefined &&
-    targetTypeRefEquals(targetType, csharpRuntimeUndefinedTargetType());
+    targetTypeRefEquals(targetType, csharpAbsenceTargetType());
 }

@@ -13,8 +13,8 @@ import type {
 import {
   csharpTsUnionTargetType,
   csharpTsValueTargetType,
-  csharpRuntimeUndefinedTargetType,
   getCsharpNullableElementTargetType,
+  getCsharpGenericOptionalParts,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
   isCsharpNullableReferenceTargetType,
@@ -48,6 +48,7 @@ import {
   planCsharpJsValueBox,
 } from "./js-value-operations.js";
 import { planCsharpEmptyRecordConversion } from "./empty-record-conversion.js";
+import { runtimeUnionArmProjection } from "./runtime-union-projections.js";
 
 export function readCsharpConversionClassification(
   node: Node,
@@ -108,6 +109,55 @@ export function applyCsharpConversionSelection(
     return undefined;
   }
   switch (selection.kind) {
+    case "never": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value", typeArguments: [type] },
+        arguments: [],
+      };
+    }
+    case "checked-native-integer": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      return type === undefined ? undefined : {
+        kind: "CheckedExpression",
+        expression: { kind: "CastExpression", type, expression },
+      };
+    }
+    case "exact-integer": {
+      const source = renderRequiredTargetType(node, selection.input, diagnostics);
+      const target = renderRequiredTargetType(node, selection.output, diagnostics);
+      return source === undefined || target === undefined ? undefined : {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: qualifiedCsharpType("Tsonic.CSharp.Runtime", "IntegerConversions"),
+          name: selection.nullable ? "CheckedNullable" : "Checked",
+          typeArguments: [source, target],
+        },
+        arguments: [{ kind: "Argument", expression }],
+      };
+    }
+    case "integer-truncation": {
+      const type = renderRequiredTargetType(node, targetType, diagnostics);
+      if (type === undefined) return undefined;
+      if (expression.kind !== "InvocationExpression" || expression.arguments.length !== 2) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "A native integer truncation requires its exact classified two-argument invocation."));
+        return undefined;
+      }
+      return {
+        kind: "CastExpression", type,
+        expression: {
+          ...expression,
+          callee: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: qualifiedCsharpType("Tsonic.CSharp.Js", "BigIntOps"),
+            name: selection.signed ? "AsIntNative" : "AsUintNative",
+          },
+        },
+      };
+    }
     case "identity":
       return expression;
     case "array-like-union": {
@@ -158,24 +208,41 @@ export function applyCsharpConversionSelection(
             expression,
           )
         : expression;
+    case "nullable-reference":
+      return { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } };
     case "nullable-value":
       return {
         kind: "SimpleMemberAccessExpression",
-        receiver: expression,
+        receiver: selection.asserted
+          ? { kind: "PostfixUnaryExpression", operand: expression, operatorToken: { kind: "ExclamationToken" } }
+          : expression,
         name: "Value",
       };
     case "runtime-union-projection":
-      return {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: selection.unwrapNullableValue
-            ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" }
-            : expression,
-          name: `As${selection.armIndex + 1}`,
-        },
-        arguments: [],
+      return runtimeUnionArmProjection(expression, selection.armIndex, sourceType);
+    case "nullable-map": {
+      const sourceElement = getCsharpNullableElementTargetType(sourceType);
+      const targetElement = getCsharpNullableElementTargetType(targetType);
+      if (sourceElement === undefined || targetElement === undefined ||
+        !targetTypeRefEquals(sourceElement, selection.sourceElement) ||
+        !targetTypeRefEquals(targetElement, selection.targetElement)) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "Nullable conversion requires its exact sealed source and destination element carriers."));
+        return undefined;
+      }
+      const presentType = renderRequiredTargetType(node, sourceElement, diagnostics);
+      const resultType = renderRequiredTargetType(node, targetType, diagnostics);
+      if (presentType === undefined || resultType === undefined) return undefined;
+      const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
+      const present = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+        sourceElement, targetElement, selection.conversion, { kind: "IdentifierName", name });
+      return present === undefined ? undefined : {
+        kind: "ConditionalExpression",
+        condition: { kind: "IsPatternExpression", expression, type: presentType, designation: name },
+        whenTrue: present,
+        whenFalse: { kind: "DefaultExpression", type: resultType },
       };
+    }
     case "runtime-union-reference": {
       const arms = getCsharpRuntimeUnionArms(sourceType);
       if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
@@ -245,15 +312,6 @@ export function applyCsharpConversionSelection(
         sourceType,
         expression,
       );
-    case "undefined-object-box": {
-      const undefinedType = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
-      return undefinedType === undefined ? undefined : {
-        kind: "BinaryExpression",
-        left: { kind: "CastExpression", type: { kind: "NullableType", inner: { kind: "PredefinedType", name: "object" } }, expression },
-        operatorToken: { kind: "QuestionQuestionToken" },
-        right: { kind: "SimpleMemberAccessExpression", receiver: undefinedType, name: "value" },
-      };
-    }
     case "js-value-cast":
       return invokeStaticGeneric(
         selection.runtimeUnionArms === undefined
@@ -435,11 +493,13 @@ function applyRuntimeUnionArmConversion(
   >,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  const arms = getCsharpRuntimeUnionArms(targetType);
+  const unionType = getCsharpNullableElementTargetType(targetType) ?? targetType;
+  const arms = getCsharpRuntimeUnionArms(unionType);
   const selectedArm = arms?.[selection.armIndex];
-  const declaringType = targetType === undefined
+  const optional = getCsharpGenericOptionalParts(targetType);
+  const declaringType = unionType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(targetType);
+    : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType);
   if (
     selectedArm === undefined ||
     !targetTypeRefEquals(selectedArm, selection.armType) ||

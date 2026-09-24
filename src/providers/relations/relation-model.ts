@@ -12,6 +12,7 @@ import type {
 import {
   canonicalProviderValue,
 } from "../model/canonical-value.js";
+import { isCsharpIntegralTargetType } from "../../target-model/types/scalar-types.js";
 
 export interface CsharpProviderSourceIdentityBase {
   readonly providerId: string;
@@ -67,6 +68,7 @@ export type CsharpProviderArgumentAdapter =
       readonly targetName: string;
       readonly inputType: TargetTypeRef;
       readonly resultType: TargetTypeRef;
+      readonly nativeIntegerConversion?: "checked";
     };
 
 export interface CsharpProviderParameterRelation {
@@ -745,7 +747,12 @@ function providerArgumentAdapterIsValid(
       return parameter.sourcePassingMode === "by-value" &&
         parameter.targetPassingMode === "by-value" &&
         adapter.id.length > 0 &&
-        adapter.targetName.length > 0;
+        adapter.targetName.length > 0 &&
+        (adapter.nativeIntegerConversion === undefined ||
+          adapter.nativeIntegerConversion === "checked" &&
+          adapter.inputType.kind === "source-primitive" &&
+          (adapter.inputType.name === "float32" || adapter.inputType.name === "float64") &&
+          isCsharpIntegralTargetType(adapter.resultType));
     default:
       return false;
   }

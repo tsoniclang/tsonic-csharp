@@ -22,9 +22,7 @@ import {
   invalidCsharpType,
   nullableCsharpType,
 } from "../types/index.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "../declarations/modifiers.js";
@@ -166,8 +164,9 @@ function getParameterType(
     : input.program.storage.requiredType(parameterNode);
   const type = requiredType === undefined
     ? getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics)
-    : csharpTypeFromTargetTypeRef(requiredType) ?? invalidCsharpType("required parameter storage type");
-  return questionToken === undefined ? type : nullableCsharpType(type);
+    : csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, requiredType, diagnostics, parameterNode)
+      ?? invalidCsharpType("required parameter storage type");
+  return questionToken === undefined || requiredType !== undefined ? type : nullableCsharpType(type);
 }
 
 function planParameterDefaultValue(
@@ -181,7 +180,9 @@ function planParameterDefaultValue(
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   if (initializer === undefined && questionToken !== undefined && expectedType.kind !== "InvalidType") {
-    return { kind: "LiteralExpression", value: null };
+    return expectedType.kind === "NullableType"
+      ? { kind: "LiteralExpression", value: null }
+      : { kind: "DefaultExpression", type: expectedType, nullForgiving: true };
   }
   if (initializer === undefined) {
     return undefined;
@@ -190,7 +191,8 @@ function planParameterDefaultValue(
   if (defaultValue === undefined) {
     return undefined;
   }
-  if (defaultValue.kind === "LiteralExpression" || defaultValue.kind === "CharacterLiteralExpression") {
+  if (defaultValue.kind === "LiteralExpression" || defaultValue.kind === "CharacterLiteralExpression" ||
+    defaultValue.kind === "IntegerLiteralExpression" || defaultValue.kind === "NumericLiteralExpression") {
     return defaultValue;
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "C# parameter defaults require compile-time literal values."));

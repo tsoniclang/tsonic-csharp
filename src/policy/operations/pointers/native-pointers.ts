@@ -16,7 +16,7 @@ import {
   readCsharpSourceNativePointerOperation,
 } from "./source-native-pointers.js";
 import { readCsharpSourceRawPointerIdentity } from "./source-raw-pointers.js";
-import { csharpRuntimeRawPointerTargetType, isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeRawPointerTargetType, isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpNullableReferenceTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
 import { selectCsharpRawAddress } from "./raw-addresses.js";
 import type { CsharpRawAddressSelection, CsharpSourceRawAddressOperation } from "./raw-addresses.js";
@@ -87,7 +87,7 @@ export function selectCsharpNativePointerOperation(
     for (const argument of identity.arguments) {
       const selected = input.types.resolveSelectedValue(argument.expression, argument.type, sourceFile);
       const value = getCsharpNullableElementTargetType(selected) ?? selected;
-      if (!isCsharpRuntimeUndefinedTargetType(value) && (value === undefined || !targetTypeRefEquals(value, carrier))) {
+      if (!isCsharpAbsenceTargetType(value) && (value === undefined || !targetTypeRefEquals(value, carrier))) {
         return rejected(identity.operation, "Raw pointer identity requires the closed address carrier, not an arbitrary object.");
       }
     }

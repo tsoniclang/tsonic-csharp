@@ -9,7 +9,6 @@ import { getCsharpTypeForNode, invalidCsharpType } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import {
-  csharpVoidTargetType,
   getCsharpTaskResultTargetType,
   isCsharpNeverTargetType,
 } from "../../../target-model/types/index.js";
@@ -54,9 +53,6 @@ export function getExplicitReturnType(
 function csharpDeclarationReturnType(
   targetType: TargetTypeRef | undefined,
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  if (isCsharpNeverTargetType(targetType)) {
-    return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
-  }
   return targetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(targetType);

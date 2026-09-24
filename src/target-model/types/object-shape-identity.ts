@@ -35,6 +35,7 @@ export function csharpObjectShapeMemberContractParts(
         ? "getter-setter"
         : "getter",
     csharpObjectShapeMemberTypeKey(member),
+    ...(member.exactNumericStorage === true ? ["exact-native-numeric-storage"] : []),
   ];
 }
 

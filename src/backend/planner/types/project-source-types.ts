@@ -80,12 +80,15 @@ export function getCsharpTypeFromProjectSourceReference(
   }
   if (
     input.program.source.ast.kindName(reference.declaration) !== KindClassDeclaration &&
+    !input.program.source.ast.is.IsClassExpression(reference.declaration) &&
     input.program.source.ast.kindName(reference.declaration) !== KindInterfaceDeclaration &&
     input.program.source.ast.kindName(reference.declaration) !== KindEnumDeclaration
   ) {
     return undefined;
   }
   const nameNode = Node_Name(input.program.source.ast, reference.declaration);
+  const factory = input.program.classFactories.get(reference.declaration);
+  if (factory !== undefined) return { kind: "IdentifierName", name: factory.instanceName };
   if (nameNode === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
     return invalidCsharpType("project source type reference");

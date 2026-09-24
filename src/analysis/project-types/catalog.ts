@@ -13,6 +13,7 @@ import {
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
+  projections?: import("../declarations/type-projections.js").CsharpGenericProjectionIndex,
 ): CsharpProjectTypeCatalog {
   const definitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
@@ -21,10 +22,18 @@ export function createCsharpProjectTypeCatalog(
 
   for (const sourceFile of host.navigation.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
-      const definition = projectTypeDefinition(host, declaration);
-      if (definition === undefined) {
+      const sourceDefinition = projectTypeDefinition(host, declaration);
+      if (sourceDefinition === undefined) {
         return;
       }
+      const selectedProjections = projections?.get(declaration) ?? [];
+      const outerProjections = projections?.outer(declaration) ?? [];
+      const outerCount = sourceDefinition.outerTypeParameters.length;
+      const definition = Object.freeze({ ...sourceDefinition, typeProjections: selectedProjections, outerTypeProjections: outerProjections,
+        typeParameterNames: Object.freeze([
+        ...sourceDefinition.typeParameterNames.slice(0, outerCount), ...outerProjections.map(parameter => parameter.name),
+        ...sourceDefinition.typeParameterNames.slice(outerCount), ...selectedProjections.map(parameter => parameter.name),
+      ]) });
       const existing = byId.get(definition.id);
       if (existing !== undefined && existing.declaration !== declaration) {
         issues.push({
@@ -41,6 +50,21 @@ export function createCsharpProjectTypeCatalog(
     });
   }
 
+  const occupiedNames = new Set(definitions.filter(definition => !definition.local).map(definition => definition.sourceName));
+  const allocate = (preferred: string): string => {
+    let name = preferred;
+    for (let suffix = 2; occupiedNames.has(name); suffix += 1) name = `${preferred}_${suffix}`;
+    occupiedNames.add(name);
+    return name;
+  };
+  for (const definition of definitions.filter(definition => definition.local).sort((left, right) => left.id.localeCompare(right.id))) {
+    const sourceName = allocate(definition.sourceName);
+    const selected = Object.freeze({ ...definition, sourceName, factoryName: allocate(`${sourceName}Factory`),
+      factoryIdentityName: allocate(`I${sourceName}Instance`) });
+    definitions[definitions.indexOf(definition)] = selected;
+    byDeclaration.set(definition.declaration, selected);
+    byId.set(definition.id, selected);
+  }
   const frozenDefinitions = Object.freeze(definitions);
   const frozenIssues = Object.freeze(issues);
   return Object.freeze({
@@ -73,7 +97,10 @@ export function createCsharpProjectTypeCatalog(
       return definition === undefined ||
           typeArguments.length !== definition.typeParameterNames.length
         ? undefined
-        : projectDefinitionTargetType(definition, typeArguments);
+        : projectDefinitionTargetType(definition, typeArguments.map((argument, index) =>
+          argument.kind === "type-parameter" && argument.name === definition.typeParameterNames[index]
+            ? [...definition.outerTypeProjections, ...definition.typeProjections].find(projection => projection.name === argument.name) ?? argument
+            : argument));
     },
   });
 }

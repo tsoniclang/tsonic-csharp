@@ -38,8 +38,8 @@ import { sourceFileClassName } from "../artifacts/source-paths.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
-import { csharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
 import { csharpCapturedBindingExpression } from "../bindings/capture-storage.js";
+import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 
 export function planIdentifierExpression(
   identifier: Node,
@@ -51,9 +51,31 @@ export function planIdentifierExpression(
   const sourceName = Node_Text(input.program.source.ast, AsIdentifier(input.program.source.ast, identifier));
   const sourceReference = input.program.sourceNavigation.referenceFor(identifier);
   const declarationReference = input.program.sourceNavigation.sourceReferenceFor(identifier);
+  const selectedClass = declarationReference === undefined ? undefined : input.scope.classValues?.get(declarationReference.declaration);
+  if (selectedClass !== undefined) return selectedClass;
+  if (declarationReference !== undefined && input.program.classFactories.get(declarationReference.declaration) !== undefined) {
+    return { kind: "IdentifierName", name: getCsharpLocalBindingName(identifier, input, state) ??
+      requireCsharpIdentifier(sourceName, diagnostics, "Local class value") };
+  }
+  if (declarationReference !== undefined && input.program.source.ast.is.IsClassDeclaration(declarationReference.declaration)) {
+    const constructor = getCsharpDelegateSignature(input.types.classifications.resolveNode(identifier));
+    if (constructor !== undefined) {
+      const resultType = csharpTypeFromTargetTypeRef(constructor.returnType);
+      const parameters = constructor.parameters.map((type, index) => ({ name: `argument${index}`, type: csharpTypeFromTargetTypeRef(type) }));
+      if (resultType === undefined || parameters.some(parameter => parameter.type === undefined)) {
+        diagnostics.push(unsupportedNodeDiagnostic(identifier, "The selected constructor value has no closed native factory signature."));
+        return undefined;
+      }
+      return {
+        kind: "LambdaExpression",
+        parameters: parameters.map(parameter => ({ kind: "Parameter", name: parameter.name, type: parameter.type! })),
+        body: { kind: "ObjectCreationExpression", type: resultType,
+          arguments: parameters.map(parameter => ({ kind: "Argument", expression: { kind: "IdentifierName", name: parameter.name } })) },
+      };
+    }
+  }
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference)) {
-    const type = csharpTypeFromTargetTypeRef(csharpRuntimeUndefinedTargetType());
-    return type === undefined ? undefined : { kind: "SimpleMemberAccessExpression", receiver: type, name: "value" };
+    return { kind: "LiteralExpression", value: null };
   }
   const providerDiagnosticsStart = diagnostics.length;
   const providerValue = planProviderValueReference(
@@ -346,7 +368,7 @@ function tryPlanProjectSourceTypeMemberReference(
   }
   return {
     kind: "SimpleMemberAccessExpression",
-    receiver: {
+    receiver: input.scope.classValues?.get(receiverReference.declaration) ?? {
       kind: "IdentifierName",
       name: planProjectSourceModuleMemberName(receiverReference.declaration, input, diagnostics),
     },

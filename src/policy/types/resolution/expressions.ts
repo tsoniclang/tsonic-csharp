@@ -4,19 +4,52 @@ import type { Node, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/scalar-types.js";
-import { getCsharpNullableElementTargetType, csharpNullableTargetType } from "../../../target-model/types/nullable.js";
+import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
+import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
+import { substituteTargetTypeParameters } from "../callables/substitution.js";
+import { getCsharpCollectionElementTargetType } from "../../../target-model/types/collections.js";
+import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { csharpJsArrayTargetType } from "./surface-types.js";
+import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
+import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
 
 export function resolveSelectedExpressionType(
-  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
+  { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  if (host.ast.is.IsArrayLiteralExpression(node)) {
+    const sourceType = queries.types.expressionType(node);
+    if (sourceType === undefined) return undefined;
+    const sourceElements = host.ast.elements(node);
+    const elements = sourceElements.map(element => {
+      if (element === undefined) return undefined;
+      if (!host.ast.is.IsSpreadElement(element)) {
+        return resolveNodeWithState(element, queries.sourceFile, nextState(state));
+      }
+      const operand = host.ast.as.AsSpreadElement(element)?.Expression;
+      return getCsharpCollectionElementTargetType(resolveNodeWithState(operand, queries.sourceFile, nextState(state)));
+    });
+    if (queries.types.isTuple(sourceType)) {
+      if (sourceElements.some(element => element === undefined || host.ast.is.IsSpreadElement(element)) ||
+        elements.some(element => element === undefined)) return undefined;
+      const tuple = resolveTypeWithState(sourceType, queries.sourceFile, nextState(state));
+      return tuple?.kind === "tuple" && tuple.elements.length === elements.length
+        ? { ...tuple, elements: elements as readonly TargetTypeRef[] } : undefined;
+    }
+    const element = elements[0];
+    if (element === undefined || elements.some(candidate => candidate === undefined || !targetTypeRefEquals(candidate, element))) {
+      return undefined;
+    }
+    return selectedCsharpSourceProfileOwner(host.target) === "js"
+      ? csharpJsArrayTargetType(element) : { kind: "array", element };
+  }
   if (
     host.ast.is.IsAsExpression(node) ||
     host.ast.is.IsTypeAssertion(node)
@@ -195,6 +228,7 @@ export function resolveSelectedExpressionType(
           queries,
           state,
           receiver,
+          queries.types.typeOfSymbol(selection.source.selectedSymbol),
         ),
         selection.source.optionalChain,
       );
@@ -247,6 +281,12 @@ export function resolvePropertyAccessTargetType(
   const selectedSourceType = mode === "selected"
     ? selectedType ?? selection.source.sourceReadType ?? selection.source.sourceWriteType
     : undefined;
+  const declaredMemberType = queries.types.typeOfSymbol(selection.source.selectedSymbol);
+  if (host.projectTypeCatalog.definitionContainingDeclaration(selection.source.selectedDeclaration) !== undefined) {
+    const member = resolveSelectedDeclarationResult(selection.source.selectedDeclaration, selectedSourceType ?? declaredMemberType, queries, state, receiverType,
+      declaredMemberType);
+    if (member !== undefined) return optionalAccessTargetType(member, selection.source.optionalChain);
+  }
   const structuralMemberType = host.structuralTypes.resolveSelectedProperty(
     receiverType,
     queries.facts.selectedSubjects(
@@ -255,7 +295,7 @@ export function resolvePropertyAccessTargetType(
     ),
     selectedSourceType,
     queries.sourceFile,
-    queries.types.typeOfSymbol(selection.source.selectedSymbol),
+    declaredMemberType,
   );
   const selectedSymbolType = selectedSourceType === undefined ||
       selection.source.selectedSymbol === undefined
@@ -274,6 +314,7 @@ export function resolvePropertyAccessTargetType(
         queries,
         state,
         receiverType,
+        declaredMemberType,
       ),
     selection.source.optionalChain,
   );
@@ -281,7 +322,7 @@ export function resolvePropertyAccessTargetType(
 
 
 export function resolveNonNullExpressionType(
-  { host, resolveNodeWithState }: CsharpTypeResolutionScope,
+  { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
   node: Node,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
@@ -304,28 +345,15 @@ export function resolveNonNullExpressionType(
   ) {
     return undefined;
   }
-  const refinement = queries.types.refinement(sourceType, selectedType);
-  if (refinement.kind === "exact") {
+  if (queries.types.refinement(sourceType, selectedType).kind === "exact") {
     return sourceTarget;
   }
-  if (refinement.kind !== "members" || refinement.types.length === 0) {
-    return undefined;
-  }
-  const declaredMembers = queries.types.unionOrIntersectionTypes(sourceType);
-  if (declaredMembers.some((member) => member === undefined)) {
-    return undefined;
-  }
-  const nonNullishMembers = declaredMembers.filter(
-    (member): member is Type => member !== undefined && !queries.types.isNullish(member),
+  const refinement = selectCsharpAuthoredUnionRefinement(
+    sourceTarget, sourceType, selectedType, queries,
+    type => resolveTypeWithState(type, queries.sourceFile, nextState(state)),
+    host.structuralTypes.resolveTarget,
   );
-  if (
-    refinement.types.some((member) => queries.types.isNullish(member)) ||
-    refinement.types.length !== nonNullishMembers.length ||
-    nonNullishMembers.some((member) => !refinement.types.includes(member))
-  ) {
-    return undefined;
-  }
-  return getCsharpNullableElementTargetType(sourceTarget);
+  return refinement.kind === "resolved" ? refinement.type : undefined;
 }
 
 
@@ -358,7 +386,7 @@ export function resolveProjectThisTargetType(
       const ownerNode = host.ast.parent(current);
       if (
         ownerNode === undefined ||
-        !host.ast.is.IsClassDeclaration(ownerNode) ||
+        !host.ast.is.IsClassDeclaration(ownerNode) && !host.ast.is.IsClassExpression(ownerNode) ||
         host.ast.hasModifierKind(current, "static")
       ) {
         return undefined;
@@ -448,13 +476,20 @@ export function resolveSelectedReceiverTargetType(
 
 
 export function resolveSourceOwnedConstructionResult(
-  { host, projectSourceDeclarationTargetType, resolveAuthoredAndSelectedSourceType, resolveSourceOwnedCallResult }: CsharpTypeResolutionScope,
+  { host, projectSourceDeclarationTargetType, resolveAuthoredAndSelectedSourceType, resolveSourceOwnedCallResult,
+    resolveNodeWithState, resolveSourceCallInstantiation }: CsharpTypeResolutionScope,
   source: NonNullable<
     ReturnType<SourceFileSemantics["operations"]["call"]>
   >,
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const factory = getCsharpClassFactory(resolveNodeWithState(source.sourceCallee.expression, queries.sourceFile, nextState(state)));
+  if (factory !== undefined) {
+    const callable = host.representations.sourceCallable(source, queries.sourceFile);
+    const instantiation = resolveSourceCallInstantiation(source, queries.sourceFile, nextState(state), undefined, callable);
+    return instantiation === undefined ? undefined : substituteTargetTypeParameters(factory.instance, instantiation.substitutions);
+  }
   const declaration = source.sourceCallee.selectedDeclaration;
   if (
     declaration === undefined ||
@@ -481,6 +516,9 @@ export function resolveSourceOwnedConstructionResult(
     : projectSourceDeclarationTargetType(
         declaration,
         targetArguments as readonly TargetTypeRef[],
+        selectedArguments.map(argument => argument.selectedType),
+        state,
+        source.sourceResultType,
       );
 }
 

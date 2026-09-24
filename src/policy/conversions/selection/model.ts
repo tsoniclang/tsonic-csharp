@@ -10,6 +10,10 @@ export interface CsharpArrayLikeUnionProjection {
 }
 
 export type CsharpConversionSelection =
+  | { readonly kind: "never" }
+  | { readonly kind: "checked-native-integer" }
+  | { readonly kind: "exact-integer"; readonly input: TargetTypeRef; readonly output: TargetTypeRef; readonly nullable: boolean }
+  | { readonly kind: "integer-truncation"; readonly signed: boolean; readonly width: number }
   | { readonly kind: "identity" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
   | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }
@@ -44,12 +48,18 @@ export type CsharpConversionSelection =
         | "provider-operator";
       readonly providerOperatorId?: string;
     }
-  | { readonly kind: "nullable-value" }
+  | { readonly kind: "nullable-reference" }
+  | { readonly kind: "nullable-value"; readonly asserted: boolean }
+  | {
+      readonly kind: "nullable-map";
+      readonly sourceElement: TargetTypeRef;
+      readonly targetElement: TargetTypeRef;
+      readonly conversion: CsharpConversionSelection;
+    }
   | {
       readonly kind: "runtime-union-projection";
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
-      readonly unwrapNullableValue: boolean;
     }
   | {
       readonly kind: "delegate-adapter";
@@ -69,7 +79,6 @@ export type CsharpConversionSelection =
       readonly targetElementType: TargetTypeRef;
     }
   | { readonly kind: "js-value-box" }
-  | { readonly kind: "undefined-object-box" }
   | {
       readonly kind: "js-value-cast";
       readonly runtimeUnionArms?: readonly TargetTypeRef[];

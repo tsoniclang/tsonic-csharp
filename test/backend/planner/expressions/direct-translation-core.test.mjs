@@ -284,11 +284,11 @@ namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static double one
+        public static int one
         {
             get;
             private set;
-        } = default(double)!;
+        } = default(int)!;
         public static int second((string, int) pair)
         {
             return pair.Item2;

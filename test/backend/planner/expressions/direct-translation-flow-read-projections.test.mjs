@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertCsharpCompilationSucceeded,
   compileCsharpSource,
 } from "../../../helpers/direct-csharp-session.mjs";
 
@@ -70,6 +71,31 @@ namespace Tsonic.Generated
     }
 }
 `);
+});
+
+test("instantiated member storage preserves native carriers without hiding real flow narrowing", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int64, uint32 } from "@tsonic/core/types.js";
+    class Base {}
+    class Derived extends Base { name: string = "derived"; }
+    class Box<Value> { value: Value; constructor(value: Value) { this.value = value; } }
+    export function wide(box: Box<int64>): int64 { return box.value; }
+    export function unsigned(box: Box<uint32>): uint32 { return box.value; }
+    export function narrowed(box: Box<Base>): string | undefined {
+      if (box.value instanceof Derived) return box.value.name;
+      return undefined;
+    }
+    export function present(box: Box<int64 | undefined>): int64 | undefined {
+      if (box.value === undefined) return undefined;
+      return box.value;
+    }
+  ` });
+  assertCsharpCompilationSucceeded(compiled);
+  const generated = compiled.artifacts.get("src/Index.cs");
+  assert.match(generated, /long wide\(Box<long> box\)/u);
+  assert.match(generated, /uint unsigned\(Box<uint> box\)/u);
+  assert.match(generated, /\(\(Derived\)box\.value\)\.name/u);
+  assert.doesNotMatch(generated, /BigInteger|Convert\.ToDouble|\(double\)/u);
 });
 
 test("direct C# translation projects exact checker flow types for property value references", () => {

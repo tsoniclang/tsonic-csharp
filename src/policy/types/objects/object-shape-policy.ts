@@ -6,7 +6,7 @@ export type {
   CsharpObjectShapePolicy,
   CsharpObjectShapePolicyHost,
   CsharpProjectConstructibleTypeProjection,
-} from "./object-shape-policy/api.js";
+} from "./object-shape-policy/model.js";
 export {
   csharpObjectShapesEqual,
 } from "../../../target-model/types/object-shape-equality.js";

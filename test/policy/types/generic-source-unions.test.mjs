@@ -4,7 +4,7 @@ import { csharpRuntimeUnionTargetType } from "../../../dist/target-model/types/r
 import { csharpNullableTargetType } from "../../../dist/target-model/types/nullable.js";
 import { targetTypeRefEquals } from "../../../dist/target-model/types/equality.js";
 import { inferCsharpTargetTypeParameterBindings, substituteObjectShapeFactTargetTypeParameters } from "../../../dist/policy/types/callables/substitution.js";
-import { selectCsharpAuthoredUnionRefinement } from "../../../dist/policy/types/resolution/source-union-refinement.js";
+import { selectCsharpAuthoredUnionRefinement, sourceRefinementOnlyRemovesNullish } from "../../../dist/policy/types/resolution/source-union-refinement.js";
 import { selectCsharpConversion } from "../../../dist/policy/conversions/selection/core.js";
 import { selectCsharpObjectLiteralUnionShape } from "../../../dist/policy/types/objects/object-shape-policy/union-construction.js";
 
@@ -81,6 +81,7 @@ test("source-union refinement requires exact unique member declarations", () => 
   let declarations = [firstDeclaration];
   const queries = {
     types: { refinement: () => ({ kind: "members", types: [selectedType] }), isNullish: () => false,
+      unionOrIntersectionTypes: () => [selectedType, {}],
       propertyInfos: () => [{ symbol: selectedSymbol, rootSymbols: [] }], },
     declarations: { symbolDeclarations: () => declarations },
   };
@@ -98,10 +99,37 @@ test("source-union refinement requires exact unique member declarations", () => 
   assert.equal(select(union).kind, "rejected");
 });
 
+test("nullish refinement retains a native carrier only for the complete non-nullish selection", () => {
+  const present = {};
+  const other = {};
+  const absent = {};
+  const declared = {};
+  let members = [present];
+  let declaredMembers = [present, absent];
+  const queries = { types: {
+    refinement: () => ({ kind: "members", types: members }),
+    unionOrIntersectionTypes: () => declaredMembers,
+    isNullish: type => type === absent,
+  } };
+  assert(sourceRefinementOnlyRemovesNullish(declared, present, queries));
+  assert.deepEqual(selectCsharpAuthoredUnionRefinement(csharpNullableTargetType(byte), declared, present,
+    queries, () => { throw new Error("native carrier must not be reconstructed"); }, () => undefined),
+  { kind: "resolved", type: byte });
+  for (const invalid of [[], [other], [present, absent], [present, present]]) {
+    members = invalid;
+    assert.equal(sourceRefinementOnlyRemovesNullish(declared, present, queries), false);
+  }
+  members = [present];
+  for (const invalid of [[present], [present, undefined], [present, other, absent]]) {
+    declaredMembers = invalid;
+    assert.equal(sourceRefinementOnlyRemovesNullish(declared, present, queries), false);
+  }
+});
+
 test("nullable union conversion never confuses nullability with selecting an arm", () => {
   const union = csharpRuntimeUnionTargetType([byte, integer]);
   const nullable = csharpNullableTargetType(union);
-  assert.equal(selectCsharpConversion({}, union, nullable, "implicit").kind, "implicit");
+  assert.deepEqual(selectCsharpConversion({}, union, nullable, "implicit"), { kind: "identity" });
   assert.equal(selectCsharpConversion({}, nullable, union, "explicit").kind, "nullable-value");
   assert.equal(selectCsharpConversion({}, nullable, union, "implicit").kind, "rejected");
 });

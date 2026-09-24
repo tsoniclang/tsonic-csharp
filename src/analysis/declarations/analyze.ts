@@ -12,11 +12,14 @@ import {
   selectCsharpConversion,
 } from "../../policy/conversions/index.js";
 import {
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   getCsharpDelegateSignature,
+  isCsharpJsValueTargetType,
   targetTypeRefKey,
+  targetTypeRefEquals,
+  csharpBigIntegerTargetType,
 } from "../../policy/types/index.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
 import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model/types/reference-default.js";
@@ -55,7 +58,7 @@ export function analyzeCsharpDeclarations(
       if (declaration !== undefined && policy.ast.is.IsMethodDeclaration(declaration) &&
         selectedType !== undefined && getCsharpDelegateSignature(selectedType) !== undefined && !methodWrites.has(declaration)) {
         const owner = policy.ast.parent(declaration);
-        if (owner !== undefined && policy.ast.is.IsClassDeclaration(owner)) {
+        if (owner !== undefined && (policy.ast.is.IsClassDeclaration(owner) || policy.ast.is.IsClassExpression(owner))) {
           const reserved = new Set(policy.ast.members(owner).map(member => {
             const name = policy.ast.name(member);
             return name === undefined ? undefined : policy.ast.text(name);
@@ -146,6 +149,11 @@ function classifyReturnContract(
     observed,
     incomplete,
   );
+  const contextualReturn = getCsharpDelegateSignature(evidence.contextualTargetType(declaration))?.returnType;
+  if (contract.kind === "resolved" && isCsharpJsValueTargetType(contract.type) && contextualReturn !== undefined &&
+    csharpConversionIsApplicable(selectCsharpConversion(policy, contract.type, contextualReturn, "implicit"), "implicit")) {
+    return { kind: "resolved", type: contextualReturn };
+  }
   return contract.kind !== "resolved" || pointer === undefined ? contract
     : Object.freeze({ ...contract, undefinedReturn: pointer.undefinedReturn, fallthroughUndefined: pointer.fallthroughUndefined });
 }
@@ -193,12 +201,48 @@ function uncoveredBaselineReturnAlternatives(
   collectTargetContractAlternatives(baseline, alternatives);
   return [...alternatives.values()].filter((alternative) =>
     !observed.some((source) =>
+      observedNumericCarrierCoversBaseline(policy, source, alternative) ||
       csharpGenericMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
         selectCsharpConversion(policy, source, alternative, "implicit"),
         "implicit",
       )
     )
   );
+}
+
+const nativeIntegralKinds = new Set([
+  "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+  "int128", "uint128", "native-int", "native-uint",
+]);
+
+function observedNumericCarrierCoversBaseline(
+  policy: CsharpPolicyContext,
+  source: TargetTypeRef,
+  baseline: TargetTypeRef,
+): boolean {
+  if (targetTypeRefEquals(source, baseline)) return true;
+  if (source.kind === "source-primitive") {
+    if (nativeIntegralKinds.has(source.name) && targetTypeRefEquals(baseline, csharpBigIntegerTargetType())) return true;
+    return baseline.kind === "source-primitive" && baseline.name === "float64" &&
+      (nativeIntegralKinds.has(source.name) || source.name === "float32") &&
+      csharpConversionIsApplicable(selectCsharpConversion(policy, source, baseline, "implicit"), "implicit");
+  }
+  if (source.kind === "array" && baseline.kind === "array") {
+    return (source.rank ?? 1) === (baseline.rank ?? 1) &&
+      observedNumericCarrierCoversBaseline(policy, source.element, baseline.element);
+  }
+  if (source.kind === "tuple" && baseline.kind === "tuple") {
+    return source.elements.length === baseline.elements.length && source.elements.every((element, index) =>
+      observedNumericCarrierCoversBaseline(policy, element, baseline.elements[index]!));
+  }
+  if (source.kind === "target-named" && baseline.kind === "target-named" && source.id === baseline.id) {
+    const actual = source.typeArguments ?? [];
+    const erased = baseline.typeArguments ?? [];
+    return actual.length > 0 && actual.length === erased.length &&
+      targetTypeRefEquals({ ...source, typeArguments: baseline.typeArguments }, baseline) && actual.every((argument, index) =>
+      observedNumericCarrierCoversBaseline(policy, argument, erased[index]!));
+  }
+  return false;
 }
 
 function collectTargetContractAlternatives(
@@ -215,7 +259,7 @@ function collectTargetContractAlternatives(
   const nullableElement = getCsharpNullableElementTargetType(type);
   if (nullableElement !== undefined) {
     collectTargetContractAlternatives(nullableElement, alternatives);
-    const undefinedType = csharpRuntimeUndefinedTargetType();
+    const undefinedType = csharpAbsenceTargetType();
     alternatives.set(targetTypeRefKey(undefinedType), undefinedType);
     return;
   }
@@ -229,6 +273,10 @@ function collectDirectReturnExpressions(
 ): void {
   const body = policy.ast.body(declaration);
   if (body === undefined) {
+    return;
+  }
+  if (policy.ast.is.IsArrowFunction(declaration) && !policy.ast.is.IsBlock(body)) {
+    consume(body);
     return;
   }
   visit(body);

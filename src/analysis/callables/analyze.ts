@@ -24,12 +24,14 @@ import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
+  projections: CsharpGenericProjectionIndex,
 ): CsharpCallableContractIndex {
   const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
@@ -72,6 +74,7 @@ export function analyzeCsharpCallableContracts(
         names,
         node,
         sourceFile,
+        projections,
       );
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
@@ -94,12 +97,13 @@ function sourceCallableContract(
   names: CsharpSourceNameResolver,
   declaration: Node,
   sourceFile: SourceFile,
+  projections: CsharpGenericProjectionIndex,
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
+    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     getCsharpDelegateSignature(evidence.contextualTargetType(declaration))
       ?.returnType ??
-    (returnContract?.kind === "resolved" ? returnContract.type : undefined) ??
     constructorReturnType(policy, declaration, sourceFile);
   if (returnType === undefined) {
     return undefined;
@@ -135,7 +139,7 @@ function sourceCallableContract(
   return Object.freeze({
     sourceDeclaration: declaration,
     methodTypeParameterNames: Object.freeze(
-      methodTypeParameterNames as string[],
+      [...methodTypeParameterNames as string[], ...projections.get(declaration).map(parameter => parameter.name)],
     ),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
     parameters: Object.freeze(parameters),
@@ -204,17 +208,19 @@ function constructorReturnType(
   const parent = policy.ast.parent(declaration);
   return parent === undefined
     ? undefined
-    : policy.types.resolveNode(parent, sourceFile);
+    : policy.types.resolveType(policy.semantics(sourceFile).declarations.declaredType(parent), sourceFile);
 }
 
 function sourceCallableReceiverTypeOwner(
   policy: CsharpPolicyContext,
   declaration: Node,
 ): Node | undefined {
+  if (policy.ast.hasModifierKind(declaration, "static")) return undefined;
   const parent = policy.ast.parent(declaration);
   return parent !== undefined &&
       (
         policy.ast.is.IsClassDeclaration(parent) ||
+        policy.ast.is.IsClassExpression(parent) ||
         policy.ast.is.IsInterfaceDeclaration(parent)
       )
     ? parent

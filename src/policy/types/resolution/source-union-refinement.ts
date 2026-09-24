@@ -2,8 +2,24 @@ import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { csharpAbsenceTargetType, csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
+
+export function sourceRefinementOnlyRemovesNullish(
+  declaredType: Type,
+  selectedType: Type,
+  queries: SourceFileSemantics,
+): boolean {
+  const refinement = queries.types.refinement(declaredType, selectedType);
+  if (refinement.kind !== "members" || refinement.types.length === 0 ||
+    refinement.types.some(type => queries.types.isNullish(type))) return false;
+  const declaredMembers = queries.types.unionOrIntersectionTypes(declaredType);
+  if (declaredMembers.some(type => type === undefined)) return false;
+  const present = declaredMembers.filter((type): type is Type => type !== undefined && !queries.types.isNullish(type));
+  return present.length < declaredMembers.length && present.length === refinement.types.length &&
+    present.every(type => refinement.types.includes(type));
+}
 
 export function retainCsharpUnionObjectShapes(
   type: TargetTypeRef | undefined,
@@ -27,12 +43,18 @@ export function selectCsharpAuthoredUnionRefinement(
   resolveShape: (type: TargetTypeRef) => CsharpObjectShapeFact | undefined,
 ): { readonly kind: "not-applicable" } | { readonly kind: "rejected" } |
   { readonly kind: "resolved"; readonly type: TargetTypeRef } {
-  const base = getCsharpNullableElementTargetType(authored) ?? authored;
+  const nullableElement = getCsharpNullableElementTargetType(authored);
+  const base = nullableElement ?? authored;
+  const optional = getCsharpGenericOptionalParts(base);
+  if ((nullableElement !== undefined || optional !== undefined) &&
+    sourceRefinementOnlyRemovesNullish(declaredType, selectedType, queries)) {
+    const type = nullableElement ?? optional?.element;
+    if (type !== undefined) return { kind: "resolved", type };
+  }
   const arms = getCsharpRuntimeUnionArms(base);
   if (arms === undefined) return { kind: "not-applicable" };
-  const shapes = arms.map(resolveShape);
-  if (shapes.every(shape => shape === undefined)) return { kind: "not-applicable" };
   const refinement = queries.types.refinement(declaredType, selectedType);
+  const shapes = arms.map(resolveShape);
   if (refinement.kind === "exact") return { kind: "resolved", type: authored };
   if (refinement.kind !== "members") return { kind: "not-applicable" };
   const indexes = new Set<number>();
@@ -51,7 +73,14 @@ export function selectCsharpAuthoredUnionRefinement(
       const shape = shapes[index];
       if (shape === undefined) {
         const resolved = resolveType(member);
-        return resolved !== undefined && targetTypeRefEquals(arm, resolved) ? [index] : [];
+        if (resolved === undefined) return [];
+        if (targetTypeRefEquals(arm, resolved)) return [index];
+        const primitiveKind = queries.types.isNumberLike(member) ? "number"
+          : queries.types.isBigIntLike(member) ? "bigint"
+          : queries.types.isStringLike(member) ? "string"
+          : queries.types.isBooleanLike(member) ? "boolean" : undefined;
+        return arm.kind === "source-primitive" && primitiveKind !== undefined &&
+          getCsharpTypeofRuntimeKind(arm) === primitiveKind ? [index] : [];
       }
       if (shape.members.length !== properties.length || declarations.some(nodes => nodes.size === 0)) return [];
       const matched = new Set<number>();
@@ -67,6 +96,7 @@ export function selectCsharpAuthoredUnionRefinement(
     indexes.add(matches[0]!);
   }
   const selected = [...indexes].sort((left, right) => left - right);
+  if (selected.length === 0 && nullish) return { kind: "resolved", type: csharpAbsenceTargetType() };
   const type = selected.length === arms.length ? base : selected.length === 1 ? arms[selected[0]!] :
     csharpRuntimeUnionTargetType(selected.map(index => arms[index]!), selected.map(index => shapes[index]));
   return type === undefined ? { kind: "rejected" } : {

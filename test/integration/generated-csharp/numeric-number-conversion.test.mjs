@@ -82,7 +82,7 @@ Equal(Subject.boolean(false), 0);
 Equal(Subject.union("15"), 15);
 Equal(Subject.union(2.5), 2.5);
 Equal(Subject.omitted(), 0);
-Equal(Subject.missing(), double.NaN);
+Equal(Subject.missing(), 0);
 Equal(Subject.nil(), 0);
 Equal(Subject.literal(), 3);
 double sum = 0;

@@ -177,6 +177,22 @@ export const csharpJsArrayCallPolicies:
   readonly CsharpSourceProfileCallPolicy[] = Object.freeze([
     ...["Array", "ReadonlyArray"].flatMap((declaringName) => [
       jsCallPolicy(
+        jsMemberIdentity(declaringName, "entries"),
+        (context) => {
+          const shape = readOnlyArrayCallShape(context);
+          return shape === undefined ? undefined : receiverHelperMethod(
+            "Tsonic.CSharp.Js.Array.entries",
+            "entries",
+            "entries",
+            arrayHelperType,
+            shape.receiver,
+            [],
+            csharpEnumerableTargetType({ kind: "tuple", elements: [intType, shape.element] }),
+          );
+        },
+        firstParameterReceiver,
+      ),
+      jsCallPolicy(
         jsMemberIdentity(declaringName, "slice"),
         (context) => readOnlyArraySliceMember(context),
         firstParameterReceiver,
@@ -206,6 +222,10 @@ export const csharpJsArrayCallPolicies:
         jsMemberIdentity(declaringName, "map"),
         (context) => mapArrayMember(context),
         instanceReceiver,
+        { targetMethodTypeArguments: context => {
+          const element = getCsharpJsArrayElementTargetType(mapArrayMember(context)?.returnType);
+          return element === undefined ? undefined : [element];
+        } },
       ),
       jsCallPolicy(
         jsMemberIdentity(declaringName, "forEach"),
@@ -421,11 +441,12 @@ function mapArrayMember(
   context: Parameters<CsharpSourceProfileCallPolicy["select"]>[0],
 ): CsharpTargetMember | undefined {
   const shape = arrayCallShape(context);
-  const resultType = context.host.types.resolveType(
-    context.source.sourceResultType,
-    context.sourceFile,
-  );
-  const resultElement = getCsharpJsArrayElementTargetType(resultType);
+  const mapper = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+  const selected = context.source.sourceSelectedMethodTypeArguments?.[0];
+  const resultElement = selected?.explicitTypeNode === undefined
+    ? getCsharpDelegateSignature(mapper)?.returnType ?? resolvedMethodTypeArguments(context)[0]
+    : context.host.types.resolveSelectedType(selected.explicitTypeNode, selected.selectedType, context.sourceFile);
+  const resultType = resultElement === undefined ? undefined : csharpJsArrayTargetType(resultElement);
   if (shape === undefined || resultType === undefined || resultElement === undefined) {
     return undefined;
   }
@@ -434,14 +455,14 @@ function mapArrayMember(
     [shape.element, intType, shape.receiver],
     resultElement,
   );
-  return instanceMethod(
+  return { ...instanceMethod(
     "Tsonic.CSharp.Js.JSArray.map",
     "map",
     "map",
     shape.receiver,
     [targetParameter("callbackfn", callback)],
     resultType,
-  );
+  ), typeParameters: [{ name: "U" }] };
 }
 
 function forEachArrayMember(
@@ -732,9 +753,13 @@ function arrayFromShape(
   );
   const mappedResult = getCsharpDelegateSignature(mapper)?.returnType;
   const selectedArguments = resolvedMethodTypeArguments(context);
+  const selectedResults = context.source.sourceSelectedMethodTypeArguments ?? [];
+  const selectedResult = selectedResults[selectedResults.length - 1];
   const resultElement = context.source.sourceArguments.length === 1
     ? sourceElement
-    : mappedResult ?? selectedArguments[selectedArguments.length - 1];
+    : selectedResult?.explicitTypeNode === undefined
+      ? mappedResult ?? selectedArguments[selectedArguments.length - 1]
+      : context.host.types.resolveSelectedType(selectedResult.explicitTypeNode, selectedResult.selectedType, context.sourceFile);
   return resultElement === undefined
     ? undefined
     : {

@@ -1,4 +1,6 @@
 import type { CsharpPlanningContext } from "../context.js";
+import type { DestructuringPlannerState } from "../bindings/binding-state.js";
+import { planTypedArrayMutation } from "./typed-array-mutations.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 import type { CsharpExpression } from "../../target-ast/roslyn/index.js";
@@ -8,6 +10,7 @@ import {
 import type {
   CallArgumentPlanner,
   ExpressionPlanner,
+  ExpectedExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -68,13 +71,15 @@ export function tryPlanJsArrayDeleteExpression(
   };
 }
 
-export function tryPlanJsArrayLengthMutationExpression(
+export function tryPlanJsArrayMutationExpression(
   node: Node,
   sourceFile: SourceFile,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
+  planExpected: ExpectedExpressionPlanner,
+  state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const selection = input.program.operations.jsArrayMutation(node);
   if (selection === undefined) {
@@ -86,6 +91,10 @@ export function tryPlanJsArrayLengthMutationExpression(
   }
   if (selection.kind === "not-js-array-mutation") {
     return undefined;
+  }
+  if (selection.kind === "set-typed-element" || selection.kind === "update-typed-element") {
+    return planTypedArrayMutation(node, selection, sourceFile, input, diagnostics,
+      planExpression, planExpected, state);
   }
   if (selection.kind === "rejected") {
     diagnostics.push(unsupportedNodeDiagnostic(node, selection.reason));

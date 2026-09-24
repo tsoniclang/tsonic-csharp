@@ -1,7 +1,9 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
+import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
+import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
 import {
   createTargetClassificationBuilder,
   createTargetClassificationKey,
@@ -137,6 +139,7 @@ const jsArrayMutationKey = createTargetClassificationKey<ReturnType<typeof selec
 const jsStringConversionKey = createTargetClassificationKey<ReturnType<typeof selectCsharpJsStringConversion>>(
   "csharp.operation.js-string-conversion",
 );
+const switchKey = createTargetClassificationKey<ReturnType<typeof selectCsharpSwitch>>("csharp.operation.switch");
 const providerValueKey = createTargetClassificationKey<ReturnType<typeof selectCsharpProviderValue>>(
   "csharp.operation.provider-value",
 );
@@ -178,6 +181,7 @@ export function analyzeCsharpTargetOperations(
     property: (node) => facts.get(node, propertyKey),
     element: (node) => facts.get(node, elementKey),
     binary: (node) => facts.get(node, binaryKey),
+    switchStatement: (node) => facts.get(node, switchKey),
     unary: (node) => facts.get(node, unaryKey),
     iteration: (node) => facts.get(node, iterationKey),
     resource: (node) => facts.get(node, resourceKey),
@@ -210,6 +214,9 @@ function visit(
 ): void {
   if (evidence.isCompileTimeMetadata(node)) return;
   const { ast } = policy;
+  if (ast.is.IsSwitchStatement(node)) {
+    setClassification(builder, node, switchKey, selectCsharpSwitch(policy, node, sourceFile));
+  }
   setClassification(
     builder,
     node,
@@ -270,7 +277,8 @@ function visit(
       selectCsharpJsStringConversion(policy, node, sourceFile),
     );
   }
-  if (ast.is.IsDeleteExpression(node) || ast.is.IsBinaryExpression(node)) {
+  if (ast.is.IsDeleteExpression(node) || ast.is.IsBinaryExpression(node) ||
+    ast.is.IsPrefixUnaryExpression(node) || ast.is.IsPostfixUnaryExpression(node)) {
     setClassification(
       builder,
       node,
@@ -522,6 +530,8 @@ function visit(
     );
     const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
+    const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
+      ? evidence.nodeTargetType(expression.Right) : undefined;
     setClassification(
       builder,
       node,
@@ -548,6 +558,7 @@ function visit(
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
         ...(instanceType === undefined ? {} : { instanceType }),
+        ...(getCsharpClassFactory(instanceFactory) === undefined ? {} : { instanceFactory }),
       }),
     );
   } else if (
@@ -711,6 +722,8 @@ function operationResultType(
 ): import("../../target-model/types/model.js").TargetTypeRef | undefined {
   const binding = facts.get(node, memoryBindingKey);
   if (binding !== undefined && binding.kind !== "rejected") return binding.type;
+  const mutation = facts.get(node, jsArrayMutationKey);
+  if (mutation?.kind === "set-typed-element" || mutation?.kind === "update-typed-element") return mutation.resultType;
   const call = facts.get(node, callKey);
   if (call?.selectedResultType !== undefined) {
     return call.selectedResultType;

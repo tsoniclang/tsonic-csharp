@@ -27,6 +27,7 @@ export type ResolvedSourceCallInfo = NonNullable<
 >;
 
 export interface CsharpPlanningRepresentationQueries {
+  genericProjections?(declaration: Node): readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
   requiresClosedStructuralContract(type: TargetTypeRef): boolean;
   scopedTargetType(node: Node): TargetTypeRef | undefined;
   sourceCallable(
@@ -57,7 +58,7 @@ export interface CsharpTypePolicyHost extends CsharpTypePolicyBaseHost {
   targetTypeComponents(type: TargetTypeRef): readonly TargetTypeRef[];
   readonly structuralTypes: {
     resolveReference(type: Type): TargetTypeRef | undefined;
-    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../objects/object-shape-policy/union-definitions.js").CsharpStructuralUnionResolution;
+    resolveUnion(type: Type, sourceFile: SourceFile, state: CsharpTypeResolutionState): import("../objects/object-shape-policy/model.js").CsharpStructuralUnionResolution;
     resolveTarget(type: TargetTypeRef): CsharpObjectShapeFact | undefined;
     resolveNode(
       node: Node,
@@ -150,6 +151,10 @@ export interface CsharpTypePolicy {
 
 export interface CsharpTypeResolutionState {
   readonly depth: number;
+  readonly sourceBindings?: ReadonlyMap<Node, {
+    readonly sourceType: Type;
+    readonly targetType: TargetTypeRef;
+  }>;
 }
 
 export interface CsharpRecursiveTypeResolver {

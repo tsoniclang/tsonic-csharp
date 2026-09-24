@@ -39,7 +39,7 @@ export type CsharpSourceArgumentClassification =
     };
 
 export interface CsharpSemanticTypeClassification {
-  readonly arrayElementDefault?: "never" | "nullable" | "always" | "ambiguous";
+  readonly arrayElementDefault?: "never" | "nullable" | "always";
   readonly targetType?: TargetTypeRef;
   readonly typeParameterName?: string;
   readonly nullish: boolean;
@@ -74,11 +74,13 @@ export interface CsharpValueRefinementClassification {
 export interface CsharpSourceEvidenceIndex {
   closedArrayStorage(node: Node): import("@tsonic/source-core/facts").TsonicClosedArrayStorage;
   readonly memoryMetadataIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
+  readonly typeOnlyIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly fixedArrayIssues: readonly { readonly node: Node; readonly code: string; readonly message: string }[];
   readonly pointerBackingDemands: readonly import("@tsonic/source-core/facts").TsonicPointerBackingDemand[];
   isCompileTimeMetadata(node: Node): boolean;
   readonly targetTypes: readonly TargetTypeRef[];
   nodeTargetType(node: Node): TargetTypeRef | undefined;
+  classConstructorType(node: Node): TargetTypeRef | undefined;
   storageTargetType(node: Node): TargetTypeRef | undefined;
   readStorageTargetType(node: Node): TargetTypeRef | undefined;
   expressionType(node: Node): Type | undefined;

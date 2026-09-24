@@ -19,6 +19,8 @@ import type {
 } from "../../policy/types/index.js";
 import {
   combineCsharpTargetUnionMembers,
+  getCsharpNullableElementTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpJsValueTargetType,
   isTypeParameterTargetRef,
   targetTypeRefEquals,
@@ -60,7 +62,7 @@ import {
 const missing = Symbol("csharp.source-evidence.missing");
 import { createTsonicMemoryMetadataIndex, createTsonicPointerBackingDemands, createTsonicClosedArrayStorageQueries } from "@tsonic/source-core/facts";
 import type { CsharpPointerReturnContract } from "../../policy/types/callables/pointer-return.js";
-import { isUndefinedType } from "../../policy/types/resolution/source-evidence.js";
+import { analyzeCsharpTypeOnlyDeclarations } from "../declarations/type-only.js";
 type Cached<Value> = Value | typeof missing;
 
 export function analyzeCsharpSourceEvidence(
@@ -72,12 +74,14 @@ export function analyzeCsharpSourceEvidence(
   const memoryMetadata = createTsonicMemoryMetadataIndex(source);
   const pointerBacking = createTsonicPointerBackingDemands(source);
   const arrayStorage = createTsonicClosedArrayStorageQueries(source, 131_072);
-  const compileTimeMetadata = new WeakSet<Node>();
+  const typeOnlyDeclarations = analyzeCsharpTypeOnlyDeclarations(source, sourceFiles);
+  const compileTimeMetadata = new WeakSet<Node>(typeOnlyDeclarations.declarations);
   const memoryMetadataIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const fixedArrayIssues: { readonly node: Node; readonly code: string; readonly message: string }[] = [];
   const rejectedFixedArrayTypes = new Set<Type>();
   const expressionTypes = new WeakMap<Node, Cached<Type>>();
   const nodeTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
+  const classConstructorTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const storageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const readStorageTargetTypes = new WeakMap<Node, Cached<TargetTypeRef>>();
   const contextualTypes = new WeakMap<Node, Cached<Type>>();
@@ -172,12 +176,10 @@ export function analyzeCsharpSourceEvidence(
     const elementType = arrayIndex.length === 1 ? arrayIndex[0]?.valueType : undefined;
     const elementMembers = elementType === undefined ? []
       : semantics.types.isUnion(elementType) ? semantics.types.unionOrIntersectionTypes(elementType) : [elementType];
-    const undefinedMembers = elementMembers.filter(member => isUndefinedType(member, semantics));
+    const absentMembers = elementMembers.filter(member => semantics.types.isNullish(member));
     const arrayElementDefault = elementType === undefined ? undefined
-      : undefinedMembers.length === 0 ? "never"
-      : undefinedMembers.length === elementMembers.length ? "always"
-      : elementMembers.some(member => semantics.types.isNullish(member) && !isUndefinedType(member, semantics))
-        ? "ambiguous" : "nullable";
+      : absentMembers.length === 0 ? "never"
+      : absentMembers.length === elementMembers.length ? "always" : "nullable";
     const symbol = semantics.declarations.typeSymbol(type);
     const typeParameters = symbol === undefined ? [] : semantics.declarations.symbolDeclarations(symbol)
       .filter(declaration => source.ast.is.IsTypeParameterDeclaration(declaration));
@@ -224,6 +226,10 @@ export function analyzeCsharpSourceEvidence(
       return;
     }
     const semantics = source.semantics.forFile(sourceFile);
+    if (source.ast.is.IsClassDeclaration(node) || source.ast.is.IsClassExpression(node)) {
+      const staticType = semantics.declarations.declaredValueType(node);
+      classConstructorTypes.set(node, recordTargetType(types.resolveType(staticType, sourceFile)) ?? missing);
+    }
     typeOnly ||= source.ast.is.IsTypeAliasDeclaration(node) || source.ast.is.IsInterfaceDeclaration(node) || source.ast.is.IsExportDeclaration(node);
     if (!typeOnly) {
       const authoredType = source.ast.is.IsTypeReferenceNode(node) ? node : source.ast.typeNode(node);
@@ -322,7 +328,9 @@ export function analyzeCsharpSourceEvidence(
       declaredTargetType !== undefined &&
       selectedTargetType !== undefined &&
       targetTypeRefEquals(declaredTargetType, selectedTargetType);
-    const flowReadTargetType = unrelatedSourceTypesShareTargetRepresentation &&
+    const absenceUsesStorage = isCsharpAbsenceTargetType(selectedTargetType) &&
+      getCsharpNullableElementTargetType(readStorageTargetType) !== undefined;
+    const flowReadTargetType = (unrelatedSourceTypesShareTargetRepresentation || absenceUsesStorage) &&
         readStorageTargetType !== undefined
       ? readStorageTargetType
       : selectedTargetType !== undefined &&
@@ -476,6 +484,8 @@ export function analyzeCsharpSourceEvidence(
     }))]),
     fixedArrayIssues: Object.freeze(fixedArrayIssues),
     isCompileTimeMetadata: node => compileTimeMetadata.has(node),
+    typeOnlyIssues: typeOnlyDeclarations.issues,
+    classConstructorType: node => cachedValue(classConstructorTypes.get(node)),
     targetTypes: Object.freeze([...targetTypes.values()]),
     nodeTargetType(node) {
       return cachedValue(nodeTargetTypes.get(node));

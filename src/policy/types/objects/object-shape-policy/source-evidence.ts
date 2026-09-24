@@ -1,5 +1,5 @@
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import type { CsharpObjectShapePolicyHost } from "./api.js";
+import type { CsharpObjectShapePolicyHost } from "./model.js";
 import type { CsharpTypeResolutionState } from "../../resolution/model.js";
 import type { CsharpTargetNamedTypeRef, TargetTypeRef } from "../../../../target-model/types/model.js";
 import type { ExtensionFactSubject, Node, Type } from "@tsonic/tsts";
@@ -116,7 +116,8 @@ export function typeIsExcludedFromObjectShape(
     queries.types.isBigIntLike(type) ||
     queries.types.isUnion(type) ||
     queries.types.isTuple(type) ||
-    queries.types.callSignatures(type).length > 0;
+    queries.types.callSignatures(type).length > 0 ||
+    queries.types.constructSignatures(type).length > 0;
 }
 
 export function typeHasProjectOwnedShapeDeclaration(

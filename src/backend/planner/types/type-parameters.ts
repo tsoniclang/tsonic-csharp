@@ -10,18 +10,43 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type {
   CsharpTypeParameterConstraint,
 } from "../../../target-model/declarations/generic-constraints.js";
+import type { CsharpProjectedType } from "../../../target-model/types/projections.js";
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[],
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
+  owner: Node | undefined = nodes[0] === undefined ? undefined : input.program.source.ast.parent(nodes[0]),
 ): readonly CsharpTypeParameter[] {
-  return nodes
+  const projections = owner === undefined ? [] : input.program.typeProjections.get(owner);
+  return [...nodes
     .filter((node): node is Node => node !== undefined)
-    .map((node) => planTypeParameter(node, input, diagnostics));
+    .map((node) => planTypeParameter(node, input, diagnostics)), ...planProjectedTypeParameters(projections, owner, diagnostics)];
 }
 
-function planTypeParameter(
+export function planOuterTypeParameters(
+  owner: Node, input: CsharpPlanningContext, diagnostics: TargetDiagnostic[],
+): readonly CsharpTypeParameter[] {
+  const definition = input.types.projectTypes.definitionContainingDeclaration(owner);
+  return definition === undefined ? [] : [
+    ...definition.outerTypeParameters.map(parameter => planTypeParameter(parameter, input, diagnostics)),
+    ...planProjectedTypeParameters(definition.outerTypeProjections, owner, diagnostics),
+  ];
+}
+
+function planProjectedTypeParameters(
+  projections: readonly CsharpProjectedType[], owner: Node | undefined, diagnostics: TargetDiagnostic[],
+): readonly CsharpTypeParameter[] {
+  return projections.map(parameter => ({
+      name: parameter.name,
+      constraints: parameter.csharpProjectionConstraints.flatMap(constraint => {
+        const selected = csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, owner!, diagnostics);
+        return selected === undefined ? [] : [selected];
+      }),
+    }));
+}
+
+export function planTypeParameter(
   node: Node,
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],

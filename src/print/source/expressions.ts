@@ -68,7 +68,7 @@ export function printCsharpExpression(
         : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
     case "CastExpression": {
       const printedExpression = context.printExpression(expression.expression);
-      return expression.expression.kind === "LambdaExpression"
+      return castOperandRequiresParentheses(expression.expression)
         ? `(${context.printType(expression.type)})(${printedExpression})`
         : `(${context.printType(expression.type)})${printedExpression}`;
     }
@@ -83,7 +83,7 @@ export function printCsharpExpression(
     case "PrefixUnaryExpression":
       return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${context.printExpression(expression.operand)}`;
     case "PostfixUnaryExpression":
-      return `${context.printExpression(expression.operand)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
+      return `${printPostfixOperand(expression.operand, context)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
     case "ConditionalExpression":
       return `${context.printExpression(expression.condition)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
     case "ArrayCreationExpression": {
@@ -108,6 +108,20 @@ export function printCsharpExpression(
       return printCsharpLambda(expression, context);
   }
   return failUnsupportedCsharpSyntax(expression, "expression");
+}
+
+function castOperandRequiresParentheses(expression: CsharpExpression): boolean {
+  switch (expression.kind) {
+    case "BinaryExpression":
+    case "AssignmentExpression":
+    case "ConditionalExpression":
+    case "IsPatternExpression":
+    case "NullPatternExpression":
+    case "LambdaExpression":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function printPostfixOperand(
@@ -136,10 +150,11 @@ function postfixOperandRequiresParentheses(
     case "IsPatternExpression":
     case "NullPatternExpression":
     case "PrefixUnaryExpression":
-    case "PostfixUnaryExpression":
     case "ConditionalExpression":
     case "LambdaExpression":
       return true;
+    case "PostfixUnaryExpression":
+      return expression.operatorToken.kind !== "ExclamationToken";
     case "LiteralExpression":
     case "NumericLiteralExpression":
     case "IntegerLiteralExpression":
@@ -270,6 +285,8 @@ function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorTok
 
 function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorToken): string {
   switch (token.kind) {
+    case "ExclamationToken":
+      return "!";
     case "PlusPlusToken":
       return "++";
     case "MinusMinusToken":

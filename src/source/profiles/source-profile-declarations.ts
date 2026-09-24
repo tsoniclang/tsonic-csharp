@@ -291,6 +291,7 @@ declare var String: StringConstructor;
 interface Array<T> extends Iterable<T> {
   length: number;
   [index: number]: T;
+  entries(): Iterable<[number, T]>;
   push(...items: T[]): number;
   pop(): T | undefined;
   shift(): T | undefined;
@@ -323,6 +324,7 @@ interface Array<T> extends Iterable<T> {
 interface ReadonlyArray<T> extends Iterable<T> {
   readonly length: number;
   readonly [index: number]: T;
+  entries(): Iterable<[number, T]>;
   slice(start?: number, end?: number): T[];
   concat(...items: (T | readonly T[])[]): T[];
   join(separator?: string): string;
@@ -352,8 +354,13 @@ interface ArrayConstructor {
 }
 declare var Array: ArrayConstructor;
 
+interface BigInt {
+  toString(radix?: number): string;
+}
 interface BigIntConstructor {
   (value: bigint | boolean | number | string): bigint;
+  asIntN(bits: number, value: bigint): bigint;
+  asUintN(bits: number, value: bigint): bigint;
 }
 declare var BigInt: BigIntConstructor;
 
@@ -446,14 +453,14 @@ interface Math {
   cbrt(x: number): number;
   floor(x: number): number;
   ceil(x: number): number;
-  clz32(x: number): number;
+  clz32(x: number): import("@tsonic/core/types.js").int32;
   cos(x: number): number;
   cosh(x: number): number;
   exp(x: number): number;
   expm1(x: number): number;
   fround(x: number): number;
   hypot(...values: number[]): number;
-  imul(x: number, y: number): number;
+  imul(x: number, y: number): import("@tsonic/core/types.js").int32;
   log(x: number): number;
   log1p(x: number): number;
   log10(x: number): number;
@@ -499,8 +506,8 @@ declare var console: Console;
 
 declare function parseInt(value: string, radix?: number): number;
 declare function parseFloat(value: string): number;
-declare function isNaN(value: number): boolean;
-declare function isFinite(value: number): boolean;
+declare function isNaN(value: number | bigint): boolean;
+declare function isFinite(value: number | bigint): boolean;
 declare function setTimeout(callback: () => void, delay?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(callback: () => void, delay: number): number;

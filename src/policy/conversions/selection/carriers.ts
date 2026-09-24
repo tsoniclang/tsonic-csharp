@@ -6,8 +6,7 @@ import {
   getCsharpRuntimeUnionArms,
   isCsharpJsValueTargetType,
   isCsharpNullableReferenceTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpValueTypeTargetType,
   substituteTargetTypeParameters,
   targetTypeRefEquals,
@@ -59,7 +58,7 @@ export function selectRuntimeUnionConversion(
   if (sourceArms !== undefined && referenceTarget.kind === "target-named" &&
     !isCsharpValueTypeTargetType(referenceTarget) && sourceArms.every(arm =>
       arm.kind === "target-named" && !isCsharpValueTypeTargetType(arm) &&
-      !isCsharpRuntimeNullTargetType(arm) && !isCsharpRuntimeUndefinedTargetType(arm) &&
+      !isCsharpAbsenceTargetType(arm) &&
       (!isCsharpNullableReferenceTargetType(arm) || isCsharpNullableReferenceTargetType(target)) &&
       namedTargetTypeImplicitlyAccepts(input, getCsharpNullableElementTargetType(arm) ?? arm,
         referenceTarget, new Set()))) {
@@ -75,7 +74,6 @@ export function selectRuntimeUnionConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
-        unwrapNullableValue: false,
       };
     }
     return {
@@ -125,8 +123,7 @@ export function selectNullableConversion(
   const targetElement = getCsharpNullableElementTargetType(target);
   if (targetElement !== undefined) {
     if (
-      isCsharpRuntimeNullTargetType(source) ||
-      isCsharpRuntimeUndefinedTargetType(source)
+      isCsharpAbsenceTargetType(source)
     ) {
       return { kind: "implicit", proof: "nullable" };
     }
@@ -141,24 +138,25 @@ export function selectNullableConversion(
       return { ...elementConversion, target };
     }
     if (conversionIsImplicitlyApplicable(elementConversion)) {
-      if (
-        sourceElement === undefined &&
-        isCsharpNullableReferenceTargetType(target) &&
-        elementConversion.kind === "delegate-adapter"
-      ) {
-        return elementConversion;
+      if (sourceElement === undefined) return elementConversion;
+      if (elementConversion.kind === "identity" ||
+        elementConversion.kind === "implicit" && elementConversion.proof !== "runtime-union-arm") {
+        return { kind: "implicit", proof: "nullable" };
       }
-      return { kind: "implicit", proof: "nullable" };
+      return { kind: "nullable-map", sourceElement, targetElement, conversion: elementConversion };
     }
     if (mode === "explicit" && csharpConversionIsApplicable(elementConversion, mode)) {
-      return { kind: "cast", proof: "nullable" };
+      if (sourceElement === undefined) return elementConversion;
+      return elementConversion.kind === "cast"
+        ? { kind: "cast", proof: "nullable" }
+        : { kind: "nullable-map", sourceElement, targetElement, conversion: elementConversion };
     }
   }
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {
     return mode === "explicit"
       ? isCsharpNullableReferenceTargetType(source)
-        ? { kind: "implicit", proof: "nullable" }
-        : { kind: "nullable-value" }
+        ? { kind: "nullable-reference" }
+        : { kind: "nullable-value", asserted: true }
       : {
           kind: "rejected",
           reason:

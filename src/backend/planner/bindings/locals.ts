@@ -20,9 +20,6 @@ import { getCsharpTypeForNode } from "../types/index.js";
 import {
   getTargetTypeRefForNode,
 } from "../types/runtime-carriers.js";
-import {
-  getCsharpTypeFromSemanticType,
-} from "../types/csharp-semantic-types.js";
 import { planExpressionWithExpectedType } from "../expressions/index.js";
 import { planCsharpNativeMemoryCall } from "../expressions/native-memory.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../../target-model/types/runtime-carriers.js";
@@ -104,9 +101,6 @@ export function planLocalDeclaration(
         variable.Type === undefined ? undefined : expectedTargetType,
       )?.type
     : undefined;
-  const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
-    ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
-    : undefined;
   const inferredTargetType = input.program.sourceEvidence.storageTargetType(
     declarationNode,
   );
@@ -122,7 +116,6 @@ export function planLocalDeclaration(
     requiredStorageType ??
     inferredLambdaType ??
     explicitType ??
-    constAssertionType ??
     (storageType === undefined
       ? undefined
       : csharpTypeFromTargetTypeRef(storageType)) ??
@@ -142,7 +135,7 @@ export function planLocalDeclaration(
       state,
       lambdaInitializer && variable.Type === undefined
         ? undefined
-        : nativeRefTargetType ?? expectedTargetType,
+        : nativeRefTargetType ?? storageType ?? expectedTargetType,
     );
   } else if (inferredTargetType !== undefined) {
     const undefinedValue = planCsharpSourceUndefinedValue(
@@ -402,24 +395,4 @@ function getInitializerTypeSubject(
   return getTargetTypeRefForNode(input, initializer, sourceFile) !== undefined
     ? initializer
     : undefined;
-}
-
-function getConstAssertionInitializerType(
-  initializer: Node,
-  sourceFile: SourceFile,
-  input: CsharpPlanningContext,
-): CsharpLocalDeclaration["type"] | undefined {
-  const assertion = AsAsExpression(input.program.source.ast, initializer) ?? AsTypeAssertion(input.program.source.ast, initializer);
-  if (
-    assertion?.Type === undefined ||
-    assertion.Expression === undefined ||
-    !input.program.source.ast.isConstAssertion(initializer)
-  ) {
-    return undefined;
-  }
-  return getCsharpTypeFromSemanticType(
-    input.program.sourceEvidence.expressionType(assertion.Expression),
-    sourceFile,
-    input,
-  );
 }

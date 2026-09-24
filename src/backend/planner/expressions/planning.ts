@@ -37,6 +37,7 @@ import {
 } from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { planClassFactoryExpression } from "../declarations/class-factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import {
   planTypeofExpression,
@@ -73,6 +74,7 @@ import {
 } from "./expression-unary.js";
 import {
   tryPlanJsArrayDeleteExpression,
+  tryPlanJsArrayMutationExpression,
 } from "./expression-js-array-mutations.js";
 import {
   tryPlanSourceSyntaxExpression,
@@ -115,6 +117,12 @@ function planExpressionCore(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (input.program.source.ast.is.IsClassExpression(node)) {
+    const factory = input.program.classFactories.get(node);
+    if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
+    return undefined;
+  }
   const expressionOverride = state?.expressionOverrides.get(node);
   if (expressionOverride !== undefined) {
     return expressionOverride;
@@ -388,11 +396,20 @@ function planExpressionCore(
     case KindNewExpression:
       return planNewExpression(node, sourceFile, input, diagnostics, scopedPlanExpression, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, expectedArgumentPassingMode, selectedTargetParameter) =>
         planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state, expectedArgumentPassingMode, selectedTargetParameter));
-    case KindPrefixUnaryExpression: {
-      return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
-    }
+    case KindPrefixUnaryExpression:
     case KindPostfixUnaryExpression: {
-      return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+      const mutation = input.program.operations.jsArrayMutation(node);
+      if (mutation?.kind !== "not-js-array-mutation") {
+        return tryPlanJsArrayMutationExpression(node, sourceFile, input, diagnostics, scopedPlanExpression,
+          (argument, file, context, errors, type, subject, target, passing, parameter) =>
+            planCallArgument(argument, file, context, errors, type, subject, target, state, passing, parameter),
+          (expression, file, context, errors, type, subject, target, nestedState) =>
+            planExpressionWithExpectedType(expression, file, context, errors, type, subject, nestedState ?? state, target), state);
+      }
+      if (SourceKind(input.program.source.ast, node) === KindPostfixUnaryExpression) {
+        return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+      }
+      return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
       const destructuringAssignment = tryPlanDestructuringAssignmentExpression(

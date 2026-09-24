@@ -7,7 +7,7 @@ import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/targe
 import {
   getCsharpNullableElementTargetType,
 } from "../../../target-model/types/nullable.js";
-import { isCsharpRuntimeUndefinedTargetType } from "../../../target-model/types/runtime-carriers.js";
+import { isCsharpAbsenceTargetType } from "../../../target-model/types/runtime-carriers.js";
 import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../../target-model/types/object-shape-members.js";
@@ -81,7 +81,7 @@ export function createCsharpBindingProjectionPolicy(
       }
       const declaration = host.ast.as.AsBindingElement(binding);
       if (declaration?.Initializer === undefined) return projected;
-      if (isCsharpRuntimeUndefinedTargetType(projected)) {
+      if (isCsharpAbsenceTargetType(projected)) {
         return host.typeResolver.resolveNode(declaration.Initializer, sourceFile, nextState(state));
       }
       const bindingFile = sourceFile ?? host.ast.getSourceFile(binding);

@@ -207,7 +207,8 @@ export function translateCallArgument(
     selectedMapping?.kind === "by-value" &&
     (
       selectedMapping.conversion.kind === "provider-argument-adapter" ||
-      selectedMapping.conversion.kind === "lifted-provider-argument-adapter"
+      selectedMapping.conversion.kind === "lifted-provider-argument-adapter" ||
+      selectedMapping.conversion.kind === "checked-native-integer"
     )
   ) {
     if (
@@ -216,7 +217,7 @@ export function translateCallArgument(
     ) {
       diagnostics.push(unsupportedNodeDiagnostic(
         expression,
-        `Exact provider argument adapter '${selectedMapping.conversion.adapter.id}' requires an ordinary by-value source argument.`,
+        `Exact provider argument conversion '${selectedMapping.conversion.kind}' requires an ordinary by-value source argument.`,
       ));
       return undefined;
     }

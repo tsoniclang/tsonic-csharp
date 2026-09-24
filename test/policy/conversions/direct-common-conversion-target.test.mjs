@@ -14,6 +14,9 @@ import {
   csharpTargetNamedType,
   csharpTsValueTargetType,
   csharpRuntimeUnionTargetType,
+  csharpNeverTargetType,
+  csharpVoidTargetType,
+  csharpBigIntegerTargetType,
 } from "../../../dist/policy/types/index.js";
 import {
   reconcileInferredReturnTargetContract,
@@ -27,6 +30,15 @@ const host = {
 const int32 = csharpSourcePrimitiveTargetType("int32");
 const float64 = csharpSourcePrimitiveTargetType("float64");
 const string = csharpSourcePrimitiveTargetType("string");
+
+test("never supplies a bottom conversion without admitting void values", () => {
+  const never = csharpNeverTargetType();
+  assert.deepEqual(selectCsharpConversion(host, never, int32, "implicit"), { kind: "never" });
+  assert.deepEqual(selectCsharpConversion(host, never, string, "implicit"), { kind: "never" });
+  assert.deepEqual(selectCsharpConversion(host, never, never, "implicit"), { kind: "identity" });
+  assert.equal(selectCsharpConversion(host, csharpVoidTargetType(), int32, "implicit").kind, "rejected");
+  assert.equal(selectCsharpConversion(host, int32, never, "implicit").kind, "rejected");
+});
 
 test("common implicit target keeps an exact narrower observed return", () => {
   assert.deepEqual(
@@ -79,6 +91,45 @@ test("inferred return contracts retain unobserved nullish alternatives", () => {
     ),
     { kind: "resolved", type: nullableFloat64 },
   );
+});
+
+test("inferred integer results do not allocate the checker bigint baseline", () => {
+  const bigint = csharpBigIntegerTargetType();
+  for (const kind of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",
+    "int128", "uint128", "native-int", "native-uint"]) {
+    const integer = csharpSourcePrimitiveTargetType(kind);
+    assert.deepEqual(reconcileInferredReturnTargetContract(host, bigint, [integer], false),
+      { kind: "resolved", type: integer });
+  }
+  assert.deepEqual(reconcileInferredReturnTargetContract(host, bigint, [bigint], false),
+    { kind: "resolved", type: bigint });
+  assert.equal(reconcileInferredReturnTargetContract(host, bigint, [float64], false).kind, "rejected");
+  assert.equal(reconcileInferredReturnTargetContract(host, bigint, [int32, bigint], false).kind, "rejected");
+  assert.equal(reconcileInferredReturnTargetContract(host, bigint, [int32], true).kind, "rejected");
+});
+
+test("inferred compound results retain native numeric elements without collection conversion", () => {
+  const numericArray = { kind: "array", element: float64 };
+  const nativeArray = { kind: "array", element: int32 };
+  for (const [source, baseline] of [
+    [nativeArray, numericArray],
+    [{ kind: "array", element: nativeArray }, { kind: "array", element: numericArray }],
+    [{ kind: "tuple", elements: [int32, string] }, { kind: "tuple", elements: [float64, string] }],
+    [csharpTargetNamedType("Fixture.Values", [int32]), csharpTargetNamedType("Fixture.Values", [float64])],
+  ]) {
+    assert.deepEqual(reconcileInferredReturnTargetContract(host, baseline, [source], false),
+      { kind: "resolved", type: source });
+    assert.equal(selectCsharpConversion(host, source, baseline, "implicit").kind,
+      source.kind === "tuple" ? "implicit" : "rejected");
+  }
+  for (const baseline of [
+    { ...numericArray, rank: 2 },
+    { kind: "array", element: string },
+    csharpTargetNamedType("Other.Values", [float64]),
+  ]) assert.equal(reconcileInferredReturnTargetContract(host, baseline, [nativeArray], false).kind, "rejected");
+  assert.equal(reconcileInferredReturnTargetContract(host,
+    { ...csharpTargetNamedType("Fixture.Values", [float64]), csharpNullableReference: true },
+    [csharpTargetNamedType("Fixture.Values", [int32])], false).kind, "rejected");
 });
 
 test("tuple conversions apply exact element conversions at equal arity", () => {
@@ -213,7 +264,6 @@ test("flow reads project one exact runtime-union arm", () => {
       kind: "runtime-union-projection",
       armIndex: 1,
       armType: string,
-      unwrapNullableValue: false,
     },
   );
   assert.equal(
@@ -223,7 +273,6 @@ test("flow reads project one exact runtime-union arm", () => {
   const nullable = csharpNullableTargetType(union);
   assert.deepEqual(selectCsharpFlowReadConversion(host, nullable, string), {
     kind: "runtime-union-projection", armIndex: 1, armType: string,
-    unwrapNullableValue: true,
   });
   assert.equal(selectCsharpFlowReadConversion(host, nullable, float64).kind, "rejected");
   assert.equal(selectCsharpConversion(host, nullable, string, "implicit").kind, "rejected");

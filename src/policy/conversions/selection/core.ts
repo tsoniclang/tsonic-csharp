@@ -1,9 +1,13 @@
 import {
   csharpEnumerableTargetType,
+  csharpReadOnlyListTargetType,
+  getCsharpJsArrayElementTargetType,
   csharpObjectTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpImplicitArrayInputElementTargetType,
   getCsharpTaskResultTargetType,
+  isCsharpNeverTargetType,
+  isCsharpVoidTargetType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "../../types/index.js";
@@ -37,6 +41,9 @@ export function selectCsharpConversion(
   }
   if (targetTypeRefEquals(source, target)) {
     return { kind: "identity" };
+  }
+  if (isCsharpNeverTargetType(source) && !isCsharpVoidTargetType(target)) {
+    return { kind: "never" };
   }
   const arrayElement = csharpArrayLikeElement(source);
   if (arrayElement !== undefined && targetTypeRefEquals(target, csharpArrayLikeTargetType(arrayElement))) {
@@ -189,7 +196,9 @@ function selectTupleConversion(
 export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
+  if (selection.kind === "nullable-map") return conversionIsImplicitlyApplicable(selection.conversion);
   return selection.kind === "identity" ||
+    selection.kind === "integer-truncation" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter";
@@ -221,6 +230,10 @@ function selectCollectionInterfaceConversion(
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): CsharpConversionSelection | undefined {
+  const jsArrayElement = getCsharpJsArrayElementTargetType(source);
+  if (jsArrayElement !== undefined && targetTypeRefEquals(target, csharpReadOnlyListTargetType(jsArrayElement))) {
+    return { kind: "implicit", proof: "collection-interface" };
+  }
   const implicitArrayInputElement =
     getCsharpImplicitArrayInputElementTargetType(target);
   if (

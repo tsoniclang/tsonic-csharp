@@ -35,6 +35,7 @@ import {
 } from "./common.js";
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
+const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const valueType = csharpTsValueTargetType();
@@ -125,6 +126,8 @@ export const csharpJsIntlCallPolicies:
           targetParameter("left", stringType),
           targetParameter("right", stringType),
         ],
+        "compare",
+        intType,
       ),
       instanceReceiver,
     ),
@@ -163,15 +166,15 @@ export const csharpJsIntlPropertyPolicies:
       ["IntlResolvedNumberFormatOptions", "locale", stringType],
       ["IntlResolvedNumberFormatOptions", "numberingSystem", stringType],
       ["IntlResolvedNumberFormatOptions", "style", stringType],
-      ["IntlResolvedNumberFormatOptions", "minimumIntegerDigits", doubleType],
-      ["IntlResolvedNumberFormatOptions", "minimumFractionDigits", csharpNullableTargetType(doubleType)],
-      ["IntlResolvedNumberFormatOptions", "maximumFractionDigits", csharpNullableTargetType(doubleType)],
-      ["IntlResolvedNumberFormatOptions", "minimumSignificantDigits", csharpNullableTargetType(doubleType)],
-      ["IntlResolvedNumberFormatOptions", "maximumSignificantDigits", csharpNullableTargetType(doubleType)],
+      ["IntlResolvedNumberFormatOptions", "minimumIntegerDigits", intType],
+      ["IntlResolvedNumberFormatOptions", "minimumFractionDigits", csharpNullableTargetType(intType)],
+      ["IntlResolvedNumberFormatOptions", "maximumFractionDigits", csharpNullableTargetType(intType)],
+      ["IntlResolvedNumberFormatOptions", "minimumSignificantDigits", csharpNullableTargetType(intType)],
+      ["IntlResolvedNumberFormatOptions", "maximumSignificantDigits", csharpNullableTargetType(intType)],
       ["IntlResolvedNumberFormatOptions", "useGrouping", csharpRuntimeUnionTargetType([boolType, stringType])],
       ...["currency", "currencyDisplay", "currencySign", "unit", "unitDisplay", "compactDisplay"].map(name => ["IntlResolvedNumberFormatOptions", name, csharpNullableTargetType(stringType)]),
       ...["notation", "signDisplay", "roundingPriority", "roundingMode", "trailingZeroDisplay"].map(name => ["IntlResolvedNumberFormatOptions", name, stringType]),
-      ["IntlResolvedNumberFormatOptions", "roundingIncrement", doubleType],
+      ["IntlResolvedNumberFormatOptions", "roundingIncrement", intType],
       ["IntlResolvedCollatorOptions", "locale", stringType],
       ["IntlResolvedCollatorOptions", "usage", stringType],
       ["IntlResolvedCollatorOptions", "sensitivity", stringType],
@@ -262,12 +265,13 @@ function directIntlMember(
   name: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   targetName: string = name,
+  returnType?: TargetTypeRef,
 ): CsharpTargetMember | undefined {
   const receiver = resolveCsharpSelectedSourceValue(
     context,
     context.source.sourceReceiver,
   );
-  const result = context.host.types.resolveType(
+  const result = returnType ?? context.host.types.resolveType(
     context.source.sourceResultType,
     context.sourceFile,
   );

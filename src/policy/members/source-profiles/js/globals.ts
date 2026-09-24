@@ -3,6 +3,7 @@ import type {
   CsharpTargetParameter,
   TargetTypeRef,
 } from "../../../types/index.js";
+import { csharpJsNumericArgument } from "./numeric-argument.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -125,31 +126,22 @@ const mathCallPolicies = [
     )
   ),
   fixedStaticCall("Math", "random", mathType, [], doubleType),
-  fixedStaticCall(
-    "Math",
-    "imul",
-    mathType,
-    [
-      targetParameter("left", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-      targetParameter("right", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-    ],
-    intType,
-  ),
-  fixedStaticCall(
-    "Math",
-    "clz32",
-    mathType,
-    [
-      targetParameter("value", intType, {
-        csharpAcceptsCheckedSourceArgument: true,
-      }),
-    ],
-    intType,
-  ),
+  ...[
+    { name: "imul", parameters: ["left", "right"] },
+    { name: "clz32", parameters: ["value"] },
+  ].map(({ name, parameters }) => jsCallPolicy(
+    jsMemberIdentity("Math", name),
+    context => {
+      const selected: CsharpTargetParameter[] = [];
+      for (const [index, parameterName] of parameters.entries()) {
+        const parameter = csharpJsNumericArgument(context, index);
+        if (parameter === undefined) return undefined;
+        selected.push({ ...parameter, name: parameterName });
+      }
+      return staticMethod(`Tsonic.CSharp.Js.Math.${name}`, name, name, mathType, selected, intType);
+    },
+    noReceiver,
+  )),
 ];
 
 const consoleVariadicNames = [
@@ -290,19 +282,18 @@ export const csharpJsGlobalCallPolicies:
     ...["isNaN", "isFinite"].map((name) =>
       jsCallPolicy(
         jsGlobalCallIdentity(name),
-        () =>
-          staticMethod(
+        (context) => {
+          const parameter = csharpJsNumericArgument(context);
+          if (parameter === undefined) return undefined;
+          return staticMethod(
             `Tsonic.CSharp.Js.Globals.${name}`,
             name,
             name,
             globalsType,
-            [
-              targetParameter("value", doubleType, {
-                csharpAcceptsCheckedSourceArgument: true,
-              }),
-            ],
+            [parameter],
             boolType,
-          ),
+          );
+        },
         noReceiver,
       )
     ),
@@ -313,15 +304,18 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearTimeout"),
-      () =>
-        staticMethod(
+      (context) => {
+        const parameter = csharpJsNumericArgument(context);
+        if (parameter === undefined) return undefined;
+        return staticMethod(
           "Tsonic.CSharp.Js.Timers.clearTimeout",
           "clearTimeout",
           "clearTimeout",
           timersType,
-          [targetParameter("id", doubleType)],
+          [parameter],
           voidType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsCallPolicy(
@@ -331,15 +325,18 @@ export const csharpJsGlobalCallPolicies:
     ),
     jsCallPolicy(
       jsGlobalCallIdentity("clearInterval"),
-      () =>
-        staticMethod(
+      (context) => {
+        const parameter = csharpJsNumericArgument(context);
+        if (parameter === undefined) return undefined;
+        return staticMethod(
           "Tsonic.CSharp.Js.Timers.clearInterval",
           "clearInterval",
           "clearInterval",
           timersType,
-          [targetParameter("id", doubleType)],
+          [parameter],
           voidType,
-        ),
+        );
+      },
       noReceiver,
     ),
     jsUnsupportedCallPolicy(
@@ -379,7 +376,7 @@ function timerSchedulingMember(
           targetParameter("delay", doubleType, { optional: true }),
           closedObjectParameter("arguments", { paramsArray: true }),
         ],
-        doubleType,
+        intType,
         {
           csharpBinaryExecutionDriver:
             csharpJsEventLoopBinaryExecutionDriver,

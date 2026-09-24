@@ -16,7 +16,8 @@ import {
 } from "../diagnostics.js";
 import {
   getCsharpRuntimeUnionArms,
-  isCsharpRuntimeUnionTargetType,
+  getCsharpGenericOptionalParts,
+  getCsharpNullableElementTargetType,
 } from "../../../target-model/types/index.js";
 
 export function tryPlanRuntimeUnionTypeTest(
@@ -28,11 +29,11 @@ export function tryPlanRuntimeUnionTypeTest(
   baseExpression: CsharpExpression,
   negated: boolean,
 ): CsharpExpression | undefined {
-  const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
-  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
+  const receiverCarrier = input.types.classifications.resolveNode(node, sourceFile);
+  if (receiverCarrier === undefined) {
     return undefined;
   }
-  const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
+  const armIndex = runtimeUnionArmIndex(receiverCarrier, targetType);
   if (armIndex === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(
       node,
@@ -40,7 +41,7 @@ export function tryPlanRuntimeUnionTypeTest(
     ));
     return undefined;
   }
-  const test = runtimeUnionArmTest(baseExpression, armIndex);
+  const test = runtimeUnionArmTest(baseExpression, armIndex, receiverCarrier);
   return negated
     ? {
         kind: "PrefixUnaryExpression",
@@ -59,7 +60,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
   baseExpression: CsharpExpression,
 ): CsharpExpression | undefined {
   const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
-  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
+  if (storageCarrier === undefined) {
     return undefined;
   }
   const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
@@ -70,7 +71,7 @@ export function tryPlanRuntimeUnionProjectionToTargetType(
     ));
     return undefined;
   }
-  return runtimeUnionArmProjection(baseExpression, armIndex);
+  return runtimeUnionArmProjection(baseExpression, armIndex, storageCarrier);
 }
 
 function getRuntimeUnionStorageCarrier(
@@ -79,7 +80,7 @@ function getRuntimeUnionStorageCarrier(
   input: CsharpPlanningContext,
 ): TargetTypeRef | undefined {
   const storageCarrier = input.types.classifications.resolveStorage(node, sourceFile);
-  return isCsharpRuntimeUnionTargetType(storageCarrier)
+  return getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(storageCarrier) ?? storageCarrier) !== undefined
     ? storageCarrier
     : undefined;
 }
@@ -88,36 +89,51 @@ function runtimeUnionArmIndex(
   unionCarrier: TargetTypeRef,
   targetType: TargetTypeRef,
 ): number | undefined {
-  const armIndex = getCsharpRuntimeUnionArms(unionCarrier)?.findIndex((arm) => targetTypeRefEquals(arm, targetType));
+  const armIndex = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(unionCarrier) ?? unionCarrier)
+    ?.findIndex((arm) => targetTypeRefEquals(arm, targetType));
   return armIndex === undefined || armIndex < 0 ? undefined : armIndex;
 }
 
 export function runtimeUnionArmProjection(
   baseExpression: CsharpExpression,
   armIndex: number,
+  carrier?: TargetTypeRef,
 ): CsharpExpression {
+  const optional = getCsharpGenericOptionalParts(carrier);
+  const receiver: CsharpExpression = getCsharpNullableElementTargetType(carrier) === undefined
+    ? baseExpression
+    : { kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "PostfixUnaryExpression", operand: baseExpression, operatorToken: { kind: "ExclamationToken" } },
+        name: "Value" };
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver: baseExpression,
+      receiver: optional === undefined ? receiver : { kind: "IdentifierName", name: optional.operations.name },
       name: `As${armIndex + 1}`,
     },
-    arguments: [],
+    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
   };
 }
 
 export function runtimeUnionArmTest(
   baseExpression: CsharpExpression,
   armIndex: number,
+  carrier?: TargetTypeRef,
 ): CsharpExpression {
-  return {
+  const optional = getCsharpGenericOptionalParts(carrier);
+  const nullable = getCsharpNullableElementTargetType(carrier) !== undefined;
+  const test: CsharpExpression = {
     kind: "InvocationExpression",
     callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: baseExpression,
+      kind: nullable ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
+      receiver: optional === undefined ? baseExpression : { kind: "IdentifierName", name: optional.operations.name },
       name: `Is${armIndex + 1}`,
     },
-    arguments: [],
+    arguments: optional === undefined ? [] : [{ kind: "Argument", expression: baseExpression }],
   };
+  return nullable ? {
+    kind: "BinaryExpression", left: test, operatorToken: { kind: "EqualsEqualsToken" },
+    right: { kind: "LiteralExpression", value: true },
+  } : test;
 }

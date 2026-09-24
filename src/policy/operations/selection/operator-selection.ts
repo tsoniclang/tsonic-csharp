@@ -17,8 +17,8 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpIntegralTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpNeverTargetType,
+  isCsharpAbsenceTargetType,
   isCsharpStringTargetType,
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,
@@ -66,6 +66,7 @@ export type CsharpTargetBinaryOperation =
     }
   | { readonly kind: "array-index-presence" }
   | { readonly kind: "nullish-equality"; readonly value: boolean }
+  | { readonly kind: "union-coalesce"; readonly valueArmIndex: number; readonly retainCarrier: boolean }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -78,6 +79,7 @@ export type CsharpTargetBinaryOperation =
       readonly kind: "nullish-test";
       readonly operand: "left" | "right";
       readonly negated: boolean;
+      readonly unionArmIndexes?: readonly number[];
     }
   | {
       readonly kind: "reference-identity";
@@ -138,6 +140,19 @@ export function selectCsharpBinaryOperation(
       "The checked binary expression has incomplete exact AST operator evidence.",
     );
   }
+  return selectCsharpBinaryOperands(input, left, right, sourceOperator,
+    targetTypeFor(node), targetTypeFor, expectedResultType);
+}
+
+export function selectCsharpBinaryOperands(
+  input: CsharpPolicyContext,
+  left: Node,
+  right: Node,
+  sourceOperator: CsharpSourceOperator,
+  selectedResultType: TargetTypeRef | undefined,
+  targetTypeFor: CsharpOperationTargetTypeQuery,
+  expectedResultType?: TargetTypeRef,
+): CsharpOperationSelection<CsharpResolvedBinaryOperation> {
   let leftType = sourceOperator === "??="
     ? input.types.resolveReadStorage(left)
     : resolveBinaryOperandType(input, left, targetTypeFor);
@@ -150,11 +165,20 @@ export function selectCsharpBinaryOperation(
     targetTypeFor,
     nullishRightExpectation,
   );
-  const selectedResultType = targetTypeFor(node);
   if (leftType === undefined || rightType === undefined || selectedResultType === undefined) {
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (isEquality(sourceOperator)) {
+    const leftNullable = getCsharpNullableElementTargetType(leftType);
+    const rightNullable = getCsharpNullableElementTargetType(rightType);
+    const leftArms = getCsharpRuntimeUnionArms(leftType) ?? (leftNullable === undefined ? [] : [leftNullable]);
+    const rightArms = getCsharpRuntimeUnionArms(rightType) ?? (rightNullable === undefined ? [] : [rightNullable]);
+    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input, right, arm));
+    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input, left, arm));
+    if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
+    if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
   if (targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
@@ -197,16 +221,6 @@ export function selectCsharpBinaryOperation(
       leftInputType: csharpSourcePrimitiveTargetType("float64"), rightInputType: rightType,
       resultType, expectedResultCompatible: expectedResultType !== undefined && targetTypeRefEquals(resultType, expectedResultType),
     };
-  }
-  if (isEquality(sourceOperator) &&
-    (isCsharpRuntimeNullTargetType(leftType) || isCsharpRuntimeUndefinedTargetType(leftType)) &&
-    (isCsharpRuntimeNullTargetType(rightType) || isCsharpRuntimeUndefinedTargetType(rightType))) {
-    const leftStorage = input.types.resolveReadStorage(left);
-    const rightStorage = input.types.resolveReadStorage(right);
-    const leftNullable = getCsharpNullableElementTargetType(leftStorage) !== undefined;
-    const rightNullable = getCsharpNullableElementTargetType(rightStorage) !== undefined;
-    if (leftNullable && !rightNullable) leftType = leftStorage!;
-    if (rightNullable && !leftNullable) rightType = rightStorage!;
   }
   const nullishTest = selectNullishTest(sourceOperator, leftType, rightType);
   const stringRelational = selectStringRelational(
@@ -256,6 +270,11 @@ export function selectCsharpBinaryOperation(
       "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
     );
   }
+  const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType) : undefined;
+  const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpAbsenceTargetType(arm));
+  const unionCoalesce: CsharpTargetBinaryOperation | undefined = coalesceValueArm !== undefined && coalesceValueArm >= 0
+    ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, nullishResultType!) }
+    : undefined;
   const operationTypes = selectBinaryOperationTypes(
     sourceOperator,
     leftType,
@@ -266,6 +285,7 @@ export function selectCsharpBinaryOperation(
   );
   const incompatibility = nullishTest === undefined
       && referenceIdentity === undefined
+      && unionCoalesce === undefined
     ? validateBinaryTargetSemantics(
         sourceOperator,
         operationTypes.leftInputType,
@@ -277,7 +297,7 @@ export function selectCsharpBinaryOperation(
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperation: nullishTest ?? referenceIdentity ?? stringRelational ?? {
+        targetOperation: unionCoalesce ?? nullishTest ?? referenceIdentity ?? stringRelational ?? {
           kind: "operator",
           operator: targetOperator!,
         },
@@ -421,7 +441,7 @@ function selectBinaryOperationTypes(
   if (operator === "??" && nullishResultType !== undefined) {
     return {
       leftInputType: leftType,
-      rightInputType: rightType,
+      rightInputType: isCsharpNeverTargetType(rightType) ? nullishResultType : rightType,
       resultType: nullishResultType,
     };
   }
@@ -475,6 +495,16 @@ function resolveBinaryOperandType(
     }
   }
   const selected = targetTypeFor(node);
+  if (isCsharpAbsenceTargetType(selected)) {
+    const storage = input.types.resolveReadStorage(node);
+    if (getCsharpNullableElementTargetType(storage) !== undefined) return storage;
+  }
+  if (expectedType !== undefined && input.ast.is.IsObjectLiteralExpression(node)) {
+    const shape = input.objectShapes.resolveTarget(expectedType);
+    const construction = shape === undefined ? undefined
+      : input.objectShapes.resolveObjectLiteralTargetShape(shape, node, input.semanticsFor(node).sourceFile);
+    if (construction?.kind === "resolved") return expectedType;
+  }
   return adaptLiteralToExpectedType(input, node, selected, expectedType);
 }
 
@@ -499,13 +529,12 @@ function selectNullishResultType(
   if (valueType === undefined) {
     return undefined;
   }
-  if (targetTypeRefEquals(right, valueType)) {
+  if (isCsharpNeverTargetType(right) || targetTypeRefEquals(right, valueType)) {
     return valueType;
   }
   if (
     targetTypeRefEquals(right, left) ||
-    isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right)
+    isCsharpAbsenceTargetType(right)
   ) {
     return left;
   }
@@ -523,8 +552,7 @@ function nullishValueType(
     ? undefined
     : getCsharpRuntimeUnionArms(type);
   const valueArms = runtimeArms?.filter((arm) =>
-    !isCsharpRuntimeNullTargetType(arm) &&
-    !isCsharpRuntimeUndefinedTargetType(arm)
+    !isCsharpAbsenceTargetType(arm)
   );
   if (valueArms?.length === 1) {
     return valueArms[0];
@@ -574,10 +602,8 @@ function selectNullishTest(
   if (!isEquality(operator)) {
     return undefined;
   }
-  const leftNullish = isCsharpRuntimeNullTargetType(left) ||
-    isCsharpRuntimeUndefinedTargetType(left);
-  const rightNullish = isCsharpRuntimeNullTargetType(right) ||
-    isCsharpRuntimeUndefinedTargetType(right);
+  const leftNullish = isCsharpAbsenceTargetType(left);
+  const rightNullish = isCsharpAbsenceTargetType(right);
   if (leftNullish && rightNullish) {
     const equal = operator === "==" || operator === "!=" || targetTypeRefEquals(left, right);
     return { kind: "nullish-equality", value: operator === "!==" || operator === "!=" ? !equal : equal };
@@ -586,6 +612,17 @@ function selectNullishTest(
     return undefined;
   }
   const testedType = leftNullish ? right : left;
+  const unionArms = getCsharpRuntimeUnionArms(testedType);
+  if (unionArms !== undefined) {
+    const compared = leftNullish ? left : right;
+    const loose = operator === "==" || operator === "!=";
+    return {
+      kind: "nullish-test", operand: leftNullish ? "right" : "left",
+      negated: operator === "!==" || operator === "!=",
+      unionArmIndexes: Object.freeze(unionArms.flatMap((arm, index) =>
+        targetTypeRefEquals(arm, compared) || loose && (isCsharpAbsenceTargetType(arm)) ? [index] : [])),
+    };
+  }
   if (getCsharpNullableElementTargetType(testedType) === undefined) {
     return undefined;
   }

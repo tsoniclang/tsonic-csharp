@@ -20,7 +20,6 @@ import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { classifyCsharpSourceProfileType } from "./source-profile.js";
 import { getCsharpDelegateSignature } from "../../../target-model/types/delegates.js";
 import { createCsharpFixedArrayTypeQuery } from "./source-markers.js";
-import { createNullableParameterQuery } from "../callables/nullable-parameters.js";
 
 import {
   resolveNode as resolveNodeImplementation,
@@ -117,7 +116,6 @@ type DropScope<Arguments extends readonly unknown[]> =
   Arguments extends readonly [unknown, ...infer Rest] ? Rest : never;
 
 export interface CsharpTypeResolutionScope {
-  sourceParameterUsesOnlyNullableCarrier(declaration: Node, parameter: Node): boolean;
   resolvePointerReturn(
     declaration: Node,
     state: CsharpTypeResolutionState,
@@ -275,6 +273,7 @@ export interface CsharpTypeResolutionScope {
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   receiverType?: TargetTypeRef,
+  declaredMemberType?: Type,
 ): TargetTypeRef | undefined;
   resolveProjectEnumMemberTarget(
   declaration: Node | undefined,
@@ -317,6 +316,7 @@ export interface CsharpTypeResolutionScope {
   typeArguments: readonly TargetTypeRef[],
   selectedType: Type | undefined,
   state: CsharpTypeResolutionState,
+  sourceArguments?: readonly (Type | undefined)[],
 ):
   | { readonly kind: "not-alias" }
   | { readonly kind: "checker-transformed-alias" }
@@ -471,16 +471,21 @@ export interface CsharpTypeResolutionScope {
   type: Type,
   queries: SourceFileSemantics,
   typeArguments: readonly TargetTypeRef[],
+  state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined;
   resolveProjectSourceType(
   node: Node,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   typeArguments?: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
 ): TargetTypeRef | undefined;
   projectSourceDeclarationTargetType(
   declaration: Node,
   typeArguments: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
+  state?: CsharpTypeResolutionState,
+  selectedType?: Type,
 ): TargetTypeRef | undefined;
 }
 
@@ -496,7 +501,6 @@ export function createCsharpTypeResolutionServices(
   const queryCache = createCsharpTypeResolutionQueryCache();
   const activeTypes = new WeakSet<Type>();
   const methods = {
-    sourceParameterUsesOnlyNullableCarrier: createNullableParameterQuery(host),
     resolveNode: (
       node: Node | undefined,
       sourceFile?: SourceFile,

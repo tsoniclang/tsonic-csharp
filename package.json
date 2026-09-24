@@ -43,8 +43,8 @@
   },
   "scripts": {
     "build": "bash scripts/build.sh",
-    "test": "node ../tsonic/test/scripts/run-parallel.mjs --scope tsonic-csharp --with-preruns",
-    "test:parallel": "node ../tsonic/test/scripts/run-parallel.mjs --scope tsonic-csharp"
+    "test": "bash \"${TSONIC_ROOT:-../tsonic}/test/scripts/run-all.sh\" --scope tsonic-csharp",
+    "test:parallel": "bash \"${TSONIC_ROOT:-../tsonic}/test/scripts/run-parallel.sh\" --scope tsonic-csharp"
   },
   "peerDependencies": {
     "@tsonic/source-core": "0.1.2",

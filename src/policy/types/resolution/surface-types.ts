@@ -233,20 +233,31 @@ export const typedArrayNames = Object.freeze([
 
 export type CsharpJsTypedArrayName = typeof typedArrayNames[number];
 
+const typedArrayElementNames = {
+  Int8Array: "int8",
+  Uint8Array: "uint8",
+  Uint8ClampedArray: "uint8",
+  Int16Array: "int16",
+  Uint16Array: "uint16",
+  Int32Array: "int32",
+  Uint32Array: "uint32",
+  Float32Array: "float32",
+  Float64Array: "float64",
+} as const;
+
 export function csharpJsTypedArrayTargetType(
   name: CsharpJsTypedArrayName,
 ): CsharpTargetNamedTypeRef {
-  const elementType = csharpSourcePrimitiveTargetType("float64");
+  const elementType = csharpSourcePrimitiveTargetType(typedArrayElementNames[name]);
   return {
     ...csharpTargetNamedType(
       `Tsonic.CSharp.Js.${name}`,
       undefined,
       csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", name),
       {
-        arrayLikeElementType: elementType,
+        arrayLikeElementType: csharpSourcePrimitiveTargetType("float64"),
         enumerableElementType: elementType,
-        readOnlyIndexableElementType: elementType,
-        denseMutableElementType: elementType,
+        denseMutableElementType: csharpSourcePrimitiveTargetType("float64"),
         indexableLengthMemberName: "length",
         collectionSemantics: "dense",
       },
@@ -264,7 +275,7 @@ export function csharpJsTypedArrayElementTargetType(
   }
   const name = type.id.slice("Tsonic.CSharp.Js.".length) as CsharpJsTypedArrayName;
   return typedArrayNames.includes(name)
-    ? csharpSourcePrimitiveTargetType("float64")
+    ? csharpSourcePrimitiveTargetType(typedArrayElementNames[name])
     : undefined;
 }
 
@@ -334,18 +345,21 @@ export function csharpJsRegExpMatchArrayTargetType(): CsharpTargetNamedTypeRef {
   );
 }
 
-export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
-  const pair: TargetTypeRef = {
+export function csharpRegExpIndexPairTargetType(): TargetTypeRef {
+  return {
     kind: "tuple",
     elements: [
-      csharpSourcePrimitiveTargetType("float64"),
-      csharpSourcePrimitiveTargetType("float64"),
+      csharpSourcePrimitiveTargetType("int32"),
+      csharpSourcePrimitiveTargetType("int32"),
     ],
   };
+}
+
+export function csharpJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
   return csharpJsArrayLikeTargetType(
     "Tsonic.CSharp.Js.RegExpIndicesArray",
     "RegExpIndicesArray",
-    csharpNullableTargetType(pair),
+    csharpNullableTargetType(csharpRegExpIndexPairTargetType()),
   );
 }
 
@@ -390,17 +404,10 @@ export function csharpExactJsRegExpMatchArrayTargetType(): CsharpTargetNamedType
 }
 
 export function csharpExactJsRegExpIndicesArrayTargetType(): CsharpTargetNamedTypeRef {
-  const pair: TargetTypeRef = {
-    kind: "tuple",
-    elements: [
-      csharpSourcePrimitiveTargetType("float64"),
-      csharpSourcePrimitiveTargetType("float64"),
-    ],
-  };
   return csharpJsArrayLikeTargetType(
     "Tsonic.CSharp.Js.JsRegExpIndicesArray",
     "RegExpIndicesArray",
-    csharpNullableTargetType(pair),
+    csharpNullableTargetType(csharpRegExpIndexPairTargetType()),
   );
 }
 

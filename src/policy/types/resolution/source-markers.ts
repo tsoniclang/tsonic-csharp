@@ -160,9 +160,6 @@ export function readCsharpSourceFixedArrayType(
 }
 
 export function csharpFixedArrayRepresentationRejection(fact: TsonicFixedArrayFact): string | undefined {
-  if (fact.lengthRuntimeBase === "bigint") {
-    return `C# does not support FixedArray values with bigint extent ${fact.length}n or bigint .length; the implemented T[] carrier exposes signed 32-bit Length.`;
-  }
   if (fact.length > 2_147_483_647n) {
     return `C# FixedArray extent ${fact.length} exceeds the implemented signed 32-bit T[].Length range (0..2147483647).`;
   }

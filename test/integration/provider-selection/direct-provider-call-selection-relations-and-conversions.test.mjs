@@ -288,6 +288,35 @@ test("exact provider argument adapters close otherwise invalid target conversion
   );
 });
 
+test("native integer arguments never pass through a floating provider adapter", () => {
+  for (const sourceName of ["int64", "uint64", "int128", "uint128", "native-int", "native-uint"]) {
+    for (const nullable of [false, true]) {
+      const wrap = value => nullable ? csharpNullableValueTargetType(value) : value;
+      const fixture = createCallFixture({
+        sourceArgumentTargets: [wrap(csharpSourcePrimitiveTargetType(sourceName))],
+        targetParameters: [targetParameter("value", wrap(csharpSourcePrimitiveTargetType("int32")))],
+        sourceParametersRelations: [parameterRelation({ argumentAdapter: int32ProviderAdapter() })],
+      });
+      const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+      assert.equal(selected.kind, "resolved", `${sourceName}:${nullable}`);
+      assert.equal(selected.call.argumentMappings[0]?.conversion.kind, "checked-native-integer");
+    }
+  }
+});
+
+test("a numeric adapter without an exact integral contract is not replaced by a cast", () => {
+  const { nativeIntegerConversion, ...adapter } = int32ProviderAdapter();
+  assert.equal(nativeIntegerConversion, "checked");
+  const fixture = createCallFixture({
+    sourceArgumentTargets: [csharpSourcePrimitiveTargetType("uint64")],
+    targetParameters: [targetParameter("value", csharpSourcePrimitiveTargetType("int32"))],
+    sourceParametersRelations: [parameterRelation({ argumentAdapter: adapter })],
+  });
+  const selected = selectCsharpProviderCall(fixture.host, fixture.call, fixture.sourceFile);
+  assert.equal(selected.kind, "resolved");
+  assert.equal(selected.call.argumentMappings[0]?.conversion.kind, "provider-argument-adapter");
+});
+
 test("provider calls accept exact lifted implicit conversions between nullable value carriers", () => {
   const fixture = createCallFixture({
     sourceArgumentTargets: [
@@ -913,6 +942,7 @@ function parameterRelation(options = {}) {
 function int32ProviderAdapter() {
   return {
     kind: "static-method",
+    nativeIntegerConversion: "checked",
     id: "System.Convert.ToInt32(System.Double)",
     declaringType: {
       kind: "target-named",

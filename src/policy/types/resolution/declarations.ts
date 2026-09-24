@@ -5,6 +5,9 @@ import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";
 import { nextState } from "./state.js";
 import { readCsharpSourceField } from "./source-markers.js";
+import { sourceRefinementOnlyRemovesNullish } from "./source-union-refinement.js";
+import { getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
+import { getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 
 export function resolveSelectedDeclarationResult(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType, resolveCallableType, resolveNodeWithState, resolveProjectEnumMemberTarget }: CsharpTypeResolutionScope,
@@ -13,6 +16,7 @@ export function resolveSelectedDeclarationResult(
   queries: SourceFileSemantics,
   state: CsharpTypeResolutionState,
   receiverType?: TargetTypeRef,
+  declaredMemberType?: Type,
 ): TargetTypeRef | undefined {
   const sourceField = readCsharpSourceField(host.sourceFacts, [declaration]);
   if (sourceField !== undefined) {
@@ -45,33 +49,34 @@ export function resolveSelectedDeclarationResult(
   const declarationSourceFile = declarationType === undefined
     ? queries.sourceFile
     : host.ast.getSourceFile(declaration) ?? queries.sourceFile;
-  const authored = declarationType === undefined
-    ? undefined
-    : resolveNodeWithState(
-        declarationType,
-        declarationSourceFile,
-        nextState(state),
-      );
-  if (authored !== undefined) {
+  const unchanged = declaredMemberType !== undefined && semanticType !== undefined &&
+    queries.types.relationship(declaredMemberType, semanticType) === "identical";
+  const removesNullish = !unchanged && declaredMemberType !== undefined && semanticType !== undefined &&
+    sourceRefinementOnlyRemovesNullish(declaredMemberType, semanticType, queries);
+  const selected = resolveAuthoredAndSelectedSourceType(
+    declarationType,
+    declarationSourceFile,
+    declarationType !== undefined && (unchanged || removesNullish) ? undefined : semanticType,
+    queries.sourceFile,
+    state,
+  );
+  let result = selected;
+  if (selected !== undefined) {
     const instantiated = host.projectTypes().instantiateMemberType(
       declaration,
       receiverType,
-      authored,
+      selected,
     );
     if (instantiated.kind === "unresolved") {
       return undefined;
     }
     if (instantiated.kind === "resolved") {
-      return instantiated.type;
+      result = instantiated.type;
     }
   }
-  return resolveAuthoredAndSelectedSourceType(
-    declarationType,
-    declarationSourceFile,
-    semanticType,
-    queries.sourceFile,
-    state,
-  );
+  return declarationType !== undefined && removesNullish && result !== undefined
+    ? getCsharpNullableElementTargetType(result) ?? getCsharpGenericOptionalParts(result)?.element
+    : result;
 }
 
 

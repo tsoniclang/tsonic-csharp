@@ -2,6 +2,7 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import { selectCsharpTypedArrayMutation, type CsharpTypedArrayMutation, type CsharpTypedArrayUpdate } from "./typed-array-mutations.js";
 import type {
   CsharpPolicyContext,
 } from "../../model/context.js";
@@ -16,6 +17,8 @@ import {
 } from "../../../target-model/syntax/operators.js";
 
 export type CsharpJsArrayMutationSelection =
+  | CsharpTypedArrayMutation
+  | CsharpTypedArrayUpdate
   | {
       readonly kind: "delete-element";
       readonly receiver: Node;
@@ -45,7 +48,10 @@ export function selectCsharpJsArrayMutation(
     return selectDelete(input, node, sourceFile);
   }
   if (input.ast.is.IsBinaryExpression(node)) {
-    return selectLengthAssignment(input, node, sourceFile);
+    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? selectLengthAssignment(input, node, sourceFile);
+  }
+  if (input.ast.is.IsPrefixUnaryExpression(node) || input.ast.is.IsPostfixUnaryExpression(node)) {
+    return selectCsharpTypedArrayMutation(input, node, sourceFile) ?? { kind: "not-js-array-mutation" };
   }
   return { kind: "not-js-array-mutation" };
 }

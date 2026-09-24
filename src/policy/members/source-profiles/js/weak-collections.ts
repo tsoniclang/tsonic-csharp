@@ -7,10 +7,11 @@ import {
   csharpJsWeakMapTargetType,
   csharpJsWeakSetTargetType,
   csharpNullableTargetType,
-  isCsharpRuntimeNullTargetType,
+  isCsharpAbsenceTargetType,
   csharpSourcePrimitiveTargetType,
   getCsharpJsWeakMapTargetTypes,
   getCsharpJsWeakSetElementTargetType,
+  getCsharpNullableElementTargetType,
   isCsharpValueTypeTargetType,
 } from "../../../types/index.js";
 import type {
@@ -114,11 +115,11 @@ function weakMapGet(
 ): CsharpTargetMember | undefined {
   const shape = weakMapShape(context);
   if (shape === undefined) return undefined;
-  const valueType = isCsharpValueTypeTargetType(shape.value);
+  const valueType = isCsharpValueTypeTargetType(shape.value) && getCsharpNullableElementTargetType(shape.value) === undefined;
   return staticMethod(
-    `Tsonic.CSharp.Js.WeakMap.${valueType ? "getValue" : "getReference"}`,
+    `Tsonic.CSharp.Js.WeakMap.${valueType ? "getValue" : "getOptional"}`,
     "get",
-    valueType ? "getValue" : "getReference",
+    valueType ? "getValue" : "getOptional",
     weakMapHelperType,
     [
       targetParameter("map", shape.receiver),
@@ -130,7 +131,7 @@ function weakMapGet(
         { name: "TKey", constraints: [{ kind: "reference-type" }] },
         {
           name: "TValue",
-          constraints: [{ kind: valueType ? "value-type" : "reference-type" }],
+          ...(valueType ? { constraints: [{ kind: "value-type" as const }] } : {}),
         },
       ],
     },
@@ -243,7 +244,7 @@ function weakConstructorParameters(
   const sourceType = resolveCsharpSelectedSourceValue(context, sourceArgument);
   return [targetParameter(
     name,
-    isCsharpRuntimeNullTargetType(sourceType)
+    isCsharpAbsenceTargetType(sourceType)
       ? csharpNullableTargetType(collection)
       : collection,
   )];

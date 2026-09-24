@@ -6,7 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import { sourceNodeIdentity } from "@tsonic/target-api/source";
 import { csharpSourceTypeParameterName } from "../../../target-model/names/type-parameters.js";
-import type { SourceProgramNavigation } from "@tsonic/target-api/source";
+import type { SourceFileSemantics, SourceProgramNavigation } from "@tsonic/target-api/source";
 import type {
   CsharpProviderRelationResolver,
 } from "../../../providers/model/relation-resolver.js";
@@ -51,8 +51,17 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
+  readonly typeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
+  readonly outerTypeProjections: readonly import("../../../target-model/types/projections.js").CsharpProjectedType[];
+  readonly outerTypeParameters: readonly Node[];
+  readonly typeParameters: readonly Node[];
+  readonly sourceTypeParameterCount: number;
+  readonly staticCompanion: boolean;
   readonly abstract: boolean;
   readonly publicParameterlessConstructor: boolean;
+  readonly local: boolean;
+  readonly factoryName?: string;
+  readonly factoryIdentityName?: string;
 }
 
 export interface CsharpProjectTypeCatalog {
@@ -116,6 +125,7 @@ export interface CsharpProjectTypeCatalogHost {
   readonly ast: AstReader;
   readonly navigation: SourceProgramNavigation;
   readonly sourceFacts?: ReadonlySourceFactResolver;
+  semanticsFor(node: Node): SourceFileSemantics;
 }
 
 export interface CsharpProjectTypePolicyHost
@@ -332,19 +342,26 @@ export function projectTypeDefinition(
   if (
     kind === undefined ||
     sourceFile === undefined ||
-    name === undefined ||
+    name === undefined && kind !== "class" ||
     identity === undefined ||
     !host.navigation.isProjectDeclaration(declaration)
   ) {
     return undefined;
   }
+  const local = kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!);
+  const semantics = host.semanticsFor(declaration);
+  const declaredType = local ? semantics.declarations.declaredType(declaration) : undefined;
+  if (local && declaredType === undefined) return undefined;
+  const bindings = declaredType === undefined ? undefined : semantics.types.typeArgumentBindings(declaredType);
+  if (declaredType !== undefined && semantics.types.isTypeReference(declaredType) && bindings === undefined) return undefined;
+  const outerTypeParameters = bindings?.filter(binding => binding.scope === "outer").map(binding => binding.declaration) ?? [];
   const rawTypeParameters = kind === "enum" || kind === "struct"
     ? []
     : host.ast.typeParameters(declaration);
   const typeParameters = rawTypeParameters.filter(
     (parameter): parameter is Node => parameter !== undefined,
   );
-  const typeParameterNames = typeParameters.map((parameter) =>
+  const typeParameterNames = [...outerTypeParameters, ...typeParameters].map((parameter) =>
     csharpSourceTypeParameterName(parameter, host.ast)
   );
   if (
@@ -357,8 +374,19 @@ export function projectTypeDefinition(
     id: `tsonic.source:${identity}`,
     declaration,
     sourceFile,
-    sourceName: host.ast.text(name),
+    sourceName: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!)
+      ? `${name === undefined ? "AnonymousClass" : host.ast.text(name)}__${host.ast.pos(declaration)}`
+      : host.ast.text(name),
+    local,
     kind,
+    sourceTypeParameterCount: typeParameters.length,
+    typeProjections: Object.freeze([]),
+    outerTypeProjections: Object.freeze([]),
+    outerTypeParameters: Object.freeze(outerTypeParameters),
+    typeParameters: Object.freeze(typeParameters),
+    staticCompanion: kind === "class" && typeParameterNames.length > 0 &&
+      host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
+        member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),
     typeParameterNames: Object.freeze(
       typeParameterNames as readonly string[],
     ),
@@ -546,7 +574,7 @@ function declarationKind(
   declaration: Node,
 ): CsharpProjectTypeDefinition["kind"] | undefined {
   const ast = host.ast;
-  return ast.is.IsClassDeclaration(declaration)
+  return ast.is.IsClassDeclaration(declaration) || ast.is.IsClassExpression(declaration)
     ? "class"
     : ast.is.IsInterfaceDeclaration(declaration)
       ? "interface"

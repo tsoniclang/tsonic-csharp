@@ -7,7 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 
-export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
+export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint" | "object";
 
 export type CsharpSourceMemberKey =
   | { readonly kind: "property"; readonly name: string }
@@ -25,6 +25,7 @@ export interface CsharpObjectShapeMemberFact {
   readonly targetName: string;
   readonly memberKind: "property" | "method";
   readonly type: TargetTypeRef;
+  readonly exactNumericStorage?: true;
   readonly methodValueContract?: TargetTypeRef;
   readonly methodStorageType?: TargetTypeRef;
   readonly typeParameters?: readonly {
@@ -82,7 +83,7 @@ export type TargetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "source-global"; readonly name: string; readonly typeArguments?: readonly TargetTypeRef[] }
   | { readonly kind: "target-named"; readonly id: string; readonly typeArguments?: readonly TargetTypeRef[] }
-  | { readonly kind: "type-parameter"; readonly name: string }
+  | { readonly kind: "type-parameter"; readonly name: string; readonly csharpProjection?: import("./projections.js").CsharpTypeProjection }
   | { readonly kind: "array"; readonly element: TargetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] }
   | { readonly kind: "pointer"; readonly pointee: TargetTypeRef; readonly mutability?: "const" | "mut" | "target-defined" }
@@ -218,6 +219,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpStringIteration?: CsharpStringIterationPolicy;
   readonly csharpPropertyKeyIteration?: CsharpPropertyKeyIterationPolicy;
   readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
+  readonly csharpClassFactory?: import("./class-factories.js").CsharpClassFactoryType;
   readonly csharpGenericMethodValue?: {
     readonly owner: TargetTypeRef;
     readonly method: string;

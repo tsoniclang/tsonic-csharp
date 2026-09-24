@@ -12,8 +12,7 @@ import type {
 import {
   getCsharpRuntimeUnionArms,
   getCsharpNullableElementTargetType,
-  isCsharpRuntimeNullTargetType,
-  isCsharpRuntimeUndefinedTargetType,
+  isCsharpAbsenceTargetType,
   targetTypeRefEquals,
 } from "../../types/index.js";
 import type {
@@ -109,14 +108,14 @@ export function selectCsharpResourceManagement(
       },
     };
   }
-  const storageArms = getCsharpRuntimeUnionArms(storageType);
+  const storageArms = getCsharpRuntimeUnionArms(directResourceType);
   if (storageArms === undefined) {
     return rejected(
       "Multiple selected resource alternatives require one exact C# runtime-union storage carrier.",
     );
   }
   const disposableArmIndexes = storageArms.flatMap((arm, armIndex) =>
-    isCsharpRuntimeNullTargetType(arm) || isCsharpRuntimeUndefinedTargetType(arm)
+    isCsharpAbsenceTargetType(arm)
       ? []
       : [armIndex]);
   const arms = canonical.flatMap((alternative) => {

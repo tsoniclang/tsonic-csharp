@@ -9,6 +9,7 @@ import {
   csharpJsRegExpExecArrayTargetType,
   csharpJsArrayTargetType,
   csharpJsRegExpIndicesArrayTargetType,
+  csharpRegExpIndexPairTargetType,
   csharpJsRegExpMatchArrayTargetType,
   csharpJsRegExpNamedGroupsTargetType,
   csharpJsRegExpNamedIndicesTargetType,
@@ -22,7 +23,7 @@ import {
   csharpExactJsRegExpStringIteratorTargetType,
   csharpJsStringTargetType,
   csharpNullableTargetType,
-  csharpRuntimeUndefinedTargetType,
+  csharpAbsenceTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
@@ -87,13 +88,9 @@ const exactIteratorType = csharpExactJsRegExpStringIteratorTargetType();
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
-const undefinedType = csharpRuntimeUndefinedTargetType();
-const pairType: TargetTypeRef = {
-  kind: "tuple",
-  elements: [doubleType, doubleType],
-};
+const undefinedType = csharpAbsenceTargetType();
 const nullableStringType = csharpNullableTargetType(stringType);
-const nullablePairType = csharpNullableTargetType(pairType);
+const nullablePairType = csharpNullableTargetType(csharpRegExpIndexPairTargetType());
 const noReceiver = { kind: "none" } as const;
 const instanceReceiver = { kind: "instance" } as const;
 
@@ -194,19 +191,19 @@ export const csharpJsRegExpPropertyPolicies:
     ...regexpResultPropertyPolicies(
       regexpExecArrayOwner,
       execArrayType,
-      doubleType,
+      intType,
       stringType,
     ),
     ...regexpResultPropertyPolicies(
       regexpMatchArrayOwner,
       matchArrayType,
-      csharpNullableTargetType(doubleType),
+      csharpNullableTargetType(intType),
       csharpNullableTargetType(stringType),
     ),
     ...regexpResultPropertyPolicies(
       exactExecArrayOwner,
       exactExecArrayType,
-      doubleType,
+      intType,
       jsStringType,
       exactNamedGroupsType,
       exactIndicesArrayType,
@@ -214,7 +211,7 @@ export const csharpJsRegExpPropertyPolicies:
     ...regexpResultPropertyPolicies(
       exactMatchArrayOwner,
       exactMatchArrayType,
-      csharpNullableTargetType(doubleType),
+      csharpNullableTargetType(intType),
       csharpNullableTargetType(jsStringType),
       exactNamedGroupsType,
       exactIndicesArrayType,
@@ -406,7 +403,7 @@ function regexpConstructionMember(
   }
   const parameters = [
     ...(pattern === undefined ? [] : [targetParameter("pattern", pattern)]),
-    ...(flags === undefined ? [] : [targetParameter("flags", flags)]),
+    ...(flags === undefined ? [] : [targetParameter("flags", targetTypeRefEquals(flags, undefinedType) ? nullableStringType : flags)]),
   ];
   if (form === "call") {
     return staticMethod(
@@ -525,7 +522,7 @@ function regexpInputMember(
         : operation === "matchAll"
           ? exact ? exactIteratorType : iteratorType
           : operation === "search"
-            ? doubleType
+            ? intType
             : csharpJsArrayTargetType(csharpNullableTargetType(exact ? jsStringType : stringType));
   return regexpInstanceMethod(
     sourceName,

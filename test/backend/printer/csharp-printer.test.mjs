@@ -26,6 +26,16 @@ import {
 
 const unbackedObjectStorage = Object.freeze({ nativeField: () => undefined });
 
+test("null-forgiving expressions retain precedence and compose with member reads", () => {
+  const assertion = operand => ({ kind: "PostfixUnaryExpression", operand, operatorToken: { kind: "ExclamationToken" } });
+  const value = { kind: "IdentifierName", name: "value" };
+  assert.equal(printCsharpExpression(assertion(value)), "value!");
+  assert.equal(printCsharpExpression({ kind: "SimpleMemberAccessExpression", receiver: assertion(value), name: "Value" }), "value!.Value");
+  assert.equal(printCsharpExpression(assertion({ kind: "ConditionalExpression", condition: value,
+    whenTrue: { kind: "IdentifierName", name: "first" }, whenFalse: { kind: "IdentifierName", name: "second" } })),
+  "(value ? first : second)!");
+});
+
 test("unreachable authored incrementor diagnostics are scoped to the for header", () => {
   const loop = {
     kind: "ForStatement",
@@ -81,6 +91,22 @@ test("printer renders cast expression nodes", () => {
     }),
     "(Animal)value",
   );
+});
+
+test("casts retain the complete lower-precedence operand inside checked expressions", () => {
+  const operand = { kind: "BinaryExpression", operatorToken: { kind: "MinusToken" },
+    left: { kind: "IdentifierName", name: "size" },
+    right: { kind: "IntegerLiteralExpression", digits: "8", suffix: "L" } };
+  const cast = { kind: "CastExpression", type: { kind: "PredefinedType", name: "int" }, expression: operand };
+  assert.equal(printCsharpExpression({ kind: "CheckedExpression", expression: cast }), "checked((int)(size - 8L))");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "ConditionalExpression", condition: { kind: "IdentifierName", name: "ready" },
+    whenTrue: operand, whenFalse: { kind: "LiteralExpression", value: 0 },
+  } }), "(int)(ready ? size - 8L : 0)");
+  assert.equal(printCsharpExpression({ ...cast, expression: {
+    kind: "AssignmentExpression", operatorToken: { kind: "EqualsToken" },
+    left: { kind: "IdentifierName", name: "offset" }, right: operand,
+  } }), "(int)(offset = size - 8L)");
 });
 
 test("printer preserves exact 64-bit integer literal digits", () => {

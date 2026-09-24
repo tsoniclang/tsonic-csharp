@@ -1,4 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
+import { planGenericClassStaticMembers } from "../declarations/generic-static-members.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
 import {
   AsExportAssignment,
@@ -52,6 +53,7 @@ import type {
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
+import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/class-factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { readNamespace } from "../project/project-artifacts.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
@@ -102,6 +104,14 @@ export function planSourceFile(
     moduleInitialization.isAsync(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
+  for (const factory of input.program.classFactories.factories) {
+    if (factory.sourceFile !== sourceFile) continue;
+    const instance = planClassDeclaration(factory.declaration, sourceFile, input, diagnostics);
+    namespaceMembers.push(instance);
+    namespaceMembers.push(planClassFactoryDeclaration(factory, instance, input, diagnostics));
+    const identity = planClassFactoryIdentity(factory, input, diagnostics);
+    if (identity !== undefined) namespaceMembers.push(identity);
+  }
   const topLevelStatements: CsharpStatement[] = [];
   const topLevelState = createDestructuringPlannerState(sourceFile, input.program.source.ast);
   const plannedTopLevelStatements = planResourceManagedSourceFileStatements(
@@ -111,7 +121,7 @@ export function planSourceFile(
     topLevelState,
     () => {
       for (const statement of sourceFile.Statements?.Nodes ?? []) {
-        if (statement === undefined) {
+        if (statement === undefined || input.program.sourceEvidence.isCompileTimeMetadata(statement)) {
           continue;
         }
         if (
@@ -143,9 +153,12 @@ export function planSourceFile(
               members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
             }
             break;
-          case KindClassDeclaration:
+          case KindClassDeclaration: {
             namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
+            const statics = planGenericClassStaticMembers(statement, sourceFile, input, diagnostics);
+            if (statics !== undefined) namespaceMembers.push(statics);
             break;
+          }
           case KindVariableStatement:
             planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, hasModuleInitializer);
             break;

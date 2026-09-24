@@ -1,5 +1,4 @@
 import type {
-  CsharpTargetNamedTypeRef,
   CsharpTypeofRuntimeKind,
   TargetTypeRef,
 } from "../../types/index.js";
@@ -7,6 +6,8 @@ import {
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
 } from "../../types/index.js";
+import { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
+export { getCsharpTypeofRuntimeKind } from "../../../target-model/types/runtime-kind.js";
 
 export type CsharpTypeofComparisonSelection =
   | {
@@ -28,35 +29,6 @@ export type CsharpTypeofComparisonSelection =
       readonly reason: string;
     };
 
-export function getCsharpTypeofRuntimeKind(
-  type: TargetTypeRef | undefined,
-): CsharpTypeofRuntimeKind | undefined {
-  if (
-    type === undefined ||
-    getCsharpNullableElementTargetType(type) !== undefined
-  ) {
-    return undefined;
-  }
-  if (type.kind === "target-named") {
-    return (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind;
-  }
-  if (type.kind !== "source-primitive") {
-    return undefined;
-  }
-  if (type.name === "bool") {
-    return "boolean";
-  }
-  if (type.name === "char") {
-    return "string";
-  }
-  return type.name === "int64" ||
-    type.name === "uint64" ||
-    type.name === "int128" ||
-    type.name === "uint128"
-    ? "bigint"
-    : "number";
-}
-
 export function selectCsharpTypeofComparison(
   operandType: TargetTypeRef | undefined,
   runtimeKind: CsharpTypeofRuntimeKind,
@@ -75,12 +47,17 @@ export function selectCsharpTypeofComparison(
     };
   }
   const nullableElement = getCsharpNullableElementTargetType(operandType);
-  if (nullableElement !== undefined) {
+  if (nullableElement !== undefined && getCsharpRuntimeUnionArms(nullableElement) === undefined) {
     const valueRuntimeKind = getCsharpTypeofRuntimeKind(nullableElement);
     if (valueRuntimeKind === undefined) {
       return rejected(
         "The selected nullable typeof comparison has no exact target runtime-kind representation.",
       );
+    }
+    if (runtimeKind === "object") {
+      return valueRuntimeKind === "object"
+        ? { kind: "constant", value: !negated }
+        : { kind: "target-type-test", targetType: nullableElement, negated: !negated };
     }
     return valueRuntimeKind === runtimeKind
       ? {
@@ -93,7 +70,7 @@ export function selectCsharpTypeofComparison(
           value: negated,
         };
   }
-  const matchingArms = (getCsharpRuntimeUnionArms(operandType) ?? [])
+  const matchingArms = (getCsharpRuntimeUnionArms(nullableElement ?? operandType) ?? [])
     .filter((arm) => getCsharpTypeofRuntimeKind(arm) === runtimeKind);
   if (matchingArms.length === 1) {
     return {

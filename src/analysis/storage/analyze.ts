@@ -178,16 +178,15 @@ export function analyzeCsharpStorage(
   }
 
   function recordCallableParameterRequirements(node: Node): void {
-    if (
-      !policy.ast.is.IsArrowFunction(node) &&
-      !policy.ast.is.IsFunctionExpression(node)
-    ) {
+    const contextual = policy.ast.is.IsArrowFunction(node) || policy.ast.is.IsFunctionExpression(node);
+    if (!contextual && !policy.ast.is.IsFunctionDeclaration(node) &&
+      !policy.ast.is.IsMethodDeclaration(node) && !policy.ast.is.IsConstructorDeclaration(node)) {
       return;
     }
     const parameters = policy.ast.parameters(node).filter(
       (parameter): parameter is Node => parameter !== undefined,
     );
-    const callableTarget = expectedTypes.callableTarget(node);
+    const callableTarget = contextual ? expectedTypes.callableTarget(node) : undefined;
     const selectedSignature = callableTarget === undefined
       ? undefined
       : getCsharpDelegateSignature(callableTarget);
@@ -342,32 +341,35 @@ export function analyzeCsharpStorage(
       }
       return;
     }
-    const reference = policy.navigation.referenceFor(expression);
-    const declaration = reference?.declaration;
-    if (
-      declaration === undefined ||
-      !policy.ast.is.IsVariableDeclaration(declaration)
-    ) {
-      return;
+    const aliases = new Set<Node>();
+    let current = expression;
+    while (true) {
+      const declaration = policy.navigation.referenceFor(current)?.declaration;
+      if (declaration === undefined || !policy.ast.is.IsVariableDeclaration(declaration) ||
+        aliases.has(declaration)) return;
+      const variable = policy.ast.as.AsVariableDeclaration(declaration);
+      if (variable?.Type !== undefined || variable?.Initializer === undefined) return;
+      aliases.add(declaration);
+      if (aliases.size > maximumStorageContracts) {
+        issues.push(issue(expression, "CSHARP_STORAGE_ALIAS_BUDGET_EXCEEDED",
+          `Selected storage exceeds its finite ${maximumStorageContracts}-alias budget.`));
+        return;
+      }
+      const initializer = variable.Initializer;
+      if (policy.ast.is.IsObjectLiteralExpression(initializer)) {
+        const shape = objectShapes.resolveTarget(requiredStorageType);
+        const construction = shape === undefined ? undefined
+          : objectShapes.resolveObjectLiteralTargetShape(shape, initializer);
+        if (construction?.kind !== "resolved") return;
+        break;
+      }
+      const initializerConversion = conversions.selectExpression(initializer,
+        evidence.nodeTargetType(initializer), requiredStorageType, "implicit");
+      if (initializerConversion !== undefined && csharpConversionIsApplicable(initializerConversion, "implicit")) break;
+      if (!policy.ast.is.IsIdentifier(initializer)) return;
+      current = initializer;
     }
-    const variable = policy.ast.as.AsVariableDeclaration(declaration);
-    if (variable?.Type !== undefined || variable?.Initializer === undefined) {
-      return;
-    }
-    const initializerType = evidence.nodeTargetType(variable.Initializer);
-    const initializerConversion = conversions.selectExpression(
-      variable.Initializer,
-      initializerType,
-      requiredStorageType,
-      "implicit",
-    );
-    if (
-      initializerConversion === undefined ||
-      !csharpConversionIsApplicable(initializerConversion, "implicit")
-    ) {
-      return;
-    }
-    requireTargetType(expression, declaration, requiredStorageType);
+    for (const declaration of aliases) requireTargetType(expression, declaration, requiredStorageType);
   }
 
   function recordOperationRequirements(node: Node): void {

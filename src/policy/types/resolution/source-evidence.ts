@@ -72,14 +72,3 @@ export function definedValues<T>(
 ): T[] {
   return values.filter((value): value is T => value !== undefined);
 }
-
-
-export function isUndefinedType(
-  type: Type,
-  queries: SourceFileSemantics,
-): boolean {
-  const nonNullishType = queries.types.withoutMissingOrUndefined(type);
-  return queries.types.isNullish(type) &&
-    nonNullishType !== undefined &&
-    queries.types.isNever(nonNullishType);
-}

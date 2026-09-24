@@ -1,4 +1,5 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
+import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -17,11 +18,12 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 
 export function resolveNodeWithState(
-  { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
@@ -33,13 +35,15 @@ export function resolveNodeWithState(
   ) {
     return undefined;
   }
-  const scopedTargetType = host.representations.scopedTargetType(node);
-  if (scopedTargetType !== undefined) {
-    return scopedTargetType;
-  }
   const queries = sourceFile === undefined
     ? host.semanticsFor(node)
     : host.semantics(sourceFile);
+  const scopedTargetType = host.representations.scopedTargetType(node);
+  if (scopedTargetType !== undefined) {
+    const selected = queries.types.expressionType(node);
+    return selected === undefined ? scopedTargetType
+      : scope.resolveSelectedValueWithState(node, selected, queries.sourceFile, state);
+  }
   const syntaxFact = resolveDirectSourceFacts(
     [node],
     queries.sourceFile,
@@ -181,6 +185,10 @@ export function resolveNodeWithState(
   const declaredValue = resolveSourceValueDeclaration(node, queries, state);
   if (declaredValue !== undefined) {
     return declaredValue;
+  }
+  if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
+    const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
+    if (constructor !== undefined) return constructor;
   }
   const projectType = resolveProjectSourceType(node, queries.sourceFile, state);
   if (projectType !== undefined) {
