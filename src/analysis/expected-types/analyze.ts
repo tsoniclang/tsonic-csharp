@@ -848,6 +848,8 @@ function csharpBinaryTargetOperationsEqual(
       return right.kind === "array-index-presence";
     case "nullish-equality":
       return right.kind === "nullish-equality" && left.value === right.value;
+    case "union-coalesce":
+      return right.kind === "union-coalesce" && left.valueArmIndex === right.valueArmIndex && left.retainCarrier === right.retainCarrier;
     case "operator":
       return right.kind === "operator" && left.operator === right.operator;
     case "string-ordinal-relational":
@@ -856,7 +858,10 @@ function csharpBinaryTargetOperationsEqual(
     case "nullish-test":
       return right.kind === "nullish-test" &&
         left.operand === right.operand &&
-        left.negated === right.negated;
+        left.negated === right.negated &&
+        (left.unionArmIndexes === undefined ? right.unionArmIndexes === undefined
+          : right.unionArmIndexes !== undefined && left.unionArmIndexes.length === right.unionArmIndexes.length &&
+            left.unionArmIndexes.every((arm, index) => arm === right.unionArmIndexes![index]));
     case "reference-identity":
       return right.kind === "reference-identity" &&
         left.negated === right.negated;

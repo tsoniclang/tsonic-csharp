@@ -12,6 +12,7 @@ import { csharpSourceTypeArgumentNodes } from "../../../target-model/syntax/type
 import { definedValues } from "./source-evidence.js";
 import { nextState } from "./state.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
+import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 
 export function resolveSelectedSymbolType(
   { declarationResultTypeNode, host, resolveAuthoredAndSelectedSourceType }: CsharpTypeResolutionScope,
@@ -74,6 +75,7 @@ export function resolveProjectSourceSemanticType(
       const targetType = projectSourceDeclarationTargetType(
         declaration,
         typeArguments,
+        queries.types.effectiveTypeArguments(type),
       );
       if (targetType !== undefined) {
         return targetType;
@@ -90,6 +92,7 @@ export function resolveProjectSourceType(
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
   typeArguments?: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
 ): TargetTypeRef | undefined {
   const reference = host.navigation.referenceFor(node);
   if (reference === undefined) {
@@ -105,15 +108,31 @@ export function resolveProjectSourceType(
   return projectSourceDeclarationTargetType(
     reference.declaration,
     resolvedArguments as readonly TargetTypeRef[],
+    sourceArguments ?? csharpSourceTypeArgumentNodes(host.ast, node).map(argument => host.semantics(sourceFile).types.authoredType(argument)),
+    state,
   );
 }
 
 
 export function projectSourceDeclarationTargetType(
-  { host }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   declaration: Node,
   typeArguments: readonly TargetTypeRef[],
+  sourceArguments?: readonly (Type | undefined)[],
+  state: CsharpTypeResolutionState = { depth: 0 },
 ): TargetTypeRef | undefined {
+  const { host } = scope;
+  const definition = host.projectTypeCatalog.definitionForDeclaration(declaration);
+  if (definition === undefined) return undefined;
+  if (typeArguments.length !== definition.typeParameterNames.length) {
+    if (typeArguments.length !== definition.sourceTypeParameterCount) return undefined;
+    const sources = sourceArguments ?? host.ast.typeParameters(declaration).map(parameter =>
+      parameter === undefined ? undefined : host.semanticsFor(declaration).types.authoredType(parameter));
+    if (sources.some(source => source === undefined)) return undefined;
+    const projections = resolveCsharpProjectionArguments(scope, declaration, sources as readonly Type[], typeArguments, state);
+    if (projections === undefined) return undefined;
+    typeArguments = [...typeArguments, ...projections];
+  }
   return host.projectTypeCatalog.targetTypeForDeclaration(
     declaration,
     typeArguments,

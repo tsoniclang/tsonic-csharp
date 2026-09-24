@@ -119,6 +119,7 @@ export interface CsharpPropertyClassification {
 
 export interface CsharpBinaryClassification {
   readonly instanceType?: TargetTypeRef;
+  readonly instanceFactory?: TargetTypeRef;
   readonly jsValue: CsharpJsValueOperationSelection;
   readonly target: CsharpOperationSelection<CsharpResolvedBinaryOperation>;
   readonly destructuring: CsharpOperationSelection<

@@ -67,6 +67,7 @@ export type CsharpTargetBinaryOperation =
     }
   | { readonly kind: "array-index-presence" }
   | { readonly kind: "nullish-equality"; readonly value: boolean }
+  | { readonly kind: "union-coalesce"; readonly valueArmIndex: number; readonly retainCarrier: boolean }
   | {
       readonly kind: "operator";
       readonly operator: string;
@@ -79,6 +80,7 @@ export type CsharpTargetBinaryOperation =
       readonly kind: "nullish-test";
       readonly operand: "left" | "right";
       readonly negated: boolean;
+      readonly unionArmIndexes?: readonly number[];
     }
   | {
       readonly kind: "reference-identity";
@@ -168,6 +170,14 @@ export function selectCsharpBinaryOperands(
     return rejected(
       "The checked binary expression has no closed C# representation for every operand and result.",
     );
+  }
+  if (isEquality(sourceOperator)) {
+    const leftArms = getCsharpRuntimeUnionArms(leftType);
+    const rightArms = getCsharpRuntimeUnionArms(rightType);
+    const rightCandidates = leftArms?.filter(arm => csharpLiteralIsRepresentableAs(input, right, arm));
+    const leftCandidates = rightArms?.filter(arm => csharpLiteralIsRepresentableAs(input, left, arm));
+    if (rightCandidates?.length === 1) rightType = rightCandidates[0]!;
+    if (leftCandidates?.length === 1) leftType = leftCandidates[0]!;
   }
   if (targetTypeRefEquals(leftType, csharpBigIntegerTargetType()) &&
     targetTypeRefEquals(rightType, csharpBigIntegerTargetType())) {
@@ -269,6 +279,11 @@ export function selectCsharpBinaryOperands(
       "Source nullish coalescing has no exact C# result relation for the selected target operand types.",
     );
   }
+  const coalesceArms = sourceOperator === "??" ? getCsharpRuntimeUnionArms(leftType) : undefined;
+  const coalesceValueArm = coalesceArms?.findIndex(arm => !isCsharpRuntimeNullTargetType(arm) && !isCsharpRuntimeUndefinedTargetType(arm));
+  const unionCoalesce: CsharpTargetBinaryOperation | undefined = coalesceValueArm !== undefined && coalesceValueArm >= 0
+    ? { kind: "union-coalesce", valueArmIndex: coalesceValueArm, retainCarrier: targetTypeRefEquals(leftType, nullishResultType!) }
+    : undefined;
   const operationTypes = selectBinaryOperationTypes(
     sourceOperator,
     leftType,
@@ -279,6 +294,7 @@ export function selectCsharpBinaryOperands(
   );
   const incompatibility = nullishTest === undefined
       && referenceIdentity === undefined
+      && unionCoalesce === undefined
     ? validateBinaryTargetSemantics(
         sourceOperator,
         operationTypes.leftInputType,
@@ -290,7 +306,7 @@ export function selectCsharpBinaryOperands(
     ? {
         kind: "resolved",
         sourceOperator,
-        targetOperation: nullishTest ?? referenceIdentity ?? stringRelational ?? {
+        targetOperation: unionCoalesce ?? nullishTest ?? referenceIdentity ?? stringRelational ?? {
           kind: "operator",
           operator: targetOperator!,
         },
@@ -599,6 +615,17 @@ function selectNullishTest(
     return undefined;
   }
   const testedType = leftNullish ? right : left;
+  const unionArms = getCsharpRuntimeUnionArms(testedType);
+  if (unionArms !== undefined) {
+    const compared = leftNullish ? left : right;
+    const loose = operator === "==" || operator === "!=";
+    return {
+      kind: "nullish-test", operand: leftNullish ? "right" : "left",
+      negated: operator === "!==" || operator === "!=",
+      unionArmIndexes: Object.freeze(unionArms.flatMap((arm, index) =>
+        targetTypeRefEquals(arm, compared) || loose && (isCsharpRuntimeNullTargetType(arm) || isCsharpRuntimeUndefinedTargetType(arm)) ? [index] : [])),
+    };
+  }
   if (getCsharpNullableElementTargetType(testedType) === undefined) {
     return undefined;
   }

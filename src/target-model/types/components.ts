@@ -51,6 +51,9 @@ export function csharpTargetTypeComponents(
     addDefined(components, target.csharpDenseMutableElementType);
     addDefined(components, target.csharpBaseType);
     addDefined(components, target.csharpGenericMethodValue?.owner);
+    addDefined(components, target.csharpClassFactory?.instance);
+    components.push(...target.csharpClassFactory?.signature.parameters ?? []);
+    addDefined(components, target.csharpClassFactory?.signature.returnType);
     addDefined(components, target.csharpTaskResultType);
     components.push(...target.csharpDelegateSignature?.parameters ?? []);
     addDefined(components, target.csharpDelegateSignature?.returnType);

@@ -41,6 +41,7 @@ export function analyzeCsharpCaptureStorage(
   shapes: CsharpObjectShapeClassifications,
   storage: CsharpStorageClassifications,
   evidence: CsharpSourceEvidenceIndex,
+  classCaptures: readonly import("../project-types/class-factories.js").CsharpClassCapture[],
 ): CsharpCaptureStorage {
   const groups = new Map<Node, Map<Node, TargetTypeRef>>();
   const issues: CsharpStorageIssue[] = [];
@@ -70,6 +71,24 @@ export function analyzeCsharpCaptureStorage(
       bindings.set(capture.declaration, type);
       groups.set(scope, bindings);
     }
+  }
+  for (const capture of classCaptures) {
+    if (!capture.mutable || storage.nativeBacking(capture.declaration) !== undefined) continue;
+    const scope = sourceBindingScope(capture.declaration, source.ast);
+    if (scope === undefined || source.ast.is.IsSourceFile(scope)) {
+      issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_SCOPE_NOT_CLOSED",
+        message: "A mutable class capture requires its exact lexical activation scope." });
+      continue;
+    }
+    const bindings = groups.get(scope) ?? new Map<Node, TargetTypeRef>();
+    const type = physicalType(capture.declaration, capture.type);
+    const existing = bindings.get(capture.declaration);
+    if (existing !== undefined && !targetTypeRefEquals(existing, type)) {
+      issues.push({ node: capture.declaration, code: "CSHARP_CAPTURE_STORAGE_CONFLICT",
+        message: "One class capture cannot have incompatible native storage contracts." });
+    }
+    bindings.set(capture.declaration, type);
+    groups.set(scope, bindings);
   }
   const closures = selectCsharpFrameClosures(source, evidence, groups, physicalType, issues);
   const byScope = new Map<Node, CsharpCaptureFrame>();

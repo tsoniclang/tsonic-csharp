@@ -32,6 +32,7 @@ import {
   planPropertyDeclaration,
 } from "./declaration-class-properties.js";
 import { planCsharpMutableMethod } from "./mutable-methods.js";
+import { classFactoryContext } from "./class-factories.js";
 
 export function planClassMembers(
   members: readonly (Node | undefined)[],
@@ -47,10 +48,16 @@ export function planClassMembers(
     if (member === undefined || sourceClassFieldIsTypeOnly(input.program.source.ast, member)) {
       continue;
     }
+    const owner = input.program.source.ast.parent(member);
+    const factory = owner === undefined ? undefined : input.program.classFactories.get(owner);
+    const memberInput = factory === undefined || input.program.source.ast.hasModifierKind(member, "static") ? input
+      : classFactoryContext(factory, input.program.source.ast.is.IsConstructorDeclaration(member) || input.program.source.ast.is.IsPropertyDeclaration(member)
+        ? { kind: "IdentifierName", name: factory.environmentName }
+        : { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "this" }, name: factory.environmentName }, input, diagnostics, "instance");
     switch (SourceKind(input.program.source.ast, member)) {
       case KindConstructor:
         if (AsConstructorDeclaration(input.program.source.ast, member)?.Body !== undefined) {
-          planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+          planned.push(planConstructorDeclaration(member, className, sourceFile, memberInput, diagnostics));
         }
         break;
       case KindClassStaticBlockDeclaration:
@@ -59,7 +66,7 @@ export function planClassMembers(
       case KindMethodDeclaration:
         if (AsMethodDeclaration(input.program.source.ast, member)?.Body !== undefined ||
           input.program.source.ast.hasModifierKind(member, "abstract")) {
-          const method = planMethodDeclaration(member, sourceFile, input, diagnostics);
+          const method = planMethodDeclaration(member, sourceFile, memberInput, diagnostics);
           const write = input.program.declarations.methodWrite(member);
           planned.push(...(write === undefined ? [method] : planCsharpMutableMethod(member, method, write, input, diagnostics)));
         }
@@ -69,7 +76,7 @@ export function planClassMembers(
         break;
       case KindGetAccessor:
       case KindSetAccessor:
-        mergeAccessorProperty(member, planned, accessorProperties, sourceFile, input, diagnostics);
+        mergeAccessorProperty(member, planned, accessorProperties, sourceFile, memberInput, diagnostics);
         break;
       default:
         diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));

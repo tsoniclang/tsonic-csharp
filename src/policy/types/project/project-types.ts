@@ -51,8 +51,12 @@ export interface CsharpProjectTypeDefinition {
   readonly sourceName: string;
   readonly kind: "class" | "interface" | "enum" | "struct";
   readonly typeParameterNames: readonly string[];
+  readonly sourceTypeParameterCount: number;
+  readonly staticCompanion: boolean;
   readonly abstract: boolean;
   readonly publicParameterlessConstructor: boolean;
+  readonly local: boolean;
+  readonly factoryName?: string;
 }
 
 export interface CsharpProjectTypeCatalog {
@@ -332,7 +336,7 @@ export function projectTypeDefinition(
   if (
     kind === undefined ||
     sourceFile === undefined ||
-    name === undefined ||
+    name === undefined && kind !== "class" ||
     identity === undefined ||
     !host.navigation.isProjectDeclaration(declaration)
   ) {
@@ -357,8 +361,15 @@ export function projectTypeDefinition(
     id: `tsonic.source:${identity}`,
     declaration,
     sourceFile,
-    sourceName: host.ast.text(name),
+    sourceName: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!)
+      ? `${name === undefined ? "AnonymousClass" : host.ast.text(name)}__${host.ast.pos(declaration)}`
+      : host.ast.text(name),
+    local: kind === "class" && !host.ast.is.IsSourceFile(host.ast.parent(declaration)!),
     kind,
+    sourceTypeParameterCount: typeParameterNames.length,
+    staticCompanion: kind === "class" && typeParameterNames.length > 0 &&
+      host.ast.is.IsSourceFile(host.ast.parent(declaration)!) && host.ast.members(declaration).some(member =>
+        member !== undefined && (host.ast.hasModifierKind(member, "static") || host.ast.is.IsClassStaticBlockDeclaration(member))),
     typeParameterNames: Object.freeze(
       typeParameterNames as readonly string[],
     ),
@@ -546,7 +557,7 @@ function declarationKind(
   declaration: Node,
 ): CsharpProjectTypeDefinition["kind"] | undefined {
   const ast = host.ast;
-  return ast.is.IsClassDeclaration(declaration)
+  return ast.is.IsClassDeclaration(declaration) || ast.is.IsClassExpression(declaration)
     ? "class"
     : ast.is.IsInterfaceDeclaration(declaration)
       ? "interface"

@@ -17,6 +17,8 @@ export type CsharpConversionSelection =
   | { readonly kind: "identity" }
   | { readonly kind: "array-like-union"; readonly arms: readonly TargetTypeRef[] }
   | { readonly kind: "runtime-union-reference"; readonly arms: readonly TargetTypeRef[]; readonly target: TargetTypeRef }
+  | { readonly kind: "generic-optional"; readonly method: "FromNullable" | "ToNullable" | "FromReference" | "ToReference";
+      readonly element: TargetTypeRef; readonly absent: TargetTypeRef }
   | { readonly kind: "empty-record"; readonly source: TargetTypeRef; readonly target: TargetTypeRef }
   | {
       readonly kind: "implicit";

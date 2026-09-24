@@ -15,10 +15,10 @@ import { ObjectLiteralProperty_Value } from "@tsonic/target-api/source";
 import { selectCsharpObjectLiteralUnionShape } from "../objects/object-shape-policy/union-construction.js";
 import { csharpNumericLiteralValue, csharpBigIntLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import { csharpLiteralIsRepresentableAs } from "../../conversions/literals.js";
-import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { resolveTypeParameter } from "./source-evidence.js";
 import { getCsharpGenericMethodValue } from "../../../target-model/types/generic-method-values.js";
 import { resolveCsharpObjectShapeMemberBySelectedSubject } from "../../../target-model/types/object-shape-members.js";
+import { resolveCsharpProjectionArguments } from "./projection-arguments.js";
 
 export function resolveAuthoredAndSelectedSourceType(
   { host, resolveNodeWithState, resolveTypeWithState }: CsharpTypeResolutionScope,
@@ -117,7 +117,7 @@ export function resolveAuthoredAndSelectedSourceType(
 
 
 export function resolveSourceCallInstantiation(
-  { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType, sourceParameterUsesOnlyNullableCarrier }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   source: ResolvedSourceCallInfo,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
@@ -129,7 +129,10 @@ export function resolveSourceCallInstantiation(
       readonly substitutions: ReadonlyMap<string, TargetTypeRef>;
     }
   | undefined {
+  const { host, inferSourceCallTargetTypeArguments, resolveAuthoredAndSelectedSourceType } = scope;
   const selectedArguments = source.sourceSelectedMethodTypeArguments ?? [];
+  const owner = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
+  const projections = owner === undefined ? [] : host.representations.genericProjections?.(owner) ?? [];
   const queries = host.semantics(sourceFile);
   const parameterNames = selectedArguments.map(argument => {
     const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
@@ -145,10 +148,10 @@ export function resolveSourceCallInstantiation(
   if (
     expectedTypeParameterNames !== undefined &&
     (
-      selectedArguments.length !== expectedTypeParameterNames.length ||
+      selectedArguments.length + projections.length !== expectedTypeParameterNames.length ||
       parameterNames.some((name, index) =>
         name !== expectedTypeParameterNames[index]
-      )
+      ) || projections.some((projection, index) => projection.name !== expectedTypeParameterNames[selectedArguments.length + index])
     )
   ) {
     return undefined;
@@ -206,18 +209,17 @@ export function resolveSourceCallInstantiation(
     if (targetArgument === undefined) {
       return undefined;
     }
-    const declaration = callable?.sourceDeclaration ?? source.sourceCalleeAccess?.selectedDeclaration ?? source.sourceCallee.selectedDeclaration;
-    const symbol = queries.declarations.typeSymbol(selected.typeParameter);
-    const parameters = symbol === undefined ? [] : queries.declarations.symbolDeclarations(symbol)
-      .filter(candidate => host.ast.is.IsTypeParameterDeclaration(candidate));
-    const parameter = parameters.length === 1 ? parameters[0] : undefined;
-    if (declaration !== undefined && parameter !== undefined &&
-      sourceParameterUsesOnlyNullableCarrier(declaration, parameter)) {
-      targetArgument = csharpNullableTargetType(targetArgument);
-    }
     selectedParameters.add(selected.typeParameter);
     substitutions.set(parameterName, targetArgument);
     arguments_.push(targetArgument);
+  }
+  if (owner !== undefined && projections.length > 0) {
+    const results = resolveCsharpProjectionArguments(scope, owner, selectedArguments.map(argument => argument.selectedType), arguments_, state, projections);
+    if (results === undefined) return undefined;
+    for (const [index, result] of results.entries()) {
+      substitutions.set(projections[index]!.name, result);
+      arguments_.push(result);
+    }
   }
   return {
     arguments: Object.freeze(arguments_),
@@ -512,7 +514,10 @@ export function sourceCallableTypeParametersMatch(
   const file = host.ast.getSourceFile(source.sourceCallee.expression);
   if (file === undefined) return false;
   const queries = host.semantics(file);
-  return selected.length === callable.methodTypeParameterNames.length &&
+  const projections = callable.sourceDeclaration === undefined ? []
+    : host.representations.genericProjections?.(callable.sourceDeclaration) ?? [];
+  return selected.length + projections.length === callable.methodTypeParameterNames.length &&
+    projections.every((projection, index) => projection.name === callable.methodTypeParameterNames[selected.length + index]) &&
     selected.every((argument, index) => {
       const parameter = resolveTypeParameter(argument.typeParameter, queries, host.ast);
       return parameter?.kind === "type-parameter" && parameter.name === callable.methodTypeParameterNames[index];

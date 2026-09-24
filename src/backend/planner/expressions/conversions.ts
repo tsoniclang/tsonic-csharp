@@ -159,6 +159,16 @@ export function applyCsharpConversionSelection(
     }
     case "identity":
       return expression;
+    case "generic-optional": {
+      const element = renderRequiredTargetType(node, selection.element, diagnostics);
+      const absent = renderRequiredTargetType(node, selection.absent, diagnostics);
+      return element === undefined || absent === undefined ? undefined : {
+        kind: "InvocationExpression", callee: {
+          kind: "SimpleMemberAccessExpression", receiver: qualifiedCsharpType("Tsonic.CSharp.Runtime", "Optional"),
+          name: selection.method, typeArguments: [element, absent],
+        }, arguments: [{ kind: "Argument", expression }],
+      };
+    }
     case "array-like-union": {
       const type = renderRequiredTargetType(node, targetType, diagnostics);
       if (type === undefined) return undefined;

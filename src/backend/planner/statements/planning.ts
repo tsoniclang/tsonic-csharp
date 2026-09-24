@@ -36,6 +36,9 @@ import {
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
+import { planClassFactoryExpression } from "../declarations/class-factories.js";
+import { planIdentifierName } from "../names/source-identifiers.js";
+import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";
 import { planCsharpCaptureFrame, planCsharpCaptureEntryBindings } from "../bindings/capture-storage.js";
 import {
@@ -168,6 +171,17 @@ export function planStatements(
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(input.program.source.ast, node)!;
       return planForOfStatement(node, statement, sourceFile, input, diagnostics, state, planNestedStatementBody);
+    }
+    case "KindClassDeclaration": {
+      const factory = input.program.classFactories.get(node);
+      const initializer = factory === undefined ? undefined : planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+      const type = factory === undefined ? undefined : csharpTypeFromTargetTypeRef(factory.factoryType);
+      if (initializer === undefined || type === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "A local class requires a sealed native factory."));
+        return [];
+      }
+      return [{ kind: "LocalDeclarationStatement", type, initializer,
+        name: planIdentifierName(input.program.source.ast.name(node), "Class", input, diagnostics, "Local class") }];
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(input.program.source.ast, node)!.DeclarationList;

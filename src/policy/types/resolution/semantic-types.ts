@@ -1,4 +1,7 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
+import { resolveCsharpConstructorValueType } from "./constructors.js";
+import { csharpBoundSourceType } from "./type-bindings.js";
+import { resolveCsharpSemanticConditionalType } from "./conditional-types.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { ExtensionFactSubject, SourceFile, Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -50,15 +53,20 @@ import { resolveTypeParameter, definedValues, isUndefinedType } from "./source-e
 import { tsonicMemoryFieldBindingFactKey, tsonicMemoryRecordBindingFactKey, selectTsonicMemoryFieldBinding, selectTsonicMemoryRecordBinding } from "@tsonic/source-core/facts";
 
 export function resolveTypeWithState(
-  { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   type: Type | undefined,
   sourceFile: SourceFile,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, policy, resolveCallableType, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceSemanticType, resolveProviderType, resolveSemanticTypeArguments, resolveSourceProfileType, resolveTypeWithState, resolveUnionType } = scope;
   if (type === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
   const queries = host.semantics(sourceFile);
+  const bound = csharpBoundSourceType(type, queries, state);
+  if (bound !== undefined) return bound.targetType;
+  const conditional = resolveCsharpSemanticConditionalType(scope, type, queries, state);
+  if (conditional !== undefined) return conditional.type;
   const subjects = queries.facts.typeSubjects(type);
   const direct = resolveDirectSourceFacts(subjects, sourceFile, state);
   if (direct !== undefined) {
@@ -137,6 +145,8 @@ export function resolveTypeWithState(
       return resolvedProfileType;
     }
   }
+  const constructor = resolveCsharpConstructorValueType(scope, type, queries, state);
+  if (constructor !== undefined) return constructor;
   const projectType = resolveProjectSourceSemanticType(
     type,
     queries,

@@ -2,6 +2,7 @@ import {
   csharpBaseTargetTypeFromBinding,
   csharpTargetBindingFact,
   getCsharpDelegateSignature,
+  getCsharpGenericOptionalParts,
   getCsharpNullableElementTargetType,
   getCsharpRuntimeUnionArms,
   isCsharpJsValueTargetType,
@@ -123,6 +124,14 @@ export function selectNullableConversion(
 ): CsharpConversionSelection | undefined {
   const sourceElement = getCsharpNullableElementTargetType(source);
   const targetElement = getCsharpNullableElementTargetType(target);
+  const sourceOptional = getCsharpGenericOptionalParts(source);
+  const targetOptional = getCsharpGenericOptionalParts(target);
+  if (sourceOptional !== undefined && targetElement !== undefined && targetTypeRefEquals(sourceOptional.element, targetElement)) {
+    return { kind: "generic-optional", ...sourceOptional, method: isCsharpValueTypeTargetType(targetElement) ? "ToNullable" : "ToReference" };
+  }
+  if (targetOptional !== undefined && sourceElement !== undefined && targetTypeRefEquals(targetOptional.element, sourceElement)) {
+    return { kind: "generic-optional", ...targetOptional, method: isCsharpValueTypeTargetType(sourceElement) ? "FromNullable" : "FromReference" };
+  }
   if (targetElement !== undefined) {
     if (
       isCsharpRuntimeNullTargetType(source) ||

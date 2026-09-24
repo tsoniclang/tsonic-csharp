@@ -154,7 +154,7 @@ export function createCsharpObjectShapePolicy(
     ) {
       return undefined;
     }
-    const cached = nodeShapes.get(node);
+    const cached = state.sourceBindings === undefined ? nodeShapes.get(node) : undefined;
     if (cached !== undefined) {
       return cached;
     }
@@ -180,7 +180,9 @@ export function createCsharpObjectShapePolicy(
       const source = selectedObjectShapeSource(node, queries, host, state);
       if (selectedShape !== undefined && source.type !== undefined && !host.ast.is.IsObjectLiteralExpression(node)) {
         const members = instantiateMemberEvidence(selectedShape.members, source.type, queries);
-        if (members !== undefined) return remember(node, { ...selectedShape, sourceType: source.type, members });
+        if (members !== undefined) return state.sourceBindings === undefined
+          ? remember(node, { ...selectedShape, sourceType: source.type, members })
+          : rememberTargetShape({ ...selectedShape, sourceType: source.type, members });
       }
       const declaration = host.navigation.declarationFor(node);
       const authoredTypeRoot = declaration === undefined
@@ -195,7 +197,7 @@ export function createCsharpObjectShapePolicy(
         authoredTypeRoot,
       );
       if (shape !== undefined) {
-        return remember(node, shape);
+        return state.sourceBindings === undefined ? remember(node, shape) : rememberTargetShape(shape);
       }
       if (selectedShape !== undefined) {
         return remember(node, selectedShape);

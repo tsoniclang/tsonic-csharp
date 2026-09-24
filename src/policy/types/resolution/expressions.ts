@@ -10,6 +10,7 @@ import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskR
 import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
+import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
@@ -118,6 +119,11 @@ export function resolveSelectedExpressionType(
     host.ast.is.IsCallExpression(node) ||
     host.ast.is.IsNewExpression(node)
   ) {
+    if (host.ast.is.IsNewExpression(node)) {
+      const factory = getCsharpClassFactory(resolveNodeWithState(host.ast.as.AsNewExpression(node)?.Expression,
+        queries.sourceFile, nextState(state)));
+      if (factory !== undefined) return factory.instance;
+    }
     const selection = selectCsharpTargetCall(
       { ...host, projectTypes: host.projectTypes(), types: policy },
       node,
@@ -481,6 +487,8 @@ export function resolveSourceOwnedConstructionResult(
     : projectSourceDeclarationTargetType(
         declaration,
         targetArguments as readonly TargetTypeRef[],
+        selectedArguments.map(argument => argument.selectedType),
+        state,
       );
 }
 

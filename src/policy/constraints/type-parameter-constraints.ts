@@ -47,6 +47,17 @@ const numericSourcePrimitives = new Set([
   "uint128",
 ]);
 
+function numericConstraint(constraint: Node, sourceFile: SourceFile, host: CsharpTypeParameterConstraintPolicyHost): boolean {
+  if (host.ast.is.IsUnionTypeNode(constraint)) {
+    const members = host.ast.as.AsUnionTypeNode(constraint)?.Types?.Nodes;
+    return members !== undefined && members.length > 0 &&
+      members.every(member => member !== undefined && numericConstraint(member, sourceFile, host));
+  }
+  const selected = host.types.resolveNode(constraint, sourceFile);
+  return selected?.kind === "source-primitive" && numericSourcePrimitives.has(selected.name) ||
+    selected?.kind === "target-named" && selected.id === "System.Numerics.BigInteger";
+}
+
 export function resolveCsharpTypeParameterConstraints(
   typeParameter: Node,
   typeParameterName: string,
@@ -126,18 +137,7 @@ function resolveConstraint(
       constraints: [{ kind: "keyword", keyword: "class" }],
     };
   }
-  const targetType = host.types.resolveNode(constraint, sourceFile);
-  if (targetType === undefined) {
-    return {
-      kind: "unsupported",
-      reason:
-        "The source constraint has no exact C# target representation.",
-    };
-  }
-  if (
-    targetType.kind === "source-primitive" &&
-    numericSourcePrimitives.has(targetType.name)
-  ) {
+  if (numericConstraint(constraint, sourceFile, host)) {
     return {
       kind: "resolved",
       constraints: [{
@@ -152,6 +152,10 @@ function resolveConstraint(
         ),
       }],
     };
+  }
+  const targetType = host.types.resolveNode(constraint, sourceFile);
+  if (targetType === undefined) {
+    return { kind: "unsupported", reason: "The source constraint has no exact C# target representation." };
   }
   if (
     targetType.kind === "type-parameter" ||

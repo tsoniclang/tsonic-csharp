@@ -1,4 +1,5 @@
 import type { CsharpTypeResolutionScope } from "./engine.js";
+import { resolveCsharpConstructorValueType } from "./constructors.js";
 import type { CsharpTypeResolutionState } from "./model.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
@@ -17,11 +18,12 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
 
 export function resolveNodeWithState(
-  { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   node: Node | undefined,
   sourceFile: SourceFile | undefined,
   state: CsharpTypeResolutionState,
 ): TargetTypeRef | undefined {
+  const { host, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProjectThisTargetType, resolveSelectedExpressionType, resolveSourceValueDeclaration, resolveTupleTypeNode, resolveTypeReferenceNode, resolveTypeWithState } = scope;
   if (node === undefined || state.depth > maximumTypeResolutionDepth) {
     return undefined;
   }
@@ -177,6 +179,10 @@ export function resolveNodeWithState(
   const projectThis = resolveProjectThisTargetType(node);
   if (projectThis !== undefined) {
     return projectThis;
+  }
+  if (!host.ast.is.IsClassDeclaration(node) && !host.ast.is.IsInterfaceDeclaration(node)) {
+    const constructor = resolveCsharpConstructorValueType(scope, queries.types.expressionType(node), queries, state);
+    if (constructor !== undefined) return constructor;
   }
   const declaredValue = resolveSourceValueDeclaration(node, queries, state);
   if (declaredValue !== undefined) {

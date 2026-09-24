@@ -105,7 +105,9 @@ function classifyThisBinding(node: Node, input: CsharpPlanningContext): ThisBind
 }
 
 function isClassInstanceMember(node: Node, input: CsharpPlanningContext): boolean {
-  return HasSourceKind(input.program.source.ast, input.program.source.ast.parent(node), KindClassDeclaration);
+  const owner = input.program.source.ast.parent(node);
+  return HasSourceKind(input.program.source.ast, owner, KindClassDeclaration) ||
+    input.program.source.ast.is.IsClassExpression(owner);
 }
 
 function unsupportedThis(context: string): ThisBindingClassification {

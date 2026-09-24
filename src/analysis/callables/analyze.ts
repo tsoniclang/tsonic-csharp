@@ -24,12 +24,14 @@ import type { CsharpSourceNameResolver } from "../names/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpCallableContractIndex } from "./model.js";
 import { csharpSourceTypeParameterName } from "../../target-model/names/type-parameters.js";
+import type { CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 
 export function analyzeCsharpCallableContracts(
   policy: CsharpPolicyContext,
   evidence: CsharpSourceEvidenceIndex,
   declarations: CsharpDeclarationClassifications,
   names: CsharpSourceNameResolver,
+  projections: CsharpGenericProjectionIndex,
 ): CsharpCallableContractIndex {
   const byDeclaration = new WeakMap<Node, CsharpSourceCallableContract>();
   const byProjectConstructor = new Map<string, CsharpSourceCallableContract>();
@@ -72,6 +74,7 @@ export function analyzeCsharpCallableContracts(
         names,
         node,
         sourceFile,
+        projections,
       );
       if (contract !== undefined) {
         byDeclaration.set(node, contract);
@@ -94,6 +97,7 @@ function sourceCallableContract(
   names: CsharpSourceNameResolver,
   declaration: Node,
   sourceFile: SourceFile,
+  projections: CsharpGenericProjectionIndex,
 ): CsharpSourceCallableContract | undefined {
   const returnContract = declarations.returnContract(declaration);
   const returnType = evidence.generatorTargetType(declaration) ??
@@ -135,7 +139,7 @@ function sourceCallableContract(
   return Object.freeze({
     sourceDeclaration: declaration,
     methodTypeParameterNames: Object.freeze(
-      methodTypeParameterNames as string[],
+      [...methodTypeParameterNames as string[], ...projections.get(declaration).map(parameter => parameter.name)],
     ),
     ...(owner === undefined ? {} : { receiverTypeOwner: owner }),
     parameters: Object.freeze(parameters),
@@ -211,6 +215,7 @@ function sourceCallableReceiverTypeOwner(
   policy: CsharpPolicyContext,
   declaration: Node,
 ): Node | undefined {
+  if (policy.ast.hasModifierKind(declaration, "static")) return undefined;
   const parent = policy.ast.parent(declaration);
   return parent !== undefined &&
       (

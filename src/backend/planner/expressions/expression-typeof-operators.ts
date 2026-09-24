@@ -3,6 +3,7 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";
 import {
   sourceOperatorFromKindName,
 } from "../../../target-model/syntax/operators.js";
@@ -109,6 +110,21 @@ export function tryPlanTypeTestExpression(
     return undefined;
   }
   const planned = planExpression(left, sourceFile, input, diagnostics);
+  const factoryType = input.program.operations.binary(node)?.instanceFactory;
+  const factory = getCsharpClassFactory(factoryType);
+  if (factory !== undefined) {
+    const retained = input.program.classFactories.get(factory.declaration);
+    const receiver = planExpression(right, sourceFile, input, diagnostics);
+    const owner = factoryType === undefined ? undefined : csharpTypeFromTargetTypeRef(factoryType);
+    if (!retained?.requiresInstanceTest || planned === undefined || receiver === undefined || owner === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "A local class identity test requires its sealed per-evaluation environment."));
+      return undefined;
+    }
+    return { kind: "InvocationExpression", callee: { kind: "SimpleMemberAccessExpression", receiver: owner,
+      name: factory.instanceTestMethodName }, arguments: [
+      { kind: "Argument", expression: planned }, { kind: "Argument", expression: receiver },
+    ] };
+  }
   const instanceType = input.program.operations.binary(node)?.instanceType;
   const targetType = instanceType === undefined
     ? expressionToCsharpType(right, sourceFile, input, diagnostics)

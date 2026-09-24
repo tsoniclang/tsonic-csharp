@@ -68,6 +68,10 @@ export function tryPlanBinaryExpressionWithExpectedType(
   if (selection.kind === "rejected") {
     return undefined;
   }
+  if (selection.targetOperation.kind === "union-coalesce") {
+    return planSelectedCsharpBinaryOperation(node, selection, sourceFile, input, diagnostics,
+      planExpression, planExpressionWithExpectedType, state);
+  }
   if (selection.sourceOperator !== "??") {
     return binaryOperationUsesExpectedNumericType(selection.sourceOperator) &&
       expectedTargetType !== undefined &&

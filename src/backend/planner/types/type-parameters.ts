@@ -16,9 +16,11 @@ export function planTypeParameters(
   input: CsharpPlanningContext,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeParameter[] {
-  return nodes
+  const owner = nodes[0] === undefined ? undefined : input.program.source.ast.parent(nodes[0]);
+  const projections = owner === undefined ? [] : input.program.typeProjections.get(owner);
+  return [...nodes
     .filter((node): node is Node => node !== undefined)
-    .map((node) => planTypeParameter(node, input, diagnostics));
+    .map((node) => planTypeParameter(node, input, diagnostics)), ...projections.map(parameter => ({ name: parameter.name }))];
 }
 
 function planTypeParameter(

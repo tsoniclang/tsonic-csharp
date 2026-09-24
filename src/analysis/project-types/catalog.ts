@@ -13,6 +13,7 @@ import {
 
 export function createCsharpProjectTypeCatalog(
   host: CsharpProjectTypeCatalogHost,
+  projections?: import("../declarations/type-projections.js").CsharpGenericProjectionIndex,
 ): CsharpProjectTypeCatalog {
   const definitions: CsharpProjectTypeDefinition[] = [];
   const issues: CsharpProjectTypeIssue[] = [];
@@ -21,10 +22,13 @@ export function createCsharpProjectTypeCatalog(
 
   for (const sourceFile of host.navigation.sourceFiles) {
     visitSourceTree(host.ast, sourceFile, (declaration) => {
-      const definition = projectTypeDefinition(host, declaration);
-      if (definition === undefined) {
+      const sourceDefinition = projectTypeDefinition(host, declaration);
+      if (sourceDefinition === undefined) {
         return;
       }
+      const definition = Object.freeze({ ...sourceDefinition, typeParameterNames: Object.freeze([
+        ...sourceDefinition.typeParameterNames, ...projections?.get(declaration).map(parameter => parameter.name) ?? [],
+      ]) });
       const existing = byId.get(definition.id);
       if (existing !== undefined && existing.declaration !== declaration) {
         issues.push({
@@ -41,6 +45,20 @@ export function createCsharpProjectTypeCatalog(
     });
   }
 
+  const occupiedNames = new Set(definitions.filter(definition => !definition.local).map(definition => definition.sourceName));
+  const allocate = (preferred: string): string => {
+    let name = preferred;
+    for (let suffix = 2; occupiedNames.has(name); suffix += 1) name = `${preferred}_${suffix}`;
+    occupiedNames.add(name);
+    return name;
+  };
+  for (const definition of definitions.filter(definition => definition.local).sort((left, right) => left.id.localeCompare(right.id))) {
+    const sourceName = allocate(definition.sourceName);
+    const selected = Object.freeze({ ...definition, sourceName, factoryName: allocate(`${sourceName}Factory`) });
+    definitions[definitions.indexOf(definition)] = selected;
+    byDeclaration.set(definition.declaration, selected);
+    byId.set(definition.id, selected);
+  }
   const frozenDefinitions = Object.freeze(definitions);
   const frozenIssues = Object.freeze(issues);
   return Object.freeze({

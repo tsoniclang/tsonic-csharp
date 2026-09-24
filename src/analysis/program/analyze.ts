@@ -2,6 +2,8 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import { analyzeCsharpCaptureStorage } from "../callables/capture-storage.js";
+import { analyzeCsharpClassFactories } from "../project-types/class-factories.js";
+import { analyzeCsharpTypeProjections, csharpTypeProjectionIndexesEqual, type CsharpGenericProjectionIndex } from "../declarations/type-projections.js";
 import { csharpCallableValueType } from "../callables/value-type.js";
 import { targetTypeRefEquals } from "../../target-model/types/equality.js";
 import { analyzeCsharpNumericRepresentations } from "../numeric/representations.js";
@@ -106,6 +108,7 @@ import {
 } from "../module-initialization/index.js";
 
 interface CsharpRepresentationContract {
+  readonly typeProjections: CsharpGenericProjectionIndex;
   readonly callables: CsharpCallableContractIndex;
   readonly storage: CsharpStorageClassifications;
 }
@@ -165,6 +168,7 @@ export function analyzeCsharpTargetProgram(
         kind: "resolved",
         revision: {
           contract: Object.freeze({
+            typeProjections: iteration.typeProjections,
             callables: iteration.callables,
             storage: iteration.storage,
           }),
@@ -213,6 +217,7 @@ export function analyzeCsharpTargetProgram(
   const analysisIssues = [
     ...memoryBindings.issues.map(issue => ({ node: issue.node, message: issue.reason, code: "CSHARP_MEMORY_BINDING_NOT_PROVEN" })),
     ...analysis.sourceEvidence.memoryMetadataIssues,
+    ...analysis.sourceEvidence.typeOnlyIssues,
     ...analysis.sourceEvidence.fixedArrayIssues,
     ...analysis.typeSystem.projectTypes.issues,
     ...analysis.expectedTypes.issues,
@@ -278,11 +283,18 @@ export function analyzeCsharpTargetProgram(
       source: "tsonic-csharp",
     })));
   }
-  const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage, analysis.sourceEvidence);
+  const classFactories = analyzeCsharpClassFactories(source, analysis.typeSystem.projectTypes.catalog, analysis.sourceEvidence, analysis.storage, names);
+  if (classFactories.issues.length > 0) return rejectedTargetStage(classFactories.issues.map(issue => ({
+    code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
+  })));
+  const captureStorage = analyzeCsharpCaptureStorage(source, analysis.objectShapes, analysis.storage, analysis.sourceEvidence,
+    classFactories.factories.flatMap(factory => factory.captures));
   if (captureStorage.issues.length > 0) return rejectedTargetStage(captureStorage.issues.map(issue => ({
     code: issue.code, category: "error" as const, source: "tsonic-csharp", sourceNode: issue.node, message: issue.message,
   })));
   const program: CsharpTargetProgram = Object.freeze({
+    typeProjections: analysis.typeProjections,
+    classFactories,
     captureStorage,
     numericRepresentations: analyzeCsharpNumericRepresentations({ source, sourceFiles,
       evidence: analysis.sourceEvidence, operations: analysis.operations }),
@@ -330,6 +342,7 @@ function analyzeIteration(
 ) {
   let typeSystem: CsharpTypeSystem | undefined;
   const planningRepresentations: CsharpPlanningRepresentationQueries = {
+    genericProjections(declaration) { return previous?.typeProjections.get(declaration) ?? []; },
     requiresClosedStructuralContract(type) {
       return previous?.storage.closedNativeContracts.some(contract => targetTypeRefEquals(contract, type)) === true;
     },
@@ -353,7 +366,7 @@ function analyzeIteration(
   const representations = Object.freeze(planningRepresentations);
   typeSystem = createCsharpTypeSystem(
     typeHost,
-    createCsharpProjectTypeCatalog(typeHost),
+    createCsharpProjectTypeCatalog(typeHost, previous?.typeProjections),
     representations,
   );
   const policy = createCsharpAnalysisPolicyContext({
@@ -369,18 +382,20 @@ function analyzeIteration(
     typeSystem.analysisTypes,
     policy,
   );
+  const typeProjections = analyzeCsharpTypeProjections(input.source, sourceEvidence);
   const operations = analyzeCsharpTargetOperations(policy, sourceEvidence);
   const declarations = analyzeCsharpDeclarations(
     policy,
     sourceEvidence,
     operations,
   );
-  const objectShapes = analyzeCsharpObjectShapes(policy, sourceEvidence);
+  const objectShapes = analyzeCsharpObjectShapes(policy, sourceEvidence, operations);
   const callables = analyzeCsharpCallableContracts(
     policy,
     sourceEvidence,
     declarations,
     names,
+    typeProjections,
   );
   const expectedTypes = analyzeCsharpExpectedTypes(
     policy,
@@ -411,6 +426,7 @@ function analyzeIteration(
   const sealedObjectShapes = objectShapes.seal();
   const storage = sealCsharpStorage(policy, sourceEvidence, operations, sealedObjectShapes, storageRepresentations);
   return Object.freeze({
+    typeProjections,
     typeSystem,
     sourceEvidence,
     operations,
@@ -462,5 +478,6 @@ function representationContractsEqual(
   right: CsharpRepresentationContract,
 ): boolean {
   return csharpCallableContractIndexesEqual(left.callables, right.callables) &&
-    csharpStorageClassificationsEqual(left.storage, right.storage);
+    csharpStorageClassificationsEqual(left.storage, right.storage) &&
+    csharpTypeProjectionIndexesEqual(left.typeProjections, right.typeProjections);
 }

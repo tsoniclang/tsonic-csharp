@@ -36,6 +36,8 @@ import {
 import { isCsharpRuntimeUndefinedTargetType } from "../../../../target-model/types/runtime-carriers.js";
 import { planCsharpBigIntCall } from "./bigint-call.js";
 import type { DestructuringPlannerState } from "../../bindings/binding-state.js";
+import { allocateExpressionTemp } from "../../bindings/binding-state.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../runtime-union-projections.js";
 
 export function planSelectedCsharpBinaryOperation(
   node: Node,
@@ -49,6 +51,25 @@ export function planSelectedCsharpBinaryOperation(
 ): CsharpExpression | undefined {
   if (selection.targetOperation.kind === "bigint-call") {
     return planCsharpBigIntCall(node, selection, sourceFile, input, diagnostics, planExpression, state);
+  }
+  if (selection.targetOperation.kind === "union-coalesce") {
+    const resultType = csharpTypeFromTargetTypeRef(selection.resultType);
+    if (state === undefined || resultType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Union coalescing requires its sealed result type and hygienic evaluation scope."));
+      return undefined;
+    }
+    const left = planExpression(selection.left, sourceFile, input, diagnostics, state);
+    const right = planExpressionWithExpectedType(selection.right, sourceFile, input, diagnostics,
+      resultType, undefined, selection.resultType, state);
+    if (left === undefined || right === undefined) return undefined;
+    const name = allocateExpressionTemp(state);
+    const reference: CsharpExpression = { kind: "IdentifierName", name };
+    return { kind: "ConditionalExpression", condition: {
+      kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
+      left: { kind: "IsPatternExpression", expression: left, type: { kind: "IdentifierName", name: "var" }, designation: name },
+      right: runtimeUnionArmTest(reference, selection.targetOperation.valueArmIndex),
+    }, whenTrue: selection.targetOperation.retainCarrier ? reference : runtimeUnionArmProjection(reference, selection.targetOperation.valueArmIndex),
+    whenFalse: right };
   }
   if (selection.targetOperation.kind === "array-index-presence") {
     const left = planExpression(selection.left, sourceFile, input, diagnostics);
@@ -107,6 +128,33 @@ export function planSelectedCsharpBinaryOperation(
         receiver: { kind: "TupleExpression", elements: selection.targetOperation.operand === "left"
           ? [testedValue, otherValue] : [otherValue, testedValue] },
         name: selection.targetOperation.operand === "left" ? "Item1" : "Item2" };
+    }
+    const arms = selection.targetOperation.unionArmIndexes;
+    if (arms !== undefined) {
+      if (arms.length === 0) return { kind: "SimpleMemberAccessExpression", receiver: {
+        kind: "TupleExpression", elements: [tested, { kind: "LiteralExpression", value: selection.targetOperation.negated }],
+      }, name: "Item2" };
+      let reference = tested;
+      let temporary: string | undefined;
+      if (arms.length > 1) {
+        if (state === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(node, "A multi-arm nullish test requires a hygienic evaluation scope."));
+          return undefined;
+        }
+        temporary = allocateExpressionTemp(state);
+        reference = { kind: "IdentifierName", name: temporary };
+      }
+      let test = arms.map(arm => runtimeUnionArmTest(reference, arm)).reduce((left, right): CsharpExpression => ({
+        kind: "BinaryExpression", left, operatorToken: { kind: "BarBarToken" }, right,
+      }));
+      if (selection.targetOperation.negated) test = {
+        kind: "PrefixUnaryExpression", operatorToken: { kind: "ExclamationToken" }, operand: test,
+      };
+      return temporary === undefined ? test : {
+        kind: "BinaryExpression", operatorToken: { kind: "AmpersandAmpersandToken" },
+        left: { kind: "IsPatternExpression", expression: tested, type: { kind: "IdentifierName", name: "var" }, designation: temporary },
+        right: test,
+      };
     }
     return { kind: "NullPatternExpression", expression: tested, negated: selection.targetOperation.negated };
   }

@@ -164,6 +164,17 @@ export function combineCsharpTargetUnionMembers(
       ? nonNullishMembers[0]
       : csharpRuntimeUnionTargetType(nonNullishMembers);
   }
+  if (nonNullishMembers.length === 1 && nonNullishMembers[0]!.kind === "type-parameter") {
+    if (nullishMembers.length !== 1) {
+      return csharpRuntimeUnionTargetType(canonicalMembers);
+    }
+    const element = nonNullishMembers[0]!;
+    const absent = nullishMembers[0]!;
+    const optional: CsharpRuntimeUnionTargetTypeRef = { ...csharpTargetNamedType("Tsonic.CSharp.Runtime.Optional`2", [element, absent],
+      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Optional"), { valueType: true }),
+      csharpRuntimeUnionArms: [absent, element] };
+    return optional;
+  }
   return nonNullishMembers.length === 1
     ? csharpNullableTargetType(nonNullishMembers[0]!)
     : csharpRuntimeUnionTargetType([
@@ -218,4 +229,10 @@ export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): read
   return isCsharpRuntimeUnionTargetType(type)
     ? type.csharpRuntimeUnionArms
     : undefined;
+}
+
+export function getCsharpGenericOptionalParts(type: TargetTypeRef | undefined):
+    { readonly element: TargetTypeRef; readonly absent: TargetTypeRef } | undefined {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Runtime.Optional`2" && type.typeArguments?.length === 2
+    ? { element: type.typeArguments[0]!, absent: type.typeArguments[1]! } : undefined;
 }

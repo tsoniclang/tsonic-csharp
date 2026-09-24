@@ -542,6 +542,7 @@ export function withSourceTargetBindings(
     policy: createCsharpTypePolicy({
       ...host,
       representations: {
+        genericProjections: host.representations.genericProjections,
         requiresClosedStructuralContract(type) {
           return host.representations.requiresClosedStructuralContract(type);
         },

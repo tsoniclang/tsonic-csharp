@@ -1,5 +1,6 @@
 import { classifyCsharpUnionCall } from "./union-calls.js";
 import { getCsharpGenericMethodValue } from "../../target-model/types/generic-method-values.js";
+import { getCsharpClassFactory } from "../../target-model/types/class-factories.js";
 import { classifyCsharpOptionalCallReceiver } from "./optional-calls.js";
 import { selectCsharpMemoryBinding } from "../../policy/operations/memory-bindings.js";
 import { selectCsharpSwitch } from "../../policy/operations/control-flow/switch.js";
@@ -529,6 +530,8 @@ function visit(
     );
     const instanceType = sourceOperator === "instanceof" && expression?.Right !== undefined
       ? resolveInstanceType(policy, expression.Right, sourceFile) : undefined;
+    const instanceFactory = sourceOperator === "instanceof" && expression?.Right !== undefined
+      ? evidence.nodeTargetType(expression.Right) : undefined;
     setClassification(
       builder,
       node,
@@ -555,6 +558,7 @@ function visit(
         ...(elementWrite === undefined ? {} : { elementWrite }),
         ...(typeofComparison === undefined ? {} : { typeofComparison }),
         ...(instanceType === undefined ? {} : { instanceType }),
+        ...(getCsharpClassFactory(instanceFactory) === undefined ? {} : { instanceFactory }),
       }),
     );
   } else if (

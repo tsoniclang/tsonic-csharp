@@ -37,6 +37,7 @@ import {
 } from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
+import { planClassFactoryExpression } from "../declarations/class-factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import {
   planTypeofExpression,
@@ -116,6 +117,12 @@ function planExpressionCore(
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
+  if (input.program.source.ast.is.IsClassExpression(node)) {
+    const factory = input.program.classFactories.get(node);
+    if (factory !== undefined) return planClassFactoryExpression(factory, sourceFile, input, diagnostics, state);
+    diagnostics.push(unsupportedNodeDiagnostic(node, "A class expression requires its sealed native factory."));
+    return undefined;
+  }
   const expressionOverride = state?.expressionOverrides.get(node);
   if (expressionOverride !== undefined) {
     return expressionOverride;

@@ -116,7 +116,8 @@ export function typeIsExcludedFromObjectShape(
     queries.types.isBigIntLike(type) ||
     queries.types.isUnion(type) ||
     queries.types.isTuple(type) ||
-    queries.types.callSignatures(type).length > 0;
+    queries.types.callSignatures(type).length > 0 ||
+    queries.types.constructSignatures(type).length > 0;
 }
 
 export function typeHasProjectOwnedShapeDeclaration(

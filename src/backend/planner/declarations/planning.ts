@@ -67,6 +67,7 @@ export { planEnumDeclaration } from "./declaration-enums.js";
 export { planInterfaceDeclaration } from "./declaration-interfaces.js";
 import { guardCsharpFrozenDataProperties } from "../objects/frozen-data-properties.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
+import { completeLocalClassConstructor } from "./class-factories.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -75,9 +76,12 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   input = createCsharpMemberPlanningContext(input);
-  const declaration = AsClassDeclaration(input.program.source.ast, node)!;
+  const declaration = input.program.source.ast.is.IsClassExpression(node)
+    ? input.program.source.ast.as.AsClassExpression(node)! : AsClassDeclaration(input.program.source.ast, node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "class declaration", diagnostics, ["abstract"]);
-  const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
+  const factory = input.program.classFactories.get(node);
+  const staticCompanion = input.types.projectTypes.definitionContainingDeclaration(node)?.staticCompanion === true;
+  const className = factory?.instanceName ?? planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(node, input, diagnostics);
   const autoPropertyNames = new Set(getImplementedInterfacePropertyNames(node, input));
   const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
@@ -102,7 +106,9 @@ export function planClassDeclaration(
   if (objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze") && heritage.baseType !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object.freeze over a source class with inherited native storage requires a closed base-field write contract."));
   }
-  const members = planClassMembers(declaration.Members?.Nodes ?? [], className, autoPropertyNames, sourceFile, input, diagnostics);
+  const memberNodes = (declaration.Members?.Nodes ?? []).filter(member => factory === undefined && !staticCompanion ||
+    member === undefined || !input.program.source.ast.hasModifierKind(member, "static") && !input.program.source.ast.is.IsClassStaticBlockDeclaration(member));
+  const members = planClassMembers(memberNodes, className, autoPropertyNames, sourceFile, input, diagnostics);
   const implicitConstructors = planImplicitForwardingConstructors(
     node,
     className,
@@ -114,6 +120,11 @@ export function planClassDeclaration(
       implicitConstructors.length > 0
     ? []
     : defaultSafetyConstructors(node, className, input);
+  const defaultFactoryConstructor = factory === undefined || members.some(member => member.kind === "ConstructorDeclaration") ||
+    implicitConstructors.length !== 0 || safetyDefaultConstructors.length !== 0 ? [] : [{
+      kind: "ConstructorDeclaration" as const, name: className, modifiers: ["public" as const],
+      parameters: [], body: { kind: "Block" as const, statements: [] },
+    }];
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -131,11 +142,16 @@ export function planClassDeclaration(
           ],
         }),
     members: [
-      ...implicitConstructors,
-      ...safetyDefaultConstructors,
+      ...implicitConstructors.map(constructor => factory === undefined ? constructor : completeLocalClassConstructor(constructor, factory, input, diagnostics)),
+      ...[...safetyDefaultConstructors, ...defaultFactoryConstructor].map(member => factory !== undefined && member.kind === "ConstructorDeclaration"
+        ? completeLocalClassConstructor(member, factory, input, diagnostics) : member),
+      ...(factory?.retainsEnvironment ? [{ kind: "FieldDeclaration" as const, name: factory.environmentName,
+        type: csharpTypeFromTargetTypeRef(factory.factoryType)!,
+        modifiers: [factory.requiresInstanceTest ? "internal" as const : "private" as const, "readonly" as const] }] : []),
       ...(objectShape === undefined ? [] : planCsharpStructuralInterfaceMethods(objectShape, node, input, diagnostics)),
       ...(objectShape !== undefined && input.artifacts.objectShapeHasCapability(objectShape, "js-freeze")
-        ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members),
+        ? guardCsharpFrozenDataProperties(objectShape, members, input, diagnostics) : members).map(member =>
+          factory !== undefined && member.kind === "ConstructorDeclaration" ? completeLocalClassConstructor(member, factory, input, diagnostics) : member),
       ...(jsonSerializable && objectShape !== undefined
         ? renderJsonSerializableObjectShapeMethod(objectShape)
         : []),

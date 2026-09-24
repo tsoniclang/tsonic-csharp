@@ -51,10 +51,18 @@ export function substituteTargetTypeParameters(
       const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
       const methodValue = (type as CsharpTargetNamedTypeRef).csharpGenericMethodValue;
+      const factory = (type as CsharpTargetNamedTypeRef).csharpClassFactory;
       const methodSubstitutions = methodValue === undefined ? substitutions
         : new Map([...substitutions].filter(([name]) => !methodValue.typeParameters.includes(name)));
       return {
         ...type,
+        ...(factory === undefined ? {} : { csharpClassFactory: { ...factory,
+          instance: substituteTargetTypeParameters(factory.instance, substitutions) as CsharpTargetNamedTypeRef,
+          signature: { ...factory.signature,
+            parameters: factory.signature.parameters.map(parameter => substituteTargetTypeParameters(parameter, substitutions)),
+            returnType: substituteTargetTypeParameters(factory.signature.returnType, substitutions),
+          },
+        } }),
         ...(methodValue === undefined ? {} : { csharpGenericMethodValue: { ...methodValue,
           owner: substituteTargetTypeParameters(methodValue.owner, substitutions),
           contract: substituteTargetTypeParameters(methodValue.contract, methodSubstitutions),

@@ -23,6 +23,8 @@ import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { reconcileCsharpSelectedTargetType, retainCsharpBroadValueCarrier } from "./selected-type-evidence.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { csharpBoundSourceType, csharpSourceBindings } from "./type-bindings.js";
+import { resolveCsharpConditionalApplication } from "./conditional-types.js";
 
 export function resolveTypeReferenceNode(
   { host, resolveCheckerTransformedSourceType, resolveCompositionalSourceTypeAlias, resolveDirectSourceFacts, resolveNodeWithState, resolveProjectSourceType, resolveProviderType, resolveSourceProfileType, resolveStandardSourceTypeTransformation, resolveTypeWithState, targetPreservesAuthoredSourcePrimitiveFacts }: CsharpTypeResolutionScope,
@@ -36,6 +38,8 @@ export function resolveTypeReferenceNode(
     return undefined;
   }
   const semanticType = queries.types.authoredType(node);
+  const bound = semanticType === undefined ? undefined : csharpBoundSourceType(semanticType, queries, state);
+  if (bound !== undefined) return bound.targetType;
   const subjects = [
     ...sourceFactSubjectsForNode(typeName, host.navigation, node),
     ...(semanticType === undefined
@@ -57,6 +61,10 @@ export function resolveTypeReferenceNode(
     queries.sourceFile,
     state,
     typeArguments as readonly TargetTypeRef[],
+    csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
+      const selected = queries.types.authoredType(argument);
+      return selected === undefined ? undefined : csharpBoundSourceType(selected, queries, state)?.sourceType ?? selected;
+    }),
   );
   if (projectType !== undefined) {
     return projectType;
@@ -110,12 +118,16 @@ export function resolveTypeReferenceNode(
     typeArguments as readonly TargetTypeRef[],
     semanticType,
     state,
+    csharpSourceTypeArgumentNodes(host.ast, node).map(argument => {
+      const selected = queries.types.authoredType(argument);
+      return selected === undefined ? undefined : csharpBoundSourceType(selected, queries, state)?.sourceType ?? selected;
+    }),
   );
   if (sourceAlias.kind === "resolved") {
     return sourceAlias.type;
   }
   if (sourceAlias.kind === "rejected") {
-    return undefined;
+    return { kind: "opaque", id: "source-alias-representation-unavailable" };
   }
   const transformedTarget = sourceAlias.kind === "checker-transformed-alias" &&
       semanticType !== undefined
@@ -338,16 +350,18 @@ export function resolveEvidenceNodesToCommonTarget(
 
 
 export function resolveCompositionalSourceTypeAlias(
-  { host, resolveCheckerTransformedSourceType, resolveNodeWithState }: CsharpTypeResolutionScope,
+  scope: CsharpTypeResolutionScope,
   typeName: Node,
   typeArguments: readonly TargetTypeRef[],
   selectedType: Type | undefined,
   state: CsharpTypeResolutionState,
+  sourceArguments?: readonly (Type | undefined)[],
 ):
   | { readonly kind: "not-alias" }
   | { readonly kind: "checker-transformed-alias" }
   | { readonly kind: "resolved"; readonly type: TargetTypeRef }
   | { readonly kind: "rejected" } {
+  const { host, resolveCheckerTransformedSourceType, resolveNodeWithState } = scope;
   const reference = host.navigation.sourceReferenceFor(typeName);
   if (
     reference === undefined ||
@@ -362,6 +376,17 @@ export function resolveCompositionalSourceTypeAlias(
   const parameters = host.ast.typeParameters(reference.declaration);
   if (target === undefined || parameters.length !== typeArguments.length) {
     return { kind: "rejected" };
+  }
+  const boundState = sourceArguments === undefined ? state
+    : sourceArguments.some(argument => argument === undefined) ? undefined
+    : csharpSourceBindings(parameters as readonly Node[], sourceArguments as readonly Type[], typeArguments, state);
+  if (boundState === undefined) return { kind: "rejected" };
+  const queries = host.semantics(reference.sourceFile);
+  const application = sourceArguments === undefined ? undefined
+    : queries.types.instantiateAlias(reference.declaration, sourceArguments as readonly Type[]);
+  if (application?.kind === "conditional") {
+    const type = resolveCsharpConditionalApplication(scope, application, typeArguments, queries, boundState);
+    return type === undefined ? { kind: "rejected" } : { kind: "resolved", type };
   }
   if (selectedType !== undefined && host.ast.is.IsUnionTypeNode(target)) {
     const definitionType = host.semantics(reference.sourceFile).types.authoredType(target);
@@ -393,7 +418,7 @@ export function resolveCompositionalSourceTypeAlias(
       ? resolveNodeWithState(
           target,
           reference.sourceFile,
-          nextState(state),
+          nextState(boundState),
         )
       : selectedType === undefined
         ? undefined
@@ -408,7 +433,7 @@ export function resolveCompositionalSourceTypeAlias(
   }
   return {
     kind: "resolved",
-    type: substituteTargetTypeParameters(resolved, substitutions),
+    type: sourceArguments === undefined ? substituteTargetTypeParameters(resolved, substitutions) : resolved,
   };
 }
 

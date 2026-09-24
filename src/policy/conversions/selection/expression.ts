@@ -225,6 +225,7 @@ export function csharpConversionIsApplicable(
     selection.kind === "integer-truncation" ||
     selection.kind === "array-like-union" ||
     selection.kind === "runtime-union-reference" ||
+    selection.kind === "generic-optional" ||
     selection.kind === "empty-record" ||
     selection.kind === "implicit" ||
     selection.kind === "delegate-adapter" ||

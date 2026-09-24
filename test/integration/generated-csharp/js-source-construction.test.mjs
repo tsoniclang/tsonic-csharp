@@ -97,6 +97,38 @@ test("equal constructor carriers retain the exact selected source signatures", {
     sourceText: selectedConstructorFiles["index.ts"] }), "selected-constructors");
 });
 
+test("local class factories preserve mutable captures and per-evaluation constructor identity", { timeout: 300_000 }, () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+    function make(initial: int32) {
+      let current = initial;
+      return class Item {
+        value = current;
+        increment(): int32 { current += 1; return current; }
+        read(): int32 { return current; }
+      };
+    }
+    export function run(): boolean {
+      const First = make(3 as int32);
+      const Alias = First;
+      const Second = make(8 as int32);
+      const first = new First();
+      const sibling = new Alias();
+      const second = new Second();
+      const values = first.value === 3 && second.value === 8 && first.increment() === 4 &&
+        sibling.read() === 4 && second.read() === 8;
+      const firstIdentity = first instanceof First && first instanceof Alias && !(first instanceof Second);
+      const secondIdentity = second instanceof Second && !(second instanceof First);
+      return values && firstIdentity && secondIdentity;
+    }
+  `;
+  const compiled = compileCsharpSource({ surface: "js", sourceText });
+  execute(compiled, "class-factory-identity");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.match(generated, /ReferenceEquals/u);
+  assert.doesNotMatch(generated, /Activator|System\.Reflection|DynamicInvoke/u);
+});
+
 test("numeric array construction and copy retain native element bits", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativeNumericArraysSource });
   execute(compiled, "native-numeric-arrays");
@@ -104,6 +136,76 @@ test("numeric array construction and copy retain native element bits", { timeout
   assert.match(text, /Uint8Array\.From/u);
   assert.doesNotMatch(text, /Convert\.ToDouble|\.Select\(|IEnumerable<double>/u);
 });
+
+test("local class constructor defaults execute once per omitted construction", { timeout: 300_000 }, () => {
+  execute(compileCsharpSource({ surface: "js", sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let effects: int32 = 0;
+    function next(): string { effects += 1; return effects === 1 ? "first" : "second"; }
+    function effectCount(): int32 { return effects; }
+    function make() {
+      return class Value {
+        value: string;
+        constructor(value: string = next()) { this.value = value; }
+      };
+    }
+    export function run(): boolean {
+      const Value = make();
+      if (effectCount() !== 0) return false;
+      const first = new Value();
+      const explicit = new Value("explicit");
+      const second = new Value();
+      return first.value === "first" && explicit.value === "explicit" && second.value === "second" && effectCount() === 2;
+    }
+  ` }), "class-factory-defaults");
+});
+
+test("conditional inference never guesses a lost native numeric annotation", () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    declare const stored: unique symbol;
+    interface Stored<Value> { readonly [stored]: Value; }
+    type Storage<Value> = Value extends Stored<infer Inner> ? Inner : Value;
+    class Key { declare readonly [stored]: int32; }
+    export function roundtrip(value: Storage<Key>): Storage<Key> { return value; }
+  ` });
+  assert.equal(compiled.sourceDiagnosticsText, "");
+  assert.ok(compiled.targetDiagnostics.length > 0);
+  assert.equal(compiled.artifacts.size, 0);
+});
+
+for (const surface of [undefined, "js"]) {
+  test(`generic absence preserves values and lazy fallback (${surface ?? "native"})`, { timeout: 300_000 }, () => {
+    execute(compileCsharpSource({ ...(surface === undefined ? {} : { surface }), sourceText: `
+      import type { int32, int64 } from "@tsonic/core/types.js";
+      let effects: int32 = 0;
+      function effectCount(): int32 { return effects; }
+      function maybe<Value>(value: Value, present: boolean): Value | undefined {
+        effects += 1;
+        if (present) return value;
+        return undefined;
+      }
+      function pick<Value>(value: Value | undefined, fallback: Value): Value { return value ?? fallback; }
+      function narrow<Value>(value: Value | undefined, fallback: Value): Value {
+        if (value === undefined) return fallback;
+        return value;
+      }
+      function fallback(): int64 { effects += 10; return 9007199254740993n; }
+      function closed(value: int64 | undefined): int64 { return pick<int64>(value, 7n); }
+      export function run(): boolean {
+        const zero = maybe<int64>(0n, true);
+        if (zero === undefined || zero !== 0n) return false;
+        const present = maybe<int64>(9007199254740993n, true) ?? fallback();
+        if (effectCount() !== 2 || present !== 9007199254740993n) return false;
+        const absent = maybe<int64>(0n, false) ?? fallback();
+        if (effectCount() !== 13 || absent !== 9007199254740993n) return false;
+        const closedValue: int64 | undefined = maybe<int64>(9n, true);
+        return narrow<int64>(zero, 1n) === 0n && pick<string>(maybe<string>("", true), "fallback") === "" &&
+          pick<string>(undefined, "fallback") === "fallback" && closed(closedValue) === 9n && closed(undefined) === 7n;
+      }
+    ` }), `generic-absence-${surface ?? "native"}`);
+  });
+}
 
 for (const [name, sourceText] of [["native-integer-complement", nativeIntegerComplementSource], ["nullish-never", nullishNeverSource],
   ["pointer-owner-narrowing", pointerOwnerNarrowingSource], ["bigint-truncation", bigintTruncationSource]]) {
@@ -128,6 +230,32 @@ test("checked satisfies tuples preserve distinct optional elements and evaluatio
 test("class factories retain distinct evaluation and constructor exception boundaries", { timeout: 300_000 }, () => {
   execute(compileCsharpSource({ surface: "js", files: classFactoryEffectsFiles,
     sourceText: classFactoryEffectsFiles["index.ts"] }), "class-factory-effects");
+});
+
+test("generic class statics share one native owner across closed instance types", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ sourceText: `
+    import type { int32 } from "@tsonic/core/types.js";
+    let effects: int32 = 0;
+    function initialize(): int32 { effects += 1; return 0; }
+    class Box<Value> {
+      static count: int32 = initialize();
+      value: Value;
+      constructor(value: Value) { this.value = value; Box.count += 1; }
+      static from<Value>(value: Value): Box<Value> { return new Box(value); }
+    }
+    function count(): int32 { return Box.count; }
+    function effectCount(): int32 { return effects; }
+    export function run(): boolean {
+      if (count() !== 0 || effectCount() !== 1) return false;
+      const number = Box.from<int32>(7 as int32);
+      const text = Box.from<string>("stored");
+      return number.value === 7 && text.value === "stored" && count() === 2 && effectCount() === 1;
+    }
+  ` });
+  execute(compiled, "generic-class-static-owner");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  assert.match(generated, /static class Box\b/u);
+  assert.equal((generated.match(/static int count\s*(?:=|;)/gu) ?? []).length, 1);
 });
 
 test("bigint switches preserve wide equality, evaluation order and fallthrough", { timeout: 300_000 }, () => {

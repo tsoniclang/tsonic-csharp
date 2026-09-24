@@ -2,7 +2,7 @@ import type { Type } from "@tsonic/tsts";
 import type { SourceFileSemantics } from "@tsonic/target-api/source";
 import type { CsharpObjectShapeFact, CsharpRuntimeUnionTargetTypeRef, TargetTypeRef } from "../../../target-model/types/model.js";
 import { csharpNullableTargetType, getCsharpNullableElementTargetType } from "../../../target-model/types/nullable.js";
-import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms } from "../../../target-model/types/runtime-carriers.js";
+import { csharpRuntimeUnionTargetType, getCsharpRuntimeUnionArms, getCsharpGenericOptionalParts } from "../../../target-model/types/runtime-carriers.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 
 export function retainCsharpUnionObjectShapes(
@@ -30,9 +30,14 @@ export function selectCsharpAuthoredUnionRefinement(
   const base = getCsharpNullableElementTargetType(authored) ?? authored;
   const arms = getCsharpRuntimeUnionArms(base);
   if (arms === undefined) return { kind: "not-applicable" };
+  const refinement = queries.types.refinement(declaredType, selectedType);
+  const optional = getCsharpGenericOptionalParts(base);
+  if (optional !== undefined && refinement.kind === "members" &&
+    refinement.types.length > 0 && refinement.types.every(type => !queries.types.isNullish(type))) {
+    return { kind: "resolved", type: optional.element };
+  }
   const shapes = arms.map(resolveShape);
   if (shapes.every(shape => shape === undefined)) return { kind: "not-applicable" };
-  const refinement = queries.types.refinement(declaredType, selectedType);
   if (refinement.kind === "exact") return { kind: "resolved", type: authored };
   if (refinement.kind !== "members") return { kind: "not-applicable" };
   const indexes = new Set<number>();
