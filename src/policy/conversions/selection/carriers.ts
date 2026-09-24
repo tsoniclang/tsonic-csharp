@@ -74,7 +74,6 @@ export function selectRuntimeUnionConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
-        unwrapNullableValue: false,
       };
     }
     return {
@@ -139,17 +138,18 @@ export function selectNullableConversion(
       return { ...elementConversion, target };
     }
     if (conversionIsImplicitlyApplicable(elementConversion)) {
-      if (
-        sourceElement === undefined &&
-        isCsharpNullableReferenceTargetType(target) &&
-        elementConversion.kind === "delegate-adapter"
-      ) {
-        return elementConversion;
+      if (sourceElement === undefined) return elementConversion;
+      if (elementConversion.kind === "identity" ||
+        elementConversion.kind === "implicit" && elementConversion.proof !== "runtime-union-arm") {
+        return { kind: "implicit", proof: "nullable" };
       }
-      return { kind: "implicit", proof: "nullable" };
+      return { kind: "nullable-map", sourceElement, targetElement, conversion: elementConversion };
     }
     if (mode === "explicit" && csharpConversionIsApplicable(elementConversion, mode)) {
-      return { kind: "cast", proof: "nullable" };
+      if (sourceElement === undefined) return elementConversion;
+      return elementConversion.kind === "cast"
+        ? { kind: "cast", proof: "nullable" }
+        : { kind: "nullable-map", sourceElement, targetElement, conversion: elementConversion };
     }
   }
   if (sourceElement !== undefined && targetTypeRefEquals(sourceElement, target)) {

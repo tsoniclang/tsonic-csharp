@@ -196,6 +196,7 @@ function selectTupleConversion(
 export function conversionIsImplicitlyApplicable(
   selection: CsharpConversionSelection,
 ): boolean {
+  if (selection.kind === "nullable-map") return conversionIsImplicitlyApplicable(selection.conversion);
   return selection.kind === "identity" ||
     selection.kind === "integer-truncation" ||
     selection.kind === "empty-record" ||

@@ -219,9 +219,30 @@ export function applyCsharpConversionSelection(
         name: "Value",
       };
     case "runtime-union-projection":
-      return runtimeUnionArmProjection(selection.unwrapNullableValue
-        ? { kind: "SimpleMemberAccessExpression", receiver: expression, name: "Value" } : expression,
-      selection.armIndex, sourceType);
+      return runtimeUnionArmProjection(expression, selection.armIndex, sourceType);
+    case "nullable-map": {
+      const sourceElement = getCsharpNullableElementTargetType(sourceType);
+      const targetElement = getCsharpNullableElementTargetType(targetType);
+      if (sourceElement === undefined || targetElement === undefined ||
+        !targetTypeRefEquals(sourceElement, selection.sourceElement) ||
+        !targetTypeRefEquals(targetElement, selection.targetElement)) {
+        diagnostics.push(unsupportedNodeDiagnostic(node,
+          "Nullable conversion requires its exact sealed source and destination element carriers."));
+        return undefined;
+      }
+      const presentType = renderRequiredTargetType(node, sourceElement, diagnostics);
+      const resultType = renderRequiredTargetType(node, targetType, diagnostics);
+      if (presentType === undefined || resultType === undefined) return undefined;
+      const name = input.names.temporaryName(`__tsonic_present_${input.program.source.ast.pos(node)}_${input.program.source.ast.end(node)}`);
+      const present = applyCsharpConversionSelection(node, sourceFile, input, diagnostics,
+        sourceElement, targetElement, selection.conversion, { kind: "IdentifierName", name });
+      return present === undefined ? undefined : {
+        kind: "ConditionalExpression",
+        condition: { kind: "IsPatternExpression", expression, type: presentType, designation: name },
+        whenTrue: present,
+        whenFalse: { kind: "DefaultExpression", type: resultType },
+      };
+    }
     case "runtime-union-reference": {
       const arms = getCsharpRuntimeUnionArms(sourceType);
       if (targetType === undefined || arms === undefined || arms.length !== selection.arms.length ||
@@ -472,12 +493,13 @@ function applyRuntimeUnionArmConversion(
   >,
   expression: CsharpExpression,
 ): CsharpExpression | undefined {
-  const arms = getCsharpRuntimeUnionArms(targetType);
+  const unionType = getCsharpNullableElementTargetType(targetType) ?? targetType;
+  const arms = getCsharpRuntimeUnionArms(unionType);
   const selectedArm = arms?.[selection.armIndex];
   const optional = getCsharpGenericOptionalParts(targetType);
-  const declaringType = targetType === undefined
+  const declaringType = unionType === undefined
     ? undefined
-    : csharpTypeFromTargetTypeRef(optional?.operations ?? targetType);
+    : csharpTypeFromTargetTypeRef(optional?.operations ?? unionType);
   if (
     selectedArm === undefined ||
     !targetTypeRefEquals(selectedArm, selection.armType) ||

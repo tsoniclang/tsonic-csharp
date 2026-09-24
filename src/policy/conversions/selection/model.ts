@@ -51,10 +51,15 @@ export type CsharpConversionSelection =
   | { readonly kind: "nullable-reference" }
   | { readonly kind: "nullable-value"; readonly asserted: boolean }
   | {
+      readonly kind: "nullable-map";
+      readonly sourceElement: TargetTypeRef;
+      readonly targetElement: TargetTypeRef;
+      readonly conversion: CsharpConversionSelection;
+    }
+  | {
       readonly kind: "runtime-union-projection";
       readonly armIndex: number;
       readonly armType: TargetTypeRef;
-      readonly unwrapNullableValue: boolean;
     }
   | {
       readonly kind: "delegate-adapter";

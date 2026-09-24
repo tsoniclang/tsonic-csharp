@@ -38,6 +38,8 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../types/target-types.js";
+import type { TargetTypeRef } from "../../../target-model/types/index.js";
+import { runtimeUnionArmProjection, runtimeUnionArmTest } from "../expressions/runtime-union-projections.js";
 
 type BlockStatementPlanner = () => readonly CsharpStatement[];
 
@@ -236,7 +238,7 @@ export function planResourceRegistrationStatement(
   const registrationName = resourceRegistrationName(selected.registration);
   const lambdaBody = selected.registration.kind === "direct"
     ? directDisposalBody(parameterName, selected.registration.disposal)
-    : runtimeUnionDisposalBody(parameterName, selected.registration.arms);
+    : runtimeUnionDisposalBody(parameterName, selected.registration.resourceType, selected.registration.arms);
   const asynchronousLambda = operations.some((operation) =>
     operation.kind === "async");
   return {
@@ -289,33 +291,19 @@ type CsharpResolvedRegistration = CsharpResolvedResourceManagement["registration
 
 function runtimeUnionDisposalBody(
   parameterName: string,
+  resourceType: TargetTypeRef,
   arms: readonly CsharpResourceDisposalArm[],
 ): { readonly kind: "Block"; readonly statements: readonly CsharpStatement[] } {
   const asynchronous = arms.some((arm) => arm.disposal.kind !== "sync");
   return {
     kind: "Block",
     statements: arms.map((arm) => {
-      const projected: CsharpExpression = {
-        kind: "InvocationExpression",
-        callee: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: { kind: "IdentifierName", name: parameterName },
-          name: `As${arm.armIndex + 1}`,
-        },
-        arguments: [],
-      };
+      const receiver: CsharpExpression = { kind: "IdentifierName", name: parameterName };
+      const projected = runtimeUnionArmProjection(receiver, arm.armIndex, resourceType);
       const disposal = disposalInvocation(projected, arm.disposal);
       return {
         kind: "IfStatement",
-        condition: {
-          kind: "InvocationExpression",
-          callee: {
-            kind: "SimpleMemberAccessExpression",
-            receiver: { kind: "IdentifierName", name: parameterName },
-            name: `Is${arm.armIndex + 1}`,
-          },
-          arguments: [],
-        },
+        condition: runtimeUnionArmTest(receiver, arm.armIndex, resourceType),
         thenBody: {
           kind: "Block",
           statements: [{

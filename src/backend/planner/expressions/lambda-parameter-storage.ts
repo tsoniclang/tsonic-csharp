@@ -4,7 +4,7 @@ import type { CsharpLambdaParameter, CsharpStatement } from "../../target-ast/ro
 import type { CsharpPlanningContext } from "../context.js";
 import { allocateSyntheticParameter, planParameterBindingPrelude } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
-import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
+import { csharpTypeFromTargetTypeRefWithObjectShapeDeclarations } from "../types/target-type-object-shapes.js";
 import { targetTypeRefEquals } from "../../../target-model/types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { applyCsharpConversionSelection, readCsharpConversionClassification } from "./conversions.js";
@@ -57,7 +57,7 @@ function planParameterValue(
     return undefined;
   }
   if (targetTypeRefEquals(nativeType, valueType)) return { parameter, prelude: [] };
-  const type = csharpTypeFromTargetTypeRef(valueType);
+  const type = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, valueType, diagnostics, node);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "The sealed lambda parameter storage type has no C# syntax representation."));
     return undefined;

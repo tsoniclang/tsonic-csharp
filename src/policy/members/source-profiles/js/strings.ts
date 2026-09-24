@@ -18,6 +18,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   targetTypeRefEquals,
+  isCsharpAbsenceTargetType,
 } from "../../../types/index.js";
 import type {
   CsharpSourceProfileCallPolicy,
@@ -342,9 +343,15 @@ export const csharpJsStringCallPolicies: readonly CsharpSourceProfileCallPolicy[
             }),
           ],
           stringType,
+          isCsharpAbsenceTargetType(argumentType) ? { typeParameters: [{ name: "T" }] } : {},
         );
       },
       noReceiver,
+      { targetMethodTypeArguments(context) {
+        const argument = context.source.sourceArguments[0];
+        const type = argument === undefined ? undefined : resolveCsharpSelectedSourceValue(context, argument);
+        return isCsharpAbsenceTargetType(type) ? [type!] : [];
+      } },
     ),
     jsUnsupportedCallPolicy(
       jsConstructIdentity("StringConstructor"),

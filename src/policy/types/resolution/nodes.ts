@@ -35,13 +35,15 @@ export function resolveNodeWithState(
   ) {
     return undefined;
   }
-  const scopedTargetType = host.representations.scopedTargetType(node);
-  if (scopedTargetType !== undefined) {
-    return scopedTargetType;
-  }
   const queries = sourceFile === undefined
     ? host.semanticsFor(node)
     : host.semantics(sourceFile);
+  const scopedTargetType = host.representations.scopedTargetType(node);
+  if (scopedTargetType !== undefined) {
+    const selected = queries.types.expressionType(node);
+    return selected === undefined ? scopedTargetType
+      : scope.resolveSelectedValueWithState(node, selected, queries.sourceFile, state);
+  }
   const syntaxFact = resolveDirectSourceFacts(
     [node],
     queries.sourceFile,

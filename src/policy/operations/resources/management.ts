@@ -108,7 +108,7 @@ export function selectCsharpResourceManagement(
       },
     };
   }
-  const storageArms = getCsharpRuntimeUnionArms(storageType);
+  const storageArms = getCsharpRuntimeUnionArms(directResourceType);
   if (storageArms === undefined) {
     return rejected(
       "Multiple selected resource alternatives require one exact C# runtime-union storage carrier.",

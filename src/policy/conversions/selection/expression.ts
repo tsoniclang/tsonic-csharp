@@ -42,7 +42,7 @@ export function selectCsharpExpressionConversion(
   ) {
     return { kind: "implicit", proof: "object-shape-interface" };
   }
-  const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(getCsharpNullableElementTargetType(target) ?? target);
   if (runtimeUnionArms !== undefined) {
     const candidates = runtimeUnionArms.flatMap((armType, armIndex) => {
       const sourceToArm = selectCsharpExpressionConversion(
@@ -183,8 +183,6 @@ export function selectCsharpFlowReadConversion(
       return {
         kind: "runtime-union-projection",
         ...matchingArms[0]!,
-        unwrapNullableValue: nullableElement !== undefined &&
-          !isCsharpNullableReferenceTargetType(storageType),
       };
     }
     return {
@@ -220,6 +218,7 @@ export function csharpConversionIsApplicable(
   selection: CsharpConversionSelection,
   mode: CsharpConversionMode,
 ): boolean {
+  if (selection.kind === "nullable-map") return csharpConversionIsApplicable(selection.conversion, mode);
   return selection.kind === "identity" ||
     selection.kind === "never" ||
     selection.kind === "checked-native-integer" ||

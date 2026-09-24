@@ -305,7 +305,7 @@ test("using dispatches exact runtime-union resource alternatives", () => {
     }
   `);
 
-  assert.match(source, /Add<Tsonic\.CSharp\.Runtime\.Union<First, Second,/);
+  assert.match(source, /Add<Tsonic\.CSharp\.Runtime\.Union<First, Second>\?>/);
   assert.match(source, /\.Is1\(\)/);
   assert.match(source, /\.As1\(\)\.Dispose\(\)/);
   assert.match(source, /\.Is2\(\)/);
