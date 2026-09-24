@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { compileCsharpSource } from "../../helpers/direct-csharp-session.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+import { nativeAbsenceJsonSource } from "../../../../tsonic/test/fixtures/native-absence.mjs";
+
+test("JSON absence selections retain every authored argument effect", { timeout: 300_000 }, () => {
+  executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: nativeAbsenceJsonSource }), "native-absence-json");
+});
 
 for (const surface of [undefined, "js"]) {
   test(`nullable union conversions retain values and effects (${surface ?? "native"})`, { timeout: 300_000 }, () => {

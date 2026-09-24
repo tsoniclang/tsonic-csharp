@@ -11,11 +11,18 @@ import { jsNumericPropertySource } from "../../../../tsonic/test/fixtures/js-num
 import { flowClassReadSource } from "../../../../tsonic/test/fixtures/flow-class-reads.mjs";
 import { referenceDefaultSource } from "../../../../tsonic/test/fixtures/reference-defaults.mjs";
 import { structuralEnumerationSource } from "../../../../tsonic/test/fixtures/structural-enumeration.mjs";
-import { nativeNodeSpawnSource } from "../../../../tsonic/test/fixtures/native-node-spawn.mjs";
+import { nativeNodeSpawnSource, incompatibleNodeStdioSource } from "../../../../tsonic/test/fixtures/native-node-spawn.mjs";
 import { nullishMemberStorageSource } from "../../../../tsonic/test/fixtures/nullish-member-storage.mjs";
 import { contextualClassArgumentsSource } from "../../../../tsonic/test/fixtures/contextual-class-arguments.mjs";
 import { classUnionUpcastSource, anonymousClassUnionUpcastSource } from "../../../../tsonic/test/fixtures/class-union-upcasts.mjs";
 import { executeCsharpConstruction } from "../../helpers/native-construction.mjs";
+
+test("shared mutable arrays cannot silently widen their native element storage", () => {
+  const compiled = compileCsharpSource({ surface: "js", capabilities: [nodejsCapability()],
+    sourceText: incompatibleNodeStdioSource });
+  assert.equal(compiled.artifacts.size, 0);
+  assert.ok(compiled.result.diagnostics.some(diagnostic => diagnostic.category === "error"));
+});
 
 for (const surface of [undefined, "js"]) {
   test(`source rest arguments preserve native expansion and direct sequence transport (${surface ?? "native"})`, { timeout: 300_000 }, () => {

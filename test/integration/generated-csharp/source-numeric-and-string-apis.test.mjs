@@ -116,6 +116,30 @@ test("contextual callback returns convert broad values without erasing native in
   assert.doesNotMatch(generated, /Convert\.ToDouble|\(double\)wide/u);
 });
 
+test("String search preserves the native integer result and custom returns", { timeout: 300_000 }, () => {
+  const compiled = compileCsharpSource({ surface: "js", sourceText: `
+    import { jsstr } from "@tsonic/js/lang.js";
+    function pattern(value: string) { return value.search("ab"); }
+    function regexp(value: string) { return value.search(/ab/); }
+    function exact(value: string) { return jsstr(value).search(/ab/); }
+    function protocol(value: string) { return /ab/[Symbol.search](value); }
+    class Local { search(value: string): number { return value === "ab" ? 1.5 : 2.5; } }
+    function local(value: Local) { return value.search("ab"); }
+    export function run(): boolean {
+      return pattern("zab") === 1 && pattern("zzz") === -1 &&
+        regexp("zab") === 1 && regexp("zzz") === -1 &&
+        exact("zab") === 1 && exact("zzz") === -1 &&
+        protocol("zab") === 1 && protocol("zzz") === -1 && local(new Local()) === 1.5;
+    }
+  ` });
+  executeCsharpConstruction(compiled, "native-string-search-results");
+  const generated = [...compiled.artifacts.values()].join("\n");
+  for (const name of ["pattern", "regexp", "exact", "protocol"]) {
+    assert.match(generated, new RegExp(`static int ${name}\\(`, "u"));
+  }
+  assert.match(generated, /static double local\(/u);
+});
+
 test("RegExp index collections preserve native pairs for both string carriers", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ surface: "js", sourceText: `
     import type { int32 } from "@tsonic/core/types.js";

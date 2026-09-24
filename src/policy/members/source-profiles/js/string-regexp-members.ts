@@ -25,6 +25,7 @@ import {
 const stringType = csharpStringTargetType();
 const jsStringType = csharpJsStringTargetType();
 const doubleType = csharpSourcePrimitiveTargetType("float64");
+const intType = csharpSourcePrimitiveTargetType("int32");
 const stringHelperType = jsRuntimeTargetType("String");
 
 export function exactJsStringRegExpMember(
@@ -44,7 +45,7 @@ export function exactJsStringRegExpMember(
     : operation === "matchAll"
       ? csharpExactJsRegExpStringIteratorTargetType()
       : operation === "search"
-        ? doubleType
+        ? intType
         : csharpJsArrayTargetType(targetTypeRefEquals(pattern, jsStringType)
           ? jsStringType : csharpNullableTargetType(jsStringType));
   const parameters = [targetParameter("pattern", pattern)];
@@ -136,7 +137,7 @@ export function stringRegExpPatternMember(
     : operation === "matchAll"
       ? csharpJsRegExpStringIteratorTargetType()
       : operation === "search"
-        ? doubleType
+        ? intType
         : csharpJsArrayTargetType(targetTypeRefEquals(pattern, stringType)
           ? stringType : csharpNullableTargetType(stringType));
   if (custom !== undefined) {
