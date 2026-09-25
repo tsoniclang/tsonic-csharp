@@ -22,7 +22,7 @@ import {
 } from "../../types/index.js";
 import type {
   CsharpOperationSelection,
-} from "../selection/index.js";
+} from "../operators/index.js";
 
 export type CsharpResolvedIteration =
   | {

@@ -12,6 +12,7 @@ import { classifyFiles } from "../../../tsonic/test/architecture/tooling/layer-c
 import { buildTypeScriptModuleAnalysis } from "../../../tsonic/test/architecture/tooling/module-graph.mjs";
 import { evaluateTestDomainOwnership } from "../../../tsonic/test/architecture/tooling/test-inventory.mjs";
 import { evaluatePublicExportInventory } from "../../../tsonic/test/architecture/tooling/public-export-inventory.mjs";
+import { canonicalTargetTestDomains } from "../../../tsonic/test/architecture/tooling/target-layer-contract.mjs";
 import {
   csharpAllowedImplementationIndexes,
   csharpForbiddenDirectories,
@@ -26,9 +27,10 @@ const repositoryRoot = resolve(new URL("../..", import.meta.url).pathname);
 
 test("C# architecture rules reject target-specific boundary mutations", () => {
   const mutations = [
-    ["ARCH-CSHARP-CONFIG-001", "src/backend/planner/project.ts", "configuration.projectFile"],
-    ["ARCH-CSHARP-PROGRAM-001", "src/analysis/program/model.ts", "readonly values: Map<string, string>;"],
-    ["ARCH-CSHARP-SELECTION-001", "src/policy/members/selection/call.ts", "semantics.types.callSignatures(type);"],
+    ["ARCH-TARGET-CONFIG-001", "src/backend/planner/project.ts", "configuration.projectFile"],
+    ["ARCH-TARGET-PROGRAM-001", "src/analysis/program/model.ts", "readonly values: Map<string, string>;"],
+    ["ARCH-TARGET-PLAN-001", "src/backend/artifact-model/output.ts", "readonly diagnostics: Diagnostic[];"],
+    ["ARCH-TARGET-SELECTION-001", "src/policy/operations/members/selection/call.ts", "semantics.types.callSignatures(type);"],
     ["ARCH-TARGET-PLANNER-002", "src/backend/planner/call.ts", "selectCsharpTargetCall(node);"],
     ["ARCH-TARGET-ANALYSIS-002", "src/analysis/calls.ts", 'import { planCall } from "../backend/planner/call.js";'],
     ["ARCH-TARGET-MODEL-001", "src/target-model/types.ts", 'import { analyzeType } from "../analysis/types.js";'],
@@ -125,16 +127,7 @@ test("C# package exposes only approved audience entrypoints", async () => {
 });
 
 test("C# tests mirror explicit architecture domains", () => {
-  const domains = [
-    "analysis",
-    "architecture",
-    "backend",
-    "integration",
-    "policy",
-    "providers",
-    "source",
-    "toolchain",
-  ];
+  const domains = canonicalTargetTestDomains;
   const files = collectFiles(resolve(repositoryRoot, "test"), {
     extensions: [".test.mjs"],
   }).map((file) => `test/${file}`);

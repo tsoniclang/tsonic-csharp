@@ -50,7 +50,7 @@ import {
 } from "../../policy/conversions/index.js";
 import {
   selectCsharpSourceArgument,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import {
   csharpFixedArrayRepresentationRejection,
   readCsharpSourceDefaultValue,

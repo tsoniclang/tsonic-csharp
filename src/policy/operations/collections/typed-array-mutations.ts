@@ -1,9 +1,9 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import { csharpSourceProfileDeclarationIdentity } from "../../members/index.js";
+import { csharpSourceProfileDeclarationIdentity } from "../members/index.js";
 import { csharpJsTypedArrayElementTargetType, type TargetTypeRef } from "../../types/index.js";
 import { isCsharpAssignmentOperator, sourceOperatorFromKindName, type CsharpSourceOperator } from "../../../target-model/syntax/operators.js";
-import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../selection/operator-selection.js";
+import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../operators/operator-selection.js";
 import { csharpUnaryNumericPromotion } from "../numeric/promotion.js";
 
 export interface CsharpTypedArrayMutation {

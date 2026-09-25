@@ -16,7 +16,7 @@ import type {
 } from "../../providers/model/relation-resolver.js";
 import type {
   CsharpProviderCallSelectionHost,
-} from "../members/index.js";
+} from "../operations/members/index.js";
 import type {
   CsharpObjectShapePolicy,
   CsharpProjectTypePolicy,

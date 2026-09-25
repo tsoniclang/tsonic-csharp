@@ -37,7 +37,7 @@ import {
 } from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "../types/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
-import { planClassFactoryExpression } from "../declarations/class-factories.js";
+import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import {
   planTypeofExpression,

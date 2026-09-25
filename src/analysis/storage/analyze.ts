@@ -18,7 +18,7 @@ import { csharpReferenceDefaultNeedsNullableParameter } from "../../target-model
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
 import {
   selectCsharpSourceArgument,
-} from "../../policy/members/selection/argument-selection.js";
+} from "../../policy/operations/members/selection/argument-selection.js";
 import type {
   CsharpConversionClassifications,
 } from "../conversions/index.js";
@@ -33,7 +33,7 @@ import type {
 } from "../source-evidence/index.js";
 import type {
   CsharpObjectShapeClassifications,
-} from "../object-shapes/index.js";
+} from "../objects/index.js";
 import type {
   CsharpStorageClassifications,
   CsharpStorageRepresentationClassifications,

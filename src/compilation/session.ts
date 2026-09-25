@@ -14,11 +14,11 @@ import {
   createDotnetReflectionTypeDataProvider,
   createDotnetSourceDeclarationProviderSet,
   dotnetModuleSpecifierPolicy,
-} from "../providers/dotnet/index.js";
+} from "../providers/native/index.js";
 import {
   collectCsharpCapabilityContributions,
   createCapabilityDotnetProviders,
-} from "../providers/dotnet/contributions.js";
+} from "../providers/native/contributions.js";
 import {
   createCsharpProviderRelationResolver,
 } from "../providers/relations/resolver.js";
@@ -36,7 +36,7 @@ import {
   csharpSourceProfileContributions,
 } from "../source/profiles/source-profile-declarations.js";
 import { csharpCoreRuntimeSource, csharpRuntimeSourceContributions } from "../providers/runtime/source-projects.js";
-import { resolveDotnetProviderToolchain } from "../providers/dotnet/reflection/tool/toolchain.js";
+import { resolveDotnetProviderToolchain } from "../providers/native/reflection/tool/toolchain.js";
 
 type CsharpCompilationSessionState =
   | "created"

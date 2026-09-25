@@ -110,9 +110,9 @@ test("C# consumes shared source semantics instead of raw compiler query containe
 
 test("operation selection consumes atomic shared semantic decisions", () => {
   const required = new Map([
-    ["src/policy/members/selection/call-selection.ts", ".operations.call("],
-    ["src/policy/members/selection/property-selection.ts", ".operations.propertyAccess("],
-    ["src/policy/members/selection/element-selection.ts", ".operations.elementAccess("],
+    ["src/policy/operations/members/selection/call-selection.ts", ".operations.call("],
+    ["src/policy/operations/members/selection/property-selection.ts", ".operations.propertyAccess("],
+    ["src/policy/operations/members/selection/element-selection.ts", ".operations.elementAccess("],
   ]);
   const violations = [];
   for (const [file, method] of required) {
@@ -163,10 +163,10 @@ test("generic method type arguments come only from shared selected call evidence
   }
   assert.deepEqual([...consumerCounts.entries()].sort(), [
     ["src/analysis/conversions/analyze.ts", 1],
-    ["src/policy/members/instantiation/instantiation.ts", 4],
-    ["src/policy/members/source-profiles/js/array-construction.ts", 1],
-    ["src/policy/members/source-profiles/js/arrays.ts", 4],
-    ["src/policy/members/source-profiles/js/regexp-protocol.ts", 1],
+    ["src/policy/operations/members/instantiation/instantiation.ts", 4],
+    ["src/policy/operations/source-profiles/js/array-construction.ts", 1],
+    ["src/policy/operations/source-profiles/js/arrays.ts", 4],
+    ["src/policy/operations/source-profiles/js/regexp-protocol.ts", 1],
     ["src/policy/types/resolution/calls.ts", 2],
     ["src/policy/types/resolution/expressions.ts", 1],
   ]);

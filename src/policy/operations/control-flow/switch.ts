@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../model/context.js";
 import { csharpSourcePrimitiveTargetType, isCsharpIntegralTargetType, isCsharpStringTargetType, targetTypeRefEquals, type TargetTypeRef } from "../../types/index.js";
-import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../selection/operator-selection.js";
+import { selectCsharpBinaryOperands, type CsharpResolvedBinaryOperation } from "../operators/operator-selection.js";
 
 export type CsharpSwitchSelection =
   | { readonly kind: "native" }

@@ -13,7 +13,7 @@ import {
   selectCsharpTargetCall,
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
-} from "../../members/index.js";
+} from "../members/index.js";
 import {
   csharpRuntimeLocationPointee,
   csharpRuntimeLocationTargetType,

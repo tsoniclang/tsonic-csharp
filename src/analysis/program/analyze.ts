@@ -71,7 +71,7 @@ import type {
 } from "../callables/index.js";
 import {
   analyzeCsharpObjectShapes,
-} from "../object-shapes/index.js";
+} from "../objects/index.js";
 import {
   analyzeCsharpConversions,
 } from "../conversions/index.js";

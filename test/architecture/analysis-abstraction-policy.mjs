@@ -173,7 +173,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "target-member-helper",
     pattern: /(?<!function\s)\btarget(?:Method|Property|Constructor)\s*\(/g,
-    allowedFilePattern: /(?:^|\/)src\/policy\/members\/source-profiles\/js\/[^/]+\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/policy\/operations\/source-profiles\/js\/[^/]+\.ts$/,
     replacement:
       "Represent target members as provider metadata or explicit policy exceptions.",
   },
@@ -279,7 +279,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "source-id-executable-policy-hook",
     pattern: /(?:^|[{,]\s*)\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))/gm,
-    allowedFilePattern: /(?:^|\/)src\/policy\/members\/source-profiles\/js\/[^/]+\.ts$/,
+    allowedFilePattern: /(?:^|\/)src\/policy\/operations\/source-profiles\/js\/[^/]+\.ts$/,
     replacement:
       "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
   },

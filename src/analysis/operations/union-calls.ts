@@ -5,7 +5,7 @@ import { getCsharpRuntimeUnionArms } from "../../target-model/types/runtime-carr
 import { targetTypeRefEquals, targetTypeRefKey } from "../../target-model/types/equality.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/nullable.js";
 import type { TargetTypeRef } from "../../target-model/types/model.js";
-import { csharpSourceArgumentPassingMode } from "../../policy/members/selection/argument-selection.js";
+import { csharpSourceArgumentPassingMode } from "../../policy/operations/members/selection/argument-selection.js";
 import { substituteTargetTypeParameters } from "../../policy/types/callables/substitution.js";
 
 export type CsharpUnionCallClassification =

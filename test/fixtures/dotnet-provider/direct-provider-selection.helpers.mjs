@@ -20,7 +20,7 @@ import {
   selectCsharpTargetCall,
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
-} from "../../../dist/policy/members/index.js";
+} from "../../../dist/policy/operations/members/index.js";
 import {
   createCsharpProviderRelationCatalog,
   providerMemberSourceIdentity,

@@ -36,7 +36,7 @@ import {
 } from "../bindings/index.js";
 import type { DestructuringPlannerState } from "../bindings/index.js";
 import { planExpression } from "../expressions/index.js";
-import { planClassFactoryExpression } from "../declarations/class-factories.js";
+import { planClassFactoryExpression } from "../declarations/classes/factories.js";
 import { planIdentifierName } from "../names/source-identifiers.js";
 import { csharpTypeFromTargetTypeRef } from "../types/target-types.js";
 import { planLocalDeclarationStatements } from "../bindings/locals.js";

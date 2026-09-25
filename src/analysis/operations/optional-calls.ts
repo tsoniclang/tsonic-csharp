@@ -1,6 +1,6 @@
 import type { SourceFile } from "@tsonic/tsts";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import type { CsharpTargetCallSelection, ResolvedSourceCallInfo } from "../../policy/members/index.js";
+import type { CsharpTargetCallSelection, ResolvedSourceCallInfo } from "../../policy/operations/members/index.js";
 import { selectCsharpConversion } from "../../policy/conversions/index.js";
 import { getCsharpNullableElementTargetType } from "../../target-model/types/index.js";
 import type { CsharpCallClassification } from "./model.js";

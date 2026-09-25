@@ -19,7 +19,7 @@ import type {
 } from "../../../providers/relations/index.js";
 import {
   resolveCsharpProviderDeclarationEvidence,
-} from "../../members/providers/evidence.js";
+} from "../../operations/members/providers/evidence.js";
 import type {
   CsharpProjectTypeDefinition,
   CsharpProjectTypeHeritage,

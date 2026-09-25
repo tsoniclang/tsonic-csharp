@@ -21,7 +21,7 @@ import {
 } from "../../fixtures/dotnet-provider/direct-provider-selection.helpers.mjs";
 import {
   instantiateCsharpProviderCall,
-} from "../../../dist/policy/members/index.js";
+} from "../../../dist/policy/operations/members/index.js";
 import {
   csharpNullableReferenceTargetType,
   csharpNullableValueTargetType,

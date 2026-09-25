@@ -1,5 +1,5 @@
 import type { CsharpPlanningContext } from "../context.js";
-import { planGenericClassStaticMembers } from "../declarations/generic-static-members.js";
+import { planGenericClassStaticMembers } from "../declarations/classes/generic-static-members.js";
 import { createCsharpMemberPlanningContext } from "../context.js";
 import {
   AsExportAssignment,
@@ -53,7 +53,7 @@ import type {
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "../declarations/index.js";
 import { unsupportedNodeDiagnostic } from "../diagnostics.js";
 import { planExpression } from "../expressions/index.js";
-import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/class-factories.js";
+import { planClassFactoryDeclaration, planClassFactoryIdentity } from "../declarations/classes/factories.js";
 import { sanitizeIdentifier } from "../../../target-model/names/identifiers.js";
 import { readNamespace } from "../project/project-artifacts.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";

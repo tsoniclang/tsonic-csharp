@@ -5,7 +5,7 @@ import type {
 import {
   resolveCsharpJsValueObjectShapeProperty,
   selectCsharpTargetProperty,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import {
   selectCsharpJsValueReceiverExpressionOperation,
   selectCsharpJsValueReceiverOperation,
