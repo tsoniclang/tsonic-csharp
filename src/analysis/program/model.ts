@@ -37,7 +37,7 @@ import type {
 } from "../names/index.js";
 import type {
   CsharpObjectShapeClassifications,
-} from "../object-shapes/index.js";
+} from "../objects/index.js";
 import type {
   CsharpConversionClassifications,
 } from "../conversions/index.js";

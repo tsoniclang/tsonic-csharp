@@ -6,10 +6,10 @@ import type {
 } from "../../target-model/types/model.js";
 import type {
   DotnetReflectionTypeDataProvider,
-} from "../dotnet/reflection/provider.js";
+} from "../native/reflection/provider.js";
 import {
   resolveDotnetProviderTargetRelations,
-} from "../dotnet/relations/target-relation-resolver.js";
+} from "../native/relations/target-relation-resolver.js";
 import type {
   CsharpProviderTargetRelation,
 } from "./index.js";

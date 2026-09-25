@@ -15,7 +15,7 @@ import {
   dotnetProviderTelemetryCounters,
   emptyIncrementalDotnetProviderMaterialization,
   formatDotnetProviderTelemetrySnapshot,
-} from "../../../../dist/providers/dotnet/index.js";
+} from "../../../../dist/providers/native/index.js";
 import {
   createDotnetReflectionTypeDataProvider,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
@@ -26,7 +26,7 @@ import {
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 import {
   createDotnetProviderToolRunner,
-} from "../../../../dist/providers/dotnet/reflection/tool.js";
+} from "../../../../dist/providers/native/reflection/tool.js";
 import {
   csharpSourceProfileContributions,
   csharpSourceProfileOwnerId,

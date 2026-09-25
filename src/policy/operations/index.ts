@@ -1,4 +1,4 @@
-export * from "./selection/index.js";
+export * from "./operators/index.js";
 export * from "../../target-model/syntax/operators.js";
 export * from "./syntax/regexp-literal.js";
 export * from "./collections/js-array-mutations.js";

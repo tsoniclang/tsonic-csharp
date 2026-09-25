@@ -3,6 +3,7 @@ import {
   canonicalTargetLayerPolicies,
   canonicalTargetRootPolicies,
   canonicalTargetSourceRules,
+  selectedTargetEvidenceRule,
   targetForbiddenPackage,
   targetLayerExact,
   targetLayerPrefix,
@@ -59,24 +60,8 @@ export const csharpForbiddenDirectories = canonicalTargetForbiddenDirectories;
 
 export const csharpSourceRules = Object.freeze([
   ...canonicalTargetSourceRules,
-  Object.freeze({
-    ruleId: "ARCH-CSHARP-CONFIG-001",
-    matches: (file, source) => file.startsWith("src/backend/") &&
-      /\bconfiguration\.projectFile\b|from\s+["'][^"']*\/options\//u.test(source),
-    reason: "C# analysis and backend planning consume the one normalized target configuration.",
-  }),
-  Object.freeze({
-    ruleId: "ARCH-CSHARP-PROGRAM-001",
-    matches: (file, source) => file === "src/analysis/program/model.ts" &&
-      /\b(?:Map|Set|Builder|Registry)\s*</u.test(source),
-    reason: "The sealed C# target program cannot expose mutable collections or builders.",
-  }),
-  Object.freeze({
-    ruleId: "ARCH-CSHARP-SELECTION-001",
-    matches: (file, source) => (
-      file.startsWith("src/policy/members/selection/") ||
-      file.startsWith("src/backend/planner/expressions/target-members/")
-    ) && /\.types\.(?:propertyInfos|callSignatures|constructSignatures)\s*\(/u.test(source),
-    reason: "Checked C# member mapping consumes selected operation evidence and cannot fall back to structural member or signature enumeration.",
-  }),
+  selectedTargetEvidenceRule([
+    "src/policy/operations/members/selection/",
+    "src/backend/planner/expressions/target-members/",
+  ]),
 ]);

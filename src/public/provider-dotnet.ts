@@ -1,1 +1,1 @@
-export * from "../providers/dotnet/index.js";
+export * from "../providers/native/index.js";

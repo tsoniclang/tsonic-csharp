@@ -1,0 +1,152 @@
+import type { CsharpPlanningContext } from "../../context.js";
+import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
+import type {
+  CsharpArgument,
+  CsharpConstructorDeclaration,
+} from "../../../target-ast/roslyn/index.js";
+import {
+  AsBlock,
+  AsCallExpression,
+  AsClassStaticBlockDeclaration,
+  AsConstructorDeclaration,
+  AsExpressionStatement,
+  HasSourceKind,
+  KindCallExpression,
+  KindExpressionStatement,
+  KindSuperKeyword,
+} from "@tsonic/target-api/source";
+import {
+  createDestructuringPlannerState,
+} from "../../bindings/index.js";
+import {
+  planCallArgument,
+} from "../../expressions/index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../../diagnostics.js";
+import {
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers,
+} from "../modifiers.js";
+import {
+  planParametersWithPrelude,
+} from "../callables/parameters.js";
+import {
+  planBlockStatements,
+} from "../../statements/index.js";
+import {
+  planAttributesForSubject,
+} from "../attributes.js";
+import {
+  withCsharpSafetyModifiers,
+} from "../../safety/explicit-safety.js";
+
+export function planClassStaticBlockDeclaration(
+  node: Node,
+  className: string,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpConstructorDeclaration {
+  const declaration = AsClassStaticBlockDeclaration(input.program.source.ast, node)!;
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  return {
+    kind: "ConstructorDeclaration",
+    name: className,
+    modifiers: ["static"],
+    parameters: [],
+    body: {
+      kind: "Block",
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+    },
+  };
+}
+
+export function planConstructorDeclaration(
+  node: Node,
+  className: string,
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): CsharpConstructorDeclaration {
+  const declaration = AsConstructorDeclaration(input.program.source.ast, node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(input.program.source.ast, node, "constructor declaration", diagnostics);
+  const bodyStatements = AsBlock(input.program.source.ast, declaration.Body)?.Statements?.Nodes ?? [];
+  const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
+  const state = createDestructuringPlannerState(node, input.program.source.ast);
+  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const baseArguments = leadingSuperCall === undefined
+    ? undefined
+    : planBaseConstructorArguments(leadingSuperCall.Arguments?.Nodes ?? [], sourceFile, input, diagnostics);
+  if (leadingSuperCall !== undefined && baseArguments === undefined) {
+    return {
+      kind: "ConstructorDeclaration",
+      name: className,
+      modifiers: withCsharpSafetyModifiers(
+        ["public"],
+        node,
+        "constructor",
+        input,
+      ),
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      parameters: parameters.parameters,
+      body: { kind: "Block", statements: [] },
+    };
+  }
+  if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));
+  }
+  return {
+    kind: "ConstructorDeclaration",
+    name: className,
+    modifiers: withCsharpSafetyModifiers(
+      ["public"],
+      node,
+      "constructor",
+      input,
+    ),
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    parameters: parameters.parameters,
+    ...(leadingSuperCall === undefined
+      ? {}
+      : { baseArguments }),
+    body: {
+      kind: "Block",
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state,
+        parameters.prelude, leadingSuperCall === undefined ? 0 : 1),
+    },
+  };
+}
+
+function planBaseConstructorArguments(
+  argumentNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: CsharpPlanningContext,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpArgument[] | undefined {
+  const planned: CsharpArgument[] = [];
+  for (const argument of argumentNodes) {
+    if (argument === undefined) {
+      continue;
+    }
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics);
+    if (plannedArgument === undefined) {
+      return undefined;
+    }
+    planned.push(plannedArgument);
+  }
+  return planned;
+}
+
+function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: CsharpPlanningContext): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
+  const first = statements[0];
+  if (!HasSourceKind(input.program.source.ast, first, KindExpressionStatement)) {
+    return undefined;
+  }
+  const expression = AsExpressionStatement(input.program.source.ast, first)!.Expression;
+  if (!HasSourceKind(input.program.source.ast, expression, KindCallExpression)) {
+    return undefined;
+  }
+  const call = AsCallExpression(input.program.source.ast, expression)!;
+  return HasSourceKind(input.program.source.ast, call.Expression, KindSuperKeyword) ? call : undefined;
+}

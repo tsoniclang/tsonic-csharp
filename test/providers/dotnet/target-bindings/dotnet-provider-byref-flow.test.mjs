@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   dotnetExportToTargetBinding,
-} from "../../../../dist/providers/dotnet/model/index.js";
+} from "../../../../dist/providers/native/model/index.js";
 import {
   testTargetId,
 } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";

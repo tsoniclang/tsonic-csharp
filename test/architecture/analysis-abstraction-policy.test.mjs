@@ -127,7 +127,7 @@ test("architecture validator rejects catch-all policy modules while permitting n
   );
   assert.deepEqual(
     [
-      "src/policy/members/source-profiles/source-profile-policy.ts",
+      "src/policy/operations/source-profiles/source-profile-policy.ts",
       "src/policy/types/objects/binding-projection-policy.ts",
       "src/policy/types/objects/object-shape-policy.ts",
       "src/policy/types/resolution/source-literal-policy.ts",

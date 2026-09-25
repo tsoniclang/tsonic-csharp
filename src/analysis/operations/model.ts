@@ -9,7 +9,7 @@ import type {
 } from "../../policy/conversions/index.js";
 import type {
   CsharpProviderValueSelection,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import type {
   CsharpJsArrayMutationSelection,
   CsharpJsStringConversionSelection,
@@ -20,10 +20,10 @@ import type {
   CsharpTargetElementSelection,
   CsharpTargetPropertySelection,
   ResolvedSourceCallInfo,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import type {
   resolveCsharpJsValueObjectShapeProperty,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberLookupResult,

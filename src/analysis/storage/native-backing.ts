@@ -8,7 +8,7 @@ import { csharpStructuralObjectShapeIdentity } from "../../target-model/types/ob
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpNativeArrayStorage, CsharpStorageIssue } from "./model.js";
-import type { CsharpObjectShapeClassifications } from "../object-shapes/model.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import { createCsharpNativeFieldBacking } from "./native-field-backing.js";
 
 export function analyzeCsharpNativeBacking(

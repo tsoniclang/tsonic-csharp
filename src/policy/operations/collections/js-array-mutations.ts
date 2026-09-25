@@ -8,7 +8,7 @@ import type {
 } from "../../model/context.js";
 import {
   csharpSourceProfileDeclarationIdentity,
-} from "../../members/index.js";
+} from "../members/index.js";
 import {
   getCsharpJsArrayMutationPolicy,
 } from "../../types/index.js";

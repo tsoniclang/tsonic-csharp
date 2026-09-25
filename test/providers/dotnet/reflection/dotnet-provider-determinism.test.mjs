@@ -9,7 +9,7 @@ import {
 } from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   createDotnetReferenceSnapshot,
-} from "../../../../dist/providers/dotnet/reflection/reference-snapshot.js";
+} from "../../../../dist/providers/native/reflection/reference-snapshot.js";
 import {
   readCsharpReferences,
   readCsharpReflectionReferencePaths,

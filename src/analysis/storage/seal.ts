@@ -1,8 +1,8 @@
 import type { Node } from "@tsonic/tsts";
 import { IsTypeSyntaxNode } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../policy/model/context.js";
-import { selectCsharpSourceArgument } from "../../policy/members/selection/argument-selection.js";
-import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js";
+import { selectCsharpSourceArgument } from "../../policy/operations/members/selection/argument-selection.js";
+import type { CsharpObjectShapeClassifications } from "../objects/index.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageClassifications, CsharpStorageRepresentationClassifications } from "./model.js";

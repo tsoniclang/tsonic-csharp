@@ -4,7 +4,7 @@ import type { CsharpObjectShapeFact, TargetTypeRef } from "../../../../target-mo
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpTypeMember } from "../../../target-ast/roslyn/index.js";
 import type { CsharpPlanningContext } from "../../context.js";
 import { createCsharpMemberPlanningContext, createCsharpThisBindingPlanningContext } from "../../context.js";
-import { planMethodDeclaration } from "../../declarations/declaration-class-methods.js";
+import { planMethodDeclaration } from "../../declarations/classes/methods.js";
 import { csharpTypeFromTargetTypeRef } from "../../types/target-types.js";
 import { csharpTypeFromObjectShapeFact } from "../planning.js";
 import { unsupportedNodeDiagnostic } from "../../diagnostics.js";

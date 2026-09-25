@@ -23,7 +23,7 @@ import {
 import {
   dotnetExportToTargetBinding,
   tryDotnetTypeRefToProviderType,
-} from "../../../dist/providers/dotnet/model/index.js";
+} from "../../../dist/providers/native/model/index.js";
 import { buildDotnetFixture } from "../../helpers/dotnet-fixtures.mjs";
 export { assert, dirname, join, test, fileURLToPath, augmentDotnetModuleWithNativeArray, completeDotnetProviderContext, createDotnetProviderTelemetry, createDotnetReflectionTypeDataProvider, createDotnetSourceDeclarationProvider, dotnetNativeArrayCreateMemberId, dotnetNativeArrayIndexerMemberId, dotnetNativeArrayLengthMemberId, dotnetNativeArrayTypeId, dotnetModuleToProviderDeclarationModel, dotnetTypeRefToProviderType, dotnetTypeRefToTargetTypeRef, validateDotnetProviderDeclarationModelContract, dotnetExportToTargetBinding, tryDotnetTypeRefToProviderType, buildDotnetFixture };
 

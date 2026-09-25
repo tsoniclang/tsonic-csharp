@@ -7,7 +7,7 @@ import type {
 } from "../../../../target-model/types/index.js";
 import type {
   CsharpObjectShapeClassifications,
-} from "../../../../analysis/object-shapes/index.js";
+} from "../../../../analysis/objects/index.js";
 import type {
   TargetArtifactContractGraph,
   TargetArtifactDependency,

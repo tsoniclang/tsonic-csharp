@@ -9,7 +9,7 @@ import type {
 import {
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
-} from "../../members/index.js";
+} from "../members/index.js";
 import {
   isCsharpValueTypeTargetType,
   targetTypeRefEquals,

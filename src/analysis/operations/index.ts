@@ -30,7 +30,7 @@ export type {
   CsharpTargetElementSelection,
   CsharpTargetPropertySelection,
   ResolvedSourceCallInfo,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 export type {
   CsharpJsValueOperationSelection,
 } from "../../policy/js-value-operations/index.js";

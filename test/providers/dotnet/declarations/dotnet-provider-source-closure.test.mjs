@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   sliceDotnetModuleExports,
-} from "../../../../dist/providers/dotnet/modules/slices.js";
+} from "../../../../dist/providers/native/modules/slices.js";
 
 test(".NET provider source closure excludes target-only metadata dependencies", () => {
   const moduleSpecifier = "@acme/dotnet/Example.js";

@@ -136,13 +136,13 @@ test("architecture validator rejects source-usage declaration filtering channels
   );
 
   assertFindings(
-    "src/providers/dotnet/declarations/types.ts",
+    "src/providers/native/declarations/types.ts",
     "function sourceMemberIsRequested(member, context) { return true; }",
     ["provider-declaration-member-usage-filter"],
   );
 
   assertFindings(
-    "src/providers/dotnet/declarations/context.ts",
+    "src/providers/native/declarations/context.ts",
     "export interface TargetSourceUsageHints {}",
     ["source-usage-member-scan-channel"],
   );

@@ -7,7 +7,7 @@ import { csharpSourcePrimitiveTargetType } from "../../../target-model/types/sca
 import { csharpNullableTargetType } from "../../../target-model/types/nullable.js";
 import { nextState } from "./state.js";
 import { resolveBinaryTargetRepresentation, commonTargetRepresentation, getTaskResultType } from "./representation.js";
-import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../members/selection/target-selection.js";
+import { selectCsharpTargetCall, selectCsharpTargetElement, selectCsharpTargetProperty } from "../../operations/members/selection/target-selection.js";
 import { sourceOperatorFromKindName } from "../../../target-model/syntax/operators.js";
 import { selectCsharpGenericMethodValue } from "../objects/generic-method-values.js";
 import { getCsharpClassFactory } from "../../../target-model/types/class-factories.js";

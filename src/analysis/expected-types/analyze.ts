@@ -37,7 +37,7 @@ import type {
 } from "../source-evidence/index.js";
 import type {
   CsharpObjectShapeClassifications,
-} from "../object-shapes/index.js";
+} from "../objects/index.js";
 import type {
   CsharpCallableContractIndex,
 } from "../callables/index.js";
@@ -53,7 +53,7 @@ import type {
 } from "../../policy/operations/index.js";
 import type {
   CsharpTargetCallSelection,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import {
   csharpTargetRepresentationContractId,
 } from "../../target-model/contracts/identities.js";
@@ -737,7 +737,7 @@ export function analyzeCsharpExpectedTypes(
         typeof csharpTargetParameterValueType
       >[1];
     }[],
-    argumentMappings: readonly import("../../policy/members/index.js").CsharpProviderArgumentMapping[] | undefined,
+    argumentMappings: readonly import("../../policy/operations/members/index.js").CsharpProviderArgumentMapping[] | undefined,
     strength: ExpectedTypeStrength,
   ): void {
     for (const argument of arguments_) {

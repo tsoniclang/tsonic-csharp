@@ -3,7 +3,7 @@ import type { TargetSourceProgram } from "@tsonic/target-api/source";
 import { sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
-import type { CsharpObjectShapeClassifications } from "../object-shapes/model.js";
+import type { CsharpObjectShapeClassifications } from "../objects/model.js";
 import type { CsharpStorageClassifications, CsharpStorageIssue } from "../storage/model.js";
 import { createStructuralObjectShapeTarget } from "../../policy/types/objects/object-shape-policy/construction.js";
 import { csharpRuntimeLocationTargetType, csharpRuntimeNativeArrayTargetType } from "../../target-model/types/runtime-carriers.js";

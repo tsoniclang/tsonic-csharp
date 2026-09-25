@@ -5,9 +5,9 @@ import test from "node:test";
 import { csharpCoreRuntimeSource, csharpJsRuntimeSource, csharpRuntimeSourceContributions } from "../../../dist/public/provider.js";
 import { readCsharpTargetFramework } from "../../../dist/options/csharp-target-options.js";
 import { parseCsharpTargetFramework } from "../../../dist/target-model/configuration/framework.js";
-import { selectDotnetPlatformDirectory } from "../../../dist/providers/dotnet/reflection/tool/toolchain.js";
-import { validateDotnetReflectionTargetFramework } from "../../../dist/providers/dotnet/reflection/cache-request.js";
-import { resolveDotnetProviderToolPaths } from "../../../dist/providers/dotnet/reflection/tool/path-resolution.js";
+import { selectDotnetPlatformDirectory } from "../../../dist/providers/native/reflection/tool/toolchain.js";
+import { validateDotnetReflectionTargetFramework } from "../../../dist/providers/native/reflection/cache-request.js";
+import { resolveDotnetProviderToolPaths } from "../../../dist/providers/native/reflection/tool/path-resolution.js";
 
 import { createCsharpTargetConfiguration } from "../../../dist/options/csharp-target-options.js";
 import { analyzeCsharpProject } from "../../../dist/analysis/project/index.js";

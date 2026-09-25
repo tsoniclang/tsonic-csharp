@@ -7,19 +7,19 @@ import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionCacheRequest,
-} from "../../../../dist/providers/dotnet/reflection/cache-request.js";
+} from "../../../../dist/providers/native/reflection/cache-request.js";
 import {
   createDotnetProviderCache,
-} from "../../../../dist/providers/dotnet/reflection/cache.js";
+} from "../../../../dist/providers/native/reflection/cache.js";
 import {
   createDotnetReflectionTypeDataProvider,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
 import {
   createDotnetReferenceSnapshot,
-} from "../../../../dist/providers/dotnet/reflection/reference-snapshot.js";
+} from "../../../../dist/providers/native/reflection/reference-snapshot.js";
 import {
   createDotnetProviderTelemetry,
-} from "../../../../dist/providers/dotnet/reflection/telemetry.js";
+} from "../../../../dist/providers/native/reflection/telemetry.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 function fixtureDirectory(name) {

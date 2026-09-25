@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateBinaryTargetSemantics } from "../../../dist/policy/operations/selection/operator-validation.js";
+import { validateBinaryTargetSemantics } from "../../../dist/policy/operations/operators/operator-validation.js";
 import { csharpNullableTargetType, csharpTargetNamedType } from "../../../dist/target-model/types/index.js";
 
 const context = {

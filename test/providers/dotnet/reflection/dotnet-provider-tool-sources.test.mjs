@@ -6,9 +6,9 @@ import { createTestWorkspace } from "../../../../../tsonic/test/scripts/test-wor
 import { dirname, join, relative, sep } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { createDotnetProviderTelemetry } from "../../../../dist/providers/dotnet/reflection/telemetry.js";
-import { resolveDotnetProviderToolPaths } from "../../../../dist/providers/dotnet/reflection/tool/path-resolution.js";
-import { hashProviderToolSources, providerToolSourceFiles } from "../../../../dist/providers/dotnet/reflection/tool/source-hash.js";
+import { createDotnetProviderTelemetry } from "../../../../dist/providers/native/reflection/telemetry.js";
+import { resolveDotnetProviderToolPaths } from "../../../../dist/providers/native/reflection/tool/path-resolution.js";
+import { hashProviderToolSources, providerToolSourceFiles } from "../../../../dist/providers/native/reflection/tool/source-hash.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const nativeDirectory = "tools/dotnet-type-provider";

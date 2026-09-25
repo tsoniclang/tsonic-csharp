@@ -9,7 +9,7 @@ const sourceRoot = join(repositoryRoot, "src");
 const architectureTestPath = fileURLToPath(import.meta.url);
 
 const neutralFactReaders = new Map([
-  ["argumentPassingFactKey", ["src/policy/members/selection/argument-selection.ts"]],
+  ["argumentPassingFactKey", ["src/policy/operations/members/selection/argument-selection.ts"]],
   ["defaultValueFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["fieldFactKey", ["src/policy/types/resolution/source-markers.ts"]],
   ["flowStateFactKey", ["src/policy/operations/flow/source-flow.ts"]],

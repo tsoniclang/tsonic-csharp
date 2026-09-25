@@ -1,7 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import { sourceIntegerTruncationFits } from "@tsonic/target-api/source";
 import type { CsharpPolicyContext } from "../../model/context.js";
-import { selectCsharpTargetCall } from "../../members/selection/target-selection.js";
+import { selectCsharpTargetCall } from "../../operations/members/selection/target-selection.js";
 import { csharpBigIntegerTargetType, targetTypeRefEquals } from "../../types/index.js";
 import { csharpNumericLiteralValue } from "../../../target-model/syntax/numeric-literals.js";
 import type { TargetTypeRef } from "../../../target-model/types/model.js";

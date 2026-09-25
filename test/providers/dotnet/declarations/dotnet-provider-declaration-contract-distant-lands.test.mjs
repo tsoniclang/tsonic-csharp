@@ -9,8 +9,8 @@ import {
 import {
   createDotnetReflectionTypeDataProvider,
 } from "../../../helpers/dotnet-reflection-provider.mjs";
-import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/dotnet/model/index.js";
-import { dotnetMembersToProviderMembers } from "../../../../dist/providers/dotnet/declarations/members.js";
+import { tryDotnetTypeRefToProviderType } from "../../../../dist/providers/native/model/index.js";
+import { dotnetMembersToProviderMembers } from "../../../../dist/providers/native/declarations/members.js";
 import { completeProviderDeclarationRequest } from "../../../fixtures/dotnet-provider/dotnet-provider.helpers.mjs";
 
 const moduleSpecifier = "@tsonic/dotnet/System.js";

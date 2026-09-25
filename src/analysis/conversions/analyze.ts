@@ -24,8 +24,8 @@ import {
   resolveCsharpObjectShapeMemberBySourceContract,
 } from "../../target-model/types/index.js";
 import type { CsharpExpectedTypeClassifications } from "../expected-types/index.js";
-import type { CsharpObjectShapeClassifications } from "../object-shapes/index.js";
-import type { CsharpStructuralInterfaceRegistration } from "../object-shapes/structural-interfaces.js";
+import type { CsharpObjectShapeClassifications } from "../objects/index.js";
+import type { CsharpStructuralInterfaceRegistration } from "../objects/structural-interfaces.js";
 import type { CsharpTargetOperationClassifications } from "../operations/index.js";
 import type { CsharpSourceEvidenceIndex } from "../source-evidence/index.js";
 import type { CsharpStorageRepresentationClassifications } from "../storage/index.js";

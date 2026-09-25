@@ -33,11 +33,11 @@ import {
   selectCsharpTargetCall,
   selectCsharpTargetElement,
   selectCsharpTargetProperty,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import type {
   CsharpSelectedTargetCall,
   ResolvedSourceCallInfo,
-} from "../../policy/members/index.js";
+} from "../../policy/operations/members/index.js";
 import {
   selectCsharpBinaryOperation,
   selectCsharpDestructuringAssignmentOperation,

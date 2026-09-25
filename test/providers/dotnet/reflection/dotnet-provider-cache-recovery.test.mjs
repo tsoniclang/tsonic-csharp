@@ -17,7 +17,7 @@ import {
 import {
   createDotnetProviderTelemetry,
   validateDotnetModuleModelContract,
-} from "../../../../dist/providers/dotnet/index.js";
+} from "../../../../dist/providers/native/index.js";
 import {
   createDotnetReflectionTypeDataProvider,
   dotnetReflectionProviderStorage,
