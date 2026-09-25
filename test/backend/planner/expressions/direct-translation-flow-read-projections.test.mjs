@@ -27,9 +27,7 @@ test("direct C# translation projects exact checker flow types for inferred local
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics, []);
   assert.deepEqual(compiled.targetDiagnostics, []);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
@@ -42,15 +40,13 @@ namespace Tsonic.Generated
             }
             return null;
         }
-        public static Func<Base, string?> fromArrow
+        public static string? fromArrow(Base value)
         {
-            get;
-            private set;
-        } = default(Func<Base, string?>)!;
+            return (object?)value is Derived ? ((Derived)value).value : null;
+        }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
-            fromArrow = (Base value) => (object?)value is Derived ? ((Derived)value).value : null;
             return null;
         }
         public static void __tsonic_module_init()

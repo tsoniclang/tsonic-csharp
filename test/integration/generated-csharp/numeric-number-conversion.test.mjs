@@ -56,7 +56,7 @@ export function literal(): number { return Number(3); }
   const output = [...compiled.artifacts.values()].join("\n");
   for (const [name] of scalars) {
     const body = output.slice(output.indexOf(`double convert_${name}(`)).split("}")[0];
-    assert.match(body, /return \(double\)\(?value\)?;/u, name);
+    assert.match(body, name === "float64" ? /return value;/u : /return \(double\)\(?value\)?;/u, name);
     assert.doesNotMatch(body, /Globals\.Number|object/u, name);
   }
   assert.match(output, /Globals\.Number/u);
