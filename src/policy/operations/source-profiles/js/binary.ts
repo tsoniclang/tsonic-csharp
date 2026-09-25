@@ -233,7 +233,7 @@ function constructorMember(
     id,
     sourceName: "constructor",
     targetName: target.kind === "target-named"
-      ? target.id.slice(target.id.lastIndexOf("../../../members/source-profiles/js") + 1)
+      ? target.id.slice(target.id.lastIndexOf(".") + 1)
       : "constructor",
     kind: "constructor",
     declaringType: target,

@@ -10,7 +10,7 @@ import { createDotnetProviderTelemetry } from "../../../../dist/providers/native
 import { resolveDotnetProviderToolPaths } from "../../../../dist/providers/native/reflection/tool/path-resolution.js";
 import { hashProviderToolSources, providerToolSourceFiles } from "../../../../dist/providers/native/reflection/tool/source-hash.js";
 
-const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const repositoryRoot = fileURLToPath(new URL("../../../..", import.meta.url));
 const nativeDirectory = "tools/dotnet-type-provider";
 const manifest = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
 const sources = new Map([

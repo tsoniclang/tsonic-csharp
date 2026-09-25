@@ -50,16 +50,16 @@ export function dotnetModuleSpecifierForMetadataName(
 ): string | undefined {
   const normalizedName = metadataName
     .slice(0, firstSignatureDelimiter(metadataName))
-    .replace(/\+/gu, "../../dotnet/modules");
+    .replace(/\+/gu, ".");
   const unqualifiedName = normalizedName.includes("`")
     ? normalizedName.slice(0, normalizedName.indexOf("`"))
     : normalizedName;
-  const namespaceName = unqualifiedName.includes("../../dotnet/modules")
-    ? unqualifiedName.slice(0, unqualifiedName.lastIndexOf("../../dotnet/modules"))
+  const namespaceName = unqualifiedName.includes(".")
+    ? unqualifiedName.slice(0, unqualifiedName.lastIndexOf("."))
     : "";
   return namespaceName.length === 0 ||
       namespaceName.includes("/") ||
-      namespaceName.split("../../dotnet/modules").some((segment) => segment.length === 0)
+      namespaceName.split(".").some((segment) => segment.length === 0)
     ? undefined
     : createDotnetModuleSpecifier(namespaceName, policy);
 }

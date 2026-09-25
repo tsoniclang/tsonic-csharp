@@ -61,7 +61,7 @@ export function parseDotnetModuleSpecifier(
     return undefined;
   }
   const subpath = specifier.slice(policy.modulePrefix.length, -dotnetModuleExtension.length);
-  if (subpath.length === 0 || subpath.includes("../../dotnet") || subpath.startsWith("/") || subpath.endsWith("/")) {
+  if (subpath.length === 0 || subpath.includes("..") || subpath.startsWith("/") || subpath.endsWith("/")) {
     return undefined;
   }
   const aliasSpecifier = parseDotnetAliasSubpath(subpath);
@@ -78,7 +78,7 @@ export function parseDotnetModuleSpecifier(
   }
   return {
     moduleSpecifier: specifier,
-    namespaceName: subpath.split("/").join("../../dotnet/modules"),
+    namespaceName: subpath.split("/").join("."),
     subpath,
   };
 }
@@ -87,7 +87,7 @@ export function createDotnetModuleSpecifier(
   namespaceName: string,
   policy: DotnetModuleSpecifierPolicy = dotnetModuleSpecifierPolicy,
 ): string {
-  if (namespaceName.length === 0 || namespaceName.includes("/") || namespaceName.includes("../../dotnet")) {
+  if (namespaceName.length === 0 || namespaceName.includes("/") || namespaceName.includes("..")) {
     throw new Error(`Invalid .NET namespace '${namespaceName}'.`);
   }
   return `${policy.modulePrefix}${namespaceName}${dotnetModuleExtension}`;
@@ -116,7 +116,7 @@ function parseDotnetAliasSubpath(
   return {
     alias,
     assemblyName,
-    namespaceName: namespaceSegments.join("../../dotnet/modules"),
+    namespaceName: namespaceSegments.join("."),
   };
 }
 

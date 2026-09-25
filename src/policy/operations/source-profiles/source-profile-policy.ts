@@ -493,5 +493,5 @@ function formatIdentity(
     identity.declaringName,
     identity.name,
     identity.kind,
-  ].filter((part) => part !== undefined).join("../../members/source-profiles");
+  ].filter((part) => part !== undefined).join(".");
 }
