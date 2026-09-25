@@ -5,7 +5,7 @@ import { jsSourceSemanticsIdentity } from "@tsonic/js-source-profile";
 import { selectCsharpComposedSourceProfileCall } from "../../../dist/policy/operations/source-profiles/source-profile-selection.js";
 
 test("floor policy retains every native integer carrier supplied by exact provider evidence", () => {
-  for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint", "float32", "float64"]) {
+  for (const name of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint", "float32", "float64"]) {
     const carrier = { kind: "source-primitive", name };
     const call = callEvidence({ argumentTypes: [{}], receiver: false });
     const fixture = directProviderHost({

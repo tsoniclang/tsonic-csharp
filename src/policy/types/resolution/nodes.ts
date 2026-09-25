@@ -16,6 +16,7 @@ import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { sourceFactSubjectsForNode } from "./source-evidence.js";
 import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { retainCsharpUnionObjectShapes } from "./source-union-refinement.js";
+import { resolveCsharpProviderIndexedAccess } from "./indexed-access.js";
 
 export function resolveNodeWithState(
   scope: CsharpTypeResolutionScope,
@@ -44,6 +45,8 @@ export function resolveNodeWithState(
     return selected === undefined ? scopedTargetType
       : scope.resolveSelectedValueWithState(node, selected, queries.sourceFile, state);
   }
+  const indexed = resolveCsharpProviderIndexedAccess(scope, node, queries, state);
+  if (indexed !== undefined) return indexed;
   const syntaxFact = resolveDirectSourceFacts(
     [node],
     queries.sourceFile,
