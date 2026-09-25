@@ -512,7 +512,9 @@ export function resolveSourceValueDeclaration(
     return undefined;
   }
   const declarationQueries = host.semantics(sourceFile);
-  const induction = sourceIntegerInduction(declaration, host.ast, host.navigation);
+  const induction = sourceIntegerInduction(declaration, host.ast, host.navigation, {
+    sourceFacts: host.sourceFacts, semanticsFor: host.semanticsFor,
+  });
   if (induction !== undefined) {
     const bound = resolveNodeWithState(induction.bound, sourceFile, nextState(state));
     if (bound?.kind === "source-primitive" &&
