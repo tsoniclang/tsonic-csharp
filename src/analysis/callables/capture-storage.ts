@@ -1,6 +1,6 @@
 import type { Node } from "@tsonic/tsts";
 import type { TargetSourceProgram } from "@tsonic/target-api/source";
-import { sourceBindingScope, sourceNodeIdentity } from "@tsonic/target-api/source";
+import { sourceBindingScope, sourceBindingHasSingleCaptureOwner, sourceNodeIdentity } from "@tsonic/target-api/source";
 import { createHash } from "node:crypto";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact, TargetTypeRef } from "../../target-model/types/model.js";
 import type { CsharpObjectShapeClassifications } from "../objects/model.js";
@@ -146,23 +146,7 @@ export function analyzeCsharpCaptureStorage(
 function hasSingleCaptureOwner(source: TargetSourceProgram, declaration: Node, shape: CsharpObjectShapeFact): boolean {
   const implementation = shape.methodImplementation;
   if (implementation === undefined) return false;
-  const methods = new Set(shape.members.flatMap(member => (member.typeParameters?.length ?? 0) === 0 ? []
-    : (member.sourceDeclarations ?? []).filter(method => source.ast.parent(method) === implementation.declaration)));
-  const scope = sourceBindingScope(declaration, source.ast);
-  let current: Node | undefined = implementation.declaration;
-  while (current !== undefined && current !== scope) {
-    if (["KindForStatement", "KindForInStatement", "KindForOfStatement", "KindWhileStatement", "KindDoStatement",
-      "KindArrowFunction", "KindFunctionExpression", "KindFunctionDeclaration", "KindMethodDeclaration"].includes(source.ast.kindName(current))) return false;
-    current = source.ast.parent(current);
-  }
-  if (current !== scope || scope === undefined) return false;
-  const uses = source.navigation.declarationUseSummary(declaration);
-  return !uses.exported && uses.uses.every(use => {
-    if (use.kind === "type-only") return true;
-    for (let owner = source.ast.parent(use.reference); owner !== undefined; owner = source.ast.parent(owner)) {
-      if (methods.has(owner)) return true;
-      if (owner === implementation.declaration || owner === scope) return false;
-    }
-    return false;
-  });
+  const methods = shape.members.flatMap(member => (member.typeParameters?.length ?? 0) === 0 ? []
+    : (member.sourceDeclarations ?? []).filter(method => source.ast.parent(method) === implementation.declaration));
+  return sourceBindingHasSingleCaptureOwner(declaration, implementation.declaration, methods, source.ast, source.navigation);
 }
