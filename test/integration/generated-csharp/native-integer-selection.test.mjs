@@ -8,6 +8,12 @@ test("native counters, conditional joins and integer floor preserve exact carrie
   const compiled = compileCsharpSource({ surface: "js", sourceText: nativeIntegerSelectionSource });
   assertCsharpCompilationSucceeded(compiled);
   const output = compiled.artifacts.get("src/Index.cs");
+  for (const name of ["integralFloor", "compoundFloor", "negatedFloor", "calledConditional", "calledConditionalLiteral", "conditional", "conditionalLiteral", "nested"]) {
+    assert.match(output, new RegExp(`int ${name}\\(`, "u"), name);
+  }
+  assert.match(output, /long promoted\(/u);
+  for (const name of ["optional", "optionalBranch"]) assert.match(output, new RegExp(`int\\? ${name}\\(`, "u"), name);
+  for (const name of ["conditionalFraction", "explicitFloat", "fractionalFloor"]) assert.match(output, new RegExp(`double ${name}\\(`, "u"), name);
   const counted = output.slice(output.indexOf("string counted("), output.indexOf("string growing("));
   assert.match(counted, /for \(int index = 0;/u);
   assert.doesNotMatch(counted, /double|Convert\.To/u);

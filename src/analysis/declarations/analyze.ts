@@ -199,8 +199,11 @@ function uncoveredBaselineReturnAlternatives(
 ): readonly TargetTypeRef[] {
   const alternatives = new Map<string, TargetTypeRef>();
   collectTargetContractAlternatives(baseline, alternatives);
+  const observedAlternatives = new Map<string, TargetTypeRef>();
+  observed.forEach(source => collectTargetContractAlternatives(source, observedAlternatives));
+  const observedSources = [...observedAlternatives.values()];
   return [...alternatives.values()].filter((alternative) =>
-    !observed.some((source) =>
+    !observedSources.some((source) =>
       observedNumericCarrierCoversBaseline(policy, source, alternative) ||
       csharpGenericMethodValueCoversContract(source, alternative) || csharpConversionIsApplicable(
         selectCsharpConversion(policy, source, alternative, "implicit"),
