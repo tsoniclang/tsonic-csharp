@@ -8,15 +8,25 @@ export function diagnoseCsharpAttributeTypeValues(
 ): readonly TargetDiagnostic[] {
   const diagnostics: TargetDiagnostic[] = [];
   for (const application of applications.all) {
-    const node = application.attributeType;
+    const node = application.invocation;
+    if (application.applicationPlacement === "module") {
+      diagnostics.push({
+        code: "CSHARP_ATTRIBUTE_MODULE_NOT_SUPPORTED",
+        category: "error",
+        source: "tsonic-csharp",
+        message: "A source-module attribute has no corresponding C# source-module declaration; it does not implicitly select an assembly or CLR module.",
+        ...(isAstNode(source.ast, node) ? { sourceNode: node } : {}),
+      });
+      continue;
+    }
     const semantics = isAstNode(source.ast, node) ? source.semantics.forNode(node) : undefined;
-    const type = isAstNode(source.ast, node) ? semantics?.types.expressionType(node) : undefined;
-    if (type !== undefined && semantics!.types.constructSignatures(type).length > 0) continue;
+    if (isAstNode(source.ast, node) && source.ast.is.IsNewExpression(node) &&
+      semantics?.operations.call(node)?.outcome === "applicable") continue;
     diagnostics.push({
-      code: "CSHARP_ATTRIBUTE_TYPE_NOT_CONSTRUCTIBLE",
+      code: "CSHARP_ATTRIBUTE_CONSTRUCTION_REQUIRED",
       category: "error",
       source: "tsonic-csharp",
-      message: "An attribute requires an exact checked constructor type; an ordinary object value is not an attribute type.",
+      message: "A C# attribute requires an inline lambda containing an exact checked construction: () => new AttributeType(...).",
       ...(isAstNode(source.ast, node) ? { sourceNode: node } : {}),
     });
   }

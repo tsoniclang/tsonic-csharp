@@ -192,6 +192,7 @@ test("direct C# translation selects exact provider overloads and source-core att
       ObsoleteAttribute,
       SerializableAttribute,
     } from "@tsonic/dotnet/System.js";
+    import { InAttribute } from "@tsonic/dotnet/System/Runtime/InteropServices.js";
 
     export class User {
       constructor(id: string) {}
@@ -200,12 +201,12 @@ test("direct C# translation selects exact provider overloads and source-core att
       save(route: string): void {}
     }
 
-    attribute<User>().add(SerializableAttribute);
-    attribute<User>().add(ObsoleteAttribute, "class");
-    attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
-    attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
-    attribute<User>().property((target) => target.name).add(ObsoleteAttribute, "field");
-    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().add(() => new SerializableAttribute());
+    attribute<User>().add(() => new ObsoleteAttribute("class"));
+    attribute<User>().constructor().add(() => new ObsoleteAttribute("constructor"));
+    attribute<User>().constructor().parameter("id").add(() => new InAttribute());
+    attribute<User>().property((target) => target.name).add(() => new ObsoleteAttribute("field"));
+    attribute<User>().method((target) => target.save).add(() => new ObsoleteAttribute("method"));
 
     export function report(path: string): number {
       const parts = path.Split("/");
@@ -245,7 +246,7 @@ test("direct C# translation selects exact provider overloads and source-core att
     public class User
     {
         [System.ObsoleteAttribute("constructor")]
-        public User([System.ObsoleteAttribute("id")] string id)
+        public User([System.Runtime.InteropServices.InAttribute] string id)
         {
         }
         [System.ObsoleteAttribute("field")]

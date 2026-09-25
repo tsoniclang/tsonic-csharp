@@ -21,19 +21,18 @@ export interface CsharpAttributeBuilderState {
   readonly applicationTarget: ExtensionFactSubject;
   readonly selectedMember?: ExtensionFactSubject;
   readonly applicationMemberKind?: "property" | "method";
-  readonly applicationPlacement?: "declaration" | "constructor";
+  readonly applicationPlacement?: "declaration" | "constructor" | "module";
   readonly applicationParameterName?: string;
   readonly applicationTargetSpecifier?: string;
 }
 
 export interface CsharpAttributeApplication {
   readonly kind: "csharp-attribute-application";
-  readonly attributeType: ExtensionFactSubject;
-  readonly arguments: readonly ExtensionFactSubject[];
+  readonly invocation: ExtensionFactSubject;
   readonly applicationTarget: ExtensionFactSubject;
   readonly selectedMember?: ExtensionFactSubject;
   readonly applicationMemberKind?: "property" | "method";
-  readonly applicationPlacement?: "declaration" | "constructor";
+  readonly applicationPlacement?: "declaration" | "constructor" | "module";
   readonly applicationParameterName?: string;
   readonly applicationTargetSpecifier?: string;
 }
@@ -154,8 +153,7 @@ function csharpAttributeBuilderOperation(
       })
     : Object.freeze({
         kind: "csharp-attribute-application",
-        attributeType: fact.attributeType,
-        arguments: Object.freeze([...fact.arguments]),
+        invocation: fact.invocation,
         ...common,
       });
 }
