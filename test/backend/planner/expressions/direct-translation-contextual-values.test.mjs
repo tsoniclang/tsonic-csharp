@@ -270,25 +270,21 @@ test("direct C# translation retains imported interface context for expression-bo
     }
 }
 `);
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static Func<int, string, ItemDto> makeItem
+        public static ItemDto makeItem(int id, string title)
         {
-            get;
-            private set;
-        } = default(Func<int, string, ItemDto>)!;
-        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
-        private static object? __tsonic_module_init_core()
-        {
-            makeItem = (int id, string title) => (new ItemDtoShape_f447239a5214
+            return (new ItemDtoShape_f447239a5214
             {
                 id = id,
                 title = title,
             });
+        }
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
             return null;
         }
         public static void __tsonic_module_init()
@@ -322,16 +318,16 @@ namespace Tsonic.Generated
 
 test("direct C# translation reconstructs imported callable-expression return contracts", () => {
   const initializers = [
-    `(text: string): int | undefined => {
+    [`(text: string): int | undefined => {
       void text;
       return undefined;
-    }`,
-    `function (text: string): int | undefined {
+    }`, true],
+    [`function (text: string): int | undefined {
       void text;
       return undefined;
-    }`,
+    }`, false],
   ];
-  for (const initializer of initializers) {
+  for (const [initializer, direct] of initializers) {
     const compiled = compileCsharpSource({
     sourceText: `
       import type { int } from "@tsonic/csharp/types.js";
@@ -350,7 +346,27 @@ test("direct C# translation reconstructs imported callable-expression return con
     assert.equal(compiled.sourceDiagnosticsText, "");
     assert.deepEqual(compiled.extensionDiagnostics, []);
     assert.deepEqual(compiled.targetDiagnostics, []);
-    assert.equal(compiled.artifacts.get("src/Helper.cs"), `using System;
+    assert.equal(compiled.artifacts.get("src/Helper.cs"), direct ? `namespace Tsonic.Generated
+{
+    public static class Helper
+    {
+        public static int? parseValue(string text)
+        {
+            _ = text;
+            return null;
+        }
+        private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
+        private static object? __tsonic_module_init_core()
+        {
+            return null;
+        }
+        public static void __tsonic_module_init()
+        {
+            _ = __tsonic_module_initialization.Value;
+        }
+    }
+}
+` : `using System;
 
 namespace Tsonic.Generated
 {
@@ -378,22 +394,18 @@ namespace Tsonic.Generated
     }
 }
 `);
-    assert.equal(compiled.artifacts.get("src/Index.cs"), `using System;
-
-namespace Tsonic.Generated
+    assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static Func<string, int?> parseRequired
+        public static int? parseRequired(string text)
         {
-            get;
-            private set;
-        } = default(Func<string, int?>)!;
+            return Helper.parseValue(text);
+        }
         private static readonly System.Lazy<object?> __tsonic_module_initialization = new System.Lazy<object?>(() => __tsonic_module_init_core());
         private static object? __tsonic_module_init_core()
         {
             Helper.__tsonic_module_init();
-            parseRequired = (string text) => Helper.parseValue(text);
             return null;
         }
         public static void __tsonic_module_init()

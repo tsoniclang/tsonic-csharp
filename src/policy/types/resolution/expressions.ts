@@ -17,6 +17,7 @@ import { targetTypeRefEquals } from "../../../target-model/types/equality.js";
 import { csharpJsArrayTargetType } from "./surface-types.js";
 import { selectedCsharpSourceProfileOwner } from "./source-profile.js";
 import { selectCsharpAuthoredUnionRefinement } from "./source-union-refinement.js";
+import { selectCsharpConditionalNumericCarrier } from "../conditional-numeric-carrier.js";
 
 export function resolveSelectedExpressionType(
   { host, optionalAccessTargetType, policy, resolveNodeWithState, resolveTypeWithState, resolveReadStorage, resolveNonNullExpressionType, resolvePropertyAccessTargetType, resolveSelectedDeclarationResult, resolveSelectedReceiverTargetType, resolveSourceOwnedCallResult, resolveSourceOwnedConstructionResult }: CsharpTypeResolutionScope,
@@ -88,18 +89,11 @@ export function resolveSelectedExpressionType(
   }
   if (host.ast.is.IsConditionalExpression(node)) {
     const conditional = host.ast.as.AsConditionalExpression(node);
-    return commonTargetRepresentation(
-      resolveNodeWithState(
-        conditional?.WhenTrue,
-        queries.sourceFile,
-        nextState(state),
-      ),
-      resolveNodeWithState(
-        conditional?.WhenFalse,
-        queries.sourceFile,
-        nextState(state),
-      ),
-    );
+    if (conditional?.WhenTrue === undefined || conditional.WhenFalse === undefined) return undefined;
+    const left = resolveNodeWithState(conditional.WhenTrue, queries.sourceFile, nextState(state));
+    const right = resolveNodeWithState(conditional.WhenFalse, queries.sourceFile, nextState(state));
+    return selectCsharpConditionalNumericCarrier(conditional.WhenTrue, conditional.WhenFalse, left, right, host.ast) ??
+      commonTargetRepresentation(left, right);
   }
   if (host.ast.is.IsBinaryExpression(node)) {
     const binary = host.ast.as.AsBinaryExpression(node);

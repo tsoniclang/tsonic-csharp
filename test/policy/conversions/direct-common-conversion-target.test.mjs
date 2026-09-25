@@ -93,6 +93,21 @@ test("inferred return contracts retain unobserved nullish alternatives", () => {
   );
 });
 
+test("inferred nullable numeric returns preserve exact observed storage and absence", () => {
+  for (const [baseline, observed] of [
+    [float64, int32],
+    [csharpBigIntegerTargetType(), csharpSourcePrimitiveTargetType("int64")],
+  ]) {
+    const nullable = csharpNullableTargetType(observed);
+    assert.deepEqual(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], false),
+      { kind: "resolved", type: nullable });
+    assert.equal(reconcileInferredReturnTargetContract(host, csharpNullableTargetType(baseline), [nullable], true).kind, "rejected");
+  }
+  const nullableFloat = csharpNullableTargetType(float64);
+  assert.deepEqual(reconcileInferredReturnTargetContract(host, nullableFloat,
+    [csharpNullableTargetType(int32), nullableFloat], false), { kind: "resolved", type: nullableFloat });
+});
+
 test("inferred integer results do not allocate the checker bigint baseline", () => {
   const bigint = csharpBigIntegerTargetType();
   for (const kind of ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64",

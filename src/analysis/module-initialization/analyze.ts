@@ -49,7 +49,7 @@ export function analyzeCsharpModuleInitialization(
   input: CsharpModuleInitializationAnalysisInput,
 ): CsharpModuleInitializationAnalysis {
   const entries = new Map<string, ModuleInitializationEntry>();
-  const directCallables = new WeakSet<Node>();
+  const directCallables = new WeakMap<Node, "public" | "internal">();
   for (const sourceFile of input.sourceFiles) {
     for (const statement of input.source.ast.statements(sourceFile)) {
       const declarations = AsVariableStatement(input.source.ast, statement)?.DeclarationList;
@@ -59,10 +59,10 @@ export function analyzeCsharpModuleInitialization(
         const initializer = AsVariableDeclaration(input.source.ast, declaration)?.Initializer;
         if (initializer === undefined || !input.source.ast.is.IsArrowFunction(initializer)) continue;
         const summary = input.source.navigation.declarationUseSummary(declaration);
-        if (summary.exported || summary.bindingWritten || summary.memberWritten ||
-          summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only") ||
+        if (summary.bindingWritten || summary.memberWritten ||
+          summary.uses.some(use => use.role !== "call-target" && use.kind !== "type-only" && use.kind !== "source-linkage") ||
           sourceMayReadBeforeInitialization(declaration, input.source.ast, input.source.navigation)) continue;
-        directCallables.add(declaration);
+        directCallables.set(declaration, summary.exported ? "public" : "internal");
       }
     }
     entries.set(normalizedFileName(input, sourceFile), Object.freeze({
@@ -103,8 +103,8 @@ export function analyzeCsharpModuleInitialization(
     entrypointInitializer() {
       return entries.get(entrypointFileName)?.sourceFile;
     },
-    isDirectCallable(declaration: Node) {
-      return directCallables.has(declaration);
+    directCallableVisibility(declaration: Node) {
+      return directCallables.get(declaration);
     },
   });
   return Object.freeze({

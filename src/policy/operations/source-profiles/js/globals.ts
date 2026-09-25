@@ -61,7 +61,6 @@ const mathUnaryNames = [
   "cosh",
   "exp",
   "expm1",
-  "floor",
   "fround",
   "log",
   "log1p",
@@ -81,6 +80,25 @@ const mathBinaryNames = ["atan2", "pow"] as const;
 const mathVariadicNames = ["hypot", "max", "min"] as const;
 
 const mathCallPolicies = [
+  jsCallPolicy(
+    jsMemberIdentity("Math", "floor"),
+    (context) => {
+      const argument = resolveCsharpSelectedSourceValue(context, context.source.sourceArguments[0]);
+      const integer = argument?.kind === "source-primitive" &&
+        ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "int128", "uint128", "native-int", "native-uint"].includes(argument.name);
+      const carrier = integer ? argument : doubleType;
+      return staticMethod(
+        "Tsonic.CSharp.Js.Math.floor",
+        "floor",
+        "floor",
+        mathType,
+        [targetParameter("value", carrier, { csharpAcceptsCheckedSourceArgument: true })],
+        carrier,
+        integer ? { csharpInvocation: { kind: "numeric-conversion" } } : {},
+      );
+    },
+    noReceiver,
+  ),
   ...mathUnaryNames.map((name) =>
     fixedStaticCall(
       "Math",
