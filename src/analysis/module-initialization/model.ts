@@ -5,7 +5,7 @@ export interface CsharpModuleInitializationIndex {
   requiresInitializer(sourceFile: SourceFile): boolean;
   isAsync(sourceFile: SourceFile): boolean;
   entrypointInitializer(): SourceFile | undefined;
-  isDirectCallable(declaration: Node): boolean;
+  directCallableVisibility(declaration: Node): "public" | "internal" | undefined;
 }
 
 export interface CsharpModuleInitializationIssue {

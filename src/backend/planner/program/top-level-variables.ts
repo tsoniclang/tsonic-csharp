@@ -78,7 +78,8 @@ export function planTopLevelVariableStatement(
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
-    if (input.program.moduleInitialization.isDirectCallable(declaration)) {
+    const callableVisibility = input.program.moduleInitialization.directCallableVisibility(declaration);
+    if (callableVisibility !== undefined) {
       const lambda = field.initializer;
       const signature = variable.Initializer === undefined ? undefined :
         getLambdaTargetContext(variable.Initializer, sourceFile, input)?.signature;
@@ -93,7 +94,7 @@ export function planTopLevelVariableStatement(
       moduleMembers.push({
         kind: "MethodDeclaration",
         name: field.name,
-        modifiers: lambda.async ? ["internal", "static", "async"] : ["internal", "static"],
+        modifiers: lambda.async ? [callableVisibility, "static", "async"] : [callableVisibility, "static"],
         returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
         parameters: lambda.parameters.map(parameter => ({ ...parameter, type: parameter.type! })),
         body: lambda.body.kind === "Block" ? lambda.body : {

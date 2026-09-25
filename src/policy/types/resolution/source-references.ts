@@ -18,6 +18,7 @@ import {
   sourceTransformedTypeFactEvidenceNodes,
   sourceTupleElementTypeEvidenceNodes,
   sourceTypeSyntaxIsCompositional,
+  sourceIntegerInduction,
 } from "@tsonic/target-api/source";
 import { substituteTargetTypeParameters } from "../callables/substitution.js";
 import { targetTypeRefKey, targetTypeRefEquals } from "../../../target-model/types/equality.js";
@@ -511,6 +512,14 @@ export function resolveSourceValueDeclaration(
     return undefined;
   }
   const declarationQueries = host.semantics(sourceFile);
+  const induction = sourceIntegerInduction(declaration, host.ast, host.navigation);
+  if (induction !== undefined) {
+    const bound = resolveNodeWithState(induction.bound, sourceFile, nextState(state));
+    if (bound?.kind === "source-primitive" &&
+      ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "native-int", "native-uint"].includes(bound.name)) {
+      return bound;
+    }
+  }
   const declaredTarget = resolveTypeWithState(
     declarationQueries.declarations.declaredValueType(declaration),
     sourceFile,

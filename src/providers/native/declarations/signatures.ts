@@ -274,6 +274,7 @@ function providerTypeExpressionSourceProjection(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
     case "type-parameter":
       return [type];
   }
@@ -396,6 +397,7 @@ export function renameProviderTypeExpressionTypeParameters(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
     case "source-primitive":
       return type;
   }
@@ -472,7 +474,8 @@ function providerTypeExpressionSourceShapeKey(
     case "undefined":
       return { kind: type.kind };
     case "literal":
-      return { kind: "literal", value: type.value };
+    case "bigint-literal":
+      return { kind: type.kind, value: type.value };
     case "source-primitive":
       return { kind: csharpSourcePrimitiveRuntimeKind(type.name) };
     case "source-global":
@@ -527,6 +530,7 @@ function providerTypeExpressionSourceShapeKey(
 function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts").ProviderTypeExpression): number {
   switch (type.kind) {
     case "literal":
+    case "bigint-literal":
     case "source-primitive":
     case "string":
     case "boolean":

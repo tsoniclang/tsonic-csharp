@@ -118,6 +118,7 @@ function substituteProviderTypeExpression(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
     case "source-primitive":
       return type;
   }

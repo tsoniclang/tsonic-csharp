@@ -271,6 +271,7 @@ function validateProviderTypeExpression(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
       return;
     case "source-primitive":
     case "type-parameter":

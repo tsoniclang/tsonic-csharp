@@ -130,6 +130,7 @@ function qualifyProviderTypeModuleRefs(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
     case "source-primitive":
     case "type-parameter":
       return type;
@@ -294,6 +295,7 @@ function collectProviderImportsFromType(
     case "bigint":
     case "object":
     case "literal":
+    case "bigint-literal":
     case "source-primitive":
     case "type-parameter":
       return;

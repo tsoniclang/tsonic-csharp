@@ -1,4 +1,5 @@
 import { csharpObjectShapeProjectionMethodName } from "../../../../../target-model/types/index.js";
+import { targetTypeRefEquals } from "../../../../../target-model/types/equality.js";
 import { csharpTypeFromTargetTypeRef } from "../../../types/target-types.js";
 import { renderSelectedCsharpTargetMethodTypeArguments } from "../../selected-method-type-arguments.js";
 import { sourceCallIsOptional, translateArrayCreationCall } from "./helpers.js";
@@ -66,7 +67,8 @@ export function translateSelectedTargetCall(
       diagnostics.push(unsupportedNodeDiagnostic(node, "The selected numeric conversion requires one exact value and a renderable result type."));
       return undefined;
     }
-    return { kind: "CastExpression", type, expression: argument.expression };
+    return targetTypeRefEquals(selection.targetMember.parameters[0]!.type, selection.targetMember.returnType!)
+      ? argument.expression : { kind: "CastExpression", type, expression: argument.expression };
   }
   if (selection.targetMember.kind === "constructor") {
     const type = selection.targetMember.declaringType === undefined ? undefined
