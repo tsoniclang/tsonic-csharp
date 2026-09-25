@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assertCsharpCheckingSucceeded,
   compileCsharpSource,
 } from "../../helpers/direct-csharp-session.mjs";
+
+for (const moduleSpecifier of ["@tsonic/core/lang.js", "@tsonic/csharp/lang.js"]) {
+  test(`module attributes from ${moduleSpecifier} reach the precise C# placement boundary`, () => {
+    const compiled = compileCsharpSource({
+      sourceText: `
+        import { attribute as annotate } from "${moduleSpecifier}";
+        import { SerializableAttribute } from "@tsonic/dotnet/System.js";
+        annotate.module().add(() => new SerializableAttribute());
+      `,
+    });
+    assertCsharpCheckingSucceeded(compiled);
+    assert.deepEqual(compiled.targetDiagnostics.map(diagnostic => diagnostic.code), [
+      "CSHARP_ATTRIBUTE_MODULE_NOT_SUPPORTED",
+    ]);
+    assert.deepEqual([...compiled.artifacts], []);
+  });
+}
 
 test("direct C# translation consumes exact source-core default and struct facts", () => {
   const compiled = compileCsharpSource({

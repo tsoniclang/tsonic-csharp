@@ -29,9 +29,9 @@ test("checked attribute lambdas retain native metadata at every supported C# pla
   const compiled = compileCsharpSource({ sourceText: `
     import { attribute } from "@tsonic/core/lang.js";
     import { SerializableAttribute, NonSerializedAttribute } from "@tsonic/dotnet/System.js";
-    import { DebuggerDisplayAttribute, DebuggerStepThroughAttribute } from "@tsonic/dotnet/System/Diagnostics.js";
-    import { InAttribute } from "@tsonic/dotnet/System/Runtime/InteropServices.js";
-    import { MaybeNullAttribute } from "@tsonic/dotnet/System/Diagnostics/CodeAnalysis.js";
+    import { DebuggerDisplayAttribute, DebuggerStepThroughAttribute } from "@tsonic/dotnet/System.Diagnostics.js";
+    import { InAttribute } from "@tsonic/dotnet/System.Runtime.InteropServices.js";
+    import { MaybeNullAttribute } from "@tsonic/dotnet/System.Diagnostics.CodeAnalysis.js";
     export class Subject {
       value: string;
       constructor(value: string) { this.value = value; }
@@ -75,14 +75,13 @@ Require(new Tsonic.Generated.Subject("ok").read("ok") == "ok");
 test("native C# still rejects nonattributes, nonconstants, duplicate and illegal placements", { timeout: 300_000 }, () => {
   const compiled = compileCsharpSource({ sourceText: `
     import { attribute } from "@tsonic/core/lang.js";
-    import { Exception, SerializableAttribute, ObsoleteAttribute } from "@tsonic/dotnet/System.js";
-    import { DebuggerDisplayAttribute } from "@tsonic/dotnet/System/Diagnostics.js";
+    import { Exception, SerializableAttribute, ObsoleteAttribute, String as NativeString } from "@tsonic/dotnet/System.js";
+    import { DebuggerDisplayAttribute } from "@tsonic/dotnet/System.Diagnostics.js";
     export class Subject { read(value: string): string { return value; } }
-    function label(): string { return "not constant"; }
     attribute<Subject>().add(() => new Exception("not metadata"));
     attribute<Subject>().add(() => new SerializableAttribute());
     attribute<Subject>().add(() => new SerializableAttribute());
-    attribute<Subject>().add(() => new DebuggerDisplayAttribute(label()));
+    attribute<Subject>().add(() => new DebuggerDisplayAttribute(NativeString.Concat("not ", "constant")));
     attribute<Subject>().method(subject => subject.read).parameter("value").add(() => new ObsoleteAttribute("illegal"));
   ` });
   const native = nativeAttributeProject(compiled, "attribute-rejections-", "System.Console.WriteLine(0);");

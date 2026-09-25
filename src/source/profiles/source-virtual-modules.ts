@@ -135,6 +135,10 @@ function csharpLangProviderImports(): readonly ProviderImportDeclaration[] {
         exportedName: "__TsonicAttributeMemberBuilder",
         kind: "type",
       },
+      {
+        exportedName: "__TsonicModuleAttributeBuilder",
+        kind: "type",
+      },
     ],
   }];
 }

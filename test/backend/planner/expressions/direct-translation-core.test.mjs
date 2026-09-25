@@ -192,7 +192,7 @@ test("direct C# translation selects exact provider overloads and source-core att
       ObsoleteAttribute,
       SerializableAttribute,
     } from "@tsonic/dotnet/System.js";
-    import { InAttribute } from "@tsonic/dotnet/System/Runtime/InteropServices.js";
+    import { InAttribute } from "@tsonic/dotnet/System.Runtime.InteropServices.js";
 
     export class User {
       constructor(id: string) {}
