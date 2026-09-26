@@ -53,7 +53,7 @@ export function tryPlanCsharpNativePointerOperation(
   if (selection.kind === "raw-location") {
     if (selection.method === "Reinterpret" && (state?.explicitUnsafeContextDepth ?? 0) === 0) {
       diagnostics.push(nativePointerDiagnostic("CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-        "Raw memory reinterpretation requires an explicit unsafeContext() source region."));
+        "Raw memory reinterpretation requires an explicit unsafecontext() source region."));
       return { handled: true };
     }
     const type = csharpTypeFromTargetTypeRef(selection.inputType);
@@ -102,7 +102,7 @@ export function tryPlanCsharpNativePointerOperation(
   if ((state?.explicitUnsafeContextDepth ?? 0) === 0) {
     diagnostics.push(nativePointerDiagnostic(
       "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED",
-      `C# native-pointer '${selection.kind}' requires an explicit unsafeContext()/unsafe() source region.`,
+      `C# native-pointer '${selection.kind}' requires an explicit unsafecontext()/unsafe() source region.`,
     ));
     return { handled: true };
   }
