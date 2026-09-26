@@ -106,10 +106,10 @@ test("static class fields require explicit source initialization semantics", () 
   ]);
 
   const explicitDefault = cleanCompile(`
-    import { defaultValue } from "@tsonic/core/lang.js";
+    import { defaultvalue } from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
     export class Counter {
-      static total: int32 = defaultValue<int32>();
+      static total: int32 = defaultvalue<int32>();
     }
   `);
 

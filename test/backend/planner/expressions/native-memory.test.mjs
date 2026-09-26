@@ -9,12 +9,12 @@ import { memoryAbiCapability, nativeLocationProofSource } from "../../../helpers
 import { nativeRecordProofSource, nativeFieldProofSource, nativeArrayProofSource } from "../../../helpers/native-record-proof.mjs";
 
 for (const [name, sourceText] of [
-  ["self", `export function make(): Pointer<typeof make> { return allocatePointer<typeof make>(make); }`],
-  ["mutual", `function first(): Pointer<typeof second> { return allocatePointer<typeof second>(second); }
-    export function second(): Pointer<typeof first> { return allocatePointer<typeof first>(first); }`],
+  ["self", `export function make(): Pointer<typeof make> { return allocateptr<typeof make>(make); }`],
+  ["mutual", `function first(): Pointer<typeof second> { return allocateptr<typeof second>(second); }
+    export function second(): Pointer<typeof first> { return allocateptr<typeof first>(first); }`],
 ]) {
   test(`recursive pointer return carrier rejects ${name} without unbounded classification`, { timeout: 30_000 }, () => {
-    const source = `import { allocatePointer } from "@tsonic/core/lang.js";
+    const source = `import { allocateptr } from "@tsonic/core/lang.js";
       import type { Pointer } from "@tsonic/core/types.js";
       ${sourceText}`;
     const helper = new URL("../../../helpers/direct-csharp-session.mjs", import.meta.url).href;
@@ -36,35 +36,37 @@ const crossFileSource = (typeArguments) => `
   import { abi } from "test:abi";
   import { remote } from "./layout.js";
   import type { uint32 } from "@tsonic/core/types.js";
-  import { memoryLayout, addressOf, toRawPointer, reinterpretRawPointer, loadPointer,
-    storePointer, equalPointer, equalRawPointer, unsafeContext } from "@tsonic/core/lang.js";
-  const local = memoryLayout<uint32>(abi, 4, 4, 4);
+  import { memorylayout, addressof, torawptr, reinterpretrawptr, loadptr,
+    storeptr, equalptr, equalrawptr, unsafecontext } from "@tsonic/core/lang.js";
+  const local = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
   export function run(): boolean {
-    unsafeContext();
+    unsafecontext();
     let value: uint32 = 7;
-    const pointer = addressOf(value);
-    const first = toRawPointer(pointer, local);
-    const second = toRawPointer(pointer, remote);
-    const left = reinterpretRawPointer(first, local);
-    const right = reinterpretRawPointer${typeArguments}(second, remote);
+    const pointer = addressof(value);
+    const first = torawptr(pointer, local);
+    const second = torawptr(pointer, remote);
+    const left = reinterpretrawptr(first, local);
+    const right = reinterpretrawptr${typeArguments}(second, remote);
     if (left === undefined || right === undefined) return false;
-    storePointer(left, 9);
-    if (value !== 9 || loadPointer(right) !== 9) return false;
+    storeptr(left, 9);
+    if (value !== 9 || loadptr(right) !== 9) return false;
     value = 17;
-    return loadPointer(right) === 17 && equalPointer(pointer, left) && equalRawPointer(first, second);
+    return loadptr(right) === 17 && equalptr(pointer, left) && equalrawptr(first, second);
   }
 `;
 const crossFileLayout = `
   import { abi } from "test:abi";
   import type { uint32 } from "@tsonic/core/types.js";
-  import { memoryLayout } from "@tsonic/core/lang.js";
-  export const remote = memoryLayout<uint32>(abi, 4, 4, 4);
+  import { memorylayout } from "@tsonic/core/lang.js";
+  export const remote = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
 `;
 
 const ordinaryFieldSource = `function ordinary(cell: { value: string }): string { return cell.value; }
   function ordinaryProof(): boolean { return ordinary({ value: "native" }) === "native"; }`;
-const mixedFieldSource = nativeFieldProofSource.replace("return loadPointer(pointer) === 21;",
-  "return loadPointer(pointer) === 21 && ordinaryProof();");
+const nativeFieldReturn = "return loadptr(pointer) === 21;";
+assert.equal(nativeFieldProofSource.split(nativeFieldReturn).length - 1, 1);
+const mixedFieldSource = nativeFieldProofSource.replace(nativeFieldReturn,
+  "return loadptr(pointer) === 21 && ordinaryProof();");
 
 for (const [name, sourceText, files] of [["scalar", nativeLocationProofSource], ["nested packed record", nativeRecordProofSource],
   ["object field", nativeFieldProofSource], ["array element", nativeArrayProofSource],
@@ -111,78 +113,80 @@ test(`native ${name} locations retain storage and replacement semantics`, { time
 
 for (const [name, source, diagnostic] of [
   ["managed byref from native array element", `import { UInt32 } from "@tsonic/dotnet/System.js";
-    import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
+    import { addressof, writeonlyref } from "@tsonic/core/lang.js";
     export function expose(): boolean {
       const values: uint32[] = [1];
-      toRawPointer(addressOf(values[0]), word);
-      return UInt32.TryParse("2", writeOnlyRef(values[0]));
+      torawptr(addressof(values[0]), word);
+      return UInt32.TryParse("2", writeonlyref(values[0]));
     }`, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN"],
-  ["conflicting array layouts", `import { addressOf } from "@tsonic/core/lang.js";
-    const packed = memoryLayout<uint32>(abi, 4, 1, 4);
+  ["conflicting array layouts", `import { addressof } from "@tsonic/core/lang.js";
+    const packed = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 1, stride: 4, fields: [] });
     export function expose(): void {
       const values: uint32[] = [1, 2];
       const alias = values;
-      toRawPointer(addressOf(values[0]), word);
-      toRawPointer(addressOf(alias[0]), packed);
+      torawptr(addressof(values[0]), word);
+      torawptr(addressof(alias[0]), packed);
     }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
-  ["escaping array storage", `import { addressOf } from "@tsonic/core/lang.js";
+  ["escaping array storage", `import { addressof } from "@tsonic/core/lang.js";
     declare function escape(values: uint32[]): void;
     export function expose(): void {
       const values: uint32[] = [1];
-      toRawPointer(addressOf(values[0]), word);
+      torawptr(addressof(values[0]), word);
       escape(values);
     }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
-  ["captured array storage", `import { addressOf } from "@tsonic/core/lang.js";
+  ["captured array storage", `import { addressof } from "@tsonic/core/lang.js";
     export function expose(): void {
       const values: uint32[] = [1];
-      toRawPointer(addressOf(values[0]), word);
+      torawptr(addressof(values[0]), word);
       const read = () => values[0];
       read();
     }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
   ["managed byref from native object field", `import { UInt32 } from "@tsonic/dotnet/System.js";
-    import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
+    import { addressof, writeonlyref } from "@tsonic/core/lang.js";
     export function expose(): boolean {
       const cell: { value: uint32 } = { value: 1 };
-      toRawPointer(addressOf(cell.value), word);
-      return UInt32.TryParse("2", writeOnlyRef(cell.value));
+      torawptr(addressof(cell.value), word);
+      return UInt32.TryParse("2", writeonlyref(cell.value));
     }`, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN"],
-  ["conflicting object field layouts", `import { addressOf } from "@tsonic/core/lang.js";
-    const packed = memoryLayout<uint32>(abi, 4, 1, 4);
+  ["conflicting object field layouts", `import { addressof } from "@tsonic/core/lang.js";
+    const packed = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 1, stride: 4, fields: [] });
     export function expose(): void {
       const cell: { value: uint32 } = { value: 1 };
       const alias = cell;
-      toRawPointer(addressOf(cell.value), word);
-      toRawPointer(addressOf(alias.value), packed);
+      torawptr(addressof(cell.value), word);
+      torawptr(addressof(alias.value), packed);
     }`, "CSHARP_NATIVE_BACKING_NOT_PROVEN"],
   ["managed byref from native local backing", `import { UInt32 } from "@tsonic/dotnet/System.js";
-    import { addressOf, writeOnlyRef } from "@tsonic/core/lang.js";
+    import { addressof, writeonlyref } from "@tsonic/core/lang.js";
     export function expose(): boolean {
       let value: uint32 = 1;
-      const pointer = addressOf(value);
-      toRawPointer(pointer, word);
-      return UInt32.TryParse("2", writeOnlyRef(value));
+      const pointer = addressof(value);
+      torawptr(pointer, word);
+      return UInt32.TryParse("2", writeonlyref(value));
     }`, "CSHARP_NATIVE_BACKING_BYREF_NOT_PROVEN"],
-  ["open caller", `export function expose(pointer: Pointer<uint32>) { return toRawPointer(pointer, word); }`, "CSHARP_POINTER_BACKING_NOT_PROVEN"],
-  ["conflicting inferred pointees", `import type { int32 } from "@tsonic/core/types.js"; export function expose(flag: boolean) { return flag ? allocatePointer<uint32>(1) : allocatePointer<int32>(2); }`, "CSHARP_UNSUPPORTED_AST"],
-  ["logical projection", `export function expose() { const pointer = allocatePointer<uint32>(1); return toRawPointer(projectPointer<uint32, uint32>(pointer, value => value, value => value), word); }`, "CSHARP_POINTER_BACKING_NOT_PROVEN"],
-  ["incompatible scalar size", `const wrong = memoryLayout<uint32>(abi, 8, 4, 8); export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, wrong); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
-  ["unsafe context", `export function expose(raw: RawPointer | undefined): Pointer<uint32> | undefined { return reinterpretRawPointer(raw, word); }`, "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED"],
-  ["invalid bit patterns", `const invalid = memoryLayout<boolean>(abi, 1, 1, 1); export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, invalid); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
-  ["ordinary reference record", `import { memoryField } from "@tsonic/core/lang.js";
+  ["open caller", `export function expose(pointer: Pointer<uint32>) { return torawptr(pointer, word); }`, "CSHARP_POINTER_BACKING_NOT_PROVEN"],
+  ["conflicting inferred pointees", `import type { int32 } from "@tsonic/core/types.js"; export function expose(flag: boolean) { return flag ? allocateptr<uint32>(1) : allocateptr<int32>(2); }`, "CSHARP_UNSUPPORTED_AST"],
+  ["logical projection", `export function expose() { const pointer = allocateptr<uint32>(1); return torawptr(projectptr<uint32, uint32>(pointer, value => value, value => value), word); }`, "CSHARP_POINTER_BACKING_NOT_PROVEN"],
+  ["incompatible scalar size", `const wrong = memorylayout<uint32>({ datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8, fields: [] }); export function expose(raw: RawPointer | undefined) { unsafecontext(); return reinterpretrawptr(raw, wrong); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+  ["unsafe context", `export function expose(raw: RawPointer | undefined): Pointer<uint32> | undefined { return reinterpretrawptr(raw, word); }`, "CSHARP_NATIVE_POINTER_UNSAFE_CONTEXT_REQUIRED"],
+  ["invalid bit patterns", `const invalid = memorylayout<boolean>({ datalayout: abi, bytesize: 1, bytealignment: 1, stride: 1, fields: [] }); export function expose(raw: RawPointer | undefined) { unsafecontext(); return reinterpretrawptr(raw, invalid); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+  ["ordinary reference record", `import { memoryfield } from "@tsonic/core/lang.js";
     interface Record { count: uint32 }
-    const record = memoryLayout<Record>(abi, 4, 4, 4, memoryField((value: Record) => value.count, 0, 4, word));
-    export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
-  ["incomplete value record", `import { memoryField, struct, field } from "@tsonic/core/lang.js";
+    const record = memorylayout<Record>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4,
+      fields: [memoryfield({ select: (value: Record) => value.count, byteoffset: 0, bytealignment: 4, fieldlayout: word })] });
+    export function expose(raw: RawPointer | undefined) { unsafecontext(); return reinterpretrawptr(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+  ["incomplete value record", `import { memoryfield, struct, field } from "@tsonic/core/lang.js";
     const Record = struct({ first: field<uint32>(), second: field<uint32>() });
-    const record = memoryLayout<typeof Record>(abi, 8, 4, 8, memoryField((value: typeof Record) => value.first, 0, 4, word));
-    export function expose(raw: RawPointer | undefined) { unsafeContext(); return reinterpretRawPointer(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
+    const record = memorylayout<typeof Record>({ datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8,
+      fields: [memoryfield({ select: (value: typeof Record) => value.first, byteoffset: 0, bytealignment: 4, fieldlayout: word })] });
+    export function expose(raw: RawPointer | undefined) { unsafecontext(); return reinterpretrawptr(raw, record); }`, "CSHARP_NATIVE_POINTER_OPERATION_NOT_MAPPED"],
 ]) {
   test(`native memory rejects ${name} without publishing artifacts`, () => {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `
 import { abi } from "test:abi";
-import { memoryLayout, toRawPointer, reinterpretRawPointer, allocatePointer, projectPointer, unsafeContext } from "@tsonic/core/lang.js";
+import { memorylayout, torawptr, reinterpretrawptr, allocateptr, projectptr, unsafecontext } from "@tsonic/core/lang.js";
 import type { Pointer, RawPointer, uint32 } from "@tsonic/core/types.js";
-const word = memoryLayout<uint32>(abi, 4, 4, 4);
+const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
 ${source}
 ` });
     assertCsharpCheckingSucceeded(compiled);

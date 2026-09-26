@@ -153,15 +153,15 @@ export function run(): boolean {
 test("inferred pointer loads preserve concrete conditional aliases and native widths", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ surface: "js", sourceText: `
 import type { Pointer, uint32 } from "@tsonic/core/types.js";
-import { allocatePointer, loadPointer } from "@tsonic/core/lang.js";
+import { allocateptr, loadptr } from "@tsonic/core/lang.js";
 type Selected<T> = T extends string ? string : T;
 class Box<T> { value: T; constructor(value: T) { this.value = value; } }
 function read(pointer: Pointer<Box<Selected<uint32>>>): Selected<uint32> {
-  return loadPointer(pointer).value;
+  return loadptr(pointer).value;
 }
 export function run(): boolean {
   const maximum: uint32 = 4294967295;
-  return read(allocatePointer(new Box<uint32>(maximum))) === maximum;
+  return read(allocateptr(new Box<uint32>(maximum))) === maximum;
 }
 ` }), "inferred-pointer-alias");
 });

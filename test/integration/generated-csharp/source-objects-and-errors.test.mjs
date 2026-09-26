@@ -85,13 +85,13 @@ export function run(): boolean {
 
 test("generic literal arguments preserve exact carrier inference regardless of argument order", { timeout: 300_000 }, () => {
   executeCsharpConstruction(compileCsharpSource({ sourceText: `
-import { allocatePointer, loadPointer, storePointer } from "@tsonic/core/lang.js";
+import { allocateptr, loadptr, storeptr } from "@tsonic/core/lang.js";
 import type { Pointer, uint32 } from "@tsonic/core/types.js";
-function first<T>(value: T, location: Pointer<T>): T { storePointer(location, value); return loadPointer(location); }
+function first<T>(value: T, location: Pointer<T>): T { storeptr(location, value); return loadptr(location); }
 function last<T>(location: Pointer<T>, value: T): T { return first(value, location); }
 export function run(): boolean {
-  const location = allocatePointer<number>(1);
-  const wide = allocatePointer<uint32>(0);
+  const location = allocateptr<number>(1);
+  const wide = allocateptr<uint32>(0);
   return first(9, location) === 9 && last(location, 12) === 12 && first(4294967295, wide) === 4294967295;
 }` }), "generic-literal-inference");
 });

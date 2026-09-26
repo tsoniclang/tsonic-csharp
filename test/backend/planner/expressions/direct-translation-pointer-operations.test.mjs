@@ -6,12 +6,12 @@ import {
 
 test("raw pointer identity preserves optional address carriers through parameters and returns", () => {
   const compiled = cleanCompile(`
-    import { equalRawPointer as same, hashRawPointer } from "@tsonic/core/lang.js";
+    import { equalrawptr as same, hashrawptr } from "@tsonic/core/lang.js";
     import type { RawPointer } from "@tsonic/core/types.js";
     type Address = RawPointer;
     function pass(value: Address | undefined): Address | undefined { return value; }
     export function check(left: Address | undefined, right: Address | undefined): boolean {
-      return same(pass(left), pass(right)) && hashRawPointer(left) === hashRawPointer(right);
+      return same(pass(left), pass(right)) && hashrawptr(left) === hashrawptr(right);
     }
     export function missing(): boolean { return check(undefined, undefined); }
   `);
@@ -24,24 +24,24 @@ test("raw pointer identity preserves optional address carriers through parameter
 
 test("typed locations preserve aliases, parameters, returns, and fresh allocation", () => {
   const compiled = cleanCompile(`
-    import { addressOf, allocatePointer, loadPointer, storePointer } from "@tsonic/core/lang.js";
+    import { addressof, allocateptr, loadptr, storeptr } from "@tsonic/core/lang.js";
     import type { int32, Pointer } from "@tsonic/core/types.js";
 
     function increment(pointer: Pointer<int32>): void {
-      storePointer(pointer, loadPointer(pointer) + 1);
+      storeptr(pointer, loadptr(pointer) + 1);
     }
 
     function create(): Pointer<int32> {
-      return allocatePointer<int32>(40);
+      return allocateptr<int32>(40);
     }
 
     export function run(): int32 {
       let local: int32 = 1;
-      const alias = addressOf(local);
+      const alias = addressof(local);
       increment(alias);
       const allocated = create();
       increment(allocated);
-      return local + loadPointer(allocated);
+      return local + loadptr(allocated);
     }
   `);
 
@@ -74,19 +74,19 @@ test("typed locations preserve aliases, parameters, returns, and fresh allocatio
 
 test("typed locations retain generic pointees and conditional identity", () => {
   const compiled = cleanCompile(`
-    import { addressOf, loadPointer, storePointer } from "@tsonic/core/lang.js";
+    import { addressof, loadptr, storeptr } from "@tsonic/core/lang.js";
     import type { bool, int32, Pointer } from "@tsonic/core/types.js";
 
     export function replace<T>(pointer: Pointer<T>, value: T): T {
-      storePointer(pointer, value);
-      return loadPointer(pointer);
+      storeptr(pointer, value);
+      return loadptr(pointer);
     }
 
     export function choose(flag: bool): int32 {
       let left: int32 = 1;
       let right: int32 = 2;
-      const pointer = flag ? addressOf(left) : addressOf(right);
-      storePointer(pointer, 3);
+      const pointer = flag ? addressof(left) : addressof(right);
+      storeptr(pointer, 3);
       return left + right;
     }
   `);
@@ -117,18 +117,18 @@ test("typed locations retain generic pointees and conditional identity", () => {
 
 test("typed-location equality preserves exact carrier identity and undefined", () => {
   const compiled = cleanCompile(`
-    import { equalPointer } from "@tsonic/core/lang.js";
+    import { equalptr } from "@tsonic/core/lang.js";
     import type { int32, Pointer } from "@tsonic/core/types.js";
 
     export function same<T>(
       left: Pointer<T> | undefined,
       right: Pointer<T> | undefined,
     ): boolean {
-      return equalPointer(left, right);
+      return equalptr(left, right);
     }
 
     export function bothMissing(): boolean {
-      return equalPointer<int32>(undefined, undefined);
+      return equalptr<int32>(undefined, undefined);
     }
   `);
 
@@ -151,7 +151,7 @@ test("typed-location equality preserves exact carrier identity and undefined", (
 
 test("independently formed addresses retain canonical local, parameter, member, element, and static identity", () => {
   const compiled = cleanCompile(`
-    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import { addressof, equalptr } from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
 
     let shared: int32 = 0;
@@ -161,12 +161,12 @@ test("independently formed addresses retain canonical local, parameter, member, 
 
       compare(parameter: int32, values: int32[]): boolean {
         let local: int32 = 0;
-        return equalPointer(addressOf(local), addressOf(local)) &&
-          equalPointer(addressOf(parameter), addressOf(parameter)) &&
-          equalPointer(addressOf(this.value), addressOf(this.value)) &&
-          equalPointer(addressOf(values[0]), addressOf(values[0])) &&
-          !equalPointer(addressOf(values[0]), addressOf(values[1])) &&
-          equalPointer(addressOf(shared), addressOf(shared));
+        return equalptr(addressof(local), addressof(local)) &&
+          equalptr(addressof(parameter), addressof(parameter)) &&
+          equalptr(addressof(this.value), addressof(this.value)) &&
+          equalptr(addressof(values[0]), addressof(values[0])) &&
+          !equalptr(addressof(values[0]), addressof(values[1])) &&
+          equalptr(addressof(shared), addressof(shared));
       }
     }
   `);
@@ -185,12 +185,12 @@ test("independently formed addresses retain canonical local, parameter, member, 
 test("source-core value-type fields preserve exact pointee facts and owner write-back", () => {
   const compiled = cleanCompile(`
     import {
-      addressOf,
-      defaultValue,
-      equalPointer,
+      addressof,
+      defaultvalue,
+      equalptr,
       field,
-      loadPointer,
-      storePointer,
+      loadptr,
+      storeptr,
       struct,
     } from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
@@ -201,12 +201,12 @@ test("source-core value-type fields preserve exact pointee facts and owner write
     });
 
     export function updatePair(): int32 {
-      let pair: typeof Pair = defaultValue<typeof Pair>();
+      let pair: typeof Pair = defaultvalue<typeof Pair>();
       pair.left = 1;
-      const first = addressOf(pair.left);
-      const second = addressOf(pair.left);
-      storePointer(first, 3);
-      return equalPointer(first, second) ? loadPointer(second) : pair.right;
+      const first = addressof(pair.left);
+      const second = addressof(pair.left);
+      storeptr(first, 3);
+      return equalptr(first, second) ? loadptr(second) : pair.right;
     }
   `);
 
@@ -219,9 +219,9 @@ test("source-core value-type fields preserve exact pointee facts and owner write
 test("source-backed location identities are independent of the absolute project root", () => {
   const sourceText = `
     import {
-      addressOf,
-      defaultValue,
-      equalPointer,
+      addressof,
+      defaultvalue,
+      equalptr,
       field,
       struct,
     } from "@tsonic/core/lang.js";
@@ -235,9 +235,9 @@ test("source-backed location identities are independent of the absolute project 
     });
 
     export function compare(): boolean {
-      let pair: typeof Pair = defaultValue<typeof Pair>();
-      return equalPointer(addressOf(shared), addressOf(shared)) &&
-        equalPointer(addressOf(pair.left), addressOf(pair.left));
+      let pair: typeof Pair = defaultvalue<typeof Pair>();
+      return equalptr(addressof(shared), addressof(shared)) &&
+        equalptr(addressof(pair.left), addressof(pair.left));
     }
   `;
   const first = cleanCompile(sourceText, {
@@ -259,21 +259,21 @@ test("source-backed location identities are independent of the absolute project 
 
 test("lambda, destructured, and per-iteration bindings receive one identity per activation", () => {
   const compiled = cleanCompile(`
-    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import { addressof, equalptr } from "@tsonic/core/lang.js";
     import type { bool, int32 } from "@tsonic/core/types.js";
 
     export function compareForms(values: int32[]): bool {
       const compare: (value: int32) => bool =
-        (value): bool => equalPointer(addressOf(value), addressOf(value));
+        (value): bool => equalptr(addressof(value), addressof(value));
       let [first] = values;
       let loopSame: bool = true;
       for (let item of values) {
         loopSame = loopSame &&
-          equalPointer(addressOf(item), addressOf(item));
+          equalptr(addressof(item), addressof(item));
         break;
       }
       return compare(first) &&
-        equalPointer(addressOf(first), addressOf(first)) &&
+        equalptr(addressof(first), addressof(first)) &&
         loopSame;
     }
   `);
@@ -293,16 +293,16 @@ test("lambda, destructured, and per-iteration bindings receive one identity per 
 
 test("sibling lambdas isolate local names while retaining captured location identity", () => {
   const compiled = cleanCompile(`
-    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import { addressof, equalptr } from "@tsonic/core/lang.js";
     import type { bool, int32 } from "@tsonic/core/types.js";
 
     export function compareSiblingLambdas(seed: int32): bool {
       const first: (value: int32) => bool =
-        (value): bool => equalPointer(addressOf(value), addressOf(value));
+        (value): bool => equalptr(addressof(value), addressof(value));
       const second: (value: int32) => bool =
-        (value): bool => equalPointer(addressOf(value), addressOf(value));
+        (value): bool => equalptr(addressof(value), addressof(value));
       const captured: () => bool =
-        (): bool => equalPointer(addressOf(seed), addressOf(seed));
+        (): bool => equalptr(addressof(seed), addressof(seed));
       return first(seed) && second(seed) && captured();
     }
   `);
@@ -320,7 +320,7 @@ test("loop bindings preserve assignment, lexical, and function-scoped storage id
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
-    import { addressOf, equalPointer } from "@tsonic/core/lang.js";
+    import { addressof, equalptr } from "@tsonic/core/lang.js";
     import type { bool, int32 } from "@tsonic/core/types.js";
 
     export function compareLoops(
@@ -331,27 +331,27 @@ test("loop bindings preserve assignment, lexical, and function-scoped storage id
       let assigned: int32 = 0;
       for (assigned of values) {
         result = result &&
-          equalPointer(addressOf(assigned), addressOf(assigned));
+          equalptr(addressof(assigned), addressof(assigned));
         break;
       }
       for (let key in record) {
-        result = result && equalPointer(addressOf(key), addressOf(key));
+        result = result && equalptr(addressof(key), addressof(key));
         break;
       }
       for (var fromValues of values) {
         result = result &&
-          equalPointer(addressOf(fromValues), addressOf(fromValues));
+          equalptr(addressof(fromValues), addressof(fromValues));
         break;
       }
       for (var fromKeys in record) {
         result = result &&
-          equalPointer(addressOf(fromKeys), addressOf(fromKeys));
+          equalptr(addressof(fromKeys), addressof(fromKeys));
         break;
       }
       for (var index: int32 = 0; index < 1; index++) {
-        result = result && equalPointer(addressOf(index), addressOf(index));
+        result = result && equalptr(addressof(index), addressof(index));
       }
-      return result && equalPointer(addressOf(index), addressOf(index));
+      return result && equalptr(addressof(index), addressof(index));
     }
     `,
   });
@@ -386,18 +386,18 @@ test("loop bindings preserve assignment, lexical, and function-scoped storage id
 test("unsupported loop activation identities fail closed before C# emission", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      import { addressOf } from "@tsonic/core/lang.js";
+      import { addressof } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
 
       export function reject(): void {
         for (let index: int32 = 0; index < 1; index++) {
-          addressOf(index);
+          addressof(index);
         }
       }
 
       export function rejectDestructuredVar(values: [int32][]): void {
         for (var [item] of values) {
-          addressOf(item);
+          addressof(item);
         }
       }
     `,
@@ -422,7 +422,7 @@ test("unsupported loop activation identities fail closed before C# emission", ()
 
 test("address acquisition evaluates reference receivers and indexes exactly once", () => {
   const compiled = cleanCompile(`
-    import { addressOf, storePointer } from "@tsonic/core/lang.js";
+    import { addressof, storeptr } from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
 
     export class Box { value: int32 = 1; }
@@ -440,10 +440,10 @@ test("address acquisition evaluates reference receivers and indexes exactly once
     }
 
     export function run(box: Box, values: int32[]): int32 {
-      const field = addressOf(select(box).value);
-      const element = addressOf(values[index()]);
-      storePointer(field, 3);
-      storePointer(element, 4);
+      const field = addressof(select(box).value);
+      const element = addressof(values[index()]);
+      storeptr(field, 3);
+      storeptr(element, 4);
       return receiverCalls + indexCalls + box.value + values[0];
     }
   `);
@@ -463,11 +463,11 @@ test("typed-location element identity fails closed for indexers without canonica
   const compiled = compileCsharpSource({
     surface: "js",
     sourceText: `
-      import { addressOf } from "@tsonic/core/lang.js";
+      import { addressof } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
 
       export function reject(values: Record<string, int32>, key: string): void {
-        addressOf(values[key]);
+        addressof(values[key]);
       }
     `,
   });
@@ -489,11 +489,11 @@ test("selected hash, binding, and projection operations consume exact C# contrac
       sourceOperation: "hash-pointer",
       emitted: /Location<int>\.Hash\(pointer\)/u,
       sourceText: `
-        import { hashPointer } from "@tsonic/core/lang.js";
+        import { hashptr } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
         export function hash(pointer: Pointer<int32>): number {
-          return hashPointer(pointer);
+          return hashptr(pointer);
         }
       `,
     },
@@ -501,13 +501,13 @@ test("selected hash, binding, and projection operations consume exact C# contrac
       sourceOperation: "bind-pointer",
       emitted: /Location<int>\.Bind\(/u,
       sourceText: `
-        import { bindPointer } from "@tsonic/core/lang.js";
+        import { bindptr } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
         class Identity { value: int32 = 0; }
         export function bind(value: int32): Pointer<int32> {
           let storage = value;
-          return bindPointer<int32>(new Identity(), () => storage, next => { storage = next; });
+          return bindptr<int32>(new Identity(), () => storage, next => { storage = next; });
         }
       `,
     },
@@ -515,11 +515,11 @@ test("selected hash, binding, and projection operations consume exact C# contrac
       sourceOperation: "project-pointer",
       emitted: /Location<int>\.Project<int>\(/u,
       sourceText: `
-        import { projectPointer } from "@tsonic/core/lang.js";
+        import { projectptr } from "@tsonic/core/lang.js";
         import type { int32, Pointer } from "@tsonic/core/types.js";
 
         export function project(pointer: Pointer<int32>): Pointer<int32> {
-          return projectPointer<int32, int32>(pointer, value => value, value => value);
+          return projectptr<int32, int32>(pointer, value => value, value => value);
         }
       `,
     },
@@ -537,47 +537,49 @@ test("selected hash, binding, and projection operations consume exact C# contrac
 
 test("optional pointer projection retains missingness and evaluates exact callbacks", () => {
   const compiled = cleanCompile(`
-    import { projectPointer, hashPointer } from "@tsonic/core/lang.js";
+    import { projectptr, hashptr } from "@tsonic/core/lang.js";
     import type { int32, Pointer } from "@tsonic/core/types.js";
     export function project(pointer: Pointer<int32> | undefined): Pointer<int32> | undefined {
-      return projectPointer<int32, int32>(pointer, value => value + 1, value => value - 1);
+      return projectptr<int32, int32>(pointer, value => value + 1, value => value - 1);
     }
-    export function hash(pointer: Pointer<int32> | undefined): number { return hashPointer(pointer); }
-    export function missing(): number { return hashPointer<int32>(undefined); }
+    export function hash(pointer: Pointer<int32> | undefined): number { return hashptr(pointer); }
+    export function missing(): number { return hashptr<int32>(undefined); }
   `);
   assert.match(compiled.artifacts.get("src/Index.cs"), /ProjectOptional<int>\(pointer,/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(pointer\)/u);
   assert.match(compiled.artifacts.get("src/Index.cs"), /Location<int>\.Hash\(null\)/u);
 });
 
-test("reachability barriers consume selected aliases, not same-spelled local calls", () => {
-  const compiled = cleanCompile(`
-    import { keepAlive as retain } from "@tsonic/core/lang.js";
+for (const localName of ["keepAlive", "keepalive"]) {
+  test(`reachability barriers consume selected aliases, not local ${localName} calls`, () => {
+    const compiled = cleanCompile(`
+    import { keepalive as retain } from "@tsonic/core/lang.js";
     import * as core from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
     export class System { value: int32 = 0; }
-    function keepAlive(value: int32): int32 { return value + 1; }
+    function ${localName}(value: int32): int32 { return value + 1; }
     export function run(value: int32): int32 {
       retain(value);
-      core.keepAlive(value);
-      return keepAlive(value);
+      core.keepalive(value);
+      return ${localName}(value);
     }
   `);
-  const output = compiled.artifacts.get("src/Index.cs");
-  assert.equal(occurrences(output, "global::System.GC.KeepAlive(value)"), 2);
-  assert.match(output, /return keepAlive\(value\);/u);
-});
+    const output = compiled.artifacts.get("src/Index.cs");
+    assert.equal(occurrences(output, "global::System.GC.KeepAlive(value)"), 2);
+    assert.match(output, new RegExp(`return ${localName}\\(value\\);`, "u"));
+  });
+}
 
 test("address-of rejects each readonly or non-storage occurrence independently", () => {
   const compiled = compileCsharpSource({
     sourceText: `
-      import { addressOf } from "@tsonic/core/lang.js";
+      import { addressof } from "@tsonic/core/lang.js";
       import type { int32 } from "@tsonic/core/types.js";
 
       export function reject(): void {
         const value: int32 = 1;
-        addressOf(value);
-        addressOf(value + 1);
+        addressof(value);
+        addressof(value + 1);
       }
     `,
   });
@@ -591,11 +593,11 @@ test("address-of rejects each readonly or non-storage occurrence independently",
     [
       {
         code: "TSTS_SOURCE_SEMANTICS_0002",
-        message: "addressOf(...) requires writable storage.",
+        message: "addressof(...) requires writable storage.",
       },
       {
         code: "TSTS_SOURCE_SEMANTICS_0002",
-        message: "addressOf(...) requires writable storage.",
+        message: "addressof(...) requires writable storage.",
       },
     ],
   );
@@ -610,10 +612,10 @@ test("address-of rejects imported constants before target planning", () => {
     "values.ts": `export const fixed = 7;`,
     "exports.ts": `export { fixed } from "./values.js";`,
   }, sourceText: `
-    import { addressOf } from "@tsonic/core/lang.js";
+    import { addressof } from "@tsonic/core/lang.js";
     import { fixed } from "./values.js";
     import { fixed as alias } from "./exports.js";
-    export function reject(): void { addressOf(fixed); addressOf(alias); }
+    export function reject(): void { addressof(fixed); addressof(alias); }
   ` });
   assert.equal(compiled.sourceDiagnosticsText, "");
   assert.deepEqual(compiled.extensionDiagnostics.map(diagnostic => diagnostic.publicCode),
@@ -621,43 +623,45 @@ test("address-of rejects imported constants before target planning", () => {
   assert.equal(compiled.artifacts.size, 0);
 });
 
-test("same-spelled local pointer functions remain ordinary source calls", () => {
-  const compiled = cleanCompile(`
+for (const [equalityName, loadName] of [["equalPointer", "loadPointer"], ["equalptr", "loadptr"]]) {
+  test(`local ${equalityName}/${loadName} pointer functions remain ordinary source calls`, () => {
+    const compiled = cleanCompile(`
     import type { int32 } from "@tsonic/core/types.js";
 
-    function equalPointer(left: int32, right: int32): boolean {
+    function ${equalityName}(left: int32, right: int32): boolean {
       return left === right;
     }
 
-    function loadPointer(value: int32): int32 {
+    function ${loadName}(value: int32): int32 {
       return value;
     }
 
     export function run(value: int32): boolean {
-      return equalPointer(loadPointer(value), value);
+      return ${equalityName}(${loadName}(value), value);
     }
   `);
 
-  assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
+    assert.equal(compiled.artifacts.get("src/Index.cs"), `namespace Tsonic.Generated
 {
     public static class Index
     {
-        public static bool equalPointer(int left, int right)
+        public static bool ${equalityName}(int left, int right)
         {
             return left == right;
         }
-        public static int loadPointer(int value)
+        public static int ${loadName}(int value)
         {
             return value;
         }
         public static bool run(int value)
         {
-            return equalPointer(loadPointer(value), value);
+            return ${equalityName}(${loadName}(value), value);
         }
     }
 }
 `);
-});
+  });
+}
 
 function cleanCompile(sourceText, options = {}) {
   const compiled = compileCsharpSource({ ...options, sourceText });
