@@ -128,6 +128,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
 }
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
+  validateReferences(): ExtensionDiagnostic | undefined;
   findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined;
   findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
   resolveTargetRelations(
@@ -404,6 +405,10 @@ export function createDotnetReflectionTypeDataProvider(
 
   const typeDataProvider: DotnetReflectionTypeDataProvider = {
     identity: providerIdentity,
+    validateReferences(): ExtensionDiagnostic | undefined {
+      const result = validateReferenceSnapshot();
+      return result === undefined ? undefined : dotnetProviderDiagnosticToExtensionDiagnostic(providerIdentity.id, result);
+    },
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier, moduleSpecifierPolicy) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },

@@ -24,6 +24,7 @@ export type CsharpProviderRelationResolution =
     };
 
 export interface CsharpProviderRelationResolver {
+  validateReferences(): readonly ExtensionDiagnostic[];
   resolveType(
     declaration: ProviderVirtualDeclarationFact | undefined,
   ): CsharpProviderRelationResolution;

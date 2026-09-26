@@ -71,6 +71,10 @@ export function createCsharpProviderRelationResolver(
   );
   assertUniqueProviderIdentities(providers);
   assertUniqueProviderSources(providers, staticCatalogs);
+  const resolutions = new WeakMap<
+    ProviderVirtualDeclarationFact,
+    Map<CsharpProviderTargetRelation["kind"], CsharpProviderRelationResolution>
+  >();
   const resolve = (
     declaration: ProviderVirtualDeclarationFact | undefined,
     kind: CsharpProviderTargetRelation["kind"],
@@ -142,26 +146,48 @@ export function createCsharpProviderRelationResolver(
       }
     }
   };
+  const selected = (
+    declaration: ProviderVirtualDeclarationFact | undefined,
+    kind: CsharpProviderTargetRelation["kind"],
+  ): CsharpProviderRelationResolution => {
+    if (declaration === undefined) return resolve(declaration, kind);
+    let kinds = resolutions.get(declaration);
+    const existing = kinds?.get(kind);
+    if (existing !== undefined) return existing;
+    const result = resolve(declaration, kind);
+    if (kinds === undefined) {
+      kinds = new Map();
+      resolutions.set(declaration, kinds);
+    }
+    kinds.set(kind, result);
+    return result;
+  };
   return Object.freeze({
+    validateReferences() {
+      return Object.freeze(providers.flatMap((provider) => {
+        const diagnostic = provider.validateReferences();
+        return diagnostic === undefined ? [] : [diagnostic];
+      }));
+    },
     resolveType(
       declaration: ProviderVirtualDeclarationFact | undefined,
     ): CsharpProviderRelationResolution {
-      return resolve(declaration, "type");
+      return selected(declaration, "type");
     },
     resolveValue(
       declaration: ProviderVirtualDeclarationFact | undefined,
     ): CsharpProviderRelationResolution {
-      return resolve(declaration, "value");
+      return selected(declaration, "value");
     },
     resolveMember(
       declaration: ProviderVirtualDeclarationFact | undefined,
     ): CsharpProviderRelationResolution {
-      return resolve(declaration, "member");
+      return selected(declaration, "member");
     },
     resolveSignature(
       declaration: ProviderVirtualDeclarationFact | undefined,
     ): CsharpProviderRelationResolution {
-      return resolve(declaration, "signature");
+      return selected(declaration, "signature");
     },
     findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
       return findUniqueTargetBinding(

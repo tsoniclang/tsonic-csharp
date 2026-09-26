@@ -5,7 +5,7 @@ import type {
 import type { TargetDiagnostic } from "@tsonic/target-api/artifacts";
 
 export function selectedPolicyDiagnostic(
-  node: Node,
+  node: Node | undefined,
   diagnostic: ExtensionDiagnostic,
 ): TargetDiagnostic {
   return {
@@ -13,7 +13,7 @@ export function selectedPolicyDiagnostic(
     category: diagnostic.category,
     source: diagnostic.extensionId,
     message: diagnostic.message,
-    sourceNode: node,
+    ...(node === undefined ? {} : { sourceNode: node }),
     ...(diagnostic.evidence === undefined || diagnostic.evidence.length === 0
       ? {}
       : {
