@@ -9,12 +9,12 @@ import { memoryAbiCapability } from "../../../helpers/memory-abi.mjs";
 
 const prelude = `
 import { abi } from "test:abi";
-import { memoryLayout, memoryArrayLayout, memoryField, struct, field,
-  allocatePointer, toRawPointer, reinterpretRawPointer, unsafeContext,
-  sizeOf, alignOf, strideOf } from "@tsonic/core/lang.js";
+import { memorylayout, memoryarraylayout, memoryfield, struct, field,
+  allocateptr, torawptr, reinterpretrawptr, unsafecontext,
+  sizeof, alignof, strideof } from "@tsonic/core/lang.js";
 import type { FixedArray, RawPointer, uint32, nativeUint } from "@tsonic/core/types.js";
-const word = memoryLayout<uint32>(abi, 4, 4, 4);
-const pair = memoryArrayLayout<uint32, 2>(abi, 8, 4, 8, word, 2);
+const word = memorylayout<uint32>({ datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4, fields: [] });
+const pair = memoryarraylayout<uint32, 2>({ datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8, elementlayout: word, length: 2 });
 `;
 
 test("fixed-array layout observations erase without requiring inline C# storage", () => {
@@ -24,18 +24,18 @@ test("fixed-array layout observations erase without requiring inline C# storage"
   }, sourceText: `${prelude}
   import type { Huge } from "./arrays.js";
 import type { MemoryLayout } from "@tsonic/core/types.js";
-const matrix = memoryArrayLayout<FixedArray<uint32, 2>, 2>(abi, 16, 4, 16, pair, 2);
-const empty = memoryLayout<{}>(abi, 0, 1, 0);
-const huge = memoryArrayLayout<{}, 9007199254740993n>(abi, 0, 1, 0, empty, 9007199254740993n);
+const matrix = memoryarraylayout<FixedArray<uint32, 2>, 2>({ datalayout: abi, bytesize: 16, bytealignment: 4, stride: 16, elementlayout: pair, length: 2 });
+const empty = memorylayout<{}>({ datalayout: abi, bytesize: 0, bytealignment: 1, stride: 0, fields: [] });
+const huge = memoryarraylayout<{}, 9007199254740993n>({ datalayout: abi, bytesize: 0, bytealignment: 1, stride: 0, elementlayout: empty, length: 9007199254740993n });
 const annotated: MemoryLayout<Huge> = huge;
-export function pairSize(): nativeUint { return sizeOf(pair); }
-export function matrixSize(): nativeUint { return sizeOf(matrix); }
-export function matrixAlignment(): nativeUint { return alignOf(matrix); }
-export function matrixStride(): nativeUint { return strideOf(matrix); }
-export function hugeSize(): nativeUint { return sizeOf(huge); }
-export function aliasedHugeSize(): nativeUint { return sizeOf(annotated); }
+export function pairSize(): nativeUint { return sizeof(pair); }
+export function matrixSize(): nativeUint { return sizeof(matrix); }
+export function matrixAlignment(): nativeUint { return alignof(matrix); }
+export function matrixStride(): nativeUint { return strideof(matrix); }
+export function hugeSize(): nativeUint { return sizeof(huge); }
+export function aliasedHugeSize(): nativeUint { return sizeof(annotated); }
 export function inlineHugeSize(): nativeUint {
-  return sizeOf(memoryArrayLayout(abi, 0, 1, 0, empty, 9007199254740993n));
+  return sizeof(memoryarraylayout({ datalayout: abi, bytesize: 0, bytealignment: 1, stride: 0, elementlayout: empty, length: 9007199254740993n }));
 }
 ` });
   assertCsharpCompilationSucceeded(compiled);
@@ -45,34 +45,40 @@ export function inlineHugeSize(): nativeUint {
     assert.match(output, new RegExp(`public static nuint ${name}\\(\\)\\s*\\{\\s*return ${value};\\s*\\}`, "u"));
   }
   const generated = [...compiled.artifacts].filter(([path]) => path.endsWith(".cs")).map(([, text]) => text).join("\n");
-  assert.doesNotMatch(generated, /memoryArrayLayout|MemoryLayout|9007199254740993|NativeLocation|\[\]/u);
+  assert.doesNotMatch(generated, /memoryarraylayout|MemoryLayout|9007199254740993|NativeLocation|\[\]/u);
 });
 
 for (const [name, declarations, sourceType, layout] of [
   ["root array", "", "FixedArray<uint32, 2>", "pair"],
   ["array of arrays", `
-    const matrix = memoryArrayLayout<FixedArray<uint32, 2>, 2>(abi, 16, 4, 16, pair, 2);
+    const matrix = memoryarraylayout<FixedArray<uint32, 2>, 2>({ datalayout: abi, bytesize: 16, bytealignment: 4, stride: 16, elementlayout: pair, length: 2 });
   `, "FixedArray<FixedArray<uint32, 2>, 2>", "matrix"],
   ["record field array", `
     const Record = struct({ values: field<FixedArray<uint32, 2>>() });
-    const record = memoryLayout<typeof Record>(abi, 8, 4, 8,
-      memoryField((value: typeof Record) => value.values, 0, 4, pair));
+    const record = memorylayout<typeof Record>({
+      datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8,
+      fields: [memoryfield({ select: (value: typeof Record) => value.values, byteoffset: 0, bytealignment: 4, fieldlayout: pair })],
+    });
   `, "typeof Record", "record"],
   ["array nested through records", `
     const Record = struct({ values: field<FixedArray<uint32, 2>>() });
     const Envelope = struct({ record: field<typeof Record>() });
-    const record = memoryLayout<typeof Record>(abi, 8, 4, 8,
-      memoryField((value: typeof Record) => value.values, 0, 4, pair));
-    const envelope = memoryLayout<typeof Envelope>(abi, 8, 4, 8,
-      memoryField((value: typeof Envelope) => value.record, 0, 4, record));
+    const record = memorylayout<typeof Record>({
+      datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8,
+      fields: [memoryfield({ select: (value: typeof Record) => value.values, byteoffset: 0, bytealignment: 4, fieldlayout: pair })],
+    });
+    const envelope = memorylayout<typeof Envelope>({
+      datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8,
+      fields: [memoryfield({ select: (value: typeof Envelope) => value.record, byteoffset: 0, bytealignment: 4, fieldlayout: record })],
+    });
   `, "typeof Envelope", "envelope"],
 ]) {
   test(`native raw reinterpretation constructs exact codecs for ${name}`, () => {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
 ${declarations}
 export function expose(raw: RawPointer | undefined) {
-  unsafeContext();
-  return reinterpretRawPointer(raw, ${layout});
+  unsafecontext();
+  return reinterpretrawptr(raw, ${layout});
 }
 ` });
     assertCsharpCompilationSucceeded(compiled);
@@ -83,8 +89,8 @@ export function expose(raw: RawPointer | undefined) {
     const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
 ${declarations}
 export function expose(value: ${sourceType}) {
-  const pointer = allocatePointer<${sourceType}>(value);
-  return toRawPointer(pointer, ${layout});
+  const pointer = allocateptr<${sourceType}>(value);
+  return torawptr(pointer, ${layout});
 }
 ` });
     assertCsharpCompilationSucceeded(compiled);
@@ -95,12 +101,14 @@ export function expose(value: ${sourceType}) {
 test("native array layouts reject reference elements rather than decoding object identities", () => {
   const compiled = compileCsharpSource({ capabilities: [memoryAbiCapability("csharp")], sourceText: `${prelude}
 interface Entry { count: uint32 }
-const entry = memoryLayout<Entry>(abi, 4, 4, 4,
-  memoryField((value: Entry) => value.count, 0, 4, word));
-const entries = memoryArrayLayout<Entry, 2>(abi, 8, 4, 8, entry, 2);
+const entry = memorylayout<Entry>({
+  datalayout: abi, bytesize: 4, bytealignment: 4, stride: 4,
+  fields: [memoryfield({ select: (value: Entry) => value.count, byteoffset: 0, bytealignment: 4, fieldlayout: word })],
+});
+const entries = memoryarraylayout<Entry, 2>({ datalayout: abi, bytesize: 8, bytealignment: 4, stride: 8, elementlayout: entry, length: 2 });
 export function expose(raw: RawPointer | undefined) {
-  unsafeContext();
-  return reinterpretRawPointer(raw, entries);
+  unsafecontext();
+  return reinterpretrawptr(raw, entries);
 }
 ` });
   assertCsharpCheckingSucceeded(compiled);
